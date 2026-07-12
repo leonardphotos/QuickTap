@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { api } from '../../api/client';
 import type { CartLine, PaymentMethod, Restaurant } from '../../types';
-import { formatBs, formatUsd } from '../../utils/format';
+import { publicPriceLabel } from '../../utils/format';
 
 interface Props {
   restaurant: Restaurant;
   cart: CartLine[];
-  subtotal: number;
+  subtotalBase: number;
   qrToken: string | null;
   onRemove: (index: number) => void;
   onClose: () => void;
@@ -20,7 +20,7 @@ const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
   { value: 'CARD', label: 'Tarjeta' },
 ];
 
-export default function CartDrawer({ restaurant, cart, subtotal, qrToken, onRemove, onClose, onClearAndClose }: Props) {
+export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, onRemove, onClose, onClearAndClose }: Props) {
   const [mode, setMode] = useState<'DELIVERY' | 'PICKUP'>('DELIVERY');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -105,33 +105,38 @@ export default function CartDrawer({ restaurant, cart, subtotal, qrToken, onRemo
         <p className="text-sm text-gray-500 py-6 text-center">Tu carrito está vacío.</p>
       ) : (
         <ul className="space-y-2 max-h-48 overflow-y-auto">
-          {cart.map((l, i) => (
-            <li key={i} className="flex items-start justify-between text-sm border-b pb-2">
-              <div>
-                <p className="font-medium text-gray-900">
-                  {l.quantity}x {l.product.name}
-                </p>
-                {l.note && <p className="text-xs text-gray-500">📝 {l.note}</p>}
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span>{formatUsd(Number(l.product.price) * l.quantity)}</span>
-                <button onClick={() => onRemove(i)} className="text-red-500 text-xs">
-                  Quitar
-                </button>
-              </div>
-            </li>
-          ))}
+          {cart.map((l, i) => {
+            const linePrice = publicPriceLabel(Number(l.product.price) * l.quantity, restaurant);
+            return (
+              <li key={i} className="flex items-start justify-between text-sm border-b pb-2">
+                <div>
+                  <p className="font-medium text-gray-900">
+                    {l.quantity}x {l.product.name}
+                  </p>
+                  {l.note && <p className="text-xs text-gray-500">📝 {l.note}</p>}
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span>{linePrice.primary}</span>
+                  <button onClick={() => onRemove(i)} className="text-red-500 text-xs">
+                    Quitar
+                  </button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
 
       <div className="flex justify-between text-sm font-semibold mt-3">
-        <span>Subtotal</span>
-        <span>{formatUsd(subtotal)}</span>
+        <span>Total a pagar</span>
+        <span>{publicPriceLabel(subtotalBase, restaurant).primary}</span>
       </div>
-      <div className="flex justify-between text-xs text-gray-500 mb-3">
-        <span>Total en Bs</span>
-        <span>{formatBs(subtotal, restaurant.exchangeRate)}</span>
-      </div>
+      {publicPriceLabel(subtotalBase, restaurant).secondary && (
+        <div className="flex justify-between text-xs text-gray-500 mb-3">
+          <span>Equivalente</span>
+          <span>{publicPriceLabel(subtotalBase, restaurant).secondary}</span>
+        </div>
+      )}
 
       {cart.length > 0 && (
         <>

@@ -1,4 +1,4 @@
-import { formatBs, formatMoney, round2, toDecimal, usdToBs } from './money';
+import { baseToBs, formatBs, formatMoney, round2, toDecimal } from './money';
 
 /**
  * ============================================================================
@@ -8,7 +8,9 @@ import { formatBs, formatMoney, round2, toDecimal, usdToBs } from './money';
  *  con el mensaje del pedido perfectamente estructurado y estético.
  *
  *  El mensaje se codifica con `encodeURIComponent` para respetar saltos de
- *  línea, emojis y caracteres especiales.
+ *  línea, emojis y caracteres especiales. Los montos se muestran en Bs
+ *  (moneda de pago del cliente) con el precio en la moneda base del
+ *  restaurante ($/€) como referencia entre paréntesis.
  */
 
 export type PaymentMethod = 'MOBILE_PAYMENT' | 'ZELLE' | 'CASH' | 'CARD';
@@ -18,7 +20,7 @@ export type DeliveryMode = 'DELIVERY' | 'PICKUP';
 export interface WhatsappCartItem {
   name: string;
   quantity: number;
-  /** Precio unitario en USD. */
+  /** Precio unitario en la moneda base del restaurante ($ o €). */
   unitPrice: number | string;
   /** Modificadores del plato: "Sin cebolla", "Extra queso"... */
   modifiers?: string[];
@@ -39,7 +41,9 @@ export interface BuildWhatsappCheckoutParams {
   restaurantName: string;
   /** WhatsApp destino en formato internacional sin "+" (ej: 584141234567). */
   whatsappPhone: string;
-  /** Tasa de cambio USD -> Bs vigente. */
+  /** Símbolo de la moneda base del restaurante ($ o €). */
+  currencySymbol: string;
+  /** Tasa BCV vigente (moneda base -> Bs). */
   exchangeRate: number | string;
   mode: DeliveryMode;
   items: WhatsappCartItem[];
@@ -49,7 +53,7 @@ export interface BuildWhatsappCheckoutParams {
 export interface WhatsappCheckoutResult {
   url: string;
   message: string;
-  subtotalUsd: string;
+  subtotalBase: string;
   totalBs: string;
 }
 
@@ -72,23 +76,26 @@ function sanitizePhone(phone: string): string {
 export function buildWhatsappCheckoutUrl(
   params: BuildWhatsappCheckoutParams,
 ): WhatsappCheckoutResult {
-  const { restaurantName, whatsappPhone, exchangeRate, mode, items, customer } = params;
+  const { restaurantName, whatsappPhone, currencySymbol, exchangeRate, mode, items, customer } = params;
 
   if (items.length === 0) {
     throw new Error('El carrito está vacío.');
   }
 
   // --- Cálculo de totales ---
-  let subtotal = toDecimal(0);
+  let subtotalBase = toDecimal(0);
   const lines: string[] = [];
 
   for (const item of items) {
     const qty = Math.max(1, Math.floor(item.quantity));
-    const lineTotal = round2(toDecimal(item.unitPrice).mul(qty));
-    subtotal = subtotal.add(lineTotal);
+    const lineTotalBase = round2(toDecimal(item.unitPrice).mul(qty));
+    const lineTotalBs = baseToBs(lineTotalBase, exchangeRate);
+    subtotalBase = subtotalBase.add(lineTotalBase);
 
-    // Línea principal: "2x Hamburguesa Clásica ....... $17.00"
-    lines.push(`• ${qty}x ${item.name}  —  ${formatMoney(lineTotal)}`);
+    // Línea principal en Bs (moneda de pago), con la base entre paréntesis.
+    lines.push(
+      `• ${qty}x ${item.name}  —  ${formatBs(lineTotalBs)} (${formatMoney(lineTotalBase, currencySymbol)})`,
+    );
 
     // Modificadores
     if (item.modifiers && item.modifiers.length > 0) {
@@ -102,8 +109,8 @@ export function buildWhatsappCheckoutUrl(
     }
   }
 
-  const subtotalUsd = round2(subtotal);
-  const totalBs = usdToBs(subtotalUsd, exchangeRate);
+  subtotalBase = round2(subtotalBase);
+  const totalBs = baseToBs(subtotalBase, exchangeRate);
 
   // --- Armado del mensaje ---
   const nl = '\n';
@@ -115,9 +122,9 @@ export function buildWhatsappCheckoutUrl(
   parts.push('*Detalle del pedido:*');
   parts.push(...lines);
   parts.push('━━━━━━━━━━━━━━━━━━━━');
-  parts.push(`*Subtotal:*  ${formatMoney(subtotalUsd)}`);
-  parts.push(`*Total en Bs:*  ${formatBs(totalBs)}`);
-  parts.push(`_Tasa aplicada: ${formatBs(exchangeRate)} / $_`);
+  parts.push(`*Total a pagar:*  ${formatBs(totalBs)}`);
+  parts.push(`_Equivalente: ${formatMoney(subtotalBase, currencySymbol)}_`);
+  parts.push(`_Tasa BCV aplicada: ${formatBs(exchangeRate)} / ${currencySymbol}1_`);
   parts.push('━━━━━━━━━━━━━━━━━━━━');
   parts.push('*Datos del cliente:*');
   parts.push(`👤 ${customer.name}`);
@@ -135,7 +142,7 @@ export function buildWhatsappCheckoutUrl(
   return {
     url,
     message,
-    subtotalUsd: subtotalUsd.toFixed(2),
+    subtotalBase: subtotalBase.toFixed(2),
     totalBs: totalBs.toFixed(2),
   };
 }

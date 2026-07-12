@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import { api, getToken } from '../../api/client';
 import type { OrderView } from '../../types';
-import { formatUsd } from '../../utils/format';
+import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '../../utils/format';
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: 'Pendiente',
@@ -70,7 +70,10 @@ export default function KitchenPage() {
                 </li>
               ))}
             </ul>
-            <p className="text-sm font-semibold">{formatUsd(o.totalUsd)}</p>
+            <p className="text-sm font-semibold">
+              {formatBsAbsolute(o.totalBs)}{' '}
+              <span className="text-gray-400 font-normal">({formatBase(o.totalBase, CURRENCY_SYMBOLS[o.currency])})</span>
+            </p>
             <div className="flex gap-1.5 text-xs pt-1">
               {(['PENDING', 'KITCHEN', 'SERVED', 'CANCELLED'] as const).map((s) => (
                 <button

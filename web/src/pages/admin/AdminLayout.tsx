@@ -6,6 +6,7 @@ const links = [
   { to: '/admin/products', label: '🍔 Productos' },
   { to: '/admin/categories', label: '📂 Categorías' },
   { to: '/admin/tables', label: '🔳 Mesas / QR' },
+  { to: '/admin/settings', label: '⚙️ Ajustes' },
 ];
 
 export default function AdminLayout() {

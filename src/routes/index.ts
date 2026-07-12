@@ -6,6 +6,8 @@ import { orderController } from '../modules/orders/order.controller';
 import authRoutes from '../modules/auth/auth.routes';
 import categoryRoutes from '../modules/categories/category.routes';
 import tableRoutes from '../modules/tables/table.routes';
+import exchangeRateRoutes from '../modules/exchange-rate/exchange-rate.routes';
+import restaurantRoutes from '../modules/restaurant/restaurant.routes';
 
 /**
  * Enrutador raíz de la API v1.
@@ -25,6 +27,8 @@ router.use('/products', productRoutes);
 router.use('/orders', orderRoutes);
 router.use('/categories', categoryRoutes);
 router.use('/tables', tableRoutes);
+router.use('/exchange-rates', exchangeRateRoutes);
+router.use('/restaurant', restaurantRoutes);
 
 // --- Público ---
 router.use('/public', menuRoutes);

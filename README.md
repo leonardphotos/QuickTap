@@ -58,12 +58,13 @@ QuickTap/
 
 | Modelo | Rol |
 |--------|-----|
-| `Restaurant` | Tenant: `slug` único, `baseCurrency` (USD), `exchangeRate` (Bs), `whatsappPhone`. |
+| `Restaurant` | Tenant: `slug` único, `baseCurrency` (`USD`\|`EUR`, elegido por el restaurante), `whatsappPhone`. |
+| `ExchangeRate` | Tasa BCV **global** (no por inquilino), una fila por moneda (`USD`/`EUR`) con `rateBs` + `fetchedAt`. |
 | `User` | Dueño/personal. Email único **por restaurante**. |
 | `Category` | Ordenadas por `priority`. |
-| `Product` | Precio, foto, disponibilidad + banderas `isStar` (Estrella), `isPromo` (Promoción), `isHouseSpecial` (Recomendación de la Casa). |
+| `Product` | Precio (en la `baseCurrency` del restaurante), foto, disponibilidad + banderas `isStar` (Estrella), `isPromo` (Promoción), `isHouseSpecial` (Recomendación de la Casa). |
 | `Table` | Mesa con `number` y `qrToken` (opaco, embebido en el QR). |
-| `Order` | Estado (`PENDING`/`KITCHEN`/`SERVED`/`CANCELLED`), canal (`DINE_IN`/`DELIVERY`/`PICKUP`), snapshot de totales USD/Bs + datos del cliente. |
+| `Order` | Estado (`PENDING`/`KITCHEN`/`SERVED`/`CANCELLED`), canal (`DINE_IN`/`DELIVERY`/`PICKUP`), `currency`, snapshot de totales (`subtotalBase`/`totalBase`) + `exchangeRate`/`totalBs` congelados al momento de la compra. |
 | `OrderItem` | Snapshot de nombre/precio + `modifiers[]` y `note` (notas de cocina). |
 
 ---
@@ -77,6 +78,9 @@ QuickTap/
 | `GET/PATCH/DELETE` | `/api/v1/products/:id` | Ver / actualizar / borrar. |
 | `GET` | `/api/v1/orders/kitchen` | Cola de comandas de cocina. |
 | `PATCH` | `/api/v1/orders/:id/status` | Cambiar estado de comanda. |
+| `PATCH` | `/api/v1/restaurant` | Configuración del restaurante, incluye `baseCurrency` (la "casilla de Tasa cambiaria": $ o €). |
+| `GET` | `/api/v1/exchange-rates` | Tasa BCV vigente para USD y EUR (valor, fecha, si está desactualizada). |
+| `POST` | `/api/v1/exchange-rates/refresh` | Fuerza un refresco manual contra la fuente BCV. |
 
 ### Público (QR / cliente)
 | Método | Ruta | Descripción |
@@ -91,7 +95,20 @@ QuickTap/
 
 **Mesa (DINE_IN):** el body lleva `qrToken` + `items`. El servicio resuelve la mesa/tenant desde el token, **congela los precios desde la BD**, guarda la orden en estado `KITCHEN` y emite `order:new` a la room `kitchen:<restaurantId>` → el panel de cocina imprime en la ticketera.
 
-**Delivery (WhatsApp):** el body lleva `mode`, `items` y `customer` (nombre, dirección, `paymentMethod`: Pago Móvil/Zelle/Efectivo/Tarjeta, nota). Se guarda la orden y `buildWhatsappCheckoutUrl()` retorna una URL `https://wa.me/<phone>?text=<encodeURIComponent(msg)>` con el pedido formateado (subtotal, total en Bs con la tasa, modificadores y notas).
+**Delivery (WhatsApp):** el body lleva `mode`, `items` y `customer` (nombre, dirección, `paymentMethod`: Pago Móvil/Zelle/Efectivo/Tarjeta, nota). Se guarda la orden y `buildWhatsappCheckoutUrl()` retorna una URL `https://wa.me/<phone>?text=<encodeURIComponent(msg)>` con el pedido formateado (total en Bs primero, equivalente en $/€, modificadores y notas).
+
+---
+
+## 💱 Tasa de cambio (BCV)
+
+Los precios de los productos se cargan en la moneda que elige cada restaurante (`baseCurrency`: **USD** o **EUR**, casilla "Tasa cambiaria" en `/admin/settings`). Al público **siempre se le muestra el precio en bolívares** (con el precio base como referencia secundaria), calculado con la tasa oficial del Banco Central de Venezuela.
+
+- La tasa es **global**, no por restaurante: se cachea en la tabla `ExchangeRate` (una fila por moneda) y todos los restaurantes que facturan en esa moneda la comparten.
+- `src/modules/exchange-rate/exchange-rate.service.ts` la refresca automáticamente al arrancar el servidor y luego cada `EXCHANGE_RATE_TTL_HOURS` (por defecto 6h) contra `EXCHANGE_RATE_USD_URL`/`EXCHANGE_RATE_EUR_URL` (por defecto, endpoints de dolarapi.com que replican el dato oficial del BCV).
+- **Diseño a prueba de fallos:** si la fuente externa no responde, se sigue usando la última tasa cacheada — el checkout nunca se rompe por eso. El dashboard (`/admin/settings`) muestra si la tasa está desactualizada y permite forzar un refresco manual.
+- Cada `Order` congela la tasa y el monto en Bs aplicados al momento de la compra (no cambian retroactivamente si la tasa BCV se actualiza después).
+
+> Nota: en este entorno de desarrollo la llamada saliente al proveedor de la tasa está bloqueada por la política de red del sandbox, así que se sembró una tasa de respaldo (`source: "SEED"`) para poder probar el flujo completo. En un despliegue real con salida a internet, el refresco automático la reemplaza.
 
 ---
 
@@ -131,6 +148,7 @@ npm run dev   # http://localhost:3000 (proxea /api y /socket.io hacia :4000)
 - **`/admin/register` · `/admin/login`** — alta de restaurante y login.
 - **`/admin/kitchen`** — cola de cocina en vivo (Socket.IO).
 - **`/admin/products` · `/admin/categories` · `/admin/tables`** — CRUD del panel; Mesas genera el QR (SVG) apuntando a `/r/:slug?mesa=...`.
+- **`/admin/settings`** — casilla de "Tasa cambiaria" (elegir $ o €), tasa BCV vigente + refresco manual, WhatsApp del restaurante.
 
 ## 🧭 Próximos pasos (fuera del alcance de este scaffold)
 

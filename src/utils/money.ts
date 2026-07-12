@@ -1,4 +1,10 @@
-import { Prisma } from '@prisma/client';
+import { Currency, Prisma } from '@prisma/client';
+
+/** Símbolo a mostrar para cada moneda base soportada. */
+export const CURRENCY_SYMBOLS: Record<Currency, string> = {
+  USD: '$',
+  EUR: '€',
+};
 
 /**
  * Utilidades monetarias. Trabajamos con `Prisma.Decimal` para evitar los
@@ -17,11 +23,11 @@ export function round2(value: DecimalLike): Prisma.Decimal {
 }
 
 /**
- * Convierte un monto en USD a Bolívares aplicando la tasa manual del
- * restaurante. Resultado redondeado a 2 decimales.
+ * Convierte un monto en la moneda base (USD/EUR) a Bolívares aplicando la
+ * tasa BCV vigente. Resultado redondeado a 2 decimales.
  */
-export function usdToBs(amountUsd: DecimalLike, exchangeRate: DecimalLike): Prisma.Decimal {
-  return toDecimal(amountUsd).mul(toDecimal(exchangeRate)).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+export function baseToBs(amountBase: DecimalLike, exchangeRate: DecimalLike): Prisma.Decimal {
+  return toDecimal(amountBase).mul(toDecimal(exchangeRate)).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 }
 
 /** Formatea un monto como string con símbolo. Ej: formatMoney(12.5, '$') => "$12.50" */

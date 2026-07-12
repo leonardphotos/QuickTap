@@ -1,11 +1,20 @@
+export type Currency = 'USD' | 'EUR';
+
+export interface ExchangeRateInfo {
+  rateBs: string;
+  fetchedAt: string;
+}
+
 export interface Restaurant {
   id: string;
   slug: string;
   name: string;
   description?: string | null;
   logoUrl?: string | null;
-  baseCurrency: string;
-  exchangeRate: string;
+  baseCurrency: Currency;
+  currencySymbol: string;
+  /** Tasa BCV vigente para baseCurrency. Null si aún no se ha logrado obtener ninguna. */
+  exchangeRate: ExchangeRateInfo | null;
   whatsappPhone?: string | null;
 }
 
@@ -68,7 +77,8 @@ export interface OrderView {
   orderNumber: number;
   channel: OrderChannel;
   status: OrderStatus;
-  totalUsd: string;
+  currency: Currency;
+  totalBase: string;
   totalBs: string;
   createdAt: string;
   table?: { number: string } | null;

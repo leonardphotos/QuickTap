@@ -1,17 +1,20 @@
 import { useState } from 'react';
-import type { CartLine, Product } from '../../types';
-import { formatUsd } from '../../utils/format';
+import type { CartLine, Product, Restaurant } from '../../types';
+import { publicPriceLabel } from '../../utils/format';
 
 export default function ProductCard({
   product,
+  restaurant,
   onAdd,
 }: {
   product: Product;
+  restaurant: Restaurant;
   onAdd: (line: CartLine) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [quantity, setQuantity] = useState(1);
   const [note, setNote] = useState('');
+  const price = publicPriceLabel(product.price, restaurant);
 
   function confirmAdd() {
     onAdd({ product, quantity, modifiers: [], note: note.trim() || undefined });
@@ -28,7 +31,10 @@ export default function ProductCard({
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <p className="font-semibold text-gray-900">{product.name}</p>
-          <p className="font-semibold text-gray-900 shrink-0">{formatUsd(product.price)}</p>
+          <div className="text-right shrink-0">
+            <p className="font-semibold text-gray-900">{price.primary}</p>
+            {price.secondary && <p className="text-xs text-gray-400">{price.secondary}</p>}
+          </div>
         </div>
         {product.description && <p className="text-sm text-gray-500 mt-0.5">{product.description}</p>}
         <div className="flex gap-1 mt-1">

@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Field } from './LoginPage';
+import type { Currency } from '../../types';
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -10,7 +11,7 @@ export default function RegisterPage() {
   const [restaurantName, setRestaurantName] = useState('');
   const [slug, setSlug] = useState('');
   const [whatsappPhone, setWhatsappPhone] = useState('');
-  const [exchangeRate, setExchangeRate] = useState('1');
+  const [baseCurrency, setBaseCurrency] = useState<Currency>('USD');
   const [ownerName, setOwnerName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,7 +27,7 @@ export default function RegisterPage() {
         restaurantName,
         slug,
         whatsappPhone: whatsappPhone || undefined,
-        exchangeRate: Number(exchangeRate),
+        baseCurrency,
         ownerName,
         email,
         password,
@@ -51,7 +52,20 @@ export default function RegisterPage() {
           placeholder="mi-restaurante"
         />
         <Field label="WhatsApp (con código de país)" value={whatsappPhone} onChange={setWhatsappPhone} placeholder="584141234567" />
-        <Field label="Tasa de cambio (Bs por USD)" value={exchangeRate} onChange={setExchangeRate} />
+        <label className="block text-sm">
+          <span className="text-gray-600">¿En qué moneda colocas tus precios?</span>
+          <select
+            value={baseCurrency}
+            onChange={(e) => setBaseCurrency(e.target.value as Currency)}
+            className="mt-1 w-full border rounded-lg px-3 py-2"
+          >
+            <option value="USD">Dólares ($)</option>
+            <option value="EUR">Euros (€)</option>
+          </select>
+          <span className="text-xs text-gray-400">
+            La conversión a Bs para tus clientes se calcula sola con la tasa BCV.
+          </span>
+        </label>
         <Field label="Tu nombre" value={ownerName} onChange={setOwnerName} />
         <Field label="Email" type="email" value={email} onChange={setEmail} />
         <Field label="Contraseña" type="password" value={password} onChange={setPassword} />

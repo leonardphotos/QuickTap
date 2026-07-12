@@ -22,7 +22,7 @@ export const authService = {
         slug: input.slug,
         name: input.restaurantName,
         whatsappPhone: input.whatsappPhone,
-        exchangeRate: input.exchangeRate,
+        baseCurrency: input.baseCurrency,
         users: {
           create: {
             email: input.email,
@@ -80,7 +80,6 @@ export const authService = {
         slug: true,
         name: true,
         whatsappPhone: true,
-        exchangeRate: true,
         baseCurrency: true,
       },
     });

@@ -10,7 +10,8 @@ export const registerSchema = z.object({
     .max(60)
     .regex(slugRegex, 'El slug solo puede tener minúsculas, números y guiones.'),
   whatsappPhone: z.string().min(7).max(30).optional(),
-  exchangeRate: z.coerce.number().positive().optional().default(1),
+  // Moneda en la que el restaurante colocará sus precios ($ o €).
+  baseCurrency: z.enum(['USD', 'EUR']).optional().default('USD'),
   ownerName: z.string().min(1).max(120),
   email: z.string().email(),
   password: z.string().min(6).max(100),

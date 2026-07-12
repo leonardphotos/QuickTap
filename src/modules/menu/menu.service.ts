@@ -1,5 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { notFound } from '../../utils/http-error';
+import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
+import { CURRENCY_SYMBOLS } from '../../utils/money';
 
 /**
  * Servicio del menú público. Se resuelve por `slug` (no requiere auth) y
@@ -16,7 +18,6 @@ export const menuService = {
         description: true,
         logoUrl: true,
         baseCurrency: true,
-        exchangeRate: true,
         whatsappPhone: true,
         isActive: true,
       },
@@ -67,6 +68,17 @@ export const menuService = {
       houseSpecials: allProducts.filter((p) => p.isHouseSpecial),
     };
 
+    // La tasa BCV es lo que permite mostrar los precios en Bs al público.
+    // Si aún no hay ninguna tasa cacheada (primer arranque), degradamos con
+    // null en vez de tumbar el menú completo.
+    let exchangeRate: { rateBs: string; fetchedAt: Date } | null = null;
+    try {
+      const rate = await exchangeRateService.getRate(restaurant.baseCurrency);
+      exchangeRate = { rateBs: rate.rateBs.toString(), fetchedAt: rate.fetchedAt };
+    } catch {
+      exchangeRate = null;
+    }
+
     return {
       restaurant: {
         id: restaurant.id,
@@ -75,7 +87,8 @@ export const menuService = {
         description: restaurant.description,
         logoUrl: restaurant.logoUrl,
         baseCurrency: restaurant.baseCurrency,
-        exchangeRate: restaurant.exchangeRate,
+        currencySymbol: CURRENCY_SYMBOLS[restaurant.baseCurrency],
+        exchangeRate,
         whatsappPhone: restaurant.whatsappPhone,
       },
       highlights,

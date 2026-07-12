@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api } from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
 import type { Category, Product } from '../../types';
-import { formatUsd } from '../../utils/format';
+import { CURRENCY_SYMBOLS, formatBase } from '../../utils/format';
 
 const emptyForm = {
   name: '',
@@ -16,6 +17,8 @@ const emptyForm = {
 };
 
 export default function ProductsPage() {
+  const { restaurant } = useAuth();
+  const currencySymbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [form, setForm] = useState(emptyForm);
@@ -89,7 +92,7 @@ export default function ProductsPage() {
           <input
             value={form.price}
             onChange={(e) => setForm({ ...form, price: e.target.value })}
-            placeholder="Precio USD"
+            placeholder={`Precio en ${currencySymbol}`}
             type="number"
             step="0.01"
             min="0"
@@ -140,7 +143,7 @@ export default function ProductsPage() {
               <p className="font-medium text-gray-900">
                 {p.name} <span className="text-gray-400 font-normal">· {p.category?.name}</span>
               </p>
-              <p className="text-gray-500">{formatUsd(p.price)}</p>
+              <p className="text-gray-500">{formatBase(p.price, currencySymbol)}</p>
             </div>
             <div className="flex items-center gap-3 shrink-0">
               <button

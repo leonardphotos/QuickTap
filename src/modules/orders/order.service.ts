@@ -1,9 +1,10 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
-import { round2, toDecimal, usdToBs } from '../../utils/money';
+import { baseToBs, CURRENCY_SYMBOLS, round2, toDecimal } from '../../utils/money';
 import { buildWhatsappCheckoutUrl } from '../../utils/whatsapp';
 import { emitToKitchen, SocketEvents } from '../../sockets';
+import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { CartItemInput, DeliveryCheckoutInput, DineInCheckoutInput } from './order.dto';
 
 /**
@@ -87,19 +88,20 @@ export const orderService = {
     // La mesa (y por tanto el tenant) se resuelve desde el token del QR.
     const table = await prisma.table.findUnique({
       where: { qrToken: input.qrToken },
-      include: { restaurant: { select: { id: true, exchangeRate: true, isActive: true } } },
+      include: { restaurant: { select: { id: true, baseCurrency: true, isActive: true } } },
     });
     if (!table || !table.isActive || !table.restaurant.isActive) {
       throw notFound('Mesa no válida.');
     }
 
     const restaurantId = table.restaurantId;
-    const exchangeRate = table.restaurant.exchangeRate;
+    const currency = table.restaurant.baseCurrency;
+    const rate = await exchangeRateService.getRate(currency);
 
     const lines = await priceCart(restaurantId, input.items);
-    const subtotalUsd = sumSubtotal(lines);
-    const totalUsd = subtotalUsd; // sin cargos extra por ahora
-    const totalBs = usdToBs(totalUsd, exchangeRate);
+    const subtotalBase = sumSubtotal(lines);
+    const totalBase = subtotalBase; // sin cargos extra por ahora
+    const totalBs = baseToBs(totalBase, rate.rateBs);
 
     const order = await prisma.$transaction(async (tx) => {
       const orderNumber = await nextOrderNumber(tx, restaurantId);
@@ -110,9 +112,10 @@ export const orderService = {
           channel: 'DINE_IN',
           status: 'KITCHEN', // entra directo a la cola de cocina
           tableId: table.id,
-          subtotalUsd,
-          totalUsd,
-          exchangeRate,
+          currency,
+          subtotalBase,
+          totalBase,
+          exchangeRate: rate.rateBs,
           totalBs,
           items: {
             create: lines.map((l) => ({
@@ -142,7 +145,8 @@ export const orderService = {
         modifiers: i.modifiers,
         note: i.note,
       })),
-      totalUsd: order.totalUsd,
+      totalBase: order.totalBase,
+      currency: order.currency,
       totalBs: order.totalBs,
       createdAt: order.createdAt,
     });
@@ -163,7 +167,7 @@ export const orderService = {
       select: {
         id: true,
         name: true,
-        exchangeRate: true,
+        baseCurrency: true,
         whatsappPhone: true,
         isActive: true,
       },
@@ -174,10 +178,11 @@ export const orderService = {
     }
 
     const restaurantId = restaurant.id;
+    const rate = await exchangeRateService.getRate(restaurant.baseCurrency);
     const lines = await priceCart(restaurantId, input.items);
-    const subtotalUsd = sumSubtotal(lines);
-    const totalUsd = subtotalUsd;
-    const totalBs = usdToBs(totalUsd, restaurant.exchangeRate);
+    const subtotalBase = sumSubtotal(lines);
+    const totalBase = subtotalBase;
+    const totalBs = baseToBs(totalBase, rate.rateBs);
 
     const order = await prisma.$transaction(async (tx) => {
       const orderNumber = await nextOrderNumber(tx, restaurantId);
@@ -187,9 +192,10 @@ export const orderService = {
           orderNumber,
           channel: input.mode, // DELIVERY | PICKUP
           status: 'PENDING',
-          subtotalUsd,
-          totalUsd,
-          exchangeRate: restaurant.exchangeRate,
+          currency: restaurant.baseCurrency,
+          subtotalBase,
+          totalBase,
+          exchangeRate: rate.rateBs,
           totalBs,
           customerName: input.customer.name,
           customerPhone: input.customer.phone,
@@ -216,7 +222,8 @@ export const orderService = {
     const whatsapp = buildWhatsappCheckoutUrl({
       restaurantName: restaurant.name,
       whatsappPhone: restaurant.whatsappPhone,
-      exchangeRate: restaurant.exchangeRate.toString(),
+      currencySymbol: CURRENCY_SYMBOLS[restaurant.baseCurrency],
+      exchangeRate: rate.rateBs.toString(),
       mode: input.mode,
       items: lines.map((l) => ({
         name: l.productName,
@@ -231,7 +238,7 @@ export const orderService = {
     return {
       orderId: order.id,
       orderNumber: order.orderNumber,
-      subtotalUsd: order.subtotalUsd,
+      subtotalBase: order.subtotalBase,
       totalBs: order.totalBs,
       whatsappUrl: whatsapp.url,
     };

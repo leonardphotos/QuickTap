@@ -8,6 +8,7 @@ import KitchenPage from './pages/admin/KitchenPage';
 import ProductsPage from './pages/admin/ProductsPage';
 import CategoriesPage from './pages/admin/CategoriesPage';
 import TablesPage from './pages/admin/TablesPage';
+import SettingsPage from './pages/admin/SettingsPage';
 
 export default function App() {
   return (
@@ -26,6 +27,7 @@ export default function App() {
           <Route path="products" element={<ProductsPage />} />
           <Route path="categories" element={<CategoriesPage />} />
           <Route path="tables" element={<TablesPage />} />
+          <Route path="settings" element={<SettingsPage />} />
         </Route>
 
         <Route path="*" element={<div className="p-10 text-center text-gray-500">Página no encontrada.</div>} />

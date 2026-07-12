@@ -19,7 +19,6 @@ async function main() {
       name: 'La Parrilla de Juan',
       description: 'Comida criolla y parrilla a la leña.',
       baseCurrency: 'USD',
-      exchangeRate: '40.50', // Bs por USD
       whatsappPhone: '584141234567',
       users: {
         create: {
@@ -84,6 +83,20 @@ async function main() {
       { restaurantId: restaurant.id, number: '2', qrToken: nanoid(12) },
       { restaurantId: restaurant.id, number: 'Terraza-1', qrToken: nanoid(12) },
     ],
+  });
+
+  // Tasa BCV de respaldo para desarrollo local (el servidor intenta refrescarla
+  // automáticamente al arrancar; esto solo evita quedar sin tasa si esa llamada
+  // externa falla, p. ej. detrás de un firewall restrictivo).
+  await prisma.exchangeRate.upsert({
+    where: { currency: 'USD' },
+    update: {},
+    create: { currency: 'USD', rateBs: '40.50', source: 'SEED' },
+  });
+  await prisma.exchangeRate.upsert({
+    where: { currency: 'EUR' },
+    update: {},
+    create: { currency: 'EUR', rateBs: '43.80', source: 'SEED' },
   });
 
   // eslint-disable-next-line no-console

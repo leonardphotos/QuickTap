@@ -27,4 +27,14 @@ export const env = {
     .split(',')
     .map((o) => o.trim())
     .filter(Boolean),
+
+  // --- Tasa de cambio BCV ---
+  // Endpoints JSON que devuelven la tasa oficial del Banco Central de Venezuela.
+  // Configurables por si la fuente cambia; por defecto usan dolarapi.com (gratuito, sin API key).
+  exchangeRate: {
+    usdUrl: process.env.EXCHANGE_RATE_USD_URL ?? 'https://ve.dolarapi.com/v1/dolares/oficial',
+    eurUrl: process.env.EXCHANGE_RATE_EUR_URL ?? 'https://ve.dolarapi.com/v1/euros/oficial',
+    // Cada cuántas horas se considera "vieja" la tasa cacheada y se reintenta el refresco.
+    ttlHours: Number(process.env.EXCHANGE_RATE_TTL_HOURS ?? 6),
+  },
 };

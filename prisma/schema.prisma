@@ -42,6 +42,11 @@ enum OrderChannel {
   PICKUP // Retiro en local
 }
 
+enum Currency {
+  USD
+  EUR
+}
+
 enum PaymentMethod {
   MOBILE_PAYMENT // Pago Móvil
   ZELLE
@@ -63,10 +68,10 @@ model Restaurant {
   logoUrl     String?
 
   // --- Configuración de moneda ---
-  // Moneda base del negocio (por defecto USD).
-  baseCurrency String @default("USD")
-  // Tasa de cambio manual USD -> Bs (Bolívares). Actualizada por el dueño.
-  exchangeRate Decimal @default(1) @db.Decimal(18, 4)
+  // Moneda en la que el restaurante coloca sus precios ($ o €).
+  // La conversión a Bs se resuelve con la tasa BCV vigente (tabla ExchangeRate),
+  // NO con un valor manual por restaurante.
+  baseCurrency Currency @default(USD)
 
   // --- Contacto / checkout ---
   // Número de WhatsApp en formato internacional SIN "+" (ej: 584141234567).
@@ -83,6 +88,27 @@ model Restaurant {
   orders     Order[]
 
   @@map("restaurants")
+}
+
+// ----------------------------------------------------------------------------
+//  TASA DE CAMBIO (global, NO por inquilino)
+// ----------------------------------------------------------------------------
+
+// Tasa oficial del Banco Central de Venezuela (BCV). Una sola fila vigente
+// por moneda, refrescada periódicamente por el ExchangeRateService. Todos
+// los restaurantes que facturan en esa moneda comparten la misma tasa.
+model ExchangeRate {
+  id       String   @id @default(cuid())
+  currency Currency @unique
+
+  rateBs Decimal @db.Decimal(18, 4)
+  // Fuente del dato (por defecto "BCV"). Útil si en el futuro se agrega otra fuente.
+  source String @default("BCV")
+
+  fetchedAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("exchange_rates")
 }
 
 model User {
@@ -136,7 +162,7 @@ model Product {
 
   name        String
   description String?
-  // Precio en la moneda base del restaurante (USD).
+  // Precio en la moneda base del restaurante (restaurant.baseCurrency: USD o EUR).
   price       Decimal @db.Decimal(12, 2)
   photoUrl    String?
 
@@ -207,9 +233,11 @@ model Order {
   tableId String?
 
   // --- Snapshot de totales (se congelan al crear la orden) ---
-  subtotalUsd  Decimal @db.Decimal(12, 2)
-  totalUsd     Decimal @db.Decimal(12, 2)
-  // Tasa aplicada y total convertido a Bs en el momento de la compra.
+  // Moneda en la que el restaurante facturó este pedido (USD o EUR).
+  currency Currency
+  subtotalBase Decimal @db.Decimal(12, 2)
+  totalBase    Decimal @db.Decimal(12, 2)
+  // Tasa BCV aplicada y total convertido a Bs en el momento de la compra.
   exchangeRate Decimal @db.Decimal(18, 4)
   totalBs      Decimal @db.Decimal(18, 2)
 

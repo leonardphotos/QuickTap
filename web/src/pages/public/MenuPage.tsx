@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { api } from '../../api/client';
-import type { CartLine, PublicMenu } from '../../types';
-import { formatUsd } from '../../utils/format';
+import type { CartLine, PublicMenu, Restaurant } from '../../types';
+import { publicPriceLabel } from '../../utils/format';
 import ProductCard from './ProductCard';
 import CartDrawer from './CartDrawer';
 
@@ -33,7 +33,7 @@ export default function MenuPage() {
     setCart((prev) => prev.filter((_, i) => i !== index));
   }
 
-  const subtotal = useMemo(
+  const subtotalBase = useMemo(
     () => cart.reduce((acc, l) => acc + Number(l.product.price) * l.quantity, 0),
     [cart],
   );
@@ -75,15 +75,16 @@ export default function MenuPage() {
         {hasHighlights && (
           <section className="space-y-4">
             {highlights.stars.length > 0 && (
-              <HighlightRow title="⭐ Productos Estrella" products={highlights.stars} onAdd={addToCart} />
+              <HighlightRow title="⭐ Productos Estrella" products={highlights.stars} restaurant={restaurant} onAdd={addToCart} />
             )}
             {highlights.promos.length > 0 && (
-              <HighlightRow title="🔥 Promociones" products={highlights.promos} onAdd={addToCart} />
+              <HighlightRow title="🔥 Promociones" products={highlights.promos} restaurant={restaurant} onAdd={addToCart} />
             )}
             {highlights.houseSpecials.length > 0 && (
               <HighlightRow
                 title="👨‍🍳 Recomendación de la Casa"
                 products={highlights.houseSpecials}
+                restaurant={restaurant}
                 onAdd={addToCart}
               />
             )}
@@ -95,7 +96,7 @@ export default function MenuPage() {
             <h2 className="text-base font-bold text-gray-900 mb-3">{cat.name}</h2>
             <div className="grid gap-3">
               {cat.products.map((p) => (
-                <ProductCard key={p.id} product={p} onAdd={addToCart} />
+                <ProductCard key={p.id} product={p} restaurant={restaurant} onAdd={addToCart} />
               ))}
             </div>
           </section>
@@ -107,7 +108,7 @@ export default function MenuPage() {
           onClick={() => setCartOpen(true)}
           className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white rounded-full px-6 py-3 shadow-lg font-medium flex items-center gap-2"
         >
-          🛒 Ver carrito ({cart.length}) — {formatUsd(subtotal)}
+          🛒 Ver carrito ({cart.length}) — {publicPriceLabel(subtotalBase, restaurant).primary}
         </button>
       )}
 
@@ -115,7 +116,7 @@ export default function MenuPage() {
         <CartDrawer
           restaurant={restaurant}
           cart={cart}
-          subtotal={subtotal}
+          subtotalBase={subtotalBase}
           qrToken={qrToken}
           onRemove={removeFromCart}
           onClose={() => setCartOpen(false)}
@@ -132,10 +133,12 @@ export default function MenuPage() {
 function HighlightRow({
   title,
   products,
+  restaurant,
   onAdd,
 }: {
   title: string;
   products: PublicMenu['highlights']['stars'];
+  restaurant: Restaurant;
   onAdd: (l: CartLine) => void;
 }) {
   return (
@@ -143,7 +146,7 @@ function HighlightRow({
       <h2 className="text-base font-bold text-gray-900 mb-3">{title}</h2>
       <div className="grid gap-3">
         {products.map((p) => (
-          <ProductCard key={p.id} product={p} onAdd={onAdd} />
+          <ProductCard key={p.id} product={p} restaurant={restaurant} onAdd={onAdd} />
         ))}
       </div>
     </div>

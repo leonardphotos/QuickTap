@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { api, clearToken, getToken, setToken } from '../api/client';
+import type { Currency } from '../types';
 
 interface AuthUser {
   id: string;
@@ -14,8 +15,7 @@ interface AuthRestaurant {
   slug: string;
   name: string;
   whatsappPhone?: string | null;
-  exchangeRate?: string;
-  baseCurrency?: string;
+  baseCurrency: Currency;
 }
 
 interface AuthState {
@@ -30,7 +30,7 @@ interface AuthState {
     email: string;
     password: string;
     whatsappPhone?: string;
-    exchangeRate?: number;
+    baseCurrency?: Currency;
   }) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
