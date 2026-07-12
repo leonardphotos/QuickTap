@@ -1,0 +1,258 @@
+// ============================================================================
+//  QuickTap.club — Esquema de base de datos (PostgreSQL + Prisma)
+//  SaaS multi-inquilino para restaurantes.
+//
+//  Estrategia de aislamiento (multi-tenancy):
+//  ------------------------------------------------------------------
+//  Modelo "shared database, shared schema": TODAS las tablas de dominio
+//  cuelgan de `restaurantId`. Cada consulta DEBE filtrarse por ese campo
+//  (lo garantiza el `tenant.middleware` + los servicios). Los índices
+//  compuestos `@@index([restaurantId, ...])` mantienen el rendimiento
+//  aislado por inquilino.
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------------------------------------------------------------
+//  ENUMS
+// ----------------------------------------------------------------------------
+
+enum UserRole {
+  OWNER // dueño del restaurante (acceso total)
+  STAFF // personal de cocina / caja
+}
+
+enum OrderStatus {
+  PENDING // Pendiente (recién creada)
+  KITCHEN // En Cocina (enviada a la ticketera)
+  SERVED // Servido / Entregado
+  CANCELLED // Cancelado
+}
+
+enum OrderChannel {
+  DINE_IN // Canal en mesa (QR de la mesa)
+  DELIVERY // Delivery a domicilio
+  PICKUP // Retiro en local
+}
+
+enum PaymentMethod {
+  MOBILE_PAYMENT // Pago Móvil
+  ZELLE
+  CASH // Efectivo
+  CARD // Punto de venta / tarjeta
+}
+
+// ----------------------------------------------------------------------------
+//  TENANT: Restaurant + Users
+// ----------------------------------------------------------------------------
+
+model Restaurant {
+  id   String @id @default(cuid())
+  // Slug único para la URL pública: quicktap.club/:slug
+  slug String @unique
+
+  name        String
+  description String?
+  logoUrl     String?
+
+  // --- Configuración de moneda ---
+  // Moneda base del negocio (por defecto USD).
+  baseCurrency String @default("USD")
+  // Tasa de cambio manual USD -> Bs (Bolívares). Actualizada por el dueño.
+  exchangeRate Decimal @default(1) @db.Decimal(18, 4)
+
+  // --- Contacto / checkout ---
+  // Número de WhatsApp en formato internacional SIN "+" (ej: 584141234567).
+  whatsappPhone String?
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users      User[]
+  categories Category[]
+  products   Product[]
+  tables     Table[]
+  orders     Order[]
+
+  @@map("restaurants")
+}
+
+model User {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  email        String
+  passwordHash String
+  name         String
+  role         UserRole @default(OWNER)
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  // El email es único DENTRO de cada restaurante (no globalmente).
+  @@unique([restaurantId, email])
+  @@index([restaurantId])
+  @@map("users")
+}
+
+// ----------------------------------------------------------------------------
+//  CATÁLOGO: Categories + Products
+// ----------------------------------------------------------------------------
+
+model Category {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  name String
+  // Prioridad de orden (menor = aparece primero en el menú).
+  priority Int     @default(0)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  products   Product[]
+
+  @@index([restaurantId, priority])
+  @@map("categories")
+}
+
+model Product {
+  id           String @id @default(cuid())
+  restaurantId String
+  categoryId   String
+
+  name        String
+  description String?
+  // Precio en la moneda base del restaurante (USD).
+  price       Decimal @db.Decimal(12, 2)
+  photoUrl    String?
+
+  // Disponibilidad para la venta.
+  isAvailable Boolean @default(true)
+
+  // --- Banderas de marketing ---
+  isStar          Boolean @default(false) // Producto Estrella
+  isPromo         Boolean @default(false) // Promoción
+  isHouseSpecial  Boolean @default(false) // Recomendación de la Casa
+
+  // Orden dentro de su categoría.
+  priority Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category   Category    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  orderItems OrderItem[]
+
+  @@index([restaurantId, categoryId])
+  @@index([restaurantId, isAvailable])
+  @@map("products")
+}
+
+// ----------------------------------------------------------------------------
+//  MESAS
+// ----------------------------------------------------------------------------
+
+model Table {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  // Número/identificador visible de la mesa (ej: "5", "Terraza-2").
+  number String
+  // Token opaco embebido en el QR. Se usa en la URL pública del QR
+  // para resolver la mesa sin exponer IDs internos.
+  qrToken String @unique
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orders     Order[]
+
+  @@unique([restaurantId, number])
+  @@index([restaurantId])
+  @@map("tables")
+}
+
+// ----------------------------------------------------------------------------
+//  COMANDAS: Orders + OrderItems
+// ----------------------------------------------------------------------------
+
+model Order {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  // Número correlativo legible por inquilino (ej: #1023). Se asigna en el service.
+  orderNumber Int
+
+  channel OrderChannel
+  status  OrderStatus  @default(PENDING)
+
+  // Mesa asociada (solo canal DINE_IN).
+  tableId String?
+
+  // --- Snapshot de totales (se congelan al crear la orden) ---
+  subtotalUsd  Decimal @db.Decimal(12, 2)
+  totalUsd     Decimal @db.Decimal(12, 2)
+  // Tasa aplicada y total convertido a Bs en el momento de la compra.
+  exchangeRate Decimal @db.Decimal(18, 4)
+  totalBs      Decimal @db.Decimal(18, 2)
+
+  // --- Datos del cliente (canal DELIVERY / PICKUP) ---
+  customerName    String?
+  customerPhone   String?
+  customerAddress String?
+  paymentMethod   PaymentMethod?
+  customerNote    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table      Table?      @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  items      OrderItem[]
+
+  @@unique([restaurantId, orderNumber])
+  @@index([restaurantId, status])
+  @@index([restaurantId, createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id      String @id @default(cuid())
+  orderId String
+
+  // Referencia al producto (puede quedar en null si el producto se borra),
+  // pero conservamos un snapshot del nombre y precio para historial.
+  productId String?
+
+  productName String
+  unitPrice   Decimal @db.Decimal(12, 2)
+  quantity    Int     @default(1)
+  lineTotal   Decimal @db.Decimal(12, 2)
+
+  // Modificadores del plato (ej: "Sin cebolla", "Extra queso") y notas de cocina.
+  modifiers String[] @default([])
+  note      String?
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId])
+  @@map("order_items")
+}
