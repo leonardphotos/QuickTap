@@ -82,9 +82,9 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
       <Overlay onClose={onClose}>
         <div className="text-center py-8 space-y-2">
           <p className="text-4xl">✅</p>
-          <p className="font-semibold text-gray-900">¡Pedido enviado a cocina!</p>
-          <p className="text-sm text-gray-500">Ya lo están preparando.</p>
-          <button onClick={onClearAndClose} className="mt-4 bg-gray-900 text-white rounded-lg px-4 py-2 text-sm">
+          <p className="font-semibold text-brand-950">¡Pedido enviado a cocina!</p>
+          <p className="text-sm text-brand-950/60 font-light">Ya lo están preparando.</p>
+          <button onClick={onClearAndClose} className="mt-4 bg-brand-500 hover:bg-brand-800 text-white rounded-lg px-4 py-2 text-sm">
             Listo
           </button>
         </div>
@@ -95,25 +95,25 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
   return (
     <Overlay onClose={onClose}>
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-bold text-gray-900">Tu pedido</h3>
-        <button onClick={onClose} className="text-gray-400 text-xl leading-none">
+        <h3 className="font-semibold text-brand-950">Tu pedido</h3>
+        <button onClick={onClose} className="text-brand-950/40 text-xl leading-none">
           ×
         </button>
       </div>
 
       {cart.length === 0 ? (
-        <p className="text-sm text-gray-500 py-6 text-center">Tu carrito está vacío.</p>
+        <p className="text-sm text-brand-950/50 py-6 text-center font-light">Tu carrito está vacío.</p>
       ) : (
         <ul className="space-y-2 max-h-48 overflow-y-auto">
           {cart.map((l, i) => {
             const linePrice = publicPriceLabel(Number(l.product.price) * l.quantity, restaurant);
             return (
-              <li key={i} className="flex items-start justify-between text-sm border-b pb-2">
+              <li key={i} className="flex items-start justify-between text-sm border-b border-brand-950/10 pb-2">
                 <div>
-                  <p className="font-medium text-gray-900">
+                  <p className="font-medium text-brand-950">
                     {l.quantity}x {l.product.name}
                   </p>
-                  {l.note && <p className="text-xs text-gray-500">📝 {l.note}</p>}
+                  {l.note && <p className="text-xs text-brand-950/50">📝 {l.note}</p>}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <span>{linePrice.primary}</span>
@@ -132,7 +132,7 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
         <span>{publicPriceLabel(subtotalBase, restaurant).primary}</span>
       </div>
       {publicPriceLabel(subtotalBase, restaurant).secondary && (
-        <div className="flex justify-between text-xs text-gray-500 mb-3">
+        <div className="flex justify-between text-xs text-brand-950/50 mb-3">
           <span>Equivalente</span>
           <span>{publicPriceLabel(subtotalBase, restaurant).secondary}</span>
         </div>
@@ -144,7 +144,7 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
             <button
               disabled={sending}
               onClick={submitDineIn}
-              className="w-full bg-emerald-600 text-white rounded-lg py-2.5 font-medium disabled:opacity-50"
+              className="w-full bg-brand-500 hover:bg-brand-800 text-white rounded-lg py-2.5 font-medium disabled:opacity-50"
             >
               {sending ? 'Enviando…' : 'Enviar pedido a cocina'}
             </button>
@@ -153,13 +153,13 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
               <div className="flex gap-2 text-sm">
                 <button
                   onClick={() => setMode('DELIVERY')}
-                  className={`flex-1 rounded-lg py-1.5 border ${mode === 'DELIVERY' ? 'bg-gray-900 text-white' : 'bg-white'}`}
+                  className={`flex-1 rounded-lg py-1.5 border border-brand-950/15 ${mode === 'DELIVERY' ? 'bg-brand-950 text-white border-brand-950' : 'bg-white'}`}
                 >
                   🛵 Delivery
                 </button>
                 <button
                   onClick={() => setMode('PICKUP')}
-                  className={`flex-1 rounded-lg py-1.5 border ${mode === 'PICKUP' ? 'bg-gray-900 text-white' : 'bg-white'}`}
+                  className={`flex-1 rounded-lg py-1.5 border border-brand-950/15 ${mode === 'PICKUP' ? 'bg-brand-950 text-white border-brand-950' : 'bg-white'}`}
                 >
                   🏬 Pickup
                 </button>
@@ -168,26 +168,26 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Tu nombre"
-                className="w-full text-sm border rounded-lg px-2 py-1.5"
+                className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
               />
               <input
                 value={phone}
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="Teléfono (opcional)"
-                className="w-full text-sm border rounded-lg px-2 py-1.5"
+                className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
               />
               {mode === 'DELIVERY' && (
                 <input
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   placeholder="Dirección de entrega"
-                  className="w-full text-sm border rounded-lg px-2 py-1.5"
+                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
                 />
               )}
               <select
                 value={payment}
                 onChange={(e) => setPayment(e.target.value as PaymentMethod)}
-                className="w-full text-sm border rounded-lg px-2 py-1.5"
+                className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
               >
                 {PAYMENT_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
@@ -199,12 +199,12 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 placeholder="Nota general (opcional)"
-                className="w-full text-sm border rounded-lg px-2 py-1.5"
+                className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
               />
               <button
                 disabled={sending}
                 onClick={submitDelivery}
-                className="w-full bg-emerald-600 text-white rounded-lg py-2.5 font-medium disabled:opacity-50"
+                className="w-full bg-brand-500 hover:bg-brand-800 text-white rounded-lg py-2.5 font-medium disabled:opacity-50"
               >
                 {sending ? 'Generando…' : '📲 Enviar pedido por WhatsApp'}
               </button>
@@ -219,7 +219,7 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
 
 function Overlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-0 bg-black/40 z-20 flex items-end sm:items-center sm:justify-center" onClick={onClose}>
+    <div className="fixed inset-0 bg-brand-950/40 z-20 flex items-end sm:items-center sm:justify-center" onClick={onClose}>
       <div
         className="bg-white w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl p-4 max-h-[85vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}

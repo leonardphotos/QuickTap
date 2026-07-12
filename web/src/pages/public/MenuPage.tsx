@@ -43,7 +43,7 @@ export default function MenuPage() {
   }
 
   if (!menu) {
-    return <div className="p-10 text-center text-gray-500">Cargando menú…</div>;
+    return <div className="p-10 text-center text-brand-950/50 font-light">Cargando menú…</div>;
   }
 
   const { restaurant, highlights, categories } = menu;
@@ -51,20 +51,20 @@ export default function MenuPage() {
     highlights.stars.length > 0 || highlights.promos.length > 0 || highlights.houseSpecials.length > 0;
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-28">
-      <header className="bg-white border-b sticky top-0 z-10">
+    <div className="min-h-screen bg-brand-950/[0.03] pb-28">
+      <header className="bg-white border-b border-brand-950/10 sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-3">
           {restaurant.logoUrl && (
             <img src={restaurant.logoUrl} alt="" className="w-10 h-10 rounded-full object-cover" />
           )}
           <div>
-            <h1 className="text-lg font-bold text-gray-900">{restaurant.name}</h1>
+            <h1 className="text-lg font-semibold text-brand-950">{restaurant.name}</h1>
             {restaurant.description && (
-              <p className="text-xs text-gray-500">{restaurant.description}</p>
+              <p className="text-xs text-brand-950/50 font-light">{restaurant.description}</p>
             )}
           </div>
           {qrToken && (
-            <span className="ml-auto text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full font-medium">
+            <span className="ml-auto text-xs bg-brand-400/15 text-brand-800 px-2 py-1 rounded-full font-medium">
               Pedido en mesa
             </span>
           )}
@@ -93,7 +93,7 @@ export default function MenuPage() {
 
         {categories.map((cat) => (
           <section key={cat.id}>
-            <h2 className="text-base font-bold text-gray-900 mb-3">{cat.name}</h2>
+            <h2 className="text-base font-semibold text-brand-950 mb-3">{cat.name}</h2>
             <div className="grid gap-3">
               {cat.products.map((p) => (
                 <ProductCard key={p.id} product={p} restaurant={restaurant} onAdd={addToCart} />
@@ -106,7 +106,7 @@ export default function MenuPage() {
       {cart.length > 0 && !cartOpen && (
         <button
           onClick={() => setCartOpen(true)}
-          className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white rounded-full px-6 py-3 shadow-lg font-medium flex items-center gap-2"
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-brand-950 text-white rounded-full px-6 py-3 shadow-lg font-medium flex items-center gap-2"
         >
           🛒 Ver carrito ({cart.length}) — {publicPriceLabel(subtotalBase, restaurant).primary}
         </button>
@@ -143,7 +143,7 @@ function HighlightRow({
 }) {
   return (
     <div>
-      <h2 className="text-base font-bold text-gray-900 mb-3">{title}</h2>
+      <h2 className="text-base font-semibold text-brand-950 mb-3">{title}</h2>
       <div className="grid gap-3">
         {products.map((p) => (
           <ProductCard key={p.id} product={p} restaurant={restaurant} onAdd={onAdd} />

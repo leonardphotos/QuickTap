@@ -37,32 +37,36 @@ export default function CategoriesPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold text-gray-900">Categorías</h1>
+      <h1 className="text-xl font-semibold text-brand-950">Categorías</h1>
 
       <form onSubmit={onSubmit} className="flex gap-2">
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Nueva categoría (ej: Postres)"
-          className="border rounded-lg px-3 py-2 text-sm flex-1"
+          className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm flex-1 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
           required
         />
-        <button className="bg-gray-900 text-white rounded-lg px-4 py-2 text-sm font-medium">Agregar</button>
+        <button className="bg-brand-500 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-brand-800">
+          Agregar
+        </button>
       </form>
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <ul className="bg-white rounded-xl border divide-y">
+      <ul className="bg-white rounded-xl border border-brand-950/10 divide-y divide-brand-950/10">
         {categories.map((c) => (
           <li key={c.id} className="flex items-center justify-between px-4 py-3 text-sm">
             <span>
-              {c.name} <span className="text-gray-400">({c._count?.products ?? 0} productos)</span>
+              {c.name} <span className="text-brand-950/40">({c._count?.products ?? 0} productos)</span>
             </span>
-            <button onClick={() => remove(c.id)} className="text-red-500">
+            <button onClick={() => remove(c.id)} className="text-red-500 hover:text-red-600">
               Borrar
             </button>
           </li>
         ))}
-        {categories.length === 0 && <li className="px-4 py-6 text-center text-gray-400 text-sm">Sin categorías aún.</li>}
+        {categories.length === 0 && (
+          <li className="px-4 py-6 text-center text-brand-950/40 text-sm font-light">Sin categorías aún.</li>
+        )}
       </ul>
     </div>
   );

@@ -68,23 +68,23 @@ const PLANS: Plan[] = [
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-white text-gray-900">
+    <div className="min-h-screen bg-white text-brand-950">
       {/* Nav */}
-      <header className="border-b sticky top-0 bg-white/90 backdrop-blur z-10">
+      <header className="border-b border-brand-950/10 sticky top-0 bg-white/90 backdrop-blur z-10">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
-          <span className="font-extrabold text-lg tracking-tight">
-            Quick<span className="text-emerald-600">Tap</span>
+          <span className="font-semibold text-lg tracking-tight">
+            Quick<span className="text-brand-500">Tap</span>
           </span>
           <nav className="flex items-center gap-2 sm:gap-4">
-            <a href="#precios" className="hidden sm:inline text-sm text-gray-600 hover:text-gray-900">
+            <a href="#precios" className="hidden sm:inline text-sm text-brand-950/70 hover:text-brand-950">
               Precios y planes
             </a>
-            <Link to="/admin/login" className="text-sm font-medium text-gray-700 hover:text-gray-900 px-3 py-2">
+            <Link to="/admin/login" className="text-sm font-medium text-brand-950/80 hover:text-brand-950 px-3 py-2">
               Iniciar sesión
             </Link>
             <Link
               to="/admin/register"
-              className="text-sm font-medium bg-gray-900 text-white rounded-lg px-4 py-2 hover:bg-gray-800"
+              className="text-sm font-medium bg-brand-950 text-white rounded-lg px-4 py-2 hover:bg-brand-900"
             >
               Regístrate y comienza gratis hoy
             </Link>
@@ -94,32 +94,32 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="max-w-5xl mx-auto px-4 py-20 text-center">
-        <span className="inline-block text-xs font-semibold text-emerald-700 bg-emerald-100 rounded-full px-3 py-1 mb-4">
+        <span className="inline-block text-xs font-medium text-brand-900 bg-brand-400/10 rounded-full px-3 py-1 mb-4">
           Menú digital, comandas y delivery para restaurantes
         </span>
-        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight">
-          QuickTap: tu restaurante, <span className="text-emerald-600">todo a un toque.</span>
+        <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight">
+          QuickTap: tu restaurante, <span className="text-brand-500">todo a un toque.</span>
         </h1>
-        <p className="mt-5 text-lg text-gray-600 max-w-2xl mx-auto">
+        <p className="mt-5 text-lg text-brand-950/70 max-w-2xl mx-auto font-light">
           Crea tu menú digital, genera los QR de tus mesas y recibe pedidos en cocina en tiempo real o directo por
           WhatsApp. Sin instalar nada.
         </p>
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
           <Link
             to="/admin/register"
-            className="w-full sm:w-auto bg-emerald-600 text-white font-semibold rounded-lg px-6 py-3 hover:bg-emerald-700"
+            className="w-full sm:w-auto bg-brand-500 text-white font-medium rounded-lg px-6 py-3 hover:bg-brand-800"
           >
             Regístrate y comienza gratis hoy
           </Link>
           <a
             href="#precios"
-            className="w-full sm:w-auto border border-gray-300 font-semibold rounded-lg px-6 py-3 hover:bg-gray-50"
+            className="w-full sm:w-auto border border-brand-950/20 font-medium rounded-lg px-6 py-3 hover:bg-brand-400/5"
           >
             Ver precios y planes
           </a>
           <Link
             to="/admin/login"
-            className="w-full sm:w-auto text-gray-600 font-medium px-6 py-3 hover:text-gray-900"
+            className="w-full sm:w-auto text-brand-950/70 font-medium px-6 py-3 hover:text-brand-950"
           >
             Iniciar sesión
           </Link>
@@ -127,13 +127,13 @@ export default function LandingPage() {
       </section>
 
       {/* Features */}
-      <section className="bg-gray-50 border-y">
+      <section className="bg-brand-950/[0.03] border-y border-brand-950/10">
         <div className="max-w-5xl mx-auto px-4 py-16 grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
           {FEATURES.map((f) => (
-            <div key={f.title} className="bg-white border rounded-xl p-5">
+            <div key={f.title} className="bg-white border border-brand-950/10 rounded-xl p-5">
               <p className="text-3xl mb-2">{f.icon}</p>
-              <p className="font-semibold text-gray-900">{f.title}</p>
-              <p className="text-sm text-gray-500 mt-1">{f.text}</p>
+              <p className="font-medium text-brand-950">{f.title}</p>
+              <p className="text-sm text-brand-950/60 mt-1 font-light">{f.text}</p>
             </div>
           ))}
         </div>
@@ -142,8 +142,8 @@ export default function LandingPage() {
       {/* Pricing */}
       <section id="precios" className="max-w-5xl mx-auto px-4 py-20">
         <div className="text-center mb-10">
-          <h2 className="text-2xl sm:text-3xl font-extrabold">Precios y planes</h2>
-          <p className="text-gray-500 mt-2">Elige el plan que se ajuste al tamaño de tu restaurante.</p>
+          <h2 className="text-2xl sm:text-3xl font-semibold">Precios y planes</h2>
+          <p className="text-brand-950/60 mt-2 font-light">Elige el plan que se ajuste al tamaño de tu restaurante.</p>
           <p className="text-xs text-amber-600 mt-1">
             * Precios de ejemplo, sujetos a ajuste antes del lanzamiento.
           </p>
@@ -154,33 +154,33 @@ export default function LandingPage() {
             <div
               key={plan.name}
               className={`rounded-2xl border p-6 flex flex-col ${
-                plan.highlighted ? 'border-emerald-600 ring-2 ring-emerald-100 relative' : 'border-gray-200'
+                plan.highlighted ? 'border-brand-500 ring-2 ring-brand-400/15 relative' : 'border-brand-950/15'
               }`}
             >
               {plan.highlighted && (
-                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-emerald-600 text-white text-xs font-semibold px-3 py-1 rounded-full">
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-brand-500 text-white text-xs font-medium px-3 py-1 rounded-full">
                   Más popular
                 </span>
               )}
-              <p className="font-bold text-lg">{plan.name}</p>
-              <p className="text-sm text-gray-500 mt-1">{plan.tagline}</p>
+              <p className="font-semibold text-lg">{plan.name}</p>
+              <p className="text-sm text-brand-950/60 mt-1 font-light">{plan.tagline}</p>
               <p className="mt-4">
-                <span className="text-3xl font-extrabold">{plan.price}</span>
-                <span className="text-gray-500">{plan.period}</span>
+                <span className="text-3xl font-semibold">{plan.price}</span>
+                <span className="text-brand-950/60">{plan.period}</span>
               </p>
-              <ul className="mt-5 space-y-2 text-sm text-gray-600 flex-1">
+              <ul className="mt-5 space-y-2 text-sm text-brand-950/70 flex-1 font-light">
                 {plan.features.map((f) => (
                   <li key={f} className="flex items-start gap-2">
-                    <span className="text-emerald-600">✓</span> {f}
+                    <span className="text-brand-500">✓</span> {f}
                   </li>
                 ))}
               </ul>
               <Link
                 to="/admin/register"
-                className={`mt-6 text-center rounded-lg px-4 py-2.5 text-sm font-semibold ${
+                className={`mt-6 text-center rounded-lg px-4 py-2.5 text-sm font-medium ${
                   plan.highlighted
-                    ? 'bg-emerald-600 text-white hover:bg-emerald-700'
-                    : 'bg-gray-900 text-white hover:bg-gray-800'
+                    ? 'bg-brand-500 text-white hover:bg-brand-800'
+                    : 'bg-brand-950 text-white hover:bg-brand-900'
                 }`}
               >
                 {plan.cta}
@@ -191,16 +191,18 @@ export default function LandingPage() {
       </section>
 
       {/* Footer CTA */}
-      <footer className="border-t bg-gray-50">
+      <footer className="border-t border-brand-950/10 bg-brand-950/[0.03]">
         <div className="max-w-5xl mx-auto px-4 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-sm text-gray-500">© {new Date().getFullYear()} QuickTap.club — todo a un toque.</p>
+          <p className="text-sm text-brand-950/60 font-light">
+            © {new Date().getFullYear()} QuickTap.club — todo a un toque.
+          </p>
           <div className="flex items-center gap-3">
-            <Link to="/admin/login" className="text-sm text-gray-600 hover:text-gray-900">
+            <Link to="/admin/login" className="text-sm text-brand-950/70 hover:text-brand-950">
               Iniciar sesión
             </Link>
             <Link
               to="/admin/register"
-              className="text-sm font-medium bg-gray-900 text-white rounded-lg px-4 py-2 hover:bg-gray-800"
+              className="text-sm font-medium bg-brand-950 text-white rounded-lg px-4 py-2 hover:bg-brand-900"
             >
               Regístrate y comienza gratis hoy
             </Link>

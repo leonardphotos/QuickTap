@@ -41,9 +41,9 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4 py-10">
-      <form onSubmit={onSubmit} className="bg-white p-6 rounded-2xl border w-full max-w-sm space-y-3">
-        <h1 className="text-xl font-bold text-gray-900">Crea tu restaurante</h1>
+    <div className="min-h-screen flex items-center justify-center bg-brand-950/[0.03] px-4 py-10">
+      <form onSubmit={onSubmit} className="bg-white p-6 rounded-2xl border border-brand-950/10 w-full max-w-sm space-y-3">
+        <h1 className="text-xl font-semibold text-brand-950">Crea tu restaurante</h1>
         <Field label="Nombre del restaurante" value={restaurantName} onChange={setRestaurantName} />
         <Field
           label="Slug (URL pública)"
@@ -53,16 +53,16 @@ export default function RegisterPage() {
         />
         <Field label="WhatsApp (con código de país)" value={whatsappPhone} onChange={setWhatsappPhone} placeholder="584141234567" />
         <label className="block text-sm">
-          <span className="text-gray-600">¿En qué moneda colocas tus precios?</span>
+          <span className="text-brand-950/70">¿En qué moneda colocas tus precios?</span>
           <select
             value={baseCurrency}
             onChange={(e) => setBaseCurrency(e.target.value as Currency)}
-            className="mt-1 w-full border rounded-lg px-3 py-2"
+            className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
           >
             <option value="USD">Dólares ($)</option>
             <option value="EUR">Euros (€)</option>
           </select>
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-brand-950/40 font-light">
             La conversión a Bs para tus clientes se calcula sola con la tasa BCV.
           </span>
         </label>
@@ -72,13 +72,13 @@ export default function RegisterPage() {
         {error && <p className="text-sm text-red-600">{error}</p>}
         <button
           disabled={loading}
-          className="w-full bg-gray-900 text-white rounded-lg py-2 font-medium disabled:opacity-50"
+          className="w-full bg-brand-500 text-white rounded-lg py-2 font-medium hover:bg-brand-800 disabled:opacity-50"
         >
           {loading ? 'Creando…' : 'Crear cuenta'}
         </button>
-        <p className="text-sm text-center text-gray-500">
+        <p className="text-sm text-center text-brand-950/60 font-light">
           ¿Ya tienes cuenta?{' '}
-          <Link to="/admin/login" className="text-gray-900 font-medium">
+          <Link to="/admin/login" className="text-brand-500 font-medium">
             Ingresa
           </Link>
         </p>

@@ -59,12 +59,12 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6 max-w-lg">
-      <h1 className="text-xl font-bold text-gray-900">Ajustes</h1>
+      <h1 className="text-xl font-semibold text-brand-950">Ajustes</h1>
 
-      <section className="bg-white border rounded-xl p-4 space-y-4">
+      <section className="bg-white border border-brand-950/10 rounded-xl p-4 space-y-4">
         <div>
-          <h2 className="font-semibold text-gray-900">Tasa cambiaria</h2>
-          <p className="text-sm text-gray-500">
+          <h2 className="font-semibold text-brand-950">Tasa cambiaria</h2>
+          <p className="text-sm text-brand-950/60 font-light">
             Elige en qué moneda colocas tus precios. La conversión a bolívares que ven tus clientes se calcula
             automáticamente con la tasa oficial del Banco Central de Venezuela (BCV).
           </p>
@@ -76,7 +76,7 @@ export default function SettingsPage() {
               key={c}
               onClick={() => setBaseCurrency(c)}
               className={`flex-1 rounded-lg py-2 text-sm border ${
-                baseCurrency === c ? 'bg-gray-900 text-white' : 'bg-white text-gray-700'
+                baseCurrency === c ? 'bg-brand-950 text-white border-brand-950' : 'bg-white text-brand-950/70 border-brand-950/15'
               }`}
             >
               {CURRENCY_LABELS[c]}
@@ -85,14 +85,14 @@ export default function SettingsPage() {
         </div>
 
         {activeRate && (
-          <div className="text-sm bg-gray-50 rounded-lg p-3 space-y-1">
+          <div className="text-sm bg-brand-950/[0.03] rounded-lg p-3 space-y-1">
             {activeRate.rateBs ? (
               <>
                 <p>
                   Tasa BCV vigente: <span className="font-semibold">{formatBsAbsolute(activeRate.rateBs)}</span> /{' '}
                   {baseCurrency === 'USD' ? '$1' : '€1'}
                 </p>
-                <p className="text-xs text-gray-500">
+                <p className="text-xs text-brand-950/50 font-light">
                   Actualizada: {new Date(activeRate.fetchedAt!).toLocaleString('es-VE')} · Fuente: {activeRate.source}
                 </p>
                 {activeRate.stale && (
@@ -108,7 +108,7 @@ export default function SettingsPage() {
             <button
               onClick={refreshRates}
               disabled={refreshing}
-              className="text-xs font-medium text-gray-700 underline disabled:opacity-50"
+              className="text-xs font-medium text-brand-500 underline disabled:opacity-50"
             >
               {refreshing ? 'Actualizando…' : 'Actualizar tasa ahora'}
             </button>
@@ -116,22 +116,22 @@ export default function SettingsPage() {
         )}
 
         <label className="block text-sm">
-          <span className="text-gray-600">WhatsApp del restaurante</span>
+          <span className="text-brand-950/70">WhatsApp del restaurante</span>
           <input
             value={whatsappPhone}
             onChange={(e) => setWhatsappPhone(e.target.value)}
             placeholder="584141234567"
-            className="mt-1 w-full border rounded-lg px-3 py-2"
+            className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
           />
         </label>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
-        {message && <p className="text-sm text-emerald-600">{message}</p>}
+        {message && <p className="text-sm text-brand-500">{message}</p>}
 
         <button
           onClick={saveCurrency}
           disabled={saving}
-          className="bg-gray-900 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
+          className="bg-brand-500 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-brand-800 disabled:opacity-50"
         >
           {saving ? 'Guardando…' : 'Guardar cambios'}
         </button>

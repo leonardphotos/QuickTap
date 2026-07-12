@@ -1,11 +1,33 @@
 @import 'tailwindcss';
 
+/* Montserrat (self-hosted). 300 = peso por defecto de la marca; el resto
+   se usa donde el diseño pide énfasis (font-medium/semibold/bold). */
+@import '@fontsource/montserrat/300.css';
+@import '@fontsource/montserrat/400.css';
+@import '@fontsource/montserrat/500.css';
+@import '@fontsource/montserrat/600.css';
+@import '@fontsource/montserrat/700.css';
+@import '@fontsource/montserrat/800.css';
+
+@theme {
+  --font-sans: 'Montserrat', system-ui, 'Segoe UI', sans-serif;
+
+  /* Paleta de marca QuickTap, de más oscuro a más claro. */
+  --color-brand-950: #001b43;
+  --color-brand-900: #022873;
+  --color-brand-800: #03258c;
+  --color-brand-500: #056cf2;
+  --color-brand-400: #0597f2;
+}
+
 :root {
   color-scheme: light;
 }
 
 body {
   margin: 0;
-  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+  font-family: var(--font-sans);
+  font-weight: 300;
   background-color: #f8f7fb;
+  color: var(--color-brand-950);
 }

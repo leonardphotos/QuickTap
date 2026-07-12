@@ -65,21 +65,21 @@ export default function ProductsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold text-gray-900">Productos</h1>
+      <h1 className="text-xl font-semibold text-brand-950">Productos</h1>
 
-      <form onSubmit={onSubmit} className="bg-white border rounded-xl p-4 space-y-3">
+      <form onSubmit={onSubmit} className="bg-white border border-brand-950/10 rounded-xl p-4 space-y-3">
         <div className="grid sm:grid-cols-2 gap-3">
           <input
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             placeholder="Nombre"
-            className="border rounded-lg px-3 py-2 text-sm"
+            className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
             required
           />
           <select
             value={form.categoryId}
             onChange={(e) => setForm({ ...form, categoryId: e.target.value })}
-            className="border rounded-lg px-3 py-2 text-sm"
+            className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
             required
           >
             <option value="">Categoría…</option>
@@ -96,21 +96,21 @@ export default function ProductsPage() {
             type="number"
             step="0.01"
             min="0"
-            className="border rounded-lg px-3 py-2 text-sm"
+            className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
             required
           />
           <input
             value={form.photoUrl}
             onChange={(e) => setForm({ ...form, photoUrl: e.target.value })}
             placeholder="URL de foto (opcional)"
-            className="border rounded-lg px-3 py-2 text-sm"
+            className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
           />
         </div>
         <textarea
           value={form.description}
           onChange={(e) => setForm({ ...form, description: e.target.value })}
           placeholder="Descripción (opcional)"
-          className="border rounded-lg px-3 py-2 text-sm w-full"
+          className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
         />
         <div className="flex gap-4 text-sm">
           <label className="flex items-center gap-1.5">
@@ -131,34 +131,39 @@ export default function ProductsPage() {
           </label>
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <button disabled={saving} className="bg-gray-900 text-white rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50">
+        <button
+          disabled={saving}
+          className="bg-brand-500 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-brand-800 disabled:opacity-50"
+        >
           {saving ? 'Guardando…' : 'Crear producto'}
         </button>
       </form>
 
-      <ul className="bg-white rounded-xl border divide-y">
+      <ul className="bg-white rounded-xl border border-brand-950/10 divide-y divide-brand-950/10">
         {products.map((p) => (
           <li key={p.id} className="flex items-center justify-between px-4 py-3 text-sm gap-3">
             <div>
-              <p className="font-medium text-gray-900">
-                {p.name} <span className="text-gray-400 font-normal">· {p.category?.name}</span>
+              <p className="font-medium text-brand-950">
+                {p.name} <span className="text-brand-950/40 font-normal">· {p.category?.name}</span>
               </p>
-              <p className="text-gray-500">{formatBase(p.price, currencySymbol)}</p>
+              <p className="text-brand-950/60 font-light">{formatBase(p.price, currencySymbol)}</p>
             </div>
             <div className="flex items-center gap-3 shrink-0">
               <button
                 onClick={() => toggleAvailable(p)}
-                className={`text-xs px-2 py-1 rounded-full font-medium ${p.isAvailable ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-200 text-gray-500'}`}
+                className={`text-xs px-2 py-1 rounded-full font-medium ${p.isAvailable ? 'bg-brand-400/15 text-brand-800' : 'bg-brand-950/10 text-brand-950/50'}`}
               >
                 {p.isAvailable ? 'Disponible' : 'Agotado'}
               </button>
-              <button onClick={() => remove(p.id)} className="text-red-500">
+              <button onClick={() => remove(p.id)} className="text-red-500 hover:text-red-600">
                 Borrar
               </button>
             </div>
           </li>
         ))}
-        {products.length === 0 && <li className="px-4 py-6 text-center text-gray-400 text-sm">Sin productos aún.</li>}
+        {products.length === 0 && (
+          <li className="px-4 py-6 text-center text-brand-950/40 text-sm font-light">Sin productos aún.</li>
+        )}
       </ul>
     </div>
   );
