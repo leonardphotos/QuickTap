@@ -117,9 +117,24 @@ Prueba el menú público de la semilla: `GET /api/v1/public/menu/la-parrilla-de-
 
 ---
 
+## 🌐 Frontend (`/web`)
+
+Vite + React + TypeScript + Tailwind v4 + React Router + Socket.IO client.
+
+```bash
+cd web
+npm install
+npm run dev   # http://localhost:3000 (proxea /api y /socket.io hacia :4000)
+```
+
+- **`/r/:slug`** — menú público. Con `?mesa=<qrToken>` es el flujo de mesa (checkout directo a cocina); sin ese parámetro es delivery/pickup (genera el link de WhatsApp).
+- **`/admin/register` · `/admin/login`** — alta de restaurante y login.
+- **`/admin/kitchen`** — cola de cocina en vivo (Socket.IO).
+- **`/admin/products` · `/admin/categories` · `/admin/tables`** — CRUD del panel; Mesas genera el QR (SVG) apuntando a `/r/:slug?mesa=...`.
+
 ## 🧭 Próximos pasos (fuera del alcance de este scaffold)
 
-- Auth/registro de restaurantes (signup, login, refresh tokens).
 - Subida de imágenes (S3/Cloudinary) para `photoUrl`/`logoUrl`.
-- Generación real de PNG del QR y agente de impresión térmica (ESC/POS).
+- Generación de PDF/impresión física de los QR y agente de impresión térmica (ESC/POS).
 - Rate limiting en endpoints públicos.
+- Deploy (dominio `quicktap.club`, HTTPS, variables de entorno de producción).

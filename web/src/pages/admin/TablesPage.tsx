@@ -1,0 +1,73 @@
+import { useEffect, useState } from 'react';
+import type { FormEvent } from 'react';
+import { QRCodeSVG } from 'qrcode.react';
+import { api } from '../../api/client';
+import { useAuth } from '../../context/AuthContext';
+import type { TableItem } from '../../types';
+
+export default function TablesPage() {
+  const { restaurant } = useAuth();
+  const [tables, setTables] = useState<TableItem[]>([]);
+  const [number, setNumber] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    api.get('/tables').then((res) => setTables(res.data.data));
+  }
+
+  useEffect(load, []);
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      await api.post('/tables', { number });
+      setNumber('');
+      load();
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo crear la mesa.');
+    }
+  }
+
+  async function remove(id: string) {
+    if (!confirm('¿Borrar esta mesa?')) return;
+    await api.delete(`/tables/${id}`);
+    load();
+  }
+
+  function menuUrl(qrToken: string) {
+    return `${window.location.origin}/r/${restaurant!.slug}?mesa=${qrToken}`;
+  }
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-xl font-bold text-gray-900">Mesas / Códigos QR</h1>
+
+      <form onSubmit={onSubmit} className="flex gap-2">
+        <input
+          value={number}
+          onChange={(e) => setNumber(e.target.value)}
+          placeholder="Número de mesa (ej: 5, Terraza-1)"
+          className="border rounded-lg px-3 py-2 text-sm flex-1"
+          required
+        />
+        <button className="bg-gray-900 text-white rounded-lg px-4 py-2 text-sm font-medium">Agregar</button>
+      </form>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      <div className="grid sm:grid-cols-3 gap-4">
+        {tables.map((t) => (
+          <div key={t.id} className="bg-white border rounded-xl p-4 text-center space-y-2">
+            <p className="font-semibold text-gray-900">Mesa {t.number}</p>
+            <QRCodeSVG value={menuUrl(t.qrToken)} size={140} className="mx-auto" />
+            <p className="text-[10px] text-gray-400 break-all">{menuUrl(t.qrToken)}</p>
+            <button onClick={() => remove(t.id)} className="text-red-500 text-xs">
+              Borrar
+            </button>
+          </div>
+        ))}
+      </div>
+      {tables.length === 0 && <p className="text-sm text-gray-400 text-center py-6">Sin mesas aún.</p>}
+    </div>
+  );
+}
