@@ -1,5 +1,6 @@
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import LandingPage from './pages/LandingPage';
 import MenuPage from './pages/public/MenuPage';
 import LoginPage from './pages/admin/LoginPage';
 import RegisterPage from './pages/admin/RegisterPage';
@@ -14,7 +15,7 @@ export default function App() {
   return (
     <AuthProvider>
       <Routes>
-        <Route path="/" element={<Navigate to="/admin/login" replace />} />
+        <Route path="/" element={<LandingPage />} />
 
         {/* Menú público (QR de mesa o link general para delivery/pickup) */}
         <Route path="/r/:slug" element={<MenuPage />} />
