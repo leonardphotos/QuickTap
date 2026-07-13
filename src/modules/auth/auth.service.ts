@@ -3,14 +3,66 @@ import jwt from 'jsonwebtoken';
 import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
 import { conflict, unauthorized } from '../../utils/http-error';
+import { isLocked, trialPeriodEnd } from '../../utils/subscription';
 import { LoginInput, RegisterInput } from './auth.dto';
 
 function signToken(payload: { userId: string; restaurantId: string; role: string }) {
   return jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn } as jwt.SignOptions);
 }
 
+// Forma completa del restaurante que el frontend espera en todo momento
+// (login/register/me deben devolver siempre la misma forma).
+const RESTAURANT_SELECT = {
+  id: true,
+  slug: true,
+  name: true,
+  description: true,
+  logoUrl: true,
+  whatsappPhone: true,
+  baseCurrency: true,
+  theme: true,
+  subscriptionStatus: true,
+  subscriptionPlan: true,
+  billingCycle: true,
+  periodEnd: true,
+} as const;
+
+type RestaurantRow = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  logoUrl: string | null;
+  whatsappPhone: string | null;
+  baseCurrency: 'USD' | 'EUR';
+  theme: unknown;
+  subscriptionStatus: 'TRIALING' | 'ACTIVE';
+  subscriptionPlan: string | null;
+  billingCycle: string | null;
+  periodEnd: Date;
+};
+
+/** Forma que el frontend consume: agrega `locked`, calculado en vivo (nunca persistido). */
+function serializeRestaurant(restaurant: RestaurantRow) {
+  return {
+    id: restaurant.id,
+    slug: restaurant.slug,
+    name: restaurant.name,
+    description: restaurant.description,
+    logoUrl: restaurant.logoUrl,
+    whatsappPhone: restaurant.whatsappPhone,
+    baseCurrency: restaurant.baseCurrency,
+    theme: restaurant.theme,
+    subscriptionStatus: restaurant.subscriptionStatus,
+    subscriptionPlan: restaurant.subscriptionPlan,
+    billingCycle: restaurant.billingCycle,
+    periodEnd: restaurant.periodEnd,
+    locked: isLocked(restaurant),
+  };
+}
+
 export const authService = {
-  /** Registro de un restaurante nuevo + su usuario dueño (OWNER). */
+  /** Registro de un restaurante nuevo + su usuario dueño (OWNER). Arranca en TRIALING (15 días). */
   async register(input: RegisterInput) {
     const existingSlug = await prisma.restaurant.findUnique({ where: { slug: input.slug } });
     if (existingSlug) throw conflict('Ese slug ya está en uso.');
@@ -23,6 +75,7 @@ export const authService = {
         name: input.restaurantName,
         whatsappPhone: input.whatsappPhone,
         baseCurrency: input.baseCurrency,
+        periodEnd: trialPeriodEnd(),
         users: {
           create: {
             email: input.email,
@@ -40,7 +93,7 @@ export const authService = {
 
     return {
       token,
-      restaurant: { id: restaurant.id, slug: restaurant.slug, name: restaurant.name },
+      restaurant: serializeRestaurant(restaurant),
       user: { id: owner.id, name: owner.name, email: owner.email, role: owner.role },
     };
   },
@@ -61,7 +114,7 @@ export const authService = {
 
     return {
       token,
-      restaurant: { id: restaurant.id, slug: restaurant.slug, name: restaurant.name },
+      restaurant: serializeRestaurant(restaurant),
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
     };
   },
@@ -75,15 +128,9 @@ export const authService = {
 
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
-      select: {
-        id: true,
-        slug: true,
-        name: true,
-        whatsappPhone: true,
-        baseCurrency: true,
-      },
+      select: RESTAURANT_SELECT,
     });
 
-    return { user, restaurant };
+    return { user, restaurant: restaurant ? serializeRestaurant(restaurant) : null };
   },
 };

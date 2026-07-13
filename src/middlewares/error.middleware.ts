@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import { ZodError } from 'zod';
 import { Prisma } from '@prisma/client';
+import { MulterError } from 'multer';
 import { HttpError } from '../utils/http-error';
 import { env } from '../config/env';
 
@@ -22,6 +23,10 @@ export function errorMiddleware(err: unknown, _req: Request, res: Response, _nex
 
   if (err instanceof HttpError) {
     return res.status(err.status).json({ error: err.message, details: err.details });
+  }
+
+  if (err instanceof MulterError) {
+    return res.status(400).json({ error: 'No se pudo procesar el archivo subido.', details: err.message });
   }
 
   // Violación de restricción única de Prisma (ej: slug o email duplicado).

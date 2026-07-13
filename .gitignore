@@ -7,3 +7,4 @@ coverage/
 .DS_Store
 prisma/*.db
 prisma/migrations/dev.db*
+uploads/

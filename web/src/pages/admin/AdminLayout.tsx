@@ -1,49 +1,110 @@
-import { NavLink, Navigate, Outlet } from 'react-router-dom';
+import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Home, LogOut, Settings, Share2, TriangleAlert } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-
-const links = [
-  { to: '/admin/kitchen', label: '🍳 Cocina' },
-  { to: '/admin/products', label: '🍔 Productos' },
-  { to: '/admin/categories', label: '📂 Categorías' },
-  { to: '/admin/tables', label: '🔳 Mesas / QR' },
-  { to: '/admin/settings', label: '⚙️ Ajustes' },
-];
+import { TextureButton } from '@/components/ui/texture-button';
+import { Toast } from '@/components/ui/toast';
+import { useCopyToast } from '../../hooks/useCopyToast';
+import { canAccessPath, defaultPathFor, isScreenRole } from '../../utils/roles';
+import { daysRemaining, graceHoursRemaining } from '../../utils/subscription';
 
 export default function AdminLayout() {
   const { user, restaurant, loading, logout } = useAuth();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const { copy, toastMessage } = useCopyToast();
 
   if (loading) return <div className="p-10 text-center text-brand-950/50 font-light">Cargando…</div>;
   if (!user || !restaurant) return <Navigate to="/admin/login" replace />;
 
-  return (
-    <div className="min-h-screen bg-brand-950/[0.03]">
-      <header className="bg-white border-b border-brand-950/10">
-        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div>
-            <p className="font-semibold text-brand-950">{restaurant.name}</p>
-            <p className="text-xs text-brand-950/50 font-light">/{restaurant.slug} · {user.name}</p>
-          </div>
-          <button onClick={logout} className="text-sm text-brand-950/50 hover:text-brand-950">
-            Salir
-          </button>
+  // Cuenta bloqueada por falta de pago: nada de panel hasta que el Dashboard
+  // maestro la reactive (ver src/utils/subscription.ts en el backend).
+  if (restaurant.locked) {
+    return (
+      <div className="min-h-screen bg-[#fafafa] flex items-center justify-center px-6">
+        <div className="max-w-sm text-center">
+          <TriangleAlert className="h-10 w-10 text-amber-500 mx-auto mb-4" />
+          <h1 className="text-xl font-semibold text-brand-950 mb-2">Cuenta bloqueada</h1>
+          <p className="text-sm text-brand-950/60 font-light">
+            {restaurant.name} está bloqueada por falta de pago. Contacta al equipo de QuickTap para reactivarla; solo
+            se puede desbloquear desde el Dashboard de administrador.
+          </p>
+          <TextureButton variant="minimal" size="default" className="mt-6 !w-auto px-6" onClick={logout}>
+            Cerrar sesión
+          </TextureButton>
         </div>
-        <nav className="max-w-5xl mx-auto px-4 flex gap-4 text-sm border-t border-brand-950/10">
-          {links.map((l) => (
-            <NavLink
-              key={l.to}
-              to={l.to}
-              className={({ isActive }) =>
-                `py-2.5 border-b-2 ${isActive ? 'border-brand-500 text-brand-950 font-medium' : 'border-transparent text-brand-950/50'}`
-              }
-            >
-              {l.label}
-            </NavLink>
-          ))}
-        </nav>
-      </header>
-      <main className="max-w-5xl mx-auto px-4 py-6">
+      </div>
+    );
+  }
+
+  if (!canAccessPath(user.role, pathname)) {
+    return <Navigate to={defaultPathFor(user.role)} replace />;
+  }
+
+  // Pantalla (kiosco): sin cabecera ni navegación, solo el contenido a pantalla completa.
+  if (isScreenRole(user.role)) {
+    return (
+      <div className="min-h-screen bg-white">
+        <Outlet />
+      </div>
+    );
+  }
+
+  const canSeeSettings = canAccessPath(user.role, '/admin/settings');
+  const daysLeft = daysRemaining(restaurant.periodEnd);
+  const graceHours = graceHoursRemaining(restaurant.periodEnd);
+  const showExpirationWarning = daysLeft <= 3;
+
+  return (
+    <div className="min-h-screen bg-[#fafafa]">
+      {showExpirationWarning && (
+        <Link
+          to="/admin/billing"
+          className="block bg-amber-400 text-amber-950 text-sm font-medium text-center py-2 px-4 hover:bg-amber-300 transition-colors"
+        >
+          {graceHours !== null
+            ? `Hoy vence tu plan. Tienes ${graceHours}h para pagar antes de que se bloquee tu cuenta.`
+            : `En ${daysLeft} día${daysLeft === 1 ? '' : 's'} vence tu plan. Actívalo aquí.`}
+        </Link>
+      )}
+      <main className="max-w-5xl mx-auto px-6 pt-10 pb-28">
         <Outlet />
       </main>
+
+      {/* Dock flotante: única navegación del panel, siempre centrada abajo. */}
+      <div className="fixed bottom-5 inset-x-0 z-30 flex justify-center pointer-events-none">
+        <div className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-white/90 backdrop-blur-md border border-brand-950/[0.08] shadow-lg shadow-brand-950/10 px-2 py-2">
+          <Link to="/admin">
+            <TextureButton variant="icon" size="icon" aria-label="Inicio">
+              <Home className="h-4 w-4 text-brand-950/70" />
+            </TextureButton>
+          </Link>
+          {pathname !== '/admin' && (
+            <TextureButton variant="icon" size="icon" aria-label="Regresar" onClick={() => navigate(-1)}>
+              <ArrowLeft className="h-4 w-4 text-brand-950/70" />
+            </TextureButton>
+          )}
+          <TextureButton
+            variant="icon"
+            size="icon"
+            aria-label="Compartir enlace del menú"
+            onClick={() => copy(`${window.location.origin}/r/${restaurant.slug}`, 'Enlace copiado')}
+          >
+            <Share2 className="h-4 w-4 text-brand-950/70" />
+          </TextureButton>
+          {canSeeSettings && (
+            <Link to="/admin/settings">
+              <TextureButton variant="icon" size="icon" aria-label="Ajustes">
+                <Settings className="h-4 w-4 text-brand-950/70" />
+              </TextureButton>
+            </Link>
+          )}
+          <TextureButton variant="icon" size="icon" aria-label="Salir" onClick={logout}>
+            <LogOut className="h-4 w-4 text-brand-950/70" />
+          </TextureButton>
+        </div>
+      </div>
+
+      <Toast message={toastMessage} />
     </div>
   );
 }

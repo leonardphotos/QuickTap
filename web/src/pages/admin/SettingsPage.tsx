@@ -3,6 +3,12 @@ import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import type { Currency } from '../../types';
 import { formatBsAbsolute } from '../../utils/format';
+import { canManageTeam } from '../../utils/roles';
+import { TextureButton } from '@/components/ui/texture-button';
+import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
+import { TeamSection } from '@/components/admin/TeamSection';
+import { ThemeSection } from '@/components/admin/ThemeSection';
+import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection';
 
 interface RateInfo {
   currency: Currency;
@@ -15,8 +21,7 @@ interface RateInfo {
 const CURRENCY_LABELS: Record<Currency, string> = { USD: 'Dólares ($)', EUR: 'Euros (€)' };
 
 export default function SettingsPage() {
-  const { restaurant, refresh } = useAuth();
-  const [whatsappPhone, setWhatsappPhone] = useState(restaurant?.whatsappPhone ?? '');
+  const { user, restaurant, refresh } = useAuth();
   const [baseCurrency, setBaseCurrency] = useState<Currency>(restaurant?.baseCurrency ?? 'USD');
   const [rates, setRates] = useState<Record<Currency, RateInfo> | null>(null);
   const [saving, setSaving] = useState(false);
@@ -35,7 +40,7 @@ export default function SettingsPage() {
     setError(null);
     setMessage(null);
     try {
-      await api.patch('/restaurant', { baseCurrency, whatsappPhone: whatsappPhone || undefined });
+      await api.patch('/restaurant', { baseCurrency });
       await refresh();
       setMessage('Configuración guardada.');
     } catch (err: any) {
@@ -58,84 +63,77 @@ export default function SettingsPage() {
   const activeRate = rates?.[baseCurrency];
 
   return (
-    <div className="space-y-6 max-w-lg">
-      <h1 className="text-xl font-semibold text-brand-950">Ajustes</h1>
+    <div className="space-y-8 max-w-2xl">
+      <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Ajustes</h1>
 
-      <section className="bg-white border border-brand-950/10 rounded-xl p-4 space-y-4">
-        <div>
-          <h2 className="font-semibold text-brand-950">Tasa cambiaria</h2>
+      <RestaurantInfoSection />
+
+      <TextureCard>
+        <TextureCardHeader className="px-6">
+          <TextureCardTitle className="pl-0">Tasa cambiaria</TextureCardTitle>
           <p className="text-sm text-brand-950/60 font-light">
             Elige en qué moneda colocas tus precios. La conversión a bolívares que ven tus clientes se calcula
             automáticamente con la tasa oficial del Banco Central de Venezuela (BCV).
           </p>
-        </div>
-
-        <div className="flex gap-2">
-          {(['USD', 'EUR'] as const).map((c) => (
-            <button
-              key={c}
-              onClick={() => setBaseCurrency(c)}
-              className={`flex-1 rounded-lg py-2 text-sm border ${
-                baseCurrency === c ? 'bg-brand-950 text-white border-brand-950' : 'bg-white text-brand-950/70 border-brand-950/15'
-              }`}
-            >
-              {CURRENCY_LABELS[c]}
-            </button>
-          ))}
-        </div>
-
-        {activeRate && (
-          <div className="text-sm bg-brand-950/[0.03] rounded-lg p-3 space-y-1">
-            {activeRate.rateBs ? (
-              <>
-                <p>
-                  Tasa BCV vigente: <span className="font-semibold">{formatBsAbsolute(activeRate.rateBs)}</span> /{' '}
-                  {baseCurrency === 'USD' ? '$1' : '€1'}
-                </p>
-                <p className="text-xs text-brand-950/50 font-light">
-                  Actualizada: {new Date(activeRate.fetchedAt!).toLocaleString('es-VE')} · Fuente: {activeRate.source}
-                </p>
-                {activeRate.stale && (
-                  <p className="text-xs text-amber-600">
-                    ⚠️ Esta tasa tiene más de {' '}
-                    {Math.round((Date.now() - new Date(activeRate.fetchedAt!).getTime()) / 3600000)}h de antigüedad.
-                  </p>
-                )}
-              </>
-            ) : (
-              <p className="text-amber-600">Aún no se ha obtenido una tasa BCV para esta moneda.</p>
-            )}
-            <button
-              onClick={refreshRates}
-              disabled={refreshing}
-              className="text-xs font-medium text-brand-500 underline disabled:opacity-50"
-            >
-              {refreshing ? 'Actualizando…' : 'Actualizar tasa ahora'}
-            </button>
+        </TextureCardHeader>
+        <TextureCardContent className="space-y-4">
+          <div className="flex gap-2">
+            {(['USD', 'EUR'] as const).map((c) => (
+              <button
+                key={c}
+                onClick={() => setBaseCurrency(c)}
+                className={`flex-1 rounded-lg py-2 text-sm border transition-colors ${
+                  baseCurrency === c ? 'bg-brand-950 text-white border-brand-950' : 'bg-white text-brand-950/70 border-brand-950/15'
+                }`}
+              >
+                {CURRENCY_LABELS[c]}
+              </button>
+            ))}
           </div>
-        )}
 
-        <label className="block text-sm">
-          <span className="text-brand-950/70">WhatsApp del restaurante</span>
-          <input
-            value={whatsappPhone}
-            onChange={(e) => setWhatsappPhone(e.target.value)}
-            placeholder="584141234567"
-            className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-          />
-        </label>
+          {activeRate && (
+            <div className="text-sm bg-brand-950/[0.03] rounded-lg p-3 space-y-1">
+              {activeRate.rateBs ? (
+                <>
+                  <p>
+                    Tasa BCV vigente: <span className="font-semibold">{formatBsAbsolute(activeRate.rateBs)}</span> /{' '}
+                    {baseCurrency === 'USD' ? '$1' : '€1'}
+                  </p>
+                  <p className="text-xs text-brand-950/50 font-light">
+                    Actualizada: {new Date(activeRate.fetchedAt!).toLocaleString('es-VE')} · Fuente: {activeRate.source}
+                  </p>
+                  {activeRate.stale && (
+                    <p className="text-xs text-amber-600">
+                      ⚠️ Esta tasa tiene más de {' '}
+                      {Math.round((Date.now() - new Date(activeRate.fetchedAt!).getTime()) / 3600000)}h de antigüedad.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p className="text-amber-600">Aún no se ha obtenido una tasa BCV para esta moneda.</p>
+              )}
+              <button
+                onClick={refreshRates}
+                disabled={refreshing}
+                className="text-xs font-medium text-brand-500 underline disabled:opacity-50"
+              >
+                {refreshing ? 'Actualizando…' : 'Actualizar tasa ahora'}
+              </button>
+            </div>
+          )}
 
-        {error && <p className="text-sm text-red-600">{error}</p>}
-        {message && <p className="text-sm text-brand-500">{message}</p>}
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          {message && <p className="text-sm text-brand-500">{message}</p>}
 
-        <button
-          onClick={saveCurrency}
-          disabled={saving}
-          className="bg-brand-500 text-white rounded-lg px-4 py-2 text-sm font-medium hover:bg-brand-800 disabled:opacity-50"
-        >
-          {saving ? 'Guardando…' : 'Guardar cambios'}
-        </button>
-      </section>
+          <TextureButton variant="brand" size="default" disabled={saving} onClick={saveCurrency} className="!w-auto px-2 disabled:opacity-50">
+            {saving ? 'Guardando…' : 'Guardar cambios'}
+          </TextureButton>
+        </TextureCardContent>
+      </TextureCard>
+
+      <ThemeSection />
+
+      {canManageTeam(user?.role) && <TeamSection />}
     </div>
   );
 }

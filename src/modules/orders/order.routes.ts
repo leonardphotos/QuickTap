@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authGuard } from '../../middlewares/auth.middleware';
+import { tenantGuard } from '../../middlewares/auth.middleware';
 import { orderController } from './order.controller';
 
 /**
@@ -8,7 +8,7 @@ import { orderController } from './order.controller';
  */
 const router = Router();
 
-router.use(authGuard);
+router.use(tenantGuard);
 
 router.get('/kitchen', orderController.kitchenQueue);
 router.patch('/:id/status', orderController.updateStatus);

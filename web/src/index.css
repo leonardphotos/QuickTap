@@ -1,16 +1,21 @@
 @import 'tailwindcss';
 
-/* Montserrat (self-hosted). 300 = peso por defecto de la marca; el resto
+/* QuickTap no tiene modo oscuro: las clases dark: de Cult UI solo deben
+   activarse con una clase .dark explícita (que nunca se aplica), nunca por
+   la preferencia de color del sistema operativo del visitante. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Poppins (self-hosted). 300 = peso por defecto de la marca; el resto
    se usa donde el diseño pide énfasis (font-medium/semibold/bold). */
-@import '@fontsource/montserrat/300.css';
-@import '@fontsource/montserrat/400.css';
-@import '@fontsource/montserrat/500.css';
-@import '@fontsource/montserrat/600.css';
-@import '@fontsource/montserrat/700.css';
-@import '@fontsource/montserrat/800.css';
+@import '@fontsource/poppins/300.css';
+@import '@fontsource/poppins/400.css';
+@import '@fontsource/poppins/500.css';
+@import '@fontsource/poppins/600.css';
+@import '@fontsource/poppins/700.css';
+@import '@fontsource/poppins/800.css';
 
 @theme {
-  --font-sans: 'Montserrat', system-ui, 'Segoe UI', sans-serif;
+  --font-sans: 'Poppins', system-ui, 'Segoe UI', sans-serif;
 
   /* Paleta de marca QuickTap, de más oscuro a más claro. */
   --color-brand-950: #001b43;
@@ -18,10 +23,37 @@
   --color-brand-800: #03258c;
   --color-brand-500: #056cf2;
   --color-brand-400: #0597f2;
+
+  /* Tokens semánticos de shadcn/Cult UI, mapeados a la paleta de marca. */
+  --color-background: #ffffff;
+  --color-foreground: var(--color-brand-950);
+  --color-card: #ffffff;
+  --color-card-foreground: var(--color-brand-950);
+  --color-popover: #ffffff;
+  --color-popover-foreground: var(--color-brand-950);
+  --color-primary: var(--color-brand-500);
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #eef3fc;
+  --color-secondary-foreground: var(--color-brand-950);
+  --color-muted: #f1f4f9;
+  --color-muted-foreground: #5b6785;
+  --color-accent: #e6f2fe;
+  --color-accent-foreground: var(--color-brand-900);
+  --color-destructive: #ef4444;
+  --color-border: #e3e7f0;
+  --color-input: #e3e7f0;
+  --color-ring: var(--color-brand-500);
+  --radius: 0.75rem;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 :root {
   color-scheme: light;
+  /* Reduce el tamaño base de todo el texto (rem) en toda la app. */
+  font-size: 87.5%;
 }
 
 body {

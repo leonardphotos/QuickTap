@@ -12,6 +12,9 @@ export const cartItemSchema = z.object({
 export const dineInCheckoutSchema = z.object({
   qrToken: z.string().min(1, 'Falta el identificador de la mesa (QR).'),
   items: z.array(cartItemSchema).min(1, 'El carrito está vacío.'),
+  customerName: z.string().min(1).max(120).optional(),
+  // Cédula/documento de identidad, para los datos de facturación.
+  customerIdNumber: z.string().min(1).max(20).optional(),
 });
 
 const paymentMethodSchema = z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CARD']);

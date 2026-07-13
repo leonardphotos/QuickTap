@@ -6,7 +6,7 @@ export const createProductSchema = z.object({
   name: z.string().min(1, 'El nombre es obligatorio.').max(120),
   description: z.string().max(500).optional(),
   price: z.coerce.number().nonnegative('El precio no puede ser negativo.'),
-  photoUrl: z.string().url('La foto debe ser una URL válida.').optional(),
+  photoUrl: z.string().min(1).optional(),
   isAvailable: z.boolean().optional().default(true),
 
   // Banderas de marketing

@@ -3,7 +3,7 @@ import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { baseToBs, CURRENCY_SYMBOLS, round2, toDecimal } from '../../utils/money';
 import { buildWhatsappCheckoutUrl } from '../../utils/whatsapp';
-import { emitToKitchen, SocketEvents } from '../../sockets';
+import { emitToKitchen, emitToTable, SocketEvents } from '../../sockets';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { CartItemInput, DeliveryCheckoutInput, DineInCheckoutInput } from './order.dto';
 
@@ -104,6 +104,24 @@ export const orderService = {
     const totalBs = baseToBs(totalBase, rate.rateBs);
 
     const order = await prisma.$transaction(async (tx) => {
+      // Mientras la mesa esté "abierta", todos sus pedidos se acumulan en la
+      // misma cuenta (TableSession). Solo el primer pedido pide nombre/cédula.
+      let session = await tx.tableSession.findFirst({ where: { tableId: table.id, status: 'OPEN' } });
+
+      if (!session) {
+        if (!input.customerName || !input.customerIdNumber) {
+          throw badRequest('Faltan tus datos de facturación (nombre y cédula).');
+        }
+        session = await tx.tableSession.create({
+          data: {
+            restaurantId,
+            tableId: table.id,
+            customerName: input.customerName,
+            customerIdNumber: input.customerIdNumber,
+          },
+        });
+      }
+
       const orderNumber = await nextOrderNumber(tx, restaurantId);
       return tx.order.create({
         data: {
@@ -112,6 +130,9 @@ export const orderService = {
           channel: 'DINE_IN',
           status: 'KITCHEN', // entra directo a la cola de cocina
           tableId: table.id,
+          tableSessionId: session.id,
+          customerName: session.customerName,
+          customerIdNumber: session.customerIdNumber,
           currency,
           subtotalBase,
           totalBase,
@@ -138,7 +159,9 @@ export const orderService = {
       orderId: order.id,
       orderNumber: order.orderNumber,
       channel: order.channel,
+      tableId: order.tableId,
       table: order.table?.number,
+      customerName: order.customerName,
       items: order.items.map((i) => ({
         name: i.productName,
         quantity: i.quantity,
@@ -263,6 +286,15 @@ export const orderService = {
       orderId: order.id,
       status: order.status,
     });
+
+    // Avisa al cliente que escaneó el QR de la mesa que su pedido está listo.
+    if (order.status === 'SERVED' && order.channel === 'DINE_IN' && order.tableId) {
+      emitToTable(order.tableId, SocketEvents.ORDER_READY, {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+      });
+    }
+
     return order;
   },
 };

@@ -1,7 +1,8 @@
 import { prisma } from '../../config/prisma';
-import { notFound } from '../../utils/http-error';
+import { HttpError, notFound } from '../../utils/http-error';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { CURRENCY_SYMBOLS } from '../../utils/money';
+import { isLocked } from '../../utils/subscription';
 
 /**
  * Servicio del menú público. Se resuelve por `slug` (no requiere auth) y
@@ -20,11 +21,18 @@ export const menuService = {
         baseCurrency: true,
         whatsappPhone: true,
         isActive: true,
+        theme: true,
+        periodEnd: true,
       },
     });
 
     if (!restaurant || !restaurant.isActive) {
       throw notFound('Restaurante no encontrado.');
+    }
+
+    // Cuenta bloqueada por falta de pago: se apaga también el menú público.
+    if (isLocked(restaurant)) {
+      throw new HttpError(403, 'Este menú no está disponible en este momento.', { code: 'ACCOUNT_LOCKED' });
     }
 
     // Solo categorías activas con al menos un producto disponible.
@@ -90,6 +98,7 @@ export const menuService = {
         currencySymbol: CURRENCY_SYMBOLS[restaurant.baseCurrency],
         exchangeRate,
         whatsappPhone: restaurant.whatsappPhone,
+        theme: restaurant.theme,
       },
       highlights,
       categories: structuredCategories,

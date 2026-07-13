@@ -77,12 +77,34 @@ async function main() {
     ],
   });
 
+  const salonPrincipal = await prisma.zone.upsert({
+    where: { id: `${restaurant.id}-salon-principal` },
+    update: {},
+    create: {
+      id: `${restaurant.id}-salon-principal`,
+      restaurantId: restaurant.id,
+      name: 'Salón Principal',
+      priority: 1,
+    },
+  });
+  const terraza = await prisma.zone.upsert({
+    where: { id: `${restaurant.id}-terraza` },
+    update: {},
+    create: {
+      id: `${restaurant.id}-terraza`,
+      restaurantId: restaurant.id,
+      name: 'Terraza',
+      priority: 2,
+    },
+  });
+
   await prisma.table.createMany({
     data: [
-      { restaurantId: restaurant.id, number: '1', qrToken: nanoid(12) },
-      { restaurantId: restaurant.id, number: '2', qrToken: nanoid(12) },
-      { restaurantId: restaurant.id, number: 'Terraza-1', qrToken: nanoid(12) },
+      { restaurantId: restaurant.id, zoneId: salonPrincipal.id, number: '1', qrToken: nanoid(12) },
+      { restaurantId: restaurant.id, zoneId: salonPrincipal.id, number: '2', qrToken: nanoid(12) },
+      { restaurantId: restaurant.id, zoneId: terraza.id, number: 'Terraza-1', qrToken: nanoid(12) },
     ],
+    skipDuplicates: true,
   });
 
   // Tasa BCV de respaldo para desarrollo local (el servidor intenta refrescarla

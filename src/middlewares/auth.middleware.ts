@@ -1,7 +1,9 @@
 import { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
-import { unauthorized } from '../utils/http-error';
+import { prisma } from '../config/prisma';
+import { forbidden, HttpError, unauthorized } from '../utils/http-error';
+import { isLocked } from '../utils/subscription';
 
 /**
  * Payload del JWT. Lleva SIEMPRE el `restaurantId` para forzar el aislamiento
@@ -33,6 +35,13 @@ export function authGuard(req: Request, _res: Response, next: NextFunction) {
   const token = header.slice('Bearer '.length);
   try {
     const payload = jwt.verify(token, env.jwtSecret) as AuthPayload;
+    // El JWT del Dashboard maestro (platform-auth.middleware.ts) se firma con
+    // el mismo secreto pero otra forma: sin esto, un token de plataforma
+    // pasaría aquí con `restaurantId` undefined y Prisma lo trataría como
+    // "sin filtro", filtrando datos de TODOS los inquilinos.
+    if (typeof payload.restaurantId !== 'string' || typeof payload.userId !== 'string') {
+      throw new Error('Forma de token inesperada.');
+    }
     req.auth = payload;
     // El tenant activo se deriva SIEMPRE del token, nunca del body/params.
     req.restaurantId = payload.restaurantId;
@@ -41,3 +50,37 @@ export function authGuard(req: Request, _res: Response, next: NextFunction) {
     throw unauthorized('Token inválido o expirado.');
   }
 }
+
+/**
+ * Debe montarse DESPUÉS de `authGuard` en la cadena de la ruta.
+ * Restringe el acceso a los roles indicados; el resto recibe 403.
+ */
+export function requireRole(...roles: string[]) {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    if (!req.auth || !roles.includes(req.auth.role)) {
+      throw forbidden('No tienes permiso para realizar esta acción.');
+    }
+    next();
+  };
+}
+
+/**
+ * Corta el acceso al panel si el restaurante está bloqueado (venció
+ * `periodEnd` + 12h de gracia sin pago). Nunca se monta en /auth: el login y
+ * /auth/me deben seguir funcionando para que el frontend pueda leer el
+ * estado y mostrar la pantalla de bloqueo.
+ */
+function blockIfLocked(req: Request, _res: Response, next: NextFunction) {
+  prisma.restaurant
+    .findUnique({ where: { id: req.restaurantId }, select: { periodEnd: true } })
+    .then((restaurant) => {
+      if (restaurant && isLocked(restaurant)) {
+        throw new HttpError(403, 'Esta cuenta está bloqueada por falta de pago.', { code: 'ACCOUNT_LOCKED' });
+      }
+      next();
+    })
+    .catch(next);
+}
+
+/** Cadena estándar para rutas del panel del restaurante: JWT válido + cuenta no bloqueada. */
+export const tenantGuard = [authGuard, blockIfLocked];

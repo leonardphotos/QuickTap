@@ -1,10 +1,16 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
+import { badRequest } from '../../utils/http-error';
 import { createProductSchema, updateProductSchema } from './product.dto';
 import { productService } from './product.service';
 
 /** Controladores CRUD de productos (panel del restaurante). */
 export const productController = {
+  uploadPhoto: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw badRequest('No se recibió ningún archivo.');
+    res.status(201).json({ data: { url: `/uploads/products/${req.file.filename}` } });
+  }),
+
   list: asyncHandler(async (req: Request, res: Response) => {
     const products = await productService.list(req.restaurantId!);
     res.json({ data: products });

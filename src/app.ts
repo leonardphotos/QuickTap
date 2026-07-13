@@ -4,11 +4,12 @@ import helmet from 'helmet';
 import { env } from './config/env';
 import apiV1 from './routes';
 import { errorMiddleware } from './middlewares/error.middleware';
+import { UPLOADS_DIR } from './middlewares/upload.middleware';
 
 export function createApp() {
   const app = express();
 
-  app.use(helmet());
+  app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.use(
     cors({
       origin: env.corsOrigins.includes('*') ? true : env.corsOrigins,
@@ -19,6 +20,9 @@ export function createApp() {
 
   // Healthcheck
   app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'quicktap-api' }));
+
+  // Fotos de producto subidas por el restaurante (almacenamiento local en disco).
+  app.use('/uploads', express.static(UPLOADS_DIR));
 
   app.use('/api/v1', apiV1);
 

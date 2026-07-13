@@ -3,7 +3,9 @@ import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Field } from './LoginPage';
+import AuthLayout from './AuthLayout';
 import type { Currency } from '../../types';
+import { TextureButton } from '@/components/ui/texture-button';
 
 export default function RegisterPage() {
   const { register } = useAuth();
@@ -32,7 +34,7 @@ export default function RegisterPage() {
         email,
         password,
       });
-      navigate('/admin/kitchen');
+      navigate('/admin');
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No se pudo registrar el restaurante.');
     } finally {
@@ -41,9 +43,18 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-brand-950/[0.03] px-4 py-10">
-      <form onSubmit={onSubmit} className="bg-white p-6 rounded-2xl border border-brand-950/10 w-full max-w-sm space-y-3">
-        <h1 className="text-xl font-semibold text-brand-950">Crea tu restaurante</h1>
+    <AuthLayout
+      title="Registra tu local"
+      footer={
+        <p className="text-sm text-brand-950/60 font-light">
+          ¿Ya tienes cuenta?{' '}
+          <Link to="/admin/login" className="text-brand-500 font-medium">
+            Ingresa
+          </Link>
+        </p>
+      }
+    >
+      <form onSubmit={onSubmit} className="space-y-4">
         <Field label="Nombre del restaurante" value={restaurantName} onChange={setRestaurantName} />
         <Field
           label="Slug (URL pública)"
@@ -70,19 +81,10 @@ export default function RegisterPage() {
         <Field label="Email" type="email" value={email} onChange={setEmail} />
         <Field label="Contraseña" type="password" value={password} onChange={setPassword} />
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <button
-          disabled={loading}
-          className="w-full bg-brand-500 text-white rounded-lg py-2 font-medium hover:bg-brand-800 disabled:opacity-50"
-        >
+        <TextureButton variant="brand" size="default" disabled={loading} className="mt-2 disabled:opacity-50">
           {loading ? 'Creando…' : 'Crear cuenta'}
-        </button>
-        <p className="text-sm text-center text-brand-950/60 font-light">
-          ¿Ya tienes cuenta?{' '}
-          <Link to="/admin/login" className="text-brand-500 font-medium">
-            Ingresa
-          </Link>
-        </p>
+        </TextureButton>
       </form>
-    </div>
+    </AuthLayout>
   );
 }

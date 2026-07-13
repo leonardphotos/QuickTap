@@ -1,0 +1,17 @@
+// Espejo del backend (src/utils/subscription.ts). El servidor sigue siendo la
+// única fuente de verdad (bloquea el acceso real); esto solo pinta la cuenta
+// regresiva y el aviso sin depender de otra llamada a la API.
+export const GRACE_HOURS = 12;
+
+export function daysRemaining(periodEnd: string): number {
+  const diffMs = new Date(periodEnd).getTime() - Date.now();
+  return Math.ceil(diffMs / (24 * 60 * 60 * 1000));
+}
+
+export function graceHoursRemaining(periodEnd: string): number | null {
+  const end = new Date(periodEnd).getTime();
+  const graceDeadline = end + GRACE_HOURS * 60 * 60 * 1000;
+  const now = Date.now();
+  if (now < end || now > graceDeadline) return null;
+  return Math.ceil((graceDeadline - now) / (60 * 60 * 1000));
+}

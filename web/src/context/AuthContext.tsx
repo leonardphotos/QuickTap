@@ -1,21 +1,30 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { api, clearToken, getToken, setToken } from '../api/client';
-import type { Currency } from '../types';
+import { api, clearToken, getToken, setStoredSlug, setToken } from '../api/client';
+import type { Currency, RestaurantTheme, UserRole } from '../types';
 
 interface AuthUser {
   id: string;
   name: string;
   email: string;
-  role: string;
+  role: UserRole;
 }
 
 interface AuthRestaurant {
   id: string;
   slug: string;
   name: string;
+  description?: string | null;
+  logoUrl?: string | null;
   whatsappPhone?: string | null;
   baseCurrency: Currency;
+  theme?: RestaurantTheme | null;
+  subscriptionStatus: 'TRIALING' | 'ACTIVE';
+  subscriptionPlan: 'STARTER' | 'PRO' | 'PREMIUM' | 'CUSTOM' | null;
+  billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | null;
+  /** Fin del período vigente (prueba o ciclo pagado). El bloqueo se calcula a partir de esto, no se persiste. */
+  periodEnd: string;
+  locked: boolean;
 }
 
 interface AuthState {
@@ -69,6 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function login(slug: string, email: string, password: string) {
     const { data } = await api.post('/auth/login', { slug, email, password });
     setToken(data.data.token);
+    setStoredSlug(data.data.restaurant.slug);
     setUser(data.data.user);
     setRestaurant(data.data.restaurant);
   }
@@ -80,10 +90,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     email: string;
     password: string;
     whatsappPhone?: string;
-    exchangeRate?: number;
+    baseCurrency?: Currency;
   }) {
     const { data } = await api.post('/auth/register', input);
     setToken(data.data.token);
+    setStoredSlug(data.data.restaurant.slug);
     setUser(data.data.user);
     setRestaurant(data.data.restaurant);
   }

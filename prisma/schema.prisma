@@ -26,7 +26,24 @@ datasource db {
 
 enum UserRole {
   OWNER // dueño del restaurante (acceso total)
-  STAFF // personal de cocina / caja
+  STAFF // deprecado: alias de acceso total, ya no se asigna desde la UI de Equipo
+  ADMIN // Administrador (acceso total)
+  CASHIER // Cajero (acceso total)
+  WAITER // Mesero (solo Cocina + Órdenes de Mesa)
+  KITCHEN // Cocina (solo Cocina + Órdenes de Mesa)
+  SCREEN // Pantalla (vista horizontal de Mesas + Cocina, para un monitor/TV)
+}
+
+enum TableSessionStatus {
+  OPEN
+  CLOSED
+}
+
+// Solicitud del comensal desde el menú público, mostrada como aviso en el
+// plano de mesas hasta que el mesero la atiende.
+enum ServiceRequestType {
+  WAITER_CALL // "Llamar al mesonero"
+  BILL_REQUEST // "Pedir la cuenta"
 }
 
 enum OrderStatus {
@@ -55,6 +72,53 @@ enum PaymentMethod {
 }
 
 // ----------------------------------------------------------------------------
+//  SUSCRIPCIÓN A QUICKTAP (leads de la landing, no confundir con PaymentMethod
+//  de arriba, que es el checkout del comensal en el menú público)
+// ----------------------------------------------------------------------------
+
+enum SubscriptionPlan {
+  TRIAL // Prueba gratuita (15 días)
+  STARTER // Plan Inicial
+  PRO // Plan Pro / Restaurante
+  PREMIUM // Plan Premium / Grandes Formatos
+  CUSTOM // Plan Personalizado (por sumatoria de mesas/usuarios/pedidos)
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY // 3 meses
+  SEMIANNUAL // 6 meses
+}
+
+enum SubscriptionPaymentMethod {
+  PAGO_MOVIL
+  BINANCE
+  BANK_TRANSFER
+}
+
+// Estado persistido de la suscripción. El bloqueo (cuando vence `periodEnd` +
+// 12h de gracia sin pago) se CALCULA en tiempo real (ver subscription.util.ts),
+// nunca se persiste como un tercer estado: así, extender `periodEnd` siempre
+// "desbloquea" automáticamente sin dejar banderas desincronizadas.
+enum RestaurantSubscriptionStatus {
+  TRIALING
+  ACTIVE
+}
+
+// Comprobante de pago: de inscripción (antes de existir la cuenta, sin
+// restaurantId todavía) o de mensualidad (ya autenticado, siempre con
+// restaurantId). El admin de plataforma los revisa y "activa" la cuenta.
+enum PlanRequestKind {
+  SIGNUP
+  RENEWAL
+}
+
+enum PlanRequestStatus {
+  PENDING
+  APPROVED
+}
+
+// ----------------------------------------------------------------------------
 //  TENANT: Restaurant + Users
 // ----------------------------------------------------------------------------
 
@@ -77,15 +141,33 @@ model Restaurant {
   // Número de WhatsApp en formato internacional SIN "+" (ej: 584141234567).
   whatsappPhone String?
 
+  // --- Apariencia del menú público ---
+  // Colores personalizados del menú público (fondo, botones, acentos, texto).
+  // JSON flexible para poder agregar nuevas claves sin nuevas migraciones.
+  theme Json?
+
+  // --- Suscripción QuickTap ---
+  // Arranca en TRIALING con periodEnd = registro + 15 días. Al aprobar un
+  // PlanRequest (o activación manual desde el Dashboard maestro) pasa a
+  // ACTIVE y periodEnd se extiende según el ciclo. El "bloqueo" no se
+  // persiste: se calcula a partir de periodEnd (ver subscription.util.ts).
+  subscriptionStatus RestaurantSubscriptionStatus @default(TRIALING)
+  subscriptionPlan   SubscriptionPlan?
+  billingCycle       BillingCycle?
+  periodEnd          DateTime
+
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users      User[]
-  categories Category[]
-  products   Product[]
-  tables     Table[]
-  orders     Order[]
+  users        User[]
+  categories   Category[]
+  products     Product[]
+  tables       Table[]
+  orders       Order[]
+  zones        Zone[]
+  tableSessions TableSession[]
+  planRequests PlanRequest[]
 
   @@map("restaurants")
 }
@@ -190,12 +272,34 @@ model Product {
 }
 
 // ----------------------------------------------------------------------------
-//  MESAS
+//  ZONAS + MESAS
 // ----------------------------------------------------------------------------
+
+// Zona del salón (ej: "Terraza", "Salón principal"). Agrupa mesas para el
+// plano de Órdenes de Mesa.
+model Zone {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  name String
+  // Prioridad de orden (menor = aparece primero).
+  priority Int     @default(0)
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tables     Table[]
+
+  @@index([restaurantId, priority])
+  @@map("zones")
+}
 
 model Table {
   id           String @id @default(cuid())
   restaurantId String
+  zoneId       String?
 
   // Número/identificador visible de la mesa (ej: "5", "Terraza-2").
   number String
@@ -207,12 +311,49 @@ model Table {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  // Solicitud pendiente del comensal (llamar al mesonero / pedir la cuenta),
+  // disparada desde el menú público y atendida desde el plano de mesas.
+  serviceRequest   ServiceRequestType?
+  serviceRequestAt DateTime?
+
+  restaurant Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  zone       Zone?          @relation(fields: [zoneId], references: [id], onDelete: SetNull)
   orders     Order[]
+  sessions   TableSession[]
 
   @@unique([restaurantId, number])
   @@index([restaurantId])
+  @@index([zoneId])
   @@map("tables")
+}
+
+// ----------------------------------------------------------------------------
+//  CUENTA DE MESA (TableSession)
+// ----------------------------------------------------------------------------
+
+// Representa la "cuenta abierta" de una mesa: desde el primer pedido hasta que
+// el restaurante la cierra desde el dashboard, todos los pedidos DINE_IN de
+// esa mesa se acumulan en la misma sesión (Pedido #1, #2, #3...).
+model TableSession {
+  id           String @id @default(cuid())
+  restaurantId String
+  tableId      String
+
+  // Capturados una sola vez, al abrir la cuenta (primer pedido de la mesa).
+  customerName     String
+  customerIdNumber String
+
+  status TableSessionStatus @default(OPEN)
+
+  openedAt DateTime  @default(now())
+  closedAt DateTime?
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table      Table      @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  orders     Order[]
+
+  @@index([restaurantId, tableId, status])
+  @@map("table_sessions")
 }
 
 // ----------------------------------------------------------------------------
@@ -231,6 +372,8 @@ model Order {
 
   // Mesa asociada (solo canal DINE_IN).
   tableId String?
+  // Cuenta de mesa a la que pertenece este pedido (solo canal DINE_IN).
+  tableSessionId String?
 
   // --- Snapshot de totales (se congelan al crear la orden) ---
   // Moneda en la que el restaurante facturó este pedido (USD o EUR).
@@ -241,23 +384,28 @@ model Order {
   exchangeRate Decimal @db.Decimal(18, 4)
   totalBs      Decimal @db.Decimal(18, 2)
 
-  // --- Datos del cliente (canal DELIVERY / PICKUP) ---
-  customerName    String?
-  customerPhone   String?
-  customerAddress String?
-  paymentMethod   PaymentMethod?
-  customerNote    String?
+  // --- Datos del cliente ---
+  customerName String?
+  // Cédula/documento de identidad, usado para los datos de facturación
+  // (principalmente canal DINE_IN).
+  customerIdNumber String?
+  customerPhone    String?
+  customerAddress  String?
+  paymentMethod    PaymentMethod?
+  customerNote     String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurant Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  table      Table?      @relation(fields: [tableId], references: [id], onDelete: SetNull)
-  items      OrderItem[]
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table        Table?        @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  tableSession TableSession? @relation(fields: [tableSessionId], references: [id], onDelete: SetNull)
+  items        OrderItem[]
 
   @@unique([restaurantId, orderNumber])
   @@index([restaurantId, status])
   @@index([restaurantId, createdAt])
+  @@index([tableSessionId])
   @@map("orders")
 }
 
@@ -283,4 +431,88 @@ model OrderItem {
 
   @@index([orderId])
   @@map("order_items")
+}
+
+// ----------------------------------------------------------------------------
+//  SOLICITUD DE PLAN (lead desde la landing, previo al registro de cuenta)
+// ----------------------------------------------------------------------------
+
+// Un prospecto elige un plan + método de pago en la landing y sube su
+// comprobante. No está ligado a un Restaurant: en este punto del embudo
+// todavía no existe la cuenta. Se revisa manualmente por ahora.
+model PlanRequest {
+  id String @id @default(cuid())
+
+  // SIGNUP: enviado desde la landing, antes de existir la cuenta (restaurantId
+  // null hasta que el admin de plataforma lo vincula al aprobar). RENEWAL:
+  // enviado autenticado desde el panel del restaurante, restaurantId siempre presente.
+  kind         PlanRequestKind   @default(SIGNUP)
+  status       PlanRequestStatus @default(PENDING)
+  restaurantId String?
+
+  plan         SubscriptionPlan
+  billingCycle BillingCycle
+
+  // Solo si plan = CUSTOM: los valores que el prospecto ajustó en el slider.
+  customTables Int?
+  customUsers  Int?
+  customOrders Int?
+
+  // Código promocional aplicado (si hubo). El descuento ya está reflejado en priceUsd.
+  promoCode       String?
+  discountPercent Int?
+
+  // Precio mensual en USD, calculado en el servidor a partir del plan/ciclo
+  // (o de la fórmula del plan personalizado) y el código promocional. Nunca
+  // se confía en un precio enviado por el cliente.
+  priceUsd Decimal @db.Decimal(10, 2)
+
+  paymentMethod SubscriptionPaymentMethod
+  proofUrl      String
+
+  contactName    String
+  contactEmail   String
+  contactPhone   String?
+  restaurantName String?
+
+  createdAt DateTime @default(now())
+
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId])
+  @@index([kind, status])
+  @@map("plan_requests")
+}
+
+// Códigos de descuento para la pasarela de pago (10%–100%).
+model PromoCode {
+  id              String   @id @default(cuid())
+  code            String   @unique
+  discountPercent Int
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+
+  @@map("promo_codes")
+}
+
+// Configuración global (no por restaurante) de la plataforma: datos de pago
+// mostrados en la pasarela manual. Fila única, JSON flexible.
+model PlatformSettings {
+  id             String   @id @default("singleton")
+  paymentMethods Json?
+  updatedAt      DateTime @updatedAt
+
+  @@map("platform_settings")
+}
+
+// Cuenta del equipo de QuickTap (no de un restaurante) con acceso al
+// Dashboard maestro: ve todos los restaurantes, revisa comprobantes, etc.
+model PlatformAdmin {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+
+  @@map("platform_admins")
 }

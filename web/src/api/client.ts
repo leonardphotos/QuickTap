@@ -4,6 +4,7 @@ import axios from 'axios';
 export const api = axios.create({ baseURL: '/api/v1' });
 
 const TOKEN_KEY = 'quicktap_token';
+const SLUG_KEY = 'quicktap_slug';
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
@@ -15,6 +16,15 @@ export function setToken(token: string): void {
 
 export function clearToken(): void {
   localStorage.removeItem(TOKEN_KEY);
+}
+
+/** Slug del último restaurante usado en este navegador, para no pedirlo de nuevo al iniciar sesión. */
+export function getStoredSlug(): string | null {
+  return localStorage.getItem(SLUG_KEY);
+}
+
+export function setStoredSlug(slug: string): void {
+  localStorage.setItem(SLUG_KEY, slug);
 }
 
 api.interceptors.request.use((config) => {
@@ -30,6 +40,43 @@ api.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401) {
       clearToken();
+    }
+    return Promise.reject(err);
+  },
+);
+
+// --- Dashboard maestro (equipo de QuickTap) ---
+// Instancia aparte con su propio token: un admin de plataforma puede tener
+// abierta a la vez una sesión de restaurante en el mismo navegador.
+export const masterApi = axios.create({ baseURL: '/api/v1' });
+
+const MASTER_TOKEN_KEY = 'quicktap_master_token';
+
+export function getMasterToken(): string | null {
+  return localStorage.getItem(MASTER_TOKEN_KEY);
+}
+
+export function setMasterToken(token: string): void {
+  localStorage.setItem(MASTER_TOKEN_KEY, token);
+}
+
+export function clearMasterToken(): void {
+  localStorage.removeItem(MASTER_TOKEN_KEY);
+}
+
+masterApi.interceptors.request.use((config) => {
+  const token = getMasterToken();
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+masterApi.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err.response?.status === 401) {
+      clearMasterToken();
     }
     return Promise.reject(err);
   },
