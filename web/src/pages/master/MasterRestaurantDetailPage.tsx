@@ -3,6 +3,15 @@ import { useParams } from 'react-router-dom';
 import { masterApi } from '@/api/client';
 import { formatBase } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
+interface RestaurantUser {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+}
 
 interface RestaurantDetail {
   id: string;
@@ -17,7 +26,7 @@ interface RestaurantDetail {
   suspended: boolean;
   locked: boolean;
   daysRemaining: number;
-  users: { id: string; name: string; email: string; role: string; isActive: boolean }[];
+  users: RestaurantUser[];
   _count: { products: number; tables: number; orders: number };
   recentOrders: {
     id: string;
@@ -39,11 +48,17 @@ export default function MasterRestaurantDetailPage() {
   const [plan, setPlan] = useState<(typeof PLAN_OPTIONS)[number]>('PRO');
   const [cycle, setCycle] = useState<(typeof CYCLE_OPTIONS)[number]>('MONTHLY');
   const [extendDays, setExtendDays] = useState(30);
+  const [exactPeriodEnd, setExactPeriodEnd] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [editingUser, setEditingUser] = useState<RestaurantUser | null>(null);
 
   function load() {
-    masterApi.get(`/master/restaurants/${id}`).then((res) => setDetail(res.data.data));
+    masterApi.get(`/master/restaurants/${id}`).then((res) => {
+      const data: RestaurantDetail = res.data.data;
+      setDetail(data);
+      setExactPeriodEnd(data.periodEnd.slice(0, 10));
+    });
   }
 
   useEffect(load, [id]);
@@ -86,6 +101,41 @@ export default function MasterRestaurantDetailPage() {
       load();
     } catch (err: any) {
       setMessage(err.response?.data?.error ?? 'No se pudo ajustar.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function applyExactPeriodEnd() {
+    if (!exactPeriodEnd) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      await masterApi.patch(`/master/restaurants/${id}/period-end`, { periodEnd: exactPeriodEnd });
+      setMessage('Fecha de vencimiento actualizada.');
+      load();
+    } catch (err: any) {
+      setMessage(err.response?.data?.error ?? 'No se pudo actualizar la fecha.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveUser(input: { name: string; email: string; password: string }) {
+    if (!editingUser) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const payload: Record<string, string> = {};
+      if (input.name.trim()) payload.name = input.name.trim();
+      if (input.email.trim()) payload.email = input.email.trim();
+      if (input.password.trim()) payload.password = input.password.trim();
+      await masterApi.patch(`/master/restaurants/${id}/users/${editingUser.id}`, payload);
+      setMessage('Usuario actualizado.');
+      setEditingUser(null);
+      load();
+    } catch (err: any) {
+      setMessage(err.response?.data?.error ?? 'No se pudo actualizar el usuario.');
     } finally {
       setBusy(false);
     }
@@ -211,6 +261,32 @@ export default function MasterRestaurantDetailPage() {
           </div>
         </div>
 
+        <div className="pt-1 border-t border-brand-950/[0.06]" />
+
+        <div>
+          <p className="text-sm font-medium text-brand-950/70 mb-2">Establecer fecha exacta de vencimiento</p>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="text-sm">
+              <span className="block text-brand-950/70 mb-1">Día / mes / año</span>
+              <input
+                type="date"
+                value={exactPeriodEnd}
+                onChange={(e) => setExactPeriodEnd(e.target.value)}
+                className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+              />
+            </label>
+            <TextureButton
+              variant="minimal"
+              size="default"
+              disabled={busy || !exactPeriodEnd}
+              className="!w-auto px-5 disabled:opacity-50"
+              onClick={applyExactPeriodEnd}
+            >
+              {busy ? 'Guardando…' : 'Establecer fecha'}
+            </TextureButton>
+          </div>
+        </div>
+
         {message && <p className="text-sm text-brand-950/70">{message}</p>}
       </div>
 
@@ -218,15 +294,29 @@ export default function MasterRestaurantDetailPage() {
         <p className="font-semibold text-brand-950 mb-3">Equipo</p>
         <ul className="space-y-2 text-sm">
           {detail.users.map((u) => (
-            <li key={u.id} className="flex items-center justify-between">
-              <span className="text-brand-950/80">
-                {u.name} <span className="text-brand-950/40 font-light">· {u.email}</span>
-              </span>
-              <span className="text-xs text-brand-950/50">{u.role}</span>
+            <li key={u.id}>
+              <button
+                onClick={() => setEditingUser(u)}
+                className="w-full flex items-center justify-between text-left rounded-lg px-2 py-1.5 -mx-2 hover:bg-brand-950/[0.04] transition-colors"
+              >
+                <span className="text-brand-950/80">
+                  {u.name} <span className="text-brand-950/40 font-light">· {u.email}</span>
+                </span>
+                <span className="text-xs text-brand-950/50">{u.role}</span>
+              </button>
             </li>
           ))}
         </ul>
       </div>
+
+      {editingUser && (
+        <EditUserDialog
+          user={editingUser}
+          busy={busy}
+          onClose={() => setEditingUser(null)}
+          onSave={saveUser}
+        />
+      )}
 
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
         <p className="font-semibold text-brand-950 mb-3">Pedidos recientes</p>
@@ -255,5 +345,69 @@ function Stat({ label, value }: { label: string; value: number }) {
       <p className="text-2xl font-semibold text-brand-950">{value}</p>
       <p className="text-xs text-brand-950/50 font-light">{label}</p>
     </div>
+  );
+}
+
+function EditUserDialog({
+  user,
+  busy,
+  onClose,
+  onSave,
+}: {
+  user: RestaurantUser;
+  busy: boolean;
+  onClose: () => void;
+  onSave: (input: { name: string; email: string; password: string }) => void;
+}) {
+  const [name, setName] = useState(user.name);
+  const [email, setEmail] = useState(user.email);
+  const [password, setPassword] = useState('');
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Editar usuario · {user.role}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <label className="block text-sm">
+            <span className="block text-brand-950/70 mb-1">Nombre</span>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="block text-brand-950/70 mb-1">Correo</span>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="block text-brand-950/70 mb-1">Nueva contraseña</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Dejar en blanco para no cambiarla"
+              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+            />
+          </label>
+          <TextureButton
+            variant="brand"
+            size="default"
+            disabled={busy}
+            className="disabled:opacity-50"
+            onClick={() => onSave({ name, email, password })}
+          >
+            {busy ? 'Guardando…' : 'Guardar cambios'}
+          </TextureButton>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

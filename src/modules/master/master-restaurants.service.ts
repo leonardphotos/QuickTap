@@ -1,6 +1,10 @@
+import bcrypt from 'bcryptjs';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { daysRemaining, isLocked } from '../../utils/subscription';
+import { UpdateRestaurantUserInput } from './master-restaurants.dto';
+
+const USER_SELECT = { id: true, name: true, email: true, role: true, isActive: true, createdAt: true } as const;
 
 function withSubscriptionInfo<T extends { periodEnd: Date; suspended: boolean }>(restaurant: T) {
   return {
@@ -76,5 +80,34 @@ export const masterRestaurantsService = {
 
     const periodEnd = new Date(existing.periodEnd.getTime() + days * 24 * 60 * 60 * 1000);
     return prisma.restaurant.update({ where: { id }, data: { periodEnd } });
+  },
+
+  /** Fija el vencimiento a una fecha exacta (día/mes/año), en vez de ajustarlo relativamente. */
+  async setPeriodEnd(id: string, periodEnd: Date) {
+    const existing = await prisma.restaurant.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) throw notFound('Restaurante no encontrado.');
+    if (Number.isNaN(periodEnd.getTime())) throw badRequest('Fecha inválida.');
+    return prisma.restaurant.update({ where: { id }, data: { periodEnd } });
+  },
+
+  /** Edita nombre/correo/contraseña de un usuario del restaurante (incluido el dueño). */
+  async updateUser(restaurantId: string, userId: string, input: UpdateRestaurantUserInput) {
+    const user = await prisma.user.findFirst({ where: { id: userId, restaurantId }, select: { id: true } });
+    if (!user) throw notFound('Usuario no encontrado.');
+
+    if (input.email) {
+      const existing = await prisma.user.findFirst({
+        where: { restaurantId, email: input.email, id: { not: userId } },
+        select: { id: true },
+      });
+      if (existing) throw badRequest('Ya existe otro usuario con ese correo en este restaurante.');
+    }
+
+    const data: { name?: string; email?: string; passwordHash?: string } = {};
+    if (input.name) data.name = input.name;
+    if (input.email) data.email = input.email;
+    if (input.password) data.passwordHash = await bcrypt.hash(input.password, 10);
+
+    return prisma.user.update({ where: { id: userId }, data, select: USER_SELECT });
   },
 };

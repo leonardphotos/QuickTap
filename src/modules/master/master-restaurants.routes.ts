@@ -11,5 +11,7 @@ router.get('/:id', masterRestaurantsController.detail);
 router.post('/:id/activate', masterRestaurantsController.activate);
 router.patch('/:id/suspend', masterRestaurantsController.setSuspended);
 router.patch('/:id/extend', masterRestaurantsController.extendDays);
+router.patch('/:id/period-end', masterRestaurantsController.setPeriodEnd);
+router.patch('/:id/users/:userId', masterRestaurantsController.updateUser);
 
 export default router;

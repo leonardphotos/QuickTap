@@ -11,3 +11,18 @@ export const extendDaysSchema = z.object({
 });
 
 export type ExtendDaysInput = z.infer<typeof extendDaysSchema>;
+
+export const setPeriodEndSchema = z.object({
+  // Llega como "YYYY-MM-DD" desde un <input type="date">.
+  periodEnd: z.coerce.date(),
+});
+
+export type SetPeriodEndInput = z.infer<typeof setPeriodEndSchema>;
+
+export const updateRestaurantUserSchema = z.object({
+  name: z.string().min(1, 'El nombre es obligatorio.').max(120).optional(),
+  email: z.string().email('Correo inválido.').optional(),
+  password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres.').max(100).optional(),
+});
+
+export type UpdateRestaurantUserInput = z.infer<typeof updateRestaurantUserSchema>;

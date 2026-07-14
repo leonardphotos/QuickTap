@@ -2,7 +2,12 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { activateRestaurantSchema } from '../plan-requests/plan-request.dto';
 import { planRequestService } from '../plan-requests/plan-request.service';
-import { extendDaysSchema, setSuspendedSchema } from './master-restaurants.dto';
+import {
+  extendDaysSchema,
+  setPeriodEndSchema,
+  setSuspendedSchema,
+  updateRestaurantUserSchema,
+} from './master-restaurants.dto';
 import { masterRestaurantsService } from './master-restaurants.service';
 
 export const masterRestaurantsController = {
@@ -26,5 +31,15 @@ export const masterRestaurantsController = {
   extendDays: asyncHandler(async (req: Request, res: Response) => {
     const { days } = extendDaysSchema.parse(req.body);
     res.json({ data: await masterRestaurantsService.extendDays(req.params.id, days) });
+  }),
+  /** Fija el vencimiento a una fecha exacta (día/mes/año). */
+  setPeriodEnd: asyncHandler(async (req: Request, res: Response) => {
+    const { periodEnd } = setPeriodEndSchema.parse(req.body);
+    res.json({ data: await masterRestaurantsService.setPeriodEnd(req.params.id, periodEnd) });
+  }),
+  /** Edita nombre/correo/contraseña de un usuario del restaurante. */
+  updateUser: asyncHandler(async (req: Request, res: Response) => {
+    const input = updateRestaurantUserSchema.parse(req.body);
+    res.json({ data: await masterRestaurantsService.updateUser(req.params.id, req.params.userId, input) });
   }),
 };
