@@ -13,7 +13,7 @@ export default function ProductGridCard({ product, restaurant, onOpen }: Props) 
   return (
     <button
       onClick={() => onOpen(product)}
-      className="text-left rounded-3xl bg-white p-2.5 flex flex-col shadow-sm hover:shadow-lg transition-shadow duration-300"
+      className="text-left rounded-3xl bg-white p-2.5 flex flex-col shadow-[0_2px_14px_-4px_rgba(0,0,0,0.1)] hover:shadow-[0_8px_24px_-6px_rgba(0,0,0,0.16)] transition-shadow duration-300"
     >
       <div className="relative mb-2.5">
         {product.photoUrl ? (

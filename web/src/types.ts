@@ -17,12 +17,14 @@ export interface RestaurantSocialLinks {
 
 /** Colores personalizados del menú público. Todas las claves son opcionales. */
 export interface RestaurantTheme {
-  background?: string;
   primary?: string;
   buttonText?: string;
   accent?: string;
   text?: string;
+  /** Color de arranque del degradado del banner (siempre se desvanece hacia blanco). */
   bannerColor?: string;
+  /** Foto de portada del banner; si está presente, el degradado hacia blanco se aplica sobre la imagen. */
+  coverImageUrl?: string;
   socialLinks?: RestaurantSocialLinks;
 }
 

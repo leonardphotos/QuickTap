@@ -13,12 +13,15 @@ export const restaurantSocialLinksSchema = z.object({
 // Apariencia del menú público. Todas las claves son opcionales para poder
 // personalizar solo lo que el restaurante quiera y dejar el resto por defecto.
 export const restaurantThemeSchema = z.object({
-  background: hexColor.optional(),
   primary: hexColor.optional(),
   buttonText: hexColor.optional(),
   accent: hexColor.optional(),
   text: hexColor.optional(),
+  // Color de arranque del degradado del banner (siempre se desvanece hacia blanco).
   bannerColor: hexColor.optional(),
+  // Foto de portada del banner; si está presente reemplaza el color sólido pero
+  // conserva el mismo degradado hacia blanco por encima de la imagen.
+  coverImageUrl: z.string().min(1).optional(),
   socialLinks: restaurantSocialLinksSchema.optional(),
 });
 

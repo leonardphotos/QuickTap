@@ -69,6 +69,9 @@ export const uploadFullscreenImage = makeUpload(
   'Formato de imagen no soportado (usa JPG, PNG o WEBP).',
 );
 
+// Foto de portada del banner del menú público (se muestra con un degradado hacia blanco).
+export const uploadCoverImage = makeImageUpload('covers', 'photo');
+
 // Comprobante de pago (Pago Móvil / Binance / transferencia): foto o PDF del recibo.
 const PROOF_ALLOWED_MIME = new Set([...ALLOWED_MIME, 'application/pdf']);
 const PROOF_EXT_BY_MIME: Record<string, string> = { ...EXT_BY_MIME, 'application/pdf': '.pdf' };

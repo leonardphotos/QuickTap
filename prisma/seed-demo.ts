@@ -55,10 +55,6 @@ async function main() {
       subscriptionPlan: 'PRO',
       billingCycle: 'MONTHLY',
       periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-      theme: {
-        bannerColor: '#001B43',
-        primary: '#E63946',
-      },
     },
   });
 

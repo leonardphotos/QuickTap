@@ -5,14 +5,14 @@ import type { RestaurantSocialLinks, RestaurantTheme } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
 import { ColorPickerField } from './ColorPickerField';
+import { PhotoUploadField } from './PhotoUploadField';
 
-export const THEME_DEFAULTS: Required<Pick<RestaurantTheme, 'background' | 'primary' | 'buttonText' | 'accent' | 'text' | 'bannerColor'>> = {
-  background: '#F7F8F9',
+export const THEME_DEFAULTS: Required<Pick<RestaurantTheme, 'primary' | 'buttonText' | 'accent' | 'text' | 'bannerColor'>> = {
   primary: '#056CF2',
   buttonText: '#FFFFFF',
   accent: '#0597F2',
   text: '#001B43',
-  bannerColor: '#001B43',
+  bannerColor: '#0597F2',
 };
 
 const SOCIAL_FIELDS: { key: keyof RestaurantSocialLinks; label: string; placeholder: string }[] = [
@@ -31,6 +31,15 @@ export function ThemeSection() {
 
   function set(key: keyof Omit<RestaurantTheme, 'socialLinks'>, value: string) {
     setTheme((t) => ({ ...t, [key]: value }));
+  }
+
+  function setCoverImage(url: string | null) {
+    setTheme((t) => {
+      const next = { ...t };
+      if (url) next.coverImageUrl = url;
+      else delete next.coverImageUrl;
+      return next;
+    });
   }
 
   function setSocial(key: keyof RestaurantSocialLinks, value: string) {
@@ -63,12 +72,6 @@ export function ThemeSection() {
       <TextureCardContent className="space-y-4">
         <div className="grid sm:grid-cols-2 gap-4">
           <ColorPickerField
-            label="Fondo"
-            value={theme.background ?? ''}
-            defaultValue={THEME_DEFAULTS.background}
-            onChange={(v) => set('background', v)}
-          />
-          <ColorPickerField
             label="Botones (color principal)"
             value={theme.primary ?? ''}
             defaultValue={THEME_DEFAULTS.primary}
@@ -93,10 +96,30 @@ export function ThemeSection() {
             onChange={(v) => set('text', v)}
           />
           <ColorPickerField
-            label="Color del banner"
+            label="Color del degradado (banner)"
             value={theme.bannerColor ?? ''}
             defaultValue={THEME_DEFAULTS.bannerColor}
             onChange={(v) => set('bannerColor', v)}
+          />
+        </div>
+
+        <div className="pt-2 border-t border-brand-950/[0.06] space-y-3">
+          <div>
+            <p className="text-sm font-medium text-brand-950">Foto de portada</p>
+            <p className="text-xs text-brand-950/50 font-light">
+              Se muestra en el banner con un degradado hacia blanco por encima. Si no subes una, se usa el color del
+              degradado de arriba.
+            </p>
+          </div>
+          <PhotoUploadField
+            value={theme.coverImageUrl ?? null}
+            onChange={setCoverImage}
+            label="Portada del menú"
+            uploadUrl="/restaurant/upload-cover-image"
+            shape="square"
+            maxWidthOrHeight={1600}
+            maxSizeMB={2}
+            helpText="Recomendado: imagen horizontal, mín. 800px de ancho."
           />
         </div>
 
