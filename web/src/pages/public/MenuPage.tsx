@@ -5,7 +5,7 @@ import { io } from 'socket.io-client';
 import { BellRing, Receipt } from 'lucide-react';
 import { api } from '../../api/client';
 import type { CartLine, PublicMenu, Product, Restaurant, ServiceRequestType } from '../../types';
-import { publicPriceLabel } from '../../utils/format';
+import { hexToRgba, publicPriceLabel } from '../../utils/format';
 import ProductGridCard from './ProductGridCard';
 import ProductDetailSheet from './ProductDetailSheet';
 import CartDrawer from './CartDrawer';
@@ -153,94 +153,96 @@ export default function MenuPage() {
       style={{ ...(theme?.background ? { backgroundColor: theme.background } : {}), ...themeVars } as CSSProperties}
     >
       <header
-        className="bg-brand-950 sticky top-0 z-10 rounded-b-[28px] shadow-md"
-        style={theme?.bannerColor ? { backgroundColor: theme.bannerColor } : undefined}
+        className="sticky top-3 z-10 mx-3 sm:mx-auto sm:max-w-2xl rounded-[28px] shadow-lg shadow-black/10 backdrop-blur-md overflow-hidden"
+        style={{ backgroundColor: hexToRgba(theme?.bannerColor || '#001B43', 0.85) }}
       >
-        <div className="max-w-3xl mx-auto px-5 pt-5 pb-3 flex flex-col items-center text-center gap-1">
+        <div className="max-w-3xl mx-auto px-4 pt-3 pb-1.5 flex flex-col items-center text-center gap-0.5">
           <img
             src={restaurant.logoUrl || '/logo/icono.png'}
             alt=""
-            className="w-16 h-16 rounded-full object-cover shrink-0 ring-2 ring-white/15 mb-1"
+            className="w-11 h-11 rounded-full object-cover shrink-0 ring-2 ring-white/15"
           />
-          <h1 className="text-base font-semibold text-white">{restaurant.name}</h1>
+          <h1 className="text-sm font-semibold text-white leading-tight">{restaurant.name}</h1>
           {restaurant.description && (
-            <p className="text-xs text-white/50 font-light max-w-xs">{restaurant.description}</p>
+            <p className="text-[11px] text-white/50 font-light max-w-xs line-clamp-1">{restaurant.description}</p>
           )}
-          {hasSocialLinks && (
-            <div className="flex items-center gap-3 mt-1">
-              {theme?.socialLinks?.instagram && (
-                <a
-                  href={theme.socialLinks.instagram}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Instagram"
-                  className="text-white/60 hover:text-white transition-colors"
-                >
-                  <InstagramIcon className="h-4 w-4" />
-                </a>
+          {(hasSocialLinks || qrToken) && (
+            <div className="flex items-center justify-center flex-wrap gap-1.5 mt-1">
+              {hasSocialLinks && (
+                <div className="flex items-center gap-2 mr-0.5">
+                  {theme?.socialLinks?.instagram && (
+                    <a
+                      href={theme.socialLinks.instagram}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="Instagram"
+                      className="text-white/60 hover:text-white transition-colors"
+                    >
+                      <InstagramIcon className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                  {theme?.socialLinks?.facebook && (
+                    <a
+                      href={theme.socialLinks.facebook}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="Facebook"
+                      className="text-white/60 hover:text-white transition-colors"
+                    >
+                      <FacebookIcon className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                  {theme?.socialLinks?.tiktok && (
+                    <a
+                      href={theme.socialLinks.tiktok}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="TikTok"
+                      className="text-white/60 hover:text-white transition-colors"
+                    >
+                      <TikTokIcon className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                  {theme?.socialLinks?.x && (
+                    <a
+                      href={theme.socialLinks.x}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="X"
+                      className="text-white/60 hover:text-white transition-colors"
+                    >
+                      <XIcon className="h-3.5 w-3.5" />
+                    </a>
+                  )}
+                </div>
               )}
-              {theme?.socialLinks?.facebook && (
-                <a
-                  href={theme.socialLinks.facebook}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Facebook"
-                  className="text-white/60 hover:text-white transition-colors"
-                >
-                  <FacebookIcon className="h-4 w-4" />
-                </a>
-              )}
-              {theme?.socialLinks?.tiktok && (
-                <a
-                  href={theme.socialLinks.tiktok}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="TikTok"
-                  className="text-white/60 hover:text-white transition-colors"
-                >
-                  <TikTokIcon className="h-4 w-4" />
-                </a>
-              )}
-              {theme?.socialLinks?.x && (
-                <a
-                  href={theme.socialLinks.x}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="X"
-                  className="text-white/60 hover:text-white transition-colors"
-                >
-                  <XIcon className="h-4 w-4" />
-                </a>
+              {qrToken && (
+                <>
+                  <span className="text-[10px] bg-white/15 text-white px-2 py-0.5 rounded-full font-medium">
+                    Pedido en mesa
+                  </span>
+                  <button
+                    onClick={callWaiter}
+                    disabled={callingWaiter}
+                    className="flex items-center gap-1 text-[10.5px] font-medium text-white bg-white/10 hover:bg-white/20 rounded-full px-2.5 py-1 transition-colors disabled:opacity-50"
+                  >
+                    <BellRing className="h-3 w-3" /> Llamar al mesonero
+                  </button>
+                  <button
+                    onClick={requestBill}
+                    disabled={requestingBill}
+                    className="flex items-center gap-1 text-[10.5px] font-medium text-white bg-white/10 hover:bg-white/20 rounded-full px-2.5 py-1 transition-colors disabled:opacity-50"
+                  >
+                    <Receipt className="h-3 w-3" /> Pedir la cuenta
+                  </button>
+                </>
               )}
             </div>
-          )}
-          {qrToken && (
-            <>
-              <span className="mt-1 text-xs bg-white/15 text-white px-2 py-1 rounded-full font-medium">
-                Pedido en mesa
-              </span>
-              <div className="mt-2 flex items-center gap-2">
-                <button
-                  onClick={callWaiter}
-                  disabled={callingWaiter}
-                  className="flex items-center gap-1.5 text-xs font-medium text-white bg-white/10 hover:bg-white/20 rounded-full px-3 py-1.5 transition-colors disabled:opacity-50"
-                >
-                  <BellRing className="h-3.5 w-3.5" /> Llamar al mesonero
-                </button>
-                <button
-                  onClick={requestBill}
-                  disabled={requestingBill}
-                  className="flex items-center gap-1.5 text-xs font-medium text-white bg-white/10 hover:bg-white/20 rounded-full px-3 py-1.5 transition-colors disabled:opacity-50"
-                >
-                  <Receipt className="h-3.5 w-3.5" /> Pedir la cuenta
-                </button>
-              </div>
-            </>
           )}
         </div>
 
         {categories.length > 1 && (
-          <nav className="flex gap-1.5 overflow-x-auto px-5 pb-3 -mt-0.5 [scrollbar-width:none]">
+          <nav className="flex gap-1.5 overflow-x-auto px-4 pt-1.5 pb-2.5 [scrollbar-width:none]">
             {categories.map((cat) => (
               <button
                 key={cat.id}
@@ -262,10 +264,22 @@ export default function MenuPage() {
         {hasHighlights && (
           <section className="space-y-5">
             {highlights.stars.length > 0 && (
-              <HighlightRow title="Productos Estrella" products={highlights.stars} restaurant={restaurant} onAdd={addToCart} />
+              <HighlightRow
+                title="Productos Estrella"
+                products={highlights.stars}
+                restaurant={restaurant}
+                onAdd={addToCart}
+                onOpen={setSelectedProduct}
+              />
             )}
             {highlights.promos.length > 0 && (
-              <HighlightRow title="Promociones" products={highlights.promos} restaurant={restaurant} onAdd={addToCart} />
+              <HighlightRow
+                title="Promociones"
+                products={highlights.promos}
+                restaurant={restaurant}
+                onAdd={addToCart}
+                onOpen={setSelectedProduct}
+              />
             )}
             {highlights.houseSpecials.length > 0 && (
               <HighlightRow
@@ -273,6 +287,7 @@ export default function MenuPage() {
                 products={highlights.houseSpecials}
                 restaurant={restaurant}
                 onAdd={addToCart}
+                onOpen={setSelectedProduct}
               />
             )}
           </section>
@@ -339,18 +354,20 @@ function HighlightRow({
   products,
   restaurant,
   onAdd,
+  onOpen,
 }: {
   title: string;
   products: PublicMenu['highlights']['stars'];
   restaurant: Restaurant;
   onAdd: (l: CartLine) => void;
+  onOpen: (product: Product) => void;
 }) {
   return (
     <div>
       <h2 className="text-base font-semibold text-brand-950 mb-3">{title}</h2>
       <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 snap-x">
         {products.map((p) => (
-          <HighlightCard key={p.id} product={p} restaurant={restaurant} onAdd={onAdd} />
+          <HighlightCard key={p.id} product={p} restaurant={restaurant} onAdd={onAdd} onOpen={onOpen} />
         ))}
       </div>
     </div>
@@ -361,15 +378,20 @@ function HighlightCard({
   product,
   restaurant,
   onAdd,
+  onOpen,
 }: {
   product: Product;
   restaurant: Restaurant;
   onAdd: (l: CartLine) => void;
+  onOpen: (product: Product) => void;
 }) {
   const price = publicPriceLabel(product.price, restaurant);
 
   return (
-    <MinimalCard className="w-40 shrink-0 snap-start text-center">
+    <MinimalCard
+      onClick={() => onOpen(product)}
+      className="w-40 shrink-0 snap-start text-center cursor-pointer"
+    >
       {product.photoUrl ? (
         <div className="h-24 w-24 mx-auto mb-3 rounded-full overflow-hidden">
           <img src={product.photoUrl} alt={product.name} className="h-full w-full object-cover" />
@@ -385,7 +407,14 @@ function HighlightCard({
         {price.secondary ? ` · ${price.secondary}` : ''}
       </MinimalCardDescription>
       <MinimalCardFooter className="p-1 pt-0 justify-center">
-        <TextureButton variant="brand" size="sm" onClick={() => onAdd({ product, quantity: 1, modifiers: [] })}>
+        <TextureButton
+          variant="brand"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            onAdd({ product, quantity: 1, modifiers: [] });
+          }}
+        >
           Agregar
         </TextureButton>
       </MinimalCardFooter>

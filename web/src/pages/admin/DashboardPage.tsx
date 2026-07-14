@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { daysRemaining } from '../../utils/subscription';
 import { TextureButton } from '@/components/ui/texture-button';
 import { hasSeenOnboardingTutorial, OnboardingTutorial } from '@/components/admin/OnboardingTutorial';
+import { DailySalesSummary } from '@/components/admin/DailySalesSummary';
 import { dashboardSectionLinks } from './nav-links';
 
 export default function DashboardPage() {
@@ -50,6 +51,8 @@ export default function DashboardPage() {
           </>
         )}
       </button>
+
+      <DailySalesSummary />
 
       {trialDaysLeft !== null && (
         <div className="w-full max-w-md mb-8 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm px-5 py-4 flex items-center justify-between gap-3">

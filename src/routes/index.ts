@@ -24,6 +24,7 @@ import {
   masterPlatformSettingsRoutes,
 } from '../modules/platform-settings/platform-settings.routes';
 import masterRestaurantsRoutes from '../modules/master/master-restaurants.routes';
+import masterAdminsRoutes from '../modules/master/master-admins.routes';
 
 /**
  * Enrutador raíz de la API v1.
@@ -66,5 +67,6 @@ router.use('/master/promo-codes', masterPromoCodeRoutes);
 router.use('/master/payment-methods', masterPlatformSettingsRoutes);
 router.use('/master/plan-requests', masterPlanRequestRoutes);
 router.use('/master/restaurants', masterRestaurantsRoutes);
+router.use('/master/admins', masterAdminsRoutes);
 
 export default router;

@@ -1,5 +1,5 @@
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
-import { LogOut, Receipt, ShieldCheck, Store, Tag, Wallet } from 'lucide-react';
+import { LogOut, Receipt, ShieldCheck, Store, Tag, Users, Wallet } from 'lucide-react';
 import { useMasterAuth } from '../../context/MasterAuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 
@@ -8,6 +8,7 @@ const NAV_LINKS = [
   { to: '/master/proofs', label: 'Comprobantes', icon: Receipt },
   { to: '/master/promo-codes', label: 'Códigos promo', icon: Tag },
   { to: '/master/payment-methods', label: 'Datos de pago', icon: Wallet },
+  { to: '/master/admins', label: 'Usuarios', icon: Users },
 ];
 
 export default function MasterLayout() {

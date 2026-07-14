@@ -19,13 +19,13 @@ export const platformAuthService = {
     if (!valid) throw unauthorized('Credenciales inválidas.');
 
     const token = signToken({ platformAdminId: admin.id, scope: 'platform' });
-    return { token, admin: { id: admin.id, name: admin.name, email: admin.email } };
+    return { token, admin: { id: admin.id, name: admin.name, email: admin.email, role: admin.role } };
   },
 
   async me(platformAdminId: string) {
     const admin = await prisma.platformAdmin.findUnique({
       where: { id: platformAdminId },
-      select: { id: true, name: true, email: true },
+      select: { id: true, name: true, email: true, role: true },
     });
     if (!admin) throw unauthorized();
     return admin;

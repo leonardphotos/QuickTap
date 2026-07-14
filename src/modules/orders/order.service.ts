@@ -1,10 +1,11 @@
-import { Prisma } from '@prisma/client';
+import { OrderChannel, Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { baseToBs, CURRENCY_SYMBOLS, round2, toDecimal } from '../../utils/money';
 import { buildWhatsappCheckoutUrl } from '../../utils/whatsapp';
 import { emitToKitchen, emitToTable, SocketEvents } from '../../sockets';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
+import { startOfTodayCaracas } from '../../utils/timezone';
 import { CartItemInput, DeliveryCheckoutInput, DineInCheckoutInput } from './order.dto';
 
 /**
@@ -296,5 +297,35 @@ export const orderService = {
     }
 
     return order;
+  },
+
+  /** Resumen de ventas del día (hora de Caracas) para el Dashboard del restaurante. */
+  async getTodaySummary(restaurantId: string) {
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { baseCurrency: true },
+    });
+
+    const orders = await prisma.order.findMany({
+      where: {
+        restaurantId,
+        createdAt: { gte: startOfTodayCaracas() },
+        status: { not: 'CANCELLED' },
+      },
+      select: { channel: true, totalBase: true, totalBs: true, currency: true },
+    });
+
+    const totalBase = round2(orders.reduce((acc, o) => acc.add(o.totalBase), toDecimal(0)));
+    const totalBs = round2(orders.reduce((acc, o) => acc.add(o.totalBs), toDecimal(0)));
+    const byChannel: Record<OrderChannel, number> = { DINE_IN: 0, DELIVERY: 0, PICKUP: 0 };
+    for (const o of orders) byChannel[o.channel]++;
+
+    return {
+      ordersCount: orders.length,
+      totalBase: totalBase.toFixed(2),
+      totalBs: totalBs.toFixed(2),
+      currency: orders[0]?.currency ?? restaurant?.baseCurrency ?? 'USD',
+      byChannel,
+    };
   },
 };

@@ -507,12 +507,20 @@ model PlatformSettings {
 
 // Cuenta del equipo de QuickTap (no de un restaurante) con acceso al
 // Dashboard maestro: ve todos los restaurantes, revisa comprobantes, etc.
+// ADMIN y MANAGER (Gestor) tienen el mismo acceso total al Dashboard maestro;
+// el rol es solo para identificar quién es quién en la lista de cuentas.
+enum PlatformAdminRole {
+  ADMIN
+  MANAGER
+}
+
 model PlatformAdmin {
-  id           String   @id @default(cuid())
+  id           String            @id @default(cuid())
   name         String
-  email        String   @unique
+  email        String            @unique
   passwordHash String
-  createdAt    DateTime @default(now())
+  role         PlatformAdminRole @default(ADMIN)
+  createdAt    DateTime          @default(now())
 
   @@map("platform_admins")
 }

@@ -21,6 +21,7 @@ import MasterRestaurantDetailPage from './pages/master/MasterRestaurantDetailPag
 import MasterPromoCodesPage from './pages/master/MasterPromoCodesPage';
 import MasterPaymentMethodsPage from './pages/master/MasterPaymentMethodsPage';
 import MasterProofsPage from './pages/master/MasterProofsPage';
+import MasterAdminsPage from './pages/master/MasterAdminsPage';
 
 export default function App() {
   return (
@@ -54,6 +55,7 @@ export default function App() {
             <Route path="promo-codes" element={<MasterPromoCodesPage />} />
             <Route path="payment-methods" element={<MasterPaymentMethodsPage />} />
             <Route path="proofs" element={<MasterProofsPage />} />
+            <Route path="admins" element={<MasterAdminsPage />} />
           </Route>
 
           <Route path="*" element={<div className="p-10 text-center text-gray-500">Página no encontrada.</div>} />

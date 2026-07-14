@@ -34,4 +34,10 @@ export const orderController = {
     const order = await orderService.updateStatus(req.restaurantId!, req.params.id, status);
     res.json({ data: order });
   }),
+
+  /** GET /api/v1/orders/summary/today — resumen de ventas del día (Dashboard). */
+  todaySummary: asyncHandler(async (req: Request, res: Response) => {
+    const summary = await orderService.getTodaySummary(req.restaurantId!);
+    res.json({ data: summary });
+  }),
 };

@@ -2,6 +2,16 @@ import type { Currency, Restaurant } from '../types';
 
 export const CURRENCY_SYMBOLS: Record<Currency, string> = { USD: '$', EUR: '€' };
 
+/** Convierte un color hex ("#001B43") a un rgba() con la opacidad indicada. */
+export function hexToRgba(hex: string, alpha: number): string {
+  const clean = hex.replace('#', '');
+  const bigint = parseInt(clean, 16);
+  const r = (bigint >> 16) & 255;
+  const g = (bigint >> 8) & 255;
+  const b = bigint & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 export function formatBase(value: string | number, symbol: string): string {
   return `${symbol}${Number(value).toFixed(2)}`;
 }

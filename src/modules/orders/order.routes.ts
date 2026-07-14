@@ -11,6 +11,7 @@ const router = Router();
 router.use(tenantGuard);
 
 router.get('/kitchen', orderController.kitchenQueue);
+router.get('/summary/today', orderController.todaySummary);
 router.patch('/:id/status', orderController.updateStatus);
 
 export default router;
