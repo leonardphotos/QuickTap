@@ -57,8 +57,17 @@ function makeImageUpload(subdir: string, fieldName: string) {
 
 export const uploadProductPhoto = makeImageUpload('products', 'photo');
 export const uploadLogo = makeImageUpload('logos', 'photo');
-// Imagen de "Modo Cartelera" (pantalla completa del menú público).
-export const uploadFullscreenImage = makeImageUpload('fullscreen', 'photo');
+// Imagen de "Modo Cartelera" (pantalla completa del menú público). Estas
+// imágenes suelen ser piezas verticales grandes (ej. 2000x7000px) que el
+// cliente sube sin recomprimir, por eso el límite de tamaño es mayor.
+export const uploadFullscreenImage = makeUpload(
+  'fullscreen',
+  'photo',
+  ALLOWED_MIME,
+  EXT_BY_MIME,
+  15 * 1024 * 1024,
+  'Formato de imagen no soportado (usa JPG, PNG o WEBP).',
+);
 
 // Comprobante de pago (Pago Móvil / Binance / transferencia): foto o PDF del recibo.
 const PROOF_ALLOWED_MIME = new Set([...ALLOWED_MIME, 'application/pdf']);

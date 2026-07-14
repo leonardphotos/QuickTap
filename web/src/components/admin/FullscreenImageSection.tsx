@@ -63,6 +63,9 @@ export function FullscreenImageSection() {
           label="Imagen de pantalla completa"
           uploadUrl="/restaurant/upload-fullscreen-image"
           shape="square"
+          maxWidthOrHeight={8000}
+          maxSizeMB={8}
+          helpText="Subir imagen (recomendado 2000×7000px, se conserva tu resolución)"
         />
 
         {enabled && !imageUrl && (

@@ -11,11 +11,19 @@ interface Props {
   label?: string;
   uploadUrl?: string;
   shape?: 'square' | 'circle';
+  /** Tamaño máx. del lado más largo tras comprimir. Usar un valor alto (ej. 7000)
+   *  para imágenes que deben conservar su resolución original, como la de Modo Cartelera. */
+  maxWidthOrHeight?: number;
+  /** Peso máx. del archivo comprimido, en MB. */
+  maxSizeMB?: number;
+  /** Texto de ayuda bajo el recuadro de subida (reemplaza el default de 800×800px). */
+  helpText?: string;
 }
 
 /**
- * Comprime la imagen en el navegador (máx 800x800, corrige orientación EXIF)
- * antes de subirla, así el backend nunca recibe archivos pesados.
+ * Comprime la imagen en el navegador (corrige orientación EXIF) antes de
+ * subirla, así el backend nunca recibe archivos anómalamente pesados. Los
+ * límites de tamaño son configurables por uso (ver `maxWidthOrHeight`/`maxSizeMB`).
  */
 export function PhotoUploadField({
   value,
@@ -24,6 +32,9 @@ export function PhotoUploadField({
   label = 'Foto del producto',
   uploadUrl = '/products/upload-photo',
   shape = 'square',
+  maxWidthOrHeight = 800,
+  maxSizeMB = 1,
+  helpText,
 }: Props) {
   const [preview, setPreview] = useState<string | null>(value ?? null);
   const [uploading, setUploading] = useState(false);
@@ -35,8 +46,8 @@ export function PhotoUploadField({
     setUploading(true);
     try {
       const compressed = await imageCompression(file, {
-        maxWidthOrHeight: 800,
-        maxSizeMB: 1,
+        maxWidthOrHeight,
+        maxSizeMB,
         useWebWorker: true,
         initialQuality: 0.85,
       });
@@ -90,7 +101,9 @@ export function PhotoUploadField({
         ) : (
           <div className="flex flex-col items-center gap-1.5 text-brand-950/40">
             <ImagePlus className={isCircle ? 'h-5 w-5' : 'h-6 w-6'} />
-            {!isCircle && <span className="text-xs font-light">Subir foto (máx. 800×800px)</span>}
+            {!isCircle && (
+              <span className="text-xs font-light">{helpText ?? `Subir foto (máx. ${maxWidthOrHeight}×${maxWidthOrHeight}px)`}</span>
+            )}
           </div>
         )}
         {uploading && (

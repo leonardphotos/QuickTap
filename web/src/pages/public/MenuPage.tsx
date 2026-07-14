@@ -135,10 +135,12 @@ export default function MenuPage() {
   const { restaurant, highlights, categories } = menu;
 
   // Modo Cartelera: solo la imagen a pantalla completa, sin banner ni botones.
+  // La imagen puede ser mucho más alta que la pantalla (ej. 2000x7000px), así
+  // que se muestra a ancho completo y se deja hacer scroll vertical para verla entera.
   if (restaurant.fullscreenImageEnabled && restaurant.fullscreenImageUrl) {
     return (
-      <div className="fixed inset-0 bg-black">
-        <img src={restaurant.fullscreenImageUrl} alt={restaurant.name} className="h-full w-full object-cover" />
+      <div className="fixed inset-0 overflow-y-auto bg-black">
+        <img src={restaurant.fullscreenImageUrl} alt={restaurant.name} className="block w-full h-auto" />
       </div>
     );
   }
