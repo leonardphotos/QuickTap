@@ -22,6 +22,8 @@ import MasterPromoCodesPage from './pages/master/MasterPromoCodesPage';
 import MasterPaymentMethodsPage from './pages/master/MasterPaymentMethodsPage';
 import MasterProofsPage from './pages/master/MasterProofsPage';
 import MasterAdminsPage from './pages/master/MasterAdminsPage';
+import MasterSummaryPage from './pages/master/MasterSummaryPage';
+import MasterQrNfcRequestsPage from './pages/master/MasterQrNfcRequestsPage';
 
 /** Enlaces viejos tipo quicktap.club/:slug -> redirige a quicktap.club/r/:slug (URL actual del menú). */
 function LegacyMenuRedirect() {
@@ -62,6 +64,8 @@ export default function App() {
             <Route path="promo-codes" element={<MasterPromoCodesPage />} />
             <Route path="payment-methods" element={<MasterPaymentMethodsPage />} />
             <Route path="proofs" element={<MasterProofsPage />} />
+            <Route path="summary" element={<MasterSummaryPage />} />
+            <Route path="qrnfc-requests" element={<MasterQrNfcRequestsPage />} />
             <Route path="admins" element={<MasterAdminsPage />} />
           </Route>
 

@@ -17,6 +17,8 @@ import {
   tenantPlanRequestRoutes,
   masterPlanRequestRoutes,
 } from '../modules/plan-requests/plan-request.routes';
+import { tenantQrNfcRequestRoutes, masterQrNfcRequestRoutes } from '../modules/qr-nfc-requests/qr-nfc-request.routes';
+import masterSummaryRoutes from '../modules/master/master-summary.routes';
 import platformAuthRoutes from '../modules/platform-auth/platform-auth.routes';
 import { publicPromoCodeRoutes, masterPromoCodeRoutes } from '../modules/promo-codes/promo-code.routes';
 import {
@@ -51,6 +53,7 @@ router.use('/table-sessions', tableSessionRoutes);
 router.use('/exchange-rates', exchangeRateRoutes);
 router.use('/restaurant', restaurantRoutes);
 router.use('/plan-requests', tenantPlanRequestRoutes);
+router.use('/qr-nfc-requests', tenantQrNfcRequestRoutes);
 
 // --- Público ---
 router.use('/public', menuRoutes);
@@ -66,6 +69,8 @@ router.use('/public/payment-methods', publicPlatformSettingsRoutes);
 router.use('/master/promo-codes', masterPromoCodeRoutes);
 router.use('/master/payment-methods', masterPlatformSettingsRoutes);
 router.use('/master/plan-requests', masterPlanRequestRoutes);
+router.use('/master/qr-nfc-requests', masterQrNfcRequestRoutes);
+router.use('/master/summary', masterSummaryRoutes);
 router.use('/master/restaurants', masterRestaurantsRoutes);
 router.use('/master/admins', masterAdminsRoutes);
 

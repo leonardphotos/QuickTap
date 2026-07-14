@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, getToken } from '@/api/client';
 import { useAuth } from '../../context/AuthContext';
 import { calculateCustomPriceUsd, FIXED_PLAN_PRICES, type BillingCycle, type PlanId } from '@/utils/plans';
@@ -11,6 +11,7 @@ import { TextureButton } from '@/components/ui/texture-button';
 export default function BillingPage() {
   const { user, restaurant, refresh } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [rateBs, setRateBs] = useState<string | null>(null);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('MONTHLY');
   const [custom, setCustom] = useState<CustomPlanValues>({ tables: 10, users: 3, orders: 200 });
@@ -45,6 +46,13 @@ export default function BillingPage() {
       document.getElementById('billing-payment')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
+
+  // Entrada desde "Añadir a mi plan" del Dashboard: pre-selecciona el plan
+  // Personalizado y muestra el formulario de pago directamente.
+  useEffect(() => {
+    if (searchParams.get('custom') === '1') choosePlan('CUSTOM');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!restaurant) return null;
 

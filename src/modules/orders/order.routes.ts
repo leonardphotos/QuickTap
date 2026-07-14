@@ -12,6 +12,7 @@ router.use(tenantGuard);
 
 router.get('/kitchen', orderController.kitchenQueue);
 router.get('/summary/today', orderController.todaySummary);
+router.post('/manual', orderController.createManual);
 router.patch('/:id/status', orderController.updateStatus);
 
 export default router;

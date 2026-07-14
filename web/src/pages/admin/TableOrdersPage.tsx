@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
-import { BellRing, LogOut, MoveHorizontal, Receipt } from 'lucide-react';
+import { BellRing, LogOut, MoveHorizontal, Plus, Receipt } from 'lucide-react';
 import { api, getToken } from '../../api/client';
-import type { FloorPlan, FloorPlanTable } from '../../types';
+import type { FloorPlan, FloorPlanTable, Product } from '../../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
+import { ManualOrderDialog } from '@/components/admin/ManualOrderDialog';
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING: 'Pendiente',
@@ -18,6 +19,8 @@ export default function TableOrdersPage() {
   const [plan, setPlan] = useState<FloorPlan | null>(null);
   const [selected, setSelected] = useState<FloorPlanTable | null>(null);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [manualOrderOpen, setManualOrderOpen] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,6 +30,7 @@ export default function TableOrdersPage() {
 
   useEffect(() => {
     load();
+    api.get('/products').then((res) => setProducts(res.data.data));
 
     const socket: Socket = io('/', { auth: { token: getToken() } });
     socket.on('order:new', load);
@@ -195,7 +199,16 @@ export default function TableOrdersPage() {
 
               {error && <p className="text-sm text-red-600">{error}</p>}
 
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
+                <TextureButton
+                  variant="brand"
+                  size="default"
+                  onClick={() => setManualOrderOpen(true)}
+                  disabled={busy}
+                  className="flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <Plus className="h-4 w-4" /> Generar orden
+                </TextureButton>
                 <TextureButton
                   variant="minimal"
                   size="default"
@@ -217,7 +230,17 @@ export default function TableOrdersPage() {
               </div>
             </div>
           ) : (
-            <p className="text-sm text-brand-950/40 font-light">Esta mesa está libre.</p>
+            <div className="space-y-3">
+              <p className="text-sm text-brand-950/40 font-light">Esta mesa está libre.</p>
+              <TextureButton
+                variant="brand"
+                size="default"
+                onClick={() => setManualOrderOpen(true)}
+                className="flex items-center justify-center gap-1.5"
+              >
+                <Plus className="h-4 w-4" /> Generar orden
+              </TextureButton>
+            </div>
           )}
         </DialogContent>
       </Dialog>
@@ -246,6 +269,17 @@ export default function TableOrdersPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {manualOrderOpen && selected && (
+        <ManualOrderDialog
+          tableId={selected.id}
+          tableNumber={selected.number}
+          hasOpenSession={!!selected.session}
+          products={products}
+          onClose={() => setManualOrderOpen(false)}
+          onCreated={load}
+        />
+      )}
     </div>
   );
 }

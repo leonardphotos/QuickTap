@@ -1,11 +1,13 @@
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
-import { LogOut, Receipt, ShieldCheck, Store, Tag, Users, Wallet } from 'lucide-react';
+import { BarChart3, LogOut, Nfc, Receipt, ShieldCheck, Store, Tag, Users, Wallet } from 'lucide-react';
 import { useMasterAuth } from '../../context/MasterAuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 
 const NAV_LINKS = [
-  { to: '/master', label: 'Restaurantes', icon: Store },
+  { to: '/master/summary', label: 'Resumen', icon: BarChart3 },
+  { to: '/master', label: 'Locales', icon: Store },
   { to: '/master/proofs', label: 'Comprobantes', icon: Receipt },
+  { to: '/master/qrnfc-requests', label: 'Solicitud QRNFC', icon: Nfc },
   { to: '/master/promo-codes', label: 'Códigos promo', icon: Tag },
   { to: '/master/payment-methods', label: 'Datos de pago', icon: Wallet },
   { to: '/master/admins', label: 'Usuarios', icon: Users },

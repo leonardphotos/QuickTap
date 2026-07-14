@@ -3,6 +3,7 @@ import { asyncHandler } from '../../middlewares/error.middleware';
 import {
   deliveryCheckoutSchema,
   dineInCheckoutSchema,
+  manualOrderSchema,
   updateStatusSchema,
 } from './order.dto';
 import { orderService } from './order.service';
@@ -20,6 +21,13 @@ export const orderController = {
     const input = deliveryCheckoutSchema.parse(req.body);
     const result = await orderService.checkoutDelivery(req.params.slug, input);
     res.status(201).json({ data: result });
+  }),
+
+  /** POST /api/v1/orders/manual — el staff (ej. Mesero) carga un pedido a mano (protegido). */
+  createManual: asyncHandler(async (req: Request, res: Response) => {
+    const input = manualOrderSchema.parse(req.body);
+    const order = await orderService.createManualOrder(req.restaurantId!, input);
+    res.status(201).json({ data: order });
   }),
 
   /** GET /api/v1/orders/kitchen — cola de cocina (protegido). */

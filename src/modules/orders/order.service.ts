@@ -6,7 +6,7 @@ import { buildWhatsappCheckoutUrl } from '../../utils/whatsapp';
 import { emitToKitchen, emitToTable, SocketEvents } from '../../sockets';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { startOfTodayCaracas } from '../../utils/timezone';
-import { CartItemInput, DeliveryCheckoutInput, DineInCheckoutInput } from './order.dto';
+import { CartItemInput, DeliveryCheckoutInput, DineInCheckoutInput, ManualOrderInput } from './order.dto';
 
 /**
  * ============================================================================
@@ -187,6 +187,105 @@ export const orderService = {
     });
 
     // Empuja la comanda a la cocina en tiempo real (lista para imprimir).
+    emitToKitchen(restaurantId, SocketEvents.ORDER_NEW, {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      channel: order.channel,
+      tableId: order.tableId,
+      table: order.table?.number,
+      customerName: order.customerName,
+      items: order.items.map((i) => ({
+        name: i.productName,
+        quantity: i.quantity,
+        modifiers: i.modifiers,
+        note: i.note,
+      })),
+      totalBase: order.totalBase,
+      currency: order.currency,
+      totalBs: order.totalBs,
+      createdAt: order.createdAt,
+    });
+
+    return order;
+  },
+
+  /**
+   * -------------------------------------------------------------------------
+   *  PEDIDO MANUAL (staff, ej. Mesero, desde "Órdenes de Mesa")
+   *  Mismo motor que checkoutDineIn, pero el tenant ya se conoce por el JWT
+   *  (no por qrToken) y no se valida `orderingEnabled`: ese flag pausa el
+   *  autoservicio del cliente, no aplica a que el staff cargue un pedido.
+   * -------------------------------------------------------------------------
+   */
+  async createManualOrder(restaurantId: string, input: ManualOrderInput) {
+    const table = await prisma.table.findFirst({ where: { id: input.tableId, restaurantId } });
+    if (!table || !table.isActive) throw notFound('Mesa no válida.');
+
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { baseCurrency: true, serviceChargeEnabled: true, ivaEnabled: true },
+    });
+    if (!restaurant) throw notFound('Restaurante no encontrado.');
+
+    const currency = restaurant.baseCurrency;
+    const rate = await exchangeRateService.getRate(currency);
+
+    const lines = await priceCart(restaurantId, input.items);
+    const subtotalBase = sumSubtotal(lines);
+    const { serviceChargeBase, ivaBase, totalBase } = calculateCharges(subtotalBase, restaurant);
+    const totalBs = baseToBs(totalBase, rate.rateBs);
+
+    const order = await prisma.$transaction(async (tx) => {
+      let session = await tx.tableSession.findFirst({ where: { tableId: table.id, status: 'OPEN' } });
+
+      if (!session) {
+        if (!input.customerName || !input.customerIdNumber) {
+          throw badRequest('Faltan los datos de facturación (nombre y cédula) para abrir la cuenta.');
+        }
+        session = await tx.tableSession.create({
+          data: {
+            restaurantId,
+            tableId: table.id,
+            customerName: input.customerName,
+            customerIdNumber: input.customerIdNumber,
+          },
+        });
+      }
+
+      const orderNumber = await nextOrderNumber(tx, restaurantId);
+      return tx.order.create({
+        data: {
+          restaurantId,
+          orderNumber,
+          channel: 'DINE_IN',
+          status: 'KITCHEN', // entra directo a la cola de cocina
+          tableId: table.id,
+          tableSessionId: session.id,
+          customerName: session.customerName,
+          customerIdNumber: session.customerIdNumber,
+          currency,
+          subtotalBase,
+          serviceChargeBase,
+          ivaBase,
+          totalBase,
+          exchangeRate: rate.rateBs,
+          totalBs,
+          items: {
+            create: lines.map((l) => ({
+              productId: l.productId,
+              productName: l.productName,
+              unitPrice: l.unitPrice,
+              quantity: l.quantity,
+              lineTotal: l.lineTotal,
+              modifiers: l.modifiers,
+              note: l.note,
+            })),
+          },
+        },
+        include: { items: true, table: { select: { number: true } } },
+      });
+    });
+
     emitToKitchen(restaurantId, SocketEvents.ORDER_NEW, {
       orderId: order.id,
       orderNumber: order.orderNumber,

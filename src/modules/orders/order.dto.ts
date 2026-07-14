@@ -17,6 +17,14 @@ export const dineInCheckoutSchema = z.object({
   customerIdNumber: z.string().min(1).max(20).optional(),
 });
 
+/** Pedido cargado a mano por el staff (ej. Mesero) desde "Órdenes de Mesa". */
+export const manualOrderSchema = z.object({
+  tableId: z.string().min(1),
+  items: z.array(cartItemSchema).min(1, 'El pedido está vacío.'),
+  customerName: z.string().min(1).max(120).optional(),
+  customerIdNumber: z.string().min(1).max(20).optional(),
+});
+
 const paymentMethodSchema = z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CARD']);
 
 /** Checkout de delivery/pickup -> genera enlace de WhatsApp. */
@@ -40,3 +48,4 @@ export const updateStatusSchema = z.object({
 export type CartItemInput = z.infer<typeof cartItemSchema>;
 export type DineInCheckoutInput = z.infer<typeof dineInCheckoutSchema>;
 export type DeliveryCheckoutInput = z.infer<typeof deliveryCheckoutSchema>;
+export type ManualOrderInput = z.infer<typeof manualOrderSchema>;

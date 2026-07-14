@@ -1,23 +1,34 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, Clock, Share2 } from 'lucide-react';
+import { Check, Clock, Nfc, Share2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { daysRemaining } from '../../utils/subscription';
 import { TextureButton } from '@/components/ui/texture-button';
 import { hasSeenOnboardingTutorial, OnboardingTutorial } from '@/components/admin/OnboardingTutorial';
 import { DailySalesSummary } from '@/components/admin/DailySalesSummary';
+import { QrNfcQuoteDialog } from '@/components/admin/QrNfcQuoteDialog';
 import { dashboardSectionLinks } from './nav-links';
+
+const PLAN_LABELS: Record<string, string> = {
+  DELIVERY: 'Solo Delivery',
+  STARTER: 'Plan Inicial',
+  PRO: 'Plan Pro',
+  PREMIUM: 'Plan Premium',
+  CUSTOM: 'Plan Personalizado',
+};
 
 export default function DashboardPage() {
   const { user, restaurant } = useAuth();
   const [copied, setCopied] = useState(false);
   const [showTutorial, setShowTutorial] = useState(() => !!restaurant && !hasSeenOnboardingTutorial(restaurant.id));
+  const [showQrNfcQuote, setShowQrNfcQuote] = useState(false);
 
   if (!restaurant) return null;
 
   const publicUrl = `${window.location.origin}/r/${restaurant.slug}`;
   const sections = dashboardSectionLinks(user?.role, restaurant.subscriptionPlan);
   const trialDaysLeft = restaurant.subscriptionStatus === 'TRIALING' ? Math.max(0, daysRemaining(restaurant.periodEnd)) : null;
+  const planLabel = restaurant.subscriptionPlan ? (PLAN_LABELS[restaurant.subscriptionPlan] ?? restaurant.subscriptionPlan) : null;
 
   async function copyLink() {
     try {
@@ -54,25 +65,44 @@ export default function DashboardPage() {
 
       <DailySalesSummary />
 
-      {trialDaysLeft !== null && (
-        <div className="w-full max-w-md mb-8 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm px-5 py-4 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 text-left">
-            <Clock className="h-8 w-8 text-brand-500 shrink-0" />
-            <div>
-              <p className="text-sm font-semibold text-brand-950">
-                Prueba gratuita: {trialDaysLeft} día{trialDaysLeft === 1 ? '' : 's'} restante
-                {trialDaysLeft === 1 ? '' : 's'}
-              </p>
-              <p className="text-xs text-brand-950/50 font-light">Elige un plan cuando quieras.</p>
-            </div>
+      <div className="w-full max-w-md mb-4 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm px-5 py-4 space-y-3">
+        <div className="flex items-center gap-3 text-left">
+          <Clock className="h-8 w-8 text-brand-500 shrink-0" />
+          <div>
+            <p className="text-sm font-semibold text-brand-950">
+              {trialDaysLeft !== null
+                ? `Prueba gratuita: ${trialDaysLeft} día${trialDaysLeft === 1 ? '' : 's'} restante${trialDaysLeft === 1 ? '' : 's'}`
+                : `Mi plan: ${planLabel ?? 'sin definir'}`}
+            </p>
+            <p className="text-xs text-brand-950/50 font-light">
+              {trialDaysLeft !== null ? 'Elige un plan cuando quieras.' : 'Cambia de plan o amplía tu capacidad cuando quieras.'}
+            </p>
           </div>
-          <Link to="/admin/billing" className="shrink-0">
-            <TextureButton variant="brand" size="sm" className="!w-auto px-4">
-              Activar plan
+        </div>
+        <div className="flex gap-2">
+          <Link to="/admin/billing" className="flex-1">
+            <TextureButton variant="brand" size="sm">
+              {trialDaysLeft !== null ? 'Activar plan' : 'Actualizar plan'}
+            </TextureButton>
+          </Link>
+          <Link to="/admin/billing?custom=1" className="flex-1">
+            <TextureButton variant="secondary" size="sm">
+              Añadir a mi plan
             </TextureButton>
           </Link>
         </div>
-      )}
+      </div>
+
+      <button
+        onClick={() => setShowQrNfcQuote(true)}
+        className="w-full max-w-md mb-8 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm px-5 py-4 flex items-center gap-3 hover:shadow-md transition-shadow duration-300 text-left"
+      >
+        <Nfc className="h-8 w-8 text-brand-500 shrink-0" />
+        <div>
+          <p className="text-sm font-semibold text-brand-950">Cotiza tus QR NFC</p>
+          <p className="text-xs text-brand-950/50 font-light">QR físicos impermeables con protección UV, desde $5 c/u.</p>
+        </div>
+      </button>
 
       <div className="grid grid-cols-2 gap-4 w-full max-w-md">
         {sections.map((s) => (
@@ -88,6 +118,7 @@ export default function DashboardPage() {
       </div>
 
       {showTutorial && <OnboardingTutorial restaurantId={restaurant.id} onClose={() => setShowTutorial(false)} />}
+      {showQrNfcQuote && <QrNfcQuoteDialog onClose={() => setShowQrNfcQuote(false)} />}
     </div>
   );
 }

@@ -119,6 +119,14 @@ enum PlanRequestStatus {
   APPROVED
 }
 
+// Solicitud de cotización de QR físicos con tecnología NFC (impermeables, con
+// protección UV). El restaurante ya está autenticado; no requiere comprobante
+// de pago, solo se revisa y se contacta manualmente desde el Dashboard maestro.
+enum QrNfcRequestStatus {
+  PENDING
+  APPROVED
+}
+
 // ----------------------------------------------------------------------------
 //  TENANT: Restaurant + Users
 // ----------------------------------------------------------------------------
@@ -185,6 +193,7 @@ model Restaurant {
   zones        Zone[]
   tableSessions TableSession[]
   planRequests PlanRequest[]
+  qrNfcRequests QrNfcRequest[]
 
   @@map("restaurants")
 }
@@ -502,6 +511,32 @@ model PlanRequest {
   @@index([restaurantId])
   @@index([kind, status])
   @@map("plan_requests")
+}
+
+// Solicitud de cotización de QR NFC (hardware físico). Siempre viene de un
+// restaurante ya autenticado (no hay flujo público como en PlanRequest), y no
+// lleva comprobante: el equipo de QuickTap la revisa y contacta al restaurante.
+model QrNfcRequest {
+  id String @id @default(cuid())
+
+  restaurantId String
+
+  quantity      Int
+  unitPriceUsd  Decimal             @db.Decimal(10, 2)
+  totalPriceUsd Decimal             @db.Decimal(10, 2)
+  status        QrNfcRequestStatus  @default(PENDING)
+
+  contactName  String
+  contactEmail String
+  contactPhone String?
+
+  createdAt DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+  @@index([status])
+  @@map("qr_nfc_requests")
 }
 
 // Códigos de descuento para la pasarela de pago (10%–100%).

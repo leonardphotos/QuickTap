@@ -100,6 +100,22 @@ export default function MasterRestaurantDetailPage() {
         <p className="text-sm text-brand-950/40 font-light">/{detail.slug}</p>
       </div>
 
+      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-2">
+        <p className="font-semibold text-brand-950 mb-1">Información del local</p>
+        <p className="text-sm text-brand-950/70">
+          <span className="text-brand-950/50">Nombre: </span>
+          {detail.name}
+        </p>
+        <p className="text-sm text-brand-950/70">
+          <span className="text-brand-950/50">Teléfono: </span>
+          {detail.whatsappPhone ?? 'No registrado'}
+        </p>
+        <p className="text-sm text-brand-950/70">
+          <span className="text-brand-950/50">Correo: </span>
+          {detail.users.find((u) => u.role === 'OWNER')?.email ?? 'No registrado'}
+        </p>
+      </div>
+
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
         <Stat label="Usuarios" value={detail.users.length} />
         <Stat label="Mesas" value={detail._count.tables} />
