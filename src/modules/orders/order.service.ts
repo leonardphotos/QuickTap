@@ -368,7 +368,9 @@ export const orderService = {
           totalBs,
           customerName: input.customer.name,
           customerPhone: input.customer.phone,
-          customerAddress: input.customer.address,
+          customerAddress: input.customer.locationUrl
+            ? [input.customer.address, input.customer.locationUrl].filter(Boolean).join(' — ')
+            : input.customer.address,
           paymentMethod: input.customer.paymentMethod,
           customerNote: input.customer.note,
           items: {

@@ -37,6 +37,8 @@ export const deliveryCheckoutSchema = z.object({
     name: z.string().min(1, 'El nombre es obligatorio.').max(120),
     phone: z.string().max(30).optional(),
     address: z.string().max(300).optional(),
+    // Enlace de Google Maps con la ubicación GPS del cliente (botón "Usar mi ubicación actual").
+    locationUrl: z.string().url().max(300).optional(),
     paymentMethod: paymentMethodSchema,
     note: z.string().max(300).optional(),
   }),

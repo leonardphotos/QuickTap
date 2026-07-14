@@ -32,6 +32,8 @@ export interface WhatsappCustomer {
   name: string;
   phone?: string;
   address?: string;
+  /** Enlace de Google Maps con la ubicación GPS del cliente. */
+  locationUrl?: string;
   paymentMethod: PaymentMethod;
   /** Nota general del pedido. */
   note?: string;
@@ -159,6 +161,7 @@ export function buildWhatsappCheckoutUrl(
   parts.push(`👤 ${customer.name}`);
   if (customer.phone) parts.push(`📞 ${customer.phone}`);
   if (mode === 'DELIVERY' && customer.address) parts.push(`📍 ${customer.address}`);
+  if (mode === 'DELIVERY' && customer.locationUrl) parts.push(`🗺️ Ubicación: ${customer.locationUrl}`);
   parts.push(`💳 Pago: ${PAYMENT_LABELS[customer.paymentMethod]}`);
   if (customer.note) parts.push(`🗒️ Nota: ${customer.note}`);
   parts.push('━━━━━━━━━━━━━━━━━━━━');

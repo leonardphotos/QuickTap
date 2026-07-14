@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Lock } from 'lucide-react';
+import { ArrowLeft, Lock, MapPin } from 'lucide-react';
 import { api } from '../../api/client';
 import type { CartLine, PaymentMethod, Restaurant } from '../../types';
 import { publicPriceLabel } from '../../utils/format';
@@ -38,6 +38,9 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [locationUrl, setLocationUrl] = useState<string | null>(null);
+  const [gettingLocation, setGettingLocation] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [payment, setPayment] = useState<PaymentMethod>('MOBILE_PAYMENT');
   const [note, setNote] = useState('');
   const [sending, setSending] = useState(false);
@@ -173,13 +176,34 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
     }
   }
 
+  function useCurrentLocation() {
+    if (!navigator.geolocation) {
+      setLocationError('Tu navegador no soporta geolocalización.');
+      return;
+    }
+    setGettingLocation(true);
+    setLocationError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setLocationUrl(`https://www.google.com/maps?q=${latitude},${longitude}`);
+        setGettingLocation(false);
+      },
+      () => {
+        setLocationError('No se pudo obtener tu ubicación. Revisa los permisos del navegador.');
+        setGettingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  }
+
   async function submitDelivery() {
     if (!name.trim()) {
       setError('Escribe tu nombre.');
       return;
     }
-    if (mode === 'DELIVERY' && !address.trim()) {
-      setError('Escribe la dirección de entrega.');
+    if (mode === 'DELIVERY' && !address.trim() && !locationUrl) {
+      setError('Escribe la dirección de entrega o usa tu ubicación actual.');
       return;
     }
     setSending(true);
@@ -188,7 +212,7 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
       const { data } = await api.post(`/public/checkout/delivery/${restaurant.slug}`, {
         mode,
         items,
-        customer: { name, phone, address, paymentMethod: payment, note },
+        customer: { name, phone, address, locationUrl: locationUrl ?? undefined, paymentMethod: payment, note },
       });
       window.location.href = data.data.whatsappUrl;
       onClearAndClose();
@@ -446,12 +470,33 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                               className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
                             />
                             {mode === 'DELIVERY' && (
-                              <input
-                                value={address}
-                                onChange={(e) => setAddress(e.target.value)}
-                                placeholder="Dirección de entrega"
-                                className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-                              />
+                              <>
+                                <input
+                                  value={address}
+                                  onChange={(e) => setAddress(e.target.value)}
+                                  placeholder="Dirección de entrega"
+                                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                                />
+                                <div className="flex items-center gap-2 -mt-1">
+                                  <button
+                                    type="button"
+                                    onClick={useCurrentLocation}
+                                    disabled={gettingLocation}
+                                    className="flex items-center gap-1 text-xs font-medium text-brand-500 hover:text-brand-400 disabled:opacity-50"
+                                  >
+                                    <MapPin className="h-3.5 w-3.5" />
+                                    {gettingLocation
+                                      ? 'Obteniendo ubicación…'
+                                      : locationUrl
+                                        ? 'Actualizar ubicación'
+                                        : 'Usar mi ubicación actual'}
+                                  </button>
+                                  {locationUrl && !gettingLocation && (
+                                    <span className="text-xs text-emerald-600 font-medium">✓ Ubicación agregada</span>
+                                  )}
+                                </div>
+                                {locationError && <p className="text-xs text-red-600 -mt-1">{locationError}</p>}
+                              </>
                             )}
                             <select
                               value={payment}
