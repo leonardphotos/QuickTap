@@ -25,8 +25,10 @@ export default function AdminLayout() {
           <TriangleAlert className="h-10 w-10 text-amber-500 mx-auto mb-4" />
           <h1 className="text-xl font-semibold text-brand-950 mb-2">Cuenta bloqueada</h1>
           <p className="text-sm text-brand-950/60 font-light">
-            {restaurant.name} está bloqueada por falta de pago. Contacta al equipo de QuickTap para reactivarla; solo
-            se puede desbloquear desde el Dashboard de administrador.
+            {restaurant.suspended
+              ? `${restaurant.name} fue bloqueada por el equipo de QuickTap. Contáctanos para más información.`
+              : `${restaurant.name} está bloqueada por falta de pago. Contacta al equipo de QuickTap para reactivarla.`}{' '}
+            Solo se puede desbloquear desde el Dashboard de administrador.
           </p>
           <TextureButton variant="minimal" size="default" className="mt-6 !w-auto px-6" onClick={logout}>
             Cerrar sesión

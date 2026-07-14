@@ -16,7 +16,7 @@ export default function DashboardPage() {
   if (!restaurant) return null;
 
   const publicUrl = `${window.location.origin}/r/${restaurant.slug}`;
-  const sections = dashboardSectionLinks(user?.role);
+  const sections = dashboardSectionLinks(user?.role, restaurant.subscriptionPlan);
   const trialDaysLeft = restaurant.subscriptionStatus === 'TRIALING' ? Math.max(0, daysRemaining(restaurant.periodEnd)) : null;
 
   async function copyLink() {

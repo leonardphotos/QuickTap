@@ -9,5 +9,7 @@ router.use(platformAuthGuard);
 router.get('/', masterRestaurantsController.list);
 router.get('/:id', masterRestaurantsController.detail);
 router.post('/:id/activate', masterRestaurantsController.activate);
+router.patch('/:id/suspend', masterRestaurantsController.setSuspended);
+router.patch('/:id/extend', masterRestaurantsController.extendDays);
 
 export default router;

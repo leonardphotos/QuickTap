@@ -1,4 +1,4 @@
-export type PlanId = 'TRIAL' | 'STARTER' | 'PRO' | 'PREMIUM' | 'CUSTOM';
+export type PlanId = 'TRIAL' | 'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM' | 'CUSTOM';
 export type BillingCycle = 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL';
 export type SubscriptionPaymentMethod = 'PAGO_MOVIL' | 'BINANCE' | 'BANK_TRANSFER';
 
@@ -14,7 +14,8 @@ export const BILLING_CYCLE_LABEL: Record<BillingCycle, string> = {
  * única fuente de verdad real: aquí solo se usa para mostrar el precio antes
  * de enviar la solicitud.
  */
-export const FIXED_PLAN_PRICES: Record<'STARTER' | 'PRO' | 'PREMIUM', Record<BillingCycle, number>> = {
+export const FIXED_PLAN_PRICES: Record<'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM', Record<BillingCycle, number>> = {
+  DELIVERY: { MONTHLY: 15, QUARTERLY: 12, SEMIANNUAL: 9 },
   STARTER: { MONTHLY: 20, QUARTERLY: 15, SEMIANNUAL: 10 },
   PRO: { MONTHLY: 35, QUARTERLY: 30, SEMIANNUAL: 25 },
   PREMIUM: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40 },

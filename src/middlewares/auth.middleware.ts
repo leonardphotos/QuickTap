@@ -72,7 +72,7 @@ export function requireRole(...roles: string[]) {
  */
 function blockIfLocked(req: Request, _res: Response, next: NextFunction) {
   prisma.restaurant
-    .findUnique({ where: { id: req.restaurantId }, select: { periodEnd: true } })
+    .findUnique({ where: { id: req.restaurantId }, select: { periodEnd: true, suspended: true } })
     .then((restaurant) => {
       if (restaurant && isLocked(restaurant)) {
         throw new HttpError(403, 'Esta cuenta está bloqueada por falta de pago.', { code: 'ACCOUNT_LOCKED' });

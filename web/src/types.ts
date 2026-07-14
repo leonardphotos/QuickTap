@@ -38,6 +38,11 @@ export interface Restaurant {
   exchangeRate: ExchangeRateInfo | null;
   whatsappPhone?: string | null;
   theme?: RestaurantTheme | null;
+  orderingEnabled: boolean;
+  serviceChargeEnabled: boolean;
+  ivaEnabled: boolean;
+  fullscreenImageEnabled: boolean;
+  fullscreenImageUrl?: string | null;
 }
 
 export interface Category {

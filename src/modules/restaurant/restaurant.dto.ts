@@ -31,6 +31,17 @@ export const updateRestaurantSchema = z.object({
   // coloca sus precios. La conversión a Bs siempre usa la tasa BCV vigente.
   baseCurrency: z.enum(['USD', 'EUR']).optional(),
   theme: restaurantThemeSchema.optional(),
+
+  // Cargos opcionales del checkout (10% de servicio, 16% de IVA).
+  serviceChargeEnabled: z.boolean().optional(),
+  ivaEnabled: z.boolean().optional(),
+
+  // Si es false, el menú público queda solo para ver (sin carrito/checkout).
+  orderingEnabled: z.boolean().optional(),
+
+  // Modo Cartelera: imagen de pantalla completa en vez del menú.
+  fullscreenImageEnabled: z.boolean().optional(),
+  fullscreenImageUrl: z.string().min(1).optional(),
 });
 
 export type RestaurantTheme = z.infer<typeof restaurantThemeSchema>;

@@ -81,6 +81,7 @@ enum SubscriptionPlan {
   STARTER // Plan Inicial
   PRO // Plan Pro / Restaurante
   PREMIUM // Plan Premium / Grandes Formatos
+  DELIVERY // Plan Solo Delivery: Cocina + pedidos por WhatsApp, sin mesas/QR
   CUSTOM // Plan Personalizado (por sumatoria de mesas/usuarios/pedidos)
 }
 
@@ -146,15 +147,31 @@ model Restaurant {
   // JSON flexible para poder agregar nuevas claves sin nuevas migraciones.
   theme Json?
 
+  // --- Cargos opcionales del checkout (aplican sobre el subtotal) ---
+  serviceChargeEnabled Boolean @default(false) // 10% de servicio
+  ivaEnabled           Boolean @default(false) // 16% de IVA
+
+  // --- Control de pedidos ---
+  // Si es false, el menú público queda solo para ver: sin carrito ni checkout
+  // (ni en mesa ni por delivery/pickup).
+  orderingEnabled Boolean @default(true)
+
+  // --- Modo Cartelera: imagen de pantalla completa en vez del menú ---
+  fullscreenImageEnabled Boolean @default(false)
+  fullscreenImageUrl     String?
+
   // --- Suscripción QuickTap ---
   // Arranca en TRIALING con periodEnd = registro + 15 días. Al aprobar un
   // PlanRequest (o activación manual desde el Dashboard maestro) pasa a
-  // ACTIVE y periodEnd se extiende según el ciclo. El "bloqueo" no se
-  // persiste: se calcula a partir de periodEnd (ver subscription.util.ts).
+  // ACTIVE y periodEnd se extiende según el ciclo. El bloqueo por vencimiento
+  // no se persiste: se calcula a partir de periodEnd (ver subscription.util.ts).
   subscriptionStatus RestaurantSubscriptionStatus @default(TRIALING)
   subscriptionPlan   SubscriptionPlan?
   billingCycle       BillingCycle?
   periodEnd          DateTime
+  // Bloqueo manual desde el Dashboard maestro, independiente del vencimiento
+  // del plan. Si es true, la cuenta queda bloqueada sin importar periodEnd.
+  suspended Boolean @default(false)
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -379,6 +396,9 @@ model Order {
   // Moneda en la que el restaurante facturó este pedido (USD o EUR).
   currency Currency
   subtotalBase Decimal @db.Decimal(12, 2)
+  // Cargos opcionales congelados al momento del pedido (0 si estaban apagados).
+  serviceChargeBase Decimal @default(0) @db.Decimal(12, 2)
+  ivaBase           Decimal @default(0) @db.Decimal(12, 2)
   totalBase    Decimal @db.Decimal(12, 2)
   // Tasa BCV aplicada y total convertido a Bs en el momento de la compra.
   exchangeRate Decimal @db.Decimal(18, 4)

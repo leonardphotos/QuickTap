@@ -1,8 +1,8 @@
 import { prisma } from '../../config/prisma';
-import { notFound } from '../../utils/http-error';
+import { badRequest, notFound } from '../../utils/http-error';
 import { daysRemaining, isLocked } from '../../utils/subscription';
 
-function withSubscriptionInfo<T extends { periodEnd: Date }>(restaurant: T) {
+function withSubscriptionInfo<T extends { periodEnd: Date; suspended: boolean }>(restaurant: T) {
   return {
     ...restaurant,
     locked: isLocked(restaurant),
@@ -24,6 +24,7 @@ export const masterRestaurantsService = {
         subscriptionPlan: true,
         billingCycle: true,
         periodEnd: true,
+        suspended: true,
         createdAt: true,
         _count: { select: { users: true, tables: true, orders: true } },
       },
@@ -58,5 +59,22 @@ export const masterRestaurantsService = {
     });
 
     return { ...withSubscriptionInfo(restaurant), recentOrders };
+  },
+
+  /** Bloqueo/desbloqueo manual, independiente del vencimiento del plan. */
+  async setSuspended(id: string, suspended: boolean) {
+    const existing = await prisma.restaurant.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) throw notFound('Restaurante no encontrado.');
+    return prisma.restaurant.update({ where: { id }, data: { suspended } });
+  },
+
+  /** Extiende (o recorta, con días negativos) el vencimiento del plan por una cantidad exacta de días. */
+  async extendDays(id: string, days: number) {
+    const existing = await prisma.restaurant.findUnique({ where: { id }, select: { periodEnd: true } });
+    if (!existing) throw notFound('Restaurante no encontrado.');
+    if (!Number.isFinite(days) || Math.abs(days) > 3650) throw badRequest('Cantidad de días inválida.');
+
+    const periodEnd = new Date(existing.periodEnd.getTime() + days * 24 * 60 * 60 * 1000);
+    return prisma.restaurant.update({ where: { id }, data: { periodEnd } });
   },
 };

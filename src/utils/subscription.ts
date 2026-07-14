@@ -20,8 +20,13 @@ export function nextPeriodEnd(cycle: BillingCycle, currentPeriodEnd?: Date | nul
   return new Date(base.getTime() + CYCLE_DAYS[cycle] * 24 * 60 * 60 * 1000);
 }
 
-/** Bloqueado = pasó el `periodEnd` + las 12h de gracia. Se calcula siempre en vivo, nunca se persiste. */
-export function isLocked(restaurant: { periodEnd: Date }): boolean {
+/**
+ * Bloqueado = suspendido manualmente desde el Dashboard maestro, O pasó el
+ * `periodEnd` + las 12h de gracia. El vencimiento se calcula siempre en
+ * vivo (nunca se persiste); `suspended` sí se persiste, como override manual.
+ */
+export function isLocked(restaurant: { periodEnd: Date; suspended?: boolean }): boolean {
+  if (restaurant.suspended) return true;
   const graceDeadline = restaurant.periodEnd.getTime() + GRACE_HOURS * 60 * 60 * 1000;
   return Date.now() > graceDeadline;
 }

@@ -133,6 +133,16 @@ export default function MenuPage() {
   }
 
   const { restaurant, highlights, categories } = menu;
+
+  // Modo Cartelera: solo la imagen a pantalla completa, sin banner ni botones.
+  if (restaurant.fullscreenImageEnabled && restaurant.fullscreenImageUrl) {
+    return (
+      <div className="fixed inset-0 bg-black">
+        <img src={restaurant.fullscreenImageUrl} alt={restaurant.name} className="h-full w-full object-cover" />
+      </div>
+    );
+  }
+
   const hasHighlights =
     highlights.stars.length > 0 || highlights.promos.length > 0 || highlights.houseSpecials.length > 0;
 
@@ -270,6 +280,7 @@ export default function MenuPage() {
                 restaurant={restaurant}
                 onAdd={addToCart}
                 onOpen={setSelectedProduct}
+                orderingEnabled={restaurant.orderingEnabled}
               />
             )}
             {highlights.promos.length > 0 && (
@@ -279,6 +290,7 @@ export default function MenuPage() {
                 restaurant={restaurant}
                 onAdd={addToCart}
                 onOpen={setSelectedProduct}
+                orderingEnabled={restaurant.orderingEnabled}
               />
             )}
             {highlights.houseSpecials.length > 0 && (
@@ -288,6 +300,7 @@ export default function MenuPage() {
                 restaurant={restaurant}
                 onAdd={addToCart}
                 onOpen={setSelectedProduct}
+                orderingEnabled={restaurant.orderingEnabled}
               />
             )}
           </section>
@@ -327,6 +340,7 @@ export default function MenuPage() {
         onClose={() => setSelectedProduct(null)}
         onAdd={addToCart}
         onSelectProduct={setSelectedProduct}
+        orderingEnabled={restaurant.orderingEnabled}
       />
 
       {cartOpen && (
@@ -355,19 +369,28 @@ function HighlightRow({
   restaurant,
   onAdd,
   onOpen,
+  orderingEnabled,
 }: {
   title: string;
   products: PublicMenu['highlights']['stars'];
   restaurant: Restaurant;
   onAdd: (l: CartLine) => void;
   onOpen: (product: Product) => void;
+  orderingEnabled: boolean;
 }) {
   return (
     <div>
       <h2 className="text-base font-semibold text-brand-950 mb-3">{title}</h2>
       <div className="flex gap-3 overflow-x-auto pb-1 -mx-4 px-4 snap-x">
         {products.map((p) => (
-          <HighlightCard key={p.id} product={p} restaurant={restaurant} onAdd={onAdd} onOpen={onOpen} />
+          <HighlightCard
+            key={p.id}
+            product={p}
+            restaurant={restaurant}
+            onAdd={onAdd}
+            onOpen={onOpen}
+            orderingEnabled={orderingEnabled}
+          />
         ))}
       </div>
     </div>
@@ -379,11 +402,13 @@ function HighlightCard({
   restaurant,
   onAdd,
   onOpen,
+  orderingEnabled,
 }: {
   product: Product;
   restaurant: Restaurant;
   onAdd: (l: CartLine) => void;
   onOpen: (product: Product) => void;
+  orderingEnabled: boolean;
 }) {
   const price = publicPriceLabel(product.price, restaurant);
 
@@ -406,18 +431,20 @@ function HighlightCard({
         {price.primary}
         {price.secondary ? ` · ${price.secondary}` : ''}
       </MinimalCardDescription>
-      <MinimalCardFooter className="p-1 pt-0 justify-center">
-        <TextureButton
-          variant="brand"
-          size="sm"
-          onClick={(e) => {
-            e.stopPropagation();
-            onAdd({ product, quantity: 1, modifiers: [] });
-          }}
-        >
-          Agregar
-        </TextureButton>
-      </MinimalCardFooter>
+      {orderingEnabled && (
+        <MinimalCardFooter className="p-1 pt-0 justify-center">
+          <TextureButton
+            variant="brand"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAdd({ product, quantity: 1, modifiers: [] });
+            }}
+          >
+            Agregar
+          </TextureButton>
+        </MinimalCardFooter>
+      )}
     </MinimalCard>
   );
 }

@@ -10,7 +10,8 @@ import { ActivateRestaurantInput, CreatePlanRequestInput } from './plan-request.
  * verdad: el precio que llega del cliente NUNCA se usa, siempre se recalcula
  * aquí para evitar manipulación.
  */
-const FIXED_PLAN_PRICES: Record<'STARTER' | 'PRO' | 'PREMIUM', Record<BillingCycle, number>> = {
+const FIXED_PLAN_PRICES: Record<'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM', Record<BillingCycle, number>> = {
+  DELIVERY: { MONTHLY: 15, QUARTERLY: 12, SEMIANNUAL: 9 },
   STARTER: { MONTHLY: 20, QUARTERLY: 15, SEMIANNUAL: 10 },
   PRO: { MONTHLY: 35, QUARTERLY: 30, SEMIANNUAL: 25 },
   PREMIUM: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40 },

@@ -19,11 +19,18 @@ interface AuthRestaurant {
   whatsappPhone?: string | null;
   baseCurrency: Currency;
   theme?: RestaurantTheme | null;
+  serviceChargeEnabled: boolean;
+  ivaEnabled: boolean;
+  orderingEnabled: boolean;
+  fullscreenImageEnabled: boolean;
+  fullscreenImageUrl?: string | null;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';
-  subscriptionPlan: 'STARTER' | 'PRO' | 'PREMIUM' | 'CUSTOM' | null;
+  subscriptionPlan: 'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM' | 'CUSTOM' | null;
   billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | null;
-  /** Fin del período vigente (prueba o ciclo pagado). El bloqueo se calcula a partir de esto, no se persiste. */
+  /** Fin del período vigente (prueba o ciclo pagado). El bloqueo por vencimiento se calcula a partir de esto. */
   periodEnd: string;
+  /** Bloqueo manual desde el Dashboard maestro, independiente del vencimiento. */
+  suspended: boolean;
   locked: boolean;
 }
 

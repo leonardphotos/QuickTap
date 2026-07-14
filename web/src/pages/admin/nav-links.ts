@@ -18,17 +18,29 @@ export const ADMIN_NAV_LINKS: AdminNavLink[] = [
 ];
 
 const RESTRICTED_VISIBLE = new Set(['/admin/kitchen', '/admin/table-orders']);
+// Plan Solo Delivery: sin mesas, así que estas pestañas no aportan nada.
+const DELIVERY_HIDDEN = new Set(['/admin/tables', '/admin/table-orders']);
 
-export function visibleNavLinks(role: UserRole | null | undefined): AdminNavLink[] {
+export function visibleNavLinks(
+  role: UserRole | null | undefined,
+  subscriptionPlan?: string | null,
+): AdminNavLink[] {
   if (isScreenRole(role)) return [];
+  let links = ADMIN_NAV_LINKS;
   if (role && RESTRICTED_ROLES.includes(role)) {
-    return ADMIN_NAV_LINKS.filter((l) => RESTRICTED_VISIBLE.has(l.to));
+    links = links.filter((l) => RESTRICTED_VISIBLE.has(l.to));
   }
-  return ADMIN_NAV_LINKS;
+  if (subscriptionPlan === 'DELIVERY') {
+    links = links.filter((l) => !DELIVERY_HIDDEN.has(l.to));
+  }
+  return links;
 }
 
 // Secciones para la cuadrícula del Dashboard (todo menos Ajustes, que vive
 // arriba en el icono de configuración).
-export function dashboardSectionLinks(role: UserRole | null | undefined): AdminNavLink[] {
-  return visibleNavLinks(role).filter((l) => l.to !== '/admin/settings');
+export function dashboardSectionLinks(
+  role: UserRole | null | undefined,
+  subscriptionPlan?: string | null,
+): AdminNavLink[] {
+  return visibleNavLinks(role, subscriptionPlan).filter((l) => l.to !== '/admin/settings');
 }

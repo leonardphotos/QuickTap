@@ -15,4 +15,9 @@ export const restaurantController = {
     if (!req.file) throw badRequest('No se recibió ningún archivo.');
     res.status(201).json({ data: { url: `/uploads/logos/${req.file.filename}` } });
   }),
+
+  uploadFullscreenImage: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw badRequest('No se recibió ningún archivo.');
+    res.status(201).json({ data: { url: `/uploads/fullscreen/${req.file.filename}` } });
+  }),
 };

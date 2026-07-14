@@ -9,6 +9,8 @@ import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } 
 import { TeamSection } from '@/components/admin/TeamSection';
 import { ThemeSection } from '@/components/admin/ThemeSection';
 import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection';
+import { CheckoutSettingsSection } from '@/components/admin/CheckoutSettingsSection';
+import { FullscreenImageSection } from '@/components/admin/FullscreenImageSection';
 
 interface RateInfo {
   currency: Currency;
@@ -131,7 +133,11 @@ export default function SettingsPage() {
         </TextureCardContent>
       </TextureCard>
 
+      <CheckoutSettingsSection />
+
       <ThemeSection />
+
+      <FullscreenImageSection />
 
       {canManageTeam(user?.role) && <TeamSection />}
     </div>

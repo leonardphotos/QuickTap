@@ -57,6 +57,8 @@ function makeImageUpload(subdir: string, fieldName: string) {
 
 export const uploadProductPhoto = makeImageUpload('products', 'photo');
 export const uploadLogo = makeImageUpload('logos', 'photo');
+// Imagen de "Modo Cartelera" (pantalla completa del menú público).
+export const uploadFullscreenImage = makeImageUpload('fullscreen', 'photo');
 
 // Comprobante de pago (Pago Móvil / Binance / transferencia): foto o PDF del recibo.
 const PROOF_ALLOWED_MIME = new Set([...ALLOWED_MIME, 'application/pdf']);

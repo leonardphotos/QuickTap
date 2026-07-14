@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { MasterAuthProvider } from './context/MasterAuthContext';
 import LandingPage from './pages/LandingPage';
@@ -22,6 +22,13 @@ import MasterPromoCodesPage from './pages/master/MasterPromoCodesPage';
 import MasterPaymentMethodsPage from './pages/master/MasterPaymentMethodsPage';
 import MasterProofsPage from './pages/master/MasterProofsPage';
 import MasterAdminsPage from './pages/master/MasterAdminsPage';
+
+/** Enlaces viejos tipo quicktap.club/:slug -> redirige a quicktap.club/r/:slug (URL actual del menú). */
+function LegacyMenuRedirect() {
+  const { slug } = useParams<{ slug: string }>();
+  const location = useLocation();
+  return <Navigate to={`/r/${slug}${location.search}`} replace />;
+}
 
 export default function App() {
   return (
@@ -57,6 +64,9 @@ export default function App() {
             <Route path="proofs" element={<MasterProofsPage />} />
             <Route path="admins" element={<MasterAdminsPage />} />
           </Route>
+
+          {/* Compatibilidad con enlaces viejos (quicktap.club/:slug) de antes de que existiera /r/:slug */}
+          <Route path="/:slug" element={<LegacyMenuRedirect />} />
 
           <Route path="*" element={<div className="p-10 text-center text-gray-500">Página no encontrada.</div>} />
         </Routes>

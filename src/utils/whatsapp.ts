@@ -48,6 +48,9 @@ export interface BuildWhatsappCheckoutParams {
   mode: DeliveryMode;
   items: WhatsappCartItem[];
   customer: WhatsappCustomer;
+  /** Cargos opcionales ya calculados por el restaurante (0 si están apagados). */
+  serviceChargeBase?: number | string;
+  ivaBase?: number | string;
 }
 
 export interface WhatsappCheckoutResult {
@@ -76,7 +79,17 @@ function sanitizePhone(phone: string): string {
 export function buildWhatsappCheckoutUrl(
   params: BuildWhatsappCheckoutParams,
 ): WhatsappCheckoutResult {
-  const { restaurantName, whatsappPhone, currencySymbol, exchangeRate, mode, items, customer } = params;
+  const {
+    restaurantName,
+    whatsappPhone,
+    currencySymbol,
+    exchangeRate,
+    mode,
+    items,
+    customer,
+    serviceChargeBase = 0,
+    ivaBase = 0,
+  } = params;
 
   if (items.length === 0) {
     throw new Error('El carrito está vacío.');
@@ -110,7 +123,11 @@ export function buildWhatsappCheckoutUrl(
   }
 
   subtotalBase = round2(subtotalBase);
-  const totalBs = baseToBs(subtotalBase, exchangeRate);
+  const serviceChargeBaseDec = round2(serviceChargeBase);
+  const ivaBaseDec = round2(ivaBase);
+  const hasCharges = serviceChargeBaseDec.gt(0) || ivaBaseDec.gt(0);
+  const totalBase = round2(subtotalBase.add(serviceChargeBaseDec).add(ivaBaseDec));
+  const totalBs = baseToBs(totalBase, exchangeRate);
 
   // --- Armado del mensaje ---
   const nl = '\n';
@@ -121,9 +138,21 @@ export function buildWhatsappCheckoutUrl(
   parts.push('━━━━━━━━━━━━━━━━━━━━');
   parts.push('*Detalle del pedido:*');
   parts.push(...lines);
+  if (hasCharges) {
+    parts.push('━━━━━━━━━━━━━━━━━━━━');
+    parts.push(`Subtotal: ${formatBs(baseToBs(subtotalBase, exchangeRate))} (${formatMoney(subtotalBase, currencySymbol)})`);
+    if (serviceChargeBaseDec.gt(0)) {
+      parts.push(
+        `Servicio (10%): ${formatBs(baseToBs(serviceChargeBaseDec, exchangeRate))} (${formatMoney(serviceChargeBaseDec, currencySymbol)})`,
+      );
+    }
+    if (ivaBaseDec.gt(0)) {
+      parts.push(`IVA (16%): ${formatBs(baseToBs(ivaBaseDec, exchangeRate))} (${formatMoney(ivaBaseDec, currencySymbol)})`);
+    }
+  }
   parts.push('━━━━━━━━━━━━━━━━━━━━');
   parts.push(`*Total a pagar:*  ${formatBs(totalBs)}`);
-  parts.push(`_Equivalente: ${formatMoney(subtotalBase, currencySymbol)}_`);
+  parts.push(`_Equivalente: ${formatMoney(totalBase, currencySymbol)}_`);
   parts.push(`_Tasa BCV aplicada: ${formatBs(exchangeRate)} / ${currencySymbol}1_`);
   parts.push('━━━━━━━━━━━━━━━━━━━━');
   parts.push('*Datos del cliente:*');

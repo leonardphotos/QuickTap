@@ -4,7 +4,7 @@ import { z } from 'zod';
 // comprobante), por eso los numéricos vienen como string y hay que
 // coercionarlos.
 export const createPlanRequestSchema = z.object({
-  plan: z.enum(['STARTER', 'PRO', 'PREMIUM', 'CUSTOM']),
+  plan: z.enum(['DELIVERY', 'STARTER', 'PRO', 'PREMIUM', 'CUSTOM']),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL']),
   paymentMethod: z.enum(['PAGO_MOVIL', 'BINANCE', 'BANK_TRANSFER']),
 
@@ -31,7 +31,7 @@ export const approvePlanRequestSchema = z.object({
 export type ApprovePlanRequestInput = z.infer<typeof approvePlanRequestSchema>;
 
 export const activateRestaurantSchema = z.object({
-  plan: z.enum(['STARTER', 'PRO', 'PREMIUM', 'CUSTOM']),
+  plan: z.enum(['DELIVERY', 'STARTER', 'PRO', 'PREMIUM', 'CUSTOM']),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL']),
 });
 

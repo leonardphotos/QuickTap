@@ -19,6 +19,7 @@ interface Props {
   onClose: () => void;
   onAdd: (line: CartLine) => void;
   onSelectProduct: (product: Product) => void;
+  orderingEnabled: boolean;
 }
 
 function pickSuggestions(all: Product[], excludeId: string, count: number): Product[] {
@@ -27,7 +28,15 @@ function pickSuggestions(all: Product[], excludeId: string, count: number): Prod
   return shuffled.slice(0, count);
 }
 
-export default function ProductDetailSheet({ product, restaurant, allProducts, onClose, onAdd, onSelectProduct }: Props) {
+export default function ProductDetailSheet({
+  product,
+  restaurant,
+  allProducts,
+  onClose,
+  onAdd,
+  onSelectProduct,
+  orderingEnabled,
+}: Props) {
   const [quantity, setQuantity] = useState(1);
   const [note, setNote] = useState('');
   const [justAdded, setJustAdded] = useState(false);
@@ -102,44 +111,48 @@ export default function ProductDetailSheet({ product, restaurant, allProducts, o
                 {price.secondary && <span className="text-sm text-brand-950/40 font-normal"> · {price.secondary}</span>}
               </p>
 
-              <div className="flex items-center justify-center gap-4 mt-4">
-                <button
-                  onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                  className="w-9 h-9 rounded-full border border-brand-950/20 font-bold text-brand-950"
-                >
-                  −
-                </button>
-                <span className="w-6 text-center font-medium">{quantity}</span>
-                <button
-                  onClick={() => setQuantity((q) => q + 1)}
-                  className="w-9 h-9 rounded-full border border-brand-950/20 font-bold text-brand-950"
-                >
-                  +
-                </button>
-              </div>
+              {orderingEnabled && (
+                <>
+                  <div className="flex items-center justify-center gap-4 mt-4">
+                    <button
+                      onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                      className="w-9 h-9 rounded-full border border-brand-950/20 font-bold text-brand-950"
+                    >
+                      −
+                    </button>
+                    <span className="w-6 text-center font-medium">{quantity}</span>
+                    <button
+                      onClick={() => setQuantity((q) => q + 1)}
+                      className="w-9 h-9 rounded-full border border-brand-950/20 font-bold text-brand-950"
+                    >
+                      +
+                    </button>
+                  </div>
 
-              <input
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-                placeholder="Nota de cocina (ej: sin cebolla)"
-                className="w-full mt-4 text-sm border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-              />
+                  <input
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="Nota de cocina (ej: sin cebolla)"
+                    className="w-full mt-4 text-sm border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  />
 
-              <TextureButton
-                variant="brand"
-                size="default"
-                onClick={confirmAdd}
-                disabled={justAdded}
-                className="mt-4 flex items-center justify-center gap-1.5 disabled:opacity-80"
-              >
-                {justAdded ? (
-                  <>
-                    <ShoppingCart className="h-4 w-4" /> Añadido
-                  </>
-                ) : (
-                  'Añadir al carrito'
-                )}
-              </TextureButton>
+                  <TextureButton
+                    variant="brand"
+                    size="default"
+                    onClick={confirmAdd}
+                    disabled={justAdded}
+                    className="mt-4 flex items-center justify-center gap-1.5 disabled:opacity-80"
+                  >
+                    {justAdded ? (
+                      <>
+                        <ShoppingCart className="h-4 w-4" /> Añadido
+                      </>
+                    ) : (
+                      'Añadir al carrito'
+                    )}
+                  </TextureButton>
+                </>
+              )}
 
               {suggestions.length > 0 && (
                 <div className="mt-6 pt-4 border-t border-brand-950/10">

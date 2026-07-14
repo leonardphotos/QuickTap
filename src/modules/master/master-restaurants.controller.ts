@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { activateRestaurantSchema } from '../plan-requests/plan-request.dto';
 import { planRequestService } from '../plan-requests/plan-request.service';
+import { extendDaysSchema, setSuspendedSchema } from './master-restaurants.dto';
 import { masterRestaurantsService } from './master-restaurants.service';
 
 export const masterRestaurantsController = {
@@ -15,5 +16,15 @@ export const masterRestaurantsController = {
   activate: asyncHandler(async (req: Request, res: Response) => {
     const input = activateRestaurantSchema.parse(req.body);
     res.json({ data: await planRequestService.activateRestaurant(req.params.id, input) });
+  }),
+  /** Bloquear/desbloquear la cuenta manualmente. */
+  setSuspended: asyncHandler(async (req: Request, res: Response) => {
+    const { suspended } = setSuspendedSchema.parse(req.body);
+    res.json({ data: await masterRestaurantsService.setSuspended(req.params.id, suspended) });
+  }),
+  /** Extender (o recortar) el vencimiento por una cantidad exacta de días. */
+  extendDays: asyncHandler(async (req: Request, res: Response) => {
+    const { days } = extendDaysSchema.parse(req.body);
+    res.json({ data: await masterRestaurantsService.extendDays(req.params.id, days) });
   }),
 };

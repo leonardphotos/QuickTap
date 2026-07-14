@@ -14,6 +14,7 @@ interface RestaurantDetail {
   billingCycle: string | null;
   periodEnd: string;
   createdAt: string;
+  suspended: boolean;
   locked: boolean;
   daysRemaining: number;
   users: { id: string; name: string; email: string; role: string; isActive: boolean }[];
@@ -29,7 +30,7 @@ interface RestaurantDetail {
   }[];
 }
 
-const PLAN_OPTIONS = ['STARTER', 'PRO', 'PREMIUM', 'CUSTOM'] as const;
+const PLAN_OPTIONS = ['DELIVERY', 'STARTER', 'PRO', 'PREMIUM', 'CUSTOM'] as const;
 const CYCLE_OPTIONS = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL'] as const;
 
 export default function MasterRestaurantDetailPage() {
@@ -37,6 +38,7 @@ export default function MasterRestaurantDetailPage() {
   const [detail, setDetail] = useState<RestaurantDetail | null>(null);
   const [plan, setPlan] = useState<(typeof PLAN_OPTIONS)[number]>('PRO');
   const [cycle, setCycle] = useState<(typeof CYCLE_OPTIONS)[number]>('MONTHLY');
+  const [extendDays, setExtendDays] = useState(30);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -60,6 +62,35 @@ export default function MasterRestaurantDetailPage() {
     }
   }
 
+  async function toggleSuspended() {
+    if (!detail) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      await masterApi.patch(`/master/restaurants/${id}/suspend`, { suspended: !detail.suspended });
+      setMessage(detail.suspended ? 'Cuenta desbloqueada.' : 'Cuenta bloqueada.');
+      load();
+    } catch (err: any) {
+      setMessage(err.response?.data?.error ?? 'No se pudo actualizar.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function applyExtendDays() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      await masterApi.patch(`/master/restaurants/${id}/extend`, { days: extendDays });
+      setMessage(`Vencimiento ajustado ${extendDays >= 0 ? '+' : ''}${extendDays} día(s).`);
+      load();
+    } catch (err: any) {
+      setMessage(err.response?.data?.error ?? 'No se pudo ajustar.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (!detail) return <p className="text-brand-950/50 font-light">Cargando…</p>;
 
   return (
@@ -76,49 +107,94 @@ export default function MasterRestaurantDetailPage() {
         <Stat label="Pedidos" value={detail._count.orders} />
       </div>
 
-      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-4">
-        <div>
-          <p className="font-semibold text-brand-950">Suscripción</p>
-          <p className="text-sm text-brand-950/60 font-light mt-1">
-            {detail.locked
-              ? 'Bloqueada por falta de pago.'
-              : `${detail.subscriptionStatus === 'TRIALING' ? 'En prueba' : `Plan ${detail.subscriptionPlan}`} · vence en ${detail.daysRemaining} día(s) (${new Date(detail.periodEnd).toLocaleDateString('es-VE')}).`}
-          </p>
-        </div>
-
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="text-sm">
-            <span className="block text-brand-950/70 mb-1">Plan</span>
-            <select
-              value={plan}
-              onChange={(e) => setPlan(e.target.value as (typeof PLAN_OPTIONS)[number])}
-              className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
-            >
-              {PLAN_OPTIONS.map((p) => (
-                <option key={p} value={p}>
-                  {p}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="text-sm">
-            <span className="block text-brand-950/70 mb-1">Ciclo</span>
-            <select
-              value={cycle}
-              onChange={(e) => setCycle(e.target.value as (typeof CYCLE_OPTIONS)[number])}
-              className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
-            >
-              {CYCLE_OPTIONS.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </label>
-          <TextureButton variant="brand" size="default" disabled={busy} className="!w-auto px-5" onClick={activate}>
-            {busy ? 'Activando…' : 'Activar / Extender'}
+      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="font-semibold text-brand-950">Suscripción</p>
+            <p className="text-sm text-brand-950/60 font-light mt-1">
+              {detail.suspended
+                ? 'Bloqueada manualmente desde el Dashboard maestro.'
+                : detail.locked
+                  ? 'Bloqueada por falta de pago.'
+                  : `${detail.subscriptionStatus === 'TRIALING' ? 'En prueba' : `Plan ${detail.subscriptionPlan}`} · vence en ${detail.daysRemaining} día(s) (${new Date(detail.periodEnd).toLocaleDateString('es-VE')}).`}
+            </p>
+          </div>
+          <TextureButton
+            variant={detail.suspended ? 'brand' : 'destructive'}
+            size="sm"
+            disabled={busy}
+            className="!w-auto px-4 shrink-0"
+            onClick={toggleSuspended}
+          >
+            {detail.suspended ? 'Desbloquear cuenta' : 'Bloquear cuenta'}
           </TextureButton>
         </div>
+
+        <div className="pt-1 border-t border-brand-950/[0.06]" />
+
+        <div>
+          <p className="text-sm font-medium text-brand-950/70 mb-2">Editar plan</p>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="text-sm">
+              <span className="block text-brand-950/70 mb-1">Plan</span>
+              <select
+                value={plan}
+                onChange={(e) => setPlan(e.target.value as (typeof PLAN_OPTIONS)[number])}
+                className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+              >
+                {PLAN_OPTIONS.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm">
+              <span className="block text-brand-950/70 mb-1">Ciclo</span>
+              <select
+                value={cycle}
+                onChange={(e) => setCycle(e.target.value as (typeof CYCLE_OPTIONS)[number])}
+                className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+              >
+                {CYCLE_OPTIONS.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <TextureButton variant="brand" size="default" disabled={busy} className="!w-auto px-5" onClick={activate}>
+              {busy ? 'Activando…' : 'Activar / Extender'}
+            </TextureButton>
+          </div>
+        </div>
+
+        <div className="pt-1 border-t border-brand-950/[0.06]" />
+
+        <div>
+          <p className="text-sm font-medium text-brand-950/70 mb-2">Ajustar días de vencimiento</p>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="text-sm">
+              <span className="block text-brand-950/70 mb-1">Días (negativo para recortar)</span>
+              <input
+                type="number"
+                value={extendDays}
+                onChange={(e) => setExtendDays(Number(e.target.value))}
+                className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm w-32"
+              />
+            </label>
+            <TextureButton
+              variant="minimal"
+              size="default"
+              disabled={busy}
+              className="!w-auto px-5"
+              onClick={applyExtendDays}
+            >
+              {busy ? 'Guardando…' : 'Aplicar'}
+            </TextureButton>
+          </div>
+        </div>
+
         {message && <p className="text-sm text-brand-950/70">{message}</p>}
       </div>
 

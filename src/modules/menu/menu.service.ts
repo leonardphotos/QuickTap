@@ -23,6 +23,12 @@ export const menuService = {
         isActive: true,
         theme: true,
         periodEnd: true,
+        suspended: true,
+        orderingEnabled: true,
+        serviceChargeEnabled: true,
+        ivaEnabled: true,
+        fullscreenImageEnabled: true,
+        fullscreenImageUrl: true,
       },
     });
 
@@ -33,6 +39,31 @@ export const menuService = {
     // Cuenta bloqueada por falta de pago: se apaga también el menú público.
     if (isLocked(restaurant)) {
       throw new HttpError(403, 'Este menú no está disponible en este momento.', { code: 'ACCOUNT_LOCKED' });
+    }
+
+    // Modo Cartelera: solo la imagen de pantalla completa, sin catálogo.
+    if (restaurant.fullscreenImageEnabled && restaurant.fullscreenImageUrl) {
+      return {
+        restaurant: {
+          id: restaurant.id,
+          slug: restaurant.slug,
+          name: restaurant.name,
+          description: restaurant.description,
+          logoUrl: restaurant.logoUrl,
+          baseCurrency: restaurant.baseCurrency,
+          currencySymbol: CURRENCY_SYMBOLS[restaurant.baseCurrency],
+          exchangeRate: null,
+          whatsappPhone: restaurant.whatsappPhone,
+          theme: restaurant.theme,
+          orderingEnabled: restaurant.orderingEnabled,
+          serviceChargeEnabled: restaurant.serviceChargeEnabled,
+          ivaEnabled: restaurant.ivaEnabled,
+          fullscreenImageEnabled: true,
+          fullscreenImageUrl: restaurant.fullscreenImageUrl,
+        },
+        highlights: { stars: [], promos: [], houseSpecials: [] },
+        categories: [],
+      };
     }
 
     // Solo categorías activas con al menos un producto disponible.
@@ -99,6 +130,11 @@ export const menuService = {
         exchangeRate,
         whatsappPhone: restaurant.whatsappPhone,
         theme: restaurant.theme,
+        orderingEnabled: restaurant.orderingEnabled,
+        serviceChargeEnabled: restaurant.serviceChargeEnabled,
+        ivaEnabled: restaurant.ivaEnabled,
+        fullscreenImageEnabled: false,
+        fullscreenImageUrl: restaurant.fullscreenImageUrl,
       },
       highlights,
       categories: structuredCategories,

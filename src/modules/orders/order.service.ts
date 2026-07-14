@@ -64,6 +64,21 @@ function sumSubtotal(lines: PricedLine[]): Prisma.Decimal {
   return round2(lines.reduce((acc, l) => acc.add(l.lineTotal), toDecimal(0)));
 }
 
+// Cargos opcionales del checkout: el restaurante los activa/desactiva desde
+// Ajustes, pero el porcentaje en sí no es configurable.
+const SERVICE_CHARGE_RATE = 0.1;
+const IVA_RATE = 0.16;
+
+function calculateCharges(
+  subtotalBase: Prisma.Decimal,
+  restaurant: { serviceChargeEnabled: boolean; ivaEnabled: boolean },
+) {
+  const serviceChargeBase = restaurant.serviceChargeEnabled ? round2(subtotalBase.mul(SERVICE_CHARGE_RATE)) : toDecimal(0);
+  const ivaBase = restaurant.ivaEnabled ? round2(subtotalBase.mul(IVA_RATE)) : toDecimal(0);
+  const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase));
+  return { serviceChargeBase, ivaBase, totalBase };
+}
+
 /**
  * Genera el correlativo por inquilino de forma segura ante concurrencia,
  * dentro de una transacción.
@@ -89,10 +104,24 @@ export const orderService = {
     // La mesa (y por tanto el tenant) se resuelve desde el token del QR.
     const table = await prisma.table.findUnique({
       where: { qrToken: input.qrToken },
-      include: { restaurant: { select: { id: true, baseCurrency: true, isActive: true } } },
+      include: {
+        restaurant: {
+          select: {
+            id: true,
+            baseCurrency: true,
+            isActive: true,
+            orderingEnabled: true,
+            serviceChargeEnabled: true,
+            ivaEnabled: true,
+          },
+        },
+      },
     });
     if (!table || !table.isActive || !table.restaurant.isActive) {
       throw notFound('Mesa no válida.');
+    }
+    if (!table.restaurant.orderingEnabled) {
+      throw badRequest('Este restaurante no está aceptando pedidos en este momento.');
     }
 
     const restaurantId = table.restaurantId;
@@ -101,7 +130,7 @@ export const orderService = {
 
     const lines = await priceCart(restaurantId, input.items);
     const subtotalBase = sumSubtotal(lines);
-    const totalBase = subtotalBase; // sin cargos extra por ahora
+    const { serviceChargeBase, ivaBase, totalBase } = calculateCharges(subtotalBase, table.restaurant);
     const totalBs = baseToBs(totalBase, rate.rateBs);
 
     const order = await prisma.$transaction(async (tx) => {
@@ -136,6 +165,8 @@ export const orderService = {
           customerIdNumber: session.customerIdNumber,
           currency,
           subtotalBase,
+          serviceChargeBase,
+          ivaBase,
           totalBase,
           exchangeRate: rate.rateBs,
           totalBs,
@@ -194,9 +225,15 @@ export const orderService = {
         baseCurrency: true,
         whatsappPhone: true,
         isActive: true,
+        orderingEnabled: true,
+        serviceChargeEnabled: true,
+        ivaEnabled: true,
       },
     });
     if (!restaurant || !restaurant.isActive) throw notFound('Restaurante no encontrado.');
+    if (!restaurant.orderingEnabled) {
+      throw badRequest('Este restaurante no está aceptando pedidos en este momento.');
+    }
     if (!restaurant.whatsappPhone) {
       throw badRequest('El restaurante no tiene un número de WhatsApp configurado.');
     }
@@ -205,7 +242,7 @@ export const orderService = {
     const rate = await exchangeRateService.getRate(restaurant.baseCurrency);
     const lines = await priceCart(restaurantId, input.items);
     const subtotalBase = sumSubtotal(lines);
-    const totalBase = subtotalBase;
+    const { serviceChargeBase, ivaBase, totalBase } = calculateCharges(subtotalBase, restaurant);
     const totalBs = baseToBs(totalBase, rate.rateBs);
 
     const order = await prisma.$transaction(async (tx) => {
@@ -218,6 +255,8 @@ export const orderService = {
           status: 'PENDING',
           currency: restaurant.baseCurrency,
           subtotalBase,
+          serviceChargeBase,
+          ivaBase,
           totalBase,
           exchangeRate: rate.rateBs,
           totalBs,
@@ -257,6 +296,8 @@ export const orderService = {
         note: l.note,
       })),
       customer: input.customer,
+      serviceChargeBase: serviceChargeBase.toString(),
+      ivaBase: ivaBase.toString(),
     });
 
     return {

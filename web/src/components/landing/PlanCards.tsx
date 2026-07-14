@@ -26,6 +26,13 @@ export const PLAN_CONTENT: PlanContent[] = [
     ],
   },
   {
+    id: 'DELIVERY',
+    name: 'Solo Delivery',
+    subtitle: 'Cocinas fantasma o solo pedidos por WhatsApp',
+    capacity: 'Sin mesas ni códigos QR — acceso directo a Cocina',
+    features: ['200 pedidos al mes', 'Hasta 3 usuarios de tu equipo'],
+  },
+  {
     id: 'STARTER',
     name: 'Plan Inicial',
     subtitle: 'Food trucks o cafés pequeños',
@@ -125,7 +132,7 @@ export function PlanCards({
                 {plan.id === 'TRIAL' ? (
                   <span className="text-3xl font-semibold text-brand-950">$0</span>
                 ) : (
-                  priceLabel(FIXED_PLAN_PRICES[plan.id as 'STARTER' | 'PRO' | 'PREMIUM'][billingCycle])
+                  priceLabel(FIXED_PLAN_PRICES[plan.id as 'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM'][billingCycle])
                 )}
               </div>
 

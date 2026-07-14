@@ -21,10 +21,16 @@ const RESTAURANT_SELECT = {
   whatsappPhone: true,
   baseCurrency: true,
   theme: true,
+  serviceChargeEnabled: true,
+  ivaEnabled: true,
+  orderingEnabled: true,
+  fullscreenImageEnabled: true,
+  fullscreenImageUrl: true,
   subscriptionStatus: true,
   subscriptionPlan: true,
   billingCycle: true,
   periodEnd: true,
+  suspended: true,
 } as const;
 
 type RestaurantRow = {
@@ -36,10 +42,16 @@ type RestaurantRow = {
   whatsappPhone: string | null;
   baseCurrency: 'USD' | 'EUR';
   theme: unknown;
+  serviceChargeEnabled: boolean;
+  ivaEnabled: boolean;
+  orderingEnabled: boolean;
+  fullscreenImageEnabled: boolean;
+  fullscreenImageUrl: string | null;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';
   subscriptionPlan: string | null;
   billingCycle: string | null;
   periodEnd: Date;
+  suspended: boolean;
 };
 
 /** Forma que el frontend consume: agrega `locked`, calculado en vivo (nunca persistido). */
@@ -53,10 +65,16 @@ function serializeRestaurant(restaurant: RestaurantRow) {
     whatsappPhone: restaurant.whatsappPhone,
     baseCurrency: restaurant.baseCurrency,
     theme: restaurant.theme,
+    serviceChargeEnabled: restaurant.serviceChargeEnabled,
+    ivaEnabled: restaurant.ivaEnabled,
+    orderingEnabled: restaurant.orderingEnabled,
+    fullscreenImageEnabled: restaurant.fullscreenImageEnabled,
+    fullscreenImageUrl: restaurant.fullscreenImageUrl,
     subscriptionStatus: restaurant.subscriptionStatus,
     subscriptionPlan: restaurant.subscriptionPlan,
     billingCycle: restaurant.billingCycle,
     periodEnd: restaurant.periodEnd,
+    suspended: restaurant.suspended,
     locked: isLocked(restaurant),
   };
 }

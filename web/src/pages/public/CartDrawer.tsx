@@ -59,6 +59,11 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
       .catch(() => setSessionOpen(false));
   }, [qrToken]);
 
+  const serviceChargeBase = restaurant.serviceChargeEnabled ? subtotalBase * 0.1 : 0;
+  const ivaBase = restaurant.ivaEnabled ? subtotalBase * 0.16 : 0;
+  const totalBase = subtotalBase + serviceChargeBase + ivaBase;
+  const hasCharges = restaurant.serviceChargeEnabled || restaurant.ivaEnabled;
+
   const items = cart.map((l) => ({
     productId: l.product.id,
     quantity: l.quantity,
@@ -170,14 +175,35 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                   </ul>
                 )}
 
+                {hasCharges && (
+                  <div className="text-xs text-brand-950/60 space-y-1 mt-3 pt-2 border-t border-brand-950/10">
+                    <div className="flex justify-between">
+                      <span>Subtotal</span>
+                      <span>{publicPriceLabel(subtotalBase, restaurant).primary}</span>
+                    </div>
+                    {restaurant.serviceChargeEnabled && (
+                      <div className="flex justify-between">
+                        <span>Servicio (10%)</span>
+                        <span>{publicPriceLabel(serviceChargeBase, restaurant).primary}</span>
+                      </div>
+                    )}
+                    {restaurant.ivaEnabled && (
+                      <div className="flex justify-between">
+                        <span>IVA (16%)</span>
+                        <span>{publicPriceLabel(ivaBase, restaurant).primary}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex justify-between text-sm font-semibold mt-3">
                   <span>Total a pagar</span>
-                  <span>{publicPriceLabel(subtotalBase, restaurant).primary}</span>
+                  <span>{publicPriceLabel(totalBase, restaurant).primary}</span>
                 </div>
-                {publicPriceLabel(subtotalBase, restaurant).secondary && (
+                {publicPriceLabel(totalBase, restaurant).secondary && (
                   <div className="flex justify-between text-xs text-brand-950/50 mb-3">
                     <span>Equivalente</span>
-                    <span>{publicPriceLabel(subtotalBase, restaurant).secondary}</span>
+                    <span>{publicPriceLabel(totalBase, restaurant).secondary}</span>
                   </div>
                 )}
 
