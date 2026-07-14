@@ -15,6 +15,7 @@ function serializeSession(session: {
   customerName: string;
   customerIdNumber: string;
   openedAt: Date;
+  pinHash: string | null;
   orders: Array<{
     id: string;
     orderNumber: number;
@@ -28,6 +29,7 @@ function serializeSession(session: {
     customerName: session.customerName,
     customerIdNumber: session.customerIdNumber,
     openedAt: session.openedAt,
+    pinRequired: !!session.pinHash,
     // "Pedido #1", "Pedido #2"... según el orden en que se hicieron dentro de la cuenta.
     orders: session.orders.map((o, i) => ({
       orderId: o.id,

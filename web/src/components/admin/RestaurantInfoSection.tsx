@@ -50,6 +50,7 @@ export function RestaurantInfoSection() {
           label="Foto de perfil del local"
           uploadUrl="/restaurant/upload-logo"
           shape="circle"
+          defaultPreview="/logo/perfil.jpg"
         />
 
         <label className="block text-sm">

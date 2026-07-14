@@ -18,6 +18,8 @@ interface Props {
   maxSizeMB?: number;
   /** Texto de ayuda bajo el recuadro de subida (reemplaza el default de 800×800px). */
   helpText?: string;
+  /** Imagen mostrada cuando no hay foto subida (ej. perfil.jpg para el logo del restaurante). */
+  defaultPreview?: string;
 }
 
 /**
@@ -35,6 +37,7 @@ export function PhotoUploadField({
   maxWidthOrHeight = 800,
   maxSizeMB = 1,
   helpText,
+  defaultPreview,
 }: Props) {
   const [preview, setPreview] = useState<string | null>(value ?? null);
   const [uploading, setUploading] = useState(false);
@@ -97,6 +100,13 @@ export function PhotoUploadField({
             >
               <X className="h-3.5 w-3.5" />
             </button>
+          </>
+        ) : defaultPreview ? (
+          <>
+            <img src={defaultPreview} alt="" className="h-full w-full object-cover opacity-90" />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 hover:opacity-100 transition-opacity">
+              <ImagePlus className="h-5 w-5 text-white" />
+            </div>
           </>
         ) : (
           <div className="flex flex-col items-center gap-1.5 text-brand-950/40">

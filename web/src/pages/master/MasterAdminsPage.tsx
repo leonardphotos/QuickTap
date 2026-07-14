@@ -4,6 +4,7 @@ import { Pencil } from 'lucide-react';
 import { masterApi } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { PasswordInput } from '@/components/ui/password-input';
 
 interface PlatformAdminRow {
   id: string;
@@ -81,8 +82,7 @@ export default function MasterAdminsPage() {
           </label>
           <label className="block text-sm">
             <span className="text-brand-950/70">Contraseña</span>
-            <input
-              type="password"
+            <PasswordInput
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               minLength={8}
@@ -211,8 +211,7 @@ function EditAdminDialog({
           </label>
           <label className="block text-sm">
             <span className="text-brand-950/70">Nueva contraseña</span>
-            <input
-              type="password"
+            <PasswordInput
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Déjalo en blanco para no cambiarla"

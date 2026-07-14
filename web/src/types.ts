@@ -118,6 +118,7 @@ export interface TableSession {
   customerName: string;
   customerIdNumber: string;
   openedAt: string;
+  pinRequired: boolean;
   orders: SessionOrder[];
 }
 
@@ -138,6 +139,10 @@ export interface FloorPlan {
 export interface PublicTableSessionStatus {
   isOpen: boolean;
   customerName: string | null;
+  /** Ya decidió si proteger la mesa con clave o dejarla abierta. */
+  pinDecided: boolean;
+  /** La cuenta está protegida: hace falta la clave para pedir de nuevo. */
+  pinRequired: boolean;
 }
 
 export type OrderStatus = 'PENDING' | 'KITCHEN' | 'SERVED' | 'CANCELLED';

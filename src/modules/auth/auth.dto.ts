@@ -2,6 +2,13 @@ import { z } from 'zod';
 
 const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+// El correo se guarda y se compara sin importar mayúsculas/minúsculas ni
+// espacios alrededor (evita cuentas "duplicadas" por escribirlo distinto).
+const emailSchema = z
+  .string()
+  .email()
+  .transform((v) => v.trim().toLowerCase());
+
 export const registerSchema = z.object({
   restaurantName: z.string().min(1).max(120),
   slug: z
@@ -13,15 +20,18 @@ export const registerSchema = z.object({
   // Moneda en la que el restaurante colocará sus precios ($ o €).
   baseCurrency: z.enum(['USD', 'EUR']).optional().default('USD'),
   ownerName: z.string().min(1).max(120),
-  email: z.string().email(),
+  email: emailSchema,
   password: z.string().min(6).max(100),
 });
 
 export const loginSchema = z.object({
-  email: z.string().email(),
+  email: emailSchema,
   password: z.string().min(1),
-  // El email es único por restaurante, así que hace falta el slug para saber cuál.
-  slug: z.string().min(1),
+  // El email es único por restaurante, no globalmente. Si el navegador ya
+  // conoce el slug (login previo) se manda para resolver directo; si no
+  // (dispositivo nuevo, storage borrado, miembro de equipo agregado desde
+  // otro lugar), el backend busca por email entre todos los restaurantes.
+  slug: z.string().min(1).optional(),
 });
 
 export type RegisterInput = z.infer<typeof registerSchema>;

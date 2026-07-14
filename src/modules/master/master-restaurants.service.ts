@@ -97,7 +97,7 @@ export const masterRestaurantsService = {
 
     if (input.email) {
       const existing = await prisma.user.findFirst({
-        where: { restaurantId, email: input.email, id: { not: userId } },
+        where: { restaurantId, email: { equals: input.email, mode: 'insensitive' }, id: { not: userId } },
         select: { id: true },
       });
       if (existing) throw badRequest('Ya existe otro usuario con ese correo en este restaurante.');

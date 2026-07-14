@@ -12,5 +12,6 @@ router.use(tenantGuard);
 
 router.patch('/:id/close', tableSessionController.close);
 router.patch('/:id/move', tableSessionController.move);
+router.patch('/:id/reset-pin', tableSessionController.resetPin);
 
 export default router;

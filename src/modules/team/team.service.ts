@@ -17,7 +17,7 @@ export const teamService = {
 
   async create(restaurantId: string, input: CreateStaffInput) {
     const existing = await prisma.user.findFirst({
-      where: { restaurantId, email: input.email },
+      where: { restaurantId, email: { equals: input.email, mode: 'insensitive' } },
       select: { id: true },
     });
     if (existing) throw badRequest('Ya existe un miembro del equipo con ese email.');

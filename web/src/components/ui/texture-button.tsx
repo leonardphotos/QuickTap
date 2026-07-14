@@ -4,28 +4,28 @@ import { cva } from 'class-variance-authority';
 
 import { cn } from '@/lib/utils';
 
-const buttonVariantsOuter = cva('', {
+const buttonVariantsOuter = cva('rounded-full', {
   variants: {
     variant: {
       primary:
-        'w-full border border-[1px] dark:border-[2px] border-black/10 dark:border-black bg-gradient-to-b from-black/70 to-black dark:from-white dark:to-white/80 p-[1px] transition duration-300 ease-in-out ',
+        'w-full border border-[1px] dark:border-[2px] border-black/10 dark:border-black bg-gradient-to-b from-black/70 to-black dark:from-white dark:to-white/80 p-[1px] transition duration-300 ease-in-out shadow-[0_16px_32px_-8px_rgba(0,0,0,0.35)]',
       accent:
-        'w-full border-[1px] dark:border-[2px] border-black/10 dark:border-neutral-950 bg-gradient-to-b from-indigo-300/90 to-indigo-500 dark:from-indigo-200/70 dark:to-indigo-500 p-[1px] transition duration-300 ease-in-out ',
+        'w-full border-[1px] dark:border-[2px] border-black/10 dark:border-neutral-950 bg-gradient-to-b from-indigo-300/90 to-indigo-500 dark:from-indigo-200/70 dark:to-indigo-500 p-[1px] transition duration-300 ease-in-out shadow-[0_16px_32px_-8px_rgba(99,102,241,0.4)]',
       brand:
-        'w-full border-[1px] dark:border-[2px] border-black/10 dark:border-neutral-950 bg-gradient-to-b from-brand-400/90 to-brand-500 p-[1px] transition duration-300 ease-in-out ',
+        'w-full border-[1px] dark:border-[2px] border-black/10 dark:border-neutral-950 bg-gradient-to-b from-brand-400/90 to-brand-500 p-[1px] transition duration-300 ease-in-out shadow-[0_16px_32px_-8px_rgba(5,108,242,0.4)]',
       destructive:
-        'w-full border-[1px] dark:border-[2px] border-black/10 dark:border-neutral-950 bg-gradient-to-b from-red-300/90 to-red-500 dark:from-red-300/90 dark:to-red-500 p-[1px] transition duration-300 ease-in-out ',
+        'w-full border-[1px] dark:border-[2px] border-black/10 dark:border-neutral-950 bg-gradient-to-b from-red-300/90 to-red-500 dark:from-red-300/90 dark:to-red-500 p-[1px] transition duration-300 ease-in-out shadow-[0_16px_32px_-8px_rgba(239,68,68,0.4)]',
       secondary:
-        'w-full border-[1px] dark:border-[2px] border-black/20 bg-white/50 dark:border-neutral-950 dark:bg-neutral-600/50 p-[1px] transition duration-300 ease-in-out ',
+        'w-full border-[1px] dark:border-[2px] border-black/20 bg-white/50 dark:border-neutral-950 dark:bg-neutral-600/50 p-[1px] transition duration-300 ease-in-out shadow-[0_16px_32px_-8px_rgba(0,0,0,0.15)]',
       minimal:
         'group/texture-button w-full border-[1px] dark:border-[2px] border-black/20 bg-white/50 dark:border-neutral-950 dark:bg-neutral-600/80 p-[1px] active:bg-neutral-200 dark:active:bg-neutral-800 hover:bg-gradient-to-t hover:from-neutral-100 to-white dark:hover:from-neutral-600/50 dark:hover:to-neutral-600/70',
-      icon: 'group/texture-button rounded-full border dark:border-neutral-950 border-black/10 dark:bg-neutral-600/50 bg-white/50 p-[1px] active:bg-neutral-200 dark:active:bg-neutral-800 hover:bg-gradient-to-t hover:from-neutral-100 to-white dark:hover:from-neutral-700 dark:hover:to-neutral-600',
+      icon: 'group/texture-button border dark:border-neutral-950 border-black/10 dark:bg-neutral-600/50 bg-white/50 p-[1px] active:bg-neutral-200 dark:active:bg-neutral-800 hover:bg-gradient-to-t hover:from-neutral-100 to-white dark:hover:from-neutral-700 dark:hover:to-neutral-600',
     },
     size: {
-      sm: 'rounded-[6px]',
-      default: 'rounded-[12px]',
-      lg: 'rounded-[12px]',
-      icon: 'rounded-full',
+      sm: '',
+      default: '',
+      lg: '',
+      icon: '',
     },
   },
   defaultVariants: {
@@ -54,10 +54,10 @@ const innerDivVariants = cva(
         icon: 'bg-gradient-to-b from-white to-neutral-50/50 dark:from-neutral-800 dark:to-neutral-700/50 group-active/texture-button:bg-neutral-200 dark:group-active/texture-button:bg-neutral-800 rounded-full',
       },
       size: {
-        sm: 'text-xs rounded-[4px] px-4 py-1',
-        default: 'text-sm rounded-[10px] px-4 py-2',
-        lg: 'text-base rounded-[10px] px-4 py-2',
-        icon: ' rounded-full p-1',
+        sm: 'text-xs rounded-full px-4 py-1',
+        default: 'text-sm rounded-full px-5 py-2.5',
+        lg: 'text-base rounded-full px-6 py-3',
+        icon: 'rounded-full p-1',
       },
     },
     defaultVariants: {

@@ -11,4 +11,8 @@ export const tableSessionController = {
     const input = moveTableSessionSchema.parse(req.body);
     res.json({ data: await tableSessionService.move(req.restaurantId!, req.params.id, input.tableId) });
   }),
+  /** Staff: quita la clave de mesa (el cliente la olvidó). */
+  resetPin: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await tableSessionService.resetPin(req.restaurantId!, req.params.id) });
+  }),
 };

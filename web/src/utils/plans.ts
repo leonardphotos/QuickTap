@@ -51,26 +51,35 @@ export interface PlatformPaymentMethods {
   bankTransfer?: { banco?: string; cuenta?: string; titular?: string; rif?: string };
 }
 
-/** Convierte la config guardada en líneas legibles para mostrar en la pasarela de pago. */
-export function paymentMethodLines(method: SubscriptionPaymentMethod, config: PlatformPaymentMethods): string[] {
+export interface PaymentMethodLine {
+  label: string;
+  value: string;
+  /** Si no hay valor configurado ("sin configurar"), no tiene sentido ofrecer copiarlo. */
+  copyable: boolean;
+}
+
+/** Convierte la config guardada en líneas (label/value) para mostrar en la pasarela de pago. */
+export function paymentMethodLines(
+  method: SubscriptionPaymentMethod,
+  config: PlatformPaymentMethods,
+): PaymentMethodLine[] {
+  function line(label: string, raw: string | undefined): PaymentMethodLine {
+    return { label, value: raw || '(sin configurar)', copyable: !!raw };
+  }
+
   if (method === 'PAGO_MOVIL') {
     const c = config.pagoMovil ?? {};
     return [
-      `Banco: ${c.banco || '(sin configurar)'}`,
-      `Teléfono: ${c.telefono || '(sin configurar)'}`,
-      `Cédula/RIF: ${c.cedula || '(sin configurar)'}`,
-      `Titular: ${c.titular || '(sin configurar)'}`,
+      line('Banco', c.banco),
+      line('Teléfono', c.telefono),
+      line('Cédula/RIF', c.cedula),
+      line('Titular', c.titular),
     ];
   }
   if (method === 'BINANCE') {
     const c = config.binance ?? {};
-    return [`Binance ID: ${c.id || '(sin configurar)'}`, `Correo: ${c.correo || '(sin configurar)'}`];
+    return [line('Binance ID', c.id), line('Correo', c.correo)];
   }
   const c = config.bankTransfer ?? {};
-  return [
-    `Banco: ${c.banco || '(sin configurar)'}`,
-    `Cuenta: ${c.cuenta || '(sin configurar)'}`,
-    `Titular: ${c.titular || '(sin configurar)'}`,
-    `RIF: ${c.rif || '(sin configurar)'}`,
-  ];
+  return [line('Banco', c.banco), line('Cuenta', c.cuenta), line('Titular', c.titular), line('RIF', c.rif)];
 }

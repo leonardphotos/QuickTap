@@ -77,7 +77,6 @@ export default function BillingPage() {
         onCustomChange={setCustom}
         customPriceUsd={customPriceUsd}
         onChoosePlan={choosePlan}
-        showTrial={false}
       />
 
       {selected && (

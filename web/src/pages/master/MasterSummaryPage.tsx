@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { masterApi } from '@/api/client';
 import { formatBase, formatBsAbsolute } from '@/utils/format';
 
@@ -10,11 +11,38 @@ interface Summary {
   activeRestaurants: number;
 }
 
+interface PlanRequestRow {
+  id: string;
+  kind: 'SIGNUP' | 'RENEWAL';
+  plan: string;
+  priceUsd: string;
+  contactName: string;
+  restaurantName: string | null;
+  createdAt: string;
+  restaurant: { name: string } | null;
+}
+
+interface QrNfcRequestRow {
+  id: string;
+  quantity: number;
+  totalPriceUsd: string;
+  contactName: string;
+  createdAt: string;
+  restaurant: { name: string };
+}
+
 export default function MasterSummaryPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [proofs, setProofs] = useState<PlanRequestRow[] | null>(null);
+  const [qrNfc, setQrNfc] = useState<QrNfcRequestRow[] | null>(null);
 
   useEffect(() => {
     masterApi.get('/master/summary').then((res) => setSummary(res.data.data));
+    Promise.all([
+      masterApi.get('/master/plan-requests', { params: { kind: 'SIGNUP', status: 'PENDING' } }),
+      masterApi.get('/master/plan-requests', { params: { kind: 'RENEWAL', status: 'PENDING' } }),
+    ]).then(([signup, renewal]) => setProofs([...signup.data.data, ...renewal.data.data]));
+    masterApi.get('/master/qr-nfc-requests', { params: { status: 'PENDING' } }).then((res) => setQrNfc(res.data.data));
   }, []);
 
   if (!summary) return <p className="text-brand-950/50 font-light">Cargando…</p>;
@@ -44,6 +72,78 @@ export default function MasterSummaryPage() {
         <Stat label="Restaurantes activos" value={summary.activeRestaurants} />
         <Stat label="Restaurantes totales" value={summary.totalRestaurants} />
       </div>
+
+      <div>
+        <p className="text-sm font-medium text-brand-950/70 mb-3">Pendientes por atender</p>
+        <div className="grid sm:grid-cols-2 gap-4">
+          <PendingCard
+            title="Comprobantes de pago"
+            to="/master/proofs"
+            items={
+              proofs?.map((p) => ({
+                id: p.id,
+                primary: `${p.contactName} · ${p.restaurant?.name ?? p.restaurantName ?? 'sin restaurante'}`,
+                secondary: `${p.plan} · $${p.priceUsd} · ${new Date(p.createdAt).toLocaleDateString('es-VE')}`,
+              })) ?? null
+            }
+            emptyLabel="Sin comprobantes pendientes."
+          />
+          <PendingCard
+            title="Solicitudes QR/NFC"
+            to="/master/qrnfc-requests"
+            items={
+              qrNfc?.map((q) => ({
+                id: q.id,
+                primary: `${q.contactName} · ${q.restaurant.name}`,
+                secondary: `${q.quantity} unidades · $${q.totalPriceUsd} · ${new Date(q.createdAt).toLocaleDateString('es-VE')}`,
+              })) ?? null
+            }
+            emptyLabel="Sin solicitudes pendientes."
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PendingCard({
+  title,
+  to,
+  items,
+  emptyLabel,
+}: {
+  title: string;
+  to: string;
+  items: { id: string; primary: string; secondary: string }[] | null;
+  emptyLabel: string;
+}) {
+  return (
+    <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5">
+      <div className="flex items-center justify-between mb-3">
+        <p className="font-medium text-brand-950 flex items-center gap-2">
+          {title}
+          {items && items.length > 0 && (
+            <span className="text-xs font-semibold bg-brand-500 text-white rounded-full h-5 min-w-5 px-1.5 flex items-center justify-center">
+              {items.length}
+            </span>
+          )}
+        </p>
+        <Link to={to} className="text-xs font-medium text-brand-500 hover:underline shrink-0">
+          Ver todo
+        </Link>
+      </div>
+
+      {items === null && <p className="text-xs text-brand-950/40 font-light">Cargando…</p>}
+      {items?.length === 0 && <p className="text-xs text-brand-950/40 font-light">{emptyLabel}</p>}
+
+      <ul className="space-y-2.5">
+        {items?.slice(0, 4).map((it) => (
+          <li key={it.id} className="text-sm">
+            <p className="text-brand-950 truncate">{it.primary}</p>
+            <p className="text-xs text-brand-950/50 font-light">{it.secondary}</p>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

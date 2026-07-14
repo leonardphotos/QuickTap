@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { Bitcoin, Landmark, Loader2, Tag, UploadCloud, Wallet, X } from 'lucide-react';
+import { Bitcoin, Copy, Landmark, Loader2, Tag, UploadCloud, Wallet, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { formatBs } from '@/utils/format';
 import {
@@ -13,6 +13,8 @@ import {
 } from '@/utils/plans';
 import { PLAN_CONTENT } from './PlanCards';
 import { TextureButton } from '@/components/ui/texture-button';
+import { useCopyToast } from '@/hooks/useCopyToast';
+import { Toast } from '@/components/ui/toast';
 
 export interface SelectedPlan {
   plan: Exclude<PlanId, 'TRIAL'>;
@@ -55,6 +57,7 @@ export function PaymentForm({
   renderSuccess,
 }: Props) {
   const planName = PLAN_CONTENT.find((p) => p.id === selected.plan)?.name ?? 'Plan Personalizado';
+  const { copy, toastMessage } = useCopyToast();
   const [methods, setMethods] = useState<PlatformPaymentMethods>({});
   const [method, setMethod] = useState<SubscriptionPaymentMethod>('PAGO_MOVIL');
   const [contactName, setContactName] = useState(prefillName ?? '');
@@ -218,11 +221,24 @@ export function PaymentForm({
         })}
       </div>
 
-      <div className="rounded-xl bg-brand-950/[0.03] p-4 mb-6 text-sm space-y-1">
+      <div className="rounded-xl bg-brand-950/[0.03] p-4 mb-6 text-sm space-y-1.5">
         {paymentMethodLines(method, methods).map((line) => (
-          <p key={line} className="text-brand-950/70">
-            {line}
-          </p>
+          <div key={line.label} className="flex items-center justify-between gap-2">
+            <p className="text-brand-950/70">
+              <span className="text-brand-950/50">{line.label}: </span>
+              {line.value}
+            </p>
+            {line.copyable && (
+              <button
+                type="button"
+                onClick={() => copy(line.value, `${line.label} copiado`)}
+                aria-label={`Copiar ${line.label}`}
+                className="shrink-0 text-brand-950/40 hover:text-brand-500 transition-colors"
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
         ))}
       </div>
 
@@ -260,6 +276,7 @@ export function PaymentForm({
           {submitting ? 'Enviando…' : 'Enviar solicitud'}
         </TextureButton>
       </form>
+      <Toast message={toastMessage} />
     </div>
   );
 }

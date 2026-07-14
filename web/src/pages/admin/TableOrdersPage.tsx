@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
-import { BellRing, LogOut, MoveHorizontal, Plus, Receipt } from 'lucide-react';
+import { BellRing, Lock, LogOut, MoveHorizontal, Plus, Receipt } from 'lucide-react';
 import { api, getToken } from '../../api/client';
 import type { FloorPlan, FloorPlanTable, Product } from '../../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -82,6 +82,21 @@ export default function TableOrdersPage() {
       load();
     } catch {
       // Si falla, el aviso simplemente sigue visible y se puede reintentar.
+    }
+  }
+
+  async function resetPin() {
+    if (!selected?.session) return;
+    if (!confirm('¿Quitar la clave de esta mesa? Cualquiera podrá pedir sin necesidad de clave hasta que se defina una nueva.')) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await api.patch(`/table-sessions/${selected.session.id}/reset-pin`);
+      load();
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo quitar la clave.');
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -173,6 +188,11 @@ export default function TableOrdersPage() {
                 <span className="font-medium text-brand-950">{selected.session.customerName}</span>
                 {' · Cédula '}
                 {selected.session.customerIdNumber}
+                {selected.session.pinRequired && (
+                  <span className="ml-2 inline-flex items-center gap-1 text-xs text-brand-500">
+                    <Lock className="h-3 w-3" /> Con clave
+                  </span>
+                )}
               </p>
 
               <ul className="space-y-3 max-h-72 overflow-y-auto">
@@ -218,6 +238,17 @@ export default function TableOrdersPage() {
                 >
                   <MoveHorizontal className="h-4 w-4" /> Rodar mesa
                 </TextureButton>
+                {selected.session.pinRequired && (
+                  <TextureButton
+                    variant="minimal"
+                    size="default"
+                    onClick={resetPin}
+                    disabled={busy}
+                    className="flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    <Lock className="h-4 w-4" /> Quitar clave
+                  </TextureButton>
+                )}
                 <TextureButton
                   variant="destructive"
                   size="default"

@@ -117,19 +117,42 @@ export const authService = {
   },
 
   async login(input: LoginInput) {
-    const restaurant = await prisma.restaurant.findUnique({ where: { slug: input.slug } });
-    if (!restaurant || !restaurant.isActive) throw unauthorized('Credenciales inválidas.');
+    if (input.slug) {
+      const restaurant = await prisma.restaurant.findUnique({ where: { slug: input.slug } });
+      if (!restaurant || !restaurant.isActive) throw unauthorized('Credenciales inválidas.');
 
-    const user = await prisma.user.findFirst({
-      where: { restaurantId: restaurant.id, email: input.email, isActive: true },
+      const user = await prisma.user.findFirst({
+        where: { restaurantId: restaurant.id, email: { equals: input.email, mode: 'insensitive' }, isActive: true },
+      });
+      if (!user) throw unauthorized('Credenciales inválidas.');
+
+      const valid = await bcrypt.compare(input.password, user.passwordHash);
+      if (!valid) throw unauthorized('Credenciales inválidas.');
+
+      return this.buildSession(user, restaurant);
+    }
+
+    // Sin slug (dispositivo nuevo o storage borrado): el email es único por
+    // restaurante, no globalmente, así que puede haber más de un candidato.
+    // Se prueba la contraseña contra cada uno hasta encontrar coincidencia.
+    const candidates = await prisma.user.findMany({
+      where: { email: { equals: input.email, mode: 'insensitive' }, isActive: true, restaurant: { isActive: true } },
+      include: { restaurant: true },
     });
-    if (!user) throw unauthorized('Credenciales inválidas.');
 
-    const valid = await bcrypt.compare(input.password, user.passwordHash);
-    if (!valid) throw unauthorized('Credenciales inválidas.');
+    for (const candidate of candidates) {
+      const valid = await bcrypt.compare(input.password, candidate.passwordHash);
+      if (valid) return this.buildSession(candidate, candidate.restaurant);
+    }
 
+    throw unauthorized('Credenciales inválidas.');
+  },
+
+  buildSession(
+    user: { id: string; name: string; email: string; role: string },
+    restaurant: RestaurantRow,
+  ) {
     const token = signToken({ userId: user.id, restaurantId: restaurant.id, role: user.role });
-
     return {
       token,
       restaurant: serializeRestaurant(restaurant),

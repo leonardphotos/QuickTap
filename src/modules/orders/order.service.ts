@@ -6,7 +6,8 @@ import { buildWhatsappCheckoutUrl } from '../../utils/whatsapp';
 import { emitToKitchen, emitToTable, SocketEvents } from '../../sockets';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { startOfTodayCaracas } from '../../utils/timezone';
-import { CartItemInput, DeliveryCheckoutInput, DineInCheckoutInput, ManualOrderInput } from './order.dto';
+import { tableSessionService } from '../table-sessions/table-session.service';
+import { CartItemInput, DeliveryCheckoutInput, DineInCheckoutInput, ManualOrderInput, UpdateOrderItemsInput } from './order.dto';
 
 /**
  * ============================================================================
@@ -137,6 +138,12 @@ export const orderService = {
       // Mientras la mesa esté "abierta", todos sus pedidos se acumulan en la
       // misma cuenta (TableSession). Solo el primer pedido pide nombre/cédula.
       let session = await tx.tableSession.findFirst({ where: { tableId: table.id, status: 'OPEN' } });
+
+      // Si la cuenta ya existe (no es el primer pedido) y está protegida con
+      // clave, hay que validarla antes de aceptar el pedido nuevo.
+      if (session) {
+        await tableSessionService.verifyPin(session, input.pin);
+      }
 
       if (!session) {
         if (!input.customerName || !input.customerIdNumber) {
@@ -380,6 +387,24 @@ export const orderService = {
       });
     });
 
+    // Notifica en vivo a la sección Delivery (y a Cocina, que también lista todos los canales).
+    emitToKitchen(restaurantId, SocketEvents.ORDER_NEW, {
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      channel: order.channel,
+      customerName: order.customerName,
+      items: order.items.map((i) => ({
+        name: i.productName,
+        quantity: i.quantity,
+        modifiers: i.modifiers,
+        note: i.note,
+      })),
+      totalBase: order.totalBase,
+      currency: order.currency,
+      totalBs: order.totalBs,
+      createdAt: order.createdAt,
+    });
+
     // Construye el enlace de WhatsApp con el pedido ya congelado.
     const whatsapp = buildWhatsappCheckoutUrl({
       restaurantName: restaurant.name,
@@ -415,6 +440,73 @@ export const orderService = {
       orderBy: { createdAt: 'asc' },
       include: { items: true, table: { select: { number: true } } },
     });
+  },
+
+  /** Cola de la sección Delivery: solo pedidos DELIVERY/PICKUP (WhatsApp) activos. */
+  async listDeliveryQueue(restaurantId: string) {
+    return prisma.order.findMany({
+      where: { restaurantId, channel: { in: ['DELIVERY', 'PICKUP'] }, status: { in: ['PENDING', 'KITCHEN'] } },
+      orderBy: { createdAt: 'asc' },
+      include: { items: true },
+    });
+  },
+
+  /** Edita cantidades de un pedido ya creado (Delivery). quantity: 0 quita el ítem del pedido. */
+  async updateItems(restaurantId: string, orderId: string, updates: UpdateOrderItemsInput['items']) {
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      include: { items: true },
+    });
+    if (!order) throw notFound('Comanda no encontrada.');
+    if (order.status === 'SERVED' || order.status === 'CANCELLED') {
+      throw badRequest('No se puede editar un pedido ya finalizado o cancelado.');
+    }
+
+    const itemById = new Map(order.items.map((i) => [i.id, i]));
+    for (const u of updates) {
+      if (!itemById.has(u.orderItemId)) throw badRequest('Uno de los productos no pertenece a este pedido.');
+    }
+
+    const updateQty = new Map(updates.map((u) => [u.orderItemId, u.quantity]));
+    const remaining = order.items
+      .map((it) => ({ ...it, quantity: updateQty.get(it.id) ?? it.quantity }))
+      .filter((it) => it.quantity > 0);
+
+    if (remaining.length === 0) {
+      throw badRequest('El pedido debe tener al menos un producto.');
+    }
+
+    const subtotalBase = round2(
+      remaining.reduce((acc, it) => acc.add(it.unitPrice.mul(it.quantity)), toDecimal(0)),
+    );
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { serviceChargeEnabled: true, ivaEnabled: true },
+    });
+    const { serviceChargeBase, ivaBase, totalBase } = calculateCharges(subtotalBase, restaurant!);
+    const totalBs = baseToBs(totalBase, order.exchangeRate);
+
+    await prisma.$transaction(async (tx) => {
+      for (const u of updates) {
+        if (u.quantity <= 0) {
+          await tx.orderItem.delete({ where: { id: u.orderItemId } });
+        } else {
+          const original = itemById.get(u.orderItemId)!;
+          await tx.orderItem.update({
+            where: { id: u.orderItemId },
+            data: { quantity: u.quantity, lineTotal: round2(original.unitPrice.mul(u.quantity)) },
+          });
+        }
+      }
+      await tx.order.update({
+        where: { id: orderId },
+        data: { subtotalBase, serviceChargeBase, ivaBase, totalBase, totalBs },
+      });
+    });
+
+    const updated = await prisma.order.findUnique({ where: { id: orderId }, include: { items: true } });
+    emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: updated!.status });
+    return updated;
   },
 
   /** Cambia el estado de una comanda y notifica a la cocina. */

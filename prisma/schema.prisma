@@ -369,6 +369,12 @@ model TableSession {
   customerName     String
   customerIdNumber String
 
+  // Clave opcional de 4 dígitos para que nadie más pueda pedir en esta mesa
+  // sin autorización. Se decide justo después del primer pedido; vive solo
+  // mientras la cuenta esté abierta (se resetea al cerrar/rodar la mesa).
+  pinHash    String?
+  pinSkipped Boolean @default(false)
+
   status TableSessionStatus @default(OPEN)
 
   openedAt DateTime  @default(now())

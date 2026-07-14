@@ -21,7 +21,11 @@ export type SetPeriodEndInput = z.infer<typeof setPeriodEndSchema>;
 
 export const updateRestaurantUserSchema = z.object({
   name: z.string().min(1, 'El nombre es obligatorio.').max(120).optional(),
-  email: z.string().email('Correo inválido.').optional(),
+  email: z
+    .string()
+    .email('Correo inválido.')
+    .transform((v) => v.trim().toLowerCase())
+    .optional(),
   password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres.').max(100).optional(),
 });
 

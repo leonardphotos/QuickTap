@@ -4,6 +4,7 @@ import {
   deliveryCheckoutSchema,
   dineInCheckoutSchema,
   manualOrderSchema,
+  updateOrderItemsSchema,
   updateStatusSchema,
 } from './order.dto';
 import { orderService } from './order.service';
@@ -34,6 +35,19 @@ export const orderController = {
   kitchenQueue: asyncHandler(async (req: Request, res: Response) => {
     const orders = await orderService.listKitchenQueue(req.restaurantId!);
     res.json({ data: orders });
+  }),
+
+  /** GET /api/v1/orders/delivery — cola de la sección Delivery (protegido). */
+  deliveryQueue: asyncHandler(async (req: Request, res: Response) => {
+    const orders = await orderService.listDeliveryQueue(req.restaurantId!);
+    res.json({ data: orders });
+  }),
+
+  /** PATCH /api/v1/orders/:id/items — editar cantidades de un pedido (protegido). */
+  updateItems: asyncHandler(async (req: Request, res: Response) => {
+    const input = updateOrderItemsSchema.parse(req.body);
+    const order = await orderService.updateItems(req.restaurantId!, req.params.id, input.items);
+    res.json({ data: order });
   }),
 
   /** PATCH /api/v1/orders/:id/status — cambio de estado (protegido). */

@@ -4,6 +4,7 @@ import { masterApi } from '@/api/client';
 import { formatBase } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { PasswordInput } from '@/components/ui/password-input';
 
 interface RestaurantUser {
   id: string;
@@ -389,8 +390,7 @@ function EditUserDialog({
           </label>
           <label className="block text-sm">
             <span className="block text-brand-950/70 mb-1">Nueva contraseña</span>
-            <input
-              type="password"
+            <PasswordInput
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Dejar en blanco para no cambiarla"

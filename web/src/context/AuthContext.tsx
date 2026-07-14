@@ -38,7 +38,7 @@ interface AuthState {
   user: AuthUser | null;
   restaurant: AuthRestaurant | null;
   loading: boolean;
-  login: (slug: string, email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, slug?: string) => Promise<void>;
   register: (input: {
     restaurantName: string;
     slug: string;
@@ -82,8 +82,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function login(slug: string, email: string, password: string) {
-    const { data } = await api.post('/auth/login', { slug, email, password });
+  async function login(email: string, password: string, slug?: string) {
+    const { data } = await api.post('/auth/login', { email, password, slug });
     setToken(data.data.token);
     setStoredSlug(data.data.restaurant.slug);
     setUser(data.data.user);

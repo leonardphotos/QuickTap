@@ -15,6 +15,8 @@ export const dineInCheckoutSchema = z.object({
   customerName: z.string().min(1).max(120).optional(),
   // Cédula/documento de identidad, para los datos de facturación.
   customerIdNumber: z.string().min(1).max(20).optional(),
+  // Requerida solo si la cuenta de la mesa ya está protegida con clave.
+  pin: z.string().regex(/^\d{4}$/).optional(),
 });
 
 /** Pedido cargado a mano por el staff (ej. Mesero) desde "Órdenes de Mesa". */
@@ -45,7 +47,20 @@ export const updateStatusSchema = z.object({
   status: z.enum(['PENDING', 'KITCHEN', 'SERVED', 'CANCELLED']),
 });
 
+/** Editar cantidades de un pedido ya creado (sección Delivery). quantity: 0 quita el ítem. */
+export const updateOrderItemsSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        orderItemId: z.string().min(1),
+        quantity: z.coerce.number().int().min(0).max(99),
+      }),
+    )
+    .min(1),
+});
+
 export type CartItemInput = z.infer<typeof cartItemSchema>;
 export type DineInCheckoutInput = z.infer<typeof dineInCheckoutSchema>;
 export type DeliveryCheckoutInput = z.infer<typeof deliveryCheckoutSchema>;
 export type ManualOrderInput = z.infer<typeof manualOrderSchema>;
+export type UpdateOrderItemsInput = z.infer<typeof updateOrderItemsSchema>;

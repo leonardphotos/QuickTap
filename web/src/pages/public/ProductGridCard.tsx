@@ -13,32 +13,31 @@ export default function ProductGridCard({ product, restaurant, onOpen }: Props) 
   return (
     <button
       onClick={() => onOpen(product)}
-      className="text-left rounded-3xl bg-white p-3 flex flex-col items-center shadow-sm hover:shadow-lg transition-shadow duration-300"
+      className="text-left rounded-3xl bg-white p-2.5 flex flex-col shadow-sm hover:shadow-lg transition-shadow duration-300"
     >
-      <div className="relative mb-2">
+      <div className="relative mb-2.5">
         {product.photoUrl ? (
-          <img src={product.photoUrl} alt={product.name} className="h-28 w-28 rounded-full object-cover" />
+          <img src={product.photoUrl} alt={product.name} className="h-32 w-full rounded-2xl object-cover" />
         ) : (
-          <div className="h-28 w-28 rounded-full bg-gradient-to-br from-brand-400/20 to-brand-500/10 flex items-center justify-center text-3xl">
+          <div className="h-32 w-full rounded-2xl bg-gradient-to-br from-brand-400/20 to-brand-500/10 flex items-center justify-center text-4xl">
             🍽️
           </div>
         )}
-        <span className="absolute -bottom-1 right-0 bg-brand-950 text-[color:var(--qt-button-text,white)] text-xs font-semibold px-2 py-1 rounded-full shadow">
+        <span className="absolute -bottom-2 right-2 bg-brand-500 text-[color:var(--qt-button-text,white)] text-xs font-semibold px-2.5 py-1 rounded-full shadow">
           {price.primary}
         </span>
+        {(product.isStar || product.isPromo || product.isHouseSpecial) && (
+          <div className="absolute top-1.5 left-1.5 flex flex-col gap-1 items-start">
+            {product.isStar && <Badge color="amber">Estrella</Badge>}
+            {product.isPromo && <Badge color="rose">Promo</Badge>}
+            {product.isHouseSpecial && <Badge color="indigo">Recomendado</Badge>}
+          </div>
+        )}
       </div>
 
-      {(product.isStar || product.isPromo || product.isHouseSpecial) && (
-        <div className="flex gap-1 justify-center flex-wrap mb-1">
-          {product.isStar && <Badge color="amber">Estrella</Badge>}
-          {product.isPromo && <Badge color="rose">Promo</Badge>}
-          {product.isHouseSpecial && <Badge color="indigo">Recomendado</Badge>}
-        </div>
-      )}
-
-      <p className="font-semibold text-sm text-brand-950 text-center w-full truncate">{product.name}</p>
+      <p className="font-semibold text-sm text-brand-950 truncate">{product.name}</p>
       {product.description && (
-        <p className="text-xs text-brand-950/50 text-center font-light line-clamp-2 mt-0.5">{product.description}</p>
+        <p className="text-xs text-brand-950/50 font-light line-clamp-1 mt-0.5">{product.description}</p>
       )}
     </button>
   );
@@ -50,5 +49,5 @@ function Badge({ children, color }: { children: string; color: 'amber' | 'rose' 
     rose: 'bg-rose-100 text-rose-700',
     indigo: 'bg-indigo-100 text-indigo-700',
   };
-  return <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${map[color]}`}>{children}</span>;
+  return <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full shadow-sm ${map[color]}`}>{children}</span>;
 }

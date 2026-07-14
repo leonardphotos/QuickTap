@@ -11,8 +11,10 @@ const router = Router();
 router.use(tenantGuard);
 
 router.get('/kitchen', orderController.kitchenQueue);
+router.get('/delivery', orderController.deliveryQueue);
 router.get('/summary/today', orderController.todaySummary);
 router.post('/manual', orderController.createManual);
 router.patch('/:id/status', orderController.updateStatus);
+router.patch('/:id/items', orderController.updateItems);
 
 export default router;

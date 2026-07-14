@@ -5,7 +5,11 @@ const assignableRoleSchema = z.enum(['ADMIN', 'CASHIER', 'WAITER', 'KITCHEN', 'S
 
 export const createStaffSchema = z.object({
   name: z.string().min(1, 'El nombre es obligatorio.').max(120),
-  email: z.string().email(),
+  // Se normaliza a minúsculas: evita cuentas "duplicadas" por escribirlo distinto.
+  email: z
+    .string()
+    .email()
+    .transform((v) => v.trim().toLowerCase()),
   password: z.string().min(6).max(100),
   role: assignableRoleSchema,
 });

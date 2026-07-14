@@ -1,4 +1,4 @@
-import { ChefHat, Grid2x2, QrCode, Settings, UtensilsCrossed } from 'lucide-react';
+import { Bike, ChefHat, Grid2x2, QrCode, Settings, UtensilsCrossed } from 'lucide-react';
 import { RESTRICTED_ROLES, isScreenRole } from '../../utils/roles';
 import type { UserRole } from '../../types';
 
@@ -12,6 +12,7 @@ export interface AdminNavLink {
 export const ADMIN_NAV_LINKS: AdminNavLink[] = [
   { to: '/admin/kitchen', label: 'Cocina', icon: ChefHat },
   { to: '/admin/table-orders', label: 'Órdenes de Mesa', icon: Grid2x2 },
+  { to: '/admin/delivery', label: 'Delivery', icon: Bike },
   { to: '/admin/products', label: 'Productos', icon: UtensilsCrossed },
   { to: '/admin/tables', label: 'Mesas / QR', icon: QrCode },
   { to: '/admin/settings', label: 'Ajustes', icon: Settings },

@@ -8,6 +8,7 @@ import RegisterPage from './pages/admin/RegisterPage';
 import AdminLayout from './pages/admin/AdminLayout';
 import DashboardPage from './pages/admin/DashboardPage';
 import KitchenPage from './pages/admin/KitchenPage';
+import DeliveryPage from './pages/admin/DeliveryPage';
 import ProductsPage from './pages/admin/ProductsPage';
 import TablesPage from './pages/admin/TablesPage';
 import TableOrdersPage from './pages/admin/TableOrdersPage';
@@ -48,6 +49,7 @@ export default function App() {
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<DashboardPage />} />
             <Route path="kitchen" element={<KitchenPage />} />
+            <Route path="delivery" element={<DeliveryPage />} />
             <Route path="products" element={<ProductsPage />} />
             <Route path="tables" element={<TablesPage />} />
             <Route path="table-orders" element={<TableOrdersPage />} />

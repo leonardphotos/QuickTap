@@ -1,23 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { CSSProperties } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import type { ComponentType } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { io } from 'socket.io-client';
-import { BellRing, Receipt } from 'lucide-react';
+import { BellRing, Receipt, Search, Share2, ShoppingCart, SlidersHorizontal, Sparkles } from 'lucide-react';
 import { api } from '../../api/client';
 import type { CartLine, PublicMenu, Product, Restaurant, ServiceRequestType } from '../../types';
 import { hexToRgba, publicPriceLabel } from '../../utils/format';
 import ProductGridCard from './ProductGridCard';
 import ProductDetailSheet from './ProductDetailSheet';
 import CartDrawer from './CartDrawer';
-import { TextureButton } from '@/components/ui/texture-button';
 import { Toast } from '@/components/ui/toast';
-import { FacebookIcon, InstagramIcon, TikTokIcon, XIcon } from '@/components/ui/social-icons';
+import { FacebookIcon, InstagramIcon, TikTokIcon, WhatsAppIcon, XIcon } from '@/components/ui/social-icons';
 import {
   MinimalCard,
   MinimalCardTitle,
   MinimalCardDescription,
   MinimalCardFooter,
 } from '@/components/ui/minimal-card';
+import { TextureButton } from '@/components/ui/texture-button';
 
 /** Página pública: se accede desde el QR (con ?mesa=token) o desde el link general (delivery/pickup). */
 export default function MenuPage() {
@@ -30,11 +30,13 @@ export default function MenuPage() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [onlyHighlighted, setOnlyHighlighted] = useState(false);
   const [readyMessage, setReadyMessage] = useState<string | null>(null);
   const [callingWaiter, setCallingWaiter] = useState(false);
   const [requestingBill, setRequestingBill] = useState(false);
-  const categoryRefs = useRef<Record<string, HTMLElement | null>>({});
+  const [showSocial, setShowSocial] = useState(false);
 
   useEffect(() => {
     api
@@ -48,6 +50,27 @@ export default function MenuPage() {
         }
       });
   }, [slug]);
+
+  // Los colores de marca del restaurante se aplican como variables CSS en el
+  // <html> (no en un div local): las hojas de producto/carrito se renderizan
+  // en un portal fuera del árbol de esta página, así que necesitan heredarlas
+  // desde un ancestro común de verdad para no mostrar siempre el azul por defecto.
+  const theme = menu?.restaurant.theme;
+  useEffect(() => {
+    const root = document.documentElement;
+    const vars: [string, string | undefined][] = [
+      ['--color-brand-950', theme?.text],
+      ['--color-brand-500', theme?.primary],
+      ['--color-brand-400', theme?.accent],
+      ['--qt-button-text', theme?.buttonText],
+    ];
+    for (const [key, value] of vars) {
+      if (value) root.style.setProperty(key, value);
+    }
+    return () => {
+      for (const [key] of vars) root.style.removeProperty(key);
+    };
+  }, [theme?.text, theme?.primary, theme?.accent, theme?.buttonText]);
 
   // Aviso en tiempo real cuando cocina marca el pedido como listo, o el mesero
   // atiende un llamado / solicitud de cuenta hecho desde este mismo menú.
@@ -112,17 +135,30 @@ export default function MenuPage() {
     setCart((prev) => prev.filter((_, i) => i !== index));
   }
 
-  function scrollToCategory(id: string) {
-    setActiveCategory(id);
-    categoryRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
-
   const subtotalBase = useMemo(
     () => cart.reduce((acc, l) => acc + Number(l.product.price) * l.quantity, 0),
     [cart],
   );
 
   const allProducts = useMemo(() => menu?.categories.flatMap((c) => c.products) ?? [], [menu]);
+  const searchTerm = search.trim().toLowerCase();
+
+  // Categorías a mostrar: si hay búsqueda, un solo grupo de resultados;
+  // si no, las categorías reales filtradas por la pestaña activa y/o "solo destacados".
+  const visibleGroups = useMemo(() => {
+    if (!menu) return [];
+    if (searchTerm) {
+      const matches = allProducts.filter((p) => p.name.toLowerCase().includes(searchTerm));
+      return [{ id: 'search-results', name: `Resultados para "${search.trim()}"`, products: matches }];
+    }
+    const base = categoryFilter ? menu.categories.filter((c) => c.id === categoryFilter) : menu.categories;
+    return base
+      .map((c) => ({
+        ...c,
+        products: onlyHighlighted ? c.products.filter((p) => p.isStar || p.isPromo || p.isHouseSpecial) : c.products,
+      }))
+      .filter((c) => c.products.length > 0);
+  }, [menu, allProducts, searchTerm, search, categoryFilter, onlyHighlighted]);
 
   if (error) {
     return <div className="p-10 text-center text-red-600">{error}</div>;
@@ -146,31 +182,30 @@ export default function MenuPage() {
   }
 
   const hasHighlights =
-    highlights.stars.length > 0 || highlights.promos.length > 0 || highlights.houseSpecials.length > 0;
+    !searchTerm &&
+    !categoryFilter &&
+    !onlyHighlighted &&
+    (highlights.stars.length > 0 || highlights.promos.length > 0 || highlights.houseSpecials.length > 0);
 
-  const theme = restaurant.theme;
-  const themeVars: Record<string, string> = {};
-  if (theme?.text) themeVars['--color-brand-950'] = theme.text;
-  if (theme?.primary) themeVars['--color-brand-500'] = theme.primary;
-  if (theme?.accent) themeVars['--color-brand-400'] = theme.accent;
-  if (theme?.buttonText) themeVars['--qt-button-text'] = theme.buttonText;
   const hasSocialLinks = Boolean(
     theme?.socialLinks &&
       (theme.socialLinks.instagram || theme.socialLinks.facebook || theme.socialLinks.tiktok || theme.socialLinks.x),
   );
 
+  const cartCount = cart.reduce((acc, l) => acc + l.quantity, 0);
+
   return (
     <div
-      className="min-h-screen bg-[#F3EFE6] pb-28"
-      style={{ ...(theme?.background ? { backgroundColor: theme.background } : {}), ...themeVars } as CSSProperties}
+      className="min-h-screen bg-[#F3EFE6] pb-32"
+      style={theme?.background ? { backgroundColor: theme.background } : undefined}
     >
       <header
         className="sticky top-3 z-10 mx-3 sm:mx-auto sm:max-w-2xl rounded-[28px] shadow-lg shadow-black/10 backdrop-blur-md overflow-hidden"
-        style={{ backgroundColor: hexToRgba(theme?.bannerColor || '#001B43', 0.85) }}
+        style={{ backgroundColor: hexToRgba(theme?.bannerColor || '#056CF2', 0.85) }}
       >
         <div className="max-w-3xl mx-auto px-4 pt-3 pb-1.5 flex flex-col items-center text-center gap-0.5">
           <img
-            src={restaurant.logoUrl || '/logo/icono.png'}
+            src={restaurant.logoUrl || '/logo/perfil.jpg'}
             alt=""
             className="w-11 h-11 rounded-full object-cover shrink-0 ring-2 ring-white/15"
           />
@@ -178,91 +213,55 @@ export default function MenuPage() {
           {restaurant.description && (
             <p className="text-[11px] text-white/50 font-light max-w-xs line-clamp-1">{restaurant.description}</p>
           )}
-          {(hasSocialLinks || qrToken) && (
-            <div className="flex items-center justify-center flex-wrap gap-1.5 mt-1">
-              {hasSocialLinks && (
-                <div className="flex items-center gap-2 mr-0.5">
-                  {theme?.socialLinks?.instagram && (
-                    <a
-                      href={theme.socialLinks.instagram}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label="Instagram"
-                      className="text-white/60 hover:text-white transition-colors"
-                    >
-                      <InstagramIcon className="h-3.5 w-3.5" />
-                    </a>
-                  )}
-                  {theme?.socialLinks?.facebook && (
-                    <a
-                      href={theme.socialLinks.facebook}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label="Facebook"
-                      className="text-white/60 hover:text-white transition-colors"
-                    >
-                      <FacebookIcon className="h-3.5 w-3.5" />
-                    </a>
-                  )}
-                  {theme?.socialLinks?.tiktok && (
-                    <a
-                      href={theme.socialLinks.tiktok}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label="TikTok"
-                      className="text-white/60 hover:text-white transition-colors"
-                    >
-                      <TikTokIcon className="h-3.5 w-3.5" />
-                    </a>
-                  )}
-                  {theme?.socialLinks?.x && (
-                    <a
-                      href={theme.socialLinks.x}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label="X"
-                      className="text-white/60 hover:text-white transition-colors"
-                    >
-                      <XIcon className="h-3.5 w-3.5" />
-                    </a>
-                  )}
-                </div>
-              )}
-              {qrToken && (
-                <>
-                  <span className="text-[10px] bg-white/15 text-white px-2 py-0.5 rounded-full font-medium">
-                    Pedido en mesa
-                  </span>
-                  <button
-                    onClick={callWaiter}
-                    disabled={callingWaiter}
-                    className="flex items-center gap-1 text-[10.5px] font-medium text-white bg-white/10 hover:bg-white/20 rounded-full px-2.5 py-1 transition-colors disabled:opacity-50"
-                  >
-                    <BellRing className="h-3 w-3" /> Llamar al mesonero
-                  </button>
-                  <button
-                    onClick={requestBill}
-                    disabled={requestingBill}
-                    className="flex items-center gap-1 text-[10.5px] font-medium text-white bg-white/10 hover:bg-white/20 rounded-full px-2.5 py-1 transition-colors disabled:opacity-50"
-                  >
-                    <Receipt className="h-3 w-3" /> Pedir la cuenta
-                  </button>
-                </>
-              )}
-            </div>
+          {qrToken && (
+            <span className="text-[10px] bg-white/15 text-white px-2 py-0.5 rounded-full font-medium mt-1">
+              Pedido en mesa
+            </span>
           )}
         </div>
+      </header>
 
-        {categories.length > 1 && (
-          <nav className="flex gap-1.5 overflow-x-auto px-4 pt-1.5 pb-2.5 [scrollbar-width:none]">
+      <main className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+        {/* Buscador + filtro de destacados */}
+        <div className="flex items-center gap-2">
+          <div className="flex-1 flex items-center gap-2 bg-white rounded-full px-4 py-2.5 shadow-sm">
+            <Search className="h-4 w-4 text-brand-950/40 shrink-0" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar en el menú"
+              className="flex-1 min-w-0 text-sm bg-transparent outline-none placeholder:text-brand-950/40"
+            />
+          </div>
+          <button
+            onClick={() => setOnlyHighlighted((v) => !v)}
+            aria-label="Mostrar solo destacados"
+            aria-pressed={onlyHighlighted}
+            className={`shrink-0 h-10 w-10 rounded-full flex items-center justify-center shadow-[0_10px_24px_-6px_rgba(5,108,242,0.45)] transition-colors ${
+              onlyHighlighted ? 'bg-brand-400' : 'bg-brand-500'
+            }`}
+          >
+            <SlidersHorizontal className="h-4 w-4 text-[color:var(--qt-button-text,white)]" />
+          </button>
+        </div>
+
+        {/* Categorías (filtran la grilla, no solo hacen scroll) */}
+        {categories.length > 1 && !searchTerm && (
+          <nav className="flex gap-1.5 overflow-x-auto [scrollbar-width:none] -mx-1 px-1">
+            <button
+              onClick={() => setCategoryFilter(null)}
+              className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                categoryFilter === null ? 'bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]' : 'bg-white text-brand-950/60 hover:text-brand-950'
+              }`}
+            >
+              Todas
+            </button>
             {categories.map((cat) => (
               <button
                 key={cat.id}
-                onClick={() => scrollToCategory(cat.id)}
-                className={`shrink-0 px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${
-                  activeCategory === cat.id || (!activeCategory && cat.id === categories[0].id)
-                    ? 'bg-white text-brand-950'
-                    : 'text-white/60 hover:text-white'
+                onClick={() => setCategoryFilter(cat.id)}
+                className={`shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                  categoryFilter === cat.id ? 'bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]' : 'bg-white text-brand-950/60 hover:text-brand-950'
                 }`}
               >
                 {cat.name}
@@ -270,9 +269,7 @@ export default function MenuPage() {
             ))}
           </nav>
         )}
-      </header>
 
-      <main className="max-w-3xl mx-auto px-4 py-6 space-y-8">
         {hasHighlights && (
           <section className="space-y-5">
             {highlights.stars.length > 0 && (
@@ -308,15 +305,18 @@ export default function MenuPage() {
           </section>
         )}
 
-        {categories.map((cat) => (
-          <section
-            key={cat.id}
-            ref={(el) => {
-              categoryRefs.current[cat.id] = el;
-            }}
-            className="scroll-mt-32"
-          >
-            <h2 className="text-base font-semibold text-brand-950 mb-3">{cat.name}</h2>
+        {visibleGroups.length === 0 && (
+          <p className="text-sm text-brand-950/40 font-light text-center py-10">
+            No encontramos productos{searchTerm ? ` para "${search.trim()}"` : ''}.
+          </p>
+        )}
+
+        {visibleGroups.map((cat) => (
+          <section key={cat.id} className="scroll-mt-32">
+            <h2 className="text-base font-semibold text-brand-950 mb-3 flex items-center gap-1.5">
+              {onlyHighlighted && !searchTerm && <Sparkles className="h-4 w-4 text-brand-500" />}
+              {cat.name}
+            </h2>
             <div className="grid grid-cols-2 gap-3">
               {cat.products.map((p) => (
                 <ProductGridCard key={p.id} product={p} restaurant={restaurant} onOpen={setSelectedProduct} />
@@ -325,15 +325,6 @@ export default function MenuPage() {
           </section>
         ))}
       </main>
-
-      {cart.length > 0 && !cartOpen && (
-        <button
-          onClick={() => setCartOpen(true)}
-          className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-brand-950 text-[color:var(--qt-button-text,white)] rounded-full px-6 py-3 shadow-lg font-medium flex items-center gap-2"
-        >
-          Ver carrito ({cart.length}) — {publicPriceLabel(subtotalBase, restaurant).primary}
-        </button>
-      )}
 
       <ProductDetailSheet
         product={selectedProduct}
@@ -360,8 +351,133 @@ export default function MenuPage() {
         />
       )}
 
+      {/* Barra de navegación inferior: acciones de mesa (si aplica), WhatsApp, redes y carrito.
+          Se oculta mientras hay una hoja abierta (carrito o detalle) para no tapar sus botones. */}
+      {!cartOpen && !selectedProduct && (
+      <nav
+        className="fixed bottom-0 inset-x-0 z-20 flex justify-center"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <div className="relative w-full max-w-md mx-3 mb-3">
+          {showSocial && hasSocialLinks && (
+            <div className="absolute bottom-full mb-3 right-2 bg-white rounded-2xl shadow-lg p-3 flex items-center gap-3">
+              {theme?.socialLinks?.instagram && (
+                <a
+                  href={theme.socialLinks.instagram}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Instagram"
+                  className="text-brand-950/70 hover:text-brand-500 transition-colors"
+                >
+                  <InstagramIcon className="h-5 w-5" />
+                </a>
+              )}
+              {theme?.socialLinks?.facebook && (
+                <a
+                  href={theme.socialLinks.facebook}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="Facebook"
+                  className="text-brand-950/70 hover:text-brand-500 transition-colors"
+                >
+                  <FacebookIcon className="h-5 w-5" />
+                </a>
+              )}
+              {theme?.socialLinks?.tiktok && (
+                <a
+                  href={theme.socialLinks.tiktok}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="TikTok"
+                  className="text-brand-950/70 hover:text-brand-500 transition-colors"
+                >
+                  <TikTokIcon className="h-5 w-5" />
+                </a>
+              )}
+              {theme?.socialLinks?.x && (
+                <a
+                  href={theme.socialLinks.x}
+                  target="_blank"
+                  rel="noreferrer"
+                  aria-label="X"
+                  className="text-brand-950/70 hover:text-brand-500 transition-colors"
+                >
+                  <XIcon className="h-5 w-5" />
+                </a>
+              )}
+            </div>
+          )}
+
+          <div
+            className="relative flex items-center justify-around px-4 py-3 rounded-[28px] shadow-lg shadow-black/15"
+            style={{ backgroundColor: 'var(--color-brand-500)' }}
+          >
+            <div className="flex items-center gap-3">
+              {qrToken && (
+                <>
+                  <NavIcon icon={BellRing} label="Mesero" onClick={callWaiter} disabled={callingWaiter} />
+                  <NavIcon icon={Receipt} label="Cuenta" onClick={requestBill} disabled={requestingBill} />
+                </>
+              )}
+            </div>
+
+            <div className="w-14 shrink-0" />
+
+            <div className="flex items-center gap-3">
+              {restaurant.whatsappPhone && (
+                <NavIcon
+                  icon={WhatsAppIcon}
+                  label="WhatsApp"
+                  onClick={() => window.open(`https://wa.me/${restaurant.whatsappPhone}`, '_blank')}
+                />
+              )}
+              {hasSocialLinks && (
+                <NavIcon icon={Share2} label="Redes" onClick={() => setShowSocial((v) => !v)} />
+              )}
+            </div>
+
+            <button
+              onClick={() => setCartOpen(true)}
+              aria-label="Ver carrito"
+              className="absolute -top-6 left-1/2 -translate-x-1/2 h-14 w-14 rounded-full bg-brand-500 text-white shadow-[0_16px_32px_-8px_rgba(5,108,242,0.5)] flex items-center justify-center ring-4 ring-brand-400"
+            >
+              <ShoppingCart className="h-5 w-5" />
+              {cartCount > 0 && (
+                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-white text-brand-950 text-[11px] font-bold flex items-center justify-center shadow">
+                  {cartCount}
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+      </nav>
+      )}
+
       <Toast message={readyMessage} />
     </div>
+  );
+}
+
+function NavIcon({
+  icon: Icon,
+  label,
+  onClick,
+  disabled,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className="flex flex-col items-center gap-0.5 text-[color:var(--qt-button-text,white)]/85 hover:text-[color:var(--qt-button-text,white)] transition-colors disabled:opacity-50"
+    >
+      <Icon className="h-5 w-5" />
+      <span className="text-[10px] font-medium">{label}</span>
+    </button>
   );
 }
 

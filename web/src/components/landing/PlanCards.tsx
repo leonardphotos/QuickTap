@@ -1,5 +1,4 @@
 import { Check } from 'lucide-react';
-import { Link } from 'react-router-dom';
 import { formatBs } from '@/utils/format';
 import { BILLING_CYCLE_LABEL, FIXED_PLAN_PRICES, type BillingCycle, type PlanId } from '@/utils/plans';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -14,17 +13,6 @@ export interface PlanContent {
 }
 
 export const PLAN_CONTENT: PlanContent[] = [
-  {
-    id: 'TRIAL',
-    name: 'Prueba Gratuita',
-    subtitle: '15 días, sin tarjeta',
-    capacity: 'Mesas y códigos QR ilimitados durante la prueba',
-    features: [
-      'Pedidos ilimitados',
-      'Divisor de comandas (Cocina / Barra)',
-      '"Llamar al mesonero" y "Pedir la cuenta"',
-    ],
-  },
   {
     id: 'DELIVERY',
     name: 'Solo Delivery',
@@ -70,8 +58,6 @@ interface Props {
   onCustomChange: (v: CustomPlanValues) => void;
   customPriceUsd: number;
   onChoosePlan: (plan: Exclude<PlanId, 'TRIAL'>) => void;
-  /** La landing pública muestra la tarjeta de prueba gratis; el billing autenticado no (ya la están usando o ya pasó). */
-  showTrial?: boolean;
 }
 
 export function PlanCards({
@@ -82,7 +68,6 @@ export function PlanCards({
   onCustomChange,
   customPriceUsd,
   onChoosePlan,
-  showTrial = true,
 }: Props) {
   function priceLabel(usd: number) {
     return (
@@ -94,7 +79,7 @@ export function PlanCards({
     );
   }
 
-  const plans = showTrial ? PLAN_CONTENT : PLAN_CONTENT.filter((p) => p.id !== 'TRIAL');
+  const plans = PLAN_CONTENT;
 
   return (
     <div>
@@ -129,11 +114,7 @@ export function PlanCards({
               <p className="text-xs text-brand-950/50 font-light mt-0.5">{plan.subtitle}</p>
 
               <div className="mt-4">
-                {plan.id === 'TRIAL' ? (
-                  <span className="text-3xl font-semibold text-brand-950">$0</span>
-                ) : (
-                  priceLabel(FIXED_PLAN_PRICES[plan.id as 'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM'][billingCycle])
-                )}
+                {priceLabel(FIXED_PLAN_PRICES[plan.id as 'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM'][billingCycle])}
               </div>
 
               <ul className="mt-4 space-y-2 text-sm text-brand-950/70 flex-1 font-light">
@@ -147,22 +128,14 @@ export function PlanCards({
                 ))}
               </ul>
 
-              {plan.id === 'TRIAL' ? (
-                <Link to="/admin/register" className="mt-6 block">
-                  <TextureButton variant="primary" size="default">
-                    Comenzar prueba gratis
-                  </TextureButton>
-                </Link>
-              ) : (
-                <TextureButton
-                  variant={plan.highlighted ? 'brand' : 'primary'}
-                  size="default"
-                  className="mt-6"
-                  onClick={() => onChoosePlan(plan.id as Exclude<PlanId, 'TRIAL'>)}
-                >
-                  Elegir plan
-                </TextureButton>
-              )}
+              <TextureButton
+                variant={plan.highlighted ? 'brand' : 'primary'}
+                size="default"
+                className="mt-6"
+                onClick={() => onChoosePlan(plan.id as Exclude<PlanId, 'TRIAL'>)}
+              >
+                Elegir plan
+              </TextureButton>
             </div>
           </div>
         ))}
