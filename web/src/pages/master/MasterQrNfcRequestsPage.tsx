@@ -50,7 +50,7 @@ export default function MasterQrNfcRequestsPage() {
             key={s}
             onClick={() => setStatus(s)}
             className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-              status === s ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+              status === s ? 'bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]' : 'bg-brand-950/[0.06] text-brand-950/50'
             }`}
           >
             {s === 'PENDING' ? 'Pendientes' : 'Atendidas'}

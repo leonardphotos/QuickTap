@@ -473,10 +473,10 @@ function NavIcon({
     <button
       onClick={onClick}
       disabled={disabled}
-      className="flex flex-col items-center gap-0.5 text-[color:var(--qt-button-text,white)]/85 hover:text-[color:var(--qt-button-text,white)] transition-colors disabled:opacity-50"
+      aria-label={label}
+      className="flex items-center justify-center h-9 w-9 rounded-full bg-white/25 shadow-[0_10px_20px_-8px_rgba(0,0,0,0.35)] text-[color:var(--qt-button-text,white)] hover:bg-white/35 transition-colors disabled:opacity-50"
     >
-      <Icon className="h-5 w-5" />
-      <span className="text-[10px] font-medium">{label}</span>
+      <Icon className="h-4 w-4" />
     </button>
   );
 }

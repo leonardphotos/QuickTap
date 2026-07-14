@@ -89,7 +89,9 @@ export function PlanCards({
             key={c}
             onClick={() => onBillingCycleChange(c)}
             className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-              billingCycle === c ? 'bg-brand-950 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+              billingCycle === c
+                ? 'bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]'
+                : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
             }`}
           >
             {BILLING_CYCLE_LABEL[c]}

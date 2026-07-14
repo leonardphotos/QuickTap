@@ -113,7 +113,7 @@ export default function ProductDetailSheet({
                       <div className="flex items-center gap-3">
                         <button
                           onClick={() => setQuantity((q) => Math.max(1, q - 1))}
-                          className="w-8 h-8 rounded-full bg-brand-500 text-[color:var(--qt-button-text,white)] font-bold flex items-center justify-center disabled:opacity-40"
+                          className="w-8 h-8 rounded-full bg-brand-500 text-[color:var(--qt-button-text,white)] font-bold shadow-[0_8px_16px_-6px_rgba(5,108,242,0.5)] flex items-center justify-center disabled:opacity-40"
                           disabled={quantity <= 1}
                         >
                           −
@@ -121,7 +121,7 @@ export default function ProductDetailSheet({
                         <span className="w-5 text-center font-semibold text-brand-950">{quantity}</span>
                         <button
                           onClick={() => setQuantity((q) => q + 1)}
-                          className="w-8 h-8 rounded-full bg-brand-500 text-[color:var(--qt-button-text,white)] font-bold flex items-center justify-center"
+                          className="w-8 h-8 rounded-full bg-brand-500 text-[color:var(--qt-button-text,white)] font-bold shadow-[0_8px_16px_-6px_rgba(5,108,242,0.5)] flex items-center justify-center"
                         >
                           +
                         </button>

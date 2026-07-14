@@ -75,7 +75,9 @@ export default function MasterProofsPage() {
             key={t.kind}
             onClick={() => setKind(t.kind)}
             className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-              kind === t.kind ? 'bg-brand-950 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+              kind === t.kind
+                ? 'bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]'
+                : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
             }`}
           >
             {t.label}
@@ -89,7 +91,7 @@ export default function MasterProofsPage() {
             key={s}
             onClick={() => setStatus(s)}
             className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-              status === s ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+              status === s ? 'bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]' : 'bg-brand-950/[0.06] text-brand-950/50'
             }`}
           >
             {s === 'PENDING' ? 'Pendientes' : 'Activadas'}
