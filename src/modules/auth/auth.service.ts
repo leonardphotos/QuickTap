@@ -120,24 +120,27 @@ export const authService = {
   },
 
   async login(input: LoginInput) {
+    // El slug guardado en el navegador es solo un atajo (evita probar contra
+    // todos los restaurantes). Si ya no sirve —el restaurante fue borrado o
+    // desactivado, o esa cuenta ya no está ahí— NO cortamos el login: seguimos
+    // abajo y probamos por email en todos los restaurantes antes de rendirnos.
+    // Así un slug viejo en localStorage nunca bloquea un login válido.
     if (input.slug) {
       const restaurant = await prisma.restaurant.findUnique({ where: { slug: input.slug } });
-      if (!restaurant || !restaurant.isActive) throw unauthorized('Credenciales inválidas.');
-
-      const user = await prisma.user.findFirst({
-        where: { restaurantId: restaurant.id, email: { equals: input.email, mode: 'insensitive' }, isActive: true },
-      });
-      if (!user) throw unauthorized('Credenciales inválidas.');
-
-      const valid = await bcrypt.compare(input.password, user.passwordHash);
-      if (!valid) throw unauthorized('Credenciales inválidas.');
-
-      return this.buildSession(user, restaurant);
+      if (restaurant?.isActive) {
+        const user = await prisma.user.findFirst({
+          where: { restaurantId: restaurant.id, email: { equals: input.email, mode: 'insensitive' }, isActive: true },
+        });
+        if (user && (await bcrypt.compare(input.password, user.passwordHash))) {
+          return this.buildSession(user, restaurant);
+        }
+      }
     }
 
-    // Sin slug (dispositivo nuevo o storage borrado): el email es único por
-    // restaurante, no globalmente, así que puede haber más de un candidato.
-    // Se prueba la contraseña contra cada uno hasta encontrar coincidencia.
+    // Sin slug (dispositivo nuevo o storage borrado), o el slug guardado ya no
+    // sirve: el email es único por restaurante, no globalmente, así que puede
+    // haber más de un candidato. Se prueba la contraseña contra cada uno hasta
+    // encontrar coincidencia.
     const candidates = await prisma.user.findMany({
       where: { email: { equals: input.email, mode: 'insensitive' }, isActive: true, restaurant: { isActive: true } },
       include: { restaurant: true },
