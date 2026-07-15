@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/api/client';
-import { formatBase, formatBsAbsolute } from '@/utils/format';
+import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
 import { useAuth } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 
@@ -87,9 +87,9 @@ function SummaryTab() {
 
   return (
     <div className="space-y-8">
-      <PeriodSection title="Hoy" period={summary.today} symbol={restaurant?.currencySymbol ?? '$'} />
-      <PeriodSection title="Este mes" period={summary.month} symbol={restaurant?.currencySymbol ?? '$'} />
-      <PeriodSection title="Histórico" period={summary.allTime} symbol={restaurant?.currencySymbol ?? '$'} />
+      <PeriodSection title="Hoy" period={summary.today} symbol={restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$'} />
+      <PeriodSection title="Este mes" period={summary.month} symbol={restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$'} />
+      <PeriodSection title="Histórico" period={summary.allTime} symbol={restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$'} />
     </div>
   );
 }
@@ -167,7 +167,7 @@ interface HistoryResult {
 
 function HistoryTab() {
   const { restaurant } = useAuth();
-  const symbol = restaurant?.currencySymbol ?? '$';
+  const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [range, setRange] = useState<Range>('day');
   const [channel, setChannel] = useState<Channel | ''>('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('');
@@ -337,7 +337,7 @@ interface ProductReportRow {
 
 function ProductsTab() {
   const { restaurant } = useAuth();
-  const symbol = restaurant?.currencySymbol ?? '$';
+  const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [range, setRange] = useState<Range>('month');
   const [rows, setRows] = useState<ProductReportRow[] | null>(null);
   const [order, setOrder] = useState<'desc' | 'asc'>('desc');

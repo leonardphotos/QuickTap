@@ -22,6 +22,7 @@ interface AuthRestaurant {
   serviceChargeEnabled: boolean;
   ivaEnabled: boolean;
   orderingEnabled: boolean;
+  requireOrderConfirmation: boolean;
   fullscreenImageEnabled: boolean;
   fullscreenImageUrl?: string | null;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';
