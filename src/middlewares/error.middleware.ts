@@ -38,9 +38,9 @@ export function errorMiddleware(err: unknown, _req: Request, res: Response, _nex
   }
 
   const message = err instanceof Error ? err.message : 'Error interno del servidor';
-  if (!env.isProd) {
-    // eslint-disable-next-line no-console
-    console.error(err);
-  }
+  // Siempre queda en los logs del servidor (pm2), aunque en prod el cliente
+  // solo reciba un mensaje genérico.
+  // eslint-disable-next-line no-console
+  console.error(err);
   return res.status(500).json({ error: env.isProd ? 'Error interno del servidor' : message });
 }
