@@ -46,6 +46,9 @@ export default function LoginPage() {
       <form onSubmit={onSubmit} className="space-y-4">
         <Field label="Email" type="email" value={email} onChange={setEmail} />
         <Field label="Contraseña" type="password" value={password} onChange={setPassword} />
+        <Link to="/admin/forgot-password" className="block text-sm text-brand-500 font-medium -mt-2">
+          ¿Olvidaste tu contraseña?
+        </Link>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <TextureButton variant="brand" size="default" disabled={loading} className="mt-2 disabled:opacity-50">
           {loading ? 'Ingresando…' : 'Iniciar sesión'}

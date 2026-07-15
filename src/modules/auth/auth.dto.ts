@@ -34,5 +34,20 @@ export const loginSchema = z.object({
   slug: z.string().min(1).optional(),
 });
 
+export const forgotPasswordSchema = z.object({
+  email: emailSchema,
+});
+
+export const resetPasswordSchema = z.object({
+  email: emailSchema,
+  code: z
+    .string()
+    .length(6, 'El código debe tener 6 dígitos.')
+    .regex(/^\d+$/, 'El código solo puede tener números.'),
+  newPassword: z.string().min(6).max(100),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;

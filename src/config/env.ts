@@ -37,4 +37,15 @@ export const env = {
     // Cada cuántas horas se considera "vieja" la tasa cacheada y se reintenta el refresco.
     ttlHours: Number(process.env.EXCHANGE_RATE_TTL_HOURS ?? 6),
   },
+
+  // --- Correo (restablecer contraseña) ---
+  // Cuenta de Gmail/Google Workspace que envía los códigos, vía SMTP con una
+  // "contraseña de aplicación" (no la contraseña normal de la cuenta). Si no
+  // están configuradas, el código se imprime en la consola del servidor en
+  // vez de enviarse (para poder probar el flujo en desarrollo sin credenciales).
+  mail: {
+    user: process.env.MAIL_USER,
+    appPassword: process.env.MAIL_APP_PASSWORD,
+    fromName: process.env.MAIL_FROM_NAME ?? 'QuickTap.club',
+  },
 };

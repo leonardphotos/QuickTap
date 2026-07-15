@@ -5,6 +5,7 @@ import LandingPage from './pages/LandingPage';
 import MenuPage from './pages/public/MenuPage';
 import LoginPage from './pages/admin/LoginPage';
 import RegisterPage from './pages/admin/RegisterPage';
+import ForgotPasswordPage from './pages/admin/ForgotPasswordPage';
 import AdminLayout from './pages/admin/AdminLayout';
 import DashboardPage from './pages/admin/DashboardPage';
 import KitchenPage from './pages/admin/KitchenPage';
@@ -48,6 +49,7 @@ export default function App() {
           {/* Panel del restaurante */}
           <Route path="/admin/login" element={<LoginPage />} />
           <Route path="/admin/register" element={<RegisterPage />} />
+          <Route path="/admin/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/admin" element={<AdminLayout />}>
             <Route index element={<DashboardPage />} />
             <Route path="kitchen" element={<KitchenPage />} />

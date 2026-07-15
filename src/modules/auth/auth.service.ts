@@ -1,11 +1,24 @@
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
-import { conflict, unauthorized } from '../../utils/http-error';
+import { badRequest, conflict, unauthorized } from '../../utils/http-error';
 import { isLocked, trialPeriodEnd } from '../../utils/subscription';
-import { LoginInput, RegisterInput } from './auth.dto';
+import { sendMail } from '../../utils/mailer';
+import { ForgotPasswordInput, LoginInput, RegisterInput, ResetPasswordInput } from './auth.dto';
+
+const RESET_CODE_TTL_MINUTES = 15;
+const RESET_CODE_MAX_ATTEMPTS = 5;
+
+function generateResetCode(): string {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function hashResetCode(code: string): string {
+  return crypto.createHash('sha256').update(code).digest('hex');
+}
 
 function signToken(payload: { userId: string; restaurantId: string; role: string }) {
   return jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn } as jwt.SignOptions);
@@ -198,5 +211,81 @@ export const authService = {
     });
 
     return { user, restaurant: restaurant ? serializeRestaurant(restaurant) : null };
+  },
+
+  /**
+   * Genera un código de 6 dígitos y lo envía por correo. El email es único
+   * por restaurante (no globalmente), así que un mismo correo puede tener
+   * cuentas en varios restaurantes: todas reciben el mismo código y se
+   * actualizan juntas al confirmar (ver resetPassword). Por seguridad, si el
+   * correo no existe no se revela: la respuesta es igual en ambos casos.
+   */
+  async forgotPassword(input: ForgotPasswordInput) {
+    const candidates = await prisma.user.findMany({
+      where: { email: { equals: input.email, mode: 'insensitive' }, isActive: true, restaurant: { isActive: true } },
+    });
+    if (candidates.length === 0) return;
+
+    // Evita reenvíos en cadena: si ya hay un código vigente pedido hace menos
+    // de un minuto, no se genera ni se envía uno nuevo.
+    const recent = candidates.find(
+      (c) => c.resetCodeExpiresAt && c.resetCodeExpiresAt.getTime() - Date.now() > (RESET_CODE_TTL_MINUTES - 1) * 60 * 1000,
+    );
+    if (recent) return;
+
+    const code = generateResetCode();
+    const resetCodeHash = hashResetCode(code);
+    const resetCodeExpiresAt = new Date(Date.now() + RESET_CODE_TTL_MINUTES * 60 * 1000);
+
+    await prisma.user.updateMany({
+      where: { id: { in: candidates.map((c) => c.id) } },
+      data: { resetCodeHash, resetCodeExpiresAt, resetCodeAttempts: 0 },
+    });
+
+    await sendMail(
+      input.email,
+      'Tu código para restablecer la contraseña — QuickTap.club',
+      `<p>Usa este código para restablecer tu contraseña en QuickTap.club:</p>
+       <p style="font-size:28px;font-weight:700;letter-spacing:4px;">${code}</p>
+       <p>Vence en ${RESET_CODE_TTL_MINUTES} minutos. Si no fuiste tú, ignora este correo.</p>`,
+    );
+  },
+
+  /** Valida el código y actualiza la contraseña en todas las cuentas que compartan ese correo. */
+  async resetPassword(input: ResetPasswordInput) {
+    const candidates = await prisma.user.findMany({
+      where: {
+        email: { equals: input.email, mode: 'insensitive' },
+        isActive: true,
+        restaurant: { isActive: true },
+        resetCodeHash: { not: null },
+        resetCodeExpiresAt: { gt: new Date() },
+      },
+    });
+    if (candidates.length === 0) throw badRequest('El código es inválido o ya venció. Pide uno nuevo.');
+
+    const codeHash = hashResetCode(input.code);
+    const valid = candidates.some((c) => c.resetCodeHash === codeHash);
+
+    if (!valid) {
+      const ids = candidates.map((c) => c.id);
+      const attempts = candidates[0].resetCodeAttempts + 1;
+      if (attempts >= RESET_CODE_MAX_ATTEMPTS) {
+        // Demasiados intentos: se invalida el código, hay que pedir uno nuevo.
+        await prisma.user.updateMany({
+          where: { id: { in: ids } },
+          data: { resetCodeHash: null, resetCodeExpiresAt: null, resetCodeAttempts: 0 },
+        });
+        throw badRequest('Demasiados intentos. Pide un código nuevo.');
+      }
+      await prisma.user.updateMany({ where: { id: { in: ids } }, data: { resetCodeAttempts: attempts } });
+      throw badRequest('Código incorrecto.');
+    }
+
+    const passwordHash = await bcrypt.hash(input.newPassword, 10);
+    await prisma.user.updateMany({
+      where: { id: { in: candidates.map((c) => c.id) } },
+      data: { passwordHash, resetCodeHash: null, resetCodeExpiresAt: null, resetCodeAttempts: 0 },
+    });
   },
 };

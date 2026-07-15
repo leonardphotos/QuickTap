@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
-import { loginSchema, registerSchema } from './auth.dto';
+import { forgotPasswordSchema, loginSchema, registerSchema, resetPasswordSchema } from './auth.dto';
 import { authService } from './auth.service';
 
 export const authController = {
@@ -19,5 +19,18 @@ export const authController = {
   me: asyncHandler(async (req: Request, res: Response) => {
     const result = await authService.me(req.restaurantId!, req.auth!.userId);
     res.json({ data: result });
+  }),
+
+  /** No revela si el correo existe: la respuesta es siempre la misma. */
+  forgotPassword: asyncHandler(async (req: Request, res: Response) => {
+    const input = forgotPasswordSchema.parse(req.body);
+    await authService.forgotPassword(input);
+    res.json({ data: { message: 'Si el correo existe, te enviamos un código.' } });
+  }),
+
+  resetPassword: asyncHandler(async (req: Request, res: Response) => {
+    const input = resetPasswordSchema.parse(req.body);
+    await authService.resetPassword(input);
+    res.json({ data: { message: 'Contraseña actualizada.' } });
   }),
 };
