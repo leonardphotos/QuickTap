@@ -1,7 +1,10 @@
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
+import sharp from 'sharp';
+import { Request, Response, NextFunction } from 'express';
 import { badRequest } from '../utils/http-error';
+import { asyncHandler } from './error.middleware';
 
 /**
  * Almacenamiento local en disco para imágenes subidas (fotos de producto,
@@ -58,19 +61,49 @@ function makeImageUpload(subdir: string, fieldName: string) {
 export const uploadProductPhoto = makeImageUpload('products', 'photo');
 export const uploadLogo = makeImageUpload('logos', 'photo');
 // Imagen de "Modo Cartelera" (pantalla completa del menú público). Estas
-// imágenes suelen ser piezas verticales grandes (ej. 2000x7000px) que el
-// cliente sube sin recomprimir, por eso el límite de tamaño es mayor.
+// imágenes suelen ser piezas verticales grandes; `optimizeImage` de abajo
+// se encarga de bajarlas a un tamaño razonable para celular.
 export const uploadFullscreenImage = makeUpload(
   'fullscreen',
   'photo',
   ALLOWED_MIME,
   EXT_BY_MIME,
-  15 * 1024 * 1024,
+  10 * 1024 * 1024,
   'Formato de imagen no soportado (usa JPG, PNG o WEBP).',
 );
 
 // Foto de portada del banner del menú público (se muestra con un degradado hacia blanco).
 export const uploadCoverImage = makeImageUpload('covers', 'photo');
+
+/**
+ * Redimensiona/recomprime la imagen recién subida (en el mismo archivo, sin
+ * cambiar de nombre ni extensión). El cliente ya comprime antes de subir,
+ * pero esto es la garantía real: sin importar lo que llegue, nunca se sirve
+ * al público una imagen más pesada o grande que esto.
+ */
+export function optimizeImage(maxWidth: number, maxHeight: number, quality = 80) {
+  return asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
+    if (!req.file || req.file.mimetype === 'application/pdf') return next();
+
+    const filePath = req.file.path;
+    const tmpPath = `${filePath}.tmp`;
+    let pipeline = sharp(filePath).rotate().resize(maxWidth, maxHeight, { fit: 'inside', withoutEnlargement: true });
+
+    if (req.file.mimetype === 'image/png') {
+      pipeline = pipeline.png({ compressionLevel: 9 });
+    } else if (req.file.mimetype === 'image/webp') {
+      pipeline = pipeline.webp({ quality });
+    } else {
+      pipeline = pipeline.jpeg({ quality, mozjpeg: true });
+    }
+
+    await pipeline.toFile(tmpPath);
+    const { size } = fs.statSync(tmpPath);
+    fs.renameSync(tmpPath, filePath);
+    req.file.size = size;
+    next();
+  });
+}
 
 // Comprobante de pago (Pago Móvil / Binance / transferencia): foto o PDF del recibo.
 const PROOF_ALLOWED_MIME = new Set([...ALLOWED_MIME, 'application/pdf']);

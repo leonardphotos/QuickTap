@@ -17,7 +17,13 @@ export default function ProductGridCard({ product, restaurant, onOpen }: Props) 
     >
       <div className="relative mb-2.5">
         {product.photoUrl ? (
-          <img src={product.photoUrl} alt={product.name} className="h-32 w-full rounded-2xl object-cover" />
+          <img
+            src={product.photoUrl}
+            alt={product.name}
+            loading="lazy"
+            decoding="async"
+            className="h-32 w-full rounded-2xl object-cover"
+          />
         ) : (
           <div className="h-32 w-full rounded-2xl bg-gradient-to-br from-brand-400/20 to-brand-500/10 flex items-center justify-center text-4xl">
             🍽️

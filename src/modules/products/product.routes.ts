@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
 import { FULL_ACCESS_ROLES } from '../../utils/roles';
-import { uploadProductPhoto } from '../../middlewares/upload.middleware';
+import { optimizeImage, uploadProductPhoto } from '../../middlewares/upload.middleware';
 import { productController } from './product.controller';
 
 /**
@@ -19,7 +19,7 @@ const mutate = requireRole(...FULL_ACCESS_ROLES);
 
 router.get('/', productController.list);
 router.post('/', mutate, productController.create);
-router.post('/upload-photo', mutate, uploadProductPhoto, productController.uploadPhoto);
+router.post('/upload-photo', mutate, uploadProductPhoto, optimizeImage(900, 900), productController.uploadPhoto);
 router.get('/:id', productController.getOne);
 router.patch('/:id', mutate, productController.update);
 router.delete('/:id', mutate, productController.remove);

@@ -517,7 +517,7 @@ function HighlightCard({
     >
       {product.photoUrl ? (
         <div className="h-24 w-24 mx-auto mb-3 rounded-full overflow-hidden">
-          <img src={product.photoUrl} alt={product.name} className="h-full w-full object-cover" />
+          <img src={product.photoUrl} alt={product.name} loading="lazy" decoding="async" className="h-full w-full object-cover" />
         </div>
       ) : (
         <div className="h-24 w-24 mx-auto mb-3 rounded-full bg-gradient-to-br from-brand-400/20 to-brand-500/10 flex items-center justify-center text-3xl">

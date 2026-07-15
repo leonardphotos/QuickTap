@@ -1,33 +1,35 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { MasterAuthProvider } from './context/MasterAuthContext';
-import LandingPage from './pages/LandingPage';
-import MenuPage from './pages/public/MenuPage';
-import LoginPage from './pages/admin/LoginPage';
-import RegisterPage from './pages/admin/RegisterPage';
-import ForgotPasswordPage from './pages/admin/ForgotPasswordPage';
-import AdminLayout from './pages/admin/AdminLayout';
-import DashboardPage from './pages/admin/DashboardPage';
-import KitchenPage from './pages/admin/KitchenPage';
-import DeliveryPage from './pages/admin/DeliveryPage';
-import ProductsPage from './pages/admin/ProductsPage';
-import TablesPage from './pages/admin/TablesPage';
-import TableOrdersPage from './pages/admin/TableOrdersPage';
-import SettingsPage from './pages/admin/SettingsPage';
-import ScreenPage from './pages/admin/ScreenPage';
-import BillingPage from './pages/admin/BillingPage';
-import AdministrationPage from './pages/admin/AdministrationPage';
-import InventoryPage from './pages/admin/InventoryPage';
-import MasterLoginPage from './pages/master/MasterLoginPage';
-import MasterLayout from './pages/master/MasterLayout';
-import MasterRestaurantsPage from './pages/master/MasterRestaurantsPage';
-import MasterRestaurantDetailPage from './pages/master/MasterRestaurantDetailPage';
-import MasterPromoCodesPage from './pages/master/MasterPromoCodesPage';
-import MasterPaymentMethodsPage from './pages/master/MasterPaymentMethodsPage';
-import MasterProofsPage from './pages/master/MasterProofsPage';
-import MasterAdminsPage from './pages/master/MasterAdminsPage';
-import MasterSummaryPage from './pages/master/MasterSummaryPage';
-import MasterQrNfcRequestsPage from './pages/master/MasterQrNfcRequestsPage';
+
+const LandingPage = lazy(() => import('./pages/LandingPage'));
+const MenuPage = lazy(() => import('./pages/public/MenuPage'));
+const LoginPage = lazy(() => import('./pages/admin/LoginPage'));
+const RegisterPage = lazy(() => import('./pages/admin/RegisterPage'));
+const ForgotPasswordPage = lazy(() => import('./pages/admin/ForgotPasswordPage'));
+const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
+const DashboardPage = lazy(() => import('./pages/admin/DashboardPage'));
+const KitchenPage = lazy(() => import('./pages/admin/KitchenPage'));
+const DeliveryPage = lazy(() => import('./pages/admin/DeliveryPage'));
+const ProductsPage = lazy(() => import('./pages/admin/ProductsPage'));
+const TablesPage = lazy(() => import('./pages/admin/TablesPage'));
+const TableOrdersPage = lazy(() => import('./pages/admin/TableOrdersPage'));
+const SettingsPage = lazy(() => import('./pages/admin/SettingsPage'));
+const ScreenPage = lazy(() => import('./pages/admin/ScreenPage'));
+const BillingPage = lazy(() => import('./pages/admin/BillingPage'));
+const AdministrationPage = lazy(() => import('./pages/admin/AdministrationPage'));
+const InventoryPage = lazy(() => import('./pages/admin/InventoryPage'));
+const MasterLoginPage = lazy(() => import('./pages/master/MasterLoginPage'));
+const MasterLayout = lazy(() => import('./pages/master/MasterLayout'));
+const MasterRestaurantsPage = lazy(() => import('./pages/master/MasterRestaurantsPage'));
+const MasterRestaurantDetailPage = lazy(() => import('./pages/master/MasterRestaurantDetailPage'));
+const MasterPromoCodesPage = lazy(() => import('./pages/master/MasterPromoCodesPage'));
+const MasterPaymentMethodsPage = lazy(() => import('./pages/master/MasterPaymentMethodsPage'));
+const MasterProofsPage = lazy(() => import('./pages/master/MasterProofsPage'));
+const MasterAdminsPage = lazy(() => import('./pages/master/MasterAdminsPage'));
+const MasterSummaryPage = lazy(() => import('./pages/master/MasterSummaryPage'));
+const MasterQrNfcRequestsPage = lazy(() => import('./pages/master/MasterQrNfcRequestsPage'));
 
 /** Enlaces viejos tipo quicktap.club/:slug -> redirige a quicktap.club/r/:slug (URL actual del menú). */
 function LegacyMenuRedirect() {
@@ -36,52 +38,59 @@ function LegacyMenuRedirect() {
   return <Navigate to={`/r/${slug}${location.search}`} replace />;
 }
 
+/** Cada área (público/admin/maestro) se carga por separado: un visitante del menú nunca descarga el panel. */
+function RouteFallback() {
+  return <div className="min-h-screen flex items-center justify-center text-brand-950/30 font-light text-sm">Cargando…</div>;
+}
+
 export default function App() {
   return (
     <AuthProvider>
       <MasterAuthProvider>
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
 
-          {/* Menú público (QR de mesa o link general para delivery/pickup) */}
-          <Route path="/r/:slug" element={<MenuPage />} />
+            {/* Menú público (QR de mesa o link general para delivery/pickup) */}
+            <Route path="/r/:slug" element={<MenuPage />} />
 
-          {/* Panel del restaurante */}
-          <Route path="/admin/login" element={<LoginPage />} />
-          <Route path="/admin/register" element={<RegisterPage />} />
-          <Route path="/admin/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/admin" element={<AdminLayout />}>
-            <Route index element={<DashboardPage />} />
-            <Route path="kitchen" element={<KitchenPage />} />
-            <Route path="delivery" element={<DeliveryPage />} />
-            <Route path="products" element={<ProductsPage />} />
-            <Route path="tables" element={<TablesPage />} />
-            <Route path="table-orders" element={<TableOrdersPage />} />
-            <Route path="settings" element={<SettingsPage />} />
-            <Route path="billing" element={<BillingPage />} />
-            <Route path="administration" element={<AdministrationPage />} />
-            <Route path="inventory" element={<InventoryPage />} />
-            <Route path="screen" element={<ScreenPage />} />
-          </Route>
+            {/* Panel del restaurante */}
+            <Route path="/admin/login" element={<LoginPage />} />
+            <Route path="/admin/register" element={<RegisterPage />} />
+            <Route path="/admin/forgot-password" element={<ForgotPasswordPage />} />
+            <Route path="/admin" element={<AdminLayout />}>
+              <Route index element={<DashboardPage />} />
+              <Route path="kitchen" element={<KitchenPage />} />
+              <Route path="delivery" element={<DeliveryPage />} />
+              <Route path="products" element={<ProductsPage />} />
+              <Route path="tables" element={<TablesPage />} />
+              <Route path="table-orders" element={<TableOrdersPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+              <Route path="billing" element={<BillingPage />} />
+              <Route path="administration" element={<AdministrationPage />} />
+              <Route path="inventory" element={<InventoryPage />} />
+              <Route path="screen" element={<ScreenPage />} />
+            </Route>
 
-          {/* Dashboard maestro (equipo de QuickTap, ve todos los restaurantes) */}
-          <Route path="/master/login" element={<MasterLoginPage />} />
-          <Route path="/master" element={<MasterLayout />}>
-            <Route index element={<MasterRestaurantsPage />} />
-            <Route path="restaurants/:id" element={<MasterRestaurantDetailPage />} />
-            <Route path="promo-codes" element={<MasterPromoCodesPage />} />
-            <Route path="payment-methods" element={<MasterPaymentMethodsPage />} />
-            <Route path="proofs" element={<MasterProofsPage />} />
-            <Route path="summary" element={<MasterSummaryPage />} />
-            <Route path="qrnfc-requests" element={<MasterQrNfcRequestsPage />} />
-            <Route path="admins" element={<MasterAdminsPage />} />
-          </Route>
+            {/* Dashboard maestro (equipo de QuickTap, ve todos los restaurantes) */}
+            <Route path="/master/login" element={<MasterLoginPage />} />
+            <Route path="/master" element={<MasterLayout />}>
+              <Route index element={<MasterRestaurantsPage />} />
+              <Route path="restaurants/:id" element={<MasterRestaurantDetailPage />} />
+              <Route path="promo-codes" element={<MasterPromoCodesPage />} />
+              <Route path="payment-methods" element={<MasterPaymentMethodsPage />} />
+              <Route path="proofs" element={<MasterProofsPage />} />
+              <Route path="summary" element={<MasterSummaryPage />} />
+              <Route path="qrnfc-requests" element={<MasterQrNfcRequestsPage />} />
+              <Route path="admins" element={<MasterAdminsPage />} />
+            </Route>
 
-          {/* Compatibilidad con enlaces viejos (quicktap.club/:slug) de antes de que existiera /r/:slug */}
-          <Route path="/:slug" element={<LegacyMenuRedirect />} />
+            {/* Compatibilidad con enlaces viejos (quicktap.club/:slug) de antes de que existiera /r/:slug */}
+            <Route path="/:slug" element={<LegacyMenuRedirect />} />
 
-          <Route path="*" element={<div className="p-10 text-center text-gray-500">Página no encontrada.</div>} />
-        </Routes>
+            <Route path="*" element={<div className="p-10 text-center text-gray-500">Página no encontrada.</div>} />
+          </Routes>
+        </Suspense>
       </MasterAuthProvider>
     </AuthProvider>
   );

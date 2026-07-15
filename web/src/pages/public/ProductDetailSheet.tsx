@@ -189,7 +189,13 @@ function SuggestionCard({ product, restaurant, onClick }: { product: Product; re
   return (
     <button onClick={onClick} className="text-center">
       {product.photoUrl ? (
-        <img src={product.photoUrl} alt={product.name} className="h-16 w-full rounded-xl object-cover mb-1" />
+        <img
+          src={product.photoUrl}
+          alt={product.name}
+          loading="lazy"
+          decoding="async"
+          className="h-16 w-full rounded-xl object-cover mb-1"
+        />
       ) : (
         <div className="h-16 w-full rounded-xl bg-gradient-to-br from-brand-400/20 to-brand-500/10 flex items-center justify-center text-xl mb-1">
           🍽️

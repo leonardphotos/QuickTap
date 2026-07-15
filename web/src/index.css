@@ -5,14 +5,17 @@
    la preferencia de color del sistema operativo del visitante. */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Poppins (self-hosted). 300 = peso por defecto de la marca; el resto
-   se usa donde el diseño pide énfasis (font-medium/semibold/bold). */
-@import '@fontsource/poppins/300.css';
-@import '@fontsource/poppins/400.css';
-@import '@fontsource/poppins/500.css';
-@import '@fontsource/poppins/600.css';
-@import '@fontsource/poppins/700.css';
-@import '@fontsource/poppins/800.css';
+/* Poppins (self-hosted), solo el subset "latin": la app es en español y
+   ese subset ya cubre tildes/ñ/¿/¡ (U+0000-00FF). Evita cargar de más los
+   subsets devanagari/latin-ext, que no se usan y triplican el peso. 300 =
+   peso por defecto de la marca; el resto se usa donde el diseño pide
+   énfasis (font-medium/semibold/bold). */
+@import '@fontsource/poppins/latin-300.css';
+@import '@fontsource/poppins/latin-400.css';
+@import '@fontsource/poppins/latin-500.css';
+@import '@fontsource/poppins/latin-600.css';
+@import '@fontsource/poppins/latin-700.css';
+@import '@fontsource/poppins/latin-800.css';
 
 @theme {
   --font-sans: 'Poppins', system-ui, 'Segoe UI', sans-serif;
