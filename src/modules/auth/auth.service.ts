@@ -24,6 +24,7 @@ const RESTAURANT_SELECT = {
   serviceChargeEnabled: true,
   ivaEnabled: true,
   orderingEnabled: true,
+  requireOrderConfirmation: true,
   fullscreenImageEnabled: true,
   fullscreenImageUrl: true,
   subscriptionStatus: true,
@@ -45,6 +46,7 @@ type RestaurantRow = {
   serviceChargeEnabled: boolean;
   ivaEnabled: boolean;
   orderingEnabled: boolean;
+  requireOrderConfirmation: boolean;
   fullscreenImageEnabled: boolean;
   fullscreenImageUrl: string | null;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';
@@ -68,6 +70,7 @@ function serializeRestaurant(restaurant: RestaurantRow) {
     serviceChargeEnabled: restaurant.serviceChargeEnabled,
     ivaEnabled: restaurant.ivaEnabled,
     orderingEnabled: restaurant.orderingEnabled,
+    requireOrderConfirmation: restaurant.requireOrderConfirmation,
     fullscreenImageEnabled: restaurant.fullscreenImageEnabled,
     fullscreenImageUrl: restaurant.fullscreenImageUrl,
     subscriptionStatus: restaurant.subscriptionStatus,

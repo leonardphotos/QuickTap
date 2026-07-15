@@ -9,6 +9,7 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { ManualOrderDialog } from '@/components/admin/ManualOrderDialog';
 
 const STATUS_LABEL: Record<string, string> = {
+  NEEDS_CONFIRMATION: 'Por confirmar',
   PENDING: 'Pendiente',
   KITCHEN: 'En cocina',
   SERVED: 'Servido',
@@ -23,6 +24,8 @@ export default function TableOrdersPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [closing, setClosing] = useState(false);
+  const [closePaymentMethod, setClosePaymentMethod] = useState('');
 
   function load() {
     api.get('/tables/floor-plan').then((res) => setPlan(res.data.data));
@@ -48,6 +51,11 @@ export default function TableOrdersPage() {
     return [...plan.zones, ...(plan.unzoned.length > 0 ? [{ id: 'unzoned', name: 'Sin zona', tables: plan.unzoned }] : [])];
   }, [plan]);
 
+  useEffect(() => {
+    setClosing(false);
+    setClosePaymentMethod('');
+  }, [selected?.id]);
+
   // Refresca la mesa seleccionada con los datos frescos cada vez que llega el plan.
   useEffect(() => {
     if (!selected || !plan) return;
@@ -62,15 +70,31 @@ export default function TableOrdersPage() {
 
   async function closeTable() {
     if (!selected?.session) return;
-    if (!confirm(`¿Cerrar la cuenta de la mesa ${selected.number}? Se podrán recibir nuevos pedidos allí.`)) return;
     setBusy(true);
     setError(null);
     try {
-      await api.patch(`/table-sessions/${selected.session.id}/close`);
+      await api.patch(`/table-sessions/${selected.session.id}/close`, {
+        paymentMethod: closePaymentMethod || undefined,
+      });
       setSelected(null);
+      setClosing(false);
+      setClosePaymentMethod('');
       load();
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo cerrar la mesa.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function acceptOrder(orderId: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/orders/${orderId}/accept`);
+      load();
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo aceptar el pedido.');
     } finally {
       setBusy(false);
     }
@@ -198,10 +222,25 @@ export default function TableOrdersPage() {
               <ul className="space-y-3 max-h-72 overflow-y-auto">
                 {selected.session.orders.map((o) => (
                   <li key={o.orderId} className="border-b border-brand-950/10 pb-2">
-                    <p className="text-sm font-semibold text-brand-950">
-                      Pedido #{o.pedidoNumber}{' '}
-                      <span className="font-normal text-brand-950/40">· {STATUS_LABEL[o.status] ?? o.status}</span>
-                    </p>
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-brand-950">
+                        Pedido #{o.pedidoNumber}{' '}
+                        <span
+                          className={`font-normal ${o.status === 'NEEDS_CONFIRMATION' ? 'text-amber-600' : 'text-brand-950/40'}`}
+                        >
+                          · {STATUS_LABEL[o.status] ?? o.status}
+                        </span>
+                      </p>
+                      {o.status === 'NEEDS_CONFIRMATION' && (
+                        <button
+                          onClick={() => acceptOrder(o.orderId)}
+                          disabled={busy}
+                          className="shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-400 text-amber-950 hover:bg-amber-300 disabled:opacity-50"
+                        >
+                          Aceptar pedido
+                        </button>
+                      )}
+                    </div>
                     <ul className="text-sm space-y-1 font-light mt-1">
                       {o.items.map((it, i) => (
                         <li key={i}>
@@ -249,16 +288,67 @@ export default function TableOrdersPage() {
                     <Lock className="h-4 w-4" /> Quitar clave
                   </TextureButton>
                 )}
-                <TextureButton
-                  variant="destructive"
-                  size="default"
-                  onClick={closeTable}
-                  disabled={busy}
-                  className="flex items-center justify-center gap-1.5 disabled:opacity-50"
-                >
-                  <LogOut className="h-4 w-4" /> Cerrar mesa
-                </TextureButton>
+                {!closing && (
+                  <TextureButton
+                    variant="destructive"
+                    size="default"
+                    onClick={() => setClosing(true)}
+                    disabled={busy}
+                    className="flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    <LogOut className="h-4 w-4" /> Cerrar mesa
+                  </TextureButton>
+                )}
               </div>
+
+              {closing && (
+                <div className="rounded-xl bg-brand-950/[0.04] p-3 space-y-2.5">
+                  <p className="text-sm text-brand-950">¿Cómo pagó la mesa? (opcional)</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { value: '', label: 'Sin indicar' },
+                      { value: 'CASH', label: 'Efectivo' },
+                      { value: 'MOBILE_PAYMENT', label: 'Pago Móvil' },
+                      { value: 'CARD', label: 'Tarjeta' },
+                      { value: 'ZELLE', label: 'Zelle' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        onClick={() => setClosePaymentMethod(opt.value)}
+                        className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                          closePaymentMethod === opt.value
+                            ? 'bg-brand-500 text-white'
+                            : 'bg-white text-brand-950/60 border border-brand-950/10'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex gap-2">
+                    <TextureButton
+                      variant="destructive"
+                      size="sm"
+                      onClick={closeTable}
+                      disabled={busy}
+                      className="!w-auto px-4 disabled:opacity-50"
+                    >
+                      {busy ? 'Cerrando…' : 'Confirmar cierre'}
+                    </TextureButton>
+                    <TextureButton
+                      variant="minimal"
+                      size="sm"
+                      onClick={() => {
+                        setClosing(false);
+                        setClosePaymentMethod('');
+                      }}
+                      className="!w-auto px-4"
+                    >
+                      Cancelar
+                    </TextureButton>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-3">

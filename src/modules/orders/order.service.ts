@@ -7,7 +7,14 @@ import { emitToKitchen, emitToTable, SocketEvents } from '../../sockets';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { startOfTodayCaracas } from '../../utils/timezone';
 import { tableSessionService } from '../table-sessions/table-session.service';
-import { CartItemInput, DeliveryCheckoutInput, DineInCheckoutInput, ManualOrderInput, UpdateOrderItemsInput } from './order.dto';
+import {
+  CartItemInput,
+  DeliveryCheckoutInput,
+  DineInCheckoutInput,
+  ManualOrderInput,
+  OrderHistoryQuery,
+  UpdateOrderItemsInput,
+} from './order.dto';
 
 /**
  * ============================================================================
@@ -93,6 +100,44 @@ async function nextOrderNumber(tx: Prisma.TransactionClient, restaurantId: strin
   return (last?.orderNumber ?? 0) + 1;
 }
 
+/** Ventana de fecha para los filtros de reportes (hora de Caracas para "day"). */
+function rangeFilter(range: 'day' | 'month' | 'year' | 'all'): { gte: Date } | undefined {
+  if (range === 'all') return undefined;
+  const now = new Date();
+  if (range === 'day') return { gte: startOfTodayCaracas() };
+  if (range === 'month') return { gte: new Date(now.getFullYear(), now.getMonth(), 1) };
+  return { gte: new Date(now.getFullYear(), 0, 1) };
+}
+
+/**
+ * Descuenta del inventario los insumos de cada producto vendido que tenga
+ * receta. Se llama una sola vez, al marcar el pedido SERVED por primera vez.
+ * El stock nunca baja de 0 (se recorta si hay menos existencia de la que
+ * "debería" haber, en vez de fallar el cambio de estado).
+ */
+async function deductRecipeStock(restaurantId: string, items: { productId: string | null; quantity: number }[]) {
+  const productIds = items.map((i) => i.productId).filter((id): id is string => Boolean(id));
+  if (productIds.length === 0) return;
+
+  const recipeLines = await prisma.recipeIngredient.findMany({
+    where: { restaurantId, productId: { in: productIds } },
+  });
+  if (recipeLines.length === 0) return;
+
+  const qtyByProduct = new Map(items.map((i) => [i.productId, i.quantity]));
+
+  for (const line of recipeLines) {
+    const soldQty = qtyByProduct.get(line.productId) ?? 0;
+    if (soldQty <= 0) continue;
+    const used = toDecimal(line.quantity).mul(soldQty);
+
+    const item = await prisma.inventoryItem.findUnique({ where: { id: line.inventoryItemId } });
+    if (!item) continue;
+    const nextQuantity = Prisma.Decimal.max(0, toDecimal(item.quantity).sub(used));
+    await prisma.inventoryItem.update({ where: { id: item.id }, data: { quantity: nextQuantity } });
+  }
+}
+
 export const orderService = {
   /**
    * -------------------------------------------------------------------------
@@ -112,6 +157,7 @@ export const orderService = {
             baseCurrency: true,
             isActive: true,
             orderingEnabled: true,
+            requireOrderConfirmation: true,
             serviceChargeEnabled: true,
             ivaEnabled: true,
           },
@@ -165,7 +211,9 @@ export const orderService = {
           restaurantId,
           orderNumber,
           channel: 'DINE_IN',
-          status: 'KITCHEN', // entra directo a la cola de cocina
+          // Si el restaurante exige confirmación, el mesero debe aceptarla antes
+          // de que llegue a cocina; si no, entra directo (comportamiento de siempre).
+          status: table.restaurant.requireOrderConfirmation ? 'NEEDS_CONFIRMATION' : 'KITCHEN',
           tableId: table.id,
           tableSessionId: session.id,
           customerName: session.customerName,
@@ -175,6 +223,7 @@ export const orderService = {
           serviceChargeBase,
           ivaBase,
           totalBase,
+          tipBase: input.tipBase ?? 0,
           exchangeRate: rate.rateBs,
           totalBs,
           items: {
@@ -193,7 +242,8 @@ export const orderService = {
       });
     });
 
-    // Empuja la comanda a la cocina en tiempo real (lista para imprimir).
+    // Empuja el aviso en tiempo real: si necesita confirmación el mesero la ve
+    // en "Órdenes de Mesa"; si no, entra directo a la cola de cocina.
     emitToKitchen(restaurantId, SocketEvents.ORDER_NEW, {
       orderId: order.id,
       orderNumber: order.orderNumber,
@@ -224,7 +274,7 @@ export const orderService = {
    *  autoservicio del cliente, no aplica a que el staff cargue un pedido.
    * -------------------------------------------------------------------------
    */
-  async createManualOrder(restaurantId: string, input: ManualOrderInput) {
+  async createManualOrder(restaurantId: string, input: ManualOrderInput, placedByUserId?: string) {
     const table = await prisma.table.findFirst({ where: { id: input.tableId, restaurantId } });
     if (!table || !table.isActive) throw notFound('Mesa no válida.');
 
@@ -265,11 +315,12 @@ export const orderService = {
           restaurantId,
           orderNumber,
           channel: 'DINE_IN',
-          status: 'KITCHEN', // entra directo a la cola de cocina
+          status: 'KITCHEN', // el mesero ya lo está tomando, entra directo a la cola de cocina
           tableId: table.id,
           tableSessionId: session.id,
           customerName: session.customerName,
           customerIdNumber: session.customerIdNumber,
+          placedByUserId,
           currency,
           subtotalBase,
           serviceChargeBase,
@@ -513,10 +564,16 @@ export const orderService = {
 
   /** Cambia el estado de una comanda y notifica a la cocina. */
   async updateStatus(restaurantId: string, orderId: string, status: 'PENDING' | 'KITCHEN' | 'SERVED' | 'CANCELLED') {
-    const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });
+    const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { items: true } });
     if (!existing) throw notFound('Comanda no encontrada.');
 
     const order = await prisma.order.update({ where: { id: orderId }, data: { status } });
+
+    // Descuenta el inventario por receta la primera vez que se marca SERVED.
+    if (status === 'SERVED' && existing.status !== 'SERVED') {
+      await deductRecipeStock(restaurantId, existing.items);
+    }
+
     emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, {
       orderId: order.id,
       status: order.status,
@@ -530,6 +587,19 @@ export const orderService = {
       });
     }
 
+    return order;
+  },
+
+  /** El mesero acepta un pedido de mesa en NEEDS_CONFIRMATION: recién ahí llega a cocina. */
+  async acceptOrder(restaurantId: string, orderId: string) {
+    const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });
+    if (!existing) throw notFound('Comanda no encontrada.');
+    if (existing.status !== 'NEEDS_CONFIRMATION') {
+      throw badRequest('Este pedido ya fue aceptado o no está pendiente de confirmación.');
+    }
+
+    const order = await prisma.order.update({ where: { id: orderId }, data: { status: 'KITCHEN' } });
+    emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId: order.id, status: order.status });
     return order;
   },
 
@@ -602,5 +672,107 @@ export const orderService = {
       month: summarize(monthOrders),
       allTime: summarize(allOrders),
     };
+  },
+
+  /** Agrega/edita a mano la propina de un pedido, desde Administración. */
+  async setTip(restaurantId: string, orderId: string, tipBase: number) {
+    const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });
+    if (!existing) throw notFound('Comanda no encontrada.');
+    return prisma.order.update({ where: { id: orderId }, data: { tipBase } });
+  },
+
+  /** Historial de pedidos con filtros (Administración, solo Premium). */
+  async getOrderHistory(restaurantId: string, query: OrderHistoryQuery) {
+    const where: Prisma.OrderWhereInput = {
+      restaurantId,
+      status: { not: 'CANCELLED' },
+      createdAt: rangeFilter(query.range),
+    };
+    if (query.channel) where.channel = query.channel;
+    if (query.paymentMethod) where.paymentMethod = query.paymentMethod;
+    if (query.placedBy === 'staff') where.placedByUserId = { not: null };
+    if (query.placedBy === 'customer') where.placedByUserId = null;
+
+    const [total, orders, totalsAgg] = await Promise.all([
+      prisma.order.count({ where }),
+      prisma.order.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+        select: {
+          id: true,
+          orderNumber: true,
+          channel: true,
+          status: true,
+          paymentMethod: true,
+          totalBase: true,
+          totalBs: true,
+          tipBase: true,
+          currency: true,
+          customerName: true,
+          createdAt: true,
+          table: { select: { number: true } },
+          placedByUser: { select: { name: true } },
+        },
+      }),
+      prisma.order.aggregate({ where, _sum: { totalBase: true, totalBs: true, tipBase: true } }),
+    ]);
+
+    return {
+      total,
+      page: query.page,
+      pageSize: query.pageSize,
+      totalBase: round2(toDecimal(totalsAgg._sum.totalBase ?? 0)).toFixed(2),
+      totalBs: round2(toDecimal(totalsAgg._sum.totalBs ?? 0)).toFixed(2),
+      totalTipBase: round2(toDecimal(totalsAgg._sum.tipBase ?? 0)).toFixed(2),
+      orders: orders.map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        channel: o.channel,
+        status: o.status,
+        paymentMethod: o.paymentMethod,
+        totalBase: o.totalBase.toFixed(2),
+        totalBs: o.totalBs.toFixed(2),
+        tipBase: o.tipBase.toFixed(2),
+        currency: o.currency,
+        customerName: o.customerName,
+        placedByName: o.placedByUser?.name ?? null,
+        table: o.table?.number ?? null,
+        createdAt: o.createdAt,
+      })),
+    };
+  },
+
+  /** Reporte de productos más/menos vendidos, con filtro de rango de fecha. */
+  async getProductReport(restaurantId: string, range: 'day' | 'month' | 'year' | 'all') {
+    const items = await prisma.orderItem.findMany({
+      where: { order: { restaurantId, status: { not: 'CANCELLED' }, createdAt: rangeFilter(range) } },
+      select: { productId: true, productName: true, quantity: true, lineTotal: true },
+    });
+
+    const byProduct = new Map<
+      string,
+      { productId: string | null; name: string; quantity: number; revenueBase: Prisma.Decimal }
+    >();
+    for (const item of items) {
+      const key = item.productId ?? `name:${item.productName}`;
+      const existing = byProduct.get(key);
+      if (existing) {
+        existing.quantity += item.quantity;
+        existing.revenueBase = existing.revenueBase.add(item.lineTotal);
+      } else {
+        byProduct.set(key, {
+          productId: item.productId,
+          name: item.productName,
+          quantity: item.quantity,
+          revenueBase: toDecimal(item.lineTotal),
+        });
+      }
+    }
+
+    return Array.from(byProduct.values())
+      .map((r) => ({ productId: r.productId, name: r.name, quantity: r.quantity, revenueBase: r.revenueBase.toFixed(2) }))
+      .sort((a, b) => b.quantity - a.quantity);
   },
 };

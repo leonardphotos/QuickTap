@@ -47,6 +47,7 @@ enum ServiceRequestType {
 }
 
 enum OrderStatus {
+  NEEDS_CONFIRMATION // En mesa, esperando que el mesero acepte el pedido (solo si el restaurante lo exige)
   PENDING // Pendiente (recién creada)
   KITCHEN // En Cocina (enviada a la ticketera)
   SERVED // Servido / Entregado
@@ -173,6 +174,10 @@ model Restaurant {
   // Si es false, el menú público queda solo para ver: sin carrito ni checkout
   // (ni en mesa ni por delivery/pickup).
   orderingEnabled Boolean @default(true)
+  // Si es true, los pedidos que el cliente envía desde la mesa (QR) quedan en
+  // NEEDS_CONFIRMATION hasta que un mesero los acepte; recién ahí pasan a la
+  // cocina. No aplica a pedidos cargados manualmente por el staff.
+  requireOrderConfirmation Boolean @default(false)
 
   // --- Modo Cartelera: imagen de pantalla completa en vez del menú ---
   fullscreenImageEnabled Boolean @default(false)
@@ -205,6 +210,7 @@ model Restaurant {
   planRequests PlanRequest[]
   qrNfcRequests QrNfcRequest[]
   inventoryItems InventoryItem[]
+  recipeIngredients RecipeIngredient[]
 
   @@map("restaurants")
 }
@@ -244,6 +250,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  placedOrders Order[]
 
   // El email es único DENTRO de cada restaurante (no globalmente).
   @@unique([restaurantId, email])
@@ -304,6 +311,7 @@ model Product {
   restaurant Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   category   Category    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   orderItems OrderItem[]
+  recipeIngredients RecipeIngredient[]
 
   @@index([restaurantId, categoryId])
   @@index([restaurantId, isAvailable])
@@ -431,6 +439,9 @@ model Order {
   // Tasa BCV aplicada y total convertido a Bs en el momento de la compra.
   exchangeRate Decimal @db.Decimal(18, 4)
   totalBs      Decimal @db.Decimal(18, 2)
+  // Propina, en la moneda base del restaurante. Aparte del total (no es un
+  // cargo del pedido): la agrega el cliente en mesa o el staff manualmente.
+  tipBase Decimal @default(0) @db.Decimal(12, 2)
 
   // --- Datos del cliente ---
   customerName String?
@@ -442,12 +453,17 @@ model Order {
   paymentMethod    PaymentMethod?
   customerNote     String?
 
+  // Si el pedido lo cargó un mesero/staff desde "Órdenes de Mesa" (en vez de
+  // ser el cliente desde su teléfono), queda el usuario que lo tomó.
+  placedByUserId String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   table        Table?        @relation(fields: [tableId], references: [id], onDelete: SetNull)
   tableSession TableSession? @relation(fields: [tableSessionId], references: [id], onDelete: SetNull)
+  placedByUser User?         @relation(fields: [placedByUserId], references: [id], onDelete: SetNull)
   items        OrderItem[]
 
   @@unique([restaurantId, orderNumber])
@@ -625,7 +641,35 @@ model InventoryItem {
   updatedAt DateTime @updatedAt
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  recipeLines RecipeIngredient[]
 
   @@index([restaurantId])
   @@map("inventory_items")
+}
+
+// Línea de receta: cuánto de un insumo (InventoryItem) usa un producto del
+// menú por cada unidad vendida, y su costo. Vender el producto (al marcarlo
+// SERVED) descuenta esta cantidad del insumo automáticamente.
+model RecipeIngredient {
+  id           String @id @default(cuid())
+  restaurantId String
+  productId    String
+  inventoryItemId String
+
+  // Cantidad del insumo que usa una unidad del producto (misma unidad que el
+  // InventoryItem vinculado, ej: si el insumo está en "kg", aquí van kg).
+  quantity Decimal @db.Decimal(12, 3)
+  // Costo de esa cantidad, en la moneda base del restaurante.
+  costBase Decimal @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant    Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  product       Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, productId])
+  @@index([inventoryItemId])
+  @@map("recipe_ingredients")
 }

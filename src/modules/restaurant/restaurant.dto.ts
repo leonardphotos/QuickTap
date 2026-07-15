@@ -41,6 +41,8 @@ export const updateRestaurantSchema = z.object({
 
   // Si es false, el menú público queda solo para ver (sin carrito/checkout).
   orderingEnabled: z.boolean().optional(),
+  // Si es true, los pedidos de mesa (QR) quedan pendientes de aceptar por un mesero antes de ir a cocina.
+  requireOrderConfirmation: z.boolean().optional(),
 
   // Modo Cartelera: imagen de pantalla completa en vez del menú.
   fullscreenImageEnabled: z.boolean().optional(),

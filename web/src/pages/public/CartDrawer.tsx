@@ -46,6 +46,9 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dineInSent, setDineInSent] = useState(false);
+  // Propina opcional (solo en mesa): porcentaje rápido o monto libre.
+  const [tipPercent, setTipPercent] = useState<number | null>(null);
+  const [tipCustom, setTipCustom] = useState('');
 
   // Mientras la mesa tenga una cuenta abierta, no volvemos a pedir nombre/cédula.
   const [sessionOpen, setSessionOpen] = useState<boolean | null>(null);
@@ -81,6 +84,12 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
   const totalBase = subtotalBase + serviceChargeBase + ivaBase;
   const hasCharges = restaurant.serviceChargeEnabled || restaurant.ivaEnabled;
 
+  const tipBase = tipPercent != null ? round2(subtotalBase * (tipPercent / 100)) : Number(tipCustom) || 0;
+
+  function round2(n: number) {
+    return Math.round(n * 100) / 100;
+  }
+
   const items = cart.map((l) => ({
     productId: l.product.id,
     quantity: l.quantity,
@@ -113,6 +122,7 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
           ? {}
           : { customerName: dineInName.trim(), customerIdNumber: dineInIdNumber.trim() }),
         ...(sessionOpen && pinRequired ? { pin: checkoutPin } : {}),
+        ...(tipBase > 0 ? { tipBase } : {}),
       });
       setDineInSent(true);
       setCheckoutPin('');
@@ -431,6 +441,45 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                                 />
                               </>
                             )}
+
+                            <div>
+                              <span className="text-sm font-semibold text-brand-950">Propina (opcional)</span>
+                              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                {[10, 15, 20].map((p) => (
+                                  <button
+                                    key={p}
+                                    type="button"
+                                    onClick={() => {
+                                      setTipPercent(tipPercent === p ? null : p);
+                                      setTipCustom('');
+                                    }}
+                                    className={`text-xs font-medium px-3 py-1.5 rounded-full ${
+                                      tipPercent === p
+                                        ? 'bg-brand-500 text-white'
+                                        : 'bg-white text-brand-950/60 border border-brand-950/15'
+                                    }`}
+                                  >
+                                    {p}%
+                                  </button>
+                                ))}
+                                <input
+                                  value={tipCustom}
+                                  onChange={(e) => {
+                                    setTipCustom(e.target.value.replace(/[^0-9.]/g, ''));
+                                    setTipPercent(null);
+                                  }}
+                                  placeholder="Otro monto"
+                                  inputMode="decimal"
+                                  className="w-28 text-sm border border-brand-950/15 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                                />
+                              </div>
+                              {tipBase > 0 && (
+                                <p className="text-xs text-brand-950/50 mt-1">
+                                  Propina: {publicPriceLabel(tipBase, restaurant).primary}
+                                </p>
+                              )}
+                            </div>
+
                             <TextureButton
                               variant="brand"
                               size="default"

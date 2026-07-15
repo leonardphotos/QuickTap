@@ -73,14 +73,23 @@ export const tableSessionService = {
     return session;
   },
 
-  /** "Cerrar mesa": libera la mesa para que pueda abrir una cuenta nueva. */
-  async close(restaurantId: string, id: string) {
+  /**
+   * "Cerrar mesa": libera la mesa para que pueda abrir una cuenta nueva.
+   * Si se indica método de pago, queda registrado en todos los pedidos de la
+   * cuenta (así se puede filtrar ingresos por método de pago en mesa también).
+   */
+  async close(restaurantId: string, id: string, paymentMethod?: 'MOBILE_PAYMENT' | 'ZELLE' | 'CASH' | 'CARD') {
     const session = await this.getById(restaurantId, id);
     if (session.status === 'CLOSED') throw badRequest('Esa cuenta ya está cerrada.');
-    return prisma.tableSession.update({
-      where: { id },
-      data: { status: 'CLOSED', closedAt: new Date() },
-    });
+
+    const results = await prisma.$transaction([
+      ...(paymentMethod
+        ? [prisma.order.updateMany({ where: { tableSessionId: id, restaurantId }, data: { paymentMethod } })]
+        : []),
+      prisma.tableSession.update({ where: { id }, data: { status: 'CLOSED', closedAt: new Date() } }),
+    ]);
+
+    return results[results.length - 1];
   },
 
   /** "Rodar mesa": mueve la cuenta abierta a otra mesa física, conservándola intacta. */

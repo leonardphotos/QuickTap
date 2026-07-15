@@ -4,6 +4,8 @@ import {
   deliveryCheckoutSchema,
   dineInCheckoutSchema,
   manualOrderSchema,
+  orderHistoryQuerySchema,
+  setTipSchema,
   updateOrderItemsSchema,
   updateStatusSchema,
 } from './order.dto';
@@ -27,7 +29,7 @@ export const orderController = {
   /** POST /api/v1/orders/manual — el staff (ej. Mesero) carga un pedido a mano (protegido). */
   createManual: asyncHandler(async (req: Request, res: Response) => {
     const input = manualOrderSchema.parse(req.body);
-    const order = await orderService.createManualOrder(req.restaurantId!, input);
+    const order = await orderService.createManualOrder(req.restaurantId!, input, req.auth?.userId);
     res.status(201).json({ data: order });
   }),
 
@@ -67,5 +69,32 @@ export const orderController = {
   adminSummary: asyncHandler(async (req: Request, res: Response) => {
     const summary = await orderService.getAdminSummary(req.restaurantId!);
     res.json({ data: summary });
+  }),
+
+  /** PATCH /api/v1/orders/:id/tip — agregar/editar propina a mano (solo plan Premium). */
+  setTip: asyncHandler(async (req: Request, res: Response) => {
+    const { tipBase } = setTipSchema.parse(req.body);
+    const order = await orderService.setTip(req.restaurantId!, req.params.id, tipBase);
+    res.json({ data: order });
+  }),
+
+  /** GET /api/v1/orders/history — historial de pedidos con filtros (solo plan Premium). */
+  history: asyncHandler(async (req: Request, res: Response) => {
+    const query = orderHistoryQuerySchema.parse(req.query);
+    const result = await orderService.getOrderHistory(req.restaurantId!, query);
+    res.json({ data: result });
+  }),
+
+  /** GET /api/v1/orders/reports/products — más/menos vendidos (solo plan Premium). */
+  productReport: asyncHandler(async (req: Request, res: Response) => {
+    const { range } = orderHistoryQuerySchema.pick({ range: true }).parse(req.query);
+    const rows = await orderService.getProductReport(req.restaurantId!, range);
+    res.json({ data: rows });
+  }),
+
+  /** POST /api/v1/orders/:id/accept — el mesero acepta un pedido en NEEDS_CONFIRMATION y lo manda a cocina. */
+  accept: asyncHandler(async (req: Request, res: Response) => {
+    const order = await orderService.acceptOrder(req.restaurantId!, req.params.id);
+    res.json({ data: order });
   }),
 };

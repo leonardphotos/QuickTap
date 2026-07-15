@@ -17,6 +17,8 @@ export const dineInCheckoutSchema = z.object({
   customerIdNumber: z.string().min(1).max(20).optional(),
   // Requerida solo si la cuenta de la mesa ya está protegida con clave.
   pin: z.string().regex(/^\d{4}$/).optional(),
+  // Propina opcional que el cliente agrega desde la mesa.
+  tipBase: z.coerce.number().nonnegative().max(100000).optional(),
 });
 
 /** Pedido cargado a mano por el staff (ej. Mesero) desde "Órdenes de Mesa". */
@@ -61,8 +63,26 @@ export const updateOrderItemsSchema = z.object({
     .min(1),
 });
 
+/** Agregar/editar la propina de un pedido a mano, desde Administración. */
+export const setTipSchema = z.object({
+  tipBase: z.coerce.number().nonnegative().max(100000),
+});
+
+/** Filtros del historial de pedidos y reportes (Administración, solo Premium). */
+export const orderHistoryQuerySchema = z.object({
+  range: z.enum(['day', 'month', 'year', 'all']).optional().default('day'),
+  channel: z.enum(['DINE_IN', 'DELIVERY', 'PICKUP']).optional(),
+  paymentMethod: z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CARD']).optional(),
+  // Solo aplica a channel=DINE_IN: 'staff' = cargado por un mesero, 'customer' = el cliente desde su teléfono.
+  placedBy: z.enum(['staff', 'customer']).optional(),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).optional().default(20),
+});
+
 export type CartItemInput = z.infer<typeof cartItemSchema>;
 export type DineInCheckoutInput = z.infer<typeof dineInCheckoutSchema>;
 export type DeliveryCheckoutInput = z.infer<typeof deliveryCheckoutSchema>;
 export type ManualOrderInput = z.infer<typeof manualOrderSchema>;
 export type UpdateOrderItemsInput = z.infer<typeof updateOrderItemsSchema>;
+export type SetTipInput = z.infer<typeof setTipSchema>;
+export type OrderHistoryQuery = z.infer<typeof orderHistoryQuerySchema>;

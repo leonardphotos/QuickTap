@@ -41,6 +41,7 @@ export interface Restaurant {
   whatsappPhone?: string | null;
   theme?: RestaurantTheme | null;
   orderingEnabled: boolean;
+  requireOrderConfirmation: boolean;
   serviceChargeEnabled: boolean;
   ivaEnabled: boolean;
   fullscreenImageEnabled: boolean;
@@ -149,7 +150,7 @@ export interface PublicTableSessionStatus {
   pinRequired: boolean;
 }
 
-export type OrderStatus = 'PENDING' | 'KITCHEN' | 'SERVED' | 'CANCELLED';
+export type OrderStatus = 'NEEDS_CONFIRMATION' | 'PENDING' | 'KITCHEN' | 'SERVED' | 'CANCELLED';
 export type OrderChannel = 'DINE_IN' | 'DELIVERY' | 'PICKUP';
 export type PaymentMethod = 'MOBILE_PAYMENT' | 'ZELLE' | 'CASH' | 'CARD';
 

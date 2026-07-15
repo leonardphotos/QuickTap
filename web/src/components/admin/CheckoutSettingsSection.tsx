@@ -40,6 +40,7 @@ function Toggle({
 export function CheckoutSettingsSection() {
   const { restaurant, refresh } = useAuth();
   const [orderingEnabled, setOrderingEnabled] = useState(restaurant?.orderingEnabled ?? true);
+  const [requireOrderConfirmation, setRequireOrderConfirmation] = useState(restaurant?.requireOrderConfirmation ?? false);
   const [serviceChargeEnabled, setServiceChargeEnabled] = useState(restaurant?.serviceChargeEnabled ?? false);
   const [ivaEnabled, setIvaEnabled] = useState(restaurant?.ivaEnabled ?? false);
   const [saving, setSaving] = useState(false);
@@ -51,7 +52,7 @@ export function CheckoutSettingsSection() {
     setError(null);
     setMessage(null);
     try {
-      await api.patch('/restaurant', { orderingEnabled, serviceChargeEnabled, ivaEnabled });
+      await api.patch('/restaurant', { orderingEnabled, requireOrderConfirmation, serviceChargeEnabled, ivaEnabled });
       await refresh();
       setMessage('Configuración guardada.');
     } catch (err: any) {
@@ -75,6 +76,12 @@ export function CheckoutSettingsSection() {
           onChange={setOrderingEnabled}
           label="Permitir pedidos"
           description="Si lo apagas, el menú público queda solo para ver: sin carrito ni botón de ordenar, en mesa o por delivery."
+        />
+        <Toggle
+          checked={requireOrderConfirmation}
+          onChange={setRequireOrderConfirmation}
+          label="Confirmar pedido antes de enviarse a cocina"
+          description="Los pedidos que el cliente envía desde la mesa (QR) quedan esperando a que un mesero los acepte antes de llegar a cocina."
         />
         <Toggle
           checked={serviceChargeEnabled}
