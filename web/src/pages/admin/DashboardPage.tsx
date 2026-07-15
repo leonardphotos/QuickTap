@@ -6,6 +6,7 @@ import { daysRemaining } from '../../utils/subscription';
 import { TextureButton } from '@/components/ui/texture-button';
 import { hasSeenOnboardingTutorial, OnboardingTutorial } from '@/components/admin/OnboardingTutorial';
 import { DailySalesSummary } from '@/components/admin/DailySalesSummary';
+import { LiveOrdersPanel } from '@/components/admin/LiveOrdersPanel';
 import { QrNfcQuoteDialog } from '@/components/admin/QrNfcQuoteDialog';
 import { dashboardSectionLinks } from './nav-links';
 
@@ -64,6 +65,8 @@ export default function DashboardPage() {
       </button>
 
       <DailySalesSummary />
+
+      <LiveOrdersPanel />
 
       <div className="w-full max-w-md mb-4 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm px-5 py-4 space-y-3">
         <div className="flex items-center gap-3 text-left">

@@ -39,6 +39,7 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
   const [locationUrl, setLocationUrl] = useState<string | null>(null);
+  const [locationCoords, setLocationCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [gettingLocation, setGettingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [payment, setPayment] = useState<PaymentMethod>('MOBILE_PAYMENT');
@@ -197,6 +198,7 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
       (pos) => {
         const { latitude, longitude } = pos.coords;
         setLocationUrl(`https://www.google.com/maps?q=${latitude},${longitude}`);
+        setLocationCoords({ lat: latitude, lng: longitude });
         setGettingLocation(false);
       },
       () => {
@@ -222,7 +224,16 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
       const { data } = await api.post(`/public/checkout/delivery/${restaurant.slug}`, {
         mode,
         items,
-        customer: { name, phone, address, locationUrl: locationUrl ?? undefined, paymentMethod: payment, note },
+        customer: {
+          name,
+          phone,
+          address,
+          locationUrl: locationUrl ?? undefined,
+          lat: locationCoords?.lat,
+          lng: locationCoords?.lng,
+          paymentMethod: payment,
+          note,
+        },
       });
       window.location.href = data.data.whatsappUrl;
       onClearAndClose();

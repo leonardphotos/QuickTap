@@ -41,6 +41,9 @@ export const deliveryCheckoutSchema = z.object({
     address: z.string().max(300).optional(),
     // Enlace de Google Maps con la ubicación GPS del cliente (botón "Usar mi ubicación actual").
     locationUrl: z.string().url().max(300).optional(),
+    // Coordenadas crudas del mismo botón, para calcular el costo de envío.
+    lat: z.number().min(-90).max(90).optional(),
+    lng: z.number().min(-180).max(180).optional(),
     paymentMethod: paymentMethodSchema,
     note: z.string().max(300).optional(),
   }),
@@ -68,6 +71,11 @@ export const setTipSchema = z.object({
   tipBase: z.coerce.number().nonnegative().max(100000),
 });
 
+/** "Delivery" en el panel de Pedidos en vivo: a qué repartidor despachar la comanda. */
+export const dispatchCourierSchema = z.object({
+  courierId: z.string().min(1, 'Elige un repartidor.'),
+});
+
 /** Filtros del historial de pedidos y reportes (Administración, solo Premium). */
 export const orderHistoryQuerySchema = z.object({
   range: z.enum(['day', 'month', 'year', 'all']).optional().default('day'),
@@ -85,4 +93,5 @@ export type DeliveryCheckoutInput = z.infer<typeof deliveryCheckoutSchema>;
 export type ManualOrderInput = z.infer<typeof manualOrderSchema>;
 export type UpdateOrderItemsInput = z.infer<typeof updateOrderItemsSchema>;
 export type SetTipInput = z.infer<typeof setTipSchema>;
+export type DispatchCourierInput = z.infer<typeof dispatchCourierSchema>;
 export type OrderHistoryQuery = z.infer<typeof orderHistoryQuerySchema>;

@@ -44,6 +44,13 @@ export const updateRestaurantSchema = z.object({
   // Si es true, los pedidos de mesa (QR) quedan pendientes de aceptar por un mesero antes de ir a cocina.
   requireOrderConfirmation: z.boolean().optional(),
 
+  // Precio de delivery: ubicación del local (origen) y cómo se calcula el envío.
+  deliveryOriginLat: z.number().min(-90).max(90).optional(),
+  deliveryOriginLng: z.number().min(-180).max(180).optional(),
+  deliveryPricingMode: z.enum(['DISABLED', 'DISTANCE', 'ZONE']).optional(),
+  deliveryBaseFee: z.coerce.number().nonnegative().optional(),
+  deliveryPricePerKm: z.coerce.number().nonnegative().optional(),
+
   // Modo Cartelera: imagen de pantalla completa en vez del menú.
   fullscreenImageEnabled: z.boolean().optional(),
   fullscreenImageUrl: z.string().min(1).optional(),

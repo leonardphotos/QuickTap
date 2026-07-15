@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
 import { conflict, unauthorized } from '../../utils/http-error';
@@ -25,6 +26,11 @@ const RESTAURANT_SELECT = {
   ivaEnabled: true,
   orderingEnabled: true,
   requireOrderConfirmation: true,
+  deliveryOriginLat: true,
+  deliveryOriginLng: true,
+  deliveryPricingMode: true,
+  deliveryBaseFee: true,
+  deliveryPricePerKm: true,
   fullscreenImageEnabled: true,
   fullscreenImageUrl: true,
   subscriptionStatus: true,
@@ -47,6 +53,11 @@ type RestaurantRow = {
   ivaEnabled: boolean;
   orderingEnabled: boolean;
   requireOrderConfirmation: boolean;
+  deliveryOriginLat: number | null;
+  deliveryOriginLng: number | null;
+  deliveryPricingMode: 'DISABLED' | 'DISTANCE' | 'ZONE';
+  deliveryBaseFee: Prisma.Decimal;
+  deliveryPricePerKm: Prisma.Decimal;
   fullscreenImageEnabled: boolean;
   fullscreenImageUrl: string | null;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';
@@ -71,6 +82,11 @@ function serializeRestaurant(restaurant: RestaurantRow) {
     ivaEnabled: restaurant.ivaEnabled,
     orderingEnabled: restaurant.orderingEnabled,
     requireOrderConfirmation: restaurant.requireOrderConfirmation,
+    deliveryOriginLat: restaurant.deliveryOriginLat,
+    deliveryOriginLng: restaurant.deliveryOriginLng,
+    deliveryPricingMode: restaurant.deliveryPricingMode,
+    deliveryBaseFee: restaurant.deliveryBaseFee,
+    deliveryPricePerKm: restaurant.deliveryPricePerKm,
     fullscreenImageEnabled: restaurant.fullscreenImageEnabled,
     fullscreenImageUrl: restaurant.fullscreenImageUrl,
     subscriptionStatus: restaurant.subscriptionStatus,

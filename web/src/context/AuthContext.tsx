@@ -23,6 +23,11 @@ interface AuthRestaurant {
   ivaEnabled: boolean;
   orderingEnabled: boolean;
   requireOrderConfirmation: boolean;
+  deliveryOriginLat: number | null;
+  deliveryOriginLng: number | null;
+  deliveryPricingMode: 'DISABLED' | 'DISTANCE' | 'ZONE';
+  deliveryBaseFee: string;
+  deliveryPricePerKm: string;
   fullscreenImageEnabled: boolean;
   fullscreenImageUrl?: string | null;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';

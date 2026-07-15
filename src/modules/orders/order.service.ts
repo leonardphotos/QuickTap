@@ -2,10 +2,11 @@ import { OrderChannel, Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { baseToBs, CURRENCY_SYMBOLS, round2, toDecimal } from '../../utils/money';
-import { buildWhatsappCheckoutUrl } from '../../utils/whatsapp';
+import { buildWhatsappCheckoutUrl, buildWhatsappUrl } from '../../utils/whatsapp';
 import { emitToKitchen, emitToTable, SocketEvents } from '../../sockets';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { startOfTodayCaracas } from '../../utils/timezone';
+import { haversineDistanceKm, isPointInPolygon, LatLng } from '../../utils/geo';
 import { tableSessionService } from '../table-sessions/table-session.service';
 import {
   CartItemInput,
@@ -85,6 +86,41 @@ function calculateCharges(
   const ivaBase = restaurant.ivaEnabled ? round2(subtotalBase.mul(IVA_RATE)) : toDecimal(0);
   const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase));
   return { serviceChargeBase, ivaBase, totalBase };
+}
+
+/**
+ * Calcula el costo de envío según el modo configurado por el restaurante.
+ * Sin ubicación del cliente, sin origen configurado, o sin zona que la
+ * contenga, el envío queda en 0 (no bloquea el checkout).
+ */
+async function computeDeliveryFee(
+  restaurant: {
+    id: string;
+    deliveryPricingMode: 'DISABLED' | 'DISTANCE' | 'ZONE';
+    deliveryOriginLat: number | null;
+    deliveryOriginLng: number | null;
+    deliveryBaseFee: Prisma.Decimal;
+    deliveryPricePerKm: Prisma.Decimal;
+  },
+  customer: LatLng | null,
+): Promise<Prisma.Decimal> {
+  if (!customer || restaurant.deliveryPricingMode === 'DISABLED') return toDecimal(0);
+
+  if (restaurant.deliveryPricingMode === 'DISTANCE') {
+    if (restaurant.deliveryOriginLat == null || restaurant.deliveryOriginLng == null) return toDecimal(0);
+    const distanceKm = haversineDistanceKm({ lat: restaurant.deliveryOriginLat, lng: restaurant.deliveryOriginLng }, customer);
+    return round2(toDecimal(restaurant.deliveryBaseFee).add(toDecimal(restaurant.deliveryPricePerKm).mul(distanceKm)));
+  }
+
+  // ZONE: la primera zona cuyo polígono contenga al cliente define el precio.
+  const zones = await prisma.deliveryZone.findMany({ where: { restaurantId: restaurant.id } });
+  for (const zone of zones) {
+    const polygon = zone.polygon as unknown as LatLng[];
+    if (Array.isArray(polygon) && isPointInPolygon(customer, polygon)) {
+      return round2(toDecimal(zone.price));
+    }
+  }
+  return toDecimal(0);
 }
 
 /**
@@ -385,6 +421,11 @@ export const orderService = {
         orderingEnabled: true,
         serviceChargeEnabled: true,
         ivaEnabled: true,
+        deliveryPricingMode: true,
+        deliveryOriginLat: true,
+        deliveryOriginLng: true,
+        deliveryBaseFee: true,
+        deliveryPricePerKm: true,
       },
     });
     if (!restaurant || !restaurant.isActive) throw notFound('Restaurante no encontrado.');
@@ -399,7 +440,14 @@ export const orderService = {
     const rate = await exchangeRateService.getRate(restaurant.baseCurrency);
     const lines = await priceCart(restaurantId, input.items);
     const subtotalBase = sumSubtotal(lines);
-    const { serviceChargeBase, ivaBase, totalBase } = calculateCharges(subtotalBase, restaurant);
+    const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant);
+
+    const customerPoint =
+      input.mode === 'DELIVERY' && input.customer.lat != null && input.customer.lng != null
+        ? { lat: input.customer.lat, lng: input.customer.lng }
+        : null;
+    const deliveryFeeBase = await computeDeliveryFee(restaurant, customerPoint);
+    const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(deliveryFeeBase));
     const totalBs = baseToBs(totalBase, rate.rateBs);
 
     const order = await prisma.$transaction(async (tx) => {
@@ -414,6 +462,7 @@ export const orderService = {
           subtotalBase,
           serviceChargeBase,
           ivaBase,
+          deliveryFeeBase,
           totalBase,
           exchangeRate: rate.rateBs,
           totalBs,
@@ -422,6 +471,8 @@ export const orderService = {
           customerAddress: input.customer.locationUrl
             ? [input.customer.address, input.customer.locationUrl].filter(Boolean).join(' — ')
             : input.customer.address,
+          customerLat: customerPoint?.lat,
+          customerLng: customerPoint?.lng,
           paymentMethod: input.customer.paymentMethod,
           customerNote: input.customer.note,
           items: {
@@ -475,6 +526,7 @@ export const orderService = {
       customer: input.customer,
       serviceChargeBase: serviceChargeBase.toString(),
       ivaBase: ivaBase.toString(),
+      deliveryFeeBase: deliveryFeeBase.toString(),
     });
 
     return {
@@ -594,13 +646,72 @@ export const orderService = {
   async acceptOrder(restaurantId: string, orderId: string) {
     const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });
     if (!existing) throw notFound('Comanda no encontrada.');
-    if (existing.status !== 'NEEDS_CONFIRMATION') {
-      throw badRequest('Este pedido ya fue aceptado o no está pendiente de confirmación.');
+    if (existing.status !== 'NEEDS_CONFIRMATION' && existing.status !== 'PENDING') {
+      throw badRequest('Este pedido ya fue aceptado o no está pendiente.');
     }
 
     const order = await prisma.order.update({ where: { id: orderId }, data: { status: 'KITCHEN' } });
     emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId: order.id, status: order.status });
     return order;
+  },
+
+  /** "Cancelar" desde el panel de Pedidos en vivo: borra el pedido, no queda registrado. */
+  async deleteOrderHard(restaurantId: string, orderId: string) {
+    const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });
+    if (!existing) throw notFound('Comanda no encontrada.');
+    await prisma.order.delete({ where: { id: orderId } });
+    emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: 'DELETED' });
+    return { deleted: true };
+  },
+
+  /**
+   * Todos los pedidos activos (no servidos ni cancelados), de cualquier
+   * canal, para el panel "Pedidos" del Dashboard del restaurante.
+   */
+  async listLiveOrders(restaurantId: string) {
+    return prisma.order.findMany({
+      where: { restaurantId, status: { notIn: ['SERVED', 'CANCELLED'] } },
+      orderBy: { createdAt: 'asc' },
+      include: { items: true, table: { select: { number: true } } },
+    });
+  },
+
+  /**
+   * "Delivery": arma el enlace de WhatsApp para el repartidor con el resumen
+   * de la comanda (sin precios) y los datos de contacto/ubicación del
+   * cliente, para que pueda llamarlo o ubicarlo.
+   */
+  async dispatchToCourier(restaurantId: string, orderId: string, courierId: string) {
+    const [order, courier] = await Promise.all([
+      prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { items: true } }),
+      prisma.deliveryCourier.findFirst({ where: { id: courierId, restaurantId } }),
+    ]);
+    if (!order) throw notFound('Comanda no encontrada.');
+    if (!courier) throw notFound('Repartidor no encontrado.');
+
+    const parts: string[] = [];
+    parts.push(`*🛵 Pedido para entregar — #${order.orderNumber}*`);
+    parts.push('━━━━━━━━━━━━━━━━━━━━');
+    parts.push('*Comanda:*');
+    for (const item of order.items) {
+      parts.push(`• ${item.quantity}x ${item.productName}`);
+      for (const mod of item.modifiers) parts.push(`     ↳ ${mod}`);
+      if (item.note) parts.push(`     📝 ${item.note}`);
+    }
+    parts.push('━━━━━━━━━━━━━━━━━━━━');
+    parts.push('*Datos del cliente:*');
+    if (order.customerName) parts.push(`👤 ${order.customerName}`);
+    if (order.customerPhone) parts.push(`📞 ${order.customerPhone}`);
+    if (order.customerAddress) parts.push(`📍 ${order.customerAddress}`);
+    if (order.customerLat != null && order.customerLng != null) {
+      parts.push(`🗺️ https://www.google.com/maps?q=${order.customerLat},${order.customerLng}`);
+    }
+    if (order.customerNote) parts.push(`🗒️ Nota: ${order.customerNote}`);
+    parts.push('━━━━━━━━━━━━━━━━━━━━');
+    parts.push('_Enviado desde QuickTap.club_');
+
+    const url = buildWhatsappUrl(courier.whatsappPhone, parts.join('\n'));
+    return { url };
   },
 
   /** Resumen de ventas del día (hora de Caracas) para el Dashboard del restaurante. */

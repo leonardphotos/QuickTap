@@ -53,6 +53,8 @@ export interface BuildWhatsappCheckoutParams {
   /** Cargos opcionales ya calculados por el restaurante (0 si están apagados). */
   serviceChargeBase?: number | string;
   ivaBase?: number | string;
+  /** Costo de envío calculado (por distancia o zona). 0 si no aplica. */
+  deliveryFeeBase?: number | string;
 }
 
 export interface WhatsappCheckoutResult {
@@ -96,6 +98,7 @@ export function buildWhatsappCheckoutUrl(
     customer,
     serviceChargeBase = 0,
     ivaBase = 0,
+    deliveryFeeBase = 0,
   } = params;
 
   if (items.length === 0) {
@@ -132,8 +135,9 @@ export function buildWhatsappCheckoutUrl(
   subtotalBase = round2(subtotalBase);
   const serviceChargeBaseDec = round2(serviceChargeBase);
   const ivaBaseDec = round2(ivaBase);
-  const hasCharges = serviceChargeBaseDec.gt(0) || ivaBaseDec.gt(0);
-  const totalBase = round2(subtotalBase.add(serviceChargeBaseDec).add(ivaBaseDec));
+  const deliveryFeeBaseDec = round2(deliveryFeeBase);
+  const hasCharges = serviceChargeBaseDec.gt(0) || ivaBaseDec.gt(0) || deliveryFeeBaseDec.gt(0);
+  const totalBase = round2(subtotalBase.add(serviceChargeBaseDec).add(ivaBaseDec).add(deliveryFeeBaseDec));
   const totalBs = baseToBs(totalBase, exchangeRate);
 
   // --- Armado del mensaje ---
@@ -155,6 +159,11 @@ export function buildWhatsappCheckoutUrl(
     }
     if (ivaBaseDec.gt(0)) {
       parts.push(`IVA (16%): ${formatBs(baseToBs(ivaBaseDec, exchangeRate))} (${formatMoney(ivaBaseDec, currencySymbol)})`);
+    }
+    if (deliveryFeeBaseDec.gt(0)) {
+      parts.push(
+        `🛵 Envío: ${formatBs(baseToBs(deliveryFeeBaseDec, exchangeRate))} (${formatMoney(deliveryFeeBaseDec, currencySymbol)})`,
+      );
     }
   }
   parts.push('━━━━━━━━━━━━━━━━━━━━');

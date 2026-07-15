@@ -12,14 +12,17 @@ router.use(tenantGuard);
 
 router.get('/kitchen', orderController.kitchenQueue);
 router.get('/delivery', orderController.deliveryQueue);
+router.get('/live', orderController.liveOrders);
 router.get('/summary/today', orderController.todaySummary);
 router.get('/summary/admin', requirePremiumPlan, orderController.adminSummary);
 router.get('/history', requirePremiumPlan, orderController.history);
 router.get('/reports/products', requirePremiumPlan, orderController.productReport);
 router.post('/manual', orderController.createManual);
 router.post('/:id/accept', orderController.accept);
+router.post('/:id/dispatch-courier', orderController.dispatchCourier);
 router.patch('/:id/status', orderController.updateStatus);
 router.patch('/:id/items', orderController.updateItems);
 router.patch('/:id/tip', requirePremiumPlan, orderController.setTip);
+router.delete('/:id', orderController.remove);
 
 export default router;

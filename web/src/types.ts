@@ -109,6 +109,20 @@ export interface StaffMember {
   createdAt: string;
 }
 
+export interface DeliveryCourier {
+  id: string;
+  name: string;
+  whatsappPhone: string;
+  isActive: boolean;
+}
+
+export interface DeliveryZone {
+  id: string;
+  name: string;
+  price: string;
+  polygon: { lat: number; lng: number }[];
+}
+
 export interface SessionOrder {
   orderId: string;
   pedidoNumber: number;

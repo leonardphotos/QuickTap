@@ -11,6 +11,8 @@ import { ThemeSection } from '@/components/admin/ThemeSection';
 import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection';
 import { CheckoutSettingsSection } from '@/components/admin/CheckoutSettingsSection';
 import { FullscreenImageSection } from '@/components/admin/FullscreenImageSection';
+import { DeliveryTeamSection } from '@/components/admin/DeliveryTeamSection';
+import { DeliveryPricingSection } from '@/components/admin/DeliveryPricingSection';
 
 interface RateInfo {
   currency: Currency;
@@ -134,6 +136,10 @@ export default function SettingsPage() {
       </TextureCard>
 
       <CheckoutSettingsSection />
+
+      <DeliveryTeamSection />
+
+      <DeliveryPricingSection />
 
       <ThemeSection />
 

@@ -3,6 +3,7 @@ import { asyncHandler } from '../../middlewares/error.middleware';
 import {
   deliveryCheckoutSchema,
   dineInCheckoutSchema,
+  dispatchCourierSchema,
   manualOrderSchema,
   orderHistoryQuerySchema,
   setTipSchema,
@@ -96,5 +97,24 @@ export const orderController = {
   accept: asyncHandler(async (req: Request, res: Response) => {
     const order = await orderService.acceptOrder(req.restaurantId!, req.params.id);
     res.json({ data: order });
+  }),
+
+  /** GET /api/v1/orders/live — todos los pedidos activos, para el panel del Dashboard. */
+  liveOrders: asyncHandler(async (req: Request, res: Response) => {
+    const orders = await orderService.listLiveOrders(req.restaurantId!);
+    res.json({ data: orders });
+  }),
+
+  /** DELETE /api/v1/orders/:id — "Cancelar" desde Pedidos en vivo: borra, no queda registrado. */
+  remove: asyncHandler(async (req: Request, res: Response) => {
+    const result = await orderService.deleteOrderHard(req.restaurantId!, req.params.id);
+    res.json({ data: result });
+  }),
+
+  /** POST /api/v1/orders/:id/dispatch-courier — "Delivery": arma el WhatsApp para el repartidor. */
+  dispatchCourier: asyncHandler(async (req: Request, res: Response) => {
+    const { courierId } = dispatchCourierSchema.parse(req.body);
+    const result = await orderService.dispatchToCourier(req.restaurantId!, req.params.id, courierId);
+    res.json({ data: result });
   }),
 };
