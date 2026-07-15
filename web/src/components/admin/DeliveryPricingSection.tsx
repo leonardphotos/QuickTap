@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import type { DeliveryZone } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
+import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 
 // Los íconos por defecto de Leaflet se rompen con bundlers (rutas relativas al CSS).
 // No usamos marcador de ícono personalizado, así que no hace falta arreglarlo aquí.
@@ -26,6 +27,7 @@ export function DeliveryPricingSection() {
   const [mode, setMode] = useState<PricingMode>(restaurant?.deliveryPricingMode ?? 'DISABLED');
   const [originLat, setOriginLat] = useState<number | null>(restaurant?.deliveryOriginLat ?? null);
   const [originLng, setOriginLng] = useState<number | null>(restaurant?.deliveryOriginLng ?? null);
+  const [originAddress, setOriginAddress] = useState('');
   const [baseFee, setBaseFee] = useState(restaurant?.deliveryBaseFee ?? '0');
   const [pricePerKm, setPricePerKm] = useState(restaurant?.deliveryPricePerKm ?? '0');
   const [gettingLocation, setGettingLocation] = useState(false);
@@ -99,8 +101,21 @@ export function DeliveryPricingSection() {
           ))}
         </div>
 
-        <div className="space-y-2">
+        <div className="space-y-2 max-w-md">
           <p className="text-sm font-medium text-brand-950">Ubicación de tu local</p>
+          <AddressAutocomplete
+            value={originAddress}
+            onChange={setOriginAddress}
+            onSelect={(s) => {
+              setOriginAddress(s.displayName);
+              setOriginLat(s.lat);
+              setOriginLng(s.lng);
+            }}
+            biasLat={originLat}
+            biasLng={originLng}
+            placeholder="Escribe la dirección de tu local…"
+            className="w-full text-sm border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+          />
           <div className="flex items-center gap-3 flex-wrap">
             <TextureButton
               variant="minimal"
@@ -169,6 +184,9 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
   const [zoneName, setZoneName] = useState('');
   const [zonePrice, setZonePrice] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
+  const [editingPrice, setEditingPrice] = useState('');
+  const [savingPrice, setSavingPrice] = useState(false);
 
   function loadZones() {
     api.get('/delivery-zones').then((res) => setZones(res.data.data));
@@ -298,6 +316,26 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
     loadZones();
   }
 
+  function startEditPrice(zone: DeliveryZone) {
+    setEditingZoneId(zone.id);
+    setEditingPrice(String(zone.price));
+  }
+
+  async function saveEditedPrice(id: string) {
+    if (!editingPrice) return;
+    setSavingPrice(true);
+    setError(null);
+    try {
+      await api.patch(`/delivery-zones/${id}`, { price: Number(editingPrice) });
+      setEditingZoneId(null);
+      loadZones();
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo actualizar el precio.');
+    } finally {
+      setSavingPrice(false);
+    }
+  }
+
   return (
     <div className="space-y-3 pt-3 border-t border-brand-950/[0.06]">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -354,16 +392,46 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
 
       <div className="divide-y divide-brand-950/[0.06]">
         {zones.length === 0 && <p className="text-sm text-brand-950/40 font-light py-2">Sin zonas dibujadas todavía.</p>}
-        {zones.map((z) => (
-          <div key={z.id} className="flex items-center justify-between gap-3 py-2">
-            <p className="text-sm text-brand-950">
-              {z.name} <span className="text-brand-950/50">· ${z.price}</span>
-            </p>
-            <button onClick={() => removeZone(z.id)} className="text-xs text-red-600 hover:text-red-700 shrink-0">
-              Eliminar
-            </button>
-          </div>
-        ))}
+        {zones.map((z) =>
+          editingZoneId === z.id ? (
+            <div key={z.id} className="flex items-center gap-2 py-2">
+              <p className="text-sm text-brand-950 shrink-0">{z.name}</p>
+              <input
+                value={editingPrice}
+                onChange={(e) => setEditingPrice(e.target.value.replace(/[^0-9.]/g, ''))}
+                autoFocus
+                className="w-24 border border-brand-950/15 rounded-lg px-2 py-1 text-sm"
+              />
+              <button
+                onClick={() => saveEditedPrice(z.id)}
+                disabled={savingPrice}
+                className="text-xs text-brand-500 font-medium hover:text-brand-400 disabled:opacity-50 shrink-0"
+              >
+                Guardar
+              </button>
+              <button
+                onClick={() => setEditingZoneId(null)}
+                className="text-xs text-brand-950/50 hover:text-brand-950 shrink-0"
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : (
+            <div key={z.id} className="flex items-center justify-between gap-3 py-2">
+              <p className="text-sm text-brand-950">
+                {z.name} <span className="text-brand-950/50">· ${z.price}</span>
+              </p>
+              <div className="flex items-center gap-3 shrink-0">
+                <button onClick={() => startEditPrice(z)} className="text-xs text-brand-500 hover:text-brand-400">
+                  Editar precio
+                </button>
+                <button onClick={() => removeZone(z.id)} className="text-xs text-red-600 hover:text-red-700">
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          ),
+        )}
       </div>
     </div>
   );
