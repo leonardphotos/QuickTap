@@ -42,4 +42,8 @@ export const masterRestaurantsController = {
     const input = updateRestaurantUserSchema.parse(req.body);
     res.json({ data: await masterRestaurantsService.updateUser(req.params.id, req.params.userId, input) });
   }),
+  /** Elimina el restaurante y todos sus datos. No se puede deshacer. */
+  remove: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await masterRestaurantsService.remove(req.params.id) });
+  }),
 };

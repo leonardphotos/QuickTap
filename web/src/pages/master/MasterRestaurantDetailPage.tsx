@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { masterApi } from '@/api/client';
 import { formatBase } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -45,7 +45,11 @@ const CYCLE_OPTIONS = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL'] as const;
 
 export default function MasterRestaurantDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [detail, setDetail] = useState<RestaurantDetail | null>(null);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [plan, setPlan] = useState<(typeof PLAN_OPTIONS)[number]>('PRO');
   const [cycle, setCycle] = useState<(typeof CYCLE_OPTIONS)[number]>('MONTHLY');
   const [extendDays, setExtendDays] = useState(30);
@@ -139,6 +143,19 @@ export default function MasterRestaurantDetailPage() {
       setMessage(err.response?.data?.error ?? 'No se pudo actualizar el usuario.');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function deleteRestaurant() {
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await masterApi.delete(`/master/restaurants/${id}`);
+      navigate('/master');
+    } catch (err: any) {
+      setDeleteError(err.response?.data?.error ?? 'No se pudo eliminar el restaurante.');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -336,6 +353,36 @@ export default function MasterRestaurantDetailPage() {
           </ul>
         )}
       </div>
+
+      <div className="rounded-2xl border border-red-200 bg-red-50/50 shadow-sm p-6 flex items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold text-red-700">Zona de peligro</p>
+          <p className="text-sm text-red-700/70 font-light mt-1">
+            Elimina el restaurante y todos sus datos (usuarios, pedidos, productos, mesas, etc.). No se puede deshacer.
+          </p>
+        </div>
+        <TextureButton
+          variant="destructive"
+          size="sm"
+          className="!w-auto px-4 shrink-0"
+          onClick={() => setShowDeleteDialog(true)}
+        >
+          Eliminar restaurante
+        </TextureButton>
+      </div>
+
+      {showDeleteDialog && (
+        <DeleteRestaurantDialog
+          slug={detail.slug}
+          busy={deleting}
+          error={deleteError}
+          onClose={() => {
+            setShowDeleteDialog(false);
+            setDeleteError(null);
+          }}
+          onConfirm={deleteRestaurant}
+        />
+      )}
     </div>
   );
 }
@@ -405,6 +452,58 @@ function EditUserDialog({
             onClick={() => onSave({ name, email, password })}
           >
             {busy ? 'Guardando…' : 'Guardar cambios'}
+          </TextureButton>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteRestaurantDialog({
+  slug,
+  busy,
+  error,
+  onClose,
+  onConfirm,
+}: {
+  slug: string;
+  busy: boolean;
+  error: string | null;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const [confirmSlug, setConfirmSlug] = useState('');
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Eliminar restaurante</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <p className="text-sm text-brand-950/70">
+            Esto borra el restaurante, su equipo, pedidos, productos, mesas y todo lo demás. No se puede deshacer.
+          </p>
+          <label className="block text-sm">
+            <span className="block text-brand-950/70 mb-1">
+              Escribe <span className="font-semibold text-brand-950">{slug}</span> para confirmar
+            </span>
+            <input
+              value={confirmSlug}
+              onChange={(e) => setConfirmSlug(e.target.value)}
+              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+              autoFocus
+            />
+          </label>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <TextureButton
+            variant="destructive"
+            size="default"
+            disabled={busy || confirmSlug !== slug}
+            className="disabled:opacity-50"
+            onClick={onConfirm}
+          >
+            {busy ? 'Eliminando…' : 'Eliminar definitivamente'}
           </TextureButton>
         </div>
       </DialogContent>

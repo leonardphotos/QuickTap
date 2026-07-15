@@ -13,5 +13,6 @@ router.patch('/:id/suspend', masterRestaurantsController.setSuspended);
 router.patch('/:id/extend', masterRestaurantsController.extendDays);
 router.patch('/:id/period-end', masterRestaurantsController.setPeriodEnd);
 router.patch('/:id/users/:userId', masterRestaurantsController.updateUser);
+router.delete('/:id', masterRestaurantsController.remove);
 
 export default router;

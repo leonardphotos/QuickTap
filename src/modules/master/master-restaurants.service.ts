@@ -110,4 +110,15 @@ export const masterRestaurantsService = {
 
     return prisma.user.update({ where: { id: userId }, data, select: USER_SELECT });
   },
+
+  /**
+   * Elimina el restaurante y todo lo que le pertenece (usuarios, pedidos,
+   * productos, mesas, zonas, etc. — cascada en el esquema). No se puede deshacer.
+   */
+  async remove(id: string) {
+    const existing = await prisma.restaurant.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) throw notFound('Restaurante no encontrado.');
+    await prisma.restaurant.delete({ where: { id } });
+    return { deleted: true };
+  },
 };
