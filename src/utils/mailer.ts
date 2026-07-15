@@ -1,29 +1,27 @@
-import nodemailer from 'nodemailer';
+import { Resend } from 'resend';
 import { env } from '../config/env';
 
-const transporter =
-  env.mail.user && env.mail.appPassword
-    ? nodemailer.createTransport({
-        service: 'gmail',
-        auth: { user: env.mail.user, pass: env.mail.appPassword },
-      })
-    : null;
+const resend = env.mail.resendApiKey ? new Resend(env.mail.resendApiKey) : null;
 
 /**
- * Si MAIL_USER/MAIL_APP_PASSWORD no están configurados (típico en desarrollo
- * local), el correo se imprime en la consola en vez de enviarse de verdad.
+ * Si RESEND_API_KEY no está configurada (típico en desarrollo local), el
+ * correo se imprime en la consola en vez de enviarse de verdad.
  */
 export async function sendMail(to: string, subject: string, html: string) {
-  if (!transporter) {
+  if (!resend) {
     // eslint-disable-next-line no-console
-    console.log(`📧 [mailer simulado, falta configurar MAIL_USER/MAIL_APP_PASSWORD] Para: ${to} — ${subject}\n${html}`);
+    console.log(`📧 [mailer simulado, falta configurar RESEND_API_KEY] Para: ${to} — ${subject}\n${html}`);
     return;
   }
 
-  await transporter.sendMail({
-    from: `"${env.mail.fromName}" <${env.mail.user}>`,
+  const { error } = await resend.emails.send({
+    from: `${env.mail.fromName} <${env.mail.fromEmail}>`,
     to,
     subject,
     html,
   });
+
+  if (error) {
+    throw new Error(`No se pudo enviar el correo: ${error.message}`);
+  }
 }

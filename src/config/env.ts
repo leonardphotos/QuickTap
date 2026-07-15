@@ -39,13 +39,13 @@ export const env = {
   },
 
   // --- Correo (restablecer contraseña) ---
-  // Cuenta de Gmail/Google Workspace que envía los códigos, vía SMTP con una
-  // "contraseña de aplicación" (no la contraseña normal de la cuenta). Si no
-  // están configuradas, el código se imprime en la consola del servidor en
-  // vez de enviarse (para poder probar el flujo en desarrollo sin credenciales).
+  // Se envía vía Resend (resend.com) con el dominio quicktap.club verificado,
+  // así el correo llega firmado como propio (sin pasar por Gmail). Si falta
+  // la API key, el código se imprime en la consola del servidor en vez de
+  // enviarse (para poder probar el flujo en desarrollo sin credenciales).
   mail: {
-    user: process.env.MAIL_USER,
-    appPassword: process.env.MAIL_APP_PASSWORD,
+    resendApiKey: process.env.RESEND_API_KEY,
+    fromEmail: process.env.MAIL_FROM_EMAIL ?? 'noreply@quicktap.club',
     fromName: process.env.MAIL_FROM_NAME ?? 'QuickTap.club',
   },
 };
