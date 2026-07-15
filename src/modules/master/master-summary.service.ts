@@ -24,21 +24,23 @@ export const masterSummaryService = {
   async get() {
     const monthStart = startOfCurrentMonth();
 
+    // La cuenta de demostración (seed-demo.ts, isDemo: true) se excluye de
+    // todo el reporte: no es facturación ni actividad real de la plataforma.
     const [monthOrders, allOrders, restaurantOwners, totalRestaurants, activeRestaurants] = await Promise.all([
       prisma.order.findMany({
-        where: { createdAt: { gte: monthStart }, status: { not: 'CANCELLED' } },
+        where: { createdAt: { gte: monthStart }, status: { not: 'CANCELLED' }, restaurant: { isDemo: false } },
         select: { totalBs: true, totalBase: true, currency: true },
       }),
       prisma.order.findMany({
-        where: { status: { not: 'CANCELLED' } },
+        where: { status: { not: 'CANCELLED' }, restaurant: { isDemo: false } },
         select: { totalBs: true, totalBase: true, currency: true },
       }),
-      prisma.user.count({ where: { role: 'OWNER' } }),
-      prisma.restaurant.count(),
+      prisma.user.count({ where: { role: 'OWNER', restaurant: { isDemo: false } } }),
+      prisma.restaurant.count({ where: { isDemo: false } }),
       // Aproximación: no descuenta el bloqueo por vencimiento (se calcula en
       // vivo con periodEnd + 12h de gracia, no se persiste), igual que el
       // resto del código trata ese estado.
-      prisma.restaurant.count({ where: { subscriptionStatus: 'ACTIVE', suspended: false } }),
+      prisma.restaurant.count({ where: { subscriptionStatus: 'ACTIVE', suspended: false, isDemo: false } }),
     ]);
 
     return {

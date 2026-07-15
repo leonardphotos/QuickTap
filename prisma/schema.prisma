@@ -222,6 +222,10 @@ model Restaurant {
   // del plan. Si es true, la cuenta queda bloqueada sin importar periodEnd.
   suspended Boolean @default(false)
 
+  // Cuenta de demostración (sembrada con `npm run seed:demo`): sus pedidos y
+  // su facturación se excluyen del reporte financiero del Dashboard maestro.
+  isDemo Boolean @default(false)
+
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

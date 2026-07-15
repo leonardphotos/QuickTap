@@ -41,7 +41,7 @@ async function main() {
 
   const restaurant = await prisma.restaurant.upsert({
     where: { slug: DEMO_SLUG },
-    update: {},
+    update: { isDemo: true },
     create: {
       slug: DEMO_SLUG,
       name: 'Restaurante Demo',
@@ -51,6 +51,7 @@ async function main() {
       serviceChargeEnabled: true,
       ivaEnabled: true,
       orderingEnabled: true,
+      isDemo: true,
       subscriptionStatus: 'ACTIVE',
       subscriptionPlan: 'PRO',
       billingCycle: 'MONTHLY',
