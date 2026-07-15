@@ -40,7 +40,12 @@ export const PLAN_CONTENT: PlanContent[] = [
     name: 'Plan Premium',
     subtitle: 'Locales de alto flujo',
     capacity: 'Mesas ilimitadas',
-    features: ['Pedidos ilimitados', 'Hasta 20 usuarios de tu equipo'],
+    features: [
+      'Pedidos ilimitados',
+      'Hasta 20 usuarios de tu equipo',
+      'Administración: historial de pedidos, propinas y reportes de ventas',
+      'Inventario por receta: descuenta insumos automáticamente al vender',
+    ],
   },
 ];
 

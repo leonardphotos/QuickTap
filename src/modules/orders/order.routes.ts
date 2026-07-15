@@ -22,8 +22,10 @@ router.get('/reports/payment-methods', requirePremiumPlan, orderController.payme
 router.post('/manual', orderController.createManual);
 router.post('/:id/accept', orderController.accept);
 router.post('/:id/dispatch-courier', orderController.dispatchCourier);
+router.post('/:id/items', orderController.addItem);
 router.patch('/:id/status', orderController.updateStatus);
 router.patch('/:id/items', orderController.updateItems);
+router.patch('/:id/customer', orderController.updateCustomer);
 router.patch('/:id/tip', requirePremiumPlan, orderController.setTip);
 router.delete('/:id', orderController.remove);
 

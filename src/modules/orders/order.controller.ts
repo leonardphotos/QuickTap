@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import {
+  addOrderItemSchema,
   deliveryCheckoutSchema,
   deliveryQuoteSchema,
   dineInCheckoutSchema,
@@ -8,6 +9,7 @@ import {
   manualOrderSchema,
   orderHistoryQuerySchema,
   setTipSchema,
+  updateOrderCustomerSchema,
   updateOrderItemsSchema,
   updateStatusSchema,
 } from './order.dto';
@@ -58,6 +60,20 @@ export const orderController = {
   updateItems: asyncHandler(async (req: Request, res: Response) => {
     const input = updateOrderItemsSchema.parse(req.body);
     const order = await orderService.updateItems(req.restaurantId!, req.params.id, input.items);
+    res.json({ data: order });
+  }),
+
+  /** POST /api/v1/orders/:id/items — añadir un producto a un pedido ya creado (protegido). */
+  addItem: asyncHandler(async (req: Request, res: Response) => {
+    const input = addOrderItemSchema.parse(req.body);
+    const order = await orderService.addItem(req.restaurantId!, req.params.id, input);
+    res.status(201).json({ data: order });
+  }),
+
+  /** PATCH /api/v1/orders/:id/customer — editar nombre/teléfono/dirección/nota (protegido). */
+  updateCustomer: asyncHandler(async (req: Request, res: Response) => {
+    const input = updateOrderCustomerSchema.parse(req.body);
+    const order = await orderService.updateCustomer(req.restaurantId!, req.params.id, input);
     res.json({ data: order });
   }),
 

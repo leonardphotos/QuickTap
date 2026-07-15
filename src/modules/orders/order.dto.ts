@@ -71,6 +71,24 @@ export const setTipSchema = z.object({
   tipBase: z.coerce.number().nonnegative().max(100000),
 });
 
+/** Añadir un producto nuevo a un pedido ya creado, desde el panel de Pedidos en vivo. */
+export const addOrderItemSchema = z.object({
+  productId: z.string().min(1),
+  quantity: z.coerce.number().int().positive().max(99),
+  modifiers: z.array(z.string().max(80)).optional().default([]),
+  note: z.string().max(200).optional(),
+});
+
+/** Editar los datos del cliente de un pedido ya creado. */
+export const updateOrderCustomerSchema = z.object({
+  customerName: z.string().min(1).max(120).optional(),
+  customerPhone: z.string().max(30).optional(),
+  customerAddress: z.string().max(300).optional(),
+  customerNote: z.string().max(300).optional(),
+  customerLat: z.number().min(-90).max(90).optional(),
+  customerLng: z.number().min(-180).max(180).optional(),
+});
+
 /** "Delivery" en el panel de Pedidos en vivo: a qué repartidor despachar la comanda. */
 export const dispatchCourierSchema = z.object({
   courierId: z.string().min(1, 'Elige un repartidor.'),
@@ -100,4 +118,6 @@ export type ManualOrderInput = z.infer<typeof manualOrderSchema>;
 export type UpdateOrderItemsInput = z.infer<typeof updateOrderItemsSchema>;
 export type SetTipInput = z.infer<typeof setTipSchema>;
 export type DispatchCourierInput = z.infer<typeof dispatchCourierSchema>;
+export type AddOrderItemInput = z.infer<typeof addOrderItemSchema>;
+export type UpdateOrderCustomerInput = z.infer<typeof updateOrderCustomerSchema>;
 export type OrderHistoryQuery = z.infer<typeof orderHistoryQuerySchema>;

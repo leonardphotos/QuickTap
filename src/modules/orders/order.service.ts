@@ -9,11 +9,13 @@ import { startOfTodayCaracas } from '../../utils/timezone';
 import { haversineDistanceKm, isPointInPolygon, LatLng } from '../../utils/geo';
 import { tableSessionService } from '../table-sessions/table-session.service';
 import {
+  AddOrderItemInput,
   CartItemInput,
   DeliveryCheckoutInput,
   DineInCheckoutInput,
   ManualOrderInput,
   OrderHistoryQuery,
+  UpdateOrderCustomerInput,
   UpdateOrderItemsInput,
 } from './order.dto';
 
@@ -639,6 +641,64 @@ export const orderService = {
 
     const updated = await prisma.order.findUnique({ where: { id: orderId }, include: { items: true } });
     emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: updated!.status });
+    return updated;
+  },
+
+  /** Añade un producto nuevo a un pedido ya creado (panel de Pedidos en vivo). */
+  async addItem(restaurantId: string, orderId: string, input: AddOrderItemInput) {
+    const order = await prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { items: true } });
+    if (!order) throw notFound('Comanda no encontrada.');
+    if (order.status === 'SERVED' || order.status === 'CANCELLED') {
+      throw badRequest('No se puede editar un pedido ya finalizado o cancelado.');
+    }
+
+    const [line] = await priceCart(restaurantId, [
+      { productId: input.productId, quantity: input.quantity, modifiers: input.modifiers, note: input.note },
+    ]);
+
+    const subtotalBase = round2(
+      order.items
+        .reduce((acc, it) => acc.add(it.unitPrice.mul(it.quantity)), toDecimal(0))
+        .add(line.lineTotal),
+    );
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { serviceChargeEnabled: true, ivaEnabled: true },
+    });
+    const { serviceChargeBase, ivaBase, totalBase } = calculateCharges(subtotalBase, restaurant!);
+    const totalBs = baseToBs(totalBase, order.exchangeRate);
+
+    await prisma.$transaction([
+      prisma.orderItem.create({
+        data: {
+          orderId,
+          productId: line.productId,
+          productName: line.productName,
+          unitPrice: line.unitPrice,
+          quantity: line.quantity,
+          lineTotal: line.lineTotal,
+          modifiers: line.modifiers,
+          note: line.note,
+        },
+      }),
+      prisma.order.update({ where: { id: orderId }, data: { subtotalBase, serviceChargeBase, ivaBase, totalBase, totalBs } }),
+    ]);
+
+    const updated = await prisma.order.findUnique({ where: { id: orderId }, include: { items: true } });
+    emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: updated!.status });
+    return updated;
+  },
+
+  /** Edita los datos del cliente de un pedido ya creado (nombre, teléfono, dirección, nota). */
+  async updateCustomer(restaurantId: string, orderId: string, input: UpdateOrderCustomerInput) {
+    const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });
+    if (!existing) throw notFound('Comanda no encontrada.');
+    if (existing.status === 'SERVED' || existing.status === 'CANCELLED') {
+      throw badRequest('No se puede editar un pedido ya finalizado o cancelado.');
+    }
+
+    const updated = await prisma.order.update({ where: { id: orderId }, data: input });
+    emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: updated.status });
     return updated;
   },
 

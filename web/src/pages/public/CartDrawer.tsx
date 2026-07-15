@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Lock, MapPin } from 'lucide-react';
+import { ArrowLeft, Check, Copy, Lock, MapPin } from 'lucide-react';
 import { api } from '../../api/client';
 import type { CartLine, PaymentMethod, Restaurant } from '../../types';
 import { publicPriceLabel } from '../../utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
+import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import {
   FamilyDrawerRoot,
   FamilyDrawerPortal,
@@ -62,6 +63,17 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
   const [note, setNote] = useState('');
   const [deliveryFeeBase, setDeliveryFeeBase] = useState<number | null>(null);
   const [quotingFee, setQuotingFee] = useState(false);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  async function copyField(key: string, value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedField(key);
+      setTimeout(() => setCopiedField((c) => (c === key ? null : c)), 1500);
+    } catch {
+      // El navegador puede negar el permiso de portapapeles; fallamos en silencio.
+    }
+  }
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dineInSent, setDineInSent] = useState(false);
@@ -594,9 +606,16 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                             />
                             {mode === 'DELIVERY' && (
                               <>
-                                <input
+                                <AddressAutocomplete
                                   value={address}
-                                  onChange={(e) => setAddress(e.target.value)}
+                                  onChange={setAddress}
+                                  onSelect={(s) => {
+                                    setAddress(s.displayName);
+                                    setLocationCoords({ lat: s.lat, lng: s.lng });
+                                    setLocationUrl(`https://www.google.com/maps?q=${s.lat},${s.lng}`);
+                                  }}
+                                  biasLat={restaurant.deliveryOriginLat}
+                                  biasLng={restaurant.deliveryOriginLng}
                                   placeholder="Dirección de entrega *"
                                   className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
                                 />
@@ -633,15 +652,33 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                               ))}
                             </select>
                             {selectedPaymentDetails && (
-                              <div className="text-xs text-brand-950/60 bg-brand-950/[0.03] rounded-lg px-2.5 py-2 space-y-0.5">
+                              <div className="text-xs text-brand-950/60 bg-brand-950/[0.03] rounded-lg px-2.5 py-2 space-y-1">
                                 {(Object.keys(PAYMENT_FIELD_LABELS) as (keyof typeof PAYMENT_FIELD_LABELS)[])
                                   .filter((f) => selectedPaymentDetails[f as keyof typeof selectedPaymentDetails])
-                                  .map((f) => (
-                                    <p key={f}>
-                                      <span className="text-brand-950/40">{PAYMENT_FIELD_LABELS[f]}:</span>{' '}
-                                      {String(selectedPaymentDetails[f as keyof typeof selectedPaymentDetails])}
-                                    </p>
-                                  ))}
+                                  .map((f) => {
+                                    const value = String(selectedPaymentDetails[f as keyof typeof selectedPaymentDetails]);
+                                    return (
+                                      <div key={f} className="flex items-center justify-between gap-2">
+                                        <p className="truncate">
+                                          <span className="text-brand-950/40">{PAYMENT_FIELD_LABELS[f]}:</span> {value}
+                                        </p>
+                                        <button
+                                          type="button"
+                                          onClick={() => copyField(f, value)}
+                                          aria-label={`Copiar ${PAYMENT_FIELD_LABELS[f]}`}
+                                          className="shrink-0 flex items-center gap-1 text-brand-500 hover:text-brand-400 font-medium"
+                                        >
+                                          {copiedField === f ? (
+                                            <>
+                                              <Check className="h-3 w-3" /> Copiado
+                                            </>
+                                          ) : (
+                                            <Copy className="h-3 w-3" />
+                                          )}
+                                        </button>
+                                      </div>
+                                    );
+                                  })}
                               </div>
                             )}
                             <input

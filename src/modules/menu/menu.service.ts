@@ -30,6 +30,8 @@ export const menuService = {
         paymentMethodsConfig: true,
         fullscreenImageEnabled: true,
         fullscreenImageUrl: true,
+        deliveryOriginLat: true,
+        deliveryOriginLng: true,
       },
     });
 
@@ -62,6 +64,8 @@ export const menuService = {
           ivaEnabled: restaurant.ivaEnabled,
           fullscreenImageEnabled: true,
           fullscreenImageUrl: restaurant.fullscreenImageUrl,
+          deliveryOriginLat: restaurant.deliveryOriginLat,
+          deliveryOriginLng: restaurant.deliveryOriginLng,
         },
         highlights: { stars: [], promos: [], houseSpecials: [] },
         categories: [],
@@ -139,6 +143,8 @@ export const menuService = {
         paymentMethodsConfig: restaurant.paymentMethodsConfig,
         fullscreenImageEnabled: false,
         fullscreenImageUrl: restaurant.fullscreenImageUrl,
+        deliveryOriginLat: restaurant.deliveryOriginLat,
+        deliveryOriginLng: restaurant.deliveryOriginLng,
       },
       highlights,
       categories: structuredCategories,

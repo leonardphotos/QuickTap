@@ -64,6 +64,8 @@ export interface Restaurant {
   paymentMethodsConfig?: PaymentMethodsConfig | null;
   fullscreenImageEnabled: boolean;
   fullscreenImageUrl?: string | null;
+  deliveryOriginLat?: number | null;
+  deliveryOriginLng?: number | null;
 }
 
 export interface Category {

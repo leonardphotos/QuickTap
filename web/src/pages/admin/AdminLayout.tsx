@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Home, LogOut, Settings, Share2, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, Home, Menu, Settings, Share2, TriangleAlert } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Toast } from '@/components/ui/toast';
+import { NavMenuDrawer } from '@/components/admin/NavMenuDrawer';
 import { useCopyToast } from '../../hooks/useCopyToast';
 import { canAccessPath, defaultPathFor, isScreenRole } from '../../utils/roles';
 import { daysRemaining, graceHoursRemaining } from '../../utils/subscription';
@@ -12,6 +14,7 @@ export default function AdminLayout() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { copy, toastMessage } = useCopyToast();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   if (loading) return <div className="p-10 text-center text-brand-950/50 font-light">Cargando…</div>;
   if (!user || !restaurant) return <Navigate to="/admin/login" replace />;
@@ -101,11 +104,13 @@ export default function AdminLayout() {
               </TextureButton>
             </Link>
           )}
-          <TextureButton variant="icon" size="icon" className="!h-11 !w-11" aria-label="Salir" onClick={logout}>
-            <LogOut className="h-5 w-5 text-brand-950/70" />
+          <TextureButton variant="icon" size="icon" className="!h-11 !w-11" aria-label="Abrir menú" onClick={() => setMenuOpen(true)}>
+            <Menu className="h-5 w-5 text-brand-950/70" />
           </TextureButton>
         </div>
       </div>
+
+      <NavMenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
 
       <Toast message={toastMessage} />
     </div>

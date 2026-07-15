@@ -1,0 +1,82 @@
+import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { LogOut, Nfc, X } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { TextureButton } from '@/components/ui/texture-button';
+import { QrNfcQuoteDialog } from './QrNfcQuoteDialog';
+import { visibleNavLinks } from '@/pages/admin/nav-links';
+
+/**
+ * Menú desplegable con todas las opciones del panel (según rol y plan),
+ * más cotizar QR NFC, actualizar plan y cerrar sesión. Se abre desde el
+ * Dashboard y desde la barra flotante, así que vive en un solo lugar.
+ */
+export function NavMenuDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { user, restaurant, logout } = useAuth();
+  const [showQrNfcQuote, setShowQrNfcQuote] = useState(false);
+
+  if (!open || !restaurant) return null;
+
+  const links = visibleNavLinks(user?.role, restaurant.subscriptionPlan);
+  const isTrialing = restaurant.subscriptionStatus === 'TRIALING';
+
+  return (
+    <>
+      <div className="fixed inset-0 z-40 flex justify-end" role="dialog" aria-modal="true">
+        <button className="absolute inset-0 bg-brand-950/40 backdrop-blur-sm" aria-label="Cerrar menú" onClick={onClose} />
+        <div className="relative w-72 max-w-[85vw] bg-white h-full shadow-xl p-5 flex flex-col overflow-y-auto">
+          <div className="flex items-center justify-between mb-4">
+            <p className="font-semibold text-brand-950">Menú</p>
+            <button onClick={onClose} aria-label="Cerrar">
+              <X className="h-5 w-5 text-brand-950/50" />
+            </button>
+          </div>
+
+          <div className="space-y-1 flex-1">
+            {links.map((l) => (
+              <Link
+                key={l.to}
+                to={l.to}
+                onClick={onClose}
+                className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-brand-950/[0.05] transition-colors"
+              >
+                <l.icon className="h-5 w-5 text-brand-500 shrink-0" />
+                <span className="text-sm font-medium text-brand-950">{l.label}</span>
+              </Link>
+            ))}
+
+            <button
+              onClick={() => {
+                onClose();
+                setShowQrNfcQuote(true);
+              }}
+              className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-brand-950/[0.05] transition-colors text-left"
+            >
+              <Nfc className="h-5 w-5 text-brand-500 shrink-0" />
+              <span className="text-sm font-medium text-brand-950">Cotiza tus QR NFC</span>
+            </button>
+          </div>
+
+          <div className="space-y-2 pt-3 border-t border-brand-950/10">
+            <Link to="/admin/billing" onClick={onClose} className="block">
+              <TextureButton variant="brand" size="sm">
+                {isTrialing ? 'Activar plan' : 'Actualizar plan'}
+              </TextureButton>
+            </Link>
+            <button
+              onClick={() => {
+                onClose();
+                logout();
+              }}
+              className="w-full flex items-center justify-center gap-2 rounded-full px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <LogOut className="h-4 w-4" /> Cerrar sesión
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {showQrNfcQuote && <QrNfcQuoteDialog onClose={() => setShowQrNfcQuote(false)} />}
+    </>
+  );
+}

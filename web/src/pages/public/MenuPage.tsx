@@ -214,7 +214,7 @@ export default function MenuPage() {
         />
         <h1 className="text-base font-semibold text-white drop-shadow-sm leading-tight mt-2">{restaurant.name}</h1>
         {restaurant.description && (
-          <p className="text-xs text-white/80 font-light max-w-xs line-clamp-1">{restaurant.description}</p>
+          <p className="text-xs text-white/80 font-light max-w-xs">{restaurant.description}</p>
         )}
         {qrToken && (
           <span className="text-[10px] bg-white/20 text-white px-2 py-0.5 rounded-full font-medium mt-1">
