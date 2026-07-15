@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { masterApi } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 
+type ProofStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAYMENT_NOT_RECEIVED';
+
 interface PlanRequestRow {
   id: string;
   kind: 'SIGNUP' | 'RENEWAL';
-  status: 'PENDING' | 'APPROVED';
+  status: ProofStatus;
   restaurantId: string | null;
   plan: string;
   billingCycle: string;
@@ -33,14 +35,24 @@ const TABS = [
   { kind: 'RENEWAL' as const, label: 'Comprobantes de pago por mensualidad' },
 ];
 
+const STATUS_TABS: { value: ProofStatus; label: string }[] = [
+  { value: 'PENDING', label: 'Pendientes' },
+  { value: 'APPROVED', label: 'Activadas' },
+  { value: 'REJECTED', label: 'Rechazadas' },
+  { value: 'PAYMENT_NOT_RECEIVED', label: 'Pago no recibido' },
+];
+
 export default function MasterProofsPage() {
   const [kind, setKind] = useState<'SIGNUP' | 'RENEWAL'>('SIGNUP');
-  const [status, setStatus] = useState<'PENDING' | 'APPROVED'>('PENDING');
+  const [status, setStatus] = useState<ProofStatus>('PENDING');
   const [requests, setRequests] = useState<PlanRequestRow[] | null>(null);
   const [restaurants, setRestaurants] = useState<RestaurantOption[] | null>(null);
   const [linking, setLinking] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Tras aceptar/rechazar/marcar pago no recibido, o al pedir reenviar el aviso,
+  // guardamos aquí el enlace listo para mostrar el confirm "¿Enviar por WhatsApp?".
+  const [pendingWhatsapp, setPendingWhatsapp] = useState<Record<string, string | null>>({});
 
   function load() {
     masterApi.get('/master/plan-requests', { params: { kind, status } }).then((res) => setRequests(res.data.data));
@@ -56,13 +68,76 @@ export default function MasterProofsPage() {
     setError(null);
     try {
       const restaurantId = req.restaurantId ?? linking[req.id];
-      await masterApi.post(`/master/plan-requests/${req.id}/approve`, restaurantId ? { restaurantId } : {});
+      const { data } = await masterApi.post(
+        `/master/plan-requests/${req.id}/approve`,
+        restaurantId ? { restaurantId } : {},
+      );
+      setPendingWhatsapp((p) => ({ ...p, [req.id]: data.data.whatsappUrl }));
       load();
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No se pudo activar.');
     } finally {
       setBusyId(null);
     }
+  }
+
+  async function reject(req: PlanRequestRow, newStatus: 'REJECTED' | 'PAYMENT_NOT_RECEIVED') {
+    setBusyId(req.id);
+    setError(null);
+    try {
+      const { data } = await masterApi.post(`/master/plan-requests/${req.id}/reject`, { status: newStatus });
+      setPendingWhatsapp((p) => ({ ...p, [req.id]: data.data.whatsappUrl }));
+      load();
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo actualizar.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function remove(req: PlanRequestRow) {
+    if (!window.confirm('¿Eliminar este comprobante? Esta acción no se puede deshacer.')) return;
+    setBusyId(req.id);
+    setError(null);
+    try {
+      await masterApi.delete(`/master/plan-requests/${req.id}`);
+      load();
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo eliminar.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function askResendWhatsapp(req: PlanRequestRow) {
+    setBusyId(req.id);
+    setError(null);
+    try {
+      const { data } = await masterApi.post(`/master/plan-requests/${req.id}/whatsapp-link`);
+      setPendingWhatsapp((p) => ({ ...p, [req.id]: data.data.whatsappUrl }));
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo generar el mensaje.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  function sendWhatsapp(id: string) {
+    const url = pendingWhatsapp[id];
+    if (url) window.open(url, '_blank');
+    setPendingWhatsapp((p) => {
+      const next = { ...p };
+      delete next[id];
+      return next;
+    });
+  }
+
+  function dismissWhatsapp(id: string) {
+    setPendingWhatsapp((p) => {
+      const next = { ...p };
+      delete next[id];
+      return next;
+    });
   }
 
   return (
@@ -85,16 +160,18 @@ export default function MasterProofsPage() {
         ))}
       </div>
 
-      <div className="flex gap-2">
-        {(['PENDING', 'APPROVED'] as const).map((s) => (
+      <div className="flex flex-wrap gap-2">
+        {STATUS_TABS.map((s) => (
           <button
-            key={s}
-            onClick={() => setStatus(s)}
+            key={s.value}
+            onClick={() => setStatus(s.value)}
             className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-              status === s ? 'bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]' : 'bg-brand-950/[0.06] text-brand-950/50'
+              status === s.value
+                ? 'bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]'
+                : 'bg-brand-950/[0.06] text-brand-950/50'
             }`}
           >
-            {s === 'PENDING' ? 'Pendientes' : 'Activadas'}
+            {s.label}
           </button>
         ))}
       </div>
@@ -157,8 +234,99 @@ export default function MasterProofsPage() {
                     className="!w-auto px-4 disabled:opacity-50"
                     onClick={() => approve(req)}
                   >
-                    {busyId === req.id ? 'Activando…' : 'Activar cuenta'}
+                    {busyId === req.id ? 'Guardando…' : 'Activar cuenta'}
                   </TextureButton>
+                  <TextureButton
+                    variant="secondary"
+                    size="sm"
+                    disabled={busyId === req.id}
+                    className="!w-auto px-4 disabled:opacity-50"
+                    onClick={() => reject(req, 'PAYMENT_NOT_RECEIVED')}
+                  >
+                    Pago no recibido
+                  </TextureButton>
+                  <TextureButton
+                    variant="destructive"
+                    size="sm"
+                    disabled={busyId === req.id}
+                    className="!w-auto px-4 disabled:opacity-50"
+                    onClick={() => reject(req, 'REJECTED')}
+                  >
+                    Rechazar
+                  </TextureButton>
+                  <button
+                    onClick={() => remove(req)}
+                    disabled={busyId === req.id}
+                    className="text-xs font-medium text-red-600/70 hover:text-red-600 disabled:opacity-50 px-2"
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              )}
+
+              {req.status !== 'PENDING' && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span
+                    className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                      req.status === 'APPROVED'
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : req.status === 'REJECTED'
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-amber-100 text-amber-700'
+                    }`}
+                  >
+                    {req.status === 'APPROVED' && 'Activada'}
+                    {req.status === 'REJECTED' && 'Rechazada'}
+                    {req.status === 'PAYMENT_NOT_RECEIVED' && 'Pago no recibido'}
+                  </span>
+                  {req.contactPhone && pendingWhatsapp[req.id] === undefined && (
+                    <button
+                      onClick={() => askResendWhatsapp(req)}
+                      disabled={busyId === req.id}
+                      className="text-xs font-medium text-brand-500 hover:underline disabled:opacity-50"
+                    >
+                      Enviar mensaje por WhatsApp
+                    </button>
+                  )}
+                  {req.status !== 'APPROVED' && (
+                    <button
+                      onClick={() => remove(req)}
+                      disabled={busyId === req.id}
+                      className="text-xs font-medium text-red-600/70 hover:text-red-600 disabled:opacity-50 px-2"
+                    >
+                      Eliminar
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {pendingWhatsapp[req.id] !== undefined && (
+                <div className="mt-3 rounded-xl bg-brand-950/[0.04] p-3 flex flex-wrap items-center gap-3">
+                  <p className="text-sm text-brand-950">¿Desea enviar el mensaje vía WhatsApp?</p>
+                  <div className="flex gap-2 ml-auto">
+                    <TextureButton
+                      variant="brand"
+                      size="sm"
+                      disabled={!pendingWhatsapp[req.id]}
+                      className="!w-auto px-4 disabled:opacity-50"
+                      onClick={() => sendWhatsapp(req.id)}
+                    >
+                      Sí, enviar
+                    </TextureButton>
+                    <TextureButton
+                      variant="minimal"
+                      size="sm"
+                      className="!w-auto px-4"
+                      onClick={() => dismissWhatsapp(req.id)}
+                    >
+                      No
+                    </TextureButton>
+                  </div>
+                  {!pendingWhatsapp[req.id] && (
+                    <p className="text-xs text-brand-950/40 w-full">
+                      Esta solicitud no tiene teléfono de contacto registrado.
+                    </p>
+                  )}
                 </div>
               )}
             </div>

@@ -47,10 +47,44 @@ export default function BillingPage() {
     });
   }
 
-  // Entrada desde "Añadir a mi plan" del Dashboard: pre-selecciona el plan
-  // Personalizado y muestra el formulario de pago directamente.
+  // Entrada desde "Añadir a mi plan" del Dashboard (?custom=1), o desde
+  // "Elegir plan" de la landing seguido de registro (?plan=X&cycle=Y, y para
+  // el plan Personalizado también &tables=&users=&orders=): pre-selecciona
+  // el plan y muestra el formulario de pago directamente.
   useEffect(() => {
-    if (searchParams.get('custom') === '1') choosePlan('CUSTOM');
+    if (searchParams.get('custom') === '1') {
+      choosePlan('CUSTOM');
+      return;
+    }
+
+    const planParam = searchParams.get('plan');
+    const validPlans: Exclude<PlanId, 'TRIAL'>[] = ['DELIVERY', 'STARTER', 'PRO', 'PREMIUM', 'CUSTOM'];
+    if (!planParam || !validPlans.includes(planParam as any)) return;
+    const plan = planParam as Exclude<PlanId, 'TRIAL'>;
+    const cycleParam = searchParams.get('cycle');
+    const cycle: BillingCycle =
+      cycleParam === 'QUARTERLY' || cycleParam === 'SEMIANNUAL' ? cycleParam : 'MONTHLY';
+    setBillingCycle(cycle);
+
+    if (plan === 'CUSTOM') {
+      const tables = Number(searchParams.get('tables')) || custom.tables;
+      const users = Number(searchParams.get('users')) || custom.users;
+      const orders = Number(searchParams.get('orders')) || custom.orders;
+      setCustom({ tables, users, orders });
+      setSelected({
+        plan,
+        billingCycle: 'MONTHLY',
+        priceUsd: calculateCustomPriceUsd(tables, users, orders),
+        customTables: tables,
+        customUsers: users,
+        customOrders: orders,
+      });
+    } else {
+      setSelected({ plan, billingCycle: cycle, priceUsd: FIXED_PLAN_PRICES[plan][cycle] });
+    }
+    requestAnimationFrame(() => {
+      document.getElementById('billing-payment')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { Field } from './LoginPage';
 import AuthLayout from './AuthLayout';
@@ -10,6 +10,7 @@ import { TextureButton } from '@/components/ui/texture-button';
 export default function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [restaurantName, setRestaurantName] = useState('');
   const [slug, setSlug] = useState('');
   const [whatsappPhone, setWhatsappPhone] = useState('');
@@ -34,7 +35,9 @@ export default function RegisterPage() {
         email,
         password,
       });
-      navigate('/admin');
+      // Si venía de "Elegir plan" en la landing, lo mandamos directo a pagar ese plan.
+      const plan = searchParams.get('plan');
+      navigate(plan ? `/admin/billing?${searchParams.toString()}` : '/admin');
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No se pudo registrar el restaurante.');
     } finally {

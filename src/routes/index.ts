@@ -27,6 +27,7 @@ import {
 } from '../modules/platform-settings/platform-settings.routes';
 import masterRestaurantsRoutes from '../modules/master/master-restaurants.routes';
 import masterAdminsRoutes from '../modules/master/master-admins.routes';
+import inventoryRoutes from '../modules/inventory/inventory.routes';
 
 /**
  * Enrutador raíz de la API v1.
@@ -54,6 +55,7 @@ router.use('/exchange-rates', exchangeRateRoutes);
 router.use('/restaurant', restaurantRoutes);
 router.use('/plan-requests', tenantPlanRequestRoutes);
 router.use('/qr-nfc-requests', tenantQrNfcRequestRoutes);
+router.use('/inventory', inventoryRoutes);
 
 // --- Público ---
 router.use('/public', menuRoutes);

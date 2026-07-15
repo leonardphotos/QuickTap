@@ -62,4 +62,10 @@ export const orderController = {
     const summary = await orderService.getTodaySummary(req.restaurantId!);
     res.json({ data: summary });
   }),
+
+  /** GET /api/v1/orders/summary/admin — resumen de Administración (solo plan Premium). */
+  adminSummary: asyncHandler(async (req: Request, res: Response) => {
+    const summary = await orderService.getAdminSummary(req.restaurantId!);
+    res.json({ data: summary });
+  }),
 };

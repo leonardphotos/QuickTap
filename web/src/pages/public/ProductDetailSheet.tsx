@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Check } from 'lucide-react';
+import { Check, Clock } from 'lucide-react';
 import type { CartLine, Product, Restaurant } from '../../types';
 import { publicPriceLabel } from '../../utils/format';
 import {
@@ -104,6 +104,12 @@ export default function ProductDetailSheet({
 
                 {product.description && (
                   <p className="text-sm text-brand-950/60 font-light mt-2 leading-relaxed">{product.description}</p>
+                )}
+
+                {product.prepTimeMinutes != null && (
+                  <p className="text-xs text-brand-950/50 font-light mt-1.5 flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5" /> ~{product.prepTimeMinutes} min
+                  </p>
                 )}
 
                 {orderingEnabled && (

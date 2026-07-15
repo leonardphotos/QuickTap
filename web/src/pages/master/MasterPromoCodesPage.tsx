@@ -3,18 +3,30 @@ import type { FormEvent } from 'react';
 import { masterApi } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 
+type DurationUnit = 'HOUR' | 'DAY' | 'MONTH' | 'YEAR';
+
+const DURATION_UNIT_LABEL: Record<DurationUnit, string> = {
+  HOUR: 'hora(s)',
+  DAY: 'día(s)',
+  MONTH: 'mes(es)',
+  YEAR: 'año(s)',
+};
+
 interface PromoCode {
   id: string;
   code: string;
   discountPercent: number;
   isActive: boolean;
   createdAt: string;
+  expiresAt: string | null;
 }
 
 export default function MasterPromoCodesPage() {
   const [codes, setCodes] = useState<PromoCode[] | null>(null);
   const [code, setCode] = useState('');
   const [discountPercent, setDiscountPercent] = useState(10);
+  const [durationValue, setDurationValue] = useState('');
+  const [durationUnit, setDurationUnit] = useState<DurationUnit>('DAY');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,9 +41,14 @@ export default function MasterPromoCodesPage() {
     setSaving(true);
     setError(null);
     try {
-      await masterApi.post('/master/promo-codes', { code, discountPercent });
+      await masterApi.post('/master/promo-codes', {
+        code,
+        discountPercent,
+        ...(durationValue ? { durationValue: Number(durationValue), durationUnit } : {}),
+      });
       setCode('');
       setDiscountPercent(10);
+      setDurationValue('');
       load();
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No se pudo crear el código.');
@@ -80,6 +97,36 @@ export default function MasterPromoCodesPage() {
             />
           </label>
         </div>
+
+        <div>
+          <span className="text-sm text-brand-950/70">Vencimiento (opcional)</span>
+          <div className="mt-1 flex gap-2">
+            <input
+              type="number"
+              min={1}
+              value={durationValue}
+              onChange={(e) => setDurationValue(e.target.value)}
+              placeholder="Sin vencimiento"
+              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+            />
+            <select
+              value={durationUnit}
+              onChange={(e) => setDurationUnit(e.target.value as DurationUnit)}
+              disabled={!durationValue}
+              className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm disabled:opacity-50"
+            >
+              {(Object.keys(DURATION_UNIT_LABEL) as DurationUnit[]).map((u) => (
+                <option key={u} value={u}>
+                  {DURATION_UNIT_LABEL[u]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <p className="text-xs text-brand-950/40 font-light mt-1">
+            El código deja de funcionar automáticamente al vencer. Déjalo vacío para que no venza.
+          </p>
+        </div>
+
         {error && <p className="text-sm text-red-600">{error}</p>}
         <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto px-5 disabled:opacity-50">
           {saving ? 'Creando…' : 'Crear código'}
@@ -92,7 +139,19 @@ export default function MasterPromoCodesPage() {
           <div key={c.id} className="flex items-center justify-between gap-3 px-5 py-4">
             <div>
               <p className="font-medium text-brand-950">{c.code}</p>
-              <p className="text-xs text-brand-950/40 font-light">-{c.discountPercent}%</p>
+              <p className="text-xs text-brand-950/40 font-light">
+                -{c.discountPercent}%
+                {c.expiresAt && (
+                  <>
+                    {' · '}
+                    {new Date(c.expiresAt).getTime() < Date.now() ? (
+                      <span className="text-red-500">Venció el {new Date(c.expiresAt).toLocaleDateString('es-VE')}</span>
+                    ) : (
+                      <>Vence el {new Date(c.expiresAt).toLocaleDateString('es-VE')}</>
+                    )}
+                  </>
+                )}
+              </p>
             </div>
             <div className="flex items-center gap-3">
               <button

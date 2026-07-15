@@ -34,6 +34,7 @@ export const productService = {
         description: input.description,
         price: input.price,
         photoUrl: input.photoUrl,
+        prepTimeMinutes: input.prepTimeMinutes,
         isAvailable: input.isAvailable,
         isStar: input.isStar,
         isPromo: input.isPromo,

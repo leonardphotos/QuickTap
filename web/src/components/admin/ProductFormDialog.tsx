@@ -21,6 +21,7 @@ const emptyForm = {
   price: '',
   categoryId: '',
   photoUrl: '' as string | null,
+  prepTimeMinutes: '',
   isStar: false,
   isPromo: false,
   isHouseSpecial: false,
@@ -40,6 +41,7 @@ export function ProductFormDialog({ open, onOpenChange, categories, product, cur
         price: product.price,
         categoryId: product.categoryId,
         photoUrl: product.photoUrl ?? null,
+        prepTimeMinutes: product.prepTimeMinutes != null ? String(product.prepTimeMinutes) : '',
         isStar: product.isStar,
         isPromo: product.isPromo,
         isHouseSpecial: product.isHouseSpecial,
@@ -61,6 +63,7 @@ export function ProductFormDialog({ open, onOpenChange, categories, product, cur
         price: Number(form.price),
         photoUrl: form.photoUrl || undefined,
         description: form.description || undefined,
+        prepTimeMinutes: form.prepTimeMinutes ? Number(form.prepTimeMinutes) : undefined,
         isStar: form.isStar,
         isPromo: form.isPromo,
         isHouseSpecial: form.isHouseSpecial,
@@ -118,6 +121,15 @@ export function ProductFormDialog({ open, onOpenChange, categories, product, cur
               min="0"
               className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
               required
+            />
+            <input
+              value={form.prepTimeMinutes}
+              onChange={(e) => setForm({ ...form, prepTimeMinutes: e.target.value })}
+              placeholder="Tiempo de preparación (min, opcional)"
+              type="number"
+              step="1"
+              min="0"
+              className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
             />
           </div>
           <textarea

@@ -562,4 +562,45 @@ export const orderService = {
       byChannel,
     };
   },
+
+  /** Resumen de Administración (solo plan Premium): ventas de hoy, del mes y de siempre. */
+  async getAdminSummary(restaurantId: string) {
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { baseCurrency: true },
+    });
+
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    function summarize(orders: { totalBase: Prisma.Decimal; totalBs: Prisma.Decimal; channel: OrderChannel }[]) {
+      const totalBase = round2(orders.reduce((acc, o) => acc.add(o.totalBase), toDecimal(0)));
+      const totalBs = round2(orders.reduce((acc, o) => acc.add(o.totalBs), toDecimal(0)));
+      const byChannel: Record<OrderChannel, number> = { DINE_IN: 0, DELIVERY: 0, PICKUP: 0 };
+      for (const o of orders) byChannel[o.channel]++;
+      return { ordersCount: orders.length, totalBase: totalBase.toFixed(2), totalBs: totalBs.toFixed(2), byChannel };
+    }
+
+    const [todayOrders, monthOrders, allOrders] = await Promise.all([
+      prisma.order.findMany({
+        where: { restaurantId, createdAt: { gte: startOfTodayCaracas() }, status: { not: 'CANCELLED' } },
+        select: { totalBase: true, totalBs: true, channel: true },
+      }),
+      prisma.order.findMany({
+        where: { restaurantId, createdAt: { gte: monthStart }, status: { not: 'CANCELLED' } },
+        select: { totalBase: true, totalBs: true, channel: true },
+      }),
+      prisma.order.findMany({
+        where: { restaurantId, status: { not: 'CANCELLED' } },
+        select: { totalBase: true, totalBs: true, channel: true },
+      }),
+    ]);
+
+    return {
+      currency: restaurant?.baseCurrency ?? 'USD',
+      today: summarize(todayOrders),
+      month: summarize(monthOrders),
+      allTime: summarize(allOrders),
+    };
+  },
 };

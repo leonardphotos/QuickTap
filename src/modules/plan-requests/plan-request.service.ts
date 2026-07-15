@@ -1,9 +1,52 @@
-import { BillingCycle, PlanRequestKind, SubscriptionPlan } from '@prisma/client';
+import { BillingCycle, PlanRequestKind, PlanRequestStatus, SubscriptionPlan } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { nextPeriodEnd } from '../../utils/subscription';
+import { buildWhatsappUrl } from '../../utils/whatsapp';
 import { promoCodeService } from '../promo-codes/promo-code.service';
 import { ActivateRestaurantInput, CreatePlanRequestInput } from './plan-request.dto';
+
+const PLAN_LABELS: Record<SubscriptionPlan, string> = {
+  TRIAL: 'Prueba Gratuita',
+  STARTER: 'Plan Inicial',
+  PRO: 'Plan Pro / Restaurante',
+  PREMIUM: 'Plan Premium',
+  DELIVERY: 'Plan Solo Delivery',
+  CUSTOM: 'Plan Personalizado',
+};
+
+// Beneficios breves para el mensaje de bienvenida por WhatsApp al activar la cuenta.
+const PLAN_BENEFITS: Record<SubscriptionPlan, string> = {
+  TRIAL: 'Mesas y códigos QR ilimitados durante tu prueba.',
+  STARTER: 'Hasta 5-6 mesas, 150 pedidos al mes y 4 usuarios de tu equipo.',
+  PRO: 'Hasta 20 mesas, 400 pedidos al mes y 8 usuarios de tu equipo.',
+  PREMIUM: 'Mesas y pedidos ilimitados, hasta 20 usuarios, Administración e Inventario.',
+  DELIVERY: 'Acceso directo a Cocina, 200 pedidos al mes y 3 usuarios de tu equipo.',
+  CUSTOM: 'Tu plan armado a la medida de tu restaurante.',
+};
+
+function buildAcceptedMessage(plan: SubscriptionPlan): string {
+  return [
+    '✅ *Pago aceptado*',
+    `Tu ${PLAN_LABELS[plan]} en QuickTap ya está activo. ¡Bienvenido/a!`,
+    `${PLAN_BENEFITS[plan]}`,
+    'Cualquier duda, aquí estamos para ayudarte. 🙌',
+  ].join('\n\n');
+}
+
+function buildRejectedMessage(): string {
+  return [
+    '❌ *Su pago fue rechazado*',
+    'No pudimos validar tu comprobante. Verifica en tu banco o plataforma que la transacción se haya realizado correctamente y vuelve a enviarnos tu comprobante cuando puedas.',
+  ].join('\n\n');
+}
+
+function buildPaymentNotReceivedMessage(): string {
+  return [
+    '⚠️ *Pago no recibido*',
+    'Aún no hemos recibido tu pago. Por favor verifica en tu banco si la transacción se completó y, si hay algún problema, vuelve a intentarlo o contáctanos.',
+  ].join('\n\n');
+}
 
 /**
  * Precios fijos por plan y ciclo de facturación (USD/mes). Única fuente de
@@ -99,7 +142,7 @@ export const planRequestService = {
   },
 
   /** Dashboard maestro: comprobantes de inscripción o de mensualidad, más recientes primero. */
-  async listByKind(kind: PlanRequestKind, status?: 'PENDING' | 'APPROVED') {
+  async listByKind(kind: PlanRequestKind, status?: PlanRequestStatus) {
     return prisma.planRequest.findMany({
       where: { kind, ...(status ? { status } : {}) },
       orderBy: { createdAt: 'desc' },
@@ -111,6 +154,8 @@ export const planRequestService = {
    * "Activar cuenta": aprueba la solicitud y activa/extiende la suscripción
    * del restaurante. Para SIGNUP sin restaurantId todavía, el admin debe
    * indicar a qué restaurante vincularla (ya registrado en /admin/register).
+   * Devuelve también el enlace de WhatsApp con el aviso de "pago aceptado"
+   * listo para que el admin lo envíe al contacto del comprobante.
    */
   async approve(id: string, restaurantIdOverride?: string) {
     const request = await prisma.planRequest.findUnique({ where: { id } });
@@ -129,7 +174,54 @@ export const planRequestService = {
       data: { status: 'APPROVED', restaurantId },
     });
 
-    return restaurant;
+    const whatsappUrl = request.contactPhone
+      ? buildWhatsappUrl(request.contactPhone, buildAcceptedMessage(request.plan))
+      : null;
+
+    return { restaurant, whatsappUrl };
+  },
+
+  /** "Rechazar" o "Pago no recibido": no activa nada, solo cambia el estado y arma el aviso de WhatsApp. */
+  async reject(id: string, status: 'REJECTED' | 'PAYMENT_NOT_RECEIVED') {
+    const request = await prisma.planRequest.findUnique({ where: { id } });
+    if (!request) throw notFound('Solicitud no encontrada.');
+    if (request.status === 'APPROVED') throw badRequest('Esta solicitud ya fue activada, no se puede rechazar.');
+
+    const updated = await prisma.planRequest.update({ where: { id }, data: { status } });
+
+    const message = status === 'REJECTED' ? buildRejectedMessage() : buildPaymentNotReceivedMessage();
+    const whatsappUrl = request.contactPhone ? buildWhatsappUrl(request.contactPhone, message) : null;
+
+    return { request: updated, whatsappUrl };
+  },
+
+  /** Rearma el enlace de WhatsApp para una solicitud ya decidida (reenviar el aviso sin cambiar nada). */
+  async getWhatsappLink(id: string) {
+    const request = await prisma.planRequest.findUnique({ where: { id } });
+    if (!request) throw notFound('Solicitud no encontrada.');
+    if (!request.contactPhone) return { whatsappUrl: null };
+
+    const message =
+      request.status === 'APPROVED'
+        ? buildAcceptedMessage(request.plan)
+        : request.status === 'REJECTED'
+          ? buildRejectedMessage()
+          : request.status === 'PAYMENT_NOT_RECEIVED'
+            ? buildPaymentNotReceivedMessage()
+            : null;
+    if (!message) return { whatsappUrl: null };
+
+    return { whatsappUrl: buildWhatsappUrl(request.contactPhone, message) };
+  },
+
+  /** Elimina el comprobante (no se permite si ya activó una cuenta, para no perder el historial). */
+  async remove(id: string) {
+    const request = await prisma.planRequest.findUnique({ where: { id } });
+    if (!request) throw notFound('Solicitud no encontrada.');
+    if (request.status === 'APPROVED') {
+      throw badRequest('No se puede eliminar un comprobante ya activado.');
+    }
+    await prisma.planRequest.delete({ where: { id } });
   },
 
   /** Activación manual desde el detalle del restaurante en el Dashboard maestro (sin comprobante). */

@@ -74,6 +74,11 @@ function sanitizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
 }
 
+/** Enlace `wa.me` genérico con texto libre (ej. mensajes del Dashboard maestro al restaurante). */
+export function buildWhatsappUrl(phone: string, message: string): string {
+  return `https://wa.me/${sanitizePhone(phone)}?text=${encodeURIComponent(message)}`;
+}
+
 /**
  * Construye el enlace de WhatsApp para un pedido de delivery/pickup.
  * Función pura: no toca la base de datos, fácil de testear.

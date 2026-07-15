@@ -1,4 +1,4 @@
-import { Bike, ChefHat, Grid2x2, QrCode, Settings, UtensilsCrossed } from 'lucide-react';
+import { Bike, Boxes, ChefHat, CircleDollarSign, Grid2x2, QrCode, Settings, UtensilsCrossed } from 'lucide-react';
 import { RESTRICTED_ROLES, isScreenRole } from '../../utils/roles';
 import type { UserRole } from '../../types';
 
@@ -18,6 +18,12 @@ export const ADMIN_NAV_LINKS: AdminNavLink[] = [
   { to: '/admin/settings', label: 'Ajustes', icon: Settings },
 ];
 
+// Solo visibles con plan Premium.
+export const PREMIUM_NAV_LINKS: AdminNavLink[] = [
+  { to: '/admin/administration', label: 'Administración', icon: CircleDollarSign },
+  { to: '/admin/inventory', label: 'Inventario', icon: Boxes },
+];
+
 const RESTRICTED_VISIBLE = new Set(['/admin/kitchen', '/admin/table-orders']);
 // Plan Solo Delivery: sin mesas, así que estas pestañas no aportan nada.
 const DELIVERY_HIDDEN = new Set(['/admin/tables', '/admin/table-orders']);
@@ -33,6 +39,10 @@ export function visibleNavLinks(
   }
   if (subscriptionPlan === 'DELIVERY') {
     links = links.filter((l) => !DELIVERY_HIDDEN.has(l.to));
+  }
+  if (subscriptionPlan === 'PREMIUM' && !(role && RESTRICTED_ROLES.includes(role))) {
+    const settingsIndex = links.findIndex((l) => l.to === '/admin/settings');
+    links = [...links.slice(0, settingsIndex), ...PREMIUM_NAV_LINKS, ...links.slice(settingsIndex)];
   }
   return links;
 }

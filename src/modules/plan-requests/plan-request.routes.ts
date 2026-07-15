@@ -21,3 +21,6 @@ export const masterPlanRequestRoutes = Router();
 masterPlanRequestRoutes.use(platformAuthGuard);
 masterPlanRequestRoutes.get('/', planRequestController.listByKind);
 masterPlanRequestRoutes.post('/:id/approve', planRequestController.approve);
+masterPlanRequestRoutes.post('/:id/reject', planRequestController.reject);
+masterPlanRequestRoutes.post('/:id/whatsapp-link', planRequestController.whatsappLink);
+masterPlanRequestRoutes.delete('/:id', planRequestController.remove);

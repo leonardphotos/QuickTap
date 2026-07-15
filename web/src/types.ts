@@ -62,6 +62,8 @@ export interface Product {
   description?: string | null;
   price: string;
   photoUrl?: string | null;
+  /** Tiempo aproximado de preparación, en minutos. */
+  prepTimeMinutes?: number | null;
   isAvailable: boolean;
   isStar: boolean;
   isPromo: boolean;

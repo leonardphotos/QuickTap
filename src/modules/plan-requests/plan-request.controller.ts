@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest } from '../../utils/http-error';
-import { approvePlanRequestSchema, createPlanRequestSchema } from './plan-request.dto';
+import { approvePlanRequestSchema, createPlanRequestSchema, rejectPlanRequestSchema } from './plan-request.dto';
 import { planRequestService } from './plan-request.service';
 
 export const planRequestController = {
@@ -26,10 +26,11 @@ export const planRequestController = {
     res.status(201).json({ data: request });
   }),
 
-  /** GET /api/v1/master/plan-requests?kind=SIGNUP|RENEWAL&status=PENDING|APPROVED */
+  /** GET /api/v1/master/plan-requests?kind=SIGNUP|RENEWAL&status=PENDING|APPROVED|REJECTED|PAYMENT_NOT_RECEIVED */
   listByKind: asyncHandler(async (req: Request, res: Response) => {
     const kind = req.query.kind === 'RENEWAL' ? 'RENEWAL' : 'SIGNUP';
-    const status = req.query.status === 'APPROVED' ? 'APPROVED' : req.query.status === 'PENDING' ? 'PENDING' : undefined;
+    const validStatuses = ['PENDING', 'APPROVED', 'REJECTED', 'PAYMENT_NOT_RECEIVED'] as const;
+    const status = validStatuses.includes(req.query.status as any) ? (req.query.status as (typeof validStatuses)[number]) : undefined;
     res.json({ data: await planRequestService.listByKind(kind, status) });
   }),
 
@@ -37,5 +38,22 @@ export const planRequestController = {
   approve: asyncHandler(async (req: Request, res: Response) => {
     const input = approvePlanRequestSchema.parse(req.body);
     res.json({ data: await planRequestService.approve(req.params.id, input.restaurantId) });
+  }),
+
+  /** POST /api/v1/master/plan-requests/:id/reject — "Rechazar" o "Pago no recibido". */
+  reject: asyncHandler(async (req: Request, res: Response) => {
+    const input = rejectPlanRequestSchema.parse(req.body);
+    res.json({ data: await planRequestService.reject(req.params.id, input.status) });
+  }),
+
+  /** DELETE /api/v1/master/plan-requests/:id — elimina el comprobante. */
+  remove: asyncHandler(async (req: Request, res: Response) => {
+    await planRequestService.remove(req.params.id);
+    res.status(204).send();
+  }),
+
+  /** POST /api/v1/master/plan-requests/:id/whatsapp-link — reenviar el aviso de una solicitud ya decidida. */
+  whatsappLink: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await planRequestService.getWhatsappLink(req.params.id) });
   }),
 };

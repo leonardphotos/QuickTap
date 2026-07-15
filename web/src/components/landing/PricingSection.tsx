@@ -1,16 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { api } from '@/api/client';
-import { calculateCustomPriceUsd, FIXED_PLAN_PRICES, type BillingCycle, type PlanId } from '@/utils/plans';
+import { calculateCustomPriceUsd, type BillingCycle, type PlanId } from '@/utils/plans';
 import { PlanCards, type CustomPlanValues } from './PlanCards';
-import { PaymentForm, type SelectedPlan } from './PaymentForm';
-import { TextureButton } from '@/components/ui/texture-button';
 
 export function PricingSection() {
+  const navigate = useNavigate();
   const [rateBs, setRateBs] = useState<string | null>(null);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('MONTHLY');
   const [custom, setCustom] = useState<CustomPlanValues>({ tables: 10, users: 3, orders: 200 });
-  const [selected, setSelected] = useState<SelectedPlan | null>(null);
 
   useEffect(() => {
     api
@@ -24,22 +22,17 @@ export function PricingSection() {
     [custom],
   );
 
+  // El pago solo se hace ya con la cuenta creada (ver BillingPage): aquí solo
+  // se elige el plan y se manda a registrar, llevando la elección en la URL
+  // para que el panel la retome automáticamente después de crear la cuenta.
   function choosePlan(plan: Exclude<PlanId, 'TRIAL'>) {
+    const params = new URLSearchParams({ plan, cycle: billingCycle });
     if (plan === 'CUSTOM') {
-      setSelected({
-        plan,
-        billingCycle: 'MONTHLY',
-        priceUsd: customPriceUsd,
-        customTables: custom.tables,
-        customUsers: custom.users,
-        customOrders: custom.orders,
-      });
-    } else {
-      setSelected({ plan, billingCycle, priceUsd: FIXED_PLAN_PRICES[plan][billingCycle] });
+      params.set('tables', String(custom.tables));
+      params.set('users', String(custom.users));
+      params.set('orders', String(custom.orders));
     }
-    requestAnimationFrame(() => {
-      document.getElementById('plan-payment')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+    navigate(`/admin/register?${params.toString()}`);
   }
 
   return (
@@ -47,6 +40,9 @@ export function PricingSection() {
       <div className="text-center mb-10">
         <h2 className="text-3xl sm:text-4xl font-bold text-brand-950">Precios y planes</h2>
         <p className="text-brand-950/60 mt-2 font-light">Elige el plan que se ajuste al tamaño de tu restaurante.</p>
+        <p className="text-brand-950/50 text-sm mt-1 font-light">
+          Primero creas tu cuenta gratis, luego completas el pago desde tu panel.
+        </p>
         {rateBs && <p className="text-xs text-brand-950/40 mt-1">Precio en Bs referencial según tasa BCV del día.</p>}
       </div>
 
@@ -59,30 +55,6 @@ export function PricingSection() {
         customPriceUsd={customPriceUsd}
         onChoosePlan={choosePlan}
       />
-
-      {selected && (
-        <div id="plan-payment" className="scroll-mt-24 mt-10">
-          <PaymentForm
-            selected={selected}
-            rateBs={rateBs}
-            onCancel={() => setSelected(null)}
-            submitUrl="/public/plan-requests"
-            renderSuccess={(message) => (
-              <div className="rounded-2xl border border-brand-950/10 bg-white p-8 text-center shadow-sm">
-                <p className="text-lg font-semibold text-brand-950">¡Solicitud enviada!</p>
-                <p className="text-sm text-brand-950/60 font-light mt-1">
-                  {message} Ya puedes registrarte para ir dejando lista la configuración de tu restaurante.
-                </p>
-                <Link to="/admin/register" className="mt-5 inline-block">
-                  <TextureButton variant="brand" size="default">
-                    Regístrate ahora
-                  </TextureButton>
-                </Link>
-              </div>
-            )}
-          />
-        </div>
-      )}
     </div>
   );
 }

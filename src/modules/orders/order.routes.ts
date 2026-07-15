@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { tenantGuard } from '../../middlewares/auth.middleware';
+import { requirePremiumPlan, tenantGuard } from '../../middlewares/auth.middleware';
 import { orderController } from './order.controller';
 
 /**
@@ -13,6 +13,7 @@ router.use(tenantGuard);
 router.get('/kitchen', orderController.kitchenQueue);
 router.get('/delivery', orderController.deliveryQueue);
 router.get('/summary/today', orderController.todaySummary);
+router.get('/summary/admin', requirePremiumPlan, orderController.adminSummary);
 router.post('/manual', orderController.createManual);
 router.patch('/:id/status', orderController.updateStatus);
 router.patch('/:id/items', orderController.updateItems);

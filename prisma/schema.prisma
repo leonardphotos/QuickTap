@@ -117,6 +117,16 @@ enum PlanRequestKind {
 enum PlanRequestStatus {
   PENDING
   APPROVED
+  REJECTED // El comprobante no es válido (ej. monto incorrecto, imagen falsa).
+  PAYMENT_NOT_RECEIVED // Aún no se refleja el pago en la cuenta del restaurante.
+}
+
+// Duración del código de descuento, contada desde su creación.
+enum PromoCodeDurationUnit {
+  HOUR
+  DAY
+  MONTH
+  YEAR
 }
 
 // Solicitud de cotización de QR físicos con tecnología NFC (impermeables, con
@@ -194,6 +204,7 @@ model Restaurant {
   tableSessions TableSession[]
   planRequests PlanRequest[]
   qrNfcRequests QrNfcRequest[]
+  inventoryItems InventoryItem[]
 
   @@map("restaurants")
 }
@@ -273,6 +284,8 @@ model Product {
   // Precio en la moneda base del restaurante (restaurant.baseCurrency: USD o EUR).
   price       Decimal @db.Decimal(12, 2)
   photoUrl    String?
+  // Tiempo aproximado de preparación, en minutos (informativo, opcional).
+  prepTimeMinutes Int?
 
   // Disponibilidad para la venta.
   isAvailable Boolean @default(true)
@@ -553,6 +566,12 @@ model PromoCode {
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
 
+  // Vencimiento opcional, calculado al crear el código a partir de
+  // durationValue + durationUnit (ej. 7 DAY). Null = sin vencimiento.
+  expiresAt    DateTime?
+  durationValue Int?
+  durationUnit  PromoCodeDurationUnit?
+
   @@map("promo_codes")
 }
 
@@ -584,4 +603,29 @@ model PlatformAdmin {
   createdAt    DateTime          @default(now())
 
   @@map("platform_admins")
+}
+
+// ----------------------------------------------------------------------------
+//  INVENTARIO (solo plan Premium)
+//  Lista simple de insumos con cantidad en existencia y stock mínimo, para
+//  avisar cuándo hay que reabastecer. No descuenta automáticamente por venta:
+//  el equipo ajusta la cantidad manualmente.
+// ----------------------------------------------------------------------------
+model InventoryItem {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  name     String
+  // Unidad de medida libre (ej: "kg", "unidad", "lt", "caja").
+  unit     String
+  quantity Decimal @db.Decimal(12, 2) @default(0)
+  minQuantity Decimal @db.Decimal(12, 2) @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+  @@map("inventory_items")
 }

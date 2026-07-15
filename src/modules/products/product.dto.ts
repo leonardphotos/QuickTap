@@ -8,6 +8,8 @@ export const createProductSchema = z.object({
   price: z.coerce.number().nonnegative('El precio no puede ser negativo.'),
   photoUrl: z.string().min(1).optional(),
   isAvailable: z.boolean().optional().default(true),
+  // Tiempo aproximado de preparación, en minutos (informativo, opcional).
+  prepTimeMinutes: z.coerce.number().int().min(0).max(600).optional(),
 
   // Banderas de marketing
   isStar: z.boolean().optional().default(false),

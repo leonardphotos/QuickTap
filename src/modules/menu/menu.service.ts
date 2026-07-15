@@ -83,6 +83,7 @@ export const menuService = {
             description: true,
             price: true,
             photoUrl: true,
+            prepTimeMinutes: true,
             isStar: true,
             isPromo: true,
             isHouseSpecial: true,

@@ -15,6 +15,8 @@ import TableOrdersPage from './pages/admin/TableOrdersPage';
 import SettingsPage from './pages/admin/SettingsPage';
 import ScreenPage from './pages/admin/ScreenPage';
 import BillingPage from './pages/admin/BillingPage';
+import AdministrationPage from './pages/admin/AdministrationPage';
+import InventoryPage from './pages/admin/InventoryPage';
 import MasterLoginPage from './pages/master/MasterLoginPage';
 import MasterLayout from './pages/master/MasterLayout';
 import MasterRestaurantsPage from './pages/master/MasterRestaurantsPage';
@@ -55,6 +57,8 @@ export default function App() {
             <Route path="table-orders" element={<TableOrdersPage />} />
             <Route path="settings" element={<SettingsPage />} />
             <Route path="billing" element={<BillingPage />} />
+            <Route path="administration" element={<AdministrationPage />} />
+            <Route path="inventory" element={<InventoryPage />} />
             <Route path="screen" element={<ScreenPage />} />
           </Route>
 

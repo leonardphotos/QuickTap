@@ -84,3 +84,19 @@ function blockIfLocked(req: Request, _res: Response, next: NextFunction) {
 
 /** Cadena estándar para rutas del panel del restaurante: JWT válido + cuenta no bloqueada. */
 export const tenantGuard = [authGuard, blockIfLocked];
+
+/**
+ * Restringe una ruta al plan Premium (ej. Inventario, Administración).
+ * Debe montarse DESPUÉS de `tenantGuard`.
+ */
+export function requirePremiumPlan(req: Request, _res: Response, next: NextFunction) {
+  prisma.restaurant
+    .findUnique({ where: { id: req.restaurantId }, select: { subscriptionPlan: true } })
+    .then((restaurant) => {
+      if (restaurant?.subscriptionPlan !== 'PREMIUM') {
+        throw forbidden('Esta función solo está disponible en el plan Premium.');
+      }
+      next();
+    })
+    .catch(next);
+}

@@ -30,6 +30,12 @@ export const approvePlanRequestSchema = z.object({
 
 export type ApprovePlanRequestInput = z.infer<typeof approvePlanRequestSchema>;
 
+export const rejectPlanRequestSchema = z.object({
+  status: z.enum(['REJECTED', 'PAYMENT_NOT_RECEIVED']),
+});
+
+export type RejectPlanRequestInput = z.infer<typeof rejectPlanRequestSchema>;
+
 export const activateRestaurantSchema = z.object({
   plan: z.enum(['DELIVERY', 'STARTER', 'PRO', 'PREMIUM', 'CUSTOM']),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL']),
