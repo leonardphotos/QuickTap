@@ -78,7 +78,11 @@ export const tableSessionService = {
    * Si se indica método de pago, queda registrado en todos los pedidos de la
    * cuenta (así se puede filtrar ingresos por método de pago en mesa también).
    */
-  async close(restaurantId: string, id: string, paymentMethod?: 'MOBILE_PAYMENT' | 'ZELLE' | 'CASH' | 'CARD') {
+  async close(
+    restaurantId: string,
+    id: string,
+    paymentMethod?: 'MOBILE_PAYMENT' | 'ZELLE' | 'CASH' | 'CARD' | 'BINANCE' | 'PAYPAL' | 'TRANSFER',
+  ) {
     const session = await this.getById(restaurantId, id);
     if (session.status === 'CLOSED') throw badRequest('Esa cuenta ya está cerrada.');
 

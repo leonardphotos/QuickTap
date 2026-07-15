@@ -70,6 +70,9 @@ enum PaymentMethod {
   ZELLE
   CASH // Efectivo
   CARD // Punto de venta / tarjeta
+  BINANCE
+  PAYPAL
+  TRANSFER // Transferencia bancaria
 }
 
 // Cómo se calcula el costo de envío del checkout de delivery.
@@ -194,6 +197,13 @@ model Restaurant {
   // Modo DISTANCE: tarifa fija + precio por Km recorrido.
   deliveryBaseFee    Decimal @default(0) @db.Decimal(12, 2)
   deliveryPricePerKm Decimal @default(0) @db.Decimal(12, 2)
+
+  // Métodos de pago que el restaurante ofrece a SUS clientes en el checkout
+  // (distinto de PlatformSettings, que es cómo el restaurante le paga a
+  // QuickTap). JSON libre: { CASH: { enabled }, MOBILE_PAYMENT: { enabled,
+  // banco, telefono, cedula, titular }, ZELLE: {...}, BINANCE: {...},
+  // PAYPAL: {...}, TRANSFER: {...}, CARD: { enabled } }.
+  paymentMethodsConfig Json?
 
   // --- Modo Cartelera: imagen de pantalla completa en vez del menú ---
   fullscreenImageEnabled Boolean @default(false)
@@ -482,14 +492,20 @@ model Order {
   // ser el cliente desde su teléfono), queda el usuario que lo tomó.
   placedByUserId String?
 
+  // Repartidor al que se despachó la comanda (botón "Delivery" del panel de
+  // Pedidos), para poder ver el movimiento de cada repartidor en Administración.
+  deliveryCourierId    String?
+  deliveryDispatchedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  table        Table?        @relation(fields: [tableId], references: [id], onDelete: SetNull)
-  tableSession TableSession? @relation(fields: [tableSessionId], references: [id], onDelete: SetNull)
-  placedByUser User?         @relation(fields: [placedByUserId], references: [id], onDelete: SetNull)
-  items        OrderItem[]
+  restaurant      Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table           Table?           @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  tableSession    TableSession?    @relation(fields: [tableSessionId], references: [id], onDelete: SetNull)
+  placedByUser    User?            @relation(fields: [placedByUserId], references: [id], onDelete: SetNull)
+  deliveryCourier DeliveryCourier? @relation(fields: [deliveryCourierId], references: [id], onDelete: SetNull)
+  items           OrderItem[]
 
   @@unique([restaurantId, orderNumber])
   @@index([restaurantId, status])
@@ -717,6 +733,7 @@ model DeliveryCourier {
   updatedAt DateTime @updatedAt
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  orders     Order[]
 
   @@index([restaurantId])
   @@map("delivery_couriers")

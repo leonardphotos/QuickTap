@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import {
   deliveryCheckoutSchema,
+  deliveryQuoteSchema,
   dineInCheckoutSchema,
   dispatchCourierSchema,
   manualOrderSchema,
@@ -25,6 +26,13 @@ export const orderController = {
     const input = deliveryCheckoutSchema.parse(req.body);
     const result = await orderService.checkoutDelivery(req.params.slug, input);
     res.status(201).json({ data: result });
+  }),
+
+  /** GET /api/v1/public/checkout/delivery/:slug/quote — costo de envío en vivo (público). */
+  deliveryQuote: asyncHandler(async (req: Request, res: Response) => {
+    const { lat, lng } = deliveryQuoteSchema.parse(req.query);
+    const quote = await orderService.getDeliveryQuote(req.params.slug, lat, lng);
+    res.json({ data: quote });
   }),
 
   /** POST /api/v1/orders/manual — el staff (ej. Mesero) carga un pedido a mano (protegido). */
@@ -90,6 +98,20 @@ export const orderController = {
   productReport: asyncHandler(async (req: Request, res: Response) => {
     const { range } = orderHistoryQuerySchema.pick({ range: true }).parse(req.query);
     const rows = await orderService.getProductReport(req.restaurantId!, range);
+    res.json({ data: rows });
+  }),
+
+  /** GET /api/v1/orders/reports/couriers — movimiento por repartidor (solo plan Premium). */
+  courierReport: asyncHandler(async (req: Request, res: Response) => {
+    const { range } = orderHistoryQuerySchema.pick({ range: true }).parse(req.query);
+    const rows = await orderService.getCourierStats(req.restaurantId!, range);
+    res.json({ data: rows });
+  }),
+
+  /** GET /api/v1/orders/reports/payment-methods — movimiento por método de pago (solo plan Premium). */
+  paymentMethodReport: asyncHandler(async (req: Request, res: Response) => {
+    const { range } = orderHistoryQuerySchema.pick({ range: true }).parse(req.query);
+    const rows = await orderService.getPaymentMethodStats(req.restaurantId!, range);
     res.json({ data: rows });
   }),
 

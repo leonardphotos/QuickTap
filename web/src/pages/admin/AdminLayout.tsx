@@ -74,34 +74,35 @@ export default function AdminLayout() {
 
       {/* Dock flotante: única navegación del panel, siempre centrada abajo. */}
       <div className="fixed bottom-5 inset-x-0 z-30 flex justify-center pointer-events-none">
-        <div className="pointer-events-auto flex items-center gap-1.5 rounded-full bg-white/90 backdrop-blur-md border border-brand-950/[0.08] shadow-lg shadow-brand-950/10 px-2 py-2">
+        <div className="pointer-events-auto flex items-center gap-2.5 rounded-full bg-white/90 backdrop-blur-md border border-brand-950/[0.08] shadow-lg shadow-brand-950/10 px-3 py-3">
           <Link to="/admin">
-            <TextureButton variant="icon" size="icon" aria-label="Inicio">
-              <Home className="h-4 w-4 text-brand-950/70" />
+            <TextureButton variant="icon" size="icon" className="!h-11 !w-11" aria-label="Inicio">
+              <Home className="h-5 w-5 text-brand-950/70" />
             </TextureButton>
           </Link>
           {pathname !== '/admin' && (
-            <TextureButton variant="icon" size="icon" aria-label="Regresar" onClick={() => navigate(-1)}>
-              <ArrowLeft className="h-4 w-4 text-brand-950/70" />
+            <TextureButton variant="icon" size="icon" className="!h-11 !w-11" aria-label="Regresar" onClick={() => navigate(-1)}>
+              <ArrowLeft className="h-5 w-5 text-brand-950/70" />
             </TextureButton>
           )}
           <TextureButton
             variant="icon"
             size="icon"
+            className="!h-11 !w-11"
             aria-label="Compartir enlace del menú"
             onClick={() => copy(`${window.location.origin}/r/${restaurant.slug}`, 'Enlace copiado')}
           >
-            <Share2 className="h-4 w-4 text-brand-950/70" />
+            <Share2 className="h-5 w-5 text-brand-950/70" />
           </TextureButton>
           {canSeeSettings && (
             <Link to="/admin/settings">
-              <TextureButton variant="icon" size="icon" aria-label="Ajustes">
-                <Settings className="h-4 w-4 text-brand-950/70" />
+              <TextureButton variant="icon" size="icon" className="!h-11 !w-11" aria-label="Ajustes">
+                <Settings className="h-5 w-5 text-brand-950/70" />
               </TextureButton>
             </Link>
           )}
-          <TextureButton variant="icon" size="icon" aria-label="Salir" onClick={logout}>
-            <LogOut className="h-4 w-4 text-brand-950/70" />
+          <TextureButton variant="icon" size="icon" className="!h-11 !w-11" aria-label="Salir" onClick={logout}>
+            <LogOut className="h-5 w-5 text-brand-950/70" />
           </TextureButton>
         </div>
       </div>

@@ -13,6 +13,7 @@ import { CheckoutSettingsSection } from '@/components/admin/CheckoutSettingsSect
 import { FullscreenImageSection } from '@/components/admin/FullscreenImageSection';
 import { DeliveryTeamSection } from '@/components/admin/DeliveryTeamSection';
 import { DeliveryPricingSection } from '@/components/admin/DeliveryPricingSection';
+import { PaymentMethodsSection } from '@/components/admin/PaymentMethodsSection';
 
 interface RateInfo {
   currency: Currency;
@@ -136,6 +137,8 @@ export default function SettingsPage() {
       </TextureCard>
 
       <CheckoutSettingsSection />
+
+      <PaymentMethodsSection />
 
       <DeliveryTeamSection />
 

@@ -65,6 +65,7 @@ router.use('/delivery-zones', deliveryZoneRoutes);
 router.use('/public', menuRoutes);
 router.post('/public/checkout/dine-in', orderController.checkoutDineIn);
 router.post('/public/checkout/delivery/:slug', orderController.checkoutDelivery);
+router.get('/public/checkout/delivery/:slug/quote', orderController.deliveryQuote);
 // Tasa BCV para la landing (precios de planes en $ y Bs): es un dato global, no de un restaurante.
 router.get('/public/exchange-rate', exchangeRateController.summary);
 router.use('/public/plan-requests', publicPlanRequestRoutes);

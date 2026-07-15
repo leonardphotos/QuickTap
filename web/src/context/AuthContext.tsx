@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { api, clearToken, getToken, setStoredSlug, setToken } from '../api/client';
-import type { Currency, RestaurantTheme, UserRole } from '../types';
+import type { Currency, PaymentMethodsConfig, RestaurantTheme, UserRole } from '../types';
 
 interface AuthUser {
   id: string;
@@ -28,6 +28,7 @@ interface AuthRestaurant {
   deliveryPricingMode: 'DISABLED' | 'DISTANCE' | 'ZONE';
   deliveryBaseFee: string;
   deliveryPricePerKm: string;
+  paymentMethodsConfig?: PaymentMethodsConfig | null;
   fullscreenImageEnabled: boolean;
   fullscreenImageUrl?: string | null;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';

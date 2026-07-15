@@ -15,7 +15,7 @@ export type SetTableSessionPinInput = z.infer<typeof setTableSessionPinSchema>;
 // Al cerrar la mesa, el mesero puede indicar cómo se pagó (queda en los
 // pedidos de esa cuenta, para poder filtrar ingresos por método de pago).
 export const closeTableSessionSchema = z.object({
-  paymentMethod: z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CARD']).optional(),
+  paymentMethod: z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER']).optional(),
 });
 
 export type CloseTableSessionInput = z.infer<typeof closeTableSessionSchema>;

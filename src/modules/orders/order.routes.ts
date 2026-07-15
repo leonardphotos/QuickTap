@@ -17,6 +17,8 @@ router.get('/summary/today', orderController.todaySummary);
 router.get('/summary/admin', requirePremiumPlan, orderController.adminSummary);
 router.get('/history', requirePremiumPlan, orderController.history);
 router.get('/reports/products', requirePremiumPlan, orderController.productReport);
+router.get('/reports/couriers', requirePremiumPlan, orderController.courierReport);
+router.get('/reports/payment-methods', requirePremiumPlan, orderController.paymentMethodReport);
 router.post('/manual', orderController.createManual);
 router.post('/:id/accept', orderController.accept);
 router.post('/:id/dispatch-courier', orderController.dispatchCourier);

@@ -23,12 +23,28 @@ interface Props {
   onClearAndClose: () => void;
 }
 
-const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
-  { value: 'MOBILE_PAYMENT', label: 'Pago Móvil' },
-  { value: 'ZELLE', label: 'Zelle' },
-  { value: 'CASH', label: 'Efectivo' },
-  { value: 'CARD', label: 'Tarjeta' },
-];
+const PAYMENT_LABELS: Record<PaymentMethod, string> = {
+  MOBILE_PAYMENT: 'Pago Móvil',
+  ZELLE: 'Zelle',
+  CASH: 'Efectivo',
+  CARD: 'Punto de Venta',
+  BINANCE: 'Binance',
+  PAYPAL: 'PayPal',
+  TRANSFER: 'Transferencia',
+};
+
+const DEFAULT_PAYMENT_OPTIONS: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CARD'];
+
+const PAYMENT_FIELD_LABELS: Record<string, string> = {
+  banco: 'Banco',
+  telefono: 'Teléfono',
+  cedula: 'Cédula/RIF',
+  titular: 'Titular',
+  correo: 'Correo',
+  id: 'ID',
+  cuenta: 'Cuenta',
+  rif: 'RIF',
+};
 
 export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, onRemove, onClose, onClearAndClose }: Props) {
   const [step, setStep] = useState<'summary' | 'checkout'>('summary');
@@ -44,6 +60,8 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
   const [locationError, setLocationError] = useState<string | null>(null);
   const [payment, setPayment] = useState<PaymentMethod>('MOBILE_PAYMENT');
   const [note, setNote] = useState('');
+  const [deliveryFeeBase, setDeliveryFeeBase] = useState<number | null>(null);
+  const [quotingFee, setQuotingFee] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dineInSent, setDineInSent] = useState(false);
@@ -80,10 +98,42 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
 
   useEffect(loadSessionStatus, [qrToken]);
 
+  // Métodos de pago habilitados por el restaurante; si nunca los configuró,
+  // se usa el set clásico para no dejar el checkout sin opciones.
+  const paymentConfig = restaurant.paymentMethodsConfig;
+  const hasPaymentConfig = paymentConfig && Object.values(paymentConfig).some((m) => m?.enabled);
+  const paymentOptions: PaymentMethod[] = hasPaymentConfig
+    ? (Object.keys(PAYMENT_LABELS) as PaymentMethod[]).filter((k) => paymentConfig?.[k]?.enabled)
+    : DEFAULT_PAYMENT_OPTIONS;
+
+  useEffect(() => {
+    if (!paymentOptions.includes(payment) && paymentOptions.length > 0) {
+      setPayment(paymentOptions[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paymentOptions.join(',')]);
+
+  const selectedPaymentDetails = paymentConfig?.[payment];
+
+  // Apenas el cliente comparte su ubicación (mesa de delivery), se cotiza el
+  // envío en vivo para mostrarlo antes de enviar el pedido.
+  useEffect(() => {
+    if (mode !== 'DELIVERY' || !locationCoords) {
+      setDeliveryFeeBase(null);
+      return;
+    }
+    setQuotingFee(true);
+    api
+      .get(`/public/checkout/delivery/${restaurant.slug}/quote`, { params: locationCoords })
+      .then((res) => setDeliveryFeeBase(Number(res.data.data.feeBase)))
+      .catch(() => setDeliveryFeeBase(null))
+      .finally(() => setQuotingFee(false));
+  }, [locationCoords, mode, restaurant.slug]);
+
   const serviceChargeBase = restaurant.serviceChargeEnabled ? subtotalBase * 0.1 : 0;
   const ivaBase = restaurant.ivaEnabled ? subtotalBase * 0.16 : 0;
-  const totalBase = subtotalBase + serviceChargeBase + ivaBase;
-  const hasCharges = restaurant.serviceChargeEnabled || restaurant.ivaEnabled;
+  const totalBase = subtotalBase + serviceChargeBase + ivaBase + (deliveryFeeBase ?? 0);
+  const hasCharges = restaurant.serviceChargeEnabled || restaurant.ivaEnabled || Boolean(deliveryFeeBase);
 
   const tipBase = tipPercent != null ? round2(subtotalBase * (tipPercent / 100)) : Number(tipCustom) || 0;
 
@@ -212,6 +262,10 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
   async function submitDelivery() {
     if (!name.trim()) {
       setError('Escribe tu nombre.');
+      return;
+    }
+    if (!phone.trim()) {
+      setError('Escribe tu teléfono.');
       return;
     }
     if (mode === 'DELIVERY' && !address.trim() && !locationUrl) {
@@ -378,8 +432,15 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                         <span>{publicPriceLabel(ivaBase, restaurant).primary}</span>
                       </div>
                     )}
+                    {deliveryFeeBase != null && deliveryFeeBase > 0 && (
+                      <div className="flex justify-between">
+                        <span>Envío</span>
+                        <span>{publicPriceLabel(deliveryFeeBase, restaurant).primary}</span>
+                      </div>
+                    )}
                   </div>
                 )}
+                {quotingFee && <p className="text-xs text-brand-950/40 mt-1">Calculando envío…</p>}
 
                 <div className="flex justify-between text-sm font-semibold mt-3">
                   <span>Total a pagar</span>
@@ -520,13 +581,15 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                             <input
                               value={name}
                               onChange={(e) => setName(e.target.value)}
-                              placeholder="Tu nombre"
+                              placeholder="Tu nombre *"
+                              required
                               className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
                             />
                             <input
                               value={phone}
                               onChange={(e) => setPhone(e.target.value)}
-                              placeholder="Teléfono (opcional)"
+                              placeholder="Teléfono *"
+                              required
                               className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
                             />
                             {mode === 'DELIVERY' && (
@@ -534,7 +597,7 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                                 <input
                                   value={address}
                                   onChange={(e) => setAddress(e.target.value)}
-                                  placeholder="Dirección de entrega"
+                                  placeholder="Dirección de entrega *"
                                   className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
                                 />
                                 <div className="flex items-center gap-2 -mt-1">
@@ -563,12 +626,24 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                               onChange={(e) => setPayment(e.target.value as PaymentMethod)}
                               className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
                             >
-                              {PAYMENT_OPTIONS.map((o) => (
-                                <option key={o.value} value={o.value}>
-                                  {o.label}
+                              {paymentOptions.map((o) => (
+                                <option key={o} value={o}>
+                                  {PAYMENT_LABELS[o]}
                                 </option>
                               ))}
                             </select>
+                            {selectedPaymentDetails && (
+                              <div className="text-xs text-brand-950/60 bg-brand-950/[0.03] rounded-lg px-2.5 py-2 space-y-0.5">
+                                {(Object.keys(PAYMENT_FIELD_LABELS) as (keyof typeof PAYMENT_FIELD_LABELS)[])
+                                  .filter((f) => selectedPaymentDetails[f as keyof typeof selectedPaymentDetails])
+                                  .map((f) => (
+                                    <p key={f}>
+                                      <span className="text-brand-950/40">{PAYMENT_FIELD_LABELS[f]}:</span>{' '}
+                                      {String(selectedPaymentDetails[f as keyof typeof selectedPaymentDetails])}
+                                    </p>
+                                  ))}
+                              </div>
+                            )}
                             <input
                               value={note}
                               onChange={(e) => setNote(e.target.value)}

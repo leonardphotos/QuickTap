@@ -31,6 +31,7 @@ const RESTAURANT_SELECT = {
   deliveryPricingMode: true,
   deliveryBaseFee: true,
   deliveryPricePerKm: true,
+  paymentMethodsConfig: true,
   fullscreenImageEnabled: true,
   fullscreenImageUrl: true,
   subscriptionStatus: true,
@@ -58,6 +59,7 @@ type RestaurantRow = {
   deliveryPricingMode: 'DISABLED' | 'DISTANCE' | 'ZONE';
   deliveryBaseFee: Prisma.Decimal;
   deliveryPricePerKm: Prisma.Decimal;
+  paymentMethodsConfig: unknown;
   fullscreenImageEnabled: boolean;
   fullscreenImageUrl: string | null;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';
@@ -87,6 +89,7 @@ function serializeRestaurant(restaurant: RestaurantRow) {
     deliveryPricingMode: restaurant.deliveryPricingMode,
     deliveryBaseFee: restaurant.deliveryBaseFee,
     deliveryPricePerKm: restaurant.deliveryPricePerKm,
+    paymentMethodsConfig: restaurant.paymentMethodsConfig,
     fullscreenImageEnabled: restaurant.fullscreenImageEnabled,
     fullscreenImageUrl: restaurant.fullscreenImageUrl,
     subscriptionStatus: restaurant.subscriptionStatus,

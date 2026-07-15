@@ -28,6 +28,23 @@ export interface RestaurantTheme {
   socialLinks?: RestaurantSocialLinks;
 }
 
+export type PaymentMethodKey = 'CASH' | 'MOBILE_PAYMENT' | 'ZELLE' | 'BINANCE' | 'PAYPAL' | 'TRANSFER' | 'CARD';
+
+/** Datos propios de cada método de pago (los que apliquen); todos opcionales. */
+export interface PaymentMethodFields {
+  enabled?: boolean;
+  banco?: string;
+  telefono?: string;
+  cedula?: string;
+  titular?: string;
+  correo?: string;
+  id?: string;
+  cuenta?: string;
+  rif?: string;
+}
+
+export type PaymentMethodsConfig = Partial<Record<PaymentMethodKey, PaymentMethodFields>>;
+
 export interface Restaurant {
   id: string;
   slug: string;
@@ -44,6 +61,7 @@ export interface Restaurant {
   requireOrderConfirmation: boolean;
   serviceChargeEnabled: boolean;
   ivaEnabled: boolean;
+  paymentMethodsConfig?: PaymentMethodsConfig | null;
   fullscreenImageEnabled: boolean;
   fullscreenImageUrl?: string | null;
 }
@@ -116,6 +134,24 @@ export interface DeliveryCourier {
   isActive: boolean;
 }
 
+export interface DeliveryCourierStats {
+  courierId: string;
+  name: string;
+  whatsappPhone: string;
+  isActive: boolean;
+  deliveries: number;
+  totalBase: string;
+  totalBs: string;
+  totalTipBase: string;
+}
+
+export interface PaymentMethodStats {
+  method: string;
+  count: number;
+  totalBase: string;
+  totalBs: string;
+}
+
 export interface DeliveryZone {
   id: string;
   name: string;
@@ -166,7 +202,7 @@ export interface PublicTableSessionStatus {
 
 export type OrderStatus = 'NEEDS_CONFIRMATION' | 'PENDING' | 'KITCHEN' | 'SERVED' | 'CANCELLED';
 export type OrderChannel = 'DINE_IN' | 'DELIVERY' | 'PICKUP';
-export type PaymentMethod = 'MOBILE_PAYMENT' | 'ZELLE' | 'CASH' | 'CARD';
+export type PaymentMethod = PaymentMethodKey;
 
 export interface OrderItemView {
   id: string;

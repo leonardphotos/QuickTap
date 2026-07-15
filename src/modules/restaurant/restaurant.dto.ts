@@ -25,6 +25,31 @@ export const restaurantThemeSchema = z.object({
   socialLinks: restaurantSocialLinksSchema.optional(),
 });
 
+// Métodos de pago que el restaurante ofrece a SUS clientes en el checkout de
+// delivery/pickup. Cada uno se puede activar/desactivar y traer sus propios
+// datos (cuenta, correo, etc.) para que el cliente sepa a dónde pagar.
+const paymentMethodFieldsSchema = z.object({
+  enabled: z.boolean().optional(),
+  banco: z.string().max(80).optional(),
+  telefono: z.string().max(30).optional(),
+  cedula: z.string().max(30).optional(),
+  titular: z.string().max(120).optional(),
+  correo: z.string().max(120).optional(),
+  id: z.string().max(80).optional(),
+  cuenta: z.string().max(40).optional(),
+  rif: z.string().max(30).optional(),
+});
+
+export const paymentMethodsConfigSchema = z.object({
+  CASH: paymentMethodFieldsSchema.optional(),
+  MOBILE_PAYMENT: paymentMethodFieldsSchema.optional(),
+  ZELLE: paymentMethodFieldsSchema.optional(),
+  BINANCE: paymentMethodFieldsSchema.optional(),
+  PAYPAL: paymentMethodFieldsSchema.optional(),
+  TRANSFER: paymentMethodFieldsSchema.optional(),
+  CARD: paymentMethodFieldsSchema.optional(),
+});
+
 export const updateRestaurantSchema = z.object({
   name: z.string().min(1).max(120).optional(),
   description: z.string().max(500).optional(),
@@ -50,6 +75,9 @@ export const updateRestaurantSchema = z.object({
   deliveryPricingMode: z.enum(['DISABLED', 'DISTANCE', 'ZONE']).optional(),
   deliveryBaseFee: z.coerce.number().nonnegative().optional(),
   deliveryPricePerKm: z.coerce.number().nonnegative().optional(),
+
+  // Métodos de pago disponibles para los clientes del checkout de delivery/pickup.
+  paymentMethodsConfig: paymentMethodsConfigSchema.optional(),
 
   // Modo Cartelera: imagen de pantalla completa en vez del menú.
   fullscreenImageEnabled: z.boolean().optional(),

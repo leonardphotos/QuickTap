@@ -34,6 +34,8 @@ const TABS = [
   { id: 'summary', label: 'Resumen' },
   { id: 'history', label: 'Historial de pedidos' },
   { id: 'products', label: 'Productos' },
+  { id: 'delivery', label: 'Delivery' },
+  { id: 'payments', label: 'Métodos de pago' },
 ] as const;
 
 /** Administración: resumen, historial de pedidos, propinas y reporte de productos. Exclusivo del plan Premium. */
@@ -66,6 +68,8 @@ export default function AdministrationPage() {
       {tab === 'summary' && <SummaryTab />}
       {tab === 'history' && <HistoryTab />}
       {tab === 'products' && <ProductsTab />}
+      {tab === 'delivery' && <DeliveryTab />}
+      {tab === 'payments' && <PaymentsTab />}
     </div>
   );
 }
@@ -394,6 +398,152 @@ function ProductsTab() {
             <div className="flex items-center gap-4 shrink-0 text-right">
               <span className="text-sm text-brand-950/70">{r.quantity} vendidos</span>
               <span className="text-sm font-medium text-brand-950 w-20">{formatBase(r.revenueBase, symbol)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+//  Delivery: movimiento por repartidor
+// -----------------------------------------------------------------------------
+
+interface CourierStatsRow {
+  courierId: string;
+  name: string;
+  whatsappPhone: string;
+  isActive: boolean;
+  deliveries: number;
+  totalBase: string;
+  totalBs: string;
+  totalTipBase: string;
+}
+
+function DeliveryTab() {
+  const { restaurant } = useAuth();
+  const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
+  const [range, setRange] = useState<Range>('month');
+  const [rows, setRows] = useState<CourierStatsRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .get('/orders/reports/couriers', { params: { range } })
+      .then((res) => setRows(res.data.data))
+      .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar el movimiento de delivery.'));
+  }, [range]);
+
+  if (error) return <p className="text-sm text-red-600">{error}</p>;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap gap-2">
+        {(Object.keys(RANGE_LABELS) as Range[]).map((r) => (
+          <button
+            key={r}
+            onClick={() => setRange(r)}
+            className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+              range === r ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+            }`}
+          >
+            {RANGE_LABELS[r]}
+          </button>
+        ))}
+      </div>
+
+      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
+        {rows?.length === 0 && (
+          <p className="p-5 text-sm text-brand-950/40 font-light">
+            Agrega repartidores en Ajustes → Equipo de Delivery para ver su movimiento aquí.
+          </p>
+        )}
+        {rows?.map((r) => (
+          <div key={r.courierId} className="flex items-center justify-between gap-3 px-5 py-4">
+            <div>
+              <p className="font-medium text-brand-950 flex items-center gap-1.5">
+                {r.name}
+                {!r.isActive && <span className="text-xs text-brand-950/40 font-light">(inactivo)</span>}
+              </p>
+              <p className="text-xs text-brand-950/40 font-light">{r.whatsappPhone}</p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-sm font-semibold text-brand-950">{r.deliveries} entregas</p>
+              <p className="text-xs text-brand-950/50 font-light">
+                {formatBase(r.totalBase, symbol)}
+                {Number(r.totalTipBase) > 0 && ` · propinas ${formatBase(r.totalTipBase, symbol)}`}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+//  Métodos de pago: movimiento por método
+// -----------------------------------------------------------------------------
+
+interface PaymentStatsRow {
+  method: string;
+  count: number;
+  totalBase: string;
+  totalBs: string;
+}
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  MOBILE_PAYMENT: 'Pago Móvil',
+  ZELLE: 'Zelle',
+  CASH: 'Efectivo',
+  CARD: 'Punto de Venta',
+  BINANCE: 'Binance',
+  PAYPAL: 'PayPal',
+  TRANSFER: 'Transferencia',
+  SIN_METODO: 'Sin especificar',
+};
+
+function PaymentsTab() {
+  const { restaurant } = useAuth();
+  const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
+  const [range, setRange] = useState<Range>('month');
+  const [rows, setRows] = useState<PaymentStatsRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .get('/orders/reports/payment-methods', { params: { range } })
+      .then((res) => setRows(res.data.data))
+      .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar el movimiento por método de pago.'));
+  }, [range]);
+
+  if (error) return <p className="text-sm text-red-600">{error}</p>;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap gap-2">
+        {(Object.keys(RANGE_LABELS) as Range[]).map((r) => (
+          <button
+            key={r}
+            onClick={() => setRange(r)}
+            className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+              range === r ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+            }`}
+          >
+            {RANGE_LABELS[r]}
+          </button>
+        ))}
+      </div>
+
+      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
+        {rows?.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin pedidos en este rango.</p>}
+        {rows?.map((r) => (
+          <div key={r.method} className="flex items-center justify-between gap-3 px-5 py-4">
+            <p className="font-medium text-brand-950">{PAYMENT_METHOD_LABELS[r.method] ?? r.method}</p>
+            <div className="text-right shrink-0">
+              <p className="text-sm font-semibold text-brand-950">{formatBase(r.totalBase, symbol)}</p>
+              <p className="text-xs text-brand-950/50 font-light">{r.count} pedidos</p>
             </div>
           </div>
         ))}

@@ -13,7 +13,7 @@ import { baseToBs, formatBs, formatMoney, round2, toDecimal } from './money';
  *  restaurante ($/€) como referencia entre paréntesis.
  */
 
-export type PaymentMethod = 'MOBILE_PAYMENT' | 'ZELLE' | 'CASH' | 'CARD';
+export type PaymentMethod = 'MOBILE_PAYMENT' | 'ZELLE' | 'CASH' | 'CARD' | 'BINANCE' | 'PAYPAL' | 'TRANSFER';
 
 export type DeliveryMode = 'DELIVERY' | 'PICKUP';
 
@@ -64,11 +64,14 @@ export interface WhatsappCheckoutResult {
   totalBs: string;
 }
 
-const PAYMENT_LABELS: Record<PaymentMethod, string> = {
+export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   MOBILE_PAYMENT: 'Pago Móvil',
   ZELLE: 'Zelle',
   CASH: 'Efectivo',
-  CARD: 'Tarjeta / Punto de venta',
+  CARD: 'Punto de Venta',
+  BINANCE: 'Binance',
+  PAYPAL: 'PayPal',
+  TRANSFER: 'Transferencia',
 };
 
 /** Normaliza el número de teléfono a solo dígitos (wa.me no acepta "+" ni espacios). */

@@ -409,6 +409,34 @@ export const orderService = {
    *  formateado listo para enviar al WhatsApp del restaurante.
    * -------------------------------------------------------------------------
    */
+  /**
+   * Cotización en vivo del costo de envío (sin crear el pedido): el checkout
+   * la llama apenas el cliente comparte su ubicación, para mostrarla antes
+   * de enviar el pedido.
+   */
+  async getDeliveryQuote(restaurantSlug: string, lat: number, lng: number) {
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { slug: restaurantSlug },
+      select: {
+        id: true,
+        isActive: true,
+        baseCurrency: true,
+        deliveryPricingMode: true,
+        deliveryOriginLat: true,
+        deliveryOriginLng: true,
+        deliveryBaseFee: true,
+        deliveryPricePerKm: true,
+      },
+    });
+    if (!restaurant || !restaurant.isActive) throw notFound('Restaurante no encontrado.');
+
+    const feeBase = await computeDeliveryFee(restaurant, { lat, lng });
+    const rate = await exchangeRateService.getRate(restaurant.baseCurrency);
+    const feeBs = baseToBs(feeBase, rate.rateBs);
+
+    return { feeBase: feeBase.toFixed(2), feeBs: feeBs.toFixed(2), currency: restaurant.baseCurrency };
+  },
+
   async checkoutDelivery(restaurantSlug: string, input: DeliveryCheckoutInput) {
     const restaurant = await prisma.restaurant.findUnique({
       where: { slug: restaurantSlug },
@@ -711,6 +739,13 @@ export const orderService = {
     parts.push('_Enviado desde QuickTap.club_');
 
     const url = buildWhatsappUrl(courier.whatsappPhone, parts.join('\n'));
+
+    // Queda registrado quién se lleva la comanda, para el movimiento por repartidor en Administración.
+    await prisma.order.update({
+      where: { id: orderId },
+      data: { deliveryCourierId: courierId, deliveryDispatchedAt: new Date() },
+    });
+
     return { url };
   },
 
@@ -885,5 +920,63 @@ export const orderService = {
     return Array.from(byProduct.values())
       .map((r) => ({ productId: r.productId, name: r.name, quantity: r.quantity, revenueBase: r.revenueBase.toFixed(2) }))
       .sort((a, b) => b.quantity - a.quantity);
+  },
+
+  /** Movimiento por repartidor (pedidos despachados y su valor), para Administración → Delivery. */
+  async getCourierStats(restaurantId: string, range: 'day' | 'month' | 'year' | 'all') {
+    const couriers = await prisma.deliveryCourier.findMany({ where: { restaurantId }, orderBy: { name: 'asc' } });
+    const orders = await prisma.order.findMany({
+      where: {
+        restaurantId,
+        deliveryCourierId: { not: null },
+        status: { not: 'CANCELLED' },
+        deliveryDispatchedAt: rangeFilter(range),
+      },
+      select: { deliveryCourierId: true, totalBase: true, totalBs: true, tipBase: true },
+    });
+
+    return couriers.map((c) => {
+      const own = orders.filter((o) => o.deliveryCourierId === c.id);
+      return {
+        courierId: c.id,
+        name: c.name,
+        whatsappPhone: c.whatsappPhone,
+        isActive: c.isActive,
+        deliveries: own.length,
+        totalBase: round2(own.reduce((acc, o) => acc.add(o.totalBase), toDecimal(0))).toFixed(2),
+        totalBs: round2(own.reduce((acc, o) => acc.add(o.totalBs), toDecimal(0))).toFixed(2),
+        totalTipBase: round2(own.reduce((acc, o) => acc.add(o.tipBase), toDecimal(0))).toFixed(2),
+      };
+    });
+  },
+
+  /** Movimiento por método de pago, para Administración. */
+  async getPaymentMethodStats(restaurantId: string, range: 'day' | 'month' | 'year' | 'all') {
+    const orders = await prisma.order.findMany({
+      where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: rangeFilter(range) },
+      select: { paymentMethod: true, totalBase: true, totalBs: true },
+    });
+
+    const byMethod = new Map<string, { count: number; totalBase: Prisma.Decimal; totalBs: Prisma.Decimal }>();
+    for (const o of orders) {
+      const key = o.paymentMethod ?? 'SIN_METODO';
+      const entry = byMethod.get(key);
+      if (entry) {
+        entry.count += 1;
+        entry.totalBase = entry.totalBase.add(o.totalBase);
+        entry.totalBs = entry.totalBs.add(o.totalBs);
+      } else {
+        byMethod.set(key, { count: 1, totalBase: toDecimal(o.totalBase), totalBs: toDecimal(o.totalBs) });
+      }
+    }
+
+    return Array.from(byMethod.entries())
+      .map(([method, v]) => ({
+        method,
+        count: v.count,
+        totalBase: round2(v.totalBase).toFixed(2),
+        totalBs: round2(v.totalBs).toFixed(2),
+      }))
+      .sort((a, b) => b.count - a.count);
   },
 };

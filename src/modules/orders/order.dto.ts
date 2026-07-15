@@ -29,15 +29,15 @@ export const manualOrderSchema = z.object({
   customerIdNumber: z.string().min(1).max(20).optional(),
 });
 
-const paymentMethodSchema = z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CARD']);
+const paymentMethodSchema = z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER']);
 
-/** Checkout de delivery/pickup -> genera enlace de WhatsApp. */
+/** Checkout de delivery/pickup -> genera enlace de WhatsApp. Todo es obligatorio salvo la nota. */
 export const deliveryCheckoutSchema = z.object({
   mode: z.enum(['DELIVERY', 'PICKUP']).default('DELIVERY'),
   items: z.array(cartItemSchema).min(1, 'El carrito está vacío.'),
   customer: z.object({
     name: z.string().min(1, 'El nombre es obligatorio.').max(120),
-    phone: z.string().max(30).optional(),
+    phone: z.string().min(7, 'Escribe un teléfono válido.').max(30),
     address: z.string().max(300).optional(),
     // Enlace de Google Maps con la ubicación GPS del cliente (botón "Usar mi ubicación actual").
     locationUrl: z.string().url().max(300).optional(),
@@ -76,11 +76,17 @@ export const dispatchCourierSchema = z.object({
   courierId: z.string().min(1, 'Elige un repartidor.'),
 });
 
+/** Cotización en vivo del costo de envío, antes de enviar el pedido. */
+export const deliveryQuoteSchema = z.object({
+  lat: z.coerce.number().min(-90).max(90),
+  lng: z.coerce.number().min(-180).max(180),
+});
+
 /** Filtros del historial de pedidos y reportes (Administración, solo Premium). */
 export const orderHistoryQuerySchema = z.object({
   range: z.enum(['day', 'month', 'year', 'all']).optional().default('day'),
   channel: z.enum(['DINE_IN', 'DELIVERY', 'PICKUP']).optional(),
-  paymentMethod: z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CARD']).optional(),
+  paymentMethod: z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER']).optional(),
   // Solo aplica a channel=DINE_IN: 'staff' = cargado por un mesero, 'customer' = el cliente desde su teléfono.
   placedBy: z.enum(['staff', 'customer']).optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
