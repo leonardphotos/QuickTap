@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
-import { Check, ChefHat, Plus, Truck, X } from 'lucide-react';
+import { Check, ChefHat, Clock, Plus, Truck, X } from 'lucide-react';
 import { api, getToken } from '@/api/client';
 import type { DeliveryCourier, Product } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import { useAuth } from '@/context/AuthContext';
+import { hasFeature } from '@/utils/subscription';
 
 interface LiveOrderItem {
   id: string;
@@ -33,7 +34,10 @@ interface LiveOrder {
   customerNote: string | null;
   table: { number: string } | null;
   items: LiveOrderItem[];
+  awaitingPayment: boolean;
 }
+
+type ChannelFilter = LiveOrder['channel'] | 'AWAITING_PAYMENT';
 
 const CHANNEL_LABELS: Record<LiveOrder['channel'], string> = {
   DINE_IN: 'Mesa',
@@ -55,13 +59,16 @@ const CHANNEL_TABS: { value: LiveOrder['channel']; label: string }[] = [
 
 /** Panel "Pedidos": todos los pedidos activos con Aceptar/Cancelar/Finalizar/Delivery. Va en el Dashboard. */
 export function LiveOrdersPanel() {
+  const { restaurant } = useAuth();
+  const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
   const [orders, setOrders] = useState<LiveOrder[] | null>(null);
   const [couriers, setCouriers] = useState<DeliveryCourier[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [courierPickerFor, setCourierPickerFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [channelFilter, setChannelFilter] = useState<LiveOrder['channel'] | null>(null);
+  const [channelFilter, setChannelFilter] = useState<ChannelFilter | null>(null);
   const [editingOrder, setEditingOrder] = useState<LiveOrder | null>(null);
+  const [justAdded, setJustAdded] = useState<{ id: string; fading: boolean } | null>(null);
 
   function load() {
     api.get('/orders/live').then((res) => setOrders(res.data.data));
@@ -127,6 +134,22 @@ export function LiveOrdersPanel() {
     }
   }
 
+  async function markAwaitingPayment(id: string) {
+    setBusyId(id);
+    setError(null);
+    try {
+      await api.patch(`/orders/${id}/awaiting-payment`);
+      load();
+      setJustAdded({ id, fading: false });
+      setTimeout(() => setJustAdded((j) => (j && j.id === id ? { ...j, fading: true } : j)), 1200);
+      setTimeout(() => setJustAdded((j) => (j && j.id === id ? null : j)), 1700);
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo marcar como pendiente por pagar.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function dispatch(orderId: string, courierId: string) {
     setBusyId(orderId);
     setError(null);
@@ -153,7 +176,11 @@ export function LiveOrdersPanel() {
     setCourierPickerFor(order.id);
   }
 
-  const visibleOrders = channelFilter ? (orders ?? []).filter((o) => o.channel === channelFilter) : orders;
+  const visibleOrders = !channelFilter
+    ? orders
+    : channelFilter === 'AWAITING_PAYMENT'
+      ? (orders ?? []).filter((o) => o.awaitingPayment)
+      : (orders ?? []).filter((o) => o.channel === channelFilter);
 
   if (!orders) return null;
 
@@ -168,7 +195,7 @@ export function LiveOrdersPanel() {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {CHANNEL_TABS.map((t) => (
             <button
               key={t.value}
@@ -180,6 +207,16 @@ export function LiveOrdersPanel() {
               {t.label}
             </button>
           ))}
+          {canAccountsPayable && (
+            <button
+              onClick={() => setChannelFilter((c) => (c === 'AWAITING_PAYMENT' ? null : 'AWAITING_PAYMENT'))}
+              className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${
+                channelFilter === 'AWAITING_PAYMENT' ? 'bg-amber-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+              }`}
+            >
+              <Clock className="h-3 w-3" /> Pendiente por pagar
+            </button>
+          )}
         </div>
       </div>
 
@@ -195,12 +232,22 @@ export function LiveOrdersPanel() {
             <div
               key={o.id}
               onClick={() => setEditingOrder(o)}
-              className="rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-4 text-left cursor-pointer hover:shadow-md transition-shadow"
+              className="relative rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-4 text-left cursor-pointer hover:shadow-md transition-shadow"
             >
+              {justAdded?.id === o.id && (
+                <div
+                  className={`absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-brand-950/85 text-white text-sm font-medium text-center px-4 transition-opacity duration-500 ${
+                    justAdded.fading ? 'opacity-0' : 'opacity-100'
+                  }`}
+                >
+                  Añadido a cuentas por pagar
+                </div>
+              )}
               <div className="flex items-center justify-between gap-2 mb-1.5">
-                <p className="font-semibold text-brand-950">
+                <p className="font-semibold text-brand-950 flex items-center gap-1.5">
                   #{o.orderNumber}
                   {o.customerName && <span className="font-normal text-brand-950/60"> · {o.customerName}</span>}
+                  {o.awaitingPayment && <Clock className="h-3.5 w-3.5 text-amber-500" />}
                 </p>
                 <span className="text-xs bg-brand-950/[0.06] px-2 py-0.5 rounded-full shrink-0">
                   {CHANNEL_LABELS[o.channel]}
@@ -245,7 +292,7 @@ export function LiveOrdersPanel() {
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-4 gap-1.5" onClick={(e) => e.stopPropagation()}>
+                <div className={`grid ${canAccountsPayable ? 'grid-cols-5' : 'grid-cols-4'} gap-1.5`} onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={() => accept(o.id)}
                     disabled={busyId === o.id || (o.status !== 'PENDING' && o.status !== 'NEEDS_CONFIRMATION')}
@@ -274,6 +321,15 @@ export function LiveOrdersPanel() {
                   >
                     <Truck className="h-5 w-5" /> Delivery
                   </button>
+                  {canAccountsPayable && (
+                    <button
+                      onClick={() => markAwaitingPayment(o.id)}
+                      disabled={busyId === o.id || o.awaitingPayment}
+                      className="flex flex-col items-center justify-center gap-1 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium py-3 transition-colors disabled:opacity-40"
+                    >
+                      <Clock className="h-5 w-5" /> {o.awaitingPayment ? 'Pendiente' : 'Cta. abierta'}
+                    </button>
+                  )}
                 </div>
               )}
             </div>

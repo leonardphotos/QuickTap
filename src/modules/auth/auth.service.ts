@@ -52,6 +52,10 @@ const RESTAURANT_SELECT = {
   billingCycle: true,
   periodEnd: true,
   suspended: true,
+  customAdministration: true,
+  customInventoryBasic: true,
+  customInventoryRecipe: true,
+  customAccountsPayable: true,
 } as const;
 
 type RestaurantRow = {
@@ -80,6 +84,10 @@ type RestaurantRow = {
   billingCycle: string | null;
   periodEnd: Date;
   suspended: boolean;
+  customAdministration: boolean;
+  customInventoryBasic: boolean;
+  customInventoryRecipe: boolean;
+  customAccountsPayable: boolean;
 };
 
 /** Forma que el frontend consume: agrega `locked`, calculado en vivo (nunca persistido). */
@@ -110,6 +118,10 @@ function serializeRestaurant(restaurant: RestaurantRow) {
     billingCycle: restaurant.billingCycle,
     periodEnd: restaurant.periodEnd,
     suspended: restaurant.suspended,
+    customAdministration: restaurant.customAdministration,
+    customInventoryBasic: restaurant.customInventoryBasic,
+    customInventoryRecipe: restaurant.customInventoryRecipe,
+    customAccountsPayable: restaurant.customAccountsPayable,
     locked: isLocked(restaurant),
   };
 }

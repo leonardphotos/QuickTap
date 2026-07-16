@@ -218,6 +218,16 @@ model Restaurant {
   subscriptionPlan   SubscriptionPlan?
   billingCycle       BillingCycle?
   periodEnd          DateTime
+
+  // --- Adicionales del Plan Personalizado (CUSTOM) ---
+  // Para PRO/PREMIUM el acceso a estas funciones ya viene incluido según el
+  // plan (ver src/utils/subscription.ts, hasFeature()); estos 4 campos solo
+  // importan cuando subscriptionPlan = CUSTOM, marcados al aprobar la
+  // solicitud con esos adicionales elegidos.
+  customAdministration Boolean @default(false)
+  customInventoryBasic Boolean @default(false)
+  customInventoryRecipe Boolean @default(false)
+  customAccountsPayable Boolean @default(false)
   // Bloqueo manual desde el Dashboard maestro, independiente del vencimiento
   // del plan. Si es true, la cuenta queda bloqueada sin importar periodEnd.
   suspended Boolean @default(false)
@@ -506,6 +516,11 @@ model Order {
   deliveryCourierId    String?
   deliveryDispatchedAt DateTime?
 
+  // Botón del reloj en Pedidos: cuenta abierta del cliente, pendiente de
+  // cobrar. Aparece en la pestaña "Pendiente por pagar" y en Administración
+  // → Cuentas por pagar. Planes Pro/Premium (o CUSTOM con el adicional).
+  awaitingPayment Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -571,6 +586,11 @@ model PlanRequest {
   customTables Int?
   customUsers  Int?
   customOrders Int?
+  // Solo si plan = CUSTOM: adicionales elegidos (se copian a Restaurant al aprobar).
+  customAdministration  Boolean @default(false)
+  customInventoryBasic  Boolean @default(false)
+  customInventoryRecipe Boolean @default(false)
+  customAccountsPayable Boolean @default(false)
 
   // Código promocional aplicado (si hubo). El descuento ya está reflejado en priceUsd.
   promoCode       String?

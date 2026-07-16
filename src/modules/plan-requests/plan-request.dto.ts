@@ -1,8 +1,11 @@
 import { z } from 'zod';
 
 // Los campos llegan como multipart/form-data (van junto al archivo del
-// comprobante), por eso los numéricos vienen como string y hay que
-// coercionarlos.
+// comprobante), por eso los numéricos/booleanos vienen como string y hay
+// que coercionarlos. z.coerce.boolean() NO sirve para esto: en JS
+// Boolean("false") es true, así que hay que comparar el string a mano.
+const formBoolean = z.preprocess((v) => v === 'true' || v === true, z.boolean()).optional().default(false);
+
 export const createPlanRequestSchema = z.object({
   plan: z.enum(['DELIVERY', 'STARTER', 'PRO', 'PREMIUM', 'CUSTOM']),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL']),
@@ -12,6 +15,10 @@ export const createPlanRequestSchema = z.object({
   customTables: z.coerce.number().int().min(0).max(100).optional(),
   customUsers: z.coerce.number().int().min(0).max(100).optional(),
   customOrders: z.coerce.number().int().min(0).max(10000).optional(),
+  customAdministration: formBoolean,
+  customInventoryBasic: formBoolean,
+  customInventoryRecipe: formBoolean,
+  customAccountsPayable: formBoolean,
 
   contactName: z.string().min(1, 'Falta el nombre de contacto.').max(120),
   contactEmail: z.string().email('Correo inválido.'),

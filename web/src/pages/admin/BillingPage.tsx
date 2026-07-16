@@ -14,7 +14,15 @@ export default function BillingPage() {
   const [searchParams] = useSearchParams();
   const [rateBs, setRateBs] = useState<string | null>(null);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('MONTHLY');
-  const [custom, setCustom] = useState<CustomPlanValues>({ tables: 10, users: 3, orders: 200 });
+  const [custom, setCustom] = useState<CustomPlanValues>({
+    tables: 10,
+    users: 3,
+    orders: 200,
+    administration: false,
+    inventoryBasic: false,
+    inventoryRecipe: false,
+    accountsPayable: false,
+  });
   const [selected, setSelected] = useState<SelectedPlan | null>(null);
 
   useEffect(() => {
@@ -25,19 +33,25 @@ export default function BillingPage() {
   }, []);
 
   const customPriceUsd = useMemo(
-    () => calculateCustomPriceUsd(custom.tables, custom.users, custom.orders),
+    () => calculateCustomPriceUsd(custom.tables, custom.users, custom.orders, custom),
     [custom],
   );
 
-  function choosePlan(plan: Exclude<PlanId, 'TRIAL'>) {
+  function choosePlan(plan: Exclude<PlanId, 'TRIAL'>, addons: CustomPlanValues = custom) {
     if (plan === 'CUSTOM') {
       setSelected({
         plan,
         billingCycle: 'MONTHLY',
-        priceUsd: customPriceUsd,
-        customTables: custom.tables,
-        customUsers: custom.users,
-        customOrders: custom.orders,
+        priceUsd: calculateCustomPriceUsd(addons.tables, addons.users, addons.orders, addons),
+        customTables: addons.tables,
+        customUsers: addons.users,
+        customOrders: addons.orders,
+        customAddons: {
+          administration: addons.administration,
+          inventoryBasic: addons.inventoryBasic,
+          inventoryRecipe: addons.inventoryRecipe,
+          accountsPayable: addons.accountsPayable,
+        },
       });
     } else {
       setSelected({ plan, billingCycle, priceUsd: FIXED_PLAN_PRICES[plan][billingCycle] });
@@ -70,15 +84,18 @@ export default function BillingPage() {
       const tables = Number(searchParams.get('tables')) || custom.tables;
       const users = Number(searchParams.get('users')) || custom.users;
       const orders = Number(searchParams.get('orders')) || custom.orders;
-      setCustom({ tables, users, orders });
-      setSelected({
-        plan,
-        billingCycle: 'MONTHLY',
-        priceUsd: calculateCustomPriceUsd(tables, users, orders),
-        customTables: tables,
-        customUsers: users,
-        customOrders: orders,
-      });
+      const addons: CustomPlanValues = {
+        tables,
+        users,
+        orders,
+        administration: searchParams.get('addonAdministration') === '1',
+        inventoryBasic: searchParams.get('addonInventoryBasic') === '1',
+        inventoryRecipe: searchParams.get('addonInventoryRecipe') === '1',
+        accountsPayable: searchParams.get('addonAccountsPayable') === '1',
+      };
+      setCustom(addons);
+      choosePlan('CUSTOM', addons);
+      return;
     } else {
       setSelected({ plan, billingCycle: cycle, priceUsd: FIXED_PLAN_PRICES[plan][cycle] });
     }

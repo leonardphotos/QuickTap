@@ -117,9 +117,10 @@ export function ThemeSection() {
             label="Portada del menú"
             uploadUrl="/restaurant/upload-cover-image"
             shape="square"
+            cropAspect={2}
             maxWidthOrHeight={1200}
             maxSizeMB={1}
-            helpText="Recomendado: imagen horizontal, mín. 800px de ancho."
+            helpText="Recorta la imagen al tamaño de la portada (horizontal, 2:1)."
           />
         </div>
 

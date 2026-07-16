@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AnimatePresence, motion, useScroll, useTransform } from 'motion/react';
-import { Banknote, SmartphoneNfc, MessageCircle, ChefHat } from 'lucide-react';
+import { Banknote, SmartphoneNfc, MessageCircle, ChefHat, CircleDollarSign, Boxes, Clock } from 'lucide-react';
 import { TextureButton } from '@/components/ui/texture-button';
 import { PricingSection } from '@/components/landing/PricingSection';
 import { IntroLoader } from '@/components/landing/IntroLoader';
@@ -30,6 +30,24 @@ const FEATURES = [
     title: 'Comandas directo a cocina',
     text: 'Cada pedido en mesa llega en tiempo real para poder visualizarlo en tu pantalla, tablet o teléfono.',
     badge: 'bg-violet-500/15 text-violet-400',
+  },
+  {
+    icon: CircleDollarSign,
+    title: 'Sistema administrativo',
+    text: 'Historial de pedidos, propinas y reportes de ventas por producto, repartidor y método de pago.',
+    badge: 'bg-emerald-500/15 text-emerald-400',
+  },
+  {
+    icon: Boxes,
+    title: 'Inventario por receta',
+    text: 'Vincula insumos a cada producto y descuenta el stock automáticamente al vender.',
+    badge: 'bg-amber-500/15 text-amber-400',
+  },
+  {
+    icon: Clock,
+    title: 'Cuentas pendientes por pagar',
+    text: 'Deja la cuenta del cliente abierta con un toque y llévala organizada hasta que se cobre.',
+    badge: 'bg-rose-500/15 text-rose-400',
   },
 ];
 

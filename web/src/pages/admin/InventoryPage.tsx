@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { AlertTriangle, Plus, X } from 'lucide-react';
 import { api } from '@/api/client';
+import { useAuth } from '@/context/AuthContext';
+import { hasFeature } from '@/utils/subscription';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -15,13 +17,14 @@ interface InventoryItem {
 
 const emptyForm = { name: '', unit: '', quantity: '', minQuantity: '' };
 
-const TABS = [
-  { id: 'insumos', label: 'Insumos (normal)' },
-  { id: 'recetas', label: 'Recetas' },
-] as const;
-
-/** Inventario: insumos con stock directo ("normal"), o por receta vinculada al producto. Exclusivo del plan Premium. */
+/** Inventario: insumos con stock directo ("normal", Pro+), o por receta vinculada al producto (solo Premium). */
 export default function InventoryPage() {
+  const { restaurant } = useAuth();
+  const canRecipes = hasFeature(restaurant, 'inventoryRecipe');
+  const TABS = [
+    { id: 'insumos', label: 'Insumos (normal)' },
+    ...(canRecipes ? [{ id: 'recetas', label: 'Recetas' }] : []),
+  ] as const;
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('insumos');
   const [items, setItems] = useState<InventoryItem[] | null>(null);
 
@@ -36,29 +39,32 @@ export default function InventoryPage() {
       <div>
         <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Inventario</h1>
         <p className="text-sm text-brand-950/60 font-light mt-1">
-          Insumos con stock directo, o por receta: vinculados a un producto del menú para descontar el stock solo al
-          vender.
+          {canRecipes
+            ? 'Insumos con stock directo, o por receta: vinculados a un producto del menú para descontar el stock solo al vender.'
+            : 'Insumos con stock directo. Para descontar automáticamente al vender según receta, actualiza al plan Premium.'}
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-              tab === t.id
-                ? 'bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]'
-                : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {canRecipes && (
+        <div className="flex flex-wrap gap-2">
+          {TABS.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                tab === t.id
+                  ? 'bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]'
+                  : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {tab === 'insumos' && <InsumosTab items={items} onChanged={loadItems} />}
-      {tab === 'recetas' && <RecetasTab insumos={items ?? []} />}
+      {tab === 'recetas' && canRecipes && <RecetasTab insumos={items ?? []} />}
     </div>
   );
 }

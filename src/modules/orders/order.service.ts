@@ -887,6 +887,18 @@ export const orderService = {
     return prisma.order.update({ where: { id: orderId }, data: { tipBase } });
   },
 
+  /** Botón del reloj en Pedidos: marca la cuenta del cliente como abierta, pendiente por cobrar. */
+  async setAwaitingPayment(restaurantId: string, orderId: string) {
+    const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });
+    if (!existing) throw notFound('Comanda no encontrada.');
+    if (existing.status === 'SERVED' || existing.status === 'CANCELLED') {
+      throw badRequest('No se puede marcar como pendiente por pagar un pedido ya finalizado o cancelado.');
+    }
+    const updated = await prisma.order.update({ where: { id: orderId }, data: { awaitingPayment: true } });
+    emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: updated.status });
+    return updated;
+  },
+
   /** Historial de pedidos con filtros (Administración, solo Premium). */
   async getOrderHistory(restaurantId: string, query: OrderHistoryQuery) {
     const where: Prisma.OrderWhereInput = {

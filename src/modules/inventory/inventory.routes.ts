@@ -1,28 +1,31 @@
 import { Router } from 'express';
-import { requirePremiumPlan, tenantGuard } from '../../middlewares/auth.middleware';
+import { requireFeature, tenantGuard } from '../../middlewares/auth.middleware';
 import { requireRole } from '../../middlewares/auth.middleware';
 import { FULL_ACCESS_ROLES } from '../../utils/roles';
 import { inventoryController } from './inventory.controller';
 import { recipeController } from './recipe.controller';
 
-/** Base: /api/v1/inventory — solo plan Premium. */
+/**
+ * Base: /api/v1/inventory. Insumos "normales" = Pro/Premium/CUSTOM con el
+ * adicional; Recetas (vincula insumos a productos) = solo Premium/CUSTOM con
+ * el adicional de receta, ver hasFeature() en utils/subscription.ts.
+ */
 const router = Router();
 router.use(tenantGuard);
-router.use(requirePremiumPlan);
 
 const mutate = requireRole(...FULL_ACCESS_ROLES);
 
 // Insumos "normales": stock directo por insumo.
-router.get('/', inventoryController.list);
-router.post('/', mutate, inventoryController.create);
-router.patch('/:id', mutate, inventoryController.update);
-router.delete('/:id', mutate, inventoryController.remove);
+router.get('/', requireFeature('inventoryBasic'), inventoryController.list);
+router.post('/', requireFeature('inventoryBasic'), mutate, inventoryController.create);
+router.patch('/:id', requireFeature('inventoryBasic'), mutate, inventoryController.update);
+router.delete('/:id', requireFeature('inventoryBasic'), mutate, inventoryController.remove);
 
 // Recetas: vincula productos del menú con insumos (descuenta stock al vender).
-router.get('/recipes', recipeController.listOverview);
-router.get('/recipes/:productId', recipeController.getByProduct);
-router.post('/recipes/:productId', mutate, recipeController.addIngredient);
-router.patch('/recipes/ingredient/:id', mutate, recipeController.updateIngredient);
-router.delete('/recipes/ingredient/:id', mutate, recipeController.removeIngredient);
+router.get('/recipes', requireFeature('inventoryRecipe'), recipeController.listOverview);
+router.get('/recipes/:productId', requireFeature('inventoryRecipe'), recipeController.getByProduct);
+router.post('/recipes/:productId', requireFeature('inventoryRecipe'), mutate, recipeController.addIngredient);
+router.patch('/recipes/ingredient/:id', requireFeature('inventoryRecipe'), mutate, recipeController.updateIngredient);
+router.delete('/recipes/ingredient/:id', requireFeature('inventoryRecipe'), mutate, recipeController.removeIngredient);
 
 export default router;

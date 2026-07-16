@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { Clock } from 'lucide-react';
 import { api } from '@/api/client';
 import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
 import { useAuth } from '@/context/AuthContext';
+import { hasFeature } from '@/utils/subscription';
 import { TextureButton } from '@/components/ui/texture-button';
 
 interface ChannelBreakdown {
@@ -30,16 +32,20 @@ const CHANNEL_LABELS: Record<keyof ChannelBreakdown, string> = {
   PICKUP: 'Pickup',
 };
 
-const TABS = [
+const BASE_TABS = [
   { id: 'summary', label: 'Resumen' },
   { id: 'history', label: 'Historial de pedidos' },
   { id: 'products', label: 'Productos' },
   { id: 'delivery', label: 'Delivery' },
   { id: 'payments', label: 'Métodos de pago' },
 ] as const;
+const PAYABLE_TAB = { id: 'payable', label: 'Cuentas por pagar' } as const;
 
-/** Administración: resumen, historial de pedidos, propinas y reporte de productos. Exclusivo del plan Premium. */
+/** Administración: resumen, historial de pedidos, propinas y reporte de productos. Planes Pro/Premium. */
 export default function AdministrationPage() {
+  const { restaurant } = useAuth();
+  const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
+  const TABS = canAccountsPayable ? [...BASE_TABS, PAYABLE_TAB] : BASE_TABS;
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('summary');
 
   return (
@@ -70,6 +76,7 @@ export default function AdministrationPage() {
       {tab === 'products' && <ProductsTab />}
       {tab === 'delivery' && <DeliveryTab />}
       {tab === 'payments' && <PaymentsTab />}
+      {tab === 'payable' && <PayableTab />}
     </div>
   );
 }
@@ -544,6 +551,94 @@ function PaymentsTab() {
             <div className="text-right shrink-0">
               <p className="text-sm font-semibold text-brand-950">{formatBase(r.totalBase, symbol)}</p>
               <p className="text-xs text-brand-950/50 font-light">{r.count} pedidos</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+//  Cuentas por pagar: cuentas abiertas marcadas con el botón del reloj en Pedidos
+// -----------------------------------------------------------------------------
+
+interface PayableOrder {
+  id: string;
+  orderNumber: number;
+  channel: Channel;
+  customerName: string | null;
+  totalBase: string;
+  totalBs: string;
+  currency: string;
+  createdAt: string;
+}
+
+function PayableTab() {
+  const { restaurant } = useAuth();
+  const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
+  const [orders, setOrders] = useState<PayableOrder[] | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    api
+      .get('/orders/live')
+      .then((res) => setOrders((res.data.data as (PayableOrder & { awaitingPayment: boolean })[]).filter((o) => o.awaitingPayment)))
+      .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar las cuentas por pagar.'));
+  }
+
+  useEffect(load, []);
+
+  async function markPaid(id: string) {
+    setBusyId(id);
+    setError(null);
+    try {
+      await api.patch(`/orders/${id}/status`, { status: 'SERVED' });
+      load();
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo marcar como pagado.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  if (error) return <p className="text-sm text-red-600">{error}</p>;
+
+  return (
+    <div className="space-y-5">
+      <p className="text-sm text-brand-950/60 font-light">
+        Cuentas abiertas marcadas con el botón del reloj en Pedidos, esperando a que el cliente pague.
+      </p>
+      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
+        {orders?.length === 0 && (
+          <p className="p-5 text-sm text-brand-950/40 font-light">No hay cuentas pendientes por pagar.</p>
+        )}
+        {orders?.map((o) => (
+          <div key={o.id} className="flex items-center justify-between gap-3 px-5 py-4">
+            <div className="flex items-center gap-2 min-w-0">
+              <Clock className="h-4 w-4 text-amber-500 shrink-0" />
+              <div className="min-w-0">
+                <p className="font-medium text-brand-950 truncate">
+                  #{o.orderNumber}
+                  {o.customerName && <span className="font-normal text-brand-950/60"> · {o.customerName}</span>}
+                </p>
+                <p className="text-xs text-brand-950/40 font-light">
+                  {CHANNEL_ROW_LABELS[o.channel]} · {new Date(o.createdAt).toLocaleString('es-VE')}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <span className="text-sm font-semibold text-brand-950">{formatBase(o.totalBase, symbol)}</span>
+              <TextureButton
+                variant="brand"
+                size="sm"
+                className="!w-auto px-3"
+                disabled={busyId === o.id}
+                onClick={() => markPaid(o.id)}
+              >
+                Marcar pagado
+              </TextureButton>
             </div>
           </div>
         ))}

@@ -44,3 +44,36 @@ export function graceHoursRemaining(restaurant: { periodEnd: Date }): number | n
   if (now < restaurant.periodEnd.getTime() || now > graceDeadline) return null;
   return Math.ceil((graceDeadline - now) / (60 * 60 * 1000));
 }
+
+/**
+ * Funciones "premium" que no dependen de un solo plan fijo: Premium las trae
+ * todas, Pro trae un subconjunto (todo menos inventario por receta), y en
+ * CUSTOM se activan una por una según lo que el restaurante haya contratado
+ * (campos customAdministration/customInventoryBasic/... en Restaurant).
+ */
+export type FeatureFlag = 'administration' | 'inventoryBasic' | 'inventoryRecipe' | 'accountsPayable';
+
+interface FeatureCheckRestaurant {
+  subscriptionPlan?: string | null;
+  customAdministration?: boolean;
+  customInventoryBasic?: boolean;
+  customInventoryRecipe?: boolean;
+  customAccountsPayable?: boolean;
+}
+
+const CUSTOM_FLAG_FIELD: Record<FeatureFlag, keyof FeatureCheckRestaurant> = {
+  administration: 'customAdministration',
+  inventoryBasic: 'customInventoryBasic',
+  inventoryRecipe: 'customInventoryRecipe',
+  accountsPayable: 'customAccountsPayable',
+};
+
+// Plan Pro: Administración + Inventario "normal" (solo productos, sin receta) + Cuentas por pagar.
+const PRO_FEATURES: FeatureFlag[] = ['administration', 'inventoryBasic', 'accountsPayable'];
+
+export function hasFeature(restaurant: FeatureCheckRestaurant, feature: FeatureFlag): boolean {
+  if (restaurant.subscriptionPlan === 'PREMIUM') return true;
+  if (restaurant.subscriptionPlan === 'PRO') return PRO_FEATURES.includes(feature);
+  if (restaurant.subscriptionPlan === 'CUSTOM') return Boolean(restaurant[CUSTOM_FLAG_FIELD[feature]]);
+  return false;
+}

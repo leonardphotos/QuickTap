@@ -23,6 +23,12 @@ export interface SelectedPlan {
   customTables?: number;
   customUsers?: number;
   customOrders?: number;
+  customAddons?: {
+    administration?: boolean;
+    inventoryBasic?: boolean;
+    inventoryRecipe?: boolean;
+    accountsPayable?: boolean;
+  };
 }
 
 const PAYMENT_METHODS: SubscriptionPaymentMethod[] = ['PAGO_MOVIL', 'BINANCE', 'BANK_TRANSFER'];
@@ -116,6 +122,10 @@ export function PaymentForm({
         form.append('customTables', String(selected.customTables ?? 0));
         form.append('customUsers', String(selected.customUsers ?? 0));
         form.append('customOrders', String(selected.customOrders ?? 0));
+        form.append('customAdministration', String(!!selected.customAddons?.administration));
+        form.append('customInventoryBasic', String(!!selected.customAddons?.inventoryBasic));
+        form.append('customInventoryRecipe', String(!!selected.customAddons?.inventoryRecipe));
+        form.append('customAccountsPayable', String(!!selected.customAddons?.accountsPayable));
       }
       if (promo) form.append('promoCode', promo.code);
       form.append('contactName', contactName);

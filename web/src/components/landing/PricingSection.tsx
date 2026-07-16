@@ -8,7 +8,15 @@ export function PricingSection() {
   const navigate = useNavigate();
   const [rateBs, setRateBs] = useState<string | null>(null);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('MONTHLY');
-  const [custom, setCustom] = useState<CustomPlanValues>({ tables: 10, users: 3, orders: 200 });
+  const [custom, setCustom] = useState<CustomPlanValues>({
+    tables: 10,
+    users: 3,
+    orders: 200,
+    administration: false,
+    inventoryBasic: false,
+    inventoryRecipe: false,
+    accountsPayable: false,
+  });
 
   useEffect(() => {
     api
@@ -18,7 +26,7 @@ export function PricingSection() {
   }, []);
 
   const customPriceUsd = useMemo(
-    () => calculateCustomPriceUsd(custom.tables, custom.users, custom.orders),
+    () => calculateCustomPriceUsd(custom.tables, custom.users, custom.orders, custom),
     [custom],
   );
 
@@ -31,6 +39,10 @@ export function PricingSection() {
       params.set('tables', String(custom.tables));
       params.set('users', String(custom.users));
       params.set('orders', String(custom.orders));
+      if (custom.administration) params.set('addonAdministration', '1');
+      if (custom.inventoryBasic) params.set('addonInventoryBasic', '1');
+      if (custom.inventoryRecipe) params.set('addonInventoryRecipe', '1');
+      if (custom.accountsPayable) params.set('addonAccountsPayable', '1');
     }
     navigate(`/admin/register?${params.toString()}`);
   }

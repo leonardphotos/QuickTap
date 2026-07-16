@@ -39,6 +39,11 @@ interface AuthRestaurant {
   /** Bloqueo manual desde el Dashboard maestro, independiente del vencimiento. */
   suspended: boolean;
   locked: boolean;
+  /** Adicionales del Plan Personalizado (solo importan si subscriptionPlan = CUSTOM). */
+  customAdministration: boolean;
+  customInventoryBasic: boolean;
+  customInventoryRecipe: boolean;
+  customAccountsPayable: boolean;
 }
 
 interface AuthState {

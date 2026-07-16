@@ -103,6 +103,12 @@ export const orderController = {
     res.json({ data: order });
   }),
 
+  /** PATCH /api/v1/orders/:id/awaiting-payment — botón del reloj: cuenta abierta pendiente por cobrar. */
+  setAwaitingPayment: asyncHandler(async (req: Request, res: Response) => {
+    const order = await orderService.setAwaitingPayment(req.restaurantId!, req.params.id);
+    res.json({ data: order });
+  }),
+
   /** GET /api/v1/orders/history — historial de pedidos con filtros (solo plan Premium). */
   history: asyncHandler(async (req: Request, res: Response) => {
     const query = orderHistoryQuerySchema.parse(req.query);

@@ -1,6 +1,6 @@
 import { Check } from 'lucide-react';
 import { formatBs } from '@/utils/format';
-import { BILLING_CYCLE_LABEL, FIXED_PLAN_PRICES, type BillingCycle, type PlanId } from '@/utils/plans';
+import { BILLING_CYCLE_LABEL, CUSTOM_ADDON_PRICES, FIXED_PLAN_PRICES, type BillingCycle, type PlanId } from '@/utils/plans';
 import { TextureButton } from '@/components/ui/texture-button';
 
 export interface PlanContent {
@@ -18,21 +18,26 @@ export const PLAN_CONTENT: PlanContent[] = [
     name: 'Solo Delivery',
     subtitle: 'Cocinas fantasma o solo pedidos por WhatsApp',
     capacity: 'Sin mesas ni códigos QR — acceso directo a Cocina',
-    features: ['200 pedidos al mes', 'Hasta 3 usuarios de tu equipo'],
+    features: ['250 pedidos al mes', 'Hasta 3 usuarios de tu equipo'],
   },
   {
     id: 'STARTER',
     name: 'Plan Inicial',
     subtitle: 'Food trucks o cafés pequeños',
     capacity: 'Hasta 5-6 mesas',
-    features: ['150 pedidos al mes', 'Hasta 4 usuarios de tu equipo'],
+    features: ['200 pedidos al mes', 'Hasta 4 usuarios de tu equipo'],
   },
   {
     id: 'PRO',
     name: 'Plan Pro / Restaurante',
     subtitle: 'El punto ideal para la mayoría',
     capacity: 'Hasta 20 mesas',
-    features: ['400 pedidos al mes', 'Hasta 8 usuarios de tu equipo'],
+    features: [
+      '450 pedidos al mes',
+      'Hasta 8 usuarios de tu equipo',
+      'Administración: historial de pedidos, propinas y reportes de ventas',
+      'Inventario normal (por producto) y Cuentas por pagar',
+    ],
     highlighted: true,
   },
   {
@@ -45,6 +50,7 @@ export const PLAN_CONTENT: PlanContent[] = [
       'Hasta 20 usuarios de tu equipo',
       'Administración: historial de pedidos, propinas y reportes de ventas',
       'Inventario por receta: descuenta insumos automáticamente al vender',
+      'Cuentas por pagar: cuentas abiertas pendientes de cobro',
     ],
   },
 ];
@@ -53,7 +59,18 @@ export interface CustomPlanValues {
   tables: number;
   users: number;
   orders: number;
+  administration: boolean;
+  inventoryBasic: boolean;
+  inventoryRecipe: boolean;
+  accountsPayable: boolean;
 }
+
+const CUSTOM_ADDON_OPTIONS: { key: keyof CustomPlanValues; label: string; price: number }[] = [
+  { key: 'administration', label: 'Sistema administrativo', price: CUSTOM_ADDON_PRICES.administration },
+  { key: 'inventoryBasic', label: 'Inventario normal (por producto)', price: CUSTOM_ADDON_PRICES.inventoryBasic },
+  { key: 'inventoryRecipe', label: 'Inventario por receta', price: CUSTOM_ADDON_PRICES.inventoryRecipe },
+  { key: 'accountsPayable', label: 'Cuentas por pagar', price: CUSTOM_ADDON_PRICES.accountsPayable },
+];
 
 interface Props {
   rateBs: string | null;
@@ -79,7 +96,7 @@ export function PlanCards({
       <>
         <span className="text-3xl font-semibold text-brand-950">${usd.toFixed(2)}</span>
         <span className="text-brand-950/60">/mes</span>
-        {rateBs && <p className="text-xs text-brand-950/50 mt-0.5">{formatBs(usd, rateBs)}/mes</p>}
+        {rateBs && <p className="text-xs text-brand-950/50 mt-0.5">{formatBs(usd, rateBs)}/mes · a tasa BCV</p>}
       </>
     );
   }
@@ -155,29 +172,51 @@ export function PlanCards({
               <div className="mt-4">{priceLabel(customPriceUsd)}</div>
             </div>
 
-            <div className="flex-1 grid sm:grid-cols-3 gap-5">
-              <CustomSlider
-                label="Mesas"
-                value={custom.tables}
-                onChange={(v) => onCustomChange({ ...custom, tables: v })}
-                max={100}
-                suffix="+$1 c/u"
-              />
-              <CustomSlider
-                label="Usuarios de tu equipo"
-                value={custom.users}
-                onChange={(v) => onCustomChange({ ...custom, users: v })}
-                max={100}
-                suffix="+$1.5 desde el 3ro"
-              />
-              <CustomSlider
-                label="Pedidos al mes"
-                value={custom.orders}
-                onChange={(v) => onCustomChange({ ...custom, orders: v })}
-                max={10000}
-                step={100}
-                suffix="+$2 c/100"
-              />
+            <div className="flex-1 space-y-5">
+              <div className="grid sm:grid-cols-3 gap-5">
+                <CustomSlider
+                  label="Mesas"
+                  value={custom.tables}
+                  onChange={(v) => onCustomChange({ ...custom, tables: v })}
+                  max={100}
+                  suffix="+$1.25 c/u"
+                />
+                <CustomSlider
+                  label="Usuarios de tu equipo"
+                  value={custom.users}
+                  onChange={(v) => onCustomChange({ ...custom, users: v })}
+                  max={100}
+                  suffix="+$1.88 desde el 3ro"
+                />
+                <CustomSlider
+                  label="Pedidos al mes"
+                  value={custom.orders}
+                  onChange={(v) => onCustomChange({ ...custom, orders: v })}
+                  max={10000}
+                  step={100}
+                  suffix="+$2.50 c/100"
+                />
+              </div>
+
+              <div>
+                <p className="text-sm text-brand-950/70 mb-2">Adicionales</p>
+                <div className="grid sm:grid-cols-2 gap-2">
+                  {CUSTOM_ADDON_OPTIONS.map((opt) => (
+                    <label
+                      key={opt.key}
+                      className="flex items-center gap-2 text-sm text-brand-950/70 rounded-lg border border-brand-950/10 px-3 py-2 cursor-pointer hover:border-brand-400/50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={custom[opt.key] as boolean}
+                        onChange={(e) => onCustomChange({ ...custom, [opt.key]: e.target.checked })}
+                        className="accent-brand-500"
+                      />
+                      {opt.label} <span className="text-brand-950/40">+${opt.price}/mes</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
 
             <TextureButton

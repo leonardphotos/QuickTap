@@ -18,10 +18,10 @@ const PLAN_LABELS: Record<SubscriptionPlan, string> = {
 // Beneficios breves para el mensaje de bienvenida por WhatsApp al activar la cuenta.
 const PLAN_BENEFITS: Record<SubscriptionPlan, string> = {
   TRIAL: 'Mesas y códigos QR ilimitados durante tu prueba.',
-  STARTER: 'Hasta 5-6 mesas, 150 pedidos al mes y 4 usuarios de tu equipo.',
-  PRO: 'Hasta 20 mesas, 400 pedidos al mes y 8 usuarios de tu equipo.',
-  PREMIUM: 'Mesas y pedidos ilimitados, hasta 20 usuarios, Administración e Inventario.',
-  DELIVERY: 'Acceso directo a Cocina, 200 pedidos al mes y 3 usuarios de tu equipo.',
+  STARTER: 'Hasta 5-6 mesas, 200 pedidos al mes y 4 usuarios de tu equipo.',
+  PRO: 'Hasta 20 mesas, 450 pedidos al mes, 8 usuarios de tu equipo, Administración, Inventario y Cuentas por pagar.',
+  PREMIUM: 'Mesas y pedidos ilimitados, hasta 20 usuarios, Administración e Inventario por receta.',
+  DELIVERY: 'Acceso directo a Cocina, 250 pedidos al mes y 3 usuarios de tu equipo.',
   CUSTOM: 'Tu plan armado a la medida de tu restaurante.',
 };
 
@@ -54,31 +54,62 @@ function buildPaymentNotReceivedMessage(): string {
  * aquí para evitar manipulación.
  */
 const FIXED_PLAN_PRICES: Record<'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM', Record<BillingCycle, number>> = {
-  DELIVERY: { MONTHLY: 15, QUARTERLY: 12, SEMIANNUAL: 9 },
-  STARTER: { MONTHLY: 20, QUARTERLY: 15, SEMIANNUAL: 10 },
-  PRO: { MONTHLY: 35, QUARTERLY: 30, SEMIANNUAL: 25 },
-  PREMIUM: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40 },
+  DELIVERY: { MONTHLY: 18.75, QUARTERLY: 15, SEMIANNUAL: 11.25 },
+  STARTER: { MONTHLY: 25, QUARTERLY: 18.75, SEMIANNUAL: 12.5 },
+  PRO: { MONTHLY: 43.75, QUARTERLY: 37.5, SEMIANNUAL: 31.25 },
+  PREMIUM: { MONTHLY: 62.5, QUARTERLY: 56.25, SEMIANNUAL: 50 },
 };
 
-// Fórmula del plan personalizado: base + mesas + usuarios (desde el 3ro) + pedidos (por cada 100).
-const CUSTOM_BASE_USD = 10;
-const CUSTOM_PRICE_PER_TABLE = 1;
+// Fórmula del plan personalizado: base + mesas + usuarios (desde el 3ro) + pedidos
+// (por cada 100) + adicionales (Administración/Inventario/Cuentas por pagar).
+const CUSTOM_BASE_USD = 12.5;
+const CUSTOM_PRICE_PER_TABLE = 1.25;
 const CUSTOM_FREE_USERS = 2;
-const CUSTOM_PRICE_PER_USER = 1.5;
-const CUSTOM_PRICE_PER_100_ORDERS = 2;
+const CUSTOM_PRICE_PER_USER = 1.88;
+const CUSTOM_PRICE_PER_100_ORDERS = 2.5;
+// Precio mensual de cada adicional del plan personalizado.
+const CUSTOM_ADDON_PRICES = {
+  administration: 8,
+  inventoryBasic: 5,
+  inventoryRecipe: 12,
+  accountsPayable: 4,
+} as const;
 
-export function calculateCustomPriceUsd(tables: number, users: number, orders: number): number {
+export interface CustomAddons {
+  administration?: boolean;
+  inventoryBasic?: boolean;
+  inventoryRecipe?: boolean;
+  accountsPayable?: boolean;
+}
+
+export function calculateCustomPriceUsd(tables: number, users: number, orders: number, addons: CustomAddons = {}): number {
   const billableUsers = Math.max(0, users - CUSTOM_FREE_USERS);
+  const addonsTotal =
+    (addons.administration ? CUSTOM_ADDON_PRICES.administration : 0) +
+    (addons.inventoryBasic ? CUSTOM_ADDON_PRICES.inventoryBasic : 0) +
+    (addons.inventoryRecipe ? CUSTOM_ADDON_PRICES.inventoryRecipe : 0) +
+    (addons.accountsPayable ? CUSTOM_ADDON_PRICES.accountsPayable : 0);
   const price =
     CUSTOM_BASE_USD +
     tables * CUSTOM_PRICE_PER_TABLE +
     billableUsers * CUSTOM_PRICE_PER_USER +
-    (orders / 100) * CUSTOM_PRICE_PER_100_ORDERS;
+    (orders / 100) * CUSTOM_PRICE_PER_100_ORDERS +
+    addonsTotal;
   return Math.round(price * 100) / 100;
 }
 
-/** Activa/extiende la suscripción de un restaurante. Único punto que toca estos campos. */
-async function applyActivation(restaurantId: string, plan: SubscriptionPlan, billingCycle: BillingCycle) {
+/**
+ * Activa/extiende la suscripción de un restaurante. Único punto que toca
+ * estos campos. `addons` solo aplica (y solo se persiste) cuando plan =
+ * CUSTOM; para el resto de los planes el acceso a cada función ya lo decide
+ * hasFeature() según el plan fijo, así que no hace falta tocar estos campos.
+ */
+async function applyActivation(
+  restaurantId: string,
+  plan: SubscriptionPlan,
+  billingCycle: BillingCycle,
+  addons?: CustomAddons,
+) {
   const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { periodEnd: true } });
   if (!restaurant) throw notFound('Restaurante no encontrado.');
 
@@ -89,6 +120,14 @@ async function applyActivation(restaurantId: string, plan: SubscriptionPlan, bil
       subscriptionPlan: plan,
       billingCycle,
       periodEnd: nextPeriodEnd(billingCycle, restaurant.periodEnd),
+      ...(plan === 'CUSTOM' && addons
+        ? {
+            customAdministration: !!addons.administration,
+            customInventoryBasic: !!addons.inventoryBasic,
+            customInventoryRecipe: !!addons.inventoryRecipe,
+            customAccountsPayable: !!addons.accountsPayable,
+          }
+        : {}),
     },
   });
 }
@@ -101,12 +140,18 @@ export const planRequestService = {
     opts: { kind: PlanRequestKind; restaurantId?: string },
   ) {
     let priceUsd: number;
+    const addons: CustomAddons = {
+      administration: input.customAdministration,
+      inventoryBasic: input.customInventoryBasic,
+      inventoryRecipe: input.customInventoryRecipe,
+      accountsPayable: input.customAccountsPayable,
+    };
 
     if (input.plan === 'CUSTOM') {
       const tables = input.customTables ?? 0;
       const users = input.customUsers ?? 0;
       const orders = input.customOrders ?? 0;
-      priceUsd = calculateCustomPriceUsd(tables, users, orders);
+      priceUsd = calculateCustomPriceUsd(tables, users, orders, addons);
     } else {
       priceUsd = FIXED_PLAN_PRICES[input.plan][input.billingCycle];
     }
@@ -128,6 +173,10 @@ export const planRequestService = {
         customTables: input.plan === 'CUSTOM' ? input.customTables ?? 0 : null,
         customUsers: input.plan === 'CUSTOM' ? input.customUsers ?? 0 : null,
         customOrders: input.plan === 'CUSTOM' ? input.customOrders ?? 0 : null,
+        customAdministration: input.plan === 'CUSTOM' ? !!addons.administration : false,
+        customInventoryBasic: input.plan === 'CUSTOM' ? !!addons.inventoryBasic : false,
+        customInventoryRecipe: input.plan === 'CUSTOM' ? !!addons.inventoryRecipe : false,
+        customAccountsPayable: input.plan === 'CUSTOM' ? !!addons.accountsPayable : false,
         promoCode: promo?.code,
         discountPercent: promo?.discountPercent,
         priceUsd,
@@ -167,7 +216,12 @@ export const planRequestService = {
       throw badRequest('Indica a qué restaurante pertenece esta solicitud antes de activarla.');
     }
 
-    const restaurant = await applyActivation(restaurantId, request.plan, request.billingCycle);
+    const restaurant = await applyActivation(restaurantId, request.plan, request.billingCycle, {
+      administration: request.customAdministration,
+      inventoryBasic: request.customInventoryBasic,
+      inventoryRecipe: request.customInventoryRecipe,
+      accountsPayable: request.customAccountsPayable,
+    });
 
     await prisma.planRequest.update({
       where: { id },

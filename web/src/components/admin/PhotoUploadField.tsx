@@ -3,6 +3,7 @@ import imageCompression from 'browser-image-compression';
 import { ImagePlus, Loader2, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { cn } from '@/lib/utils';
+import { ImageCropDialog } from './ImageCropDialog';
 
 interface Props {
   value?: string | null;
@@ -20,6 +21,8 @@ interface Props {
   helpText?: string;
   /** Imagen mostrada cuando no hay foto subida (ej. perfil.jpg para el logo del restaurante). */
   defaultPreview?: string;
+  /** Si viene, antes de comprimir/subir se abre un recorte (ancho/alto) a esta proporción, ej. 2 = 2:1. */
+  cropAspect?: number;
 }
 
 /**
@@ -38,17 +41,19 @@ export function PhotoUploadField({
   maxSizeMB = 1,
   helpText,
   defaultPreview,
+  cropAspect,
 }: Props) {
   const [preview, setPreview] = useState<string | null>(value ?? null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  async function handleFile(file: File) {
+  async function uploadBlob(blob: Blob, filename: string) {
     setError(null);
     setUploading(true);
     try {
-      const compressed = await imageCompression(file, {
+      const compressed = await imageCompression(blob as File, {
         maxWidthOrHeight,
         maxSizeMB,
         useWebWorker: true,
@@ -58,7 +63,7 @@ export function PhotoUploadField({
       setPreview(URL.createObjectURL(compressed));
 
       const form = new FormData();
-      form.append('photo', compressed, file.name);
+      form.append('photo', compressed, filename);
       const { data } = await api.post(uploadUrl, form, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
@@ -69,6 +74,14 @@ export function PhotoUploadField({
     } finally {
       setUploading(false);
     }
+  }
+
+  function handleFile(file: File) {
+    if (cropAspect) {
+      setCropSrc(URL.createObjectURL(file));
+      return;
+    }
+    uploadBlob(file, file.name);
   }
 
   const isCircle = shape === 'circle';
@@ -134,6 +147,22 @@ export function PhotoUploadField({
         }}
       />
       {error && <p className="text-xs text-red-600 text-center">{error}</p>}
+
+      {cropSrc && cropAspect && (
+        <ImageCropDialog
+          imageSrc={cropSrc}
+          aspect={cropAspect}
+          onCancel={() => {
+            URL.revokeObjectURL(cropSrc);
+            setCropSrc(null);
+          }}
+          onCropped={(blob) => {
+            URL.revokeObjectURL(cropSrc);
+            setCropSrc(null);
+            uploadBlob(blob, 'banner.jpg');
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -15,26 +15,47 @@ export const BILLING_CYCLE_LABEL: Record<BillingCycle, string> = {
  * de enviar la solicitud.
  */
 export const FIXED_PLAN_PRICES: Record<'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM', Record<BillingCycle, number>> = {
-  DELIVERY: { MONTHLY: 15, QUARTERLY: 12, SEMIANNUAL: 9 },
-  STARTER: { MONTHLY: 20, QUARTERLY: 15, SEMIANNUAL: 10 },
-  PRO: { MONTHLY: 35, QUARTERLY: 30, SEMIANNUAL: 25 },
-  PREMIUM: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40 },
+  DELIVERY: { MONTHLY: 18.75, QUARTERLY: 15, SEMIANNUAL: 11.25 },
+  STARTER: { MONTHLY: 25, QUARTERLY: 18.75, SEMIANNUAL: 12.5 },
+  PRO: { MONTHLY: 43.75, QUARTERLY: 37.5, SEMIANNUAL: 31.25 },
+  PREMIUM: { MONTHLY: 62.5, QUARTERLY: 56.25, SEMIANNUAL: 50 },
 };
 
-// Fórmula del plan personalizado: base + mesas + usuarios (desde el 3ro) + pedidos (por cada 100).
-export const CUSTOM_BASE_USD = 10;
-export const CUSTOM_PRICE_PER_TABLE = 1;
+// Fórmula del plan personalizado: base + mesas + usuarios (desde el 3ro) + pedidos
+// (por cada 100) + adicionales (Administración/Inventario/Cuentas por pagar).
+export const CUSTOM_BASE_USD = 12.5;
+export const CUSTOM_PRICE_PER_TABLE = 1.25;
 export const CUSTOM_FREE_USERS = 2;
-export const CUSTOM_PRICE_PER_USER = 1.5;
-export const CUSTOM_PRICE_PER_100_ORDERS = 2;
+export const CUSTOM_PRICE_PER_USER = 1.88;
+export const CUSTOM_PRICE_PER_100_ORDERS = 2.5;
 
-export function calculateCustomPriceUsd(tables: number, users: number, orders: number): number {
+export const CUSTOM_ADDON_PRICES = {
+  administration: 8,
+  inventoryBasic: 5,
+  inventoryRecipe: 12,
+  accountsPayable: 4,
+} as const;
+
+export interface CustomAddons {
+  administration?: boolean;
+  inventoryBasic?: boolean;
+  inventoryRecipe?: boolean;
+  accountsPayable?: boolean;
+}
+
+export function calculateCustomPriceUsd(tables: number, users: number, orders: number, addons: CustomAddons = {}): number {
   const billableUsers = Math.max(0, users - CUSTOM_FREE_USERS);
+  const addonsTotal =
+    (addons.administration ? CUSTOM_ADDON_PRICES.administration : 0) +
+    (addons.inventoryBasic ? CUSTOM_ADDON_PRICES.inventoryBasic : 0) +
+    (addons.inventoryRecipe ? CUSTOM_ADDON_PRICES.inventoryRecipe : 0) +
+    (addons.accountsPayable ? CUSTOM_ADDON_PRICES.accountsPayable : 0);
   const price =
     CUSTOM_BASE_USD +
     tables * CUSTOM_PRICE_PER_TABLE +
     billableUsers * CUSTOM_PRICE_PER_USER +
-    (orders / 100) * CUSTOM_PRICE_PER_100_ORDERS;
+    (orders / 100) * CUSTOM_PRICE_PER_100_ORDERS +
+    addonsTotal;
   return Math.round(price * 100) / 100;
 }
 

@@ -15,3 +15,31 @@ export function graceHoursRemaining(periodEnd: string): number | null {
   if (now < end || now > graceDeadline) return null;
   return Math.ceil((graceDeadline - now) / (60 * 60 * 1000));
 }
+
+/** Espejo de hasFeature() del backend (src/utils/subscription.ts) — solo para pintar la UI. */
+export type FeatureFlag = 'administration' | 'inventoryBasic' | 'inventoryRecipe' | 'accountsPayable';
+
+interface FeatureCheckRestaurant {
+  subscriptionPlan?: string | null;
+  customAdministration?: boolean;
+  customInventoryBasic?: boolean;
+  customInventoryRecipe?: boolean;
+  customAccountsPayable?: boolean;
+}
+
+const CUSTOM_FLAG_FIELD: Record<FeatureFlag, keyof FeatureCheckRestaurant> = {
+  administration: 'customAdministration',
+  inventoryBasic: 'customInventoryBasic',
+  inventoryRecipe: 'customInventoryRecipe',
+  accountsPayable: 'customAccountsPayable',
+};
+
+const PRO_FEATURES: FeatureFlag[] = ['administration', 'inventoryBasic', 'accountsPayable'];
+
+export function hasFeature(restaurant: FeatureCheckRestaurant | null | undefined, feature: FeatureFlag): boolean {
+  if (!restaurant) return false;
+  if (restaurant.subscriptionPlan === 'PREMIUM') return true;
+  if (restaurant.subscriptionPlan === 'PRO') return PRO_FEATURES.includes(feature);
+  if (restaurant.subscriptionPlan === 'CUSTOM') return Boolean(restaurant[CUSTOM_FLAG_FIELD[feature]]);
+  return false;
+}

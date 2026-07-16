@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 import { prisma } from '../config/prisma';
 import { forbidden, HttpError, unauthorized } from '../utils/http-error';
-import { isLocked } from '../utils/subscription';
+import { FeatureFlag, hasFeature, isLocked } from '../utils/subscription';
 
 /**
  * Payload del JWT. Lleva SIEMPRE el `restaurantId` para forzar el aislamiento
@@ -86,8 +86,9 @@ function blockIfLocked(req: Request, _res: Response, next: NextFunction) {
 export const tenantGuard = [authGuard, blockIfLocked];
 
 /**
- * Restringe una ruta al plan Premium (ej. Inventario, Administración).
- * Debe montarse DESPUÉS de `tenantGuard`.
+ * Restringe una ruta al plan Premium exacto. Debe montarse DESPUÉS de `tenantGuard`.
+ * Para funciones que Pro también puede tener (o CUSTOM con el adicional
+ * contratado), usar `requireFeature` en su lugar.
  */
 export function requirePremiumPlan(req: Request, _res: Response, next: NextFunction) {
   prisma.restaurant
@@ -99,4 +100,33 @@ export function requirePremiumPlan(req: Request, _res: Response, next: NextFunct
       next();
     })
     .catch(next);
+}
+
+/**
+ * Restringe una ruta a un "feature flag" (Administración, Inventario normal,
+ * Inventario por receta, Cuentas por pagar): Premium las trae todas, Pro un
+ * subconjunto, y en CUSTOM depende del adicional contratado. Ver hasFeature()
+ * en utils/subscription.ts. Debe montarse DESPUÉS de `tenantGuard`.
+ */
+export function requireFeature(feature: FeatureFlag) {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    prisma.restaurant
+      .findUnique({
+        where: { id: req.restaurantId },
+        select: {
+          subscriptionPlan: true,
+          customAdministration: true,
+          customInventoryBasic: true,
+          customInventoryRecipe: true,
+          customAccountsPayable: true,
+        },
+      })
+      .then((restaurant) => {
+        if (!restaurant || !hasFeature(restaurant, feature)) {
+          throw forbidden('Esta función no está disponible en tu plan actual.');
+        }
+        next();
+      })
+      .catch(next);
+  };
 }

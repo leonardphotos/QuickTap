@@ -17,7 +17,7 @@ export function NavMenuDrawer({ open, onClose }: { open: boolean; onClose: () =>
 
   if (!open || !restaurant) return null;
 
-  const links = visibleNavLinks(user?.role, restaurant.subscriptionPlan);
+  const links = visibleNavLinks(user?.role, restaurant);
   const isTrialing = restaurant.subscriptionStatus === 'TRIALING';
 
   return (
