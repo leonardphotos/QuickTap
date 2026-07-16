@@ -20,6 +20,7 @@ export function ManualOrderDialog({ tableId, tableNumber, hasOpenSession, produc
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [customerName, setCustomerName] = useState('');
   const [customerIdNumber, setCustomerIdNumber] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,8 +55,8 @@ export function ManualOrderDialog({ tableId, tableNumber, hasOpenSession, produc
       return;
     }
     if (!hasOpenSession) {
-      if (!customerName.trim() || !customerIdNumber.trim()) {
-        setError('Escribe el nombre y la cédula del cliente para abrir la cuenta.');
+      if (!customerName.trim() || !customerIdNumber.trim() || !customerPhone.trim()) {
+        setError('Escribe el nombre, la cédula y el teléfono del cliente para abrir la cuenta.');
         return;
       }
     }
@@ -65,7 +66,13 @@ export function ManualOrderDialog({ tableId, tableNumber, hasOpenSession, produc
       await api.post('/orders/manual', {
         tableId,
         items: lines.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
-        ...(hasOpenSession ? {} : { customerName: customerName.trim(), customerIdNumber: customerIdNumber.trim() }),
+        ...(hasOpenSession
+          ? {}
+          : {
+              customerName: customerName.trim(),
+              customerIdNumber: customerIdNumber.trim(),
+              customerPhone: customerPhone.trim(),
+            }),
       });
       onCreated();
       onClose();
@@ -97,6 +104,13 @@ export function ManualOrderDialog({ tableId, tableNumber, hasOpenSession, produc
                 value={customerIdNumber}
                 onChange={(e) => setCustomerIdNumber(e.target.value)}
                 placeholder="Cédula"
+                className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              />
+              <input
+                type="tel"
+                value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value)}
+                placeholder="Teléfono"
                 className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
               />
             </div>

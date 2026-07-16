@@ -44,6 +44,11 @@ enum MovementType {
   EXPENSE
 }
 
+enum CashSessionStatus {
+  OPEN
+  CLOSED
+}
+
 // Solicitud del comensal desde el menú público, mostrada como aviso en el
 // plano de mesas hasta que el mesero la atiende.
 enum ServiceRequestType {
@@ -188,7 +193,7 @@ model Restaurant {
   // --- Control de pedidos ---
   // Si es false, el menú público queda solo para ver: sin carrito ni checkout
   // (ni en mesa ni por delivery/pickup).
-  orderingEnabled Boolean @default(true)
+  orderingEnabled          Boolean @default(true)
   // Si es true, los pedidos que el cliente envía desde la mesa (QR) quedan en
   // NEEDS_CONFIRMATION hasta que un mesero los acepte; recién ahí pasan a la
   // cocina. No aplica a pedidos cargados manualmente por el staff.
@@ -196,12 +201,12 @@ model Restaurant {
 
   // --- Precio de delivery ---
   // Ubicación del local, usada como origen para calcular distancia al cliente.
-  deliveryOriginLat Float?
-  deliveryOriginLng Float?
+  deliveryOriginLat   Float?
+  deliveryOriginLng   Float?
   deliveryPricingMode DeliveryPricingMode @default(DISABLED)
   // Modo DISTANCE: tarifa fija + precio por Km recorrido.
-  deliveryBaseFee    Decimal @default(0) @db.Decimal(12, 2)
-  deliveryPricePerKm Decimal @default(0) @db.Decimal(12, 2)
+  deliveryBaseFee     Decimal             @default(0) @db.Decimal(12, 2)
+  deliveryPricePerKm  Decimal             @default(0) @db.Decimal(12, 2)
 
   // Métodos de pago que el restaurante ofrece a SUS clientes en el checkout
   // (distinto de PlatformSettings, que es cómo el restaurante le paga a
@@ -229,13 +234,13 @@ model Restaurant {
   // plan (ver src/utils/subscription.ts, hasFeature()); estos 4 campos solo
   // importan cuando subscriptionPlan = CUSTOM, marcados al aprobar la
   // solicitud con esos adicionales elegidos.
-  customAdministration Boolean @default(false)
-  customInventoryBasic Boolean @default(false)
+  customAdministration  Boolean @default(false)
+  customInventoryBasic  Boolean @default(false)
   customInventoryRecipe Boolean @default(false)
   customAccountsPayable Boolean @default(false)
   // Bloqueo manual desde el Dashboard maestro, independiente del vencimiento
   // del plan. Si es true, la cuenta queda bloqueada sin importar periodEnd.
-  suspended Boolean @default(false)
+  suspended             Boolean @default(false)
 
   // Cuenta de demostración (sembrada con `npm run seed:demo`): sus pedidos y
   // su facturación se excluyen del reporte financiero del Dashboard maestro.
@@ -245,20 +250,21 @@ model Restaurant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users        User[]
-  categories   Category[]
-  products     Product[]
-  tables       Table[]
-  orders       Order[]
-  zones        Zone[]
-  tableSessions TableSession[]
-  planRequests PlanRequest[]
-  qrNfcRequests QrNfcRequest[]
-  inventoryItems InventoryItem[]
+  users             User[]
+  categories        Category[]
+  products          Product[]
+  tables            Table[]
+  orders            Order[]
+  zones             Zone[]
+  tableSessions     TableSession[]
+  planRequests      PlanRequest[]
+  qrNfcRequests     QrNfcRequest[]
+  inventoryItems    InventoryItem[]
   recipeIngredients RecipeIngredient[]
-  deliveryCouriers DeliveryCourier[]
-  deliveryZones    DeliveryZone[]
-  movements        Movement[]
+  deliveryCouriers  DeliveryCourier[]
+  deliveryZones     DeliveryZone[]
+  movements         Movement[]
+  cashSessions      CashSession[]
 
   @@map("restaurants")
 }
@@ -276,7 +282,7 @@ model ExchangeRate {
 
   rateBs Decimal @db.Decimal(18, 4)
   // Fuente del dato (por defecto "BCV"). Útil si en el futuro se agrega otra fuente.
-  source String @default("BCV")
+  source String  @default("BCV")
 
   fetchedAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -307,9 +313,11 @@ model User {
   // (OWNER/ADMIN/CASHIER/STAFF) siempre pueden entrar, sin importar esto.
   canAccessInventory Boolean @default(false)
 
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  placedOrders Order[]
-  movements    Movement[]
+  restaurant         Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  placedOrders       Order[]
+  movements          Movement[]
+  cashSessionsOpened CashSession[] @relation("CashSessionOpenedBy")
+  cashSessionsClosed CashSession[] @relation("CashSessionClosedBy")
 
   // El email es único DENTRO de cada restaurante (no globalmente).
   @@unique([restaurantId, email])
@@ -325,7 +333,7 @@ model Category {
   id           String @id @default(cuid())
   restaurantId String
 
-  name String
+  name     String
   // Prioridad de orden (menor = aparece primero en el menú).
   priority Int     @default(0)
   isActive Boolean @default(true)
@@ -345,11 +353,11 @@ model Product {
   restaurantId String
   categoryId   String
 
-  name        String
-  description String?
+  name            String
+  description     String?
   // Precio en la moneda base del restaurante (restaurant.baseCurrency: USD o EUR).
-  price       Decimal @db.Decimal(12, 2)
-  photoUrl    String?
+  price           Decimal @db.Decimal(12, 2)
+  photoUrl        String?
   // Tiempo aproximado de preparación, en minutos (informativo, opcional).
   prepTimeMinutes Int?
 
@@ -357,9 +365,9 @@ model Product {
   isAvailable Boolean @default(true)
 
   // --- Banderas de marketing ---
-  isStar          Boolean @default(false) // Producto Estrella
-  isPromo         Boolean @default(false) // Promoción
-  isHouseSpecial  Boolean @default(false) // Recomendación de la Casa
+  isStar         Boolean @default(false) // Producto Estrella
+  isPromo        Boolean @default(false) // Promoción
+  isHouseSpecial Boolean @default(false) // Recomendación de la Casa
 
   // Orden dentro de su categoría.
   priority Int @default(0)
@@ -367,9 +375,9 @@ model Product {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurant Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  category   Category    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  orderItems OrderItem[]
+  restaurant        Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category          Category           @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  orderItems        OrderItem[]
   recipeIngredients RecipeIngredient[]
 
   @@index([restaurantId, categoryId])
@@ -387,7 +395,7 @@ model Zone {
   id           String @id @default(cuid())
   restaurantId String
 
-  name String
+  name     String
   // Prioridad de orden (menor = aparece primero).
   priority Int     @default(0)
   isActive Boolean @default(true)
@@ -403,12 +411,12 @@ model Zone {
 }
 
 model Table {
-  id           String @id @default(cuid())
+  id           String  @id @default(cuid())
   restaurantId String
   zoneId       String?
 
   // Número/identificador visible de la mesa (ej: "5", "Terraza-2").
-  number String
+  number  String
   // Token opaco embebido en el QR. Se usa en la URL pública del QR
   // para resolver la mesa sin exponer IDs internos.
   qrToken String @unique
@@ -446,8 +454,12 @@ model TableSession {
   tableId      String
 
   // Capturados una sola vez, al abrir la cuenta (primer pedido de la mesa).
+  // El teléfono es obligatorio a nivel de aplicación (order.service.ts) desde
+  // que se agregó el botón "Enviar vía WhatsApp" en Pedidos; queda nullable
+  // en la BD para no romper cuentas abiertas antes de este cambio.
   customerName     String
   customerIdNumber String
+  customerPhone    String?
 
   // Clave opcional de 4 dígitos para que nadie más pueda pedir en esta mesa
   // sin autorización. Se decide justo después del primer pedido; vive solo
@@ -483,30 +495,30 @@ model Order {
   status  OrderStatus  @default(PENDING)
 
   // Mesa asociada (solo canal DINE_IN).
-  tableId String?
+  tableId        String?
   // Cuenta de mesa a la que pertenece este pedido (solo canal DINE_IN).
   tableSessionId String?
 
   // --- Snapshot de totales (se congelan al crear la orden) ---
   // Moneda en la que el restaurante facturó este pedido (USD o EUR).
-  currency Currency
-  subtotalBase Decimal @db.Decimal(12, 2)
+  currency          Currency
+  subtotalBase      Decimal  @db.Decimal(12, 2)
   // Cargos opcionales congelados al momento del pedido (0 si estaban apagados).
-  serviceChargeBase Decimal @default(0) @db.Decimal(12, 2)
-  ivaBase           Decimal @default(0) @db.Decimal(12, 2)
-  totalBase    Decimal @db.Decimal(12, 2)
+  serviceChargeBase Decimal  @default(0) @db.Decimal(12, 2)
+  ivaBase           Decimal  @default(0) @db.Decimal(12, 2)
+  totalBase         Decimal  @db.Decimal(12, 2)
   // Tasa BCV aplicada y total convertido a Bs en el momento de la compra.
-  exchangeRate Decimal @db.Decimal(18, 4)
-  totalBs      Decimal @db.Decimal(18, 2)
+  exchangeRate      Decimal  @db.Decimal(18, 4)
+  totalBs           Decimal  @db.Decimal(18, 2)
   // Propina, en la moneda base del restaurante. Aparte del total (no es un
   // cargo del pedido): la agrega el cliente en mesa o el staff manualmente.
-  tipBase Decimal @default(0) @db.Decimal(12, 2)
+  tipBase           Decimal  @default(0) @db.Decimal(12, 2)
   // Costo de envío calculado en el checkout de delivery (por distancia o por
   // zona). Sí forma parte de totalBase/totalBs, a diferencia de la propina.
-  deliveryFeeBase Decimal @default(0) @db.Decimal(12, 2)
+  deliveryFeeBase   Decimal  @default(0) @db.Decimal(12, 2)
 
   // --- Datos del cliente ---
-  customerName String?
+  customerName     String?
   // Cédula/documento de identidad, usado para los datos de facturación
   // (principalmente canal DINE_IN).
   customerIdNumber String?
@@ -514,8 +526,8 @@ model Order {
   customerAddress  String?
   // Coordenadas GPS del cliente (botón "Usar mi ubicación actual" en el
   // checkout de delivery), usadas para calcular el envío por distancia/zona.
-  customerLat Float?
-  customerLng Float?
+  customerLat      Float?
+  customerLng      Float?
   paymentMethod    PaymentMethod?
   customerNote     String?
 
@@ -586,6 +598,36 @@ model Movement {
   @@map("movements")
 }
 
+// Turno de caja (botón "Abrir Caja" / "Cerrar Caja" en Administración → Resumen).
+// Solo puede haber una sesión OPEN por restaurante a la vez. Al cerrar se
+// congela un snapshot del movimiento del turno en `closingSummary`, para que
+// el recibo descargable no cambie si luego se registran movimientos tardíos.
+model CashSession {
+  id           String            @id @default(cuid())
+  restaurantId String
+  status       CashSessionStatus @default(OPEN)
+
+  openedByUserId  String?
+  openedAt        DateTime @default(now())
+  // Saldo declarado al abrir, por método de pago: Record<PaymentMethod, string>.
+  openingBalances Json
+
+  closedByUserId String?
+  closedAt       DateTime?
+  // Correlativo por restaurante, asignado recién al cerrar (igual que Order.orderNumber).
+  closeNumber    Int?
+  // Snapshot calculado al cerrar: ventas por método + movimientos + totales.
+  closingSummary Json?
+
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  openedByUser User?      @relation("CashSessionOpenedBy", fields: [openedByUserId], references: [id], onDelete: SetNull)
+  closedByUser User?      @relation("CashSessionClosedBy", fields: [closedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId, status])
+  @@index([restaurantId, closeNumber])
+  @@map("cash_sessions")
+}
+
 model OrderItem {
   id      String @id @default(cuid())
   orderId String
@@ -631,9 +673,9 @@ model PlanRequest {
   billingCycle BillingCycle
 
   // Solo si plan = CUSTOM: los valores que el prospecto ajustó en el slider.
-  customTables Int?
-  customUsers  Int?
-  customOrders Int?
+  customTables          Int?
+  customUsers           Int?
+  customOrders          Int?
   // Solo si plan = CUSTOM: adicionales elegidos (se copian a Restaurant al aprobar).
   customAdministration  Boolean @default(false)
   customInventoryBasic  Boolean @default(false)
@@ -675,9 +717,9 @@ model QrNfcRequest {
   restaurantId String
 
   quantity      Int
-  unitPriceUsd  Decimal             @db.Decimal(10, 2)
-  totalPriceUsd Decimal             @db.Decimal(10, 2)
-  status        QrNfcRequestStatus  @default(PENDING)
+  unitPriceUsd  Decimal            @db.Decimal(10, 2)
+  totalPriceUsd Decimal            @db.Decimal(10, 2)
+  status        QrNfcRequestStatus @default(PENDING)
 
   contactName  String
   contactEmail String
@@ -702,7 +744,7 @@ model PromoCode {
 
   // Vencimiento opcional, calculado al crear el código a partir de
   // durationValue + durationUnit (ej. 7 DAY). Null = sin vencimiento.
-  expiresAt    DateTime?
+  expiresAt     DateTime?
   durationValue Int?
   durationUnit  PromoCodeDurationUnit?
 
@@ -749,16 +791,16 @@ model InventoryItem {
   id           String @id @default(cuid())
   restaurantId String
 
-  name     String
+  name        String
   // Unidad de medida libre (ej: "kg", "unidad", "lt", "caja").
-  unit     String
-  quantity Decimal @db.Decimal(12, 2) @default(0)
-  minQuantity Decimal @db.Decimal(12, 2) @default(0)
+  unit        String
+  quantity    Decimal @default(0) @db.Decimal(12, 2)
+  minQuantity Decimal @default(0) @db.Decimal(12, 2)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurant  Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   recipeLines RecipeIngredient[]
 
   @@index([restaurantId])
@@ -769,9 +811,9 @@ model InventoryItem {
 // menú por cada unidad vendida, y su costo. Vender el producto (al marcarlo
 // SERVED) descuenta esta cantidad del insumo automáticamente.
 model RecipeIngredient {
-  id           String @id @default(cuid())
-  restaurantId String
-  productId    String
+  id              String @id @default(cuid())
+  restaurantId    String
+  productId       String
   inventoryItemId String
 
   // Cantidad del insumo que usa una unidad del producto (misma unidad que el

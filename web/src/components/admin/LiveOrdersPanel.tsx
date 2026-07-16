@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import {
@@ -8,7 +8,9 @@ import {
   CreditCard,
   LayoutGrid,
   ListFilter,
+  MessageCircle,
   Plus,
+  Printer,
   Rows3,
   SplitSquareHorizontal,
   Truck,
@@ -22,9 +24,11 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import { CreateOrderDialog } from './CreateOrderDialog';
 import { PaymentDialog } from './PaymentDialog';
+import { ComandaReceipt } from './ComandaReceipt';
 import { useAuth } from '@/context/AuthContext';
 import { hasFeature } from '@/utils/subscription';
 import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
+import { downloadElementAsPdf } from '@/utils/pdf';
 
 interface LiveOrderItem {
   id: string;
@@ -52,14 +56,19 @@ export interface LiveOrder {
   serviceChargeBase: string;
   ivaBase: string;
   deliveryFeeBase: string;
+  tipBase: string;
   totalBase: string;
   totalBs: string;
+  exchangeRate: string;
   currency: string;
   customerName: string | null;
   customerPhone: string | null;
   customerAddress: string | null;
+  customerIdNumber: string | null;
   customerNote: string | null;
+  createdAt: string;
   table: { number: string } | null;
+  placedByUser: { name: string } | null;
   items: LiveOrderItem[];
   payments: LiveOrderPayment[];
   awaitingPayment: boolean;
@@ -485,10 +494,36 @@ function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder; onClos
   const [addingQty, setAddingQty] = useState('1');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [printing, setPrinting] = useState(false);
+  const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
+  const receiptRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.get('/products').then((res) => setProducts(res.data.data));
   }, []);
+
+  async function printComanda() {
+    if (!receiptRef.current) return;
+    setPrinting(true);
+    try {
+      await downloadElementAsPdf(receiptRef.current, `comanda-${order.orderNumber}.pdf`);
+    } finally {
+      setPrinting(false);
+    }
+  }
+
+  async function sendWhatsapp() {
+    setSendingWhatsapp(true);
+    setError(null);
+    try {
+      const { data } = await api.post(`/orders/${order.id}/send-whatsapp`);
+      window.open(data.data.url, '_blank');
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo enviar la comanda por WhatsApp.');
+    } finally {
+      setSendingWhatsapp(false);
+    }
+  }
 
   async function saveCustomer() {
     setSaving(true);
@@ -683,6 +718,26 @@ function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder; onClos
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
+
+          <div className="flex flex-wrap gap-2">
+            <TextureButton variant="secondary" size="sm" className="!w-auto px-3" disabled={printing} onClick={printComanda}>
+              <Printer className="h-3.5 w-3.5" /> {printing ? 'Generando…' : 'Imprimir comanda'}
+            </TextureButton>
+            <TextureButton
+              variant="secondary"
+              size="sm"
+              className="!w-auto px-3"
+              disabled={sendingWhatsapp || !order.customerPhone}
+              onClick={sendWhatsapp}
+              title={order.customerPhone ? undefined : 'Este pedido no tiene teléfono registrado.'}
+            >
+              <MessageCircle className="h-3.5 w-3.5" /> {sendingWhatsapp ? 'Enviando…' : 'Enviar vía WhatsApp'}
+            </TextureButton>
+          </div>
+        </div>
+
+        <div className="fixed -left-[9999px] top-0">
+          <ComandaReceipt ref={receiptRef} order={order} restaurantName={restaurant?.name ?? ''} />
         </div>
       </DialogContent>
     </Dialog>

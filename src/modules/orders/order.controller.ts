@@ -171,4 +171,10 @@ export const orderController = {
     const result = await orderService.dispatchToCourier(req.restaurantId!, req.params.id, courierId);
     res.json({ data: result });
   }),
+
+  /** POST /api/v1/orders/:id/send-whatsapp — "Enviar vía WhatsApp": arma el enlace al teléfono del cliente. */
+  sendWhatsapp: asyncHandler(async (req: Request, res: Response) => {
+    const result = await orderService.sendComandaWhatsapp(req.restaurantId!, req.params.id);
+    res.json({ data: result });
+  }),
 };

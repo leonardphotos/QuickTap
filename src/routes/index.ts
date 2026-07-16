@@ -29,6 +29,7 @@ import masterRestaurantsRoutes from '../modules/master/master-restaurants.routes
 import masterAdminsRoutes from '../modules/master/master-admins.routes';
 import inventoryRoutes from '../modules/inventory/inventory.routes';
 import movementRoutes from '../modules/movements/movement.routes';
+import cashSessionRoutes from '../modules/cash-sessions/cash-session.routes';
 import deliveryCourierRoutes from '../modules/delivery-couriers/delivery-courier.routes';
 import deliveryZoneRoutes from '../modules/delivery-zones/delivery-zone.routes';
 
@@ -60,6 +61,7 @@ router.use('/plan-requests', tenantPlanRequestRoutes);
 router.use('/qr-nfc-requests', tenantQrNfcRequestRoutes);
 router.use('/inventory', inventoryRoutes);
 router.use('/movements', movementRoutes);
+router.use('/cash-sessions', cashSessionRoutes);
 router.use('/delivery-couriers', deliveryCourierRoutes);
 router.use('/delivery-zones', deliveryZoneRoutes);
 

@@ -5,7 +5,7 @@ import { formatBase, formatBsAbsolute } from '@/utils/format';
 
 interface Summary {
   month: { revenueBs: string; revenueUsd: string };
-  allTime: { revenueBs: string; revenueUsd: string };
+  quickTap: { revenueBs: string; revenueUsd: string };
   restaurantOwners: number;
   totalRestaurants: number;
   activeRestaurants: number;
@@ -52,7 +52,7 @@ export default function MasterSummaryPage() {
       <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Resumen</h1>
 
       <div>
-        <p className="text-sm font-medium text-brand-950/70 mb-3">Ingresos del mes</p>
+        <p className="text-sm font-medium text-brand-950/70 mb-3">Ingreso general de restaurantes</p>
         <div className="grid grid-cols-2 gap-4">
           <RevenueCard label="En bolívares" value={formatBsAbsolute(summary.month.revenueBs)} />
           <RevenueCard label="En dólares (restaurantes en USD)" value={formatBase(summary.month.revenueUsd, '$')} />
@@ -60,10 +60,10 @@ export default function MasterSummaryPage() {
       </div>
 
       <div>
-        <p className="text-sm font-medium text-brand-950/70 mb-3">Ingresos históricos</p>
+        <p className="text-sm font-medium text-brand-950/70 mb-3">Ingresos de QuickTap</p>
         <div className="grid grid-cols-2 gap-4">
-          <RevenueCard label="En bolívares" value={formatBsAbsolute(summary.allTime.revenueBs)} />
-          <RevenueCard label="En dólares (restaurantes en USD)" value={formatBase(summary.allTime.revenueUsd, '$')} />
+          <RevenueCard label="En bolívares" value={formatBsAbsolute(summary.quickTap.revenueBs)} />
+          <RevenueCard label="En dólares" value={formatBase(summary.quickTap.revenueUsd, '$')} />
         </div>
       </div>
 

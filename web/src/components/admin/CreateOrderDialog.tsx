@@ -349,6 +349,13 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                     placeholder="Cédula (si la mesa no tiene cuenta abierta)"
                     className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
                   />
+                  <input
+                    type="tel"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    placeholder="Teléfono (si la mesa no tiene cuenta abierta)"
+                    className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                  />
                 </div>
               ) : (
                 <div className="space-y-2">

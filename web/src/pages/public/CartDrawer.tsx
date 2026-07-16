@@ -52,6 +52,7 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
   const [mode, setMode] = useState<'DELIVERY' | 'PICKUP'>('DELIVERY');
   const [dineInName, setDineInName] = useState('');
   const [dineInIdNumber, setDineInIdNumber] = useState('');
+  const [dineInPhone, setDineInPhone] = useState('');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
@@ -170,6 +171,10 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
         setError('Escribe tu cédula.');
         return;
       }
+      if (!dineInPhone.trim()) {
+        setError('Escribe tu teléfono.');
+        return;
+      }
     }
     if (sessionOpen && pinRequired && checkoutPin.length !== 4) {
       setError('Escribe la clave de la mesa (4 dígitos).');
@@ -183,7 +188,11 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
         items,
         ...(sessionOpen
           ? {}
-          : { customerName: dineInName.trim(), customerIdNumber: dineInIdNumber.trim() }),
+          : {
+              customerName: dineInName.trim(),
+              customerIdNumber: dineInIdNumber.trim(),
+              customerPhone: dineInPhone.trim(),
+            }),
         ...(sessionOpen && pinRequired ? { pin: checkoutPin } : {}),
         ...(tipBase > 0 ? { tipBase } : {}),
       });
@@ -521,6 +530,13 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                                   value={dineInIdNumber}
                                   onChange={(e) => setDineInIdNumber(e.target.value)}
                                   placeholder="Cédula"
+                                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                                />
+                                <input
+                                  type="tel"
+                                  value={dineInPhone}
+                                  onChange={(e) => setDineInPhone(e.target.value)}
+                                  placeholder="Teléfono"
                                   className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
                                 />
                               </>

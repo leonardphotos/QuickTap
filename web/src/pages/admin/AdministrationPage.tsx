@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { hasFeature } from '@/utils/subscription';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { CashSessionControl } from '@/components/admin/CashSessionControl';
 
 const BASE_TABS = [
   { id: 'summary', label: 'Resumen' },
@@ -25,9 +26,12 @@ export default function AdministrationPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Administración</h1>
-        <p className="text-sm text-brand-950/60 font-light mt-1">Ventas, pedidos, propinas y productos de tu restaurante.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Administración</h1>
+          <p className="text-sm text-brand-950/60 font-light mt-1">Ventas, pedidos, propinas y productos de tu restaurante.</p>
+        </div>
+        <CashSessionControl />
       </div>
 
       <div className="flex flex-wrap gap-2">

@@ -1,7 +1,7 @@
 import { OrderChannel, Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
-import { baseToBs, CURRENCY_SYMBOLS, round2, toDecimal } from '../../utils/money';
+import { baseToBs, CURRENCY_SYMBOLS, formatBs, formatMoney, round2, toDecimal } from '../../utils/money';
 import { buildWhatsappCheckoutUrl, buildWhatsappUrl } from '../../utils/whatsapp';
 import { emitToKitchen, emitToTable, SocketEvents } from '../../sockets';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
@@ -224,8 +224,8 @@ export const orderService = {
       }
 
       if (!session) {
-        if (!input.customerName || !input.customerIdNumber) {
-          throw badRequest('Faltan tus datos de facturación (nombre y cédula).');
+        if (!input.customerName || !input.customerIdNumber || !input.customerPhone) {
+          throw badRequest('Faltan tus datos de facturación (nombre, cédula y teléfono).');
         }
         session = await tx.tableSession.create({
           data: {
@@ -233,6 +233,7 @@ export const orderService = {
             tableId: table.id,
             customerName: input.customerName,
             customerIdNumber: input.customerIdNumber,
+            customerPhone: input.customerPhone,
           },
         });
       }
@@ -250,6 +251,7 @@ export const orderService = {
           tableSessionId: session.id,
           customerName: session.customerName,
           customerIdNumber: session.customerIdNumber,
+          customerPhone: session.customerPhone,
           currency,
           subtotalBase,
           serviceChargeBase,
@@ -357,8 +359,8 @@ export const orderService = {
               let session = await tx.tableSession.findFirst({ where: { tableId: table.id, status: 'OPEN' } });
 
               if (!session) {
-                if (!input.customerName || !input.customerIdNumber) {
-                  throw badRequest('Faltan los datos de facturación (nombre y cédula) para abrir la cuenta.');
+                if (!input.customerName || !input.customerIdNumber || !input.customerPhone) {
+                  throw badRequest('Faltan los datos de facturación (nombre, cédula y teléfono) para abrir la cuenta.');
                 }
                 session = await tx.tableSession.create({
                   data: {
@@ -366,6 +368,7 @@ export const orderService = {
                     tableId: table.id,
                     customerName: input.customerName,
                     customerIdNumber: input.customerIdNumber,
+                    customerPhone: input.customerPhone,
                   },
                 });
               }
@@ -381,6 +384,7 @@ export const orderService = {
                   tableSessionId: session.id,
                   customerName: session.customerName,
                   customerIdNumber: session.customerIdNumber,
+                  customerPhone: session.customerPhone,
                   placedByUserId,
                   currency,
                   subtotalBase,
@@ -805,7 +809,12 @@ export const orderService = {
     return prisma.order.findMany({
       where: { restaurantId, status: { notIn: ['SERVED', 'CANCELLED'] } },
       orderBy: { createdAt: 'desc' },
-      include: { items: true, table: { select: { number: true } }, payments: true },
+      include: {
+        items: true,
+        table: { select: { number: true } },
+        payments: true,
+        placedByUser: { select: { name: true } },
+      },
     });
   },
 
@@ -880,6 +889,46 @@ export const orderService = {
     });
 
     return { url };
+  },
+
+  /**
+   * Botón "Enviar vía WhatsApp" en el detalle de un pedido: arma el enlace
+   * con el resumen de la comanda (mismos datos que "Imprimir comanda") y lo
+   * envía al teléfono del cliente registrado en el pedido.
+   */
+  async sendComandaWhatsapp(restaurantId: string, orderId: string) {
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      include: { items: true, table: { select: { number: true } }, restaurant: { select: { name: true } } },
+    });
+    if (!order) throw notFound('Comanda no encontrada.');
+    if (!order.customerPhone) {
+      throw badRequest('Este pedido no tiene un teléfono de cliente registrado.');
+    }
+
+    const symbol = CURRENCY_SYMBOLS[order.currency];
+    const parts: string[] = [];
+    parts.push(`*🧾 Comanda #${order.orderNumber} — ${order.restaurant.name}*`);
+    if (order.table) parts.push(`🪑 Mesa ${order.table.number}`);
+    parts.push('━━━━━━━━━━━━━━━━━━━━');
+    parts.push('*Detalle:*');
+    for (const item of order.items) {
+      parts.push(`• ${item.quantity}x ${item.productName} — ${formatMoney(item.lineTotal, symbol)}`);
+      for (const mod of item.modifiers) parts.push(`     ↳ ${mod}`);
+      if (item.note) parts.push(`     📝 ${item.note}`);
+    }
+    parts.push('━━━━━━━━━━━━━━━━━━━━');
+    parts.push(`Subtotal: ${formatMoney(order.subtotalBase, symbol)}`);
+    if (Number(order.serviceChargeBase) > 0) parts.push(`Servicio: ${formatMoney(order.serviceChargeBase, symbol)}`);
+    if (Number(order.ivaBase) > 0) parts.push(`IVA: ${formatMoney(order.ivaBase, symbol)}`);
+    if (Number(order.deliveryFeeBase) > 0) parts.push(`Envío: ${formatMoney(order.deliveryFeeBase, symbol)}`);
+    if (Number(order.tipBase) > 0) parts.push(`Propina: ${formatMoney(order.tipBase, symbol)}`);
+    parts.push(`*Total: ${formatMoney(order.totalBase, symbol)}*`);
+    parts.push(`_Equivalente: ${formatBs(order.totalBs)}_`);
+    parts.push('━━━━━━━━━━━━━━━━━━━━');
+    parts.push('_Enviado desde QuickTap.club_');
+
+    return { url: buildWhatsappUrl(order.customerPhone, parts.join('\n')) };
   },
 
   /** Resumen de ventas del día (hora de Caracas) para el Dashboard del restaurante. */

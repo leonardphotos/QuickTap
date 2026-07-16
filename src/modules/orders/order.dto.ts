@@ -15,6 +15,10 @@ export const dineInCheckoutSchema = z.object({
   customerName: z.string().min(1).max(120).optional(),
   // Cédula/documento de identidad, para los datos de facturación.
   customerIdNumber: z.string().min(1).max(20).optional(),
+  // Obligatorio solo al abrir la cuenta (primer pedido de la mesa); se valida
+  // en el service junto con nombre/cédula, no aquí, porque solo ahí se sabe
+  // si ya existe una sesión abierta que reusar.
+  customerPhone: z.string().min(1).max(30).optional(),
   // Requerida solo si la cuenta de la mesa ya está protegida con clave.
   pin: z.string().regex(/^\d{4}$/).optional(),
   // Propina opcional que el cliente agrega desde la mesa.
