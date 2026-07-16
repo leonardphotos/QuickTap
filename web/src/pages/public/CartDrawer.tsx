@@ -614,6 +614,7 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                               className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
                             />
                             <input
+                              type="tel"
                               value={phone}
                               onChange={(e) => setPhone(e.target.value)}
                               placeholder="Teléfono *"

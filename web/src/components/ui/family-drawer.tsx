@@ -127,7 +127,13 @@ function FamilyDrawerRoot({
 
   return (
     <FamilyDrawerContext.Provider value={contextValue}>
-      <Drawer.Root open={isOpen} onOpenChange={setIsOpen}>
+      {/* repositionInputs desactivado: vaul mueve el drawer con estilos
+          inline al enfocar un input y el visualViewport cambiar (teclado
+          móvil), lo que compite con la animación de altura de abajo
+          (useMeasure + framer-motion) y produce saltos visibles al escribir,
+          sobre todo en iOS Safari con teclados que muestran sugerencias. El
+          wrapper ya usa max-h-[85dvh], que se ajusta solo al teclado. */}
+      <Drawer.Root open={isOpen} onOpenChange={setIsOpen} repositionInputs={false}>
         {children}
       </Drawer.Root>
     </FamilyDrawerContext.Provider>
