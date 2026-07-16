@@ -1,10 +1,25 @@
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
-import sharp from 'sharp';
+import type SharpFactory from 'sharp';
 import { Request, Response, NextFunction } from 'express';
 import { badRequest } from '../utils/http-error';
 import { asyncHandler } from './error.middleware';
+
+// sharp depende de un binario nativo por plataforma/arquitectura. Si por lo
+// que sea no carga en este servidor (SO no soportado, instalación rota),
+// esto JAMÁS debe tumbar el proceso completo — sin él, simplemente no se
+// redimensionan las imágenes (se sirven tal cual las sube el cliente).
+// `import type` de arriba se borra al compilar, así que es seguro aunque
+// sharp falle en runtime; el require de abajo es el único acceso real.
+let sharp: typeof SharpFactory | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  sharp = require('sharp');
+} catch (err) {
+  // eslint-disable-next-line no-console
+  console.error('⚠️  No se pudo cargar "sharp": las imágenes subidas no se redimensionarán en el servidor.', err);
+}
 
 /**
  * Almacenamiento local en disco para imágenes subidas (fotos de producto,
@@ -83,7 +98,7 @@ export const uploadCoverImage = makeImageUpload('covers', 'photo');
  */
 export function optimizeImage(maxWidth: number, maxHeight: number, quality = 80) {
   return asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
-    if (!req.file || req.file.mimetype === 'application/pdf') return next();
+    if (!sharp || !req.file || req.file.mimetype === 'application/pdf') return next();
 
     const filePath = req.file.path;
     const tmpPath = `${filePath}.tmp`;
