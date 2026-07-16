@@ -39,6 +39,11 @@ enum TableSessionStatus {
   CLOSED
 }
 
+enum MovementType {
+  INCOME
+  EXPENSE
+}
+
 // Solicitud del comensal desde el menú público, mostrada como aviso en el
 // plano de mesas hasta que el mesero la atiende.
 enum ServiceRequestType {
@@ -253,6 +258,7 @@ model Restaurant {
   recipeIngredients RecipeIngredient[]
   deliveryCouriers DeliveryCourier[]
   deliveryZones    DeliveryZone[]
+  movements        Movement[]
 
   @@map("restaurants")
 }
@@ -296,8 +302,14 @@ model User {
   resetCodeExpiresAt DateTime?
   resetCodeAttempts  Int       @default(0)
 
+  // Acceso a Inventario para roles restringidos (Mesero/Cocina), otorgado
+  // individualmente desde Ajustes → Equipo. Los roles de acceso total
+  // (OWNER/ADMIN/CASHIER/STAFF) siempre pueden entrar, sin importar esto.
+  canAccessInventory Boolean @default(false)
+
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   placedOrders Order[]
+  movements    Movement[]
 
   // El email es único DENTRO de cada restaurante (no globalmente).
   @@unique([restaurantId, email])
@@ -553,6 +565,25 @@ model OrderPayment {
 
   @@index([orderId])
   @@map("order_payments")
+}
+
+// Movimiento manual de caja (botón "Añadir movimiento" en Administración →
+// Resumen): ingresos/egresos que no vienen de un pedido, y propinas sueltas.
+// Solo lo ven/crean roles de acceso total (OWNER/ADMIN/CASHIER/STAFF).
+model Movement {
+  id              String       @id @default(cuid())
+  restaurantId    String
+  type            MovementType
+  amountBase      Decimal      @db.Decimal(12, 2)
+  description     String
+  createdByUserId String?
+  createdAt       DateTime     @default(now())
+
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdByUser User?      @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId, createdAt])
+  @@map("movements")
 }
 
 model OrderItem {

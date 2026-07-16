@@ -41,7 +41,7 @@ export default function AdminLayout() {
     );
   }
 
-  if (!canAccessPath(user.role, pathname)) {
+  if (!canAccessPath(user.role, pathname, user.canAccessInventory)) {
     return <Navigate to={defaultPathFor(user.role)} replace />;
   }
 

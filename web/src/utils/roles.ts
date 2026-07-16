@@ -40,9 +40,10 @@ export function canManageTeam(role?: UserRole | null): boolean {
   return TEAM_MANAGER_ROLES.includes(role);
 }
 
-export function canAccessPath(role: UserRole | null | undefined, pathname: string): boolean {
+export function canAccessPath(role: UserRole | null | undefined, pathname: string, canAccessInventory?: boolean): boolean {
   if (hasFullAccess(role)) return true;
   if (isScreenRole(role)) return pathname.startsWith(SCREEN_PATH);
+  if (canAccessInventory && pathname.startsWith('/admin/inventory')) return true;
   return RESTRICTED_PATHS.some((p) => pathname.startsWith(p));
 }
 

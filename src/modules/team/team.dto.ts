@@ -12,12 +12,15 @@ export const createStaffSchema = z.object({
     .transform((v) => v.trim().toLowerCase()),
   password: z.string().min(6).max(100),
   role: assignableRoleSchema,
+  // Acceso a Inventario para Mesero/Cocina (los roles de acceso total ya lo tienen siempre).
+  canAccessInventory: z.boolean().optional(),
 });
 
 export const updateStaffSchema = z.object({
   name: z.string().min(1).max(120).optional(),
   role: assignableRoleSchema.optional(),
   isActive: z.boolean().optional(),
+  canAccessInventory: z.boolean().optional(),
 });
 
 export type CreateStaffInput = z.infer<typeof createStaffSchema>;

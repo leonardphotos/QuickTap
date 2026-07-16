@@ -20,7 +20,7 @@ export function NavMenuDrawer({ open, onClose }: { open: boolean; onClose: () =>
   // esconde el diálogo antes de que el usuario llegue a verlo.
   if (!restaurant) return null;
 
-  const links = visibleNavLinks(user?.role, restaurant);
+  const links = visibleNavLinks(user?.role, restaurant, user?.canAccessInventory);
   const isTrialing = restaurant.subscriptionStatus === 'TRIALING';
 
   return (

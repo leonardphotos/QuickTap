@@ -40,12 +40,19 @@ interface NavRestaurant {
   customAccountsPayable?: boolean;
 }
 
-export function visibleNavLinks(role: UserRole | null | undefined, restaurant?: NavRestaurant | null): AdminNavLink[] {
+export function visibleNavLinks(
+  role: UserRole | null | undefined,
+  restaurant?: NavRestaurant | null,
+  canAccessInventory?: boolean,
+): AdminNavLink[] {
   if (isScreenRole(role)) return [];
   let links = ADMIN_NAV_LINKS;
   const isRestricted = !!(role && RESTRICTED_ROLES.includes(role));
   if (isRestricted) {
     links = links.filter((l) => RESTRICTED_VISIBLE.has(l.to));
+    if (canAccessInventory && restaurant && (hasFeature(restaurant, 'inventoryBasic') || hasFeature(restaurant, 'inventoryRecipe'))) {
+      links = [...links, INVENTORY_NAV_LINK];
+    }
   }
   if (restaurant?.subscriptionPlan === 'DELIVERY') {
     links = links.filter((l) => !DELIVERY_HIDDEN.has(l.to));
@@ -66,6 +73,10 @@ export function visibleNavLinks(role: UserRole | null | undefined, restaurant?: 
 
 // Secciones para la cuadrícula del Dashboard (todo menos Ajustes, que vive
 // arriba en el icono de configuración).
-export function dashboardSectionLinks(role: UserRole | null | undefined, restaurant?: NavRestaurant | null): AdminNavLink[] {
-  return visibleNavLinks(role, restaurant).filter((l) => l.to !== '/admin/settings');
+export function dashboardSectionLinks(
+  role: UserRole | null | undefined,
+  restaurant?: NavRestaurant | null,
+  canAccessInventory?: boolean,
+): AdminNavLink[] {
+  return visibleNavLinks(role, restaurant, canAccessInventory).filter((l) => l.to !== '/admin/settings');
 }

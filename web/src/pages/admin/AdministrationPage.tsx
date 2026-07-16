@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, Clock } from 'lucide-react';
+import { ChevronDown, Clock, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/api/client';
 import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
 import { useAuth } from '@/context/AuthContext';
@@ -56,36 +56,78 @@ export default function AdministrationPage() {
   );
 }
 
+interface MovementRow {
+  id: string;
+  type: 'INCOME' | 'EXPENSE';
+  amountBase: string;
+  description: string;
+  createdByName: string | null;
+  createdAt: string;
+}
+
+interface MovementResult {
+  totalIncome: string;
+  totalExpense: string;
+  net: string;
+  movements: MovementRow[];
+}
+
 function SummaryTab() {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [range, setRange] = useState<Range>('day');
   const [result, setResult] = useState<HistoryResult | null>(null);
+  const [movements, setMovements] = useState<MovementResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showMovementDialog, setShowMovementDialog] = useState(false);
+
+  function loadMovements() {
+    api
+      .get('/movements', { params: { range } })
+      .then((res) => setMovements(res.data.data))
+      .catch(() => setMovements(null));
+  }
 
   useEffect(() => {
     api
       .get('/orders/history', { params: { range, pageSize: 100 } })
       .then((res) => setResult(res.data.data))
       .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar el resumen.'));
+    loadMovements();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [range]);
+
+  async function removeMovement(id: string) {
+    await api.delete(`/movements/${id}`);
+    loadMovements();
+  }
 
   if (error) return <p className="text-sm text-red-600">{error}</p>;
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap gap-2">
-        {(['day', 'week', 'month', 'year'] as Range[]).map((r) => (
-          <button
-            key={r}
-            onClick={() => setRange(r)}
-            className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-              range === r ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
-            }`}
-          >
-            {RANGE_LABELS[r]}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap gap-2">
+          {(['day', 'week', 'month', 'year'] as Range[]).map((r) => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                range === r ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+              }`}
+            >
+              {RANGE_LABELS[r]}
+            </button>
+          ))}
+        </div>
+        <TextureButton
+          variant="secondary"
+          size="sm"
+          className="!w-auto px-3"
+          onClick={() => setShowMovementDialog(true)}
+        >
+          <Plus className="h-3.5 w-3.5" /> Añadir movimiento
+        </TextureButton>
       </div>
 
       {result && (
@@ -119,7 +161,157 @@ function SummaryTab() {
           </p>
         )}
       </div>
+
+      {movements && movements.movements.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-medium text-brand-950/70">Movimientos · {RANGE_LABELS[range]}</p>
+            <p className="text-xs text-brand-950/50">
+              +{formatBase(movements.totalIncome, symbol)} · −{formatBase(movements.totalExpense, symbol)}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
+            {movements.movements.map((m) => (
+              <div key={m.id} className="flex items-center justify-between gap-3 px-5 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-brand-950 truncate">{m.description}</p>
+                  <p className="text-xs text-brand-950/40">
+                    {new Date(m.createdAt).toLocaleString('es-VE')}
+                    {m.createdByName && ` · ${m.createdByName}`}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className={`text-sm font-semibold ${m.type === 'INCOME' ? 'text-emerald-600' : 'text-red-600'}`}>
+                    {m.type === 'INCOME' ? '+' : '−'}
+                    {formatBase(m.amountBase, symbol)}
+                  </span>
+                  <button
+                    onClick={() => removeMovement(m.id)}
+                    className="text-brand-950/30 hover:text-red-500"
+                    aria-label="Eliminar movimiento"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {showMovementDialog && (
+        <AddMovementDialog
+          onClose={() => setShowMovementDialog(false)}
+          onCreated={() => {
+            setShowMovementDialog(false);
+            loadMovements();
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+/** Botón "Añadir movimiento": ingreso/egreso manual, con "Propina" como atajo de ingreso rápido. */
+function AddMovementDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [type, setType] = useState<'INCOME' | 'EXPENSE'>('INCOME');
+  const [amount, setAmount] = useState('');
+  const [description, setDescription] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function pickTip() {
+    setType('INCOME');
+    setDescription('Propina');
+  }
+
+  async function submit() {
+    const amountBase = Number(amount);
+    if (!amountBase || amountBase <= 0) {
+      setError('Escribe un monto válido.');
+      return;
+    }
+    if (!description.trim()) {
+      setError('Escribe una descripción.');
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await api.post('/movements', { type, amountBase, description: description.trim() });
+      onCreated();
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo guardar el movimiento.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Añadir movimiento</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              onClick={() => setType('INCOME')}
+              className={`text-xs font-medium px-3 py-1.5 rounded-full ${
+                type === 'INCOME' ? 'bg-emerald-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60'
+              }`}
+            >
+              Ingreso
+            </button>
+            <button
+              onClick={() => setType('EXPENSE')}
+              className={`text-xs font-medium px-3 py-1.5 rounded-full ${
+                type === 'EXPENSE' ? 'bg-red-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60'
+              }`}
+            >
+              Egreso
+            </button>
+            <button
+              onClick={pickTip}
+              className={`text-xs font-medium px-3 py-1.5 rounded-full ${
+                type === 'INCOME' && description === 'Propina'
+                  ? 'bg-brand-500 text-white'
+                  : 'bg-brand-950/[0.06] text-brand-950/60'
+              }`}
+            >
+              Propina
+            </button>
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-brand-950/50 mb-1.5">Monto</p>
+            <input
+              autoFocus
+              value={amount}
+              onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+              placeholder="0.00"
+              className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+            />
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-brand-950/50 mb-1.5">Descripción</p>
+            <input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Ej: Compra de insumos, propina en efectivo…"
+              className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+            />
+          </div>
+
+          {error && <p className="text-sm text-red-600">{error}</p>}
+
+          <TextureButton variant="brand" size="default" disabled={saving} onClick={submit} className="disabled:opacity-50">
+            {saving ? 'Guardando…' : 'Guardar movimiento'}
+          </TextureButton>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

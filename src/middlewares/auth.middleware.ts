@@ -4,6 +4,7 @@ import { env } from '../config/env';
 import { prisma } from '../config/prisma';
 import { forbidden, HttpError, unauthorized } from '../utils/http-error';
 import { FeatureFlag, hasFeature, isLocked } from '../utils/subscription';
+import { FULL_ACCESS_ROLES } from '../utils/roles';
 
 /**
  * Payload del JWT. Lleva SIEMPRE el `restaurantId` para forzar el aislamiento
@@ -96,6 +97,28 @@ export function requirePremiumPlan(req: Request, _res: Response, next: NextFunct
     .then((restaurant) => {
       if (restaurant?.subscriptionPlan !== 'PREMIUM') {
         throw forbidden('Esta función solo está disponible en el plan Premium.');
+      }
+      next();
+    })
+    .catch(next);
+}
+
+/**
+ * Inventario para roles restringidos (Mesero/Cocina): los de acceso total
+ * (OWNER/ADMIN/CASHIER/STAFF) siempre pasan; el resto necesita el permiso
+ * individual `canAccessInventory` otorgado desde Ajustes → Equipo.
+ * Debe montarse DESPUÉS de `tenantGuard`.
+ */
+export function requireInventoryAccess(req: Request, _res: Response, next: NextFunction) {
+  if (req.auth && (FULL_ACCESS_ROLES as readonly string[]).includes(req.auth.role)) {
+    next();
+    return;
+  }
+  prisma.user
+    .findUnique({ where: { id: req.auth?.userId }, select: { canAccessInventory: true } })
+    .then((user) => {
+      if (!user?.canAccessInventory) {
+        throw forbidden('No tienes acceso a Inventario.');
       }
       next();
     })

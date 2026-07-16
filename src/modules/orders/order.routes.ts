@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { requireFeature, tenantGuard } from '../../middlewares/auth.middleware';
+import { requireFeature, requireRole, tenantGuard } from '../../middlewares/auth.middleware';
+import { FULL_ACCESS_ROLES } from '../../utils/roles';
 import { orderController } from './order.controller';
 
 /**
@@ -10,15 +11,23 @@ const router = Router();
 
 router.use(tenantGuard);
 
+// "Ventas de hoy" y Administración: solo roles de acceso total (Mesero/Cocina/Pantalla no ven estos datos).
+const adminOnly = requireRole(...FULL_ACCESS_ROLES);
+
 router.get('/kitchen', orderController.kitchenQueue);
 router.get('/delivery', orderController.deliveryQueue);
 router.get('/live', orderController.liveOrders);
-router.get('/summary/today', orderController.todaySummary);
-router.get('/history', requireFeature('administration'), orderController.history);
-router.get('/waiters', requireFeature('administration'), orderController.waiters);
-router.get('/reports/products', requireFeature('administration'), orderController.productReport);
-router.get('/reports/couriers', requireFeature('administration'), orderController.courierReport);
-router.get('/reports/payment-methods', requireFeature('administration'), orderController.paymentMethodReport);
+router.get('/summary/today', adminOnly, orderController.todaySummary);
+router.get('/history', adminOnly, requireFeature('administration'), orderController.history);
+router.get('/waiters', adminOnly, requireFeature('administration'), orderController.waiters);
+router.get('/reports/products', adminOnly, requireFeature('administration'), orderController.productReport);
+router.get('/reports/couriers', adminOnly, requireFeature('administration'), orderController.courierReport);
+router.get(
+  '/reports/payment-methods',
+  adminOnly,
+  requireFeature('administration'),
+  orderController.paymentMethodReport,
+);
 router.post('/manual', orderController.createManual);
 router.post('/:id/accept', orderController.accept);
 router.post('/:id/dispatch-courier', orderController.dispatchCourier);
@@ -27,7 +36,7 @@ router.post('/:id/payments', orderController.addPayment);
 router.patch('/:id/status', orderController.updateStatus);
 router.patch('/:id/items', orderController.updateItems);
 router.patch('/:id/customer', orderController.updateCustomer);
-router.patch('/:id/tip', requireFeature('administration'), orderController.setTip);
+router.patch('/:id/tip', adminOnly, requireFeature('administration'), orderController.setTip);
 router.patch('/:id/awaiting-payment', requireFeature('accountsPayable'), orderController.setAwaitingPayment);
 router.delete('/:id', orderController.remove);
 

@@ -5,7 +5,8 @@ import { baseToBs, CURRENCY_SYMBOLS, round2, toDecimal } from '../../utils/money
 import { buildWhatsappCheckoutUrl, buildWhatsappUrl } from '../../utils/whatsapp';
 import { emitToKitchen, emitToTable, SocketEvents } from '../../sockets';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
-import { startOfTodayCaracas, startOfWeekCaracas } from '../../utils/timezone';
+import { rangeFilter } from '../../utils/date-range';
+import { startOfTodayCaracas } from '../../utils/timezone';
 import { haversineDistanceKm, isPointInPolygon, LatLng } from '../../utils/geo';
 import { tableSessionService } from '../table-sessions/table-session.service';
 import {
@@ -138,16 +139,6 @@ async function nextOrderNumber(tx: Prisma.TransactionClient, restaurantId: strin
     select: { orderNumber: true },
   });
   return (last?.orderNumber ?? 0) + 1;
-}
-
-/** Ventana de fecha para los filtros de reportes (hora de Caracas para "day"/"week"). */
-function rangeFilter(range: ReportRange): { gte: Date } | undefined {
-  if (range === 'all') return undefined;
-  const now = new Date();
-  if (range === 'day') return { gte: startOfTodayCaracas() };
-  if (range === 'week') return { gte: startOfWeekCaracas() };
-  if (range === 'month') return { gte: new Date(now.getFullYear(), now.getMonth(), 1) };
-  return { gte: new Date(now.getFullYear(), 0, 1) };
 }
 
 /**

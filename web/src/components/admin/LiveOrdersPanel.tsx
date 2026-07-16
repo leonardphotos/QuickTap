@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import {
@@ -48,6 +48,10 @@ export interface LiveOrder {
   orderNumber: number;
   channel: 'DINE_IN' | 'DELIVERY' | 'PICKUP';
   status: string;
+  subtotalBase: string;
+  serviceChargeBase: string;
+  ivaBase: string;
+  deliveryFeeBase: string;
   totalBase: string;
   totalBs: string;
   currency: string;
@@ -470,6 +474,7 @@ export function LiveOrdersPanel() {
 
 function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder; onClose: () => void; onSaved: () => void }) {
   const { restaurant } = useAuth();
+  const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [name, setName] = useState(order.customerName ?? '');
   const [phone, setPhone] = useState(order.customerPhone ?? '');
   const [address, setAddress] = useState(order.customerAddress ?? '');
@@ -484,11 +489,6 @@ function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder; onClos
   useEffect(() => {
     api.get('/products').then((res) => setProducts(res.data.data));
   }, []);
-
-  const total = useMemo(
-    () => order.items.reduce((acc, it) => acc + Number(it.unitPrice) * it.quantity, 0),
-    [order.items],
-  );
 
   async function saveCustomer() {
     setSaving(true);
@@ -649,11 +649,37 @@ function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder; onClos
             </div>
           </div>
 
-          <div className="flex items-center justify-between text-sm font-semibold pt-2 border-t border-brand-950/10">
-            <span>Total</span>
-            <span>
-              {total.toFixed(2)} {order.currency}
-            </span>
+          <div className="text-xs text-brand-950/60 space-y-1 pt-2 border-t border-brand-950/10">
+            <div className="flex justify-between">
+              <span>Subtotal</span>
+              <span>{formatBase(order.subtotalBase, symbol)}</span>
+            </div>
+            {Number(order.serviceChargeBase) > 0 && (
+              <div className="flex justify-between">
+                <span>Servicio</span>
+                <span>{formatBase(order.serviceChargeBase, symbol)}</span>
+              </div>
+            )}
+            {Number(order.ivaBase) > 0 && (
+              <div className="flex justify-between">
+                <span>IVA</span>
+                <span>{formatBase(order.ivaBase, symbol)}</span>
+              </div>
+            )}
+            {Number(order.deliveryFeeBase) > 0 && (
+              <div className="flex justify-between">
+                <span>Envío</span>
+                <span>{formatBase(order.deliveryFeeBase, symbol)}</span>
+              </div>
+            )}
+            <div className="flex justify-between font-semibold text-sm text-brand-950 pt-1">
+              <span>Total</span>
+              <span>{formatBase(order.totalBase, symbol)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Equivalente en Bs</span>
+              <span>{formatBsAbsolute(order.totalBs)}</span>
+            </div>
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}

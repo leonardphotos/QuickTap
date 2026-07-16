@@ -126,6 +126,7 @@ export interface StaffMember {
   email: string;
   role: UserRole;
   isActive: boolean;
+  canAccessInventory: boolean;
   createdAt: string;
 }
 

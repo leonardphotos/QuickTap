@@ -4,7 +4,15 @@ import { badRequest, notFound } from '../../utils/http-error';
 import { CreateStaffInput, UpdateStaffInput } from './team.dto';
 
 // OWNER nunca aparece en la lista de "Equipo" gestionable (es el dueño de la cuenta).
-const STAFF_SELECT = { id: true, name: true, email: true, role: true, isActive: true, createdAt: true } as const;
+const STAFF_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  role: true,
+  isActive: true,
+  canAccessInventory: true,
+  createdAt: true,
+} as const;
 
 export const teamService = {
   async list(restaurantId: string) {
@@ -30,6 +38,7 @@ export const teamService = {
         email: input.email,
         passwordHash,
         role: input.role,
+        canAccessInventory: input.canAccessInventory ?? false,
       },
       select: STAFF_SELECT,
     });

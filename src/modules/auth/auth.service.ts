@@ -159,7 +159,13 @@ export const authService = {
     return {
       token,
       restaurant: serializeRestaurant(restaurant),
-      user: { id: owner.id, name: owner.name, email: owner.email, role: owner.role },
+      user: {
+        id: owner.id,
+        name: owner.name,
+        email: owner.email,
+        role: owner.role,
+        canAccessInventory: owner.canAccessInventory,
+      },
     };
   },
 
@@ -199,21 +205,27 @@ export const authService = {
   },
 
   buildSession(
-    user: { id: string; name: string; email: string; role: string },
+    user: { id: string; name: string; email: string; role: string; canAccessInventory: boolean },
     restaurant: RestaurantRow,
   ) {
     const token = signToken({ userId: user.id, restaurantId: restaurant.id, role: user.role });
     return {
       token,
       restaurant: serializeRestaurant(restaurant),
-      user: { id: user.id, name: user.name, email: user.email, role: user.role },
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        canAccessInventory: user.canAccessInventory,
+      },
     };
   },
 
   async me(restaurantId: string, userId: string) {
     const user = await prisma.user.findFirst({
       where: { id: userId, restaurantId },
-      select: { id: true, name: true, email: true, role: true },
+      select: { id: true, name: true, email: true, role: true, canAccessInventory: true },
     });
     if (!user) throw unauthorized();
 
