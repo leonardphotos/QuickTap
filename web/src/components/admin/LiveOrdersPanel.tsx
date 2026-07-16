@@ -289,7 +289,7 @@ export function LiveOrdersPanel() {
           <p className="text-sm text-brand-950/40 font-light">No hay pedidos activos.</p>
         </div>
       ) : (
-        <div className={viewMode === 'grid' ? 'grid grid-cols-2 lg:grid-cols-3 gap-3' : 'space-y-3'}>
+        <div className={viewMode === 'grid' ? 'grid grid-cols-2 sm:grid-cols-3 gap-3' : 'space-y-3'}>
           {visibleOrders?.map((o) => {
             const paidBase = o.payments.reduce((acc, p) => acc + Number(p.amountBase), 0);
             const balanceBase = Math.max(0, Number(o.totalBase) - paidBase);

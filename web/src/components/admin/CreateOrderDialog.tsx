@@ -3,7 +3,7 @@ import { Bike, ClipboardList, MapPin, ReceiptText, Search, Store, UtensilsCrosse
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { CURRENCY_SYMBOLS, formatBase, formatBs } from '@/utils/format';
-import type { Product, TableItem } from '@/types';
+import type { FloorPlan, Product } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
@@ -25,6 +25,12 @@ interface Props {
 
 type Channel = 'DINE_IN' | 'DELIVERY' | 'PICKUP';
 
+interface AvailableTable {
+  id: string;
+  number: string;
+  zoneName: string | null;
+}
+
 const CHANNEL_OPTIONS: { value: Channel; label: string; icon: typeof UtensilsCrossed }[] = [
   { value: 'DINE_IN', label: 'Mesa', icon: UtensilsCrossed },
   { value: 'DELIVERY', label: 'Delivery', icon: Bike },
@@ -42,7 +48,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   const [channel, setChannel] = useState<Channel>('DINE_IN');
 
   const [products, setProducts] = useState<Product[]>([]);
-  const [tables, setTables] = useState<TableItem[]>([]);
+  const [tables, setTables] = useState<AvailableTable[]>([]);
   const [tableId, setTableId] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerIdNumber, setCustomerIdNumber] = useState('');
@@ -84,7 +90,14 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
 
   useEffect(() => {
     api.get('/products').then((res) => setProducts(res.data.data));
-    api.get('/tables').then((res) => setTables(res.data.data));
+    api.get('/tables/floor-plan').then((res) => {
+      const plan: FloorPlan = res.data.data;
+      const zoned = plan.zones.flatMap((z) =>
+        z.tables.filter((t) => !t.session).map((t) => ({ id: t.id, number: t.number, zoneName: z.name })),
+      );
+      const unzoned = plan.unzoned.filter((t) => !t.session).map((t) => ({ id: t.id, number: t.number, zoneName: null }));
+      setTables([...zoned, ...unzoned]);
+    });
     api
       .get('/public/exchange-rate')
       .then((res) => setRateBs(res.data.data?.[restaurant?.baseCurrency ?? 'USD']?.rateBs ?? null))
@@ -317,10 +330,10 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                     onChange={(e) => setTableId(e.target.value)}
                     className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
                   >
-                    <option value="">Selecciona una mesa…</option>
+                    <option value="">{tables.length === 0 ? 'No hay mesas disponibles' : 'Selecciona una mesa…'}</option>
                     {tables.map((t) => (
                       <option key={t.id} value={t.id}>
-                        {t.zone ? `${t.zone.name} · ` : ''}Mesa {t.number}
+                        {t.zoneName ? `${t.zoneName} · ` : ''}Mesa {t.number}
                       </option>
                     ))}
                   </select>
