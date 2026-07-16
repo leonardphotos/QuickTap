@@ -210,13 +210,21 @@ export function LiveOrdersPanel() {
   }
 
   async function dispatch(orderId: string, courierId: string) {
+    // Mismo motivo que sendWhatsapp(): abrir la pestaña antes del await para
+    // no perder el gesto del clic y que el navegador bloquee el popup.
+    const win = window.open('', '_blank');
     setBusyId(orderId);
     setError(null);
     try {
       const { data } = await api.post(`/orders/${orderId}/dispatch-courier`, { courierId });
-      window.open(data.data.url, '_blank');
+      if (win) {
+        win.location.href = data.data.url;
+      } else {
+        window.location.href = data.data.url;
+      }
       setCourierPickerFor(null);
     } catch (e: any) {
+      win?.close();
       setError(e.response?.data?.error ?? 'No se pudo despachar el pedido.');
     } finally {
       setBusyId(null);
@@ -513,12 +521,22 @@ function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder; onClos
   }
 
   async function sendWhatsapp() {
+    // Abrir la pestaña ANTES del await, dentro del gesto síncrono del clic:
+    // si se abre después de esperar la respuesta del servidor, el navegador
+    // pierde el contexto de "acción del usuario" y bloquea el popup en
+    // silencio (sin lanzar error, sin avisar).
+    const win = window.open('', '_blank');
     setSendingWhatsapp(true);
     setError(null);
     try {
       const { data } = await api.post(`/orders/${order.id}/send-whatsapp`);
-      window.open(data.data.url, '_blank');
+      if (win) {
+        win.location.href = data.data.url;
+      } else {
+        window.location.href = data.data.url;
+      }
     } catch (e: any) {
+      win?.close();
       setError(e.response?.data?.error ?? 'No se pudo enviar la comanda por WhatsApp.');
     } finally {
       setSendingWhatsapp(false);

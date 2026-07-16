@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, type CSSProperties } from 'react';
 import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
 import type { Currency } from '@/types';
 
@@ -40,47 +40,80 @@ interface Props {
   currency: Currency;
 }
 
-/** Plantilla del recibo de cierre de caja, capturada con html2canvas y descargada en PDF. */
+/**
+ * Plantilla del recibo de cierre de caja, capturada con html2canvas y
+ * descargada en PDF. IMPORTANTE: solo estilos inline con colores hex/rgba
+ * planos, nunca clases de Tailwind — Tailwind v4 compila su paleta y los
+ * modificadores de opacidad ("/40") a `oklab()`/`color-mix()`, que
+ * html2canvas no sabe parsear y hace fallar la captura en silencio.
+ */
+const container: CSSProperties = {
+  width: 420,
+  background: '#ffffff',
+  padding: 24,
+  color: '#001b43',
+  fontFamily: 'system-ui, sans-serif',
+  fontSize: 13,
+};
+const center: CSSProperties = { textAlign: 'center', marginBottom: 16 };
+const title: CSSProperties = { fontSize: 18, fontWeight: 600, margin: 0 };
+const subtitle: CSSProperties = { fontSize: 14, fontWeight: 500, margin: '4px 0 0' };
+const section: CSSProperties = {
+  fontSize: 12,
+  marginBottom: 16,
+  paddingBottom: 12,
+  borderBottom: '1px solid rgba(0,27,67,0.1)',
+};
+const row: CSSProperties = { display: 'flex', justifyContent: 'space-between', gap: 8 };
+const rowGap: CSSProperties = { ...row, marginTop: 2 };
+const sectionLabel: CSSProperties = { fontSize: 12, fontWeight: 600, marginBottom: 6 };
+const list: CSSProperties = { fontSize: 12, marginBottom: 16 };
+const listRow: CSSProperties = { ...row, marginTop: 4 };
+const subtotalRow: CSSProperties = { ...row, fontWeight: 600, marginTop: 4, borderTop: '1px solid rgba(0,27,67,0.1)', paddingTop: 4 };
+const footer: CSSProperties = { fontSize: 10, textAlign: 'center', color: 'rgba(0,27,67,0.4)', marginTop: 16 };
+const EMERALD_700 = '#047857';
+const RED_700 = '#b91c1c';
+
 export const CashSessionReceipt = forwardRef<HTMLDivElement, Props>(({ session, restaurantName, currency }, ref) => {
   const symbol = CURRENCY_SYMBOLS[currency];
   const summary = session.closingSummary;
 
   return (
-    <div ref={ref} className="w-[420px] bg-white p-6 text-brand-950 font-sans">
-      <div className="text-center mb-4">
-        <p className="text-lg font-semibold">{restaurantName}</p>
-        <p className="text-sm font-medium mt-1">Cierre de caja {session.closeNumber ? `#${session.closeNumber}` : ''}</p>
+    <div ref={ref} style={container}>
+      <div style={center}>
+        <p style={title}>{restaurantName}</p>
+        <p style={subtitle}>Cierre de caja {session.closeNumber ? `#${session.closeNumber}` : ''}</p>
       </div>
 
-      <div className="text-xs space-y-0.5 mb-4 border-b border-black/10 pb-3">
-        <div className="flex justify-between">
+      <div style={section}>
+        <div style={row}>
           <span>Apertura</span>
           <span>{new Date(session.openedAt).toLocaleString('es-VE')}</span>
         </div>
         {session.closedAt && (
-          <div className="flex justify-between">
+          <div style={rowGap}>
             <span>Cierre</span>
             <span>{new Date(session.closedAt).toLocaleString('es-VE')}</span>
           </div>
         )}
         {session.openedByUser && (
-          <div className="flex justify-between">
+          <div style={rowGap}>
             <span>Abierta por</span>
             <span>{session.openedByUser.name}</span>
           </div>
         )}
         {session.closedByUser && (
-          <div className="flex justify-between">
+          <div style={rowGap}>
             <span>Cerrada por</span>
             <span>{session.closedByUser.name}</span>
           </div>
         )}
       </div>
 
-      <p className="text-xs font-semibold mb-1.5">Saldo de apertura por método</p>
-      <div className="text-xs space-y-1 mb-4">
+      <p style={sectionLabel}>Saldo de apertura por método</p>
+      <div style={list}>
         {Object.entries(session.openingBalances).map(([method, amount]) => (
-          <div key={method} className="flex justify-between">
+          <div key={method} style={listRow}>
             <span>{PAYMENT_METHOD_LABELS[method] ?? method}</span>
             <span>{formatBase(amount, symbol)}</span>
           </div>
@@ -89,17 +122,17 @@ export const CashSessionReceipt = forwardRef<HTMLDivElement, Props>(({ session, 
 
       {summary && (
         <>
-          <p className="text-xs font-semibold mb-1.5">Ventas del turno por método</p>
-          <div className="text-xs space-y-1 mb-4">
-            {Object.entries(summary.paymentsByMethod).map(([method, row]) => (
-              <div key={method} className="flex justify-between">
+          <p style={sectionLabel}>Ventas del turno por método</p>
+          <div style={list}>
+            {Object.entries(summary.paymentsByMethod).map(([method, r]) => (
+              <div key={method} style={listRow}>
                 <span>
-                  {PAYMENT_METHOD_LABELS[method] ?? method} ({row.count})
+                  {PAYMENT_METHOD_LABELS[method] ?? method} ({r.count})
                 </span>
-                <span>{formatBase(row.amountBase, symbol)}</span>
+                <span>{formatBase(r.amountBase, symbol)}</span>
               </div>
             ))}
-            <div className="flex justify-between font-semibold pt-1 border-t border-black/10">
+            <div style={subtotalRow}>
               <span>Total ventas</span>
               <span>{formatBase(summary.totalPayments, symbol)}</span>
             </div>
@@ -107,22 +140,22 @@ export const CashSessionReceipt = forwardRef<HTMLDivElement, Props>(({ session, 
 
           {summary.movements.list.length > 0 && (
             <>
-              <p className="text-xs font-semibold mb-1.5">Movimientos manuales</p>
-              <div className="text-xs space-y-1 mb-4">
+              <p style={sectionLabel}>Movimientos manuales</p>
+              <div style={list}>
                 {summary.movements.list.map((m) => (
-                  <div key={m.id} className="flex justify-between">
+                  <div key={m.id} style={listRow}>
                     <span>{m.description}</span>
-                    <span className={m.type === 'INCOME' ? 'text-emerald-700' : 'text-red-700'}>
+                    <span style={{ color: m.type === 'INCOME' ? EMERALD_700 : RED_700 }}>
                       {m.type === 'INCOME' ? '+' : '−'}
                       {formatBase(m.amountBase, symbol)}
                     </span>
                   </div>
                 ))}
-                <div className="flex justify-between pt-1 border-t border-black/10">
+                <div style={subtotalRow}>
                   <span>Ingresos</span>
                   <span>+{formatBase(summary.movements.totalIncome, symbol)}</span>
                 </div>
-                <div className="flex justify-between">
+                <div style={rowGap}>
                   <span>Egresos</span>
                   <span>−{formatBase(summary.movements.totalExpense, symbol)}</span>
                 </div>
@@ -130,8 +163,8 @@ export const CashSessionReceipt = forwardRef<HTMLDivElement, Props>(({ session, 
             </>
           )}
 
-          <div className="border-t border-black/20 pt-2 space-y-0.5">
-            <div className="flex justify-between font-semibold text-sm">
+          <div style={{ borderTop: '1px solid rgba(0,27,67,0.2)', paddingTop: 8 }}>
+            <div style={{ ...row, fontWeight: 600, fontSize: 14 }}>
               <span>Total neto</span>
               <span>{formatBase(summary.totalNet, symbol)}</span>
             </div>
@@ -139,7 +172,7 @@ export const CashSessionReceipt = forwardRef<HTMLDivElement, Props>(({ session, 
         </>
       )}
 
-      <p className="text-[10px] text-center text-black/40 mt-4">Generado por QuickTap · {new Date().toLocaleString('es-VE')}</p>
+      <p style={footer}>Generado por QuickTap · {new Date().toLocaleString('es-VE')}</p>
     </div>
   );
 });
