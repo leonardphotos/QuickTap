@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Bike, ClipboardList, Store, UtensilsCrossed } from 'lucide-react';
+import { Bike, ClipboardList, MapPin, Search, Store, UtensilsCrossed } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
 import type { Product, TableItem } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
+import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 
 interface ExistingOrderOption {
   id: string;
@@ -37,6 +38,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [mode, setMode] = useState<'new' | 'existing'>('new');
+  const [existingSearch, setExistingSearch] = useState('');
   const [channel, setChannel] = useState<Channel>('DINE_IN');
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -46,10 +48,34 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   const [customerIdNumber, setCustomerIdNumber] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
+  const [addressCoords, setAddressCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [gettingLocation, setGettingLocation] = useState(false);
+  const [locationError, setLocationError] = useState<string | null>(null);
   const [customerNote, setCustomerNote] = useState('');
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function useCurrentLocation() {
+    if (!navigator.geolocation) {
+      setLocationError('Tu navegador no soporta geolocalización.');
+      return;
+    }
+    setGettingLocation(true);
+    setLocationError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setAddressCoords({ lat: latitude, lng: longitude });
+        setGettingLocation(false);
+      },
+      () => {
+        setLocationError('No se pudo obtener tu ubicación. Revisa los permisos del navegador.');
+        setGettingLocation(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  }
 
   useEffect(() => {
     api.get('/products').then((res) => setProducts(res.data.data));
@@ -71,6 +97,18 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
     [products, quantities],
   );
   const totalBase = lines.reduce((acc, l) => acc + Number(l.product.price) * l.quantity, 0);
+
+  const filteredExistingOrders = useMemo(() => {
+    const query = existingSearch.trim().toLowerCase();
+    if (!query) return existingOrders;
+    return existingOrders.filter(
+      (o) =>
+        String(o.orderNumber).includes(query) ||
+        o.customerName?.toLowerCase().includes(query) ||
+        o.table?.number.toLowerCase().includes(query) ||
+        CHANNEL_LABELS[o.channel].toLowerCase().includes(query),
+    );
+  }, [existingOrders, existingSearch]);
 
   function setQty(productId: string, quantity: number) {
     setQuantities((q) => ({ ...q, [productId]: Math.max(0, quantity) }));
@@ -104,6 +142,8 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
         customerIdNumber: customerIdNumber.trim() || undefined,
         customerPhone: customerPhone.trim() || undefined,
         customerAddress: customerAddress.trim() || undefined,
+        customerLat: channel === 'DELIVERY' ? addressCoords?.lat : undefined,
+        customerLng: channel === 'DELIVERY' ? addressCoords?.lng : undefined,
         customerNote: customerNote.trim() || undefined,
       });
       onCreated();
@@ -143,29 +183,47 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
           </div>
 
           {mode === 'existing' ? (
-            <div className="space-y-2 max-h-80 overflow-y-auto">
-              {existingOrders.length === 0 && (
-                <p className="text-sm text-brand-950/40 font-light text-center py-4">No hay pedidos activos.</p>
-              )}
-              {existingOrders.map((o) => (
-                <button
-                  key={o.id}
-                  onClick={() => onSelectExisting(o.id)}
-                  className="w-full flex items-center gap-3 rounded-xl border border-brand-950/10 px-3 py-2.5 text-left hover:border-brand-400/50 hover:bg-brand-950/[0.02] transition-colors"
-                >
-                  <ClipboardList className="h-4 w-4 text-brand-500 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-brand-950">
-                      #{o.orderNumber}
-                      {o.customerName && <span className="font-normal text-brand-950/60"> · {o.customerName}</span>}
-                    </p>
-                    <p className="text-xs text-brand-950/40">
-                      {CHANNEL_LABELS[o.channel]}
-                      {o.table && ` ${o.table.number}`}
-                    </p>
-                  </div>
-                </button>
-              ))}
+            <div className="space-y-2">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-950/30" />
+                <input
+                  value={existingSearch}
+                  onChange={(e) => setExistingSearch(e.target.value)}
+                  placeholder="Buscar por número, cliente o mesa…"
+                  className="w-full text-sm border border-brand-950/15 rounded-lg pl-8 pr-2.5 py-1.5"
+                />
+              </div>
+              <div className="space-y-2 max-h-72 overflow-y-auto">
+                {existingOrders.length === 0 && (
+                  <p className="text-sm text-brand-950/40 font-light text-center py-4">No hay pedidos activos.</p>
+                )}
+                {existingOrders.length > 0 && filteredExistingOrders.length === 0 && (
+                  <p className="text-sm text-brand-950/40 font-light text-center py-4">
+                    No se encontraron pedidos.
+                  </p>
+                )}
+                {filteredExistingOrders.map((o) => (
+                  <button
+                    key={o.id}
+                    onClick={() => onSelectExisting(o.id)}
+                    className="w-full flex items-center gap-3 rounded-xl border border-brand-950/10 px-3 py-2.5 text-left hover:border-brand-400/50 hover:bg-brand-950/[0.02] transition-colors"
+                  >
+                    <ClipboardList className="h-4 w-4 text-brand-500 shrink-0" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-brand-950">
+                        #{o.orderNumber}
+                        {o.customerName && (
+                          <span className="font-normal text-brand-950/60"> · {o.customerName}</span>
+                        )}
+                      </p>
+                      <p className="text-xs text-brand-950/40">
+                        {CHANNEL_LABELS[o.channel]}
+                        {o.table && ` ${o.table.number}`}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </div>
           ) : (
             <>
@@ -227,12 +285,39 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                     className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
                   />
                   {channel === 'DELIVERY' && (
-                    <input
-                      value={customerAddress}
-                      onChange={(e) => setCustomerAddress(e.target.value)}
-                      placeholder="Dirección de entrega *"
-                      className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-                    />
+                    <>
+                      <AddressAutocomplete
+                        value={customerAddress}
+                        onChange={setCustomerAddress}
+                        onSelect={(s) => {
+                          setCustomerAddress(s.displayName);
+                          setAddressCoords({ lat: s.lat, lng: s.lng });
+                        }}
+                        biasLat={restaurant?.deliveryOriginLat}
+                        biasLng={restaurant?.deliveryOriginLng}
+                        placeholder="Dirección de entrega *"
+                        className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                      />
+                      <div className="flex items-center gap-2 -mt-1">
+                        <button
+                          type="button"
+                          onClick={useCurrentLocation}
+                          disabled={gettingLocation}
+                          className="flex items-center gap-1 text-xs font-medium text-brand-500 hover:text-brand-400 disabled:opacity-50"
+                        >
+                          <MapPin className="h-3.5 w-3.5" />
+                          {gettingLocation
+                            ? 'Obteniendo ubicación…'
+                            : addressCoords
+                              ? 'Actualizar ubicación'
+                              : 'Usar mi ubicación actual'}
+                        </button>
+                        {addressCoords && !gettingLocation && (
+                          <span className="text-xs text-emerald-600 font-medium">✓ Ubicación agregada</span>
+                        )}
+                      </div>
+                      {locationError && <p className="text-xs text-red-600 -mt-1">{locationError}</p>}
+                    </>
                   )}
                   <input
                     value={customerNote}

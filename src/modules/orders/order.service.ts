@@ -398,6 +398,8 @@ export const orderService = {
                 customerName: input.customerName,
                 customerPhone: input.customerPhone,
                 customerAddress: input.channel === 'DELIVERY' ? input.customerAddress : undefined,
+                customerLat: input.channel === 'DELIVERY' ? input.customerLat : undefined,
+                customerLng: input.channel === 'DELIVERY' ? input.customerLng : undefined,
                 customerNote: input.customerNote,
                 placedByUserId,
                 currency,

@@ -36,6 +36,9 @@ export const manualOrderSchema = z
     customerPhone: z.string().max(30).optional(),
     customerAddress: z.string().max(300).optional(),
     customerNote: z.string().max(300).optional(),
+    // Ubicación GPS del cliente (autocompletar dirección o "usar mi ubicación actual").
+    customerLat: z.number().min(-90).max(90).optional(),
+    customerLng: z.number().min(-180).max(180).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.channel === 'DINE_IN' && !data.tableId) {

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
-import { Check, ChefHat, Clock, Plus, Truck, X } from 'lucide-react';
+import { Check, ChefHat, Clock, ListFilter, Plus, Truck, X } from 'lucide-react';
 import { api, getToken } from '@/api/client';
 import type { DeliveryCourier, Product } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import { CreateOrderDialog } from './CreateOrderDialog';
 import { useAuth } from '@/context/AuthContext';
@@ -57,6 +58,13 @@ const CHANNEL_TABS: { value: LiveOrder['channel']; label: string }[] = [
   { value: 'DELIVERY', label: 'Delivery' },
   { value: 'PICKUP', label: 'Pick-up' },
 ];
+
+const FILTER_LABELS: Record<ChannelFilter, string> = {
+  DINE_IN: 'Mesas',
+  DELIVERY: 'Delivery',
+  PICKUP: 'Pick-up',
+  AWAITING_PAYMENT: 'Pendiente por pagar',
+};
 
 /** Panel "Pedidos": todos los pedidos activos con Aceptar/Cancelar/Finalizar/Delivery. Va en el Dashboard. */
 export function LiveOrdersPanel() {
@@ -190,8 +198,8 @@ export function LiveOrdersPanel() {
 
   return (
     <div className="w-full max-w-md mb-8">
-      <div className="flex items-center justify-between mb-3 gap-3">
-        <div className="flex items-center gap-2.5">
+      <div className="grid grid-cols-3 items-center mb-3 gap-2">
+        <div className="flex items-center gap-2.5 justify-self-start">
           <h2 className="text-lg font-semibold text-brand-950">Pedidos</h2>
           {orders.length > 0 && (
             <span className="text-sm bg-brand-500 text-white rounded-full h-7 min-w-7 px-2 flex items-center justify-center font-bold">
@@ -199,25 +207,36 @@ export function LiveOrdersPanel() {
             </span>
           )}
         </div>
-        <TextureButton variant="brand" size="sm" className="!w-auto px-4" onClick={() => setCreateOrderOpen(true)}>
-          + Crear pedido
-        </TextureButton>
-      </div>
-
-      <div className="mb-3">
-        <select
-          value={channelFilter ?? ''}
-          onChange={(e) => setChannelFilter((e.target.value || null) as ChannelFilter | null)}
-          className="text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5 bg-white text-brand-950/70"
+        <TextureButton
+          variant="brand"
+          size="icon"
+          className="!w-14 !h-14 justify-self-center"
+          onClick={() => setCreateOrderOpen(true)}
+          aria-label="Crear pedido"
         >
-          <option value="">Todos los pedidos</option>
-          {CHANNEL_TABS.map((t) => (
-            <option key={t.value} value={t.value}>
-              {t.label}
-            </option>
-          ))}
-          {canAccountsPayable && <option value="AWAITING_PAYMENT">Pendiente por pagar</option>}
-        </select>
+          <Plus className="h-7 w-7" strokeWidth={2.5} />
+        </TextureButton>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex items-center gap-1.5 text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5 bg-white text-brand-950/70 justify-self-end">
+              <ListFilter className="h-3.5 w-3.5" />
+              {channelFilter ? FILTER_LABELS[channelFilter] : 'Filtro'}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => setChannelFilter(null)}>Todos los pedidos</DropdownMenuItem>
+            {CHANNEL_TABS.map((t) => (
+              <DropdownMenuItem key={t.value} onClick={() => setChannelFilter(t.value)}>
+                {t.label}
+              </DropdownMenuItem>
+            ))}
+            {canAccountsPayable && (
+              <DropdownMenuItem onClick={() => setChannelFilter('AWAITING_PAYMENT')}>
+                Pendiente por pagar
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {error && <p className="text-sm text-red-600 mb-3 text-left">{error}</p>}
