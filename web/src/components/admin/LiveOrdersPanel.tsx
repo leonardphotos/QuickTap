@@ -7,6 +7,7 @@ import type { DeliveryCourier, Product } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
+import { CreateOrderDialog } from './CreateOrderDialog';
 import { useAuth } from '@/context/AuthContext';
 import { hasFeature } from '@/utils/subscription';
 
@@ -69,6 +70,7 @@ export function LiveOrdersPanel() {
   const [channelFilter, setChannelFilter] = useState<ChannelFilter | null>(null);
   const [editingOrder, setEditingOrder] = useState<LiveOrder | null>(null);
   const [justAdded, setJustAdded] = useState<{ id: string; fading: boolean } | null>(null);
+  const [createOrderOpen, setCreateOrderOpen] = useState(false);
 
   function load() {
     api.get('/orders/live').then((res) => setOrders(res.data.data));
@@ -197,29 +199,25 @@ export function LiveOrdersPanel() {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <TextureButton variant="brand" size="sm" className="!w-auto px-4" onClick={() => setCreateOrderOpen(true)}>
+          + Crear pedido
+        </TextureButton>
+      </div>
+
+      <div className="mb-3">
+        <select
+          value={channelFilter ?? ''}
+          onChange={(e) => setChannelFilter((e.target.value || null) as ChannelFilter | null)}
+          className="text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5 bg-white text-brand-950/70"
+        >
+          <option value="">Todos los pedidos</option>
           {CHANNEL_TABS.map((t) => (
-            <button
-              key={t.value}
-              onClick={() => setChannelFilter((c) => (c === t.value ? null : t.value))}
-              className={`text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${
-                channelFilter === t.value ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
-              }`}
-            >
+            <option key={t.value} value={t.value}>
               {t.label}
-            </button>
+            </option>
           ))}
-          {canAccountsPayable && (
-            <button
-              onClick={() => setChannelFilter((c) => (c === 'AWAITING_PAYMENT' ? null : 'AWAITING_PAYMENT'))}
-              className={`flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full transition-colors ${
-                channelFilter === 'AWAITING_PAYMENT' ? 'bg-amber-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
-              }`}
-            >
-              <Clock className="h-3 w-3" /> Pendiente por pagar
-            </button>
-          )}
-        </div>
+          {canAccountsPayable && <option value="AWAITING_PAYMENT">Pendiente por pagar</option>}
+        </select>
       </div>
 
       {error && <p className="text-sm text-red-600 mb-3 text-left">{error}</p>}
@@ -343,6 +341,19 @@ export function LiveOrdersPanel() {
 
       {editingOrder && (
         <EditOrderDialog order={editingOrder} onClose={() => setEditingOrder(null)} onSaved={load} />
+      )}
+
+      {createOrderOpen && (
+        <CreateOrderDialog
+          existingOrders={orders}
+          onClose={() => setCreateOrderOpen(false)}
+          onCreated={load}
+          onSelectExisting={(orderId) => {
+            setCreateOrderOpen(false);
+            const target = orders.find((o) => o.id === orderId);
+            if (target) setEditingOrder(target);
+          }}
+        />
       )}
     </div>
   );

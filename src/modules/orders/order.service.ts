@@ -313,9 +313,6 @@ export const orderService = {
    * -------------------------------------------------------------------------
    */
   async createManualOrder(restaurantId: string, input: ManualOrderInput, placedByUserId?: string) {
-    const table = await prisma.table.findFirst({ where: { id: input.tableId, restaurantId } });
-    if (!table || !table.isActive) throw notFound('Mesa no válida.');
-
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
       select: { baseCurrency: true, serviceChargeEnabled: true, ivaEnabled: true },
@@ -330,57 +327,91 @@ export const orderService = {
     const { serviceChargeBase, ivaBase, totalBase } = calculateCharges(subtotalBase, restaurant);
     const totalBs = baseToBs(totalBase, rate.rateBs);
 
-    const order = await prisma.$transaction(async (tx) => {
-      let session = await tx.tableSession.findFirst({ where: { tableId: table.id, status: 'OPEN' } });
+    const itemsCreate = lines.map((l) => ({
+      productId: l.productId,
+      productName: l.productName,
+      unitPrice: l.unitPrice,
+      quantity: l.quantity,
+      lineTotal: l.lineTotal,
+      modifiers: l.modifiers,
+      note: l.note,
+    }));
 
-      if (!session) {
-        if (!input.customerName || !input.customerIdNumber) {
-          throw badRequest('Faltan los datos de facturación (nombre y cédula) para abrir la cuenta.');
-        }
-        session = await tx.tableSession.create({
-          data: {
-            restaurantId,
-            tableId: table.id,
-            customerName: input.customerName,
-            customerIdNumber: input.customerIdNumber,
-          },
-        });
-      }
+    const order =
+      input.channel === 'DINE_IN'
+        ? await (async () => {
+            const table = await prisma.table.findFirst({ where: { id: input.tableId, restaurantId } });
+            if (!table || !table.isActive) throw notFound('Mesa no válida.');
 
-      const orderNumber = await nextOrderNumber(tx, restaurantId);
-      return tx.order.create({
-        data: {
-          restaurantId,
-          orderNumber,
-          channel: 'DINE_IN',
-          status: 'KITCHEN', // el mesero ya lo está tomando, entra directo a la cola de cocina
-          tableId: table.id,
-          tableSessionId: session.id,
-          customerName: session.customerName,
-          customerIdNumber: session.customerIdNumber,
-          placedByUserId,
-          currency,
-          subtotalBase,
-          serviceChargeBase,
-          ivaBase,
-          totalBase,
-          exchangeRate: rate.rateBs,
-          totalBs,
-          items: {
-            create: lines.map((l) => ({
-              productId: l.productId,
-              productName: l.productName,
-              unitPrice: l.unitPrice,
-              quantity: l.quantity,
-              lineTotal: l.lineTotal,
-              modifiers: l.modifiers,
-              note: l.note,
-            })),
-          },
-        },
-        include: { items: true, table: { select: { number: true } } },
-      });
-    });
+            return prisma.$transaction(async (tx) => {
+              let session = await tx.tableSession.findFirst({ where: { tableId: table.id, status: 'OPEN' } });
+
+              if (!session) {
+                if (!input.customerName || !input.customerIdNumber) {
+                  throw badRequest('Faltan los datos de facturación (nombre y cédula) para abrir la cuenta.');
+                }
+                session = await tx.tableSession.create({
+                  data: {
+                    restaurantId,
+                    tableId: table.id,
+                    customerName: input.customerName,
+                    customerIdNumber: input.customerIdNumber,
+                  },
+                });
+              }
+
+              const orderNumber = await nextOrderNumber(tx, restaurantId);
+              return tx.order.create({
+                data: {
+                  restaurantId,
+                  orderNumber,
+                  channel: 'DINE_IN',
+                  status: 'KITCHEN', // el mesero ya lo está tomando, entra directo a la cola de cocina
+                  tableId: table.id,
+                  tableSessionId: session.id,
+                  customerName: session.customerName,
+                  customerIdNumber: session.customerIdNumber,
+                  placedByUserId,
+                  currency,
+                  subtotalBase,
+                  serviceChargeBase,
+                  ivaBase,
+                  totalBase,
+                  exchangeRate: rate.rateBs,
+                  totalBs,
+                  items: { create: itemsCreate },
+                },
+                include: { items: true, table: { select: { number: true } } },
+              });
+            });
+          })()
+        : // DELIVERY / PICKUP cargado a mano (ej. pedido por teléfono): sin mesa,
+          // entra directo a cocina igual que el manual de mesa.
+          await prisma.$transaction(async (tx) => {
+            const orderNumber = await nextOrderNumber(tx, restaurantId);
+            return tx.order.create({
+              data: {
+                restaurantId,
+                orderNumber,
+                channel: input.channel,
+                status: 'KITCHEN',
+                customerName: input.customerName,
+                customerPhone: input.customerPhone,
+                customerAddress: input.channel === 'DELIVERY' ? input.customerAddress : undefined,
+                customerNote: input.customerNote,
+                placedByUserId,
+                currency,
+                subtotalBase,
+                serviceChargeBase,
+                ivaBase,
+                totalBase,
+                exchangeRate: rate.rateBs,
+                totalBs,
+                items: { create: itemsCreate },
+              },
+              include: { items: true, table: { select: { number: true } } },
+            });
+          });
 
     emitToKitchen(restaurantId, SocketEvents.ORDER_NEW, {
       orderId: order.id,

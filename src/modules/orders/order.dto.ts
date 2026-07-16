@@ -21,13 +21,33 @@ export const dineInCheckoutSchema = z.object({
   tipBase: z.coerce.number().nonnegative().max(100000).optional(),
 });
 
-/** Pedido cargado a mano por el staff (ej. Mesero) desde "Órdenes de Mesa". */
-export const manualOrderSchema = z.object({
-  tableId: z.string().min(1),
-  items: z.array(cartItemSchema).min(1, 'El pedido está vacío.'),
-  customerName: z.string().min(1).max(120).optional(),
-  customerIdNumber: z.string().min(1).max(20).optional(),
-});
+/**
+ * Pedido cargado a mano por el staff: desde "Órdenes de Mesa" (siempre
+ * DINE_IN, con tableId) o desde "Crear pedido" en el Dashboard (cualquier
+ * canal). Delivery/Pickup no requieren mesa, pero sí datos del cliente.
+ */
+export const manualOrderSchema = z
+  .object({
+    channel: z.enum(['DINE_IN', 'DELIVERY', 'PICKUP']).optional().default('DINE_IN'),
+    tableId: z.string().min(1).optional(),
+    items: z.array(cartItemSchema).min(1, 'El pedido está vacío.'),
+    customerName: z.string().min(1).max(120).optional(),
+    customerIdNumber: z.string().min(1).max(20).optional(),
+    customerPhone: z.string().max(30).optional(),
+    customerAddress: z.string().max(300).optional(),
+    customerNote: z.string().max(300).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.channel === 'DINE_IN' && !data.tableId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Selecciona una mesa.', path: ['tableId'] });
+    }
+    if (data.channel !== 'DINE_IN' && !data.customerName?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Escribe el nombre del cliente.', path: ['customerName'] });
+    }
+    if (data.channel === 'DELIVERY' && !data.customerAddress?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Escribe la dirección de entrega.', path: ['customerAddress'] });
+    }
+  });
 
 const paymentMethodSchema = z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER']);
 
