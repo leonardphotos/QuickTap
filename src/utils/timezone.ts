@@ -10,3 +10,13 @@ export function startOfTodayCaracas(): Date {
   shifted.setUTCHours(0, 0, 0, 0);
   return new Date(shifted.getTime() + CARACAS_OFFSET_MS);
 }
+
+/** Instante UTC que corresponde a la medianoche del lunes de "esta semana" en hora de Caracas. */
+export function startOfWeekCaracas(): Date {
+  const shifted = new Date(Date.now() - CARACAS_OFFSET_MS);
+  const day = shifted.getUTCDay(); // 0 = domingo
+  const diffToMonday = day === 0 ? 6 : day - 1;
+  shifted.setUTCDate(shifted.getUTCDate() - diffToMonday);
+  shifted.setUTCHours(0, 0, 0, 0);
+  return new Date(shifted.getTime() + CARACAS_OFFSET_MS);
+}

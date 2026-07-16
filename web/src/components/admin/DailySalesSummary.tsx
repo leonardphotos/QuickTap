@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
+import { io } from 'socket.io-client';
+import type { Socket } from 'socket.io-client';
 import { TrendingUp } from 'lucide-react';
-import { api } from '@/api/client';
+import { api, getToken } from '@/api/client';
 import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
 import type { Currency } from '@/types';
 
@@ -19,7 +21,18 @@ export function DailySalesSummary() {
   const [summary, setSummary] = useState<TodaySummary | null>(null);
 
   useEffect(() => {
-    api.get('/orders/summary/today').then((res) => setSummary(res.data.data));
+    function load() {
+      api.get('/orders/summary/today').then((res) => setSummary(res.data.data));
+    }
+    load();
+
+    const socket: Socket = io('/', { auth: { token: getToken() } });
+    socket.on('order:new', load);
+    socket.on('order:updated', load);
+
+    return () => {
+      socket.disconnect();
+    };
   }, []);
 
   if (!summary) return null;

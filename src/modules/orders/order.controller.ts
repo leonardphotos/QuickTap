@@ -91,12 +91,6 @@ export const orderController = {
     res.json({ data: summary });
   }),
 
-  /** GET /api/v1/orders/summary/admin — resumen de Administración (solo plan Premium). */
-  adminSummary: asyncHandler(async (req: Request, res: Response) => {
-    const summary = await orderService.getAdminSummary(req.restaurantId!);
-    res.json({ data: summary });
-  }),
-
   /** PATCH /api/v1/orders/:id/tip — agregar/editar propina a mano (solo plan Premium). */
   setTip: asyncHandler(async (req: Request, res: Response) => {
     const { tipBase } = setTipSchema.parse(req.body);
@@ -116,6 +110,12 @@ export const orderController = {
     const query = orderHistoryQuerySchema.parse(req.query);
     const result = await orderService.getOrderHistory(req.restaurantId!, query);
     res.json({ data: result });
+  }),
+
+  /** GET /api/v1/orders/waiters — personal que ha cargado pedidos, para el filtro "Mesero" (solo plan Premium). */
+  waiters: asyncHandler(async (req: Request, res: Response) => {
+    const rows = await orderService.listWaiters(req.restaurantId!);
+    res.json({ data: rows });
   }),
 
   /** GET /api/v1/orders/reports/products — más/menos vendidos (solo plan Premium). */

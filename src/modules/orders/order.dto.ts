@@ -130,14 +130,20 @@ export const deliveryQuoteSchema = z.object({
 
 /** Filtros del historial de pedidos y reportes (Administración, solo Premium). */
 export const orderHistoryQuerySchema = z.object({
-  range: z.enum(['day', 'month', 'year', 'all']).optional().default('day'),
+  range: z.enum(['day', 'week', 'month', 'year', 'all']).optional().default('day'),
   channel: z.enum(['DINE_IN', 'DELIVERY', 'PICKUP']).optional(),
   paymentMethod: z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER']).optional(),
   // Solo aplica a channel=DINE_IN: 'staff' = cargado por un mesero, 'customer' = el cliente desde su teléfono.
   placedBy: z.enum(['staff', 'customer']).optional(),
+  // Filtra por el mesero/staff específico que cargó el pedido (Historial > "Mesero").
+  placedByUserId: z.string().optional(),
+  // Filtra pedidos que incluyan este producto (drill-down desde Productos).
+  productId: z.string().optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
   pageSize: z.coerce.number().int().min(1).max(100).optional().default(20),
 });
+
+export type ReportRange = z.infer<typeof orderHistoryQuerySchema>['range'];
 
 export type CartItemInput = z.infer<typeof cartItemSchema>;
 export type DineInCheckoutInput = z.infer<typeof dineInCheckoutSchema>;

@@ -5,7 +5,7 @@ import { baseToBs, CURRENCY_SYMBOLS, round2, toDecimal } from '../../utils/money
 import { buildWhatsappCheckoutUrl, buildWhatsappUrl } from '../../utils/whatsapp';
 import { emitToKitchen, emitToTable, SocketEvents } from '../../sockets';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
-import { startOfTodayCaracas } from '../../utils/timezone';
+import { startOfTodayCaracas, startOfWeekCaracas } from '../../utils/timezone';
 import { haversineDistanceKm, isPointInPolygon, LatLng } from '../../utils/geo';
 import { tableSessionService } from '../table-sessions/table-session.service';
 import {
@@ -15,6 +15,7 @@ import {
   DineInCheckoutInput,
   ManualOrderInput,
   OrderHistoryQuery,
+  ReportRange,
   UpdateOrderCustomerInput,
   UpdateOrderItemsInput,
 } from './order.dto';
@@ -138,11 +139,12 @@ async function nextOrderNumber(tx: Prisma.TransactionClient, restaurantId: strin
   return (last?.orderNumber ?? 0) + 1;
 }
 
-/** Ventana de fecha para los filtros de reportes (hora de Caracas para "day"). */
-function rangeFilter(range: 'day' | 'month' | 'year' | 'all'): { gte: Date } | undefined {
+/** Ventana de fecha para los filtros de reportes (hora de Caracas para "day"/"week"). */
+function rangeFilter(range: ReportRange): { gte: Date } | undefined {
   if (range === 'all') return undefined;
   const now = new Date();
   if (range === 'day') return { gte: startOfTodayCaracas() };
+  if (range === 'week') return { gte: startOfWeekCaracas() };
   if (range === 'month') return { gte: new Date(now.getFullYear(), now.getMonth(), 1) };
   return { gte: new Date(now.getFullYear(), 0, 1) };
 }
@@ -890,47 +892,6 @@ export const orderService = {
     };
   },
 
-  /** Resumen de Administración (solo plan Premium): ventas de hoy, del mes y de siempre. */
-  async getAdminSummary(restaurantId: string) {
-    const restaurant = await prisma.restaurant.findUnique({
-      where: { id: restaurantId },
-      select: { baseCurrency: true },
-    });
-
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-
-    function summarize(orders: { totalBase: Prisma.Decimal; totalBs: Prisma.Decimal; channel: OrderChannel }[]) {
-      const totalBase = round2(orders.reduce((acc, o) => acc.add(o.totalBase), toDecimal(0)));
-      const totalBs = round2(orders.reduce((acc, o) => acc.add(o.totalBs), toDecimal(0)));
-      const byChannel: Record<OrderChannel, number> = { DINE_IN: 0, DELIVERY: 0, PICKUP: 0 };
-      for (const o of orders) byChannel[o.channel]++;
-      return { ordersCount: orders.length, totalBase: totalBase.toFixed(2), totalBs: totalBs.toFixed(2), byChannel };
-    }
-
-    const [todayOrders, monthOrders, allOrders] = await Promise.all([
-      prisma.order.findMany({
-        where: { restaurantId, createdAt: { gte: startOfTodayCaracas() }, status: { not: 'CANCELLED' } },
-        select: { totalBase: true, totalBs: true, channel: true },
-      }),
-      prisma.order.findMany({
-        where: { restaurantId, createdAt: { gte: monthStart }, status: { not: 'CANCELLED' } },
-        select: { totalBase: true, totalBs: true, channel: true },
-      }),
-      prisma.order.findMany({
-        where: { restaurantId, status: { not: 'CANCELLED' } },
-        select: { totalBase: true, totalBs: true, channel: true },
-      }),
-    ]);
-
-    return {
-      currency: restaurant?.baseCurrency ?? 'USD',
-      today: summarize(todayOrders),
-      month: summarize(monthOrders),
-      allTime: summarize(allOrders),
-    };
-  },
-
   /** Agrega/edita a mano la propina de un pedido, desde Administración. */
   async setTip(restaurantId: string, orderId: string, tipBase: number) {
     const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });
@@ -950,7 +911,7 @@ export const orderService = {
     return updated;
   },
 
-  /** Historial de pedidos con filtros (Administración, solo Premium). */
+  /** Historial de pedidos con filtros (Administración, solo Premium). Incluye el desglose completo de cada venta. */
   async getOrderHistory(restaurantId: string, query: OrderHistoryQuery) {
     const where: Prisma.OrderWhereInput = {
       restaurantId,
@@ -961,6 +922,8 @@ export const orderService = {
     if (query.paymentMethod) where.paymentMethod = query.paymentMethod;
     if (query.placedBy === 'staff') where.placedByUserId = { not: null };
     if (query.placedBy === 'customer') where.placedByUserId = null;
+    if (query.placedByUserId) where.placedByUserId = query.placedByUserId;
+    if (query.productId) where.items = { some: { productId: query.productId } };
 
     const [total, orders, totalsAgg] = await Promise.all([
       prisma.order.count({ where }),
@@ -975,6 +938,10 @@ export const orderService = {
           channel: true,
           status: true,
           paymentMethod: true,
+          subtotalBase: true,
+          serviceChargeBase: true,
+          ivaBase: true,
+          deliveryFeeBase: true,
           totalBase: true,
           totalBs: true,
           tipBase: true,
@@ -983,6 +950,7 @@ export const orderService = {
           createdAt: true,
           table: { select: { number: true } },
           placedByUser: { select: { name: true } },
+          items: { select: { productId: true, productName: true, quantity: true, unitPrice: true, lineTotal: true } },
         },
       }),
       prisma.order.aggregate({ where, _sum: { totalBase: true, totalBs: true, tipBase: true } }),
@@ -1001,6 +969,10 @@ export const orderService = {
         channel: o.channel,
         status: o.status,
         paymentMethod: o.paymentMethod,
+        subtotalBase: o.subtotalBase.toFixed(2),
+        serviceChargeBase: o.serviceChargeBase.toFixed(2),
+        ivaBase: o.ivaBase.toFixed(2),
+        deliveryFeeBase: o.deliveryFeeBase.toFixed(2),
         totalBase: o.totalBase.toFixed(2),
         totalBs: o.totalBs.toFixed(2),
         tipBase: o.tipBase.toFixed(2),
@@ -1009,12 +981,28 @@ export const orderService = {
         placedByName: o.placedByUser?.name ?? null,
         table: o.table?.number ?? null,
         createdAt: o.createdAt,
+        items: o.items.map((i) => ({
+          productId: i.productId,
+          productName: i.productName,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice.toFixed(2),
+          lineTotal: i.lineTotal.toFixed(2),
+        })),
       })),
     };
   },
 
+  /** Lista el personal que ha cargado al menos un pedido (para el filtro "Mesero" del historial). */
+  async listWaiters(restaurantId: string) {
+    return prisma.user.findMany({
+      where: { restaurantId, placedOrders: { some: {} } },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true, role: true },
+    });
+  },
+
   /** Reporte de productos más/menos vendidos, con filtro de rango de fecha. */
-  async getProductReport(restaurantId: string, range: 'day' | 'month' | 'year' | 'all') {
+  async getProductReport(restaurantId: string, range: ReportRange) {
     const items = await prisma.orderItem.findMany({
       where: { order: { restaurantId, status: { not: 'CANCELLED' }, createdAt: rangeFilter(range) } },
       select: { productId: true, productName: true, quantity: true, lineTotal: true },
@@ -1046,7 +1034,7 @@ export const orderService = {
   },
 
   /** Movimiento por repartidor (pedidos despachados y su valor), para Administración → Delivery. */
-  async getCourierStats(restaurantId: string, range: 'day' | 'month' | 'year' | 'all') {
+  async getCourierStats(restaurantId: string, range: ReportRange) {
     const couriers = await prisma.deliveryCourier.findMany({ where: { restaurantId }, orderBy: { name: 'asc' } });
     const orders = await prisma.order.findMany({
       where: {
@@ -1074,7 +1062,7 @@ export const orderService = {
   },
 
   /** Movimiento por método de pago, para Administración. */
-  async getPaymentMethodStats(restaurantId: string, range: 'day' | 'month' | 'year' | 'all') {
+  async getPaymentMethodStats(restaurantId: string, range: ReportRange) {
     const orders = await prisma.order.findMany({
       where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: rangeFilter(range) },
       select: { paymentMethod: true, totalBase: true, totalBs: true },
