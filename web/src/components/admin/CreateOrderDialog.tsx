@@ -59,6 +59,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   const [quotingFee, setQuotingFee] = useState(false);
   const [showComanda, setShowComanda] = useState(false);
   const [rateBs, setRateBs] = useState<string | null>(null);
+  const [addingToId, setAddingToId] = useState<string | null>(null);
 
   function useCurrentLocation() {
     if (!navigator.geolocation) {
@@ -183,6 +184,25 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
     }
   }
 
+  /** Añade la comanda armada en "Pedido nuevo" directamente a un pedido ya activo, sin perderla. */
+  async function addToExisting(orderId: string) {
+    if (lines.length === 0) return;
+    setAddingToId(orderId);
+    setError(null);
+    try {
+      // Secuencial: el backend recalcula el total del pedido a partir de todos sus ítems en cada llamada.
+      for (const l of lines) {
+        await api.post(`/orders/${orderId}/items`, { productId: l.product.id, quantity: l.quantity });
+      }
+      onCreated();
+      onClose();
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo añadir al pedido.');
+    } finally {
+      setAddingToId(null);
+    }
+  }
+
   return (
     <>
       <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -222,6 +242,11 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                   className="w-full text-sm border border-brand-950/15 rounded-lg pl-8 pr-2.5 py-1.5"
                 />
               </div>
+              {lines.length === 0 && (
+                <p className="text-xs text-brand-950/40">
+                  Agrega productos en "Pedido nuevo" para poder añadirlos a un pedido con "Añadir".
+                </p>
+              )}
               <div className="space-y-2 max-h-72 overflow-y-auto">
                 {existingOrders.length === 0 && (
                   <p className="text-sm text-brand-950/40 font-light text-center py-4">No hay pedidos activos.</p>
@@ -232,25 +257,38 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                   </p>
                 )}
                 {filteredExistingOrders.map((o) => (
-                  <button
+                  <div
                     key={o.id}
-                    onClick={() => onSelectExisting(o.id)}
-                    className="w-full flex items-center gap-3 rounded-xl border border-brand-950/10 px-3 py-2.5 text-left hover:border-brand-400/50 hover:bg-brand-950/[0.02] transition-colors"
+                    className="w-full flex items-center gap-2 rounded-xl border border-brand-950/10 px-3 py-2.5 hover:border-brand-400/50 hover:bg-brand-950/[0.02] transition-colors"
                   >
-                    <ClipboardList className="h-4 w-4 text-brand-500 shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-brand-950">
-                        #{o.orderNumber}
-                        {o.customerName && (
-                          <span className="font-normal text-brand-950/60"> · {o.customerName}</span>
-                        )}
-                      </p>
-                      <p className="text-xs text-brand-950/40">
-                        {CHANNEL_LABELS[o.channel]}
-                        {o.table && ` ${o.table.number}`}
-                      </p>
-                    </div>
-                  </button>
+                    <button
+                      onClick={() => onSelectExisting(o.id)}
+                      className="flex-1 min-w-0 flex items-center gap-3 text-left"
+                    >
+                      <ClipboardList className="h-4 w-4 text-brand-500 shrink-0" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-brand-950">
+                          #{o.orderNumber}
+                          {o.customerName && (
+                            <span className="font-normal text-brand-950/60"> · {o.customerName}</span>
+                          )}
+                        </p>
+                        <p className="text-xs text-brand-950/40">
+                          {CHANNEL_LABELS[o.channel]}
+                          {o.table && ` ${o.table.number}`}
+                        </p>
+                      </div>
+                    </button>
+                    <TextureButton
+                      variant="brand"
+                      size="sm"
+                      className="!w-auto px-3 shrink-0 disabled:opacity-40"
+                      disabled={lines.length === 0 || addingToId !== null}
+                      onClick={() => addToExisting(o.id)}
+                    >
+                      {addingToId === o.id ? 'Añadiendo…' : 'Añadir'}
+                    </TextureButton>
+                  </div>
                 ))}
               </div>
             </div>
