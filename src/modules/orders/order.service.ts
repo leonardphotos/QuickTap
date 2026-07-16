@@ -315,7 +315,16 @@ export const orderService = {
   async createManualOrder(restaurantId: string, input: ManualOrderInput, placedByUserId?: string) {
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
-      select: { baseCurrency: true, serviceChargeEnabled: true, ivaEnabled: true },
+      select: {
+        baseCurrency: true,
+        serviceChargeEnabled: true,
+        ivaEnabled: true,
+        deliveryPricingMode: true,
+        deliveryOriginLat: true,
+        deliveryOriginLng: true,
+        deliveryBaseFee: true,
+        deliveryPricePerKm: true,
+      },
     });
     if (!restaurant) throw notFound('Restaurante no encontrado.');
 
@@ -324,7 +333,14 @@ export const orderService = {
 
     const lines = await priceCart(restaurantId, input.items);
     const subtotalBase = sumSubtotal(lines);
-    const { serviceChargeBase, ivaBase, totalBase } = calculateCharges(subtotalBase, restaurant);
+    const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant);
+
+    const customerPoint =
+      input.channel === 'DELIVERY' && input.customerLat != null && input.customerLng != null
+        ? { lat: input.customerLat, lng: input.customerLng }
+        : null;
+    const deliveryFeeBase = await computeDeliveryFee({ id: restaurantId, ...restaurant }, customerPoint);
+    const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(deliveryFeeBase));
     const totalBs = baseToBs(totalBase, rate.rateBs);
 
     const itemsCreate = lines.map((l) => ({
@@ -376,6 +392,7 @@ export const orderService = {
                   subtotalBase,
                   serviceChargeBase,
                   ivaBase,
+                  deliveryFeeBase,
                   totalBase,
                   exchangeRate: rate.rateBs,
                   totalBs,
@@ -406,6 +423,7 @@ export const orderService = {
                 subtotalBase,
                 serviceChargeBase,
                 ivaBase,
+                deliveryFeeBase,
                 totalBase,
                 exchangeRate: rate.rateBs,
                 totalBs,

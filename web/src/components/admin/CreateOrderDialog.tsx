@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Bike, ClipboardList, MapPin, Search, Store, UtensilsCrossed } from 'lucide-react';
+import { Bike, ClipboardList, MapPin, ReceiptText, Search, Store, UtensilsCrossed } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
+import { CURRENCY_SYMBOLS, formatBase, formatBs } from '@/utils/format';
 import type { Product, TableItem } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -55,6 +55,10 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   const [quantities, setQuantities] = useState<Record<string, number>>({});
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [deliveryFeeBase, setDeliveryFeeBase] = useState<number | null>(null);
+  const [quotingFee, setQuotingFee] = useState(false);
+  const [showComanda, setShowComanda] = useState(false);
+  const [rateBs, setRateBs] = useState<string | null>(null);
 
   function useCurrentLocation() {
     if (!navigator.geolocation) {
@@ -80,7 +84,26 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   useEffect(() => {
     api.get('/products').then((res) => setProducts(res.data.data));
     api.get('/tables').then((res) => setTables(res.data.data));
+    api
+      .get('/public/exchange-rate')
+      .then((res) => setRateBs(res.data.data?.[restaurant?.baseCurrency ?? 'USD']?.rateBs ?? null))
+      .catch(() => setRateBs(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Cotiza el envío en vivo apenas hay una ubicación de entrega, igual que el checkout público.
+  useEffect(() => {
+    if (channel !== 'DELIVERY' || !addressCoords || !restaurant) {
+      setDeliveryFeeBase(null);
+      return;
+    }
+    setQuotingFee(true);
+    api
+      .get(`/public/checkout/delivery/${restaurant.slug}/quote`, { params: addressCoords })
+      .then((res) => setDeliveryFeeBase(Number(res.data.data.feeBase)))
+      .catch(() => setDeliveryFeeBase(null))
+      .finally(() => setQuotingFee(false));
+  }, [addressCoords, channel, restaurant]);
 
   const groups = useMemo(() => {
     const byCategory = new Map<string, Product[]>();
@@ -96,7 +119,12 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
     () => products.map((p) => ({ product: p, quantity: quantities[p.id] ?? 0 })).filter((l) => l.quantity > 0),
     [products, quantities],
   );
-  const totalBase = lines.reduce((acc, l) => acc + Number(l.product.price) * l.quantity, 0);
+  const subtotalBase = lines.reduce((acc, l) => acc + Number(l.product.price) * l.quantity, 0);
+  const serviceChargeBase = restaurant?.serviceChargeEnabled ? subtotalBase * 0.1 : 0;
+  const ivaBase = restaurant?.ivaEnabled ? subtotalBase * 0.16 : 0;
+  const totalBase =
+    subtotalBase + serviceChargeBase + ivaBase + (channel === 'DELIVERY' ? deliveryFeeBase ?? 0 : 0);
+  const hasCharges = restaurant?.serviceChargeEnabled || restaurant?.ivaEnabled || Boolean(deliveryFeeBase);
 
   const filteredExistingOrders = useMemo(() => {
     const query = existingSearch.trim().toLowerCase();
@@ -156,13 +184,14 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   }
 
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Crear pedido</DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open onOpenChange={(o) => !o && onClose()}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Crear pedido</DialogTitle>
+          </DialogHeader>
 
-        <div className="space-y-4">
+          <div className="space-y-4">
           <div className="grid grid-cols-2 gap-1.5 rounded-full bg-brand-950/[0.06] p-1">
             <button
               onClick={() => setMode('new')}
@@ -370,10 +399,57 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                 )}
               </div>
 
+              {lines.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowComanda(true)}
+                  className="flex items-center gap-1.5 text-xs font-medium text-brand-500 hover:text-brand-400 -mb-1"
+                >
+                  <ReceiptText className="h-3.5 w-3.5" />
+                  Ver comanda ({lines.reduce((acc, l) => acc + l.quantity, 0)} {lines.reduce((acc, l) => acc + l.quantity, 0) === 1 ? 'ítem' : 'ítems'})
+                </button>
+              )}
+
+              {hasCharges && (
+                <div className="text-xs text-brand-950/60 space-y-1 pt-2 border-t border-brand-950/10">
+                  <div className="flex justify-between">
+                    <span>Subtotal</span>
+                    <span>{formatBase(subtotalBase, symbol)}</span>
+                  </div>
+                  {restaurant?.serviceChargeEnabled && (
+                    <div className="flex justify-between">
+                      <span>Servicio (10%)</span>
+                      <span>{formatBase(serviceChargeBase, symbol)}</span>
+                    </div>
+                  )}
+                  {restaurant?.ivaEnabled && (
+                    <div className="flex justify-between">
+                      <span>IVA (16%)</span>
+                      <span>{formatBase(ivaBase, symbol)}</span>
+                    </div>
+                  )}
+                  {channel === 'DELIVERY' && deliveryFeeBase != null && deliveryFeeBase > 0 && (
+                    <div className="flex justify-between">
+                      <span>Envío</span>
+                      <span>{formatBase(deliveryFeeBase, symbol)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              {channel === 'DELIVERY' && quotingFee && (
+                <p className="text-xs text-brand-950/40">Calculando envío…</p>
+              )}
+
               <div className="flex items-center justify-between text-sm font-semibold pt-1">
                 <span>Total</span>
                 <span>{formatBase(totalBase, symbol)}</span>
               </div>
+              {rateBs && (
+                <div className="flex items-center justify-between text-xs text-brand-950/50 -mt-2">
+                  <span>Equivalente</span>
+                  <span>{formatBs(totalBase, rateBs)}</span>
+                </div>
+              )}
 
               {error && <p className="text-sm text-red-600">{error}</p>}
 
@@ -382,8 +458,61 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
               </TextureButton>
             </>
           )}
-        </div>
-      </DialogContent>
-    </Dialog>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {showComanda && (
+        <Dialog open onOpenChange={(o) => !o && setShowComanda(false)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Comanda</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <ul className="space-y-2 max-h-80 overflow-y-auto">
+                {lines.map((l) => (
+                  <li
+                    key={l.product.id}
+                    className="flex items-center justify-between gap-2 border-b border-brand-950/10 pb-2"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-brand-950 truncate">{l.product.name}</p>
+                      <p className="text-xs text-brand-950/50">
+                        {formatBase(l.product.price, symbol)} c/u · {formatBase(Number(l.product.price) * l.quantity, symbol)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => setQty(l.product.id, l.quantity - 1)}
+                        className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950"
+                      >
+                        −
+                      </button>
+                      <span className="w-5 text-center text-sm font-medium">{l.quantity}</span>
+                      <button
+                        onClick={() => setQty(l.product.id, l.quantity + 1)}
+                        className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </li>
+                ))}
+                {lines.length === 0 && (
+                  <p className="text-sm text-brand-950/40 font-light text-center py-4">No hay productos agregados.</p>
+                )}
+              </ul>
+              <div className="flex items-center justify-between text-sm font-semibold pt-1 border-t border-brand-950/10">
+                <span>Total</span>
+                <span>{formatBase(totalBase, symbol)}</span>
+              </div>
+              <TextureButton variant="secondary" size="default" onClick={() => setShowComanda(false)}>
+                Volver al menú
+              </TextureButton>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+    </>
   );
 }
