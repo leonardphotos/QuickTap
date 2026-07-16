@@ -8,6 +8,7 @@ import {
   dispatchCourierSchema,
   manualOrderSchema,
   orderHistoryQuerySchema,
+  recordPaymentSchema,
   setAwaitingPaymentSchema,
   setTipSchema,
   updateOrderCustomerSchema,
@@ -68,6 +69,13 @@ export const orderController = {
   addItem: asyncHandler(async (req: Request, res: Response) => {
     const input = addOrderItemSchema.parse(req.body);
     const order = await orderService.addItem(req.restaurantId!, req.params.id, input);
+    res.status(201).json({ data: order });
+  }),
+
+  /** POST /api/v1/orders/:id/payments — registrar un cobro, botones "Pagar" / "Pago Fraccionado" (protegido). */
+  addPayment: asyncHandler(async (req: Request, res: Response) => {
+    const input = recordPaymentSchema.parse(req.body);
+    const order = await orderService.addPayment(req.restaurantId!, req.params.id, input);
     res.status(201).json({ data: order });
   }),
 

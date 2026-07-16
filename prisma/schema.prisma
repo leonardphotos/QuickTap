@@ -530,12 +530,29 @@ model Order {
   placedByUser    User?            @relation(fields: [placedByUserId], references: [id], onDelete: SetNull)
   deliveryCourier DeliveryCourier? @relation(fields: [deliveryCourierId], references: [id], onDelete: SetNull)
   items           OrderItem[]
+  payments        OrderPayment[]
 
   @@unique([restaurantId, orderNumber])
   @@index([restaurantId, status])
   @@index([restaurantId, createdAt])
   @@index([tableSessionId])
   @@map("orders")
+}
+
+// Cobro registrado desde los botones "Pagar" / "Pago Fraccionado" del panel
+// de Pedidos. Un pedido puede tener varios (pago fraccionado en distintos
+// métodos); lo pagado se compara contra totalBase para saber el saldo.
+model OrderPayment {
+  id         String        @id @default(cuid())
+  orderId    String
+  amountBase Decimal       @db.Decimal(12, 2)
+  method     PaymentMethod
+  createdAt  DateTime      @default(now())
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("order_payments")
 }
 
 model OrderItem {

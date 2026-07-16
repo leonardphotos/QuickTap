@@ -15,6 +15,7 @@ import {
   DineInCheckoutInput,
   ManualOrderInput,
   OrderHistoryQuery,
+  RecordPaymentInput,
   ReportRange,
   UpdateOrderCustomerInput,
   UpdateOrderItemsInput,
@@ -812,9 +813,37 @@ export const orderService = {
   async listLiveOrders(restaurantId: string) {
     return prisma.order.findMany({
       where: { restaurantId, status: { notIn: ['SERVED', 'CANCELLED'] } },
-      orderBy: { createdAt: 'asc' },
-      include: { items: true, table: { select: { number: true } } },
+      orderBy: { createdAt: 'desc' },
+      include: { items: true, table: { select: { number: true } }, payments: true },
     });
+  },
+
+  /** Registra un cobro (botones "Pagar" / "Pago Fraccionado"). Si con esto se cubre el total, cierra la cuenta abierta. */
+  async addPayment(restaurantId: string, orderId: string, input: RecordPaymentInput) {
+    const order = await prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { payments: true } });
+    if (!order) throw notFound('Comanda no encontrada.');
+    if (order.status === 'CANCELLED') throw badRequest('No se puede registrar un cobro en un pedido cancelado.');
+
+    const alreadyPaid = order.payments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0));
+    const balance = round2(order.totalBase.sub(alreadyPaid));
+    if (toDecimal(input.amountBase).gt(balance.add(0.01))) {
+      throw badRequest(`El monto excede el saldo pendiente (${balance.toFixed(2)}).`);
+    }
+
+    await prisma.orderPayment.create({
+      data: { orderId, amountBase: input.amountBase, method: input.method },
+    });
+
+    const paidBase = round2(alreadyPaid.add(input.amountBase));
+    const fullyPaid = paidBase.gte(order.totalBase.sub(0.01));
+    const updated = await prisma.order.update({
+      where: { id: orderId },
+      data: fullyPaid ? { awaitingPayment: false } : {},
+      include: { items: true, table: { select: { number: true } }, payments: true },
+    });
+
+    emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: updated.status });
+    return updated;
   },
 
   /**

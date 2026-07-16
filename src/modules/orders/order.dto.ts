@@ -99,6 +99,12 @@ export const setAwaitingPaymentSchema = z.object({
   awaitingPayment: z.coerce.boolean().optional().default(true),
 });
 
+/** Registrar un cobro (botones "Pagar" / "Pago Fraccionado" en Pedidos). */
+export const recordPaymentSchema = z.object({
+  amountBase: z.coerce.number().positive().max(1000000),
+  method: paymentMethodSchema,
+});
+
 /** Añadir un producto nuevo a un pedido ya creado, desde el panel de Pedidos en vivo. */
 export const addOrderItemSchema = z.object({
   productId: z.string().min(1),
@@ -154,5 +160,6 @@ export type SetTipInput = z.infer<typeof setTipSchema>;
 export type SetAwaitingPaymentInput = z.infer<typeof setAwaitingPaymentSchema>;
 export type DispatchCourierInput = z.infer<typeof dispatchCourierSchema>;
 export type AddOrderItemInput = z.infer<typeof addOrderItemSchema>;
+export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
 export type UpdateOrderCustomerInput = z.infer<typeof updateOrderCustomerSchema>;
 export type OrderHistoryQuery = z.infer<typeof orderHistoryQuerySchema>;

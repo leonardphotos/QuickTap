@@ -1,7 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
-import { Check, ChefHat, Clock, ListFilter, Plus, Truck, X } from 'lucide-react';
+import {
+  Check,
+  ChefHat,
+  Clock,
+  CreditCard,
+  LayoutGrid,
+  ListFilter,
+  Plus,
+  Rows3,
+  SplitSquareHorizontal,
+  Truck,
+  X,
+} from 'lucide-react';
 import { api, getToken } from '@/api/client';
 import type { DeliveryCourier, Product } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -9,8 +21,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import { CreateOrderDialog } from './CreateOrderDialog';
+import { PaymentDialog } from './PaymentDialog';
 import { useAuth } from '@/context/AuthContext';
 import { hasFeature } from '@/utils/subscription';
+import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
 
 interface LiveOrderItem {
   id: string;
@@ -22,7 +36,14 @@ interface LiveOrderItem {
   note?: string | null;
 }
 
-interface LiveOrder {
+export interface LiveOrderPayment {
+  id: string;
+  amountBase: string;
+  method: string;
+  createdAt: string;
+}
+
+export interface LiveOrder {
   id: string;
   orderNumber: number;
   channel: 'DINE_IN' | 'DELIVERY' | 'PICKUP';
@@ -36,6 +57,7 @@ interface LiveOrder {
   customerNote: string | null;
   table: { number: string } | null;
   items: LiveOrderItem[];
+  payments: LiveOrderPayment[];
   awaitingPayment: boolean;
 }
 
@@ -70,6 +92,7 @@ const FILTER_LABELS: Record<ChannelFilter, string> = {
 export function LiveOrdersPanel() {
   const { restaurant } = useAuth();
   const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
+  const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [orders, setOrders] = useState<LiveOrder[] | null>(null);
   const [couriers, setCouriers] = useState<DeliveryCourier[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -79,6 +102,10 @@ export function LiveOrdersPanel() {
   const [editingOrder, setEditingOrder] = useState<LiveOrder | null>(null);
   const [justAdded, setJustAdded] = useState<{ id: string; fading: boolean } | null>(null);
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
+  const [paymentDialog, setPaymentDialog] = useState<{ order: LiveOrder; mode: 'full' | 'split' } | null>(null);
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
+  // En cuadrícula las tarjetas son más angostas: solo iconos, sin texto, para que los botones no se deformen.
+  const actionBtnClass = viewMode === 'grid' ? 'text-[10.5px] font-medium py-2.5 px-0.5 leading-tight' : 'text-xs font-medium py-3';
 
   function load() {
     api.get('/orders/live').then((res) => setOrders(res.data.data));
@@ -102,6 +129,13 @@ export function LiveOrdersPanel() {
     if (!editingOrder || !orders) return;
     const fresh = orders.find((o) => o.id === editingOrder.id);
     if (fresh) setEditingOrder(fresh);
+  }, [orders]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Igual, mientras el diálogo de pago está abierto (para reflejar el saldo tras cada abono).
+  useEffect(() => {
+    if (!paymentDialog || !orders) return;
+    const fresh = orders.find((o) => o.id === paymentDialog.order.id);
+    if (fresh) setPaymentDialog((d) => (d ? { ...d, order: fresh } : d));
   }, [orders]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function accept(id: string) {
@@ -197,7 +231,7 @@ export function LiveOrdersPanel() {
   if (!orders) return null;
 
   return (
-    <div className="w-full max-w-md mb-8">
+    <div className={`w-full mb-8 ${viewMode === 'grid' ? 'max-w-5xl' : 'max-w-md'}`}>
       <div className="grid grid-cols-3 items-center mb-3 gap-2">
         <div className="flex items-center gap-2.5 justify-self-start">
           <h2 className="text-lg font-semibold text-brand-950">Pedidos</h2>
@@ -216,27 +250,36 @@ export function LiveOrdersPanel() {
         >
           <Plus className="h-7 w-7" strokeWidth={2.5} />
         </TextureButton>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="flex items-center gap-1.5 text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5 bg-white text-brand-950/70 justify-self-end">
-              <ListFilter className="h-3.5 w-3.5" />
-              {channelFilter ? FILTER_LABELS[channelFilter] : 'Filtro'}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => setChannelFilter(null)}>Todos los pedidos</DropdownMenuItem>
-            {CHANNEL_TABS.map((t) => (
-              <DropdownMenuItem key={t.value} onClick={() => setChannelFilter(t.value)}>
-                {t.label}
-              </DropdownMenuItem>
-            ))}
-            {canAccountsPayable && (
-              <DropdownMenuItem onClick={() => setChannelFilter('AWAITING_PAYMENT')}>
-                Pendiente por pagar
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <div className="flex items-center gap-2 justify-self-end">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="flex items-center gap-1.5 text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5 bg-white text-brand-950/70">
+                <ListFilter className="h-3.5 w-3.5" />
+                {channelFilter ? FILTER_LABELS[channelFilter] : 'Filtro'}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setChannelFilter(null)}>Todos los pedidos</DropdownMenuItem>
+              {CHANNEL_TABS.map((t) => (
+                <DropdownMenuItem key={t.value} onClick={() => setChannelFilter(t.value)}>
+                  {t.label}
+                </DropdownMenuItem>
+              ))}
+              {canAccountsPayable && (
+                <DropdownMenuItem onClick={() => setChannelFilter('AWAITING_PAYMENT')}>
+                  Pendiente por pagar
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <button
+            onClick={() => setViewMode((v) => (v === 'list' ? 'grid' : 'list'))}
+            aria-label={viewMode === 'list' ? 'Ver en cuadrícula' : 'Ver en fila'}
+            className="flex items-center justify-center text-sm border border-brand-950/15 rounded-lg p-2 bg-white text-brand-950/70 hover:bg-brand-950/[0.03]"
+          >
+            {viewMode === 'list' ? <LayoutGrid className="h-3.5 w-3.5" /> : <Rows3 className="h-3.5 w-3.5" />}
+          </button>
+        </div>
       </div>
 
       {error && <p className="text-sm text-red-600 mb-3 text-left">{error}</p>}
@@ -246,8 +289,13 @@ export function LiveOrdersPanel() {
           <p className="text-sm text-brand-950/40 font-light">No hay pedidos activos.</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {visibleOrders?.map((o) => (
+        <div className={viewMode === 'grid' ? 'grid grid-cols-2 lg:grid-cols-3 gap-3' : 'space-y-3'}>
+          {visibleOrders?.map((o) => {
+            const paidBase = o.payments.reduce((acc, p) => acc + Number(p.amountBase), 0);
+            const balanceBase = Math.max(0, Number(o.totalBase) - paidBase);
+            const owesBalance = paidBase > 0 && balanceBase > 0.01;
+            const fullyPaid = o.payments.length > 0 && balanceBase <= 0.01;
+            return (
             <div
               key={o.id}
               onClick={() => setEditingOrder(o)}
@@ -284,9 +332,15 @@ export function LiveOrdersPanel() {
                 ))}
               </ul>
 
-              <p className="text-sm font-semibold text-brand-950 mb-3">
-                {o.totalBase} {o.currency}
-              </p>
+              <div className="flex items-center gap-2 flex-wrap mb-3">
+                <p className="text-sm font-semibold text-brand-950">{formatBase(o.totalBase, symbol)}</p>
+                <p className="text-xs text-brand-950/50">{formatBsAbsolute(o.totalBs)}</p>
+                {owesBalance && (
+                  <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                    Debe {formatBase(balanceBase, symbol)}
+                  </span>
+                )}
+              </div>
 
               {courierPickerFor === o.id ? (
                 <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
@@ -315,46 +369,73 @@ export function LiveOrdersPanel() {
                   <button
                     onClick={() => accept(o.id)}
                     disabled={busyId === o.id || (o.status !== 'PENDING' && o.status !== 'NEEDS_CONFIRMATION')}
-                    className="flex flex-col items-center justify-center gap-1 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-medium py-3 transition-colors disabled:opacity-40"
+                    title="Aceptar"
+                    className={`flex flex-col items-center justify-center gap-1 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white ${actionBtnClass} transition-colors disabled:opacity-40`}
                   >
-                    <Check className="h-5 w-5" /> Aceptar
+                    <Check className="h-4 w-4" /> {viewMode === 'list' && 'Aceptar'}
                   </button>
                   <button
                     onClick={() => cancel(o.id)}
                     disabled={busyId === o.id}
-                    className="flex flex-col items-center justify-center gap-1 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-medium py-3 transition-colors disabled:opacity-50"
+                    title="Cancelar"
+                    className={`flex flex-col items-center justify-center gap-1 rounded-xl bg-red-500 hover:bg-red-600 text-white ${actionBtnClass} transition-colors disabled:opacity-50`}
                   >
-                    <X className="h-5 w-5" /> Cancelar
+                    <X className="h-4 w-4" /> {viewMode === 'list' && 'Cancelar'}
                   </button>
                   <button
                     onClick={() => finish(o.id)}
                     disabled={busyId === o.id}
-                    className="flex flex-col items-center justify-center gap-1 rounded-xl bg-brand-500 hover:bg-brand-400 text-white text-xs font-medium py-3 transition-colors disabled:opacity-50"
+                    title="Finalizar"
+                    className={`flex flex-col items-center justify-center gap-1 rounded-xl bg-brand-500 hover:bg-brand-400 text-white ${actionBtnClass} transition-colors disabled:opacity-50`}
                   >
-                    <ChefHat className="h-5 w-5" /> Finalizar
+                    <ChefHat className="h-4 w-4" /> {viewMode === 'list' && 'Finalizar'}
                   </button>
                   <button
                     onClick={() => handleDeliveryClick(o)}
                     disabled={busyId === o.id || o.channel !== 'DELIVERY'}
-                    className="flex flex-col items-center justify-center gap-1 rounded-xl bg-brand-950 hover:bg-brand-900 text-white text-xs font-medium py-3 transition-colors disabled:opacity-40"
+                    title="Delivery"
+                    className={`flex flex-col items-center justify-center gap-1 rounded-xl bg-brand-950 hover:bg-brand-900 text-white ${actionBtnClass} transition-colors disabled:opacity-40`}
                   >
-                    <Truck className="h-5 w-5" /> Delivery
+                    <Truck className="h-4 w-4" /> {viewMode === 'list' && 'Delivery'}
                   </button>
                   {canAccountsPayable && (
                     <button
                       onClick={() => toggleAwaitingPayment(o.id, !o.awaitingPayment)}
                       disabled={busyId === o.id}
-                      className={`flex flex-col items-center justify-center gap-1 rounded-xl text-white text-xs font-medium py-3 transition-colors disabled:opacity-40 ${
+                      title={o.awaitingPayment ? 'Pendiente' : 'Cta. abierta'}
+                      className={`flex flex-col items-center justify-center gap-1 rounded-xl text-white ${actionBtnClass} transition-colors disabled:opacity-40 ${
                         o.awaitingPayment ? 'bg-amber-600 hover:bg-amber-700' : 'bg-amber-500 hover:bg-amber-600'
                       }`}
                     >
-                      <Clock className="h-5 w-5" /> {o.awaitingPayment ? 'Pendiente' : 'Cta. abierta'}
+                      <Clock className="h-4 w-4" /> {viewMode === 'list' && (o.awaitingPayment ? 'Pendiente' : 'Cta. abierta')}
                     </button>
                   )}
                 </div>
               )}
+
+              {fullyPaid ? (
+                <p className="text-xs text-emerald-600 font-medium text-center mt-2">✓ Pagado</p>
+              ) : (
+                <div className="grid grid-cols-2 gap-1.5 mt-2" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => setPaymentDialog({ order: o, mode: 'full' })}
+                    title="Pagar"
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-xs font-medium py-2.5 transition-colors"
+                  >
+                    <CreditCard className="h-4 w-4" /> {viewMode === 'list' && 'Pagar'}
+                  </button>
+                  <button
+                    onClick={() => setPaymentDialog({ order: o, mode: 'split' })}
+                    title="Pago fraccionado"
+                    className="flex items-center justify-center gap-1.5 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-xs font-medium py-2.5 transition-colors"
+                  >
+                    <SplitSquareHorizontal className="h-4 w-4" /> {viewMode === 'list' && 'Pago fraccionado'}
+                  </button>
+                </div>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -372,6 +453,15 @@ export function LiveOrdersPanel() {
             const target = orders.find((o) => o.id === orderId);
             if (target) setEditingOrder(target);
           }}
+        />
+      )}
+
+      {paymentDialog && (
+        <PaymentDialog
+          order={paymentDialog.order}
+          mode={paymentDialog.mode}
+          onClose={() => setPaymentDialog(null)}
+          onPaid={load}
         />
       )}
     </div>
