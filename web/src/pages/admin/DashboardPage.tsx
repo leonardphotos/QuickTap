@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu } from 'lucide-react';
+import { Menu, ExternalLink } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { daysRemaining, graceHoursRemaining } from '../../utils/subscription';
 import { hasSeenOnboardingTutorial, OnboardingTutorial } from '@/components/admin/OnboardingTutorial';
 import { DailySalesSummary } from '@/components/admin/DailySalesSummary';
 import { LiveOrdersPanel } from '@/components/admin/LiveOrdersPanel';
 import { NavMenuDrawer } from '@/components/admin/NavMenuDrawer';
+import { TextureButton } from '@/components/ui/texture-button';
 
 const PLAN_LABELS: Record<string, string> = {
   DELIVERY: 'Solo Delivery',
@@ -74,6 +75,11 @@ export default function DashboardPage() {
       </div>
 
       <div className="flex flex-col items-center text-center">
+        <a href={`/r/${restaurant.slug}`} target="_blank" rel="noopener noreferrer" className="mb-4">
+          <TextureButton variant="minimal" size="sm" className="!w-auto px-4">
+            <ExternalLink className="h-3.5 w-3.5 mr-1.5" /> Ver mi menú
+          </TextureButton>
+        </a>
         <DailySalesSummary />
         <LiveOrdersPanel />
       </div>
