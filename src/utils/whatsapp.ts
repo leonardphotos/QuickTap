@@ -74,7 +74,25 @@ export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   TRANSFER: 'Transferencia',
 };
 
-/** Normaliza el número de teléfono a solo dígitos (wa.me no acepta "+" ni espacios). */
+/**
+ * Formatea un número de teléfono venezolano al formato internacional que
+ * exige WhatsApp: "+58" seguido del número sin el 0 inicial (ej.
+ * "0424-1234567" -> "+584241234567"). Si el número ya trae el 58 (con o sin
+ * "+"), lo deja igual en vez de duplicar el código de país.
+ */
+export function formatVenezuelanWhatsappPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('58')) return `+${digits}`;
+  return `+58${digits.replace(/^0+/, '')}`;
+}
+
+/**
+ * Normaliza el número de teléfono a solo dígitos (wa.me no acepta "+" ni
+ * espacios). No asume ningún país: el registro de restaurantes ya guarda
+ * `whatsappPhone` con el código de marcación correcto según el país elegido
+ * (ver `formatVenezuelanWhatsappPhone` para el caso específico de números
+ * venezolanos sueltos, ej. el teléfono que escribe un comensal).
+ */
 function sanitizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
 }

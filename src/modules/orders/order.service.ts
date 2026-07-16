@@ -2,7 +2,7 @@ import { OrderChannel, Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { baseToBs, CURRENCY_SYMBOLS, formatBs, formatMoney, round2, toDecimal } from '../../utils/money';
-import { buildWhatsappCheckoutUrl, buildWhatsappUrl } from '../../utils/whatsapp';
+import { buildWhatsappCheckoutUrl, buildWhatsappUrl, formatVenezuelanWhatsappPhone } from '../../utils/whatsapp';
 import { emitToKitchen, emitToTable, SocketEvents } from '../../sockets';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { rangeFilter } from '../../utils/date-range';
@@ -928,7 +928,12 @@ export const orderService = {
     parts.push('━━━━━━━━━━━━━━━━━━━━');
     parts.push('_Enviado desde QuickTap.club_');
 
-    return { url: buildWhatsappUrl(order.customerPhone, parts.join('\n')) };
+    // El teléfono del cliente se captura como número local venezolano (ej.
+    // "0424-1234567", sin código de país) en los formularios de checkout/mesa,
+    // a diferencia de restaurant.whatsappPhone que ya guarda el código de
+    // marcación elegido en el registro.
+    const customerWhatsapp = formatVenezuelanWhatsappPhone(order.customerPhone);
+    return { url: buildWhatsappUrl(customerWhatsapp, parts.join('\n')) };
   },
 
   /** Resumen de ventas del día (hora de Caracas) para el Dashboard del restaurante. */
