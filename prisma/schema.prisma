@@ -179,7 +179,12 @@ model Restaurant {
 
   // --- Contacto / checkout ---
   // Número de WhatsApp en formato internacional SIN "+" (ej: 584141234567).
-  whatsappPhone String?
+  whatsappPhone                String?
+  // Plantilla personalizable del mensaje de WhatsApp que el mesero/cajero le
+  // envía al cliente con su comanda (botón "Enviar vía WhatsApp" en Pedidos).
+  // Placeholders disponibles: {{header}}, {{items}}, {{totales}}. Si es null,
+  // se usa DEFAULT_COMANDA_WHATSAPP_TEMPLATE (src/utils/whatsapp.ts).
+  whatsappOrderMessageTemplate String?
 
   // --- Apariencia del menú público ---
   // Colores personalizados del menú público (fondo, botones, acentos, texto).

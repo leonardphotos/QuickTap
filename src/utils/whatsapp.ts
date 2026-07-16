@@ -213,3 +213,30 @@ export function buildWhatsappCheckoutUrl(
     totalBs: totalBs.toFixed(2),
   };
 }
+
+/**
+ * ============================================================================
+ *  Plantilla del mensaje de "Enviar vía WhatsApp" (comanda al cliente)
+ * ============================================================================
+ *  Cada restaurante puede personalizar el texto desde Configuración
+ *  (`Restaurant.whatsappOrderMessageTemplate`). Los datos del pedido en sí
+ *  (ítems y totales) NO son editables — se calculan siempre desde la base de
+ *  datos y se insertan como bloques ya formateados, para que el restaurante
+ *  pueda cambiar el tono/branding del mensaje sin arriesgar que el total o
+ *  los precios queden mal escritos.
+ */
+export const DEFAULT_COMANDA_WHATSAPP_TEMPLATE = [
+  '{{header}}',
+  '━━━━━━━━━━━━━━━━━━━━',
+  '*Detalle:*',
+  '{{items}}',
+  '━━━━━━━━━━━━━━━━━━━━',
+  '{{totales}}',
+  '━━━━━━━━━━━━━━━━━━━━',
+  '_Enviado desde QuickTap.club_',
+].join('\n');
+
+/** Reemplaza placeholders `{{clave}}` en una plantilla con los valores dados. */
+export function renderWhatsappTemplate(template: string, vars: Record<string, string>): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (match, key) => (key in vars ? vars[key] : match));
+}

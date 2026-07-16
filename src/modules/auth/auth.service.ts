@@ -33,6 +33,7 @@ const RESTAURANT_SELECT = {
   description: true,
   logoUrl: true,
   whatsappPhone: true,
+  whatsappOrderMessageTemplate: true,
   baseCurrency: true,
   theme: true,
   serviceChargeEnabled: true,
@@ -65,6 +66,7 @@ type RestaurantRow = {
   description: string | null;
   logoUrl: string | null;
   whatsappPhone: string | null;
+  whatsappOrderMessageTemplate: string | null;
   baseCurrency: 'USD' | 'EUR';
   theme: unknown;
   serviceChargeEnabled: boolean;
@@ -99,6 +101,7 @@ function serializeRestaurant(restaurant: RestaurantRow) {
     description: restaurant.description,
     logoUrl: restaurant.logoUrl,
     whatsappPhone: restaurant.whatsappPhone,
+    whatsappOrderMessageTemplate: restaurant.whatsappOrderMessageTemplate,
     baseCurrency: restaurant.baseCurrency,
     theme: restaurant.theme,
     serviceChargeEnabled: restaurant.serviceChargeEnabled,

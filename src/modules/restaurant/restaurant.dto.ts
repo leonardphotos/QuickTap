@@ -55,6 +55,8 @@ export const updateRestaurantSchema = z.object({
   description: z.string().max(500).optional(),
   logoUrl: z.string().min(1).optional(),
   whatsappPhone: z.string().min(7).max(30).optional(),
+  // Plantilla del mensaje de "Enviar vía WhatsApp" (comanda al cliente). Placeholders: {{header}}, {{items}}, {{totales}}.
+  whatsappOrderMessageTemplate: z.string().max(2000).optional(),
   // La "casilla de Tasa cambiaria": el restaurante elige en qué moneda
   // coloca sus precios. La conversión a Bs siempre usa la tasa BCV vigente.
   baseCurrency: z.enum(['USD', 'EUR']).optional(),

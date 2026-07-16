@@ -2,7 +2,13 @@ import { OrderChannel, Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { baseToBs, CURRENCY_SYMBOLS, formatBs, formatMoney, round2, toDecimal } from '../../utils/money';
-import { buildWhatsappCheckoutUrl, buildWhatsappUrl, formatVenezuelanWhatsappPhone } from '../../utils/whatsapp';
+import {
+  buildWhatsappCheckoutUrl,
+  buildWhatsappUrl,
+  DEFAULT_COMANDA_WHATSAPP_TEMPLATE,
+  formatVenezuelanWhatsappPhone,
+  renderWhatsappTemplate,
+} from '../../utils/whatsapp';
 import { emitToKitchen, emitToTable, SocketEvents } from '../../sockets';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { rangeFilter } from '../../utils/date-range';
@@ -899,7 +905,11 @@ export const orderService = {
   async sendComandaWhatsapp(restaurantId: string, orderId: string) {
     const order = await prisma.order.findFirst({
       where: { id: orderId, restaurantId },
-      include: { items: true, table: { select: { number: true } }, restaurant: { select: { name: true } } },
+      include: {
+        items: true,
+        table: { select: { number: true } },
+        restaurant: { select: { name: true, whatsappOrderMessageTemplate: true } },
+      },
     });
     if (!order) throw notFound('Comanda no encontrada.');
     if (!order.customerPhone) {
@@ -907,33 +917,41 @@ export const orderService = {
     }
 
     const symbol = CURRENCY_SYMBOLS[order.currency];
-    const parts: string[] = [];
-    parts.push(`*🧾 Comanda #${order.orderNumber} — ${order.restaurant.name}*`);
-    if (order.table) parts.push(`🪑 Mesa ${order.table.number}`);
-    parts.push('━━━━━━━━━━━━━━━━━━━━');
-    parts.push('*Detalle:*');
+
+    let header = `*🧾 Comanda #${order.orderNumber} — ${order.restaurant.name}*`;
+    if (order.table) header += `\n🪑 Mesa ${order.table.number}`;
+
+    const itemLines: string[] = [];
     for (const item of order.items) {
-      parts.push(`• ${item.quantity}x ${item.productName} — ${formatMoney(item.lineTotal, symbol)}`);
-      for (const mod of item.modifiers) parts.push(`     ↳ ${mod}`);
-      if (item.note) parts.push(`     📝 ${item.note}`);
+      itemLines.push(`• ${item.quantity}x ${item.productName} — ${formatMoney(item.lineTotal, symbol)}`);
+      for (const mod of item.modifiers) itemLines.push(`     ↳ ${mod}`);
+      if (item.note) itemLines.push(`     📝 ${item.note}`);
     }
-    parts.push('━━━━━━━━━━━━━━━━━━━━');
-    parts.push(`Subtotal: ${formatMoney(order.subtotalBase, symbol)}`);
-    if (Number(order.serviceChargeBase) > 0) parts.push(`Servicio: ${formatMoney(order.serviceChargeBase, symbol)}`);
-    if (Number(order.ivaBase) > 0) parts.push(`IVA: ${formatMoney(order.ivaBase, symbol)}`);
-    if (Number(order.deliveryFeeBase) > 0) parts.push(`Envío: ${formatMoney(order.deliveryFeeBase, symbol)}`);
-    if (Number(order.tipBase) > 0) parts.push(`Propina: ${formatMoney(order.tipBase, symbol)}`);
-    parts.push(`*Total: ${formatMoney(order.totalBase, symbol)}*`);
-    parts.push(`_Equivalente: ${formatBs(order.totalBs)}_`);
-    parts.push('━━━━━━━━━━━━━━━━━━━━');
-    parts.push('_Enviado desde QuickTap.club_');
+
+    const totalesLines: string[] = [`Subtotal: ${formatMoney(order.subtotalBase, symbol)}`];
+    if (Number(order.serviceChargeBase) > 0) totalesLines.push(`Servicio: ${formatMoney(order.serviceChargeBase, symbol)}`);
+    if (Number(order.ivaBase) > 0) totalesLines.push(`IVA: ${formatMoney(order.ivaBase, symbol)}`);
+    if (Number(order.deliveryFeeBase) > 0) totalesLines.push(`Envío: ${formatMoney(order.deliveryFeeBase, symbol)}`);
+    if (Number(order.tipBase) > 0) totalesLines.push(`Propina: ${formatMoney(order.tipBase, symbol)}`);
+    totalesLines.push(`*Total: ${formatMoney(order.totalBase, symbol)}*`);
+    totalesLines.push(`_Equivalente: ${formatBs(order.totalBs)}_`);
+
+    // Los datos del pedido (ítems y totales) se calculan siempre desde la BD
+    // y se insertan como bloques ya formateados; el restaurante solo puede
+    // personalizar el texto alrededor (encabezado, cierre, branding).
+    const template = order.restaurant.whatsappOrderMessageTemplate || DEFAULT_COMANDA_WHATSAPP_TEMPLATE;
+    const message = renderWhatsappTemplate(template, {
+      header,
+      items: itemLines.join('\n'),
+      totales: totalesLines.join('\n'),
+    });
 
     // El teléfono del cliente se captura como número local venezolano (ej.
     // "0424-1234567", sin código de país) en los formularios de checkout/mesa,
     // a diferencia de restaurant.whatsappPhone que ya guarda el código de
     // marcación elegido en el registro.
     const customerWhatsapp = formatVenezuelanWhatsappPhone(order.customerPhone);
-    return { url: buildWhatsappUrl(customerWhatsapp, parts.join('\n')) };
+    return { url: buildWhatsappUrl(customerWhatsapp, message) };
   },
 
   /** Resumen de ventas del día (hora de Caracas) para el Dashboard del restaurante. */

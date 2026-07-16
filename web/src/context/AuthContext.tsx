@@ -18,6 +18,7 @@ interface AuthRestaurant {
   description?: string | null;
   logoUrl?: string | null;
   whatsappPhone?: string | null;
+  whatsappOrderMessageTemplate?: string | null;
   baseCurrency: Currency;
   theme?: RestaurantTheme | null;
   serviceChargeEnabled: boolean;
