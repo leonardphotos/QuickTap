@@ -15,13 +15,17 @@ export function NavMenuDrawer({ open, onClose }: { open: boolean; onClose: () =>
   const { user, restaurant, logout } = useAuth();
   const [showQrNfcQuote, setShowQrNfcQuote] = useState(false);
 
-  if (!open || !restaurant) return null;
+  // El diálogo de cotización se abre DESDE este menú (cerrándolo primero), así
+  // que no puede depender de `open`: si no, al cerrar el menú también se
+  // esconde el diálogo antes de que el usuario llegue a verlo.
+  if (!restaurant) return null;
 
   const links = visibleNavLinks(user?.role, restaurant);
   const isTrialing = restaurant.subscriptionStatus === 'TRIALING';
 
   return (
     <>
+      {open && (
       <div className="fixed inset-0 z-40 flex justify-end" role="dialog" aria-modal="true">
         <button className="absolute inset-0 bg-brand-950/40 backdrop-blur-sm" aria-label="Cerrar menú" onClick={onClose} />
         <div className="relative w-72 max-w-[85vw] bg-white h-full shadow-xl p-5 flex flex-col overflow-y-auto">
@@ -75,6 +79,7 @@ export function NavMenuDrawer({ open, onClose }: { open: boolean; onClose: () =>
           </div>
         </div>
       </div>
+      )}
 
       {showQrNfcQuote && <QrNfcQuoteDialog onClose={() => setShowQrNfcQuote(false)} />}
     </>

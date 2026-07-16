@@ -134,17 +134,19 @@ export function LiveOrdersPanel() {
     }
   }
 
-  async function markAwaitingPayment(id: string) {
+  async function toggleAwaitingPayment(id: string, awaitingPayment: boolean) {
     setBusyId(id);
     setError(null);
     try {
-      await api.patch(`/orders/${id}/awaiting-payment`);
+      await api.patch(`/orders/${id}/awaiting-payment`, { awaitingPayment });
       load();
-      setJustAdded({ id, fading: false });
-      setTimeout(() => setJustAdded((j) => (j && j.id === id ? { ...j, fading: true } : j)), 1200);
-      setTimeout(() => setJustAdded((j) => (j && j.id === id ? null : j)), 1700);
+      if (awaitingPayment) {
+        setJustAdded({ id, fading: false });
+        setTimeout(() => setJustAdded((j) => (j && j.id === id ? { ...j, fading: true } : j)), 1200);
+        setTimeout(() => setJustAdded((j) => (j && j.id === id ? null : j)), 1700);
+      }
     } catch (e: any) {
-      setError(e.response?.data?.error ?? 'No se pudo marcar como pendiente por pagar.');
+      setError(e.response?.data?.error ?? 'No se pudo actualizar la cuenta por pagar.');
     } finally {
       setBusyId(null);
     }
@@ -323,9 +325,11 @@ export function LiveOrdersPanel() {
                   </button>
                   {canAccountsPayable && (
                     <button
-                      onClick={() => markAwaitingPayment(o.id)}
-                      disabled={busyId === o.id || o.awaitingPayment}
-                      className="flex flex-col items-center justify-center gap-1 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-medium py-3 transition-colors disabled:opacity-40"
+                      onClick={() => toggleAwaitingPayment(o.id, !o.awaitingPayment)}
+                      disabled={busyId === o.id}
+                      className={`flex flex-col items-center justify-center gap-1 rounded-xl text-white text-xs font-medium py-3 transition-colors disabled:opacity-40 ${
+                        o.awaitingPayment ? 'bg-amber-600 hover:bg-amber-700' : 'bg-amber-500 hover:bg-amber-600'
+                      }`}
                     >
                       <Clock className="h-5 w-5" /> {o.awaitingPayment ? 'Pendiente' : 'Cta. abierta'}
                     </button>

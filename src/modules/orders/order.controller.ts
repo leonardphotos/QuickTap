@@ -8,6 +8,7 @@ import {
   dispatchCourierSchema,
   manualOrderSchema,
   orderHistoryQuerySchema,
+  setAwaitingPaymentSchema,
   setTipSchema,
   updateOrderCustomerSchema,
   updateOrderItemsSchema,
@@ -103,9 +104,10 @@ export const orderController = {
     res.json({ data: order });
   }),
 
-  /** PATCH /api/v1/orders/:id/awaiting-payment — botón del reloj: cuenta abierta pendiente por cobrar. */
+  /** PATCH /api/v1/orders/:id/awaiting-payment — botón del reloj: activa/desactiva la cuenta abierta pendiente por cobrar. */
   setAwaitingPayment: asyncHandler(async (req: Request, res: Response) => {
-    const order = await orderService.setAwaitingPayment(req.restaurantId!, req.params.id);
+    const { awaitingPayment } = setAwaitingPaymentSchema.parse(req.body);
+    const order = await orderService.setAwaitingPayment(req.restaurantId!, req.params.id, awaitingPayment);
     res.json({ data: order });
   }),
 

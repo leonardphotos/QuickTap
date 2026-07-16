@@ -71,6 +71,11 @@ export const setTipSchema = z.object({
   tipBase: z.coerce.number().nonnegative().max(100000),
 });
 
+/** Botón del reloj en Pedidos: activa/desactiva la cuenta abierta pendiente por cobrar. */
+export const setAwaitingPaymentSchema = z.object({
+  awaitingPayment: z.coerce.boolean().optional().default(true),
+});
+
 /** Añadir un producto nuevo a un pedido ya creado, desde el panel de Pedidos en vivo. */
 export const addOrderItemSchema = z.object({
   productId: z.string().min(1),
@@ -117,6 +122,7 @@ export type DeliveryCheckoutInput = z.infer<typeof deliveryCheckoutSchema>;
 export type ManualOrderInput = z.infer<typeof manualOrderSchema>;
 export type UpdateOrderItemsInput = z.infer<typeof updateOrderItemsSchema>;
 export type SetTipInput = z.infer<typeof setTipSchema>;
+export type SetAwaitingPaymentInput = z.infer<typeof setAwaitingPaymentSchema>;
 export type DispatchCourierInput = z.infer<typeof dispatchCourierSchema>;
 export type AddOrderItemInput = z.infer<typeof addOrderItemSchema>;
 export type UpdateOrderCustomerInput = z.infer<typeof updateOrderCustomerSchema>;
