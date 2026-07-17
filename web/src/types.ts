@@ -76,9 +76,18 @@ export interface Category {
   _count?: { products: number };
 }
 
+/** Estación de cocina (ej: "Cocina Caliente", "Repostería", "Bar"). Máximo 10 por restaurante. */
+export interface Kitchen {
+  id: string;
+  name: string;
+  priority: number;
+  _count?: { products: number };
+}
+
 export interface Product {
   id: string;
   categoryId: string;
+  kitchenId?: string | null;
   name: string;
   description?: string | null;
   price: string;
@@ -215,6 +224,10 @@ export interface OrderItemView {
   lineTotal: string;
   modifiers: string[];
   note?: string | null;
+  /** Cocina asignada al producto al momento del pedido (snapshot). null = sin asignar. */
+  kitchenName?: string | null;
+  /** Cuándo esa estación marcó su parte lista. null = todavía pendiente. */
+  kitchenReadyAt?: string | null;
 }
 
 export interface OrderView {

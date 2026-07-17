@@ -81,6 +81,11 @@ export const updateStatusSchema = z.object({
   status: z.enum(['PENDING', 'KITCHEN', 'SERVED', 'CANCELLED']),
 });
 
+/** Una estación de cocina marca lista su parte de la comanda. null = sin cocina asignada. */
+export const markKitchenReadySchema = z.object({
+  kitchenName: z.string().min(1).max(60).nullable(),
+});
+
 /** Editar cantidades de un pedido ya creado (sección Delivery). quantity: 0 quita el ítem. */
 export const updateOrderItemsSchema = z.object({
   items: z

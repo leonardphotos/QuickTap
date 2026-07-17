@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pencil, Plus, Tag } from 'lucide-react';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
-import type { Category, Product } from '../../types';
+import type { Category, Kitchen, Product } from '../../types';
 import { CURRENCY_SYMBOLS, formatBase } from '../../utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard } from '@/components/ui/texture-card';
@@ -14,6 +14,7 @@ export default function ProductsPage() {
   const currencySymbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [kitchens, setKitchens] = useState<Kitchen[]>([]);
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -21,6 +22,7 @@ export default function ProductsPage() {
   function load() {
     api.get('/products').then((res) => setProducts(res.data.data));
     api.get('/categories').then((res) => setCategories(res.data.data));
+    api.get('/kitchens').then((res) => setKitchens(res.data.data));
   }
 
   useEffect(load, []);
@@ -107,6 +109,7 @@ export default function ProductsPage() {
         open={productDialogOpen}
         onOpenChange={setProductDialogOpen}
         categories={categories}
+        kitchens={kitchens}
         product={editingProduct}
         currencySymbol={currencySymbol}
         onSaved={load}

@@ -257,6 +257,7 @@ model Restaurant {
 
   users             User[]
   categories        Category[]
+  kitchens          Kitchen[]
   products          Product[]
   tables            Table[]
   orders            Order[]
@@ -353,10 +354,31 @@ model Category {
   @@map("categories")
 }
 
+// Estación de cocina (ej: "Cocina Caliente", "Repostería", "Bar") a la que se
+// asigna un producto, para que la comanda se divida por estación al momento
+// de cocinar. Máximo 10 por restaurante (validado en el service).
+model Kitchen {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  name     String
+  priority Int    @default(0)
+
+  createdAt DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  products   Product[]
+
+  @@index([restaurantId, priority])
+  @@map("kitchens")
+}
+
 model Product {
   id           String @id @default(cuid())
   restaurantId String
   categoryId   String
+  // Estación de cocina donde se prepara (opcional). Null = sin asignar.
+  kitchenId    String?
 
   name            String
   description     String?
@@ -382,11 +404,13 @@ model Product {
 
   restaurant        Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   category          Category           @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  kitchen           Kitchen?           @relation(fields: [kitchenId], references: [id], onDelete: SetNull)
   orderItems        OrderItem[]
   recipeIngredients RecipeIngredient[]
 
   @@index([restaurantId, categoryId])
   @@index([restaurantId, isAvailable])
+  @@index([restaurantId, kitchenId])
   @@map("products")
 }
 
@@ -649,6 +673,14 @@ model OrderItem {
   // Modificadores del plato (ej: "Sin cebolla", "Extra queso") y notas de cocina.
   modifiers String[] @default([])
   note      String?
+
+  // Snapshot de la cocina asignada al producto al momento del pedido (null =
+  // sin asignar). Se congela igual que productName: si luego el producto
+  // cambia de cocina, este ítem no se mueve retroactivamente de comanda.
+  kitchenName    String?
+  // Cuándo esa estación de cocina marcó su parte de la comanda como lista.
+  // El pedido completo pasa a SERVED solo cuando todos sus ítems tienen esto.
+  kitchenReadyAt DateTime?
 
   order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)

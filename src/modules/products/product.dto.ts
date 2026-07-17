@@ -3,6 +3,8 @@ import { z } from 'zod';
 /** Validación de entrada para crear/actualizar productos. */
 export const createProductSchema = z.object({
   categoryId: z.string().min(1, 'La categoría es obligatoria.'),
+  // Estación de cocina donde se prepara (opcional). null = sin asignar.
+  kitchenId: z.string().min(1).nullable().optional(),
   name: z.string().min(1, 'El nombre es obligatorio.').max(120),
   description: z.string().max(500).optional(),
   price: z.coerce.number().nonnegative('El precio no puede ser negativo.'),

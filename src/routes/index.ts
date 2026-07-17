@@ -32,6 +32,7 @@ import movementRoutes from '../modules/movements/movement.routes';
 import cashSessionRoutes from '../modules/cash-sessions/cash-session.routes';
 import deliveryCourierRoutes from '../modules/delivery-couriers/delivery-courier.routes';
 import deliveryZoneRoutes from '../modules/delivery-zones/delivery-zone.routes';
+import kitchenRoutes from '../modules/kitchens/kitchen.routes';
 
 /**
  * Enrutador raíz de la API v1.
@@ -58,6 +59,7 @@ router.use('/master-auth', platformAuthRoutes);
 router.use('/products', productRoutes);
 router.use('/orders', orderRoutes);
 router.use('/categories', categoryRoutes);
+router.use('/kitchens', kitchenRoutes);
 router.use('/tables', tableRoutes);
 router.use('/zones', zoneRoutes);
 router.use('/team', teamRoutes);

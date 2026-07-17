@@ -25,11 +25,13 @@ export const productService = {
   async create(restaurantId: string, input: CreateProductInput) {
     // La categoría debe pertenecer al mismo restaurante (evita fugas de tenant).
     await assertCategoryBelongs(restaurantId, input.categoryId);
+    if (input.kitchenId) await assertKitchenBelongs(restaurantId, input.kitchenId);
 
     return prisma.product.create({
       data: {
         restaurantId,
         categoryId: input.categoryId,
+        kitchenId: input.kitchenId,
         name: input.name,
         description: input.description,
         price: input.price,
@@ -49,6 +51,9 @@ export const productService = {
 
     if (input.categoryId) {
       await assertCategoryBelongs(restaurantId, input.categoryId);
+    }
+    if (input.kitchenId) {
+      await assertKitchenBelongs(restaurantId, input.kitchenId);
     }
 
     return prisma.product.update({
@@ -70,4 +75,12 @@ async function assertCategoryBelongs(restaurantId: string, categoryId: string) {
     select: { id: true },
   });
   if (!category) throw badRequest('La categoría no existe o no pertenece a este restaurante.');
+}
+
+async function assertKitchenBelongs(restaurantId: string, kitchenId: string) {
+  const kitchen = await prisma.kitchen.findFirst({
+    where: { id: kitchenId, restaurantId },
+    select: { id: true },
+  });
+  if (!kitchen) throw badRequest('La cocina no existe o no pertenece a este restaurante.');
 }

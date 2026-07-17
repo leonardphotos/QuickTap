@@ -7,6 +7,7 @@ import {
   dineInCheckoutSchema,
   dispatchCourierSchema,
   manualOrderSchema,
+  markKitchenReadySchema,
   orderHistoryQuerySchema,
   recordPaymentSchema,
   setAwaitingPaymentSchema,
@@ -90,6 +91,13 @@ export const orderController = {
   updateStatus: asyncHandler(async (req: Request, res: Response) => {
     const { status } = updateStatusSchema.parse(req.body);
     const order = await orderService.updateStatus(req.restaurantId!, req.params.id, status);
+    res.json({ data: order });
+  }),
+
+  /** PATCH /api/v1/orders/:id/kitchen-ready — una estación de cocina marca lista su parte. */
+  markKitchenReady: asyncHandler(async (req: Request, res: Response) => {
+    const { kitchenName } = markKitchenReadySchema.parse(req.body);
+    const order = await orderService.markKitchenReady(req.restaurantId!, req.params.id, kitchenName);
     res.json({ data: order });
   }),
 

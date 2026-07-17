@@ -35,6 +35,7 @@ router.post('/:id/send-whatsapp', orderController.sendWhatsapp);
 router.post('/:id/items', orderController.addItem);
 router.post('/:id/payments', orderController.addPayment);
 router.patch('/:id/status', orderController.updateStatus);
+router.patch('/:id/kitchen-ready', orderController.markKitchenReady);
 router.patch('/:id/items', orderController.updateItems);
 router.patch('/:id/customer', orderController.updateCustomer);
 router.patch('/:id/tip', adminOnly, requireFeature('administration'), orderController.setTip);

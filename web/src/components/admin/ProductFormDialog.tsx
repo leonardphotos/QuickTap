@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api } from '@/api/client';
-import type { Category, Product } from '@/types';
+import type { Category, Kitchen, Product } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PhotoUploadField } from './PhotoUploadField';
@@ -10,6 +10,7 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   categories: Category[];
+  kitchens: Kitchen[];
   product: Product | null;
   currencySymbol: string;
   onSaved: () => void;
@@ -20,6 +21,7 @@ const emptyForm = {
   description: '',
   price: '',
   categoryId: '',
+  kitchenId: '',
   photoUrl: '' as string | null,
   prepTimeMinutes: '',
   isStar: false,
@@ -27,7 +29,7 @@ const emptyForm = {
   isHouseSpecial: false,
 };
 
-export function ProductFormDialog({ open, onOpenChange, categories, product, currencySymbol, onSaved }: Props) {
+export function ProductFormDialog({ open, onOpenChange, categories, kitchens, product, currencySymbol, onSaved }: Props) {
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -40,6 +42,7 @@ export function ProductFormDialog({ open, onOpenChange, categories, product, cur
         description: product.description ?? '',
         price: product.price,
         categoryId: product.categoryId,
+        kitchenId: product.kitchenId ?? '',
         photoUrl: product.photoUrl ?? null,
         prepTimeMinutes: product.prepTimeMinutes != null ? String(product.prepTimeMinutes) : '',
         isStar: product.isStar,
@@ -60,6 +63,7 @@ export function ProductFormDialog({ open, onOpenChange, categories, product, cur
       const payload = {
         name: form.name,
         categoryId: form.categoryId,
+        kitchenId: form.kitchenId || null,
         price: Number(form.price),
         photoUrl: form.photoUrl || undefined,
         description: form.description || undefined,
@@ -138,6 +142,21 @@ export function ProductFormDialog({ open, onOpenChange, categories, product, cur
             placeholder="Descripción (opcional)"
             className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm w-full focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
           />
+          <label className="block text-sm">
+            <span className="text-brand-950/60 text-xs">Cocina</span>
+            <select
+              value={form.kitchenId}
+              onChange={(e) => setForm({ ...form, kitchenId: e.target.value })}
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            >
+              <option value="">Sin cocina asignada</option>
+              {kitchens.map((k) => (
+                <option key={k.id} value={k.id}>
+                  {k.name}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="flex flex-wrap gap-4 text-sm">
             <label className="flex items-center gap-1.5">
               <input type="checkbox" checked={form.isStar} onChange={(e) => setForm({ ...form, isStar: e.target.checked })} />

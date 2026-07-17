@@ -42,6 +42,9 @@ interface PricedLine {
   lineTotal: Prisma.Decimal;
   modifiers: string[];
   note?: string;
+  // Snapshot de la cocina asignada al producto (null = sin asignar). Se
+  // congela al pedir, igual que productName, para dividir la comanda.
+  kitchenName: string | null;
 }
 
 /**
@@ -53,6 +56,7 @@ async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<
   const productIds = [...new Set(items.map((i) => i.productId))];
   const products = await prisma.product.findMany({
     where: { id: { in: productIds }, restaurantId },
+    include: { kitchen: { select: { name: true } } },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
 
@@ -76,6 +80,7 @@ async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<
       lineTotal,
       modifiers: item.modifiers ?? [],
       note: item.note,
+      kitchenName: product.kitchen?.name ?? null,
     };
   });
 }
@@ -275,6 +280,7 @@ export const orderService = {
               lineTotal: l.lineTotal,
               modifiers: l.modifiers,
               note: l.note,
+              kitchenName: l.kitchenName,
             })),
           },
         },
@@ -353,6 +359,7 @@ export const orderService = {
       lineTotal: l.lineTotal,
       modifiers: l.modifiers,
       note: l.note,
+      kitchenName: l.kitchenName,
     }));
 
     const order =
@@ -569,6 +576,7 @@ export const orderService = {
               lineTotal: l.lineTotal,
               modifiers: l.modifiers,
               note: l.note,
+              kitchenName: l.kitchenName,
             })),
           },
         },
@@ -734,6 +742,7 @@ export const orderService = {
           lineTotal: line.lineTotal,
           modifiers: line.modifiers,
           note: line.note,
+          kitchenName: line.kitchenName,
         },
       }),
       prisma.order.update({ where: { id: orderId }, data: { subtotalBase, serviceChargeBase, ivaBase, totalBase, totalBs } }),
@@ -783,6 +792,35 @@ export const orderService = {
     }
 
     return order;
+  },
+
+  /**
+   * Una estación de cocina marca lista su parte de la comanda (los ítems con
+   * ese kitchenName, o sin cocina asignada si kitchenName es null). El pedido
+   * completo pasa a SERVED (con sus mismos efectos: descuento de inventario,
+   * aviso al cliente) solo cuando TODAS sus estaciones ya marcaron listo.
+   */
+  async markKitchenReady(restaurantId: string, orderId: string, kitchenName: string | null) {
+    const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { items: true } });
+    if (!existing) throw notFound('Comanda no encontrada.');
+    if (existing.status !== 'PENDING' && existing.status !== 'KITCHEN') {
+      throw badRequest('Este pedido ya no está en cocina.');
+    }
+
+    await prisma.orderItem.updateMany({
+      where: { orderId, kitchenName, kitchenReadyAt: null },
+      data: { kitchenReadyAt: new Date() },
+    });
+
+    const items = await prisma.orderItem.findMany({ where: { orderId } });
+    const allReady = items.every((it) => it.kitchenReadyAt !== null);
+
+    if (allReady) {
+      return this.updateStatus(restaurantId, orderId, 'SERVED');
+    }
+
+    emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: existing.status });
+    return prisma.order.findUnique({ where: { id: orderId }, include: { items: true, table: { select: { number: true } } } });
   },
 
   /** El mesero acepta un pedido de mesa en NEEDS_CONFIRMATION: recién ahí llega a cocina. */

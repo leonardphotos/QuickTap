@@ -1,29 +1,70 @@
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
-import { Check } from 'lucide-react';
+import { Check, ChefHat } from 'lucide-react';
 import { api, getToken } from '../../api/client';
-import type { OrderView } from '../../types';
+import { useAuth } from '../../context/AuthContext';
+import { hasFullAccess } from '../../utils/roles';
+import type { Kitchen, OrderItemView, OrderView } from '../../types';
 import { TextureCard, TextureCardContent } from '@/components/ui/texture-card';
-import {
-  Expandable,
-  ExpandableTrigger,
-  ExpandableContent,
-} from '@/components/ui/expandable';
+import { TextureButton } from '@/components/ui/texture-button';
+import { KitchenManageDialog } from '@/components/admin/KitchenManageDialog';
 
-const STATUS_LABEL: Record<string, string> = {
-  PENDING: 'Pendiente',
-  KITCHEN: 'En cocina',
-  SERVED: 'Servido',
-  CANCELLED: 'Cancelado',
-};
+const UNASSIGNED_KEY = '__unassigned__';
+
+interface Ticket {
+  order: OrderView;
+  items: OrderItemView[];
+}
+
+interface Lane {
+  key: string;
+  label: string;
+  tickets: Ticket[];
+}
+
+/** Agrupa los ítems pendientes de cada pedido por cocina (snapshot en el ítem): cada
+ * comanda se divide en una tarjeta por estación, conservando cliente y mesa/canal. */
+function buildLanes(orders: OrderView[], kitchens: Kitchen[]): Lane[] {
+  const priorityByName = new Map(kitchens.map((k, i) => [k.name, k.priority ?? i]));
+  const byKey = new Map<string, Ticket[]>();
+
+  for (const order of orders) {
+    const pendingItems = order.items.filter((it) => !it.kitchenReadyAt);
+    const itemsByKey = new Map<string, OrderItemView[]>();
+    for (const it of pendingItems) {
+      const key = it.kitchenName ?? UNASSIGNED_KEY;
+      if (!itemsByKey.has(key)) itemsByKey.set(key, []);
+      itemsByKey.get(key)!.push(it);
+    }
+    for (const [key, items] of itemsByKey) {
+      if (!byKey.has(key)) byKey.set(key, []);
+      byKey.get(key)!.push({ order, items });
+    }
+  }
+
+  const keys = [...byKey.keys()].filter((k) => k !== UNASSIGNED_KEY);
+  keys.sort((a, b) => (priorityByName.get(a) ?? 999) - (priorityByName.get(b) ?? 999) || a.localeCompare(b));
+  if (byKey.has(UNASSIGNED_KEY)) keys.push(UNASSIGNED_KEY);
+
+  return keys.map((key) => ({
+    key,
+    label: key === UNASSIGNED_KEY ? 'Sin asignar' : key,
+    tickets: byKey.get(key)!,
+  }));
+}
 
 export default function KitchenPage() {
+  const { user } = useAuth();
+  const canManage = hasFullAccess(user?.role);
   const [orders, setOrders] = useState<OrderView[]>([]);
+  const [kitchens, setKitchens] = useState<Kitchen[]>([]);
   const [connected, setConnected] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
 
   function load() {
     api.get('/orders/kitchen').then((res) => setOrders(res.data.data));
+    api.get('/kitchens').then((res) => setKitchens(res.data.data));
   }
 
   useEffect(() => {
@@ -40,84 +81,101 @@ export default function KitchenPage() {
     };
   }, []);
 
-  async function setStatus(id: string, status: string) {
-    await api.patch(`/orders/${id}/status`, { status });
+  async function markReady(orderId: string, kitchenName: string | null) {
+    await api.patch(`/orders/${orderId}/kitchen-ready`, { kitchenName });
     load();
   }
 
+  async function cancelOrder(orderId: string) {
+    if (!confirm('¿Cancelar este pedido completo?')) return;
+    await api.patch(`/orders/${orderId}/status`, { status: 'CANCELLED' });
+    load();
+  }
+
+  const lanes = buildLanes(orders, kitchens);
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2">
+    <div className="space-y-8">
+      <div className="flex items-center gap-2 flex-wrap">
         <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Cola de Cocina</h1>
         <span className={`text-xs px-2 py-0.5 rounded-full ${connected ? 'bg-brand-400/15 text-brand-800' : 'bg-brand-950/10 text-brand-950/50'}`}>
           {connected ? '● En vivo' : '○ Conectando…'}
         </span>
+        {canManage && (
+          <TextureButton
+            variant="minimal"
+            size="sm"
+            className="!w-auto px-3 flex items-center gap-1.5 ml-auto"
+            onClick={() => setManageOpen(true)}
+          >
+            <ChefHat className="h-3.5 w-3.5" /> Cocinas
+          </TextureButton>
+        )}
       </div>
 
-      {orders.length === 0 && (
+      {lanes.length === 0 && (
         <p className="text-sm text-brand-950/40 py-10 text-center font-light">No hay comandas pendientes.</p>
       )}
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {orders.map((o) => (
-          <TextureCard key={o.id} className="transition-shadow duration-300 hover:shadow-md">
-            <TextureCardContent className="px-4 py-4 space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-semibold text-brand-950 truncate">
-                  #{o.orderNumber}
-                  {o.customerName && <span className="font-normal text-brand-950/60"> · {o.customerName}</span>}
-                </p>
-                <span className="text-xs bg-brand-950/[0.06] px-2 py-0.5 rounded-full shrink-0">
-                  {o.channel === 'DINE_IN' ? `Mesa ${o.table?.number ?? ''}` : o.channel}
-                </span>
-              </div>
-              <ul className="text-sm space-y-1 font-light">
-                {o.items.map((it) => (
-                  <li key={it.id}>
-                    <span className="font-medium">{it.quantity}x</span> {it.productName}
-                    {it.modifiers.length > 0 && (
-                      <span className="text-brand-950/50"> ({it.modifiers.join(', ')})</span>
-                    )}
-                    {it.note && <span className="block text-xs text-brand-950/50">Nota: {it.note}</span>}
-                  </li>
-                ))}
-              </ul>
-
-              <button
-                onClick={() => setStatus(o.id, 'SERVED')}
-                className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium py-2 transition-colors"
-              >
-                <Check className="h-4 w-4" /> Listo
-              </button>
-
-              <Expandable transitionDuration={0.25}>
-                {({ isExpanded }) => (
-                  <>
-                    <ExpandableTrigger>
-                      <p className="text-xs font-medium text-brand-500 pt-1">
-                        {isExpanded ? 'Ocultar estado ▴' : `Estado: ${STATUS_LABEL[o.status]} ▾`}
+      <div className="space-y-8">
+        {lanes.map((lane) => (
+          <div key={lane.key}>
+            <div className="flex items-center gap-2 mb-3">
+              <h2 className="text-lg font-semibold text-brand-950">{lane.label}</h2>
+              <span className="text-xs bg-brand-950/[0.06] text-brand-950/50 px-2 py-0.5 rounded-full">
+                {lane.tickets.length}
+              </span>
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {lane.tickets.map((ticket) => (
+                <TextureCard key={`${lane.key}-${ticket.order.id}`} className="transition-shadow duration-300 hover:shadow-md">
+                  <TextureCardContent className="px-4 py-4 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-semibold text-brand-950 truncate">
+                        #{ticket.order.orderNumber}
+                        {ticket.order.customerName && (
+                          <span className="font-normal text-brand-950/60"> · {ticket.order.customerName}</span>
+                        )}
                       </p>
-                    </ExpandableTrigger>
-                    <ExpandableContent preset="slide-down" keepMounted>
-                      <div className="flex gap-1.5 text-xs pt-2 flex-wrap">
-                        {(['PENDING', 'KITCHEN', 'SERVED', 'CANCELLED'] as const).map((s) => (
-                          <button
-                            key={s}
-                            onClick={() => setStatus(o.id, s)}
-                            className={`px-2 py-1 rounded-full ${o.status === s ? 'bg-brand-950 text-white' : 'bg-brand-950/[0.06] text-brand-950/60'}`}
-                          >
-                            {STATUS_LABEL[s]}
-                          </button>
-                        ))}
-                      </div>
-                    </ExpandableContent>
-                  </>
-                )}
-              </Expandable>
-            </TextureCardContent>
-          </TextureCard>
+                      <span className="text-xs bg-brand-950/[0.06] px-2 py-0.5 rounded-full shrink-0">
+                        {ticket.order.channel === 'DINE_IN' ? `Mesa ${ticket.order.table?.number ?? ''}` : ticket.order.channel}
+                      </span>
+                    </div>
+                    <ul className="text-sm space-y-1 font-light">
+                      {ticket.items.map((it) => (
+                        <li key={it.id}>
+                          <span className="font-medium">{it.quantity}x</span> {it.productName}
+                          {it.modifiers.length > 0 && (
+                            <span className="text-brand-950/50"> ({it.modifiers.join(', ')})</span>
+                          )}
+                          {it.note && <span className="block text-xs text-brand-950/50">Nota: {it.note}</span>}
+                        </li>
+                      ))}
+                    </ul>
+
+                    <button
+                      onClick={() => markReady(ticket.order.id, lane.key === UNASSIGNED_KEY ? null : lane.key)}
+                      className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium py-2 transition-colors"
+                    >
+                      <Check className="h-4 w-4" /> Listo
+                    </button>
+                    <button
+                      onClick={() => cancelOrder(ticket.order.id)}
+                      className="w-full text-center text-xs text-red-500 hover:text-red-600 pt-1"
+                    >
+                      Cancelar pedido completo
+                    </button>
+                  </TextureCardContent>
+                </TextureCard>
+              ))}
+            </div>
+          </div>
         ))}
       </div>
+
+      {manageOpen && (
+        <KitchenManageDialog open={manageOpen} onOpenChange={setManageOpen} kitchens={kitchens} onChanged={load} />
+      )}
     </div>
   );
 }
