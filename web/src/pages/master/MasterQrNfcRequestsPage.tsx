@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { masterApi } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
+import { MaskedAmount } from '@/components/master/MaskedAmount';
+import { MoneyVisibilityToggle } from '@/components/master/MoneyVisibilityToggle';
 
 interface QrNfcRequestRow {
   id: string;
@@ -42,7 +44,10 @@ export default function MasterQrNfcRequestsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Solicitud QRNFC</h1>
+      <div className="flex items-center gap-2">
+        <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Solicitud QRNFC</h1>
+        <MoneyVisibilityToggle />
+      </div>
 
       <div className="flex gap-2">
         {(['PENDING', 'APPROVED'] as const).map((s) => (
@@ -68,7 +73,7 @@ export default function MasterQrNfcRequestsPage() {
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="font-medium text-brand-950">
-                  {req.quantity} unidades · ${req.totalPriceUsd} (${req.unitPriceUsd} c/u)
+                  {req.quantity} unidades · <MaskedAmount value={`$${req.totalPriceUsd} ($${req.unitPriceUsd} c/u)`} />
                 </p>
                 <p className="text-sm text-brand-950/60 font-light">
                   {req.restaurant.name} (/{req.restaurant.slug})

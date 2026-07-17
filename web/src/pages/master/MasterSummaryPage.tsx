@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { masterApi } from '@/api/client';
 import { formatBase, formatBsAbsolute } from '@/utils/format';
 import { SpeedGauge } from '@/components/master/SpeedGauge';
 import { QuickTapRevenueDialog } from '@/components/master/QuickTapRevenueDialog';
+import { MaskedAmount } from '@/components/master/MaskedAmount';
+import { MoneyVisibilityToggle } from '@/components/master/MoneyVisibilityToggle';
 
 interface Summary {
   month: { revenueBs: string; revenueUsd: string };
@@ -61,7 +64,10 @@ export default function MasterSummaryPage() {
       <SpeedGauge />
 
       <div>
-        <p className="text-sm font-medium text-brand-950/70 mb-3">Ingreso general de restaurantes</p>
+        <div className="flex items-center gap-2 mb-3">
+          <p className="text-sm font-medium text-brand-950/70">Ingreso general de restaurantes</p>
+          <MoneyVisibilityToggle />
+        </div>
         <div className="grid grid-cols-2 gap-4">
           <RevenueCard label="En bolívares" value={formatBsAbsolute(summary.month.revenueBs)} />
           <RevenueCard label="En dólares (restaurantes en USD)" value={formatBase(summary.month.revenueUsd, '$')} />
@@ -69,13 +75,16 @@ export default function MasterSummaryPage() {
       </div>
 
       <div>
-        <button
-          onClick={() => setShowQuickTapDetail(true)}
-          className="flex items-center gap-1.5 text-sm font-medium text-brand-950/70 mb-3 hover:text-brand-500 transition-colors"
-        >
-          Ingresos de QuickTap
-          <span className="text-xs font-normal text-brand-950/40">— ver detalle</span>
-        </button>
+        <div className="flex items-center gap-2 mb-3">
+          <button
+            onClick={() => setShowQuickTapDetail(true)}
+            className="flex items-center gap-1.5 text-sm font-medium text-brand-950/70 hover:text-brand-500 transition-colors"
+          >
+            Ingresos de QuickTap
+            <span className="text-xs font-normal text-brand-950/40">— ver detalle</span>
+          </button>
+          <MoneyVisibilityToggle />
+        </div>
         <div className="grid grid-cols-2 gap-4">
           <RevenueCard label="En bolívares" value={formatBsAbsolute(summary.quickTap.revenueBs)} />
           <RevenueCard label="En dólares" value={formatBase(summary.quickTap.revenueUsd, '$')} />
@@ -102,7 +111,11 @@ export default function MasterSummaryPage() {
               proofs?.map((p) => ({
                 id: p.id,
                 primary: `${p.contactName} · ${p.restaurant?.name ?? p.restaurantName ?? 'sin restaurante'}`,
-                secondary: `${p.plan} · $${p.priceUsd} · ${new Date(p.createdAt).toLocaleDateString('es-VE')}`,
+                secondary: (
+                  <>
+                    {p.plan} · <MaskedAmount value={`$${p.priceUsd}`} /> · {new Date(p.createdAt).toLocaleDateString('es-VE')}
+                  </>
+                ),
               })) ?? null
             }
             emptyLabel="Sin comprobantes pendientes."
@@ -114,7 +127,12 @@ export default function MasterSummaryPage() {
               qrNfc?.map((q) => ({
                 id: q.id,
                 primary: `${q.contactName} · ${q.restaurant.name}`,
-                secondary: `${q.quantity} unidades · $${q.totalPriceUsd} · ${new Date(q.createdAt).toLocaleDateString('es-VE')}`,
+                secondary: (
+                  <>
+                    {q.quantity} unidades · <MaskedAmount value={`$${q.totalPriceUsd}`} /> ·{' '}
+                    {new Date(q.createdAt).toLocaleDateString('es-VE')}
+                  </>
+                ),
               })) ?? null
             }
             emptyLabel="Sin solicitudes pendientes."
@@ -133,7 +151,7 @@ function PendingCard({
 }: {
   title: string;
   to: string;
-  items: { id: string; primary: string; secondary: string }[] | null;
+  items: { id: string; primary: string; secondary: ReactNode }[] | null;
   emptyLabel: string;
 }) {
   return (
@@ -170,7 +188,9 @@ function PendingCard({
 function RevenueCard({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
-      <p className="text-2xl font-semibold text-brand-950">{value}</p>
+      <p className="text-2xl font-semibold text-brand-950">
+        <MaskedAmount value={value} />
+      </p>
       <p className="text-xs text-brand-950/50 font-light mt-1">{label}</p>
     </div>
   );

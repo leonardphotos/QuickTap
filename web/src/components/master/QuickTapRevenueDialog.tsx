@@ -3,6 +3,8 @@ import { Pencil, Trash2 } from 'lucide-react';
 import { masterApi } from '@/api/client';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
+import { MaskedAmount } from '@/components/master/MaskedAmount';
+import { MoneyVisibilityToggle } from '@/components/master/MoneyVisibilityToggle';
 
 interface PlanRequestRow {
   id: string;
@@ -93,9 +95,12 @@ export function QuickTapRevenueDialog({ onClose, onChanged }: { onClose: () => v
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Ingresos de QuickTap</DialogTitle>
+          <div className="flex items-center gap-2">
+            <DialogTitle>Ingresos de QuickTap</DialogTitle>
+            <MoneyVisibilityToggle />
+          </div>
           <p className="text-sm text-brand-950/50 font-light">
-            Inscripciones y mensualidades aprobadas · total ${total.toFixed(2)}
+            Inscripciones y mensualidades aprobadas · total <MaskedAmount value={`$${total.toFixed(2)}`} />
           </p>
         </DialogHeader>
 
@@ -144,7 +149,7 @@ export function QuickTapRevenueDialog({ onClose, onChanged }: { onClose: () => v
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-brand-950">
-                      ${row.priceUsd} · {KIND_LABELS[row.kind]} · {row.plan}
+                      <MaskedAmount value={`$${row.priceUsd}`} /> · {KIND_LABELS[row.kind]} · {row.plan}
                     </p>
                     <p className="text-xs text-brand-950/60 font-light truncate">
                       {row.restaurant?.name ?? row.restaurantName ?? row.contactName}

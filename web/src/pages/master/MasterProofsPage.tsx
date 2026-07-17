@@ -4,6 +4,8 @@ import { masterApi } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 import { useCopyToast } from '@/hooks/useCopyToast';
 import { Toast } from '@/components/ui/toast';
+import { MaskedAmount } from '@/components/master/MaskedAmount';
+import { MoneyVisibilityToggle } from '@/components/master/MoneyVisibilityToggle';
 
 type ProofStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAYMENT_NOT_RECEIVED';
 
@@ -146,7 +148,10 @@ export default function MasterProofsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Comprobantes de pago</h1>
+      <div className="flex items-center gap-2">
+        <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Comprobantes de pago</h1>
+        <MoneyVisibilityToggle />
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {TABS.map((t) => (
@@ -202,7 +207,7 @@ export default function MasterProofsPage() {
 
             <div className="flex-1 min-w-0">
               <p className="font-medium text-brand-950">
-                {req.plan} · {req.billingCycle} · ${req.priceUsd}
+                {req.plan} · {req.billingCycle} · <MaskedAmount value={`$${req.priceUsd}`} />
                 {req.promoCode && <span className="text-emerald-600"> ({req.promoCode} -{req.discountPercent}%)</span>}
               </p>
               <p className="text-sm text-brand-950/60 font-light">

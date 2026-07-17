@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { masterApi } from '@/api/client';
 import { formatBase } from '@/utils/format';
+import { MaskedAmount } from '@/components/master/MaskedAmount';
+import { MoneyVisibilityToggle } from '@/components/master/MoneyVisibilityToggle';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PasswordInput } from '@/components/ui/password-input';
@@ -337,7 +339,10 @@ export default function MasterRestaurantDetailPage() {
       )}
 
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
-        <p className="font-semibold text-brand-950 mb-3">Pedidos recientes</p>
+        <div className="flex items-center gap-2 mb-3">
+          <p className="font-semibold text-brand-950">Pedidos recientes</p>
+          <MoneyVisibilityToggle />
+        </div>
         {detail.recentOrders.length === 0 ? (
           <p className="text-sm text-brand-950/40 font-light">Sin pedidos todavía.</p>
         ) : (
@@ -347,7 +352,9 @@ export default function MasterRestaurantDetailPage() {
                 <span className="text-brand-950/80">
                   #{o.orderNumber} <span className="text-brand-950/40 font-light">· {o.channel}</span>
                 </span>
-                <span className="text-brand-950/60">{formatBase(o.totalBase, o.currency === 'USD' ? '$' : '€')}</span>
+                <span className="text-brand-950/60">
+                  <MaskedAmount value={formatBase(o.totalBase, o.currency === 'USD' ? '$' : '€')} />
+                </span>
               </li>
             ))}
           </ul>
