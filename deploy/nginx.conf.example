@@ -16,6 +16,21 @@ server {
 
     client_max_body_size 10m;
 
+    # Compresión: sin listar los tipos, nginx por defecto solo comprime
+    # text/html — los bundles JS/CSS (cientos de KB cada uno) viajarían sin
+    # comprimir. gzip suele reducirlos ~65-75%.
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css application/json application/javascript application/wasm image/svg+xml font/woff2;
+
+    # Los archivos de web/dist/assets llevan hash de contenido en el nombre
+    # (Vite): si cambia el contenido, cambia el nombre. Por eso se pueden
+    # cachear "para siempre" sin riesgo de servir una versión vieja.
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
     # API del backend
     location /api/ {
         proxy_pass http://127.0.0.1:4000;

@@ -28,7 +28,6 @@ import { ComandaReceipt } from './ComandaReceipt';
 import { useAuth } from '@/context/AuthContext';
 import { hasFeature } from '@/utils/subscription';
 import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
-import { downloadElementAsPdf } from '@/utils/pdf';
 
 interface LiveOrderItem {
   id: string;
@@ -514,6 +513,9 @@ function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder; onClos
     if (!receiptRef.current) return;
     setPrinting(true);
     try {
+      // Import dinámico: html2canvas + jsPDF pesan ~600KB, no tiene sentido
+      // que carguen en cada visita a Pedidos si nunca se imprime una comanda.
+      const { downloadElementAsPdf } = await import('@/utils/pdf');
       await downloadElementAsPdf(receiptRef.current, `comanda-${order.orderNumber}.pdf`);
     } finally {
       setPrinting(false);

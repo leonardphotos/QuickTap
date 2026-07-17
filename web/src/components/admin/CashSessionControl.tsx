@@ -5,7 +5,6 @@ import { useAuth } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { formatBase } from '@/utils/format';
-import { downloadElementAsPdf } from '@/utils/pdf';
 import { CashSessionReceipt, PAYMENT_METHOD_LABELS, type CashSessionData, type CashSessionSummary } from './CashSessionReceipt';
 
 const PAYMENT_METHODS = ['CASH', 'MOBILE_PAYMENT', 'ZELLE', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER'];
@@ -165,6 +164,9 @@ function CloseCashDialog({
 
   async function download() {
     if (!receiptRef.current) return;
+    // Import dinámico: html2canvas + jsPDF pesan ~600KB, no tiene sentido
+    // que carguen en cada visita a Administración si nunca se descarga un cierre.
+    const { downloadElementAsPdf } = await import('@/utils/pdf');
     await downloadElementAsPdf(receiptRef.current, `cierre-caja-${closed?.closeNumber ?? session.id}.pdf`);
   }
 
