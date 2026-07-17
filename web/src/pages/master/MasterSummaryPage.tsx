@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { masterApi } from '@/api/client';
 import { formatBase, formatBsAbsolute } from '@/utils/format';
+import { SpeedGauge } from '@/components/master/SpeedGauge';
 
 interface Summary {
   month: { revenueBs: string; revenueUsd: string };
@@ -50,6 +51,8 @@ export default function MasterSummaryPage() {
   return (
     <div className="space-y-8">
       <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Resumen</h1>
+
+      <SpeedGauge />
 
       <div>
         <p className="text-sm font-medium text-brand-950/70 mb-3">Ingreso general de restaurantes</p>

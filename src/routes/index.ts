@@ -43,6 +43,13 @@ import deliveryZoneRoutes from '../modules/delivery-zones/delivery-zone.routes';
  */
 const router = Router();
 
+// Ping de latencia (Dashboard maestro → gauge de velocidad): sin DB, sin
+// auth, la respuesta más liviana posible para medir solo el round-trip de
+// red + Node. Vive bajo /api/v1 (a diferencia de /health en app.ts) porque
+// Nginx en producción solo proxea /api/, /uploads/ y /socket.io/ al backend
+// — /health quedaría atrapado por el catch-all del SPA.
+router.get('/ping', (_req, res) => res.json({ ok: true, ts: Date.now() }));
+
 // --- Auth ---
 router.use('/auth', authRoutes);
 router.use('/master-auth', platformAuthRoutes);
