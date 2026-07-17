@@ -18,10 +18,10 @@ const PLAN_LABELS: Record<SubscriptionPlan, string> = {
 // Beneficios breves para el mensaje de bienvenida por WhatsApp al activar la cuenta.
 const PLAN_BENEFITS: Record<SubscriptionPlan, string> = {
   TRIAL: 'Mesas y códigos QR ilimitados durante tu prueba.',
-  STARTER: 'Hasta 5-6 mesas, 200 pedidos al mes y 4 usuarios de tu equipo.',
-  PRO: 'Hasta 20 mesas, 450 pedidos al mes, 8 usuarios de tu equipo, Administración, Inventario y Cuentas por pagar.',
+  STARTER: 'Hasta 5-6 mesas, 500 pedidos al mes y 4 usuarios de tu equipo.',
+  PRO: 'Hasta 20 mesas, 700 pedidos al mes, 8 usuarios de tu equipo, Administración, Inventario y Cuentas por pagar.',
   PREMIUM: 'Mesas y pedidos ilimitados, hasta 20 usuarios, Administración e Inventario por receta.',
-  DELIVERY: 'Acceso directo a Cocina, 250 pedidos al mes y 3 usuarios de tu equipo.',
+  DELIVERY: 'Acceso directo a Cocina, 700 pedidos al mes y hasta 6 usuarios de tu equipo.',
   CUSTOM: 'Tu plan armado a la medida de tu restaurante.',
 };
 
@@ -54,7 +54,7 @@ function buildPaymentNotReceivedMessage(): string {
  * aquí para evitar manipulación.
  */
 const FIXED_PLAN_PRICES: Record<'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM', Record<BillingCycle, number>> = {
-  DELIVERY: { MONTHLY: 18.75, QUARTERLY: 15, SEMIANNUAL: 11.25 },
+  DELIVERY: { MONTHLY: 22, QUARTERLY: 17.6, SEMIANNUAL: 13.2 },
   STARTER: { MONTHLY: 25, QUARTERLY: 18.75, SEMIANNUAL: 12.5 },
   PRO: { MONTHLY: 43.75, QUARTERLY: 37.5, SEMIANNUAL: 31.25 },
   PREMIUM: { MONTHLY: 62.5, QUARTERLY: 56.25, SEMIANNUAL: 50 },

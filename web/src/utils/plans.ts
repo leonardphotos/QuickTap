@@ -15,7 +15,7 @@ export const BILLING_CYCLE_LABEL: Record<BillingCycle, string> = {
  * de enviar la solicitud.
  */
 export const FIXED_PLAN_PRICES: Record<'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM', Record<BillingCycle, number>> = {
-  DELIVERY: { MONTHLY: 18.75, QUARTERLY: 15, SEMIANNUAL: 11.25 },
+  DELIVERY: { MONTHLY: 22, QUARTERLY: 17.6, SEMIANNUAL: 13.2 },
   STARTER: { MONTHLY: 25, QUARTERLY: 18.75, SEMIANNUAL: 12.5 },
   PRO: { MONTHLY: 43.75, QUARTERLY: 37.5, SEMIANNUAL: 31.25 },
   PREMIUM: { MONTHLY: 62.5, QUARTERLY: 56.25, SEMIANNUAL: 50 },

@@ -18,14 +18,14 @@ export const PLAN_CONTENT: PlanContent[] = [
     name: 'Solo Delivery',
     subtitle: 'Cocinas fantasma o solo pedidos por WhatsApp',
     capacity: 'Sin mesas ni códigos QR — acceso directo a Cocina',
-    features: ['250 pedidos al mes', 'Hasta 3 usuarios de tu equipo'],
+    features: ['700 pedidos al mes', 'Hasta 6 usuarios de tu equipo'],
   },
   {
     id: 'STARTER',
     name: 'Plan Inicial',
     subtitle: 'Food trucks o cafés pequeños',
     capacity: 'Hasta 5-6 mesas',
-    features: ['200 pedidos al mes', 'Hasta 4 usuarios de tu equipo'],
+    features: ['500 pedidos al mes', 'Hasta 4 usuarios de tu equipo'],
   },
   {
     id: 'PRO',
@@ -33,7 +33,7 @@ export const PLAN_CONTENT: PlanContent[] = [
     subtitle: 'El punto ideal para la mayoría',
     capacity: 'Hasta 20 mesas',
     features: [
-      '450 pedidos al mes',
+      '700 pedidos al mes',
       'Hasta 8 usuarios de tu equipo',
       'Administración: historial de pedidos, propinas y reportes de ventas',
       'Inventario normal (por producto) y Cuentas por pagar',
