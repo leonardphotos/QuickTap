@@ -4,7 +4,7 @@ import { badRequest, notFound } from '../../utils/http-error';
 import { nextPeriodEnd } from '../../utils/subscription';
 import { buildWhatsappUrl } from '../../utils/whatsapp';
 import { promoCodeService } from '../promo-codes/promo-code.service';
-import { ActivateRestaurantInput, CreatePlanRequestInput } from './plan-request.dto';
+import { ActivateRestaurantInput, CreatePlanRequestInput, UpdatePlanRequestInput } from './plan-request.dto';
 
 const PLAN_LABELS: Record<SubscriptionPlan, string> = {
   TRIAL: 'Prueba Gratuita',
@@ -265,13 +265,31 @@ export const planRequestService = {
   },
 
   /** Elimina el comprobante (no se permite si ya activó una cuenta, para no perder el historial). */
+  /**
+   * También permite borrar solicitudes ya APPROVED: la activación del plan
+   * (`applyActivation`, en `approve()`) ya quedó grabada en el propio
+   * `Restaurant` en su momento, así que borrar este registro solo quita la
+   * fila del reporte de ingresos — no revierte la suscripción activa. Es lo
+   * que usa el drill-down de "Ingresos de QuickTap" para corregir un error
+   * de carga (monto/referencia mal puestos, duplicados, etc).
+   */
   async remove(id: string) {
     const request = await prisma.planRequest.findUnique({ where: { id } });
     if (!request) throw notFound('Solicitud no encontrada.');
-    if (request.status === 'APPROVED') {
-      throw badRequest('No se puede eliminar un comprobante ya activado.');
-    }
     await prisma.planRequest.delete({ where: { id } });
+  },
+
+  /** Corrige el monto o el número de referencia de una solicitud ya cargada. */
+  async update(id: string, input: UpdatePlanRequestInput) {
+    const request = await prisma.planRequest.findUnique({ where: { id } });
+    if (!request) throw notFound('Solicitud no encontrada.');
+    return prisma.planRequest.update({
+      where: { id },
+      data: {
+        ...(input.priceUsd !== undefined ? { priceUsd: input.priceUsd } : {}),
+        ...(input.paymentReference !== undefined ? { paymentReference: input.paymentReference } : {}),
+      },
+    });
   },
 
   /** Activación manual desde el detalle del restaurante en el Dashboard maestro (sin comprobante). */

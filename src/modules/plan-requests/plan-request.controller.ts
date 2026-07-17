@@ -1,6 +1,11 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
-import { approvePlanRequestSchema, createPlanRequestSchema, rejectPlanRequestSchema } from './plan-request.dto';
+import {
+  approvePlanRequestSchema,
+  createPlanRequestSchema,
+  rejectPlanRequestSchema,
+  updatePlanRequestSchema,
+} from './plan-request.dto';
 import { planRequestService } from './plan-request.service';
 
 export const planRequestController = {
@@ -41,10 +46,16 @@ export const planRequestController = {
     res.json({ data: await planRequestService.reject(req.params.id, input.status) });
   }),
 
-  /** DELETE /api/v1/master/plan-requests/:id — elimina el comprobante. */
+  /** DELETE /api/v1/master/plan-requests/:id — elimina la solicitud/registro de pago. */
   remove: asyncHandler(async (req: Request, res: Response) => {
     await planRequestService.remove(req.params.id);
     res.status(204).send();
+  }),
+
+  /** PATCH /api/v1/master/plan-requests/:id — corrige monto/referencia (drill-down de Ingresos de QuickTap). */
+  update: asyncHandler(async (req: Request, res: Response) => {
+    const input = updatePlanRequestSchema.parse(req.body);
+    res.json({ data: await planRequestService.update(req.params.id, input) });
   }),
 
   /** POST /api/v1/master/plan-requests/:id/whatsapp-link — reenviar el aviso de una solicitud ya decidida. */

@@ -40,6 +40,14 @@ export const rejectPlanRequestSchema = z.object({
 
 export type RejectPlanRequestInput = z.infer<typeof rejectPlanRequestSchema>;
 
+/** Corrección manual desde el drill-down de "Ingresos de QuickTap" en el Dashboard maestro. */
+export const updatePlanRequestSchema = z.object({
+  priceUsd: z.coerce.number().positive().max(100000).optional(),
+  paymentReference: z.string().min(1).max(100).optional(),
+});
+
+export type UpdatePlanRequestInput = z.infer<typeof updatePlanRequestSchema>;
+
 export const activateRestaurantSchema = z.object({
   plan: z.enum(['DELIVERY', 'STARTER', 'PRO', 'PREMIUM', 'CUSTOM']),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL']),

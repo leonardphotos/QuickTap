@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { masterApi } from '@/api/client';
 import { formatBase, formatBsAbsolute } from '@/utils/format';
 import { SpeedGauge } from '@/components/master/SpeedGauge';
+import { QuickTapRevenueDialog } from '@/components/master/QuickTapRevenueDialog';
 
 interface Summary {
   month: { revenueBs: string; revenueUsd: string };
@@ -36,9 +37,14 @@ export default function MasterSummaryPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [proofs, setProofs] = useState<PlanRequestRow[] | null>(null);
   const [qrNfc, setQrNfc] = useState<QrNfcRequestRow[] | null>(null);
+  const [showQuickTapDetail, setShowQuickTapDetail] = useState(false);
+
+  function loadSummary() {
+    masterApi.get('/master/summary').then((res) => setSummary(res.data.data));
+  }
 
   useEffect(() => {
-    masterApi.get('/master/summary').then((res) => setSummary(res.data.data));
+    loadSummary();
     Promise.all([
       masterApi.get('/master/plan-requests', { params: { kind: 'SIGNUP', status: 'PENDING' } }),
       masterApi.get('/master/plan-requests', { params: { kind: 'RENEWAL', status: 'PENDING' } }),
@@ -63,12 +69,22 @@ export default function MasterSummaryPage() {
       </div>
 
       <div>
-        <p className="text-sm font-medium text-brand-950/70 mb-3">Ingresos de QuickTap</p>
+        <button
+          onClick={() => setShowQuickTapDetail(true)}
+          className="flex items-center gap-1.5 text-sm font-medium text-brand-950/70 mb-3 hover:text-brand-500 transition-colors"
+        >
+          Ingresos de QuickTap
+          <span className="text-xs font-normal text-brand-950/40">— ver detalle</span>
+        </button>
         <div className="grid grid-cols-2 gap-4">
           <RevenueCard label="En bolívares" value={formatBsAbsolute(summary.quickTap.revenueBs)} />
           <RevenueCard label="En dólares" value={formatBase(summary.quickTap.revenueUsd, '$')} />
         </div>
       </div>
+
+      {showQuickTapDetail && (
+        <QuickTapRevenueDialog onClose={() => setShowQuickTapDetail(false)} onChanged={loadSummary} />
+      )}
 
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 grid grid-cols-3 gap-4 text-center">
         <Stat label="Dueños de restaurante" value={summary.restaurantOwners} />
