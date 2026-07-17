@@ -70,7 +70,7 @@ const STEPS: Step[] = [
   {
     icon: Wallet,
     title: 'Planes y facturación',
-    text: 'Tienes 15 días de prueba gratis con todo incluido. Verás un aviso unos días antes de que venza; desde ahí (o en Ajustes → Facturación) eliges tu plan, pagas y subes el comprobante.',
+    text: 'Tienes 15 días de prueba gratis con todo incluido. Verás un aviso unos días antes de que venza; desde ahí (o en Ajustes → Facturación) eliges tu plan, pagas y escribes el número de referencia.',
   },
   {
     icon: Rocket,

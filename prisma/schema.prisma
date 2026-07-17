@@ -696,8 +696,11 @@ model PlanRequest {
   // se confía en un precio enviado por el cliente.
   priceUsd Decimal @db.Decimal(10, 2)
 
-  paymentMethod SubscriptionPaymentMethod
-  proofUrl      String
+  paymentMethod    SubscriptionPaymentMethod
+  // Número de referencia de la transferencia/pago móvil/Binance (antes se
+  // subía una foto/PDF del comprobante; ahora el restaurante solo escribe
+  // este número y el equipo de QuickTap lo valida contra su banco).
+  paymentReference String
 
   contactName    String
   contactEmail   String

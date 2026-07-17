@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { Bitcoin, Copy, Landmark, Loader2, Tag, UploadCloud, Wallet, X } from 'lucide-react';
+import { Bitcoin, Copy, Landmark, Loader2, Tag, Wallet, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { formatBs } from '@/utils/format';
 import {
@@ -70,7 +70,7 @@ export function PaymentForm({
   const [contactEmail, setContactEmail] = useState(prefillEmail ?? '');
   const [contactPhone, setContactPhone] = useState('');
   const [restaurantName, setRestaurantName] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const [paymentReference, setPaymentReference] = useState('');
   const [promoInput, setPromoInput] = useState('');
   const [promo, setPromo] = useState<{ code: string; discountPercent: number } | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
@@ -107,40 +107,40 @@ export function PaymentForm({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!file) {
-      setError('Adjunta el comprobante de pago.');
+    if (!paymentReference.trim()) {
+      setError('Escribe el número de referencia del pago.');
       return;
     }
     setSubmitting(true);
     setError(null);
     try {
-      const form = new FormData();
-      form.append('plan', selected.plan);
-      form.append('billingCycle', selected.billingCycle);
-      form.append('paymentMethod', method);
-      if (selected.plan === 'CUSTOM') {
-        form.append('customTables', String(selected.customTables ?? 0));
-        form.append('customUsers', String(selected.customUsers ?? 0));
-        form.append('customOrders', String(selected.customOrders ?? 0));
-        form.append('customAdministration', String(!!selected.customAddons?.administration));
-        form.append('customInventoryBasic', String(!!selected.customAddons?.inventoryBasic));
-        form.append('customInventoryRecipe', String(!!selected.customAddons?.inventoryRecipe));
-        form.append('customAccountsPayable', String(!!selected.customAddons?.accountsPayable));
-      }
-      if (promo) form.append('promoCode', promo.code);
-      form.append('contactName', contactName);
-      form.append('contactEmail', contactEmail);
-      if (contactPhone) form.append('contactPhone', contactPhone);
-      if (restaurantName) form.append('restaurantName', restaurantName);
-      form.append('comprobante', file);
-
-      await api.post(submitUrl, form, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
+      await api.post(
+        submitUrl,
+        {
+          plan: selected.plan,
+          billingCycle: selected.billingCycle,
+          paymentMethod: method,
+          paymentReference: paymentReference.trim(),
+          ...(selected.plan === 'CUSTOM'
+            ? {
+                customTables: selected.customTables ?? 0,
+                customUsers: selected.customUsers ?? 0,
+                customOrders: selected.customOrders ?? 0,
+                customAdministration: !!selected.customAddons?.administration,
+                customInventoryBasic: !!selected.customAddons?.inventoryBasic,
+                customInventoryRecipe: !!selected.customAddons?.inventoryRecipe,
+                customAccountsPayable: !!selected.customAddons?.accountsPayable,
+              }
+            : {}),
+          ...(promo ? { promoCode: promo.code } : {}),
+          contactName,
+          contactEmail,
+          ...(contactPhone ? { contactPhone } : {}),
+          ...(restaurantName ? { restaurantName } : {}),
         },
-      });
-      setSuccessMessage('¡Solicitud enviada! Verificaremos tu comprobante y activaremos tu cuenta a la brevedad.');
+        authToken ? { headers: { Authorization: `Bearer ${authToken}` } } : undefined,
+      );
+      setSuccessMessage('¡Solicitud enviada! Verificaremos tu pago y activaremos tu cuenta a la brevedad.');
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No se pudo enviar la solicitud.');
     } finally {
@@ -260,19 +260,13 @@ export function PaymentForm({
           {!authToken && <Field label="Nombre del restaurante" value={restaurantName} onChange={setRestaurantName} />}
         </div>
 
-        <label className="block text-sm">
-          <span className="text-brand-950/70">Comprobante de pago</span>
-          <div className="mt-1 flex items-center gap-3 rounded-lg border border-dashed border-brand-950/20 px-3 py-3">
-            <UploadCloud className="h-5 w-5 text-brand-950/40 shrink-0" />
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,application/pdf"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              className="text-sm text-brand-950/70 file:mr-3 file:rounded-full file:border-0 file:bg-brand-950/[0.06] file:px-3 file:py-1.5 file:text-xs file:font-medium"
-              required
-            />
-          </div>
-        </label>
+        <Field
+          label="Número de referencia del pago"
+          value={paymentReference}
+          onChange={setPaymentReference}
+          placeholder="Ej: 004215778901"
+          required
+        />
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 

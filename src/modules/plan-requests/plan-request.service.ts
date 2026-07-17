@@ -37,7 +37,7 @@ function buildAcceptedMessage(plan: SubscriptionPlan): string {
 function buildRejectedMessage(): string {
   return [
     '❌ *Su pago fue rechazado*',
-    'No pudimos validar tu comprobante. Verifica en tu banco o plataforma que la transacción se haya realizado correctamente y vuelve a enviarnos tu comprobante cuando puedas.',
+    'No pudimos validar tu pago. Verifica en tu banco o plataforma que la transacción se haya realizado correctamente y vuelve a enviarnos el número de referencia cuando puedas.',
   ].join('\n\n');
 }
 
@@ -133,12 +133,8 @@ async function applyActivation(
 }
 
 export const planRequestService = {
-  /** Crea la solicitud de plan; el comprobante ya fue guardado en disco por el middleware de upload. */
-  async create(
-    input: CreatePlanRequestInput,
-    proofUrl: string,
-    opts: { kind: PlanRequestKind; restaurantId?: string },
-  ) {
+  /** Crea la solicitud de plan a partir del número de referencia que escribió el restaurante. */
+  async create(input: CreatePlanRequestInput, opts: { kind: PlanRequestKind; restaurantId?: string }) {
     let priceUsd: number;
     const addons: CustomAddons = {
       administration: input.customAdministration,
@@ -181,7 +177,7 @@ export const planRequestService = {
         discountPercent: promo?.discountPercent,
         priceUsd,
         paymentMethod: input.paymentMethod,
-        proofUrl,
+        paymentReference: input.paymentReference,
         contactName: input.contactName,
         contactEmail: input.contactEmail,
         contactPhone: input.contactPhone,

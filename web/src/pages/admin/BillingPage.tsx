@@ -116,7 +116,7 @@ export default function BillingPage() {
         <p className="text-sm text-brand-950/60 font-light mt-1">
           {restaurant.subscriptionStatus === 'TRIALING'
             ? 'Elige el plan que se ajuste a tu restaurante para seguir usando QuickTap cuando termine la prueba.'
-            : 'Elige tu plan, paga y sube el comprobante. Activaremos tu cuenta en cuanto lo revisemos.'}
+            : 'Elige tu plan, paga y escribe el número de referencia. Activaremos tu cuenta en cuanto lo confirmemos.'}
         </p>
       </div>
 

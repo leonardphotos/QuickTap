@@ -1,25 +1,20 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
-import { badRequest } from '../../utils/http-error';
 import { approvePlanRequestSchema, createPlanRequestSchema, rejectPlanRequestSchema } from './plan-request.dto';
 import { planRequestService } from './plan-request.service';
 
 export const planRequestController = {
-  /** POST /api/v1/public/plan-requests — el prospecto elige plan + método de pago y sube su comprobante (inscripción). */
+  /** POST /api/v1/public/plan-requests — el prospecto elige plan + método de pago y escribe el número de referencia (inscripción). */
   create: asyncHandler(async (req: Request, res: Response) => {
-    if (!req.file) throw badRequest('Falta el comprobante de pago.');
     const input = createPlanRequestSchema.parse(req.body);
-    const proofUrl = `/uploads/payment-proofs/${req.file.filename}`;
-    const request = await planRequestService.create(input, proofUrl, { kind: 'SIGNUP' });
+    const request = await planRequestService.create(input, { kind: 'SIGNUP' });
     res.status(201).json({ data: request });
   }),
 
   /** POST /api/v1/plan-requests — el restaurante ya autenticado paga su mensualidad. */
   createRenewal: asyncHandler(async (req: Request, res: Response) => {
-    if (!req.file) throw badRequest('Falta el comprobante de pago.');
     const input = createPlanRequestSchema.parse(req.body);
-    const proofUrl = `/uploads/payment-proofs/${req.file.filename}`;
-    const request = await planRequestService.create(input, proofUrl, {
+    const request = await planRequestService.create(input, {
       kind: 'RENEWAL',
       restaurantId: req.restaurantId!,
     });

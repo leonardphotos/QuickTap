@@ -119,15 +119,3 @@ export function optimizeImage(maxWidth: number, maxHeight: number, quality = 80)
     next();
   });
 }
-
-// Comprobante de pago (Pago Móvil / Binance / transferencia): foto o PDF del recibo.
-const PROOF_ALLOWED_MIME = new Set([...ALLOWED_MIME, 'application/pdf']);
-const PROOF_EXT_BY_MIME: Record<string, string> = { ...EXT_BY_MIME, 'application/pdf': '.pdf' };
-export const uploadPaymentProof = makeUpload(
-  'payment-proofs',
-  'comprobante',
-  PROOF_ALLOWED_MIME,
-  PROOF_EXT_BY_MIME,
-  5 * 1024 * 1024,
-  'Formato no soportado (usa JPG, PNG, WEBP o PDF).',
-);

@@ -75,6 +75,34 @@ export interface LiveOrder {
 
 type ChannelFilter = LiveOrder['channel'] | 'AWAITING_PAYMENT';
 
+const isMobileDevice = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+/**
+ * Navega la pestaña abierta con `window.open('', '_blank')` a `url` (WhatsApp,
+ * despacho de repartidor). En móvil, wa.me le entrega el control a la app de
+ * WhatsApp de inmediato: la pestaña del navegador nunca llega a mostrar nada
+ * y queda pegada en "about:blank" hasta que el usuario la cierra a mano. La
+ * cerramos nosotros solos un instante después para que no quede esa pestaña
+ * vacía y el foco regrese de una vez al panel. En escritorio la dejamos
+ * abierta (ahí sí hace falta, ej. para apretar "Enviar" en WhatsApp Web).
+ */
+function openInTabAndAutoClose(win: Window | null, url: string) {
+  if (!win) {
+    window.location.href = url;
+    return;
+  }
+  win.location.href = url;
+  if (isMobileDevice()) {
+    setTimeout(() => {
+      try {
+        win.close();
+      } catch {
+        // Nada que hacer: algunos navegadores no dejan cerrar pestañas con las que el usuario ya interactuó.
+      }
+    }, 1200);
+  }
+}
+
 const CHANNEL_LABELS: Record<LiveOrder['channel'], string> = {
   DINE_IN: 'Mesa',
   DELIVERY: 'Delivery',
@@ -216,11 +244,7 @@ export function LiveOrdersPanel() {
     setError(null);
     try {
       const { data } = await api.post(`/orders/${orderId}/dispatch-courier`, { courierId });
-      if (win) {
-        win.location.href = data.data.url;
-      } else {
-        window.location.href = data.data.url;
-      }
+      openInTabAndAutoClose(win, data.data.url);
       setCourierPickerFor(null);
     } catch (e: any) {
       win?.close();
@@ -532,11 +556,7 @@ function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder; onClos
     setError(null);
     try {
       const { data } = await api.post(`/orders/${order.id}/send-whatsapp`);
-      if (win) {
-        win.location.href = data.data.url;
-      } else {
-        window.location.href = data.data.url;
-      }
+      openInTabAndAutoClose(win, data.data.url);
     } catch (e: any) {
       win?.close();
       setError(e.response?.data?.error ?? 'No se pudo enviar la comanda por WhatsApp.');

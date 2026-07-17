@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
+import { Copy } from 'lucide-react';
 import { masterApi } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
+import { useCopyToast } from '@/hooks/useCopyToast';
+import { Toast } from '@/components/ui/toast';
 
 type ProofStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAYMENT_NOT_RECEIVED';
 
@@ -15,7 +18,7 @@ interface PlanRequestRow {
   promoCode: string | null;
   discountPercent: number | null;
   paymentMethod: string;
-  proofUrl: string;
+  paymentReference: string;
   contactName: string;
   contactEmail: string;
   contactPhone: string | null;
@@ -43,6 +46,7 @@ const STATUS_TABS: { value: ProofStatus; label: string }[] = [
 ];
 
 export default function MasterProofsPage() {
+  const { copy, toastMessage } = useCopyToast();
   const [kind, setKind] = useState<'SIGNUP' | 'RENEWAL'>('SIGNUP');
   const [status, setStatus] = useState<ProofStatus>('PENDING');
   const [requests, setRequests] = useState<PlanRequestRow[] | null>(null);
@@ -96,7 +100,7 @@ export default function MasterProofsPage() {
   }
 
   async function remove(req: PlanRequestRow) {
-    if (!window.confirm('¿Eliminar este comprobante? Esta acción no se puede deshacer.')) return;
+    if (!window.confirm('¿Eliminar esta solicitud de pago? Esta acción no se puede deshacer.')) return;
     setBusyId(req.id);
     setError(null);
     try {
@@ -178,20 +182,23 @@ export default function MasterProofsPage() {
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      {requests?.length === 0 && <p className="text-sm text-brand-950/40 font-light">Sin comprobantes aquí.</p>}
+      {requests?.length === 0 && <p className="text-sm text-brand-950/40 font-light">Sin solicitudes aquí.</p>}
 
       <div className="space-y-4">
         {requests?.map((req) => (
           <div key={req.id} className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5 flex flex-col sm:flex-row gap-4">
-            <a href={req.proofUrl} target="_blank" rel="noreferrer" className="shrink-0">
-              {req.proofUrl.endsWith('.pdf') ? (
-                <div className="h-24 w-24 rounded-xl bg-brand-950/[0.06] flex items-center justify-center text-xs text-brand-950/50 font-medium">
-                  PDF
-                </div>
-              ) : (
-                <img src={req.proofUrl} alt="Comprobante" className="h-24 w-24 rounded-xl object-cover" />
-              )}
-            </a>
+            <div className="shrink-0 h-24 w-24 rounded-xl bg-brand-950/[0.06] flex flex-col items-center justify-center gap-1 px-2 text-center">
+              <p className="text-[10px] uppercase tracking-wide text-brand-950/40 font-medium">N.° referencia</p>
+              <p className="text-sm font-semibold text-brand-950 break-all leading-tight">{req.paymentReference}</p>
+              <button
+                type="button"
+                onClick={() => copy(req.paymentReference, 'Referencia copiada')}
+                aria-label="Copiar número de referencia"
+                className="text-brand-950/40 hover:text-brand-500 transition-colors"
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </button>
+            </div>
 
             <div className="flex-1 min-w-0">
               <p className="font-medium text-brand-950">
@@ -333,6 +340,7 @@ export default function MasterProofsPage() {
           </div>
         ))}
       </div>
+      <Toast message={toastMessage} />
     </div>
   );
 }

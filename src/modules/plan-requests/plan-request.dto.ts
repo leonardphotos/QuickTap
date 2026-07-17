@@ -1,24 +1,21 @@
 import { z } from 'zod';
 
-// Los campos llegan como multipart/form-data (van junto al archivo del
-// comprobante), por eso los numéricos/booleanos vienen como string y hay
-// que coercionarlos. z.coerce.boolean() NO sirve para esto: en JS
-// Boolean("false") es true, así que hay que comparar el string a mano.
-const formBoolean = z.preprocess((v) => v === 'true' || v === true, z.boolean()).optional().default(false);
-
 export const createPlanRequestSchema = z.object({
   plan: z.enum(['DELIVERY', 'STARTER', 'PRO', 'PREMIUM', 'CUSTOM']),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL']),
   paymentMethod: z.enum(['PAGO_MOVIL', 'BINANCE', 'BANK_TRANSFER']),
+  // Número de referencia de la transferencia/pago móvil/Binance (reemplaza
+  // la antigua subida de foto/PDF del comprobante).
+  paymentReference: z.string().min(1, 'Escribe el número de referencia del pago.').max(100),
 
   // Solo para plan CUSTOM.
   customTables: z.coerce.number().int().min(0).max(100).optional(),
   customUsers: z.coerce.number().int().min(0).max(100).optional(),
   customOrders: z.coerce.number().int().min(0).max(10000).optional(),
-  customAdministration: formBoolean,
-  customInventoryBasic: formBoolean,
-  customInventoryRecipe: formBoolean,
-  customAccountsPayable: formBoolean,
+  customAdministration: z.boolean().optional().default(false),
+  customInventoryBasic: z.boolean().optional().default(false),
+  customInventoryRecipe: z.boolean().optional().default(false),
+  customAccountsPayable: z.boolean().optional().default(false),
 
   contactName: z.string().min(1, 'Falta el nombre de contacto.').max(120),
   contactEmail: z.string().email('Correo inválido.'),

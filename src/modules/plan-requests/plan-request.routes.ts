@@ -1,7 +1,6 @@
 import { Router } from 'express';
 import { tenantGuard } from '../../middlewares/auth.middleware';
 import { platformAuthGuard } from '../../middlewares/platform-auth.middleware';
-import { uploadPaymentProof } from '../../middlewares/upload.middleware';
 import { planRequestController } from './plan-request.controller';
 
 /**
@@ -9,12 +8,12 @@ import { planRequestController } from './plan-request.controller';
  * punto del embudo. Base: /api/v1/public/plan-requests
  */
 export const publicPlanRequestRoutes = Router();
-publicPlanRequestRoutes.post('/', uploadPaymentProof, planRequestController.create);
+publicPlanRequestRoutes.post('/', planRequestController.create);
 
 /** Base: /api/v1/plan-requests — pago de mensualidad, ya autenticado como restaurante. */
 export const tenantPlanRequestRoutes = Router();
 tenantPlanRequestRoutes.use(tenantGuard);
-tenantPlanRequestRoutes.post('/', uploadPaymentProof, planRequestController.createRenewal);
+tenantPlanRequestRoutes.post('/', planRequestController.createRenewal);
 
 /** Base: /api/v1/master/plan-requests — revisión de comprobantes del Dashboard maestro. */
 export const masterPlanRequestRoutes = Router();
