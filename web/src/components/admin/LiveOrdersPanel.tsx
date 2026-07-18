@@ -352,7 +352,7 @@ export function LiveOrdersPanel() {
       ) : (
         <div className={viewMode === 'grid' ? 'grid grid-cols-2 sm:grid-cols-3 gap-3' : 'space-y-3'}>
           {visibleOrders?.map((o) => {
-            const { paidBase, balanceBase, owesBalance, fullyPaid } = getPaymentStatus(o);
+            const { balanceBase, owesBalance, fullyPaid } = getPaymentStatus(o);
             return (
             <div
               key={o.id}
