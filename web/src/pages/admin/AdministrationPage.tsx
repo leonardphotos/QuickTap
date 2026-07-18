@@ -10,8 +10,10 @@ import { CashSessionControl } from '@/components/admin/CashSessionControl';
 
 const BASE_TABS = [
   { id: 'summary', label: 'Resumen' },
+  { id: 'stats', label: 'Estadísticas' },
   { id: 'history', label: 'Historial de pedidos' },
   { id: 'products', label: 'Productos' },
+  { id: 'margin', label: 'Margen de utilidad' },
   { id: 'delivery', label: 'Delivery' },
   { id: 'payments', label: 'Métodos de pago' },
 ] as const;
@@ -51,8 +53,10 @@ export default function AdministrationPage() {
       </div>
 
       {tab === 'summary' && <SummaryTab />}
+      {tab === 'stats' && <StatsTab />}
       {tab === 'history' && <HistoryTab />}
       {tab === 'products' && <ProductsTab />}
+      {tab === 'margin' && <MarginTab />}
       {tab === 'delivery' && <DeliveryTab />}
       {tab === 'payments' && <PaymentsTab />}
       {tab === 'payable' && <PayableTab />}
@@ -73,6 +77,9 @@ interface MovementResult {
   totalIncome: string;
   totalExpense: string;
   net: string;
+  totalIncomeBs: string;
+  totalExpenseBs: string;
+  netBs: string;
   movements: MovementRow[];
 }
 
@@ -148,6 +155,19 @@ function SummaryTab() {
         </TextureButton>
       </div>
 
+      {result && movements && (
+        <BalanceCard
+          salesBase={result.totalBase}
+          salesBs={result.totalBs}
+          incomeBase={movements.totalIncome}
+          incomeBs={movements.totalIncomeBs}
+          expenseBase={movements.totalExpense}
+          expenseBs={movements.totalExpenseBs}
+          symbol={symbol}
+          periodLabel={periodLabel}
+        />
+      )}
+
       {result && (
         <div className="grid sm:grid-cols-3 gap-4">
           <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
@@ -182,10 +202,12 @@ function SummaryTab() {
 
       {movements && movements.movements.length > 0 && (
         <div>
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
             <p className="text-sm font-medium text-brand-950/70">Movimientos · {periodLabel}</p>
-            <p className="text-xs text-brand-950/50">
+            <p className="text-xs text-brand-950/50 text-right">
               +{formatBase(movements.totalIncome, symbol)} · −{formatBase(movements.totalExpense, symbol)}
+              <br />
+              Egresos: {formatBsAbsolute(movements.totalExpenseBs)} · {formatBase(movements.totalExpense, symbol)}
             </p>
           </div>
           <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
@@ -230,16 +252,178 @@ function SummaryTab() {
   );
 }
 
-/** Botón "Añadir movimiento": ingreso/egreso manual, con "Propina" como atajo de ingreso rápido. */
+/** Balance final del período: ventas + ingresos manuales, menos egresos (Gastos), en Bs y en $.
+ * Ej: ingresos $100 (Bs a tasa BCV) − egreso de proveedor 80.000 Bs → balance en rojo si queda negativo. */
+function BalanceCard({
+  salesBase,
+  salesBs,
+  incomeBase,
+  incomeBs,
+  expenseBase,
+  expenseBs,
+  symbol,
+  periodLabel,
+}: {
+  salesBase: string;
+  salesBs: string;
+  incomeBase: string;
+  incomeBs: string;
+  expenseBase: string;
+  expenseBs: string;
+  symbol: string;
+  periodLabel: string;
+}) {
+  const ingresosBase = Number(salesBase) + Number(incomeBase);
+  const ingresosBs = Number(salesBs) + Number(incomeBs);
+  const egresosBase = Number(expenseBase);
+  const egresosBs = Number(expenseBs);
+  const balanceBase = ingresosBase - egresosBase;
+  const balanceBs = ingresosBs - egresosBs;
+  const negative = balanceBase < 0;
+
+  return (
+    <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
+      <p className="text-sm font-medium text-brand-950/70 mb-4">Balance · {periodLabel}</p>
+      <div className="grid sm:grid-cols-3 gap-4">
+        <div>
+          <p className="text-xl font-semibold text-emerald-600">{formatBsAbsolute(String(ingresosBs))}</p>
+          <p className="text-xs text-brand-950/40 font-light">{formatBase(ingresosBase, symbol)}</p>
+          <p className="text-xs text-brand-950/50 font-medium mt-1">Ingresos</p>
+        </div>
+        <div>
+          <p className="text-xl font-semibold text-red-600">{formatBsAbsolute(String(egresosBs))}</p>
+          <p className="text-xs text-brand-950/40 font-light">{formatBase(egresosBase, symbol)}</p>
+          <p className="text-xs text-brand-950/50 font-medium mt-1">Egresos</p>
+        </div>
+        <div>
+          <p className={`text-xl font-semibold ${negative ? 'text-red-600' : 'text-brand-950'}`}>
+            {formatBsAbsolute(String(balanceBs))}
+          </p>
+          <p className={`text-xs font-light ${negative ? 'text-red-500' : 'text-brand-950/40'}`}>
+            {formatBase(balanceBase, symbol)}
+          </p>
+          <p className="text-xs text-brand-950/50 font-medium mt-1">Balance final</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+//  Estadísticas: semana/mes vs. período anterior + ventas por usuario
+// -----------------------------------------------------------------------------
+
+interface SalesStatsUserRow {
+  userId: string;
+  name: string;
+  count: number;
+  totalBase: string;
+}
+
+interface SalesStats {
+  range: 'week' | 'month';
+  ordersCount: number;
+  totalBase: string;
+  totalBs: string;
+  previousTotalBase: string;
+  changePercent: string | null;
+  byUser: SalesStatsUserRow[];
+}
+
+const STATS_RANGE_LABELS = { week: 'Esta semana', month: 'Este mes' } as const;
+const STATS_PREVIOUS_LABELS = { week: 'la semana pasada', month: 'el mes pasado' } as const;
+
+function StatsTab() {
+  const { restaurant } = useAuth();
+  const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
+  const [range, setRange] = useState<'week' | 'month'>('week');
+  const [stats, setStats] = useState<SalesStats | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .get('/orders/reports/sales-stats', { params: { range } })
+      .then((res) => setStats(res.data.data))
+      .catch((err) => setError(err.response?.data?.error ?? 'No se pudieron cargar las estadísticas.'));
+  }, [range]);
+
+  if (error) return <p className="text-sm text-red-600">{error}</p>;
+
+  const changeUp = stats?.changePercent != null && Number(stats.changePercent) >= 0;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap gap-2">
+        {(['week', 'month'] as const).map((r) => (
+          <button
+            key={r}
+            onClick={() => setRange(r)}
+            className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+              range === r ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+            }`}
+          >
+            {STATS_RANGE_LABELS[r]}
+          </button>
+        ))}
+      </div>
+
+      {stats && (
+        <div className="grid sm:grid-cols-3 gap-4">
+          <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
+            <p className="text-2xl font-semibold text-brand-950">{formatBsAbsolute(stats.totalBs)}</p>
+            <p className="text-xs text-brand-950/50 font-light mt-1">{formatBase(stats.totalBase, symbol)}</p>
+            <p className="text-xs text-brand-950/40 font-light mt-1">Ventas · {STATS_RANGE_LABELS[stats.range]}</p>
+          </div>
+          <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
+            <p className="text-2xl font-semibold text-brand-950">{stats.ordersCount}</p>
+            <p className="text-xs text-brand-950/50 font-light mt-1">Pedidos · {STATS_RANGE_LABELS[stats.range]}</p>
+          </div>
+          <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
+            {stats.changePercent == null ? (
+              <p className="text-sm text-brand-950/40 font-light">Sin datos de {STATS_PREVIOUS_LABELS[stats.range]}.</p>
+            ) : (
+              <>
+                <p className={`text-2xl font-semibold ${changeUp ? 'text-emerald-600' : 'text-red-600'}`}>
+                  {changeUp ? '+' : ''}
+                  {stats.changePercent}%
+                </p>
+                <p className="text-xs text-brand-950/50 font-light mt-1">
+                  vs. {STATS_PREVIOUS_LABELS[stats.range]} ({formatBase(stats.previousTotalBase, symbol)})
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div>
+        <p className="text-sm font-medium text-brand-950/70 mb-3">Ventas por usuario · {stats ? STATS_RANGE_LABELS[stats.range] : ''}</p>
+        <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
+          {stats?.byUser.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin ventas en este período.</p>}
+          {stats?.byUser.map((u) => (
+            <div key={u.userId} className="flex items-center justify-between gap-3 px-5 py-3">
+              <p className="text-sm font-medium text-brand-950">{u.name}</p>
+              <div className="text-right shrink-0">
+                <p className="text-sm font-semibold text-brand-950">{formatBase(u.totalBase, symbol)}</p>
+                <p className="text-xs text-brand-950/50 font-light">{u.count} pedido{u.count === 1 ? '' : 's'}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Botón "Añadir movimiento": solo ingresos manuales (con "Propina" como atajo). Los egresos
+ * se cargan siempre desde el módulo de Gastos, para que queden vinculados a categoría/proveedor. */
 function AddMovementDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [type, setType] = useState<'INCOME' | 'EXPENSE'>('INCOME');
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function pickTip() {
-    setType('INCOME');
     setDescription('Propina');
   }
 
@@ -256,7 +440,7 @@ function AddMovementDialog({ onClose, onCreated }: { onClose: () => void; onCrea
     setSaving(true);
     setError(null);
     try {
-      await api.post('/movements', { type, amountBase, description: description.trim() });
+      await api.post('/movements', { type: 'INCOME', amountBase, description: description.trim() });
       onCreated();
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo guardar el movimiento.');
@@ -269,32 +453,22 @@ function AddMovementDialog({ onClose, onCreated }: { onClose: () => void; onCrea
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Añadir movimiento</DialogTitle>
+          <DialogTitle>Añadir movimiento (ingreso)</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="flex flex-wrap gap-1.5">
             <button
-              onClick={() => setType('INCOME')}
+              onClick={() => setDescription('')}
               className={`text-xs font-medium px-3 py-1.5 rounded-full ${
-                type === 'INCOME' ? 'bg-emerald-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60'
+                description !== 'Propina' ? 'bg-emerald-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60'
               }`}
             >
               Ingreso
             </button>
             <button
-              onClick={() => setType('EXPENSE')}
-              className={`text-xs font-medium px-3 py-1.5 rounded-full ${
-                type === 'EXPENSE' ? 'bg-red-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60'
-              }`}
-            >
-              Egreso
-            </button>
-            <button
               onClick={pickTip}
               className={`text-xs font-medium px-3 py-1.5 rounded-full ${
-                type === 'INCOME' && description === 'Propina'
-                  ? 'bg-brand-500 text-white'
-                  : 'bg-brand-950/[0.06] text-brand-950/60'
+                description === 'Propina' ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60'
               }`}
             >
               Propina
@@ -338,11 +512,11 @@ function AddMovementDialog({ onClose, onCreated }: { onClose: () => void; onCrea
 // -----------------------------------------------------------------------------
 
 type Range = 'day' | 'week' | 'month' | 'year' | 'all';
-type Channel = 'DINE_IN' | 'DELIVERY' | 'PICKUP';
+type Channel = 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR';
 type PaymentMethod = 'MOBILE_PAYMENT' | 'ZELLE' | 'CASH' | 'CARD';
 
 const RANGE_LABELS: Record<Range, string> = { day: 'Hoy', week: 'Semana', month: 'Este mes', year: 'Este año', all: 'Todo' };
-const CHANNEL_ROW_LABELS: Record<Channel, string> = { DINE_IN: 'Mesa', DELIVERY: 'Delivery', PICKUP: 'Pickup' };
+const CHANNEL_ROW_LABELS: Record<Channel, string> = { DINE_IN: 'Mesa', DELIVERY: 'Delivery', PICKUP: 'Pickup', BAR: 'Barra' };
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   MOBILE_PAYMENT: 'Pago Móvil',
   ZELLE: 'Zelle',
@@ -609,6 +783,7 @@ function HistoryTab() {
         <select value={channel} onChange={(e) => setChannel(e.target.value as Channel | '')} className="text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5">
           <option value="">Todos los canales</option>
           <option value="DINE_IN">En mesa</option>
+          <option value="BAR">Barra</option>
           <option value="DELIVERY">Delivery</option>
           <option value="PICKUP">Pickup</option>
         </select>
@@ -816,6 +991,68 @@ function ProductsTab() {
           onClose={() => setDetailProduct(null)}
         />
       )}
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+//  Margen de utilidad: precio vs. costo (manual o desde receta) por producto
+// -----------------------------------------------------------------------------
+
+interface MarginRow {
+  id: string;
+  name: string;
+  categoryName: string;
+  price: string;
+  costSource: 'MANUAL' | 'RECIPE';
+  costBase: string;
+  marginBase: string;
+  marginPercent: string;
+}
+
+function MarginTab() {
+  const { restaurant } = useAuth();
+  const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
+  const [rows, setRows] = useState<MarginRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .get('/products/margin')
+      .then((res) => setRows(res.data.data))
+      .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar el margen de utilidad.'));
+  }, []);
+
+  if (error) return <p className="text-sm text-red-600">{error}</p>;
+
+  return (
+    <div className="space-y-5">
+      <p className="text-sm text-brand-950/60 font-light">
+        Margen = precio − costo. El costo viene del campo "Costo" del producto, o de su receta armada en
+        Inventario → Recetas si eligió "Desde receta".
+      </p>
+      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
+        {rows?.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">No tienes productos todavía.</p>}
+        {rows?.map((r) => (
+          <div key={r.id} className="flex items-center justify-between gap-3 px-5 py-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-brand-950 truncate">{r.name}</p>
+              <p className="text-xs text-brand-950/40">
+                {r.categoryName} · Precio {formatBase(r.price, symbol)} · Costo {formatBase(r.costBase, symbol)}
+                {r.costSource === 'RECIPE' && ' (receta)'}
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className={`text-sm font-semibold ${Number(r.marginBase) < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                {formatBase(r.marginBase, symbol)}
+              </p>
+              <p className={`text-xs font-light ${Number(r.marginBase) < 0 ? 'text-red-500' : 'text-brand-950/50'}`}>
+                {r.marginPercent}% margen
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

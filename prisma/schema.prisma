@@ -82,6 +82,7 @@ enum OrderChannel {
   DINE_IN // Canal en mesa (QR de la mesa)
   DELIVERY // Delivery a domicilio
   PICKUP // Retiro en local
+  BAR // Pedido en barra, sin mesa (igual que Pickup pero sin retiro externo)
 }
 
 enum Currency {
@@ -403,6 +404,12 @@ model Product {
   photoUrl        String?
   // Tiempo aproximado de preparación, en minutos (informativo, opcional).
   prepTimeMinutes Int?
+
+  // Costo del producto para calcular el margen de utilidad (Administración → Margen de utilidad).
+  // "RECIPE" = se toma en vivo la suma de RecipeIngredient.costBase (requiere receta armada,
+  // solo plan Premium); "MANUAL" = se usa costBase, cargado a mano junto al precio.
+  costSource String   @default("MANUAL")
+  costBase   Decimal? @db.Decimal(12, 2)
 
   // Disponibilidad para la venta.
   isAvailable Boolean @default(true)
@@ -911,10 +918,14 @@ model InventoryItem {
   restaurantId String
 
   name        String
-  // Unidad de medida libre (ej: "kg", "unidad", "lt", "caja").
+  // Unidad restringida desde el formulario: "kg" | "lt" | "unidad".
   unit        String
   quantity    Decimal @default(0) @db.Decimal(12, 2)
   minQuantity Decimal @default(0) @db.Decimal(12, 2)
+  // Costo por 1 unidad (kg/lt/unidad), en la moneda base del restaurante.
+  // Se recalcula al cargar un precio + cantidad desde el formulario de
+  // insumos, y alimenta el cálculo automático del costo de receta.
+  pricePerUnitBase Decimal? @db.Decimal(14, 4)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

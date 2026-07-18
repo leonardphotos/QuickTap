@@ -1,5 +1,5 @@
 import { Bike, Boxes, ChefHat, CircleDollarSign, Grid2x2, QrCode, Receipt, Settings, UtensilsCrossed } from 'lucide-react';
-import { RESTRICTED_ROLES, isScreenRole } from '../../utils/roles';
+import { RESTRICTED_ROLES, isAdminCashier, isScreenRole } from '../../utils/roles';
 import { hasFeature } from '../../utils/subscription';
 import type { UserRole } from '../../types';
 
@@ -33,6 +33,8 @@ export const EXPENSES_NAV_LINK: AdminNavLink = { to: '/admin/expenses', label: '
 const RESTRICTED_VISIBLE = new Set(['/admin/kitchen', '/admin/table-orders']);
 // Plan Solo Delivery: sin mesas, así que estas pestañas no aportan nada.
 const DELIVERY_HIDDEN = new Set(['/admin/tables', '/admin/table-orders']);
+// STAFF (Personal) conserva acceso total al resto del panel, pero no a Productos/Mesas.
+const STAFF_HIDDEN = new Set(['/admin/products', '/admin/tables']);
 
 interface NavRestaurant {
   subscriptionPlan?: string | null;
@@ -59,9 +61,12 @@ export function visibleNavLinks(
   if (restaurant?.subscriptionPlan === 'DELIVERY') {
     links = links.filter((l) => !DELIVERY_HIDDEN.has(l.to));
   }
+  if (!isRestricted && !isAdminCashier(role)) {
+    links = links.filter((l) => !STAFF_HIDDEN.has(l.to));
+  }
   if (!isRestricted && restaurant) {
     const extra: AdminNavLink[] = [];
-    if (hasFeature(restaurant, 'administration')) extra.push(ADMINISTRATION_NAV_LINK, EXPENSES_NAV_LINK);
+    if (isAdminCashier(role) && hasFeature(restaurant, 'administration')) extra.push(ADMINISTRATION_NAV_LINK, EXPENSES_NAV_LINK);
     if (hasFeature(restaurant, 'inventoryBasic') || hasFeature(restaurant, 'inventoryRecipe')) {
       extra.push(INVENTORY_NAV_LINK);
     }

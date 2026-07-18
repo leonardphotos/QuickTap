@@ -6,6 +6,10 @@
 // Roles con acceso total al panel (todas las pestañas y todas las mutaciones).
 export const FULL_ACCESS_ROLES = ['OWNER', 'ADMIN', 'CASHIER', 'STAFF'] as const;
 
+// Administración, Gastos, Productos, Mesas/QR y "Movimientos del día": solo dueño/admin/cajero.
+// STAFF (Personal) conserva Cocina/Órdenes de Mesa/Delivery/Ajustes, pero no estas secciones.
+export const ADMIN_CASHIER_ROLES = ['OWNER', 'ADMIN', 'CASHIER'] as const;
+
 // Roles restringidos: solo Cocina + Órdenes de Mesa (sin mutaciones de catálogo/config).
 export const RESTRICTED_ROLES = ['WAITER', 'KITCHEN'] as const;
 

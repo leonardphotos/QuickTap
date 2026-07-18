@@ -16,6 +16,11 @@ export const productController = {
     res.json({ data: products });
   }),
 
+  margin: asyncHandler(async (req: Request, res: Response) => {
+    const rows = await productService.listWithMargin(req.restaurantId!);
+    res.json({ data: rows });
+  }),
+
   getOne: asyncHandler(async (req: Request, res: Response) => {
     const product = await productService.getById(req.restaurantId!, req.params.id);
     res.json({ data: product });

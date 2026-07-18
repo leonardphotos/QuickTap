@@ -68,12 +68,10 @@ const CUSTOM_FLAG_FIELD: Record<FeatureFlag, keyof FeatureCheckRestaurant> = {
   accountsPayable: 'customAccountsPayable',
 };
 
-// Plan Pro: Administración + Inventario "normal" (solo productos, sin receta) + Cuentas por pagar.
-const PRO_FEATURES: FeatureFlag[] = ['administration', 'inventoryBasic', 'accountsPayable'];
-
 export function hasFeature(restaurant: FeatureCheckRestaurant, feature: FeatureFlag): boolean {
-  if (restaurant.subscriptionPlan === 'PREMIUM') return true;
-  if (restaurant.subscriptionPlan === 'PRO') return PRO_FEATURES.includes(feature);
+  // Plan Pro (único plan completo desde la reducción a 2 planes): todos los beneficios,
+  // igual que Premium (mantenido por compatibilidad con restaurantes ya activados en él).
+  if (restaurant.subscriptionPlan === 'PRO' || restaurant.subscriptionPlan === 'PREMIUM') return true;
   if (restaurant.subscriptionPlan === 'CUSTOM') return Boolean(restaurant[CUSTOM_FLAG_FIELD[feature]]);
   return false;
 }

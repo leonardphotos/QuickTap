@@ -1,7 +1,8 @@
 import { z } from 'zod';
 
 export const createPlanRequestSchema = z.object({
-  plan: z.enum(['DELIVERY', 'STARTER', 'PRO', 'PREMIUM', 'CUSTOM']),
+  // Solo dos planes vigentes: Delivery ($9.99) y Pro ($19.99, todos los beneficios).
+  plan: z.enum(['DELIVERY', 'PRO']),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL']),
   paymentMethod: z.enum(['PAGO_MOVIL', 'BINANCE', 'BANK_TRANSFER']),
   // Número de referencia de la transferencia/pago móvil/Binance (reemplaza
@@ -49,7 +50,8 @@ export const updatePlanRequestSchema = z.object({
 export type UpdatePlanRequestInput = z.infer<typeof updatePlanRequestSchema>;
 
 export const activateRestaurantSchema = z.object({
-  plan: z.enum(['DELIVERY', 'STARTER', 'PRO', 'PREMIUM', 'CUSTOM']),
+  // Solo dos planes vigentes: Delivery ($9.99) y Pro ($19.99, todos los beneficios).
+  plan: z.enum(['DELIVERY', 'PRO']),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL']),
 });
 

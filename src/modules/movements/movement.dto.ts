@@ -19,6 +19,9 @@ export const createMovementSchema = z
   .object({
     type: z.enum(['INCOME', 'EXPENSE']),
     amountBase: z.coerce.number().positive().max(1000000),
+    // Si viene "BS", `amountBase` se recibe en bolívares y el service lo convierte a la
+    // moneda base del restaurante con la tasa BCV vigente antes de guardarlo.
+    amountCurrency: z.enum(['BASE', 'BS']).optional().default('BASE'),
     description: z.string().min(1, 'Escribe una descripción.').max(200),
     category: z.enum(EXPENSE_CATEGORIES).optional(),
     supplierId: z.string().optional(),

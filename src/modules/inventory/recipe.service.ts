@@ -84,13 +84,17 @@ export const recipeService = {
     const item = await prisma.inventoryItem.findFirst({ where: { id: input.inventoryItemId, restaurantId } });
     if (!item) throw badRequest('El insumo elegido no existe.');
 
+    // Costo automático: si el insumo no tiene precio cargado, queda en 0 (se
+    // puede completar más tarde cargando el precio del insumo y reeditando).
+    const costBase = item.pricePerUnitBase ? round2(item.pricePerUnitBase.mul(input.quantity)) : toDecimal(0);
+
     return prisma.recipeIngredient.create({
       data: {
         restaurantId,
         productId,
         inventoryItemId: input.inventoryItemId,
         quantity: input.quantity,
-        costBase: input.costBase,
+        costBase,
       },
     });
   },
@@ -99,12 +103,21 @@ export const recipeService = {
     const existing = await prisma.recipeIngredient.findFirst({ where: { id, restaurantId } });
     if (!existing) throw notFound('Ingrediente no encontrado.');
 
+    let item = null;
     if (input.inventoryItemId) {
-      const item = await prisma.inventoryItem.findFirst({ where: { id: input.inventoryItemId, restaurantId } });
+      item = await prisma.inventoryItem.findFirst({ where: { id: input.inventoryItemId, restaurantId } });
       if (!item) throw badRequest('El insumo elegido no existe.');
+    } else if (input.quantity != null) {
+      item = await prisma.inventoryItem.findFirst({ where: { id: existing.inventoryItemId, restaurantId } });
     }
 
-    return prisma.recipeIngredient.update({ where: { id }, data: input });
+    const quantity = input.quantity ?? existing.quantity;
+    const costBase = item ? (item.pricePerUnitBase ? round2(item.pricePerUnitBase.mul(quantity)) : toDecimal(0)) : undefined;
+
+    return prisma.recipeIngredient.update({
+      where: { id },
+      data: { ...input, ...(costBase !== undefined ? { costBase } : {}) },
+    });
   },
 
   async removeIngredient(restaurantId: string, id: string) {

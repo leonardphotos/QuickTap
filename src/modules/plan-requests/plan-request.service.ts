@@ -19,9 +19,9 @@ const PLAN_LABELS: Record<SubscriptionPlan, string> = {
 const PLAN_BENEFITS: Record<SubscriptionPlan, string> = {
   TRIAL: 'Mesas y códigos QR ilimitados durante tu prueba.',
   STARTER: 'Hasta 5-6 mesas, 500 pedidos al mes y 4 usuarios de tu equipo.',
-  PRO: 'Hasta 20 mesas, 700 pedidos al mes, 8 usuarios de tu equipo, Administración, Inventario y Cuentas por pagar.',
+  PRO: 'Todos los beneficios: mesas y pedidos ilimitados, usuarios ilimitados, Administración, Estadísticas, Inventario por receta, Gastos y Cuentas por pagar.',
   PREMIUM: 'Mesas y pedidos ilimitados, hasta 20 usuarios, Administración e Inventario por receta.',
-  DELIVERY: 'Acceso directo a Cocina, 700 pedidos al mes y hasta 6 usuarios de tu equipo.',
+  DELIVERY: 'Productos, Cocinas, sección de Delivery y pedidos ilimitados. Hasta 6 usuarios de tu equipo.',
   CUSTOM: 'Tu plan armado a la medida de tu restaurante.',
 };
 
@@ -51,51 +51,19 @@ function buildPaymentNotReceivedMessage(): string {
 /**
  * Precios fijos por plan y ciclo de facturación (USD/mes). Única fuente de
  * verdad: el precio que llega del cliente NUNCA se usa, siempre se recalcula
- * aquí para evitar manipulación.
+ * aquí para evitar manipulación. Solo dos planes vigentes: Delivery y Pro
+ * (todos los beneficios). 20%/40% de descuento en trimestral/semestral.
  */
-const FIXED_PLAN_PRICES: Record<'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM', Record<BillingCycle, number>> = {
-  DELIVERY: { MONTHLY: 22, QUARTERLY: 17.6, SEMIANNUAL: 13.2 },
-  STARTER: { MONTHLY: 25, QUARTERLY: 18.75, SEMIANNUAL: 12.5 },
-  PRO: { MONTHLY: 43.75, QUARTERLY: 37.5, SEMIANNUAL: 31.25 },
-  PREMIUM: { MONTHLY: 62.5, QUARTERLY: 56.25, SEMIANNUAL: 50 },
+const FIXED_PLAN_PRICES: Record<'DELIVERY' | 'PRO', Record<BillingCycle, number>> = {
+  DELIVERY: { MONTHLY: 9.99, QUARTERLY: 7.99, SEMIANNUAL: 5.99 },
+  PRO: { MONTHLY: 19.99, QUARTERLY: 15.99, SEMIANNUAL: 11.99 },
 };
-
-// Fórmula del plan personalizado: base + mesas + usuarios (desde el 3ro) + pedidos
-// (por cada 100) + adicionales (Administración/Inventario/Cuentas por pagar).
-const CUSTOM_BASE_USD = 12.5;
-const CUSTOM_PRICE_PER_TABLE = 1.25;
-const CUSTOM_FREE_USERS = 2;
-const CUSTOM_PRICE_PER_USER = 1.88;
-const CUSTOM_PRICE_PER_100_ORDERS = 2.5;
-// Precio mensual de cada adicional del plan personalizado.
-const CUSTOM_ADDON_PRICES = {
-  administration: 8,
-  inventoryBasic: 5,
-  inventoryRecipe: 12,
-  accountsPayable: 4,
-} as const;
 
 export interface CustomAddons {
   administration?: boolean;
   inventoryBasic?: boolean;
   inventoryRecipe?: boolean;
   accountsPayable?: boolean;
-}
-
-export function calculateCustomPriceUsd(tables: number, users: number, orders: number, addons: CustomAddons = {}): number {
-  const billableUsers = Math.max(0, users - CUSTOM_FREE_USERS);
-  const addonsTotal =
-    (addons.administration ? CUSTOM_ADDON_PRICES.administration : 0) +
-    (addons.inventoryBasic ? CUSTOM_ADDON_PRICES.inventoryBasic : 0) +
-    (addons.inventoryRecipe ? CUSTOM_ADDON_PRICES.inventoryRecipe : 0) +
-    (addons.accountsPayable ? CUSTOM_ADDON_PRICES.accountsPayable : 0);
-  const price =
-    CUSTOM_BASE_USD +
-    tables * CUSTOM_PRICE_PER_TABLE +
-    billableUsers * CUSTOM_PRICE_PER_USER +
-    (orders / 100) * CUSTOM_PRICE_PER_100_ORDERS +
-    addonsTotal;
-  return Math.round(price * 100) / 100;
 }
 
 /**
@@ -135,22 +103,7 @@ async function applyActivation(
 export const planRequestService = {
   /** Crea la solicitud de plan a partir del número de referencia que escribió el restaurante. */
   async create(input: CreatePlanRequestInput, opts: { kind: PlanRequestKind; restaurantId?: string }) {
-    let priceUsd: number;
-    const addons: CustomAddons = {
-      administration: input.customAdministration,
-      inventoryBasic: input.customInventoryBasic,
-      inventoryRecipe: input.customInventoryRecipe,
-      accountsPayable: input.customAccountsPayable,
-    };
-
-    if (input.plan === 'CUSTOM') {
-      const tables = input.customTables ?? 0;
-      const users = input.customUsers ?? 0;
-      const orders = input.customOrders ?? 0;
-      priceUsd = calculateCustomPriceUsd(tables, users, orders, addons);
-    } else {
-      priceUsd = FIXED_PLAN_PRICES[input.plan][input.billingCycle];
-    }
+    let priceUsd: number = FIXED_PLAN_PRICES[input.plan][input.billingCycle];
 
     if (!Number.isFinite(priceUsd) || priceUsd <= 0) {
       throw badRequest('No se pudo calcular el precio del plan.');
@@ -166,13 +119,13 @@ export const planRequestService = {
         restaurantId: opts.restaurantId,
         plan: input.plan as SubscriptionPlan,
         billingCycle: input.billingCycle,
-        customTables: input.plan === 'CUSTOM' ? input.customTables ?? 0 : null,
-        customUsers: input.plan === 'CUSTOM' ? input.customUsers ?? 0 : null,
-        customOrders: input.plan === 'CUSTOM' ? input.customOrders ?? 0 : null,
-        customAdministration: input.plan === 'CUSTOM' ? !!addons.administration : false,
-        customInventoryBasic: input.plan === 'CUSTOM' ? !!addons.inventoryBasic : false,
-        customInventoryRecipe: input.plan === 'CUSTOM' ? !!addons.inventoryRecipe : false,
-        customAccountsPayable: input.plan === 'CUSTOM' ? !!addons.accountsPayable : false,
+        customTables: null,
+        customUsers: null,
+        customOrders: null,
+        customAdministration: false,
+        customInventoryBasic: false,
+        customInventoryRecipe: false,
+        customAccountsPayable: false,
         promoCode: promo?.code,
         discountPercent: promo?.discountPercent,
         priceUsd,

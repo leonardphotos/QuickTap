@@ -12,7 +12,7 @@ import {
 import { emitToKitchen, emitToTable, SocketEvents } from '../../sockets';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { rangeFilter, resolveDateFilter } from '../../utils/date-range';
-import { startOfTodayCaracas } from '../../utils/timezone';
+import { startOfTodayCaracas, startOfWeekCaracas } from '../../utils/timezone';
 import { haversineDistanceKm, isPointInPolygon, LatLng } from '../../utils/geo';
 import { tableSessionService } from '../table-sessions/table-session.service';
 import { customerService } from '../customers/customer.service';
@@ -409,7 +409,8 @@ export const orderService = {
                   restaurantId,
                   orderNumber,
                   channel: 'DINE_IN',
-                  status: 'KITCHEN', // el mesero ya lo está tomando, entra directo a la cola de cocina
+                  // Igual que un pedido del cliente: queda pendiente hasta que alguien lo acepte.
+                  status: 'PENDING',
                   tableId: table.id,
                   tableSessionId: session.id,
                   customerName: session.customerName,
@@ -431,8 +432,7 @@ export const orderService = {
               });
             });
           })()
-        : // DELIVERY / PICKUP cargado a mano (ej. pedido por teléfono): sin mesa,
-          // entra directo a cocina igual que el manual de mesa.
+        : // DELIVERY / PICKUP cargado a mano (ej. pedido por teléfono): sin mesa, PENDING hasta aceptarlo.
           await prisma.$transaction(async (tx) => {
             const orderNumber = await nextOrderNumber(tx, restaurantId);
             return tx.order.create({
@@ -440,7 +440,8 @@ export const orderService = {
                 restaurantId,
                 orderNumber,
                 channel: input.channel,
-                status: 'KITCHEN',
+                // Igual que el checkout público de delivery/pickup: queda pendiente hasta aceptarlo.
+                status: 'PENDING',
                 customerName,
                 customerPhone,
                 customerAddress: input.channel === 'DELIVERY' ? customerAddress : undefined,
@@ -1046,27 +1047,48 @@ export const orderService = {
       where: { id: restaurantId },
       select: { baseCurrency: true },
     });
+    const currency = restaurant?.baseCurrency ?? 'USD';
+    const rate = await exchangeRateService.getRate(currency);
 
-    const orders = await prisma.order.findMany({
-      where: {
-        restaurantId,
-        createdAt: { gte: startOfTodayCaracas() },
-        status: { not: 'CANCELLED' },
-      },
-      select: { channel: true, totalBase: true, totalBs: true, currency: true },
-    });
+    const [orders, movements] = await Promise.all([
+      prisma.order.findMany({
+        where: { restaurantId, createdAt: { gte: startOfTodayCaracas() }, status: { not: 'CANCELLED' } },
+        select: { channel: true, totalBase: true, totalBs: true, currency: true },
+      }),
+      prisma.movement.findMany({
+        where: { restaurantId, createdAt: { gte: startOfTodayCaracas() } },
+        select: { type: true, amountBase: true },
+      }),
+    ]);
 
     const totalBase = round2(orders.reduce((acc, o) => acc.add(o.totalBase), toDecimal(0)));
     const totalBs = round2(orders.reduce((acc, o) => acc.add(o.totalBs), toDecimal(0)));
-    const byChannel: Record<OrderChannel, number> = { DINE_IN: 0, DELIVERY: 0, PICKUP: 0 };
+    const byChannel: Record<OrderChannel, number> = { DINE_IN: 0, DELIVERY: 0, PICKUP: 0, BAR: 0 };
     for (const o of orders) byChannel[o.channel]++;
+
+    // Ingresos = ventas del día + ingresos manuales (propinas sueltas, etc.).
+    // Egresos = gastos del día (módulo de Gastos). Balance = ingresos - egresos.
+    const incomeMovementsBase = round2(
+      movements.filter((m) => m.type === 'INCOME').reduce((acc, m) => acc.add(m.amountBase), toDecimal(0)),
+    );
+    const egresosBase = round2(
+      movements.filter((m) => m.type === 'EXPENSE').reduce((acc, m) => acc.add(m.amountBase), toDecimal(0)),
+    );
+    const ingresosBase = round2(totalBase.add(incomeMovementsBase));
+    const balanceBase = round2(ingresosBase.sub(egresosBase));
 
     return {
       ordersCount: orders.length,
       totalBase: totalBase.toFixed(2),
       totalBs: totalBs.toFixed(2),
-      currency: orders[0]?.currency ?? restaurant?.baseCurrency ?? 'USD',
+      currency: orders[0]?.currency ?? currency,
       byChannel,
+      ingresosBase: ingresosBase.toFixed(2),
+      ingresosBs: baseToBs(ingresosBase, rate.rateBs).toFixed(2),
+      egresosBase: egresosBase.toFixed(2),
+      egresosBs: baseToBs(egresosBase, rate.rateBs).toFixed(2),
+      balanceBase: balanceBase.toFixed(2),
+      balanceBs: baseToBs(balanceBase, rate.rateBs).toFixed(2),
     };
   },
 
@@ -1267,5 +1289,69 @@ export const orderService = {
         totalBs: round2(v.totalBs).toFixed(2),
       }))
       .sort((a, b) => b.count - a.count);
+  },
+
+  /**
+   * Estadísticas de ventas para el botón "Estadísticas" de Administración: total del
+   * período (semana o mes en curso) vs. el mismo período inmediatamente anterior
+   * (para el % de variación), más el desglose de ventas por usuario que cargó el pedido.
+   */
+  async getSalesStats(restaurantId: string, range: 'week' | 'month') {
+    const now = new Date();
+    const currentStart = range === 'week' ? startOfWeekCaracas() : new Date(now.getFullYear(), now.getMonth(), 1);
+    const previousStart =
+      range === 'week'
+        ? new Date(currentStart.getTime() - 7 * 24 * 60 * 60 * 1000)
+        : new Date(currentStart.getFullYear(), currentStart.getMonth() - 1, 1);
+
+    const [currentOrders, previousOrders] = await Promise.all([
+      prisma.order.findMany({
+        where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: { gte: currentStart } },
+        select: {
+          totalBase: true,
+          totalBs: true,
+          placedByUserId: true,
+          placedByUser: { select: { name: true } },
+        },
+      }),
+      prisma.order.findMany({
+        where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: { gte: previousStart, lt: currentStart } },
+        select: { totalBase: true },
+      }),
+    ]);
+
+    const totalBase = round2(currentOrders.reduce((acc, o) => acc.add(o.totalBase), toDecimal(0)));
+    const totalBs = round2(currentOrders.reduce((acc, o) => acc.add(o.totalBs), toDecimal(0)));
+    const previousTotalBase = round2(previousOrders.reduce((acc, o) => acc.add(o.totalBase), toDecimal(0)));
+    const changePercent =
+      Number(previousTotalBase) > 0
+        ? round2(totalBase.sub(previousTotalBase).div(previousTotalBase).mul(100)).toFixed(1)
+        : null;
+
+    const byUser = new Map<string, { name: string; count: number; totalBase: Prisma.Decimal }>();
+    for (const o of currentOrders) {
+      const key = o.placedByUserId ?? 'CUSTOMER';
+      const name = o.placedByUser?.name ?? 'Cliente (auto-servicio)';
+      const entry = byUser.get(key);
+      if (entry) {
+        entry.count += 1;
+        entry.totalBase = entry.totalBase.add(o.totalBase);
+      } else {
+        byUser.set(key, { name, count: 1, totalBase: toDecimal(o.totalBase) });
+      }
+    }
+
+    return {
+      range,
+      periodStart: currentStart.toISOString(),
+      ordersCount: currentOrders.length,
+      totalBase: totalBase.toFixed(2),
+      totalBs: totalBs.toFixed(2),
+      previousTotalBase: previousTotalBase.toFixed(2),
+      changePercent,
+      byUser: Array.from(byUser.entries())
+        .map(([userId, v]) => ({ userId, name: v.name, count: v.count, totalBase: round2(v.totalBase).toFixed(2) }))
+        .sort((a, b) => Number(b.totalBase) - Number(a.totalBase)),
+    };
   },
 };

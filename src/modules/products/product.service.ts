@@ -1,5 +1,6 @@
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
+import { round2, toDecimal } from '../../utils/money';
 import { CreateProductInput, UpdateProductInput } from './product.dto';
 
 /**
@@ -35,6 +36,8 @@ export const productService = {
         name: input.name,
         description: input.description,
         price: input.price,
+        costSource: input.costSource,
+        costBase: input.costBase,
         photoUrl: input.photoUrl,
         prepTimeMinutes: input.prepTimeMinutes,
         isAvailable: input.isAvailable,
@@ -66,6 +69,38 @@ export const productService = {
     await this.getById(restaurantId, id);
     await prisma.product.delete({ where: { id } });
     return { deleted: true };
+  },
+
+  /** Administración → Margen de utilidad: costo efectivo (receta o manual) vs. precio, por producto. */
+  async listWithMargin(restaurantId: string) {
+    const [products, recipeSums] = await Promise.all([
+      prisma.product.findMany({
+        where: { restaurantId },
+        orderBy: [{ categoryId: 'asc' }, { priority: 'asc' }, { name: 'asc' }],
+        include: { category: { select: { name: true } } },
+      }),
+      prisma.recipeIngredient.groupBy({ by: ['productId'], where: { restaurantId }, _sum: { costBase: true } }),
+    ]);
+
+    const recipeCostByProduct = new Map(recipeSums.map((r) => [r.productId, toDecimal(r._sum.costBase ?? 0)]));
+
+    return products.map((p) => {
+      const costBase =
+        p.costSource === 'RECIPE' ? (recipeCostByProduct.get(p.id) ?? toDecimal(0)) : toDecimal(p.costBase ?? 0);
+      const marginBase = round2(toDecimal(p.price).sub(costBase));
+      const marginPercent = Number(p.price) > 0 ? round2(marginBase.div(p.price).mul(100)) : toDecimal(0);
+
+      return {
+        id: p.id,
+        name: p.name,
+        categoryName: p.category.name,
+        price: p.price.toFixed(2),
+        costSource: p.costSource,
+        costBase: round2(costBase).toFixed(2),
+        marginBase: marginBase.toFixed(2),
+        marginPercent: marginPercent.toFixed(1),
+      };
+    });
   },
 };
 

@@ -2,9 +2,10 @@ import { z } from 'zod';
 
 export const createRecipeIngredientSchema = z.object({
   inventoryItemId: z.string().min(1, 'Elige un insumo.'),
-  // Cantidad del insumo (en su propia unidad, ej. kg) que usa una unidad del producto.
+  // Cantidad del insumo (ya convertida a su propia unidad, ej. kg) que usa una
+  // unidad del producto. El costo NUNCA viene del cliente: se calcula en el
+  // service a partir de `inventoryItem.pricePerUnitBase * quantity`.
   quantity: z.coerce.number().positive('La cantidad debe ser mayor a 0.'),
-  costBase: z.coerce.number().nonnegative('El costo no puede ser negativo.'),
 });
 
 export const updateRecipeIngredientSchema = createRecipeIngredientSchema.partial();

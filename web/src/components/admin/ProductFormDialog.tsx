@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api } from '@/api/client';
+import { useAuth } from '@/context/AuthContext';
+import { hasFeature } from '@/utils/subscription';
 import type { Category, Kitchen, Product } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -20,6 +22,8 @@ const emptyForm = {
   name: '',
   description: '',
   price: '',
+  costSource: 'MANUAL' as 'MANUAL' | 'RECIPE',
+  costBase: '',
   categoryId: '',
   kitchenId: '',
   photoUrl: '' as string | null,
@@ -30,6 +34,8 @@ const emptyForm = {
 };
 
 export function ProductFormDialog({ open, onOpenChange, categories, kitchens, product, currencySymbol, onSaved }: Props) {
+  const { restaurant } = useAuth();
+  const canRecipeCost = hasFeature(restaurant, 'inventoryRecipe');
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -41,6 +47,8 @@ export function ProductFormDialog({ open, onOpenChange, categories, kitchens, pr
         name: product.name,
         description: product.description ?? '',
         price: product.price,
+        costSource: product.costSource,
+        costBase: product.costBase ?? '',
         categoryId: product.categoryId,
         kitchenId: product.kitchenId ?? '',
         photoUrl: product.photoUrl ?? null,
@@ -65,6 +73,8 @@ export function ProductFormDialog({ open, onOpenChange, categories, kitchens, pr
         categoryId: form.categoryId,
         kitchenId: form.kitchenId || null,
         price: Number(form.price),
+        costSource: form.costSource,
+        costBase: form.costSource === 'MANUAL' && form.costBase ? Number(form.costBase) : undefined,
         photoUrl: form.photoUrl || undefined,
         description: form.description || undefined,
         prepTimeMinutes: form.prepTimeMinutes ? Number(form.prepTimeMinutes) : undefined,
@@ -126,6 +136,33 @@ export function ProductFormDialog({ open, onOpenChange, categories, kitchens, pr
               className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
               required
             />
+            {canRecipeCost ? (
+              <select
+                value={form.costSource}
+                onChange={(e) => setForm({ ...form, costSource: e.target.value as 'MANUAL' | 'RECIPE' })}
+                className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              >
+                <option value="MANUAL">Costo por unidad</option>
+                <option value="RECIPE">Desde receta</option>
+              </select>
+            ) : (
+              <div />
+            )}
+            {form.costSource === 'MANUAL' ? (
+              <input
+                value={form.costBase}
+                onChange={(e) => setForm({ ...form, costBase: e.target.value })}
+                placeholder={`Costo en ${currencySymbol} (opcional)`}
+                type="number"
+                step="0.01"
+                min="0"
+                className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              />
+            ) : (
+              <p className="text-xs text-brand-950/50 self-center px-1">
+                El costo se toma de la receta armada en Inventario → Recetas.
+              </p>
+            )}
             <input
               value={form.prepTimeMinutes}
               onChange={(e) => setForm({ ...form, prepTimeMinutes: e.target.value })}

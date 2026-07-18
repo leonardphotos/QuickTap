@@ -42,7 +42,7 @@ interface RestaurantDetail {
   }[];
 }
 
-const PLAN_OPTIONS = ['DELIVERY', 'STARTER', 'PRO', 'PREMIUM', 'CUSTOM'] as const;
+const PLAN_OPTIONS = ['DELIVERY', 'PRO'] as const;
 const CYCLE_OPTIONS = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL'] as const;
 
 export default function MasterRestaurantDetailPage() {

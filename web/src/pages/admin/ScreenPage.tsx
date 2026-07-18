@@ -7,6 +7,8 @@ import { useAuth } from '../../context/AuthContext';
 import type { FloorPlan, FloorPlanTable, OrderView } from '../../types';
 import { TextureButton } from '@/components/ui/texture-button';
 
+const CHANNEL_LABELS: Record<string, string> = { DELIVERY: 'Delivery', PICKUP: 'Pickup', BAR: 'Barra' };
+
 /**
  * Pantalla (rol SCREEN): pensada para un monitor/TV fijo en el local, sin
  * interacción — Cocina a la izquierda, Mesas a la derecha, en horizontal.
@@ -75,7 +77,7 @@ export default function ScreenPage() {
                   {o.customerName && <span className="font-normal text-brand-950/60"> · {o.customerName}</span>}
                 </p>
                 <span className="text-xs bg-brand-950/[0.06] px-2 py-0.5 rounded-full shrink-0">
-                  {o.channel === 'DINE_IN' ? `Mesa ${o.table?.number ?? ''}` : o.channel}
+                  {o.channel === 'DINE_IN' ? `Mesa ${o.table?.number ?? ''}` : CHANNEL_LABELS[o.channel] ?? o.channel}
                 </span>
               </div>
               <ul className="text-sm space-y-1 font-light mt-2">

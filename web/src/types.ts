@@ -108,6 +108,9 @@ export interface Product {
   name: string;
   description?: string | null;
   price: string;
+  // Costo para el margen de utilidad: "RECIPE" (suma en vivo de la receta) o "MANUAL" (costBase).
+  costSource: 'MANUAL' | 'RECIPE';
+  costBase?: string | null;
   photoUrl?: string | null;
   /** Tiempo aproximado de preparación, en minutos. */
   prepTimeMinutes?: number | null;
@@ -230,7 +233,7 @@ export interface PublicTableSessionStatus {
 }
 
 export type OrderStatus = 'NEEDS_CONFIRMATION' | 'PENDING' | 'KITCHEN' | 'SERVED' | 'CANCELLED';
-export type OrderChannel = 'DINE_IN' | 'DELIVERY' | 'PICKUP';
+export type OrderChannel = 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR';
 export type PaymentMethod = PaymentMethodKey;
 
 export interface OrderItemView {

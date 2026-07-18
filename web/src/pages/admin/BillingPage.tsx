@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, getToken } from '@/api/client';
 import { useAuth } from '../../context/AuthContext';
-import { calculateCustomPriceUsd, FIXED_PLAN_PRICES, type BillingCycle, type PlanId } from '@/utils/plans';
-import { PlanCards, type CustomPlanValues } from '@/components/landing/PlanCards';
+import { FIXED_PLAN_PRICES, type BillingCycle, type PlanId } from '@/utils/plans';
+import { PlanCards } from '@/components/landing/PlanCards';
 import { PaymentForm, type SelectedPlan } from '@/components/landing/PaymentForm';
 import { TextureButton } from '@/components/ui/texture-button';
+
+type ChoosablePlan = Exclude<PlanId, 'TRIAL' | 'STARTER' | 'PREMIUM' | 'CUSTOM'>;
 
 /** Activar el plan (fin de la prueba) o pagar la mensualidad, ya autenticado. */
 export default function BillingPage() {
@@ -14,15 +16,6 @@ export default function BillingPage() {
   const [searchParams] = useSearchParams();
   const [rateBs, setRateBs] = useState<string | null>(null);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('MONTHLY');
-  const [custom, setCustom] = useState<CustomPlanValues>({
-    tables: 10,
-    users: 3,
-    orders: 200,
-    administration: false,
-    inventoryBasic: false,
-    inventoryRecipe: false,
-    accountsPayable: false,
-  });
   const [selected, setSelected] = useState<SelectedPlan | null>(null);
 
   useEffect(() => {
@@ -32,76 +25,25 @@ export default function BillingPage() {
       .catch(() => setRateBs(null));
   }, []);
 
-  const customPriceUsd = useMemo(
-    () => calculateCustomPriceUsd(custom.tables, custom.users, custom.orders, custom),
-    [custom],
-  );
-
-  function choosePlan(plan: Exclude<PlanId, 'TRIAL'>, addons: CustomPlanValues = custom) {
-    if (plan === 'CUSTOM') {
-      setSelected({
-        plan,
-        billingCycle: 'MONTHLY',
-        priceUsd: calculateCustomPriceUsd(addons.tables, addons.users, addons.orders, addons),
-        customTables: addons.tables,
-        customUsers: addons.users,
-        customOrders: addons.orders,
-        customAddons: {
-          administration: addons.administration,
-          inventoryBasic: addons.inventoryBasic,
-          inventoryRecipe: addons.inventoryRecipe,
-          accountsPayable: addons.accountsPayable,
-        },
-      });
-    } else {
-      setSelected({ plan, billingCycle, priceUsd: FIXED_PLAN_PRICES[plan][billingCycle] });
-    }
+  function choosePlan(plan: ChoosablePlan, cycle: BillingCycle = billingCycle) {
+    setSelected({ plan, billingCycle: cycle, priceUsd: FIXED_PLAN_PRICES[plan][cycle] });
     requestAnimationFrame(() => {
       document.getElementById('billing-payment')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
 
-  // Entrada desde "Añadir a mi plan" del Dashboard (?custom=1), o desde
-  // "Elegir plan" de la landing seguido de registro (?plan=X&cycle=Y, y para
-  // el plan Personalizado también &tables=&users=&orders=): pre-selecciona
-  // el plan y muestra el formulario de pago directamente.
+  // Entrada desde "Elegir plan" de la landing seguido de registro (?plan=X&cycle=Y):
+  // pre-selecciona el plan y muestra el formulario de pago directamente.
   useEffect(() => {
-    if (searchParams.get('custom') === '1') {
-      choosePlan('CUSTOM');
-      return;
-    }
-
     const planParam = searchParams.get('plan');
-    const validPlans: Exclude<PlanId, 'TRIAL'>[] = ['DELIVERY', 'STARTER', 'PRO', 'PREMIUM', 'CUSTOM'];
-    if (!planParam || !validPlans.includes(planParam as any)) return;
-    const plan = planParam as Exclude<PlanId, 'TRIAL'>;
+    const validPlans: ChoosablePlan[] = ['DELIVERY', 'PRO'];
+    if (!planParam || !validPlans.includes(planParam as ChoosablePlan)) return;
+    const plan = planParam as ChoosablePlan;
     const cycleParam = searchParams.get('cycle');
     const cycle: BillingCycle =
       cycleParam === 'QUARTERLY' || cycleParam === 'SEMIANNUAL' ? cycleParam : 'MONTHLY';
     setBillingCycle(cycle);
-
-    if (plan === 'CUSTOM') {
-      const tables = Number(searchParams.get('tables')) || custom.tables;
-      const users = Number(searchParams.get('users')) || custom.users;
-      const orders = Number(searchParams.get('orders')) || custom.orders;
-      const addons: CustomPlanValues = {
-        tables,
-        users,
-        orders,
-        administration: searchParams.get('addonAdministration') === '1',
-        inventoryBasic: searchParams.get('addonInventoryBasic') === '1',
-        inventoryRecipe: searchParams.get('addonInventoryRecipe') === '1',
-        accountsPayable: searchParams.get('addonAccountsPayable') === '1',
-      };
-      setCustom(addons);
-      choosePlan('CUSTOM', addons);
-      return;
-    } else {
-      setSelected({ plan, billingCycle: cycle, priceUsd: FIXED_PLAN_PRICES[plan][cycle] });
-    }
-    requestAnimationFrame(() => {
-      document.getElementById('billing-payment')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+    choosePlan(plan, cycle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -120,15 +62,7 @@ export default function BillingPage() {
         </p>
       </div>
 
-      <PlanCards
-        rateBs={rateBs}
-        billingCycle={billingCycle}
-        onBillingCycleChange={setBillingCycle}
-        custom={custom}
-        onCustomChange={setCustom}
-        customPriceUsd={customPriceUsd}
-        onChoosePlan={choosePlan}
-      />
+      <PlanCards rateBs={rateBs} billingCycle={billingCycle} onBillingCycleChange={setBillingCycle} onChoosePlan={choosePlan} />
 
       {selected && (
         <div id="billing-payment" className="scroll-mt-24">

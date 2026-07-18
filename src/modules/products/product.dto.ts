@@ -8,6 +8,10 @@ export const createProductSchema = z.object({
   name: z.string().min(1, 'El nombre es obligatorio.').max(120),
   description: z.string().max(500).optional(),
   price: z.coerce.number().nonnegative('El precio no puede ser negativo.'),
+  // Costo para el margen de utilidad (Administración → Margen de utilidad).
+  // "RECIPE" ignora costBase y usa la suma en vivo de la receta del producto.
+  costSource: z.enum(['MANUAL', 'RECIPE']).optional().default('MANUAL'),
+  costBase: z.coerce.number().nonnegative('El costo no puede ser negativo.').optional(),
   photoUrl: z.string().min(1).optional(),
   isAvailable: z.boolean().optional().default(true),
   // Tiempo aproximado de preparación, en minutos (informativo, opcional).

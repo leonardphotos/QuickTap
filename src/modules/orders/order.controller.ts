@@ -185,4 +185,11 @@ export const orderController = {
     const result = await orderService.sendComandaWhatsapp(req.restaurantId!, req.params.id);
     res.json({ data: result });
   }),
+
+  /** GET /api/v1/orders/reports/sales-stats — botón "Estadísticas": semana/mes vs. período anterior + por usuario. */
+  salesStats: asyncHandler(async (req: Request, res: Response) => {
+    const range = req.query.range === 'month' ? 'month' : 'week';
+    const stats = await orderService.getSalesStats(req.restaurantId!, range);
+    res.json({ data: stats });
+  }),
 };

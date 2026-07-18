@@ -32,7 +32,7 @@ export const dineInCheckoutSchema = z.object({
  */
 export const manualOrderSchema = z
   .object({
-    channel: z.enum(['DINE_IN', 'DELIVERY', 'PICKUP']).optional().default('DINE_IN'),
+    channel: z.enum(['DINE_IN', 'DELIVERY', 'PICKUP', 'BAR']).optional().default('DINE_IN'),
     tableId: z.string().min(1).optional(),
     items: z.array(cartItemSchema).min(1, 'El pedido está vacío.'),
     customerName: z.string().min(1).max(120).optional(),
@@ -53,8 +53,10 @@ export const manualOrderSchema = z
     if (data.channel === 'DINE_IN' && !data.tableId) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Selecciona una mesa.', path: ['tableId'] });
     }
-    if (data.channel !== 'DINE_IN' && !data.customerName?.trim()) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Escribe el nombre del cliente.', path: ['customerName'] });
+    // El nombre puede venir suelto (formulario) o resolverse en el service a partir de
+    // `customerId` (wizard → paso Clientes), por eso aquí basta con que venga alguno de los dos.
+    if (data.channel !== 'DINE_IN' && !data.customerName?.trim() && !data.customerId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Elige o crea un cliente.', path: ['customerName'] });
     }
     if (data.channel === 'DELIVERY' && !data.customerAddress?.trim()) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Escribe la dirección de entrega.', path: ['customerAddress'] });
@@ -156,7 +158,7 @@ export const orderHistoryQuerySchema = z.object({
   range: z.enum(['day', 'week', 'month', 'year', 'all']).optional().default('day'),
   // Fecha exacta ("YYYY-MM-DD"): si viene, ignora `range` y filtra ese día completo.
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  channel: z.enum(['DINE_IN', 'DELIVERY', 'PICKUP']).optional(),
+  channel: z.enum(['DINE_IN', 'DELIVERY', 'PICKUP', 'BAR']).optional(),
   paymentMethod: z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER']).optional(),
   // Solo aplica a channel=DINE_IN: 'staff' = cargado por un mesero, 'customer' = el cliente desde su teléfono.
   placedBy: z.enum(['staff', 'customer']).optional(),

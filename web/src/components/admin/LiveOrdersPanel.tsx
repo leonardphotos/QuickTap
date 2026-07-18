@@ -50,7 +50,7 @@ export interface LiveOrderPayment {
 export interface LiveOrder {
   id: string;
   orderNumber: number;
-  channel: 'DINE_IN' | 'DELIVERY' | 'PICKUP';
+  channel: 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR';
   status: string;
   subtotalBase: string;
   serviceChargeBase: string;
@@ -118,6 +118,7 @@ const CHANNEL_LABELS: Record<LiveOrder['channel'], string> = {
   DINE_IN: 'Mesa',
   DELIVERY: 'Delivery',
   PICKUP: 'Pickup',
+  BAR: 'Barra',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -128,6 +129,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 const CHANNEL_TABS: { value: LiveOrder['channel']; label: string }[] = [
   { value: 'DINE_IN', label: 'Mesas' },
+  { value: 'BAR', label: 'Barra' },
   { value: 'DELIVERY', label: 'Delivery' },
   { value: 'PICKUP', label: 'Pick-up' },
 ];
@@ -136,6 +138,7 @@ const FILTER_LABELS: Record<ChannelFilter, string> = {
   DINE_IN: 'Mesas',
   DELIVERY: 'Delivery',
   PICKUP: 'Pick-up',
+  BAR: 'Barra',
   AWAITING_PAYMENT: 'Deudas',
   PAID: 'Pagados',
   PARTIAL: 'Pago fraccionado',

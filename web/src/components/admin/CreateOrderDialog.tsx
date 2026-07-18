@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Bike, Check, Clock, MapPin, ReceiptText, Search, SplitSquareHorizontal, Store, UtensilsCrossed } from 'lucide-react';
+import { Bike, Check, Clock, MapPin, Martini, ReceiptText, Search, SplitSquareHorizontal, Store, UtensilsCrossed } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { CURRENCY_SYMBOLS, formatBase, formatBs } from '@/utils/format';
@@ -13,7 +13,7 @@ import type { LiveOrder } from './LiveOrdersPanel';
 interface ExistingOrderOption {
   id: string;
   orderNumber: number;
-  channel: 'DINE_IN' | 'DELIVERY' | 'PICKUP';
+  channel: 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR';
   customerName: string | null;
   table: { number: string } | null;
 }
@@ -26,9 +26,13 @@ interface Props {
   onSelectExisting: (orderId: string) => void;
 }
 
-type Channel = 'DINE_IN' | 'DELIVERY' | 'PICKUP';
+type Channel = 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR';
 type PaymentIntent = 'FULL' | 'SPLIT' | 'DEBT';
 type Step = 1 | 2 | 3;
+// Solo aplica al canal Mesa: "Abrir mesa" arma una cuenta nueva (pasos 2 y 3 normales);
+// "Añadir a mesa" agrega la comanda directamente a una cuenta de mesa ya abierta, sin pasar
+// por Pago/Clientes (esos datos ya quedaron fijados cuando se abrió la cuenta).
+type TableMode = 'OPEN' | 'ADD';
 
 interface AvailableTable {
   id: string;
@@ -38,11 +42,12 @@ interface AvailableTable {
 
 const CHANNEL_OPTIONS: { value: Channel; label: string; icon: typeof UtensilsCrossed }[] = [
   { value: 'DINE_IN', label: 'Mesa', icon: UtensilsCrossed },
+  { value: 'BAR', label: 'Barra', icon: Martini },
   { value: 'DELIVERY', label: 'Delivery', icon: Bike },
   { value: 'PICKUP', label: 'Pick-up', icon: Store },
 ];
 
-const CHANNEL_LABELS: Record<Channel, string> = { DINE_IN: 'Mesa', DELIVERY: 'Delivery', PICKUP: 'Pickup' };
+const CHANNEL_LABELS: Record<Channel, string> = { DINE_IN: 'Mesa', DELIVERY: 'Delivery', PICKUP: 'Pickup', BAR: 'Barra' };
 
 const STEP_LABELS: Record<Step, string> = { 1: 'Menú', 2: 'Pago', 3: 'Clientes' };
 
@@ -52,15 +57,13 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [step, setStep] = useState<Step>(1);
   const [channel, setChannel] = useState<Channel>('DINE_IN');
+  const [tableMode, setTableMode] = useState<TableMode>('OPEN');
 
   const [products, setProducts] = useState<Product[]>([]);
   const [productSearch, setProductSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [tables, setTables] = useState<AvailableTable[]>([]);
   const [tableId, setTableId] = useState('');
-  const [customerName, setCustomerName] = useState('');
-  const [customerIdNumber, setCustomerIdNumber] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
   const [customerAddress, setCustomerAddress] = useState('');
   const [addressCoords, setAddressCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [gettingLocation, setGettingLocation] = useState(false);
@@ -157,17 +160,30 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
     subtotalBase + serviceChargeBase + ivaBase + (channel === 'DELIVERY' ? deliveryFeeBase ?? 0 : 0);
   const hasCharges = restaurant?.serviceChargeEnabled || restaurant?.ivaEnabled || Boolean(deliveryFeeBase);
 
+  // Cuentas de mesa abiertas, para "Añadir a mesa" (paso 1). El resto de canales (Delivery/Pickup/
+  // Barra) se ofrecen en el paso "Clientes" (paso 3), como antes.
+  const dineInExistingOrders = useMemo(() => existingOrders.filter((o) => o.channel === 'DINE_IN'), [existingOrders]);
+  const nonDineInExistingOrders = useMemo(() => existingOrders.filter((o) => o.channel !== 'DINE_IN'), [existingOrders]);
+
+  function matchesSearch(o: ExistingOrderOption, query: string) {
+    return (
+      !query ||
+      String(o.orderNumber).includes(query) ||
+      o.customerName?.toLowerCase().includes(query) ||
+      o.table?.number.toLowerCase().includes(query) ||
+      CHANNEL_LABELS[o.channel].toLowerCase().includes(query)
+    );
+  }
+
+  const filteredAddTableOrders = useMemo(() => {
+    const query = existingSearch.trim().toLowerCase();
+    return dineInExistingOrders.filter((o) => matchesSearch(o, query));
+  }, [dineInExistingOrders, existingSearch]);
+
   const filteredExistingOrders = useMemo(() => {
     const query = existingSearch.trim().toLowerCase();
-    if (!query) return existingOrders;
-    return existingOrders.filter(
-      (o) =>
-        String(o.orderNumber).includes(query) ||
-        o.customerName?.toLowerCase().includes(query) ||
-        o.table?.number.toLowerCase().includes(query) ||
-        CHANNEL_LABELS[o.channel].toLowerCase().includes(query),
-    );
-  }, [existingOrders, existingSearch]);
+    return nonDineInExistingOrders.filter((o) => matchesSearch(o, query));
+  }, [nonDineInExistingOrders, existingSearch]);
 
   function setQty(productId: string, quantity: number) {
     setQuantities((q) => ({ ...q, [productId]: Math.max(0, quantity) }));
@@ -178,12 +194,8 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
       setError('Agrega al menos un producto.');
       return;
     }
-    if (channel === 'DINE_IN' && !tableId) {
+    if (channel === 'DINE_IN' && tableMode === 'OPEN' && !tableId) {
       setError('Selecciona una mesa.');
-      return;
-    }
-    if (channel !== 'DINE_IN' && !customerName.trim()) {
-      setError('Escribe el nombre del cliente.');
       return;
     }
     if (channel === 'DELIVERY' && !customerAddress.trim()) {
@@ -206,10 +218,11 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
         channel,
         tableId: channel === 'DINE_IN' ? tableId : undefined,
         items: lines.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
-        customerName: (selectedCustomer?.name ?? customerName).trim() || undefined,
-        customerIdNumber: selectedCustomer?.idNumber ?? (customerIdNumber || undefined),
-        customerPhone: (selectedCustomer?.phone ?? customerPhone).trim() || undefined,
-        customerAddress: selectedCustomer?.address ?? (customerAddress || undefined),
+        // Nombre/cédula/teléfono ya no se piden en "Menú": vienen del cliente elegido en "Clientes".
+        customerName: selectedCustomer?.name,
+        customerIdNumber: selectedCustomer?.idNumber,
+        customerPhone: selectedCustomer?.phone,
+        customerAddress: channel === 'DELIVERY' ? customerAddress || selectedCustomer?.address || undefined : undefined,
         customerLat: channel === 'DELIVERY' ? addressCoords?.lat : undefined,
         customerLng: channel === 'DELIVERY' ? addressCoords?.lng : undefined,
         customerNote: customerNote.trim() || undefined,
@@ -278,7 +291,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
 
             {step === 1 && (
               <>
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-4 gap-1.5">
                   {CHANNEL_OPTIONS.map((opt) => (
                     <button
                       key={opt.value}
@@ -294,54 +307,48 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                   ))}
                 </div>
 
-                {channel === 'DINE_IN' ? (
-                  <div className="space-y-2">
-                    <select
-                      value={tableId}
-                      onChange={(e) => setTableId(e.target.value)}
-                      className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                {channel === 'DINE_IN' && (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      onClick={() => setTableMode('OPEN')}
+                      className={`rounded-xl border py-2 text-xs font-medium transition-colors ${
+                        tableMode === 'OPEN'
+                          ? 'border-brand-500 bg-brand-500/5 text-brand-500'
+                          : 'border-brand-950/10 text-brand-950/60 hover:border-brand-950/20'
+                      }`}
                     >
-                      <option value="">{tables.length === 0 ? 'No hay mesas disponibles' : 'Selecciona una mesa…'}</option>
-                      {tables.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.zoneName ? `${t.zoneName} · ` : ''}Mesa {t.number}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      placeholder="Nombre (si la mesa no tiene cuenta abierta)"
-                      className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-                    />
-                    <input
-                      value={customerIdNumber}
-                      onChange={(e) => setCustomerIdNumber(e.target.value)}
-                      placeholder="Cédula (si la mesa no tiene cuenta abierta)"
-                      className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-                    />
-                    <input
-                      type="tel"
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                      placeholder="Teléfono (si la mesa no tiene cuenta abierta)"
-                      className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-                    />
+                      Abrir mesa
+                    </button>
+                    <button
+                      onClick={() => setTableMode('ADD')}
+                      className={`rounded-xl border py-2 text-xs font-medium transition-colors ${
+                        tableMode === 'ADD'
+                          ? 'border-brand-500 bg-brand-500/5 text-brand-500'
+                          : 'border-brand-950/10 text-brand-950/60 hover:border-brand-950/20'
+                      }`}
+                    >
+                      Añadir a mesa
+                    </button>
                   </div>
-                ) : (
+                )}
+
+                {channel === 'DINE_IN' && tableMode === 'OPEN' && (
+                  <select
+                    value={tableId}
+                    onChange={(e) => setTableId(e.target.value)}
+                    className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                  >
+                    <option value="">{tables.length === 0 ? 'No hay mesas disponibles' : 'Selecciona una mesa…'}</option>
+                    {tables.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.zoneName ? `${t.zoneName} · ` : ''}Mesa {t.number}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {channel !== 'DINE_IN' && (
                   <div className="space-y-2">
-                    <input
-                      value={customerName}
-                      onChange={(e) => setCustomerName(e.target.value)}
-                      placeholder="Nombre del cliente *"
-                      className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-                    />
-                    <input
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                      placeholder="Teléfono"
-                      className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-                    />
                     {channel === 'DELIVERY' && (
                       <>
                         <AddressAutocomplete
@@ -475,15 +482,60 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
 
                 {error && <p className="text-sm text-red-600">{error}</p>}
 
-                <TextureButton
-                  variant="brand"
-                  size="default"
-                  disabled={lines.length === 0}
-                  onClick={goToStep2}
-                  className="disabled:opacity-50"
-                >
-                  Siguiente
-                </TextureButton>
+                {channel === 'DINE_IN' && tableMode === 'ADD' ? (
+                  <div className="space-y-2 pt-2 border-t border-brand-950/10">
+                    <p className="text-sm font-medium text-brand-950/70">Elige la cuenta de mesa</p>
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-950/30" />
+                      <input
+                        value={existingSearch}
+                        onChange={(e) => setExistingSearch(e.target.value)}
+                        placeholder="Buscar por número, cliente o mesa…"
+                        className="w-full text-sm border border-brand-950/15 rounded-lg pl-8 pr-2.5 py-1.5"
+                      />
+                    </div>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {filteredAddTableOrders.length === 0 && (
+                        <p className="text-sm text-brand-950/40 font-light text-center py-3">
+                          No hay cuentas de mesa abiertas.
+                        </p>
+                      )}
+                      {filteredAddTableOrders.map((o) => (
+                        <div
+                          key={o.id}
+                          className="w-full flex items-center gap-2 rounded-xl border border-brand-950/10 px-3 py-2"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-brand-950">
+                              #{o.orderNumber}
+                              {o.customerName && <span className="font-normal text-brand-950/60"> · {o.customerName}</span>}
+                            </p>
+                            <p className="text-xs text-brand-950/40">{o.table && `Mesa ${o.table.number}`}</p>
+                          </div>
+                          <TextureButton
+                            variant="secondary"
+                            size="sm"
+                            className="!w-auto px-3 shrink-0 disabled:opacity-40"
+                            disabled={lines.length === 0 || addingToId !== null}
+                            onClick={() => addToExisting(o.id)}
+                          >
+                            {addingToId === o.id ? 'Añadiendo…' : 'Agregar a la cuenta'}
+                          </TextureButton>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <TextureButton
+                    variant="brand"
+                    size="default"
+                    disabled={lines.length === 0}
+                    onClick={goToStep2}
+                    className="disabled:opacity-50"
+                  >
+                    Siguiente
+                  </TextureButton>
+                )}
               </>
             )}
 
@@ -574,7 +626,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                   )}
                 </div>
 
-                {existingOrders.length > 0 && (
+                {nonDineInExistingOrders.length > 0 && (
                   <div className="space-y-2 pt-2 border-t border-brand-950/10">
                     <p className="text-sm font-medium text-brand-950/70">O añade este pedido a una cuenta abierta</p>
                     <div className="relative">

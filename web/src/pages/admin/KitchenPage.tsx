@@ -11,6 +11,7 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { KitchenManageDialog } from '@/components/admin/KitchenManageDialog';
 
 const UNASSIGNED_KEY = '__unassigned__';
+const CHANNEL_LABELS: Record<string, string> = { DELIVERY: 'Delivery', PICKUP: 'Pickup', BAR: 'Barra' };
 
 interface Ticket {
   order: OrderView;
@@ -86,6 +87,11 @@ export default function KitchenPage() {
     load();
   }
 
+  async function acceptOrder(orderId: string) {
+    await api.post(`/orders/${orderId}/accept`);
+    load();
+  }
+
   async function cancelOrder(orderId: string) {
     if (!confirm('¿Cancelar este pedido completo?')) return;
     await api.patch(`/orders/${orderId}/status`, { status: 'CANCELLED' });
@@ -128,7 +134,12 @@ export default function KitchenPage() {
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {lane.tickets.map((ticket) => (
-                <TextureCard key={`${lane.key}-${ticket.order.id}`} className="transition-shadow duration-300 hover:shadow-md">
+                <TextureCard
+                  key={`${lane.key}-${ticket.order.id}`}
+                  className={`transition-shadow duration-300 hover:shadow-md ${
+                    ticket.order.status === 'PENDING' ? 'ring-1 ring-amber-300' : ''
+                  }`}
+                >
                   <TextureCardContent className="px-4 py-4 space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-semibold text-brand-950 truncate">
@@ -138,9 +149,16 @@ export default function KitchenPage() {
                         )}
                       </p>
                       <span className="text-xs bg-brand-950/[0.06] px-2 py-0.5 rounded-full shrink-0">
-                        {ticket.order.channel === 'DINE_IN' ? `Mesa ${ticket.order.table?.number ?? ''}` : ticket.order.channel}
+                        {ticket.order.channel === 'DINE_IN'
+                          ? `Mesa ${ticket.order.table?.number ?? ''}`
+                          : CHANNEL_LABELS[ticket.order.channel] ?? ticket.order.channel}
                       </span>
                     </div>
+                    {ticket.order.status === 'PENDING' && (
+                      <span className="inline-block text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+                        Pendiente de aceptar
+                      </span>
+                    )}
                     <ul className="text-sm space-y-1 font-light">
                       {ticket.items.map((it) => (
                         <li key={it.id}>
@@ -153,12 +171,21 @@ export default function KitchenPage() {
                       ))}
                     </ul>
 
-                    <button
-                      onClick={() => markReady(ticket.order.id, lane.key === UNASSIGNED_KEY ? null : lane.key)}
-                      className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium py-2 transition-colors"
-                    >
-                      <Check className="h-4 w-4" /> Listo
-                    </button>
+                    {ticket.order.status === 'PENDING' ? (
+                      <button
+                        onClick={() => acceptOrder(ticket.order.id)}
+                        className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium py-2 transition-colors"
+                      >
+                        <Check className="h-4 w-4" /> Aceptar pedido
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => markReady(ticket.order.id, lane.key === UNASSIGNED_KEY ? null : lane.key)}
+                        className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium py-2 transition-colors"
+                      >
+                        <Check className="h-4 w-4" /> Listo
+                      </button>
+                    )}
                     <button
                       onClick={() => cancelOrder(ticket.order.id)}
                       className="w-full text-center text-xs text-red-500 hover:text-red-600 pt-1"

@@ -4,6 +4,7 @@ import { AlertTriangle, Plus, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { hasFeature } from '@/utils/subscription';
+import { CURRENCY_SYMBOLS } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -13,9 +14,24 @@ interface InventoryItem {
   unit: string;
   quantity: string;
   minQuantity: string;
+  pricePerUnitBase: string | null;
 }
 
-const emptyForm = { name: '', unit: '', quantity: '', minQuantity: '' };
+const UNIT_LABELS: Record<string, string> = { kg: 'Kg', lt: 'Lt', unidad: 'Unidad' };
+// Sub-unidades para cargar la cantidad de receta en algo más chico que la unidad del insumo.
+const SUB_UNITS: Record<string, { value: string; label: string; toBase: number }[]> = {
+  kg: [
+    { value: 'kg', label: 'Kg', toBase: 1 },
+    { value: 'gr', label: 'Gr', toBase: 0.001 },
+  ],
+  lt: [
+    { value: 'lt', label: 'Lt', toBase: 1 },
+    { value: 'ml', label: 'Ml', toBase: 0.001 },
+  ],
+  unidad: [{ value: 'unidad', label: 'Unidad', toBase: 1 }],
+};
+
+const emptyForm = { name: '', unit: '', quantity: '', minQuantity: '', price: '', priceCurrency: 'BASE' as 'BASE' | 'BS' };
 
 /** Inventario: insumos con stock directo ("normal", Pro+), o por receta vinculada al producto (solo Premium). */
 export default function InventoryPage() {
@@ -74,6 +90,8 @@ export default function InventoryPage() {
 // -----------------------------------------------------------------------------
 
 function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onChanged: () => void }) {
+  const { restaurant } = useAuth();
+  const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -81,7 +99,7 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
 
   function startEdit(item: InventoryItem) {
     setEditingId(item.id);
-    setForm({ name: item.name, unit: item.unit, quantity: item.quantity, minQuantity: item.minQuantity });
+    setForm({ name: item.name, unit: item.unit, quantity: item.quantity, minQuantity: item.minQuantity, price: '', priceCurrency: 'BASE' });
   }
 
   function cancelEdit() {
@@ -99,6 +117,8 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
         unit: form.unit,
         quantity: Number(form.quantity) || 0,
         minQuantity: Number(form.minQuantity) || 0,
+        price: form.price ? Number(form.price) : undefined,
+        priceCurrency: form.priceCurrency,
       };
       if (editingId) {
         await api.patch(`/inventory/${editingId}`, payload);
@@ -132,13 +152,17 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
             required
             className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm sm:col-span-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
           />
-          <input
+          <select
             value={form.unit}
             onChange={(e) => setForm({ ...form, unit: e.target.value })}
-            placeholder="Unidad (kg, lt, unidad…)"
             required
             className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-          />
+          >
+            <option value="">Unidad…</option>
+            <option value="kg">Kg</option>
+            <option value="lt">Lt</option>
+            <option value="unidad">Unidad</option>
+          </select>
           <input
             value={form.quantity}
             onChange={(e) => setForm({ ...form, quantity: e.target.value })}
@@ -149,18 +173,47 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
             className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
           />
         </div>
-        <label className="block text-sm max-w-xs">
-          <span className="text-brand-950/70">Stock mínimo (aviso de reabastecer)</span>
-          <input
-            value={form.minQuantity}
-            onChange={(e) => setForm({ ...form, minQuantity: e.target.value })}
-            placeholder="0"
-            type="number"
-            step="0.01"
-            min="0"
-            className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-          />
-        </label>
+        <div className="grid sm:grid-cols-4 gap-3">
+          <label className="block text-sm sm:col-span-2">
+            <span className="text-brand-950/70">Stock mínimo (aviso de reabastecer)</span>
+            <input
+              value={form.minQuantity}
+              onChange={(e) => setForm({ ...form, minQuantity: e.target.value })}
+              placeholder="0"
+              type="number"
+              step="0.01"
+              min="0"
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="text-brand-950/70">
+              Precio por Unidad{form.quantity ? ` (de ${form.quantity} ${UNIT_LABELS[form.unit] ?? ''})` : ''}
+            </span>
+            <input
+              value={form.price}
+              onChange={(e) => setForm({ ...form, price: e.target.value.replace(/[^0-9.]/g, '') })}
+              placeholder="0.00"
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            />
+            {editingId && (
+              <span className="block text-xs text-brand-950/40 font-light mt-1">
+                Si el proveedor cambió el precio, el costo de las recetas que usan este insumo se actualiza automáticamente.
+              </span>
+            )}
+          </label>
+          <label className="block text-sm">
+            <span className="text-brand-950/70">Moneda</span>
+            <select
+              value={form.priceCurrency}
+              onChange={(e) => setForm({ ...form, priceCurrency: e.target.value as 'BASE' | 'BS' })}
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            >
+              <option value="BASE">{symbol}</option>
+              <option value="BS">Bs</option>
+            </select>
+          </label>
+        </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="flex gap-2">
           <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto px-4 disabled:opacity-50">
@@ -191,6 +244,7 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
                 </p>
                 <p className={`text-xs font-light mt-0.5 ${low ? 'text-amber-600' : 'text-brand-950/40'}`}>
                   {item.quantity} {item.unit} · mínimo {item.minQuantity} {item.unit}
+                  {item.pricePerUnitBase && ` · ${symbol}${item.pricePerUnitBase}/${item.unit}`}
                 </p>
               </div>
               <div className="flex items-center gap-3 shrink-0">
@@ -302,8 +356,11 @@ function RecipeDialog({
   const [lines, setLines] = useState<RecipeLine[] | null>(null);
   const [totalCostBase, setTotalCostBase] = useState('0.00');
   const [adding, setAdding] = useState(false);
-  const [newItem, setNewItem] = useState({ inventoryItemId: '', quantity: '', costBase: '' });
+  const [newItem, setNewItem] = useState({ inventoryItemId: '', quantity: '', subUnit: '' });
   const [error, setError] = useState<string | null>(null);
+
+  const selectedInsumo = insumos.find((i) => i.id === newItem.inventoryItemId);
+  const subUnitOptions = selectedInsumo ? SUB_UNITS[selectedInsumo.unit] ?? SUB_UNITS.unidad : [];
 
   function load() {
     api.get(`/inventory/recipes/${productId}`).then((res) => {
@@ -317,17 +374,18 @@ function RecipeDialog({
 
   async function addIngredient() {
     setError(null);
-    if (!newItem.inventoryItemId || !newItem.quantity || !newItem.costBase) {
-      setError('Completa insumo, cantidad y costo.');
+    if (!newItem.inventoryItemId || !newItem.quantity || !newItem.subUnit) {
+      setError('Completa insumo y cantidad.');
       return;
     }
+    const subUnit = subUnitOptions.find((u) => u.value === newItem.subUnit);
+    const quantityInBaseUnit = Number(newItem.quantity) * (subUnit?.toBase ?? 1);
     try {
       await api.post(`/inventory/recipes/${productId}`, {
         inventoryItemId: newItem.inventoryItemId,
-        quantity: Number(newItem.quantity),
-        costBase: Number(newItem.costBase),
+        quantity: quantityInBaseUnit,
       });
-      setNewItem({ inventoryItemId: '', quantity: '', costBase: '' });
+      setNewItem({ inventoryItemId: '', quantity: '', subUnit: '' });
       setAdding(false);
       load();
       onSaved();
@@ -373,13 +431,17 @@ function RecipeDialog({
             <div className="rounded-xl bg-brand-950/[0.04] p-3 space-y-2">
               <select
                 value={newItem.inventoryItemId}
-                onChange={(e) => setNewItem({ ...newItem, inventoryItemId: e.target.value })}
+                onChange={(e) => {
+                  const item = insumos.find((i) => i.id === e.target.value);
+                  const defaultSubUnit = item ? (SUB_UNITS[item.unit] ?? SUB_UNITS.unidad)[0].value : '';
+                  setNewItem({ inventoryItemId: e.target.value, quantity: '', subUnit: defaultSubUnit });
+                }}
                 className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
               >
                 <option value="">Insumo…</option>
                 {insumos.map((i) => (
                   <option key={i.id} value={i.id}>
-                    {i.name} ({i.unit})
+                    {i.name} ({UNIT_LABELS[i.unit] ?? i.unit})
                   </option>
                 ))}
               </select>
@@ -387,16 +449,23 @@ function RecipeDialog({
                 <input
                   value={newItem.quantity}
                   onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value.replace(/[^0-9.]/g, '') })}
-                  placeholder={`Cantidad usada${newItem.inventoryItemId ? ` (${insumos.find((i) => i.id === newItem.inventoryItemId)?.unit})` : ''}`}
+                  placeholder="Cantidad usada"
                   className="border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
                 />
-                <input
-                  value={newItem.costBase}
-                  onChange={(e) => setNewItem({ ...newItem, costBase: e.target.value.replace(/[^0-9.]/g, '') })}
-                  placeholder="Costo ($)"
-                  className="border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
-                />
+                <select
+                  value={newItem.subUnit}
+                  onChange={(e) => setNewItem({ ...newItem, subUnit: e.target.value })}
+                  disabled={!selectedInsumo}
+                  className="border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm disabled:opacity-50"
+                >
+                  {subUnitOptions.map((u) => (
+                    <option key={u.value} value={u.value}>
+                      {u.label}
+                    </option>
+                  ))}
+                </select>
               </div>
+              <p className="text-xs text-brand-950/40">El costo se calcula automáticamente según el precio del insumo.</p>
               {error && <p className="text-xs text-red-600">{error}</p>}
               <div className="flex gap-2">
                 <TextureButton variant="brand" size="sm" className="!w-auto px-4" onClick={addIngredient}>

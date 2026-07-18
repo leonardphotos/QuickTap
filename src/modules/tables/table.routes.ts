@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
-import { FULL_ACCESS_ROLES } from '../../utils/roles';
+import { ADMIN_CASHIER_ROLES } from '../../utils/roles';
 import { tableController } from './table.controller';
 
 const router = Router();
 router.use(tenantGuard);
 
-const mutate = requireRole(...FULL_ACCESS_ROLES);
+// GET / y /floor-plan quedan abiertos: la toma de pedidos (mesero/personal) necesita listar
+// las mesas. Solo crear/editar/borrar mesas es de dueño/admin/cajero.
+const mutate = requireRole(...ADMIN_CASHIER_ROLES);
 
 router.get('/', tableController.list);
 router.get('/floor-plan', tableController.floorPlan);

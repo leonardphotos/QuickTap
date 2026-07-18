@@ -6,6 +6,7 @@ const CHANNEL_LABELS: Record<LiveOrder['channel'], string> = {
   DINE_IN: 'Mesa',
   DELIVERY: 'Delivery',
   PICKUP: 'Pick-up',
+  BAR: 'Barra',
 };
 
 interface Props {

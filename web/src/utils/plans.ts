@@ -12,52 +12,12 @@ export const BILLING_CYCLE_LABEL: Record<BillingCycle, string> = {
  * Precios fijos por plan y ciclo de facturación (USD/mes). Espejo del cálculo
  * del backend (src/modules/plan-requests/plan-request.service.ts), que es la
  * única fuente de verdad real: aquí solo se usa para mostrar el precio antes
- * de enviar la solicitud.
+ * de enviar la solicitud. Solo dos planes vigentes: Delivery y Pro.
  */
-export const FIXED_PLAN_PRICES: Record<'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM', Record<BillingCycle, number>> = {
-  DELIVERY: { MONTHLY: 22, QUARTERLY: 17.6, SEMIANNUAL: 13.2 },
-  STARTER: { MONTHLY: 25, QUARTERLY: 18.75, SEMIANNUAL: 12.5 },
-  PRO: { MONTHLY: 43.75, QUARTERLY: 37.5, SEMIANNUAL: 31.25 },
-  PREMIUM: { MONTHLY: 62.5, QUARTERLY: 56.25, SEMIANNUAL: 50 },
+export const FIXED_PLAN_PRICES: Record<'DELIVERY' | 'PRO', Record<BillingCycle, number>> = {
+  DELIVERY: { MONTHLY: 9.99, QUARTERLY: 7.99, SEMIANNUAL: 5.99 },
+  PRO: { MONTHLY: 19.99, QUARTERLY: 15.99, SEMIANNUAL: 11.99 },
 };
-
-// Fórmula del plan personalizado: base + mesas + usuarios (desde el 3ro) + pedidos
-// (por cada 100) + adicionales (Administración/Inventario/Cuentas por pagar).
-export const CUSTOM_BASE_USD = 12.5;
-export const CUSTOM_PRICE_PER_TABLE = 1.25;
-export const CUSTOM_FREE_USERS = 2;
-export const CUSTOM_PRICE_PER_USER = 1.88;
-export const CUSTOM_PRICE_PER_100_ORDERS = 2.5;
-
-export const CUSTOM_ADDON_PRICES = {
-  administration: 8,
-  inventoryBasic: 5,
-  inventoryRecipe: 12,
-  accountsPayable: 4,
-} as const;
-
-export interface CustomAddons {
-  administration?: boolean;
-  inventoryBasic?: boolean;
-  inventoryRecipe?: boolean;
-  accountsPayable?: boolean;
-}
-
-export function calculateCustomPriceUsd(tables: number, users: number, orders: number, addons: CustomAddons = {}): number {
-  const billableUsers = Math.max(0, users - CUSTOM_FREE_USERS);
-  const addonsTotal =
-    (addons.administration ? CUSTOM_ADDON_PRICES.administration : 0) +
-    (addons.inventoryBasic ? CUSTOM_ADDON_PRICES.inventoryBasic : 0) +
-    (addons.inventoryRecipe ? CUSTOM_ADDON_PRICES.inventoryRecipe : 0) +
-    (addons.accountsPayable ? CUSTOM_ADDON_PRICES.accountsPayable : 0);
-  const price =
-    CUSTOM_BASE_USD +
-    tables * CUSTOM_PRICE_PER_TABLE +
-    billableUsers * CUSTOM_PRICE_PER_USER +
-    (orders / 100) * CUSTOM_PRICE_PER_100_ORDERS +
-    addonsTotal;
-  return Math.round(price * 100) / 100;
-}
 
 export const PAYMENT_METHOD_LABEL: Record<SubscriptionPaymentMethod, string> = {
   PAGO_MOVIL: 'Pago Móvil',

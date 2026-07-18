@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
-import { FULL_ACCESS_ROLES } from '../../utils/roles';
+import { ADMIN_CASHIER_ROLES } from '../../utils/roles';
 import { categoryController } from './category.controller';
 
 const router = Router();
 router.use(tenantGuard);
 
-const mutate = requireRole(...FULL_ACCESS_ROLES);
+const mutate = requireRole(...ADMIN_CASHIER_ROLES);
 
 router.get('/', categoryController.list);
 router.post('/', mutate, categoryController.create);

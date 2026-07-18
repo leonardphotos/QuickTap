@@ -1,19 +1,27 @@
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
-import { round2, toDecimal } from '../../utils/money';
+import { baseToBs, bsToBase, round2, toDecimal } from '../../utils/money';
 import { resolveDateFilter } from '../../utils/date-range';
+import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { CreateMovementInput, MovementQuery } from './movement.dto';
 
 export const movementService = {
   /** Botón "Añadir movimiento" / módulo de Gastos: ingreso/egreso manual, opcionalmente con
    * categoría, proveedor, reabastecimiento de inventario y marca de "a crédito". */
   async create(restaurantId: string, userId: string | undefined, input: CreateMovementInput) {
+    let amountBase = toDecimal(input.amountBase);
+    if (input.amountCurrency === 'BS') {
+      const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { baseCurrency: true } });
+      const rate = await exchangeRateService.getRate(restaurant?.baseCurrency ?? 'USD');
+      amountBase = bsToBase(input.amountBase, rate.rateBs);
+    }
+
     return prisma.$transaction(async (tx) => {
       const movement = await tx.movement.create({
         data: {
           restaurantId,
           type: input.type,
-          amountBase: input.amountBase,
+          amountBase,
           description: input.description,
           createdByUserId: userId,
           category: input.category,
@@ -57,11 +65,18 @@ export const movementService = {
     const totalExpense = round2(
       movements.filter((m) => m.type === 'EXPENSE').reduce((acc, m) => acc.add(m.amountBase), toDecimal(0)),
     );
+    const net = round2(totalIncome.sub(totalExpense));
+
+    const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { baseCurrency: true } });
+    const rate = await exchangeRateService.getRate(restaurant?.baseCurrency ?? 'USD');
 
     return {
       totalIncome: totalIncome.toFixed(2),
       totalExpense: totalExpense.toFixed(2),
-      net: round2(totalIncome.sub(totalExpense)).toFixed(2),
+      net: net.toFixed(2),
+      totalIncomeBs: baseToBs(totalIncome, rate.rateBs).toFixed(2),
+      totalExpenseBs: baseToBs(totalExpense, rate.rateBs).toFixed(2),
+      netBs: baseToBs(net, rate.rateBs).toFixed(2),
       movements: movements.map((m) => ({
         id: m.id,
         type: m.type,

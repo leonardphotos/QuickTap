@@ -30,6 +30,15 @@ export const teamService = {
     });
     if (existing) throw badRequest('Ya existe un miembro del equipo con ese email.');
 
+    // Plan Solo Delivery: máximo 6 usuarios (incluye al dueño).
+    const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { subscriptionPlan: true } });
+    if (restaurant?.subscriptionPlan === 'DELIVERY') {
+      const teamSize = await prisma.user.count({ where: { restaurantId } });
+      if (teamSize >= 6) {
+        throw badRequest('El Plan Solo Delivery permite hasta 6 usuarios. Mejora tu plan para agregar más.');
+      }
+    }
+
     const passwordHash = await bcrypt.hash(input.password, 10);
     return prisma.user.create({
       data: {

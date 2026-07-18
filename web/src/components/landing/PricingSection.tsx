@@ -1,22 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/api/client';
-import { calculateCustomPriceUsd, type BillingCycle, type PlanId } from '@/utils/plans';
-import { PlanCards, type CustomPlanValues } from './PlanCards';
+import type { BillingCycle, PlanId } from '@/utils/plans';
+import { PlanCards } from './PlanCards';
 
 export function PricingSection() {
   const navigate = useNavigate();
   const [rateBs, setRateBs] = useState<string | null>(null);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('MONTHLY');
-  const [custom, setCustom] = useState<CustomPlanValues>({
-    tables: 10,
-    users: 3,
-    orders: 200,
-    administration: false,
-    inventoryBasic: false,
-    inventoryRecipe: false,
-    accountsPayable: false,
-  });
 
   useEffect(() => {
     api
@@ -25,25 +16,11 @@ export function PricingSection() {
       .catch(() => setRateBs(null));
   }, []);
 
-  const customPriceUsd = useMemo(
-    () => calculateCustomPriceUsd(custom.tables, custom.users, custom.orders, custom),
-    [custom],
-  );
-
   // El pago solo se hace ya con la cuenta creada (ver BillingPage): aquí solo
   // se elige el plan y se manda a registrar, llevando la elección en la URL
   // para que el panel la retome automáticamente después de crear la cuenta.
-  function choosePlan(plan: Exclude<PlanId, 'TRIAL'>) {
+  function choosePlan(plan: Exclude<PlanId, 'TRIAL' | 'STARTER' | 'PREMIUM' | 'CUSTOM'>) {
     const params = new URLSearchParams({ plan, cycle: billingCycle });
-    if (plan === 'CUSTOM') {
-      params.set('tables', String(custom.tables));
-      params.set('users', String(custom.users));
-      params.set('orders', String(custom.orders));
-      if (custom.administration) params.set('addonAdministration', '1');
-      if (custom.inventoryBasic) params.set('addonInventoryBasic', '1');
-      if (custom.inventoryRecipe) params.set('addonInventoryRecipe', '1');
-      if (custom.accountsPayable) params.set('addonAccountsPayable', '1');
-    }
     navigate(`/admin/register?${params.toString()}`);
   }
 
@@ -58,15 +35,7 @@ export function PricingSection() {
         {rateBs && <p className="text-xs text-brand-950/40 mt-1">Precio en Bs referencial según tasa BCV del día.</p>}
       </div>
 
-      <PlanCards
-        rateBs={rateBs}
-        billingCycle={billingCycle}
-        onBillingCycleChange={setBillingCycle}
-        custom={custom}
-        onCustomChange={setCustom}
-        customPriceUsd={customPriceUsd}
-        onChoosePlan={choosePlan}
-      />
+      <PlanCards rateBs={rateBs} billingCycle={billingCycle} onBillingCycleChange={setBillingCycle} onChoosePlan={choosePlan} />
     </div>
   );
 }

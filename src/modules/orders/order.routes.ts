@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireFeature, requireRole, tenantGuard } from '../../middlewares/auth.middleware';
-import { FULL_ACCESS_ROLES } from '../../utils/roles';
+import { ADMIN_CASHIER_ROLES } from '../../utils/roles';
 import { orderController } from './order.controller';
 
 /**
@@ -11,8 +11,8 @@ const router = Router();
 
 router.use(tenantGuard);
 
-// "Ventas de hoy" y Administración: solo roles de acceso total (Mesero/Cocina/Pantalla no ven estos datos).
-const adminOnly = requireRole(...FULL_ACCESS_ROLES);
+// "Movimientos del día" y Administración: solo dueño/admin/cajero (Personal/Mesero/Cocina/Pantalla no ven estos datos).
+const adminOnly = requireRole(...ADMIN_CASHIER_ROLES);
 
 router.get('/kitchen', orderController.kitchenQueue);
 router.get('/delivery', orderController.deliveryQueue);
@@ -28,6 +28,7 @@ router.get(
   requireFeature('administration'),
   orderController.paymentMethodReport,
 );
+router.get('/reports/sales-stats', adminOnly, requireFeature('administration'), orderController.salesStats);
 router.post('/manual', orderController.createManual);
 router.post('/:id/accept', orderController.accept);
 router.post('/:id/dispatch-courier', orderController.dispatchCourier);

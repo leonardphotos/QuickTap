@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Menu, ExternalLink } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { isAdminCashier } from '../../utils/roles';
 import { daysRemaining, graceHoursRemaining } from '../../utils/subscription';
 import { hasSeenOnboardingTutorial, OnboardingTutorial } from '@/components/admin/OnboardingTutorial';
 import { DailySalesSummary } from '@/components/admin/DailySalesSummary';
@@ -18,7 +19,7 @@ const PLAN_LABELS: Record<string, string> = {
 };
 
 export default function DashboardPage() {
-  const { restaurant } = useAuth();
+  const { user, restaurant } = useAuth();
   const [showTutorial, setShowTutorial] = useState(() => !!restaurant && !hasSeenOnboardingTutorial(restaurant.id));
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -80,7 +81,7 @@ export default function DashboardPage() {
             <ExternalLink className="h-3.5 w-3.5 mr-1.5" /> Ver mi menú
           </TextureButton>
         </a>
-        <DailySalesSummary />
+        {isAdminCashier(user?.role) && <DailySalesSummary />}
         <LiveOrdersPanel />
       </div>
 

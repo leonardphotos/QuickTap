@@ -30,6 +30,11 @@ export function baseToBs(amountBase: DecimalLike, exchangeRate: DecimalLike): Pr
   return toDecimal(amountBase).mul(toDecimal(exchangeRate)).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
 }
 
+/** Convierte un monto en Bolívares a la moneda base (USD/EUR) aplicando la tasa BCV vigente. */
+export function bsToBase(amountBs: DecimalLike, exchangeRate: DecimalLike): Prisma.Decimal {
+  return toDecimal(amountBs).div(toDecimal(exchangeRate)).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
+}
+
 /** Formatea un monto como string con símbolo. Ej: formatMoney(12.5, '$') => "$12.50" */
 export function formatMoney(value: DecimalLike, symbol = '$'): string {
   return `${symbol}${round2(value).toFixed(2)}`;
