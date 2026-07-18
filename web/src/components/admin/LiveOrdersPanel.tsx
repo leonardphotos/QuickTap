@@ -43,6 +43,7 @@ export interface LiveOrderPayment {
   id: string;
   amountBase: string;
   method: string;
+  discountBase?: string | null;
   createdAt: string;
 }
 
@@ -73,7 +74,17 @@ export interface LiveOrder {
   awaitingPayment: boolean;
 }
 
-type ChannelFilter = LiveOrder['channel'] | 'AWAITING_PAYMENT';
+type ChannelFilter = LiveOrder['channel'] | 'AWAITING_PAYMENT' | 'PAID' | 'PARTIAL';
+
+/** Estado de pago de un pedido, para colorear la tarjeta y filtrar el Dashboard. */
+function getPaymentStatus(o: LiveOrder) {
+  // Un descuento perdona esa parte de la deuda: cuenta como "saldado" igual que el efectivo cobrado.
+  const paidBase = o.payments.reduce((acc, p) => acc + Number(p.amountBase) + Number(p.discountBase ?? 0), 0);
+  const balanceBase = Math.max(0, Number(o.totalBase) - paidBase);
+  const owesBalance = paidBase > 0 && balanceBase > 0.01;
+  const fullyPaid = o.payments.length > 0 && balanceBase <= 0.01;
+  return { paidBase, balanceBase, owesBalance, fullyPaid };
+}
 
 const isMobileDevice = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
@@ -125,7 +136,9 @@ const FILTER_LABELS: Record<ChannelFilter, string> = {
   DINE_IN: 'Mesas',
   DELIVERY: 'Delivery',
   PICKUP: 'Pick-up',
-  AWAITING_PAYMENT: 'Pendiente por pagar',
+  AWAITING_PAYMENT: 'Deudas',
+  PAID: 'Pagados',
+  PARTIAL: 'Pago fraccionado',
 };
 
 /** Panel "Pedidos": todos los pedidos activos con Aceptar/Cancelar/Finalizar/Delivery. Va en el Dashboard. */
@@ -270,7 +283,11 @@ export function LiveOrdersPanel() {
     ? orders
     : channelFilter === 'AWAITING_PAYMENT'
       ? (orders ?? []).filter((o) => o.awaitingPayment)
-      : (orders ?? []).filter((o) => o.channel === channelFilter);
+      : channelFilter === 'PAID'
+        ? (orders ?? []).filter((o) => getPaymentStatus(o).fullyPaid)
+        : channelFilter === 'PARTIAL'
+          ? (orders ?? []).filter((o) => getPaymentStatus(o).owesBalance)
+          : (orders ?? []).filter((o) => o.channel === channelFilter);
 
   if (!orders) return null;
 
@@ -310,10 +327,10 @@ export function LiveOrdersPanel() {
                 </DropdownMenuItem>
               ))}
               {canAccountsPayable && (
-                <DropdownMenuItem onClick={() => setChannelFilter('AWAITING_PAYMENT')}>
-                  Pendiente por pagar
-                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setChannelFilter('AWAITING_PAYMENT')}>Deudas</DropdownMenuItem>
               )}
+              <DropdownMenuItem onClick={() => setChannelFilter('PAID')}>Pagados</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setChannelFilter('PARTIAL')}>Pago fraccionado</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
           <button
@@ -335,15 +352,14 @@ export function LiveOrdersPanel() {
       ) : (
         <div className={viewMode === 'grid' ? 'grid grid-cols-2 sm:grid-cols-3 gap-3' : 'space-y-3'}>
           {visibleOrders?.map((o) => {
-            const paidBase = o.payments.reduce((acc, p) => acc + Number(p.amountBase), 0);
-            const balanceBase = Math.max(0, Number(o.totalBase) - paidBase);
-            const owesBalance = paidBase > 0 && balanceBase > 0.01;
-            const fullyPaid = o.payments.length > 0 && balanceBase <= 0.01;
+            const { paidBase, balanceBase, owesBalance, fullyPaid } = getPaymentStatus(o);
             return (
             <div
               key={o.id}
               onClick={() => setEditingOrder(o)}
-              className="relative rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-4 text-left cursor-pointer hover:shadow-md transition-shadow"
+              className={`relative rounded-2xl border shadow-sm p-4 text-left cursor-pointer hover:shadow-md transition-shadow ${
+                fullyPaid ? 'border-emerald-300 bg-emerald-50/40' : 'border-amber-300 bg-amber-50/40'
+              }`}
             >
               {justAdded?.id === o.id && (
                 <div
@@ -491,7 +507,10 @@ export function LiveOrdersPanel() {
         <CreateOrderDialog
           existingOrders={orders}
           onClose={() => setCreateOrderOpen(false)}
-          onCreated={load}
+          onCreated={(newOrder, paymentMode) => {
+            load();
+            if (newOrder && paymentMode) setPaymentDialog({ order: newOrder, mode: paymentMode });
+          }}
           onSelectExisting={(orderId) => {
             setCreateOrderOpen(false);
             const target = orders.find((o) => o.id === orderId);

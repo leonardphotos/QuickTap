@@ -1,4 +1,4 @@
-import { Bike, Boxes, ChefHat, CircleDollarSign, Grid2x2, QrCode, Settings, UtensilsCrossed } from 'lucide-react';
+import { Bike, Boxes, ChefHat, CircleDollarSign, Grid2x2, QrCode, Receipt, Settings, UtensilsCrossed } from 'lucide-react';
 import { RESTRICTED_ROLES, isScreenRole } from '../../utils/roles';
 import { hasFeature } from '../../utils/subscription';
 import type { UserRole } from '../../types';
@@ -27,6 +27,8 @@ export const ADMINISTRATION_NAV_LINK: AdminNavLink = {
 };
 // Visible con Inventario "normal" o "por receta" (cualquiera de los dos).
 export const INVENTORY_NAV_LINK: AdminNavLink = { to: '/admin/inventory', label: 'Inventario', icon: Boxes };
+// Módulo de Gastos: proveedores, categorías de egreso y balance. Mismo flag que Administración.
+export const EXPENSES_NAV_LINK: AdminNavLink = { to: '/admin/expenses', label: 'Gastos', icon: Receipt };
 
 const RESTRICTED_VISIBLE = new Set(['/admin/kitchen', '/admin/table-orders']);
 // Plan Solo Delivery: sin mesas, así que estas pestañas no aportan nada.
@@ -59,7 +61,7 @@ export function visibleNavLinks(
   }
   if (!isRestricted && restaurant) {
     const extra: AdminNavLink[] = [];
-    if (hasFeature(restaurant, 'administration')) extra.push(ADMINISTRATION_NAV_LINK);
+    if (hasFeature(restaurant, 'administration')) extra.push(ADMINISTRATION_NAV_LINK, EXPENSES_NAV_LINK);
     if (hasFeature(restaurant, 'inventoryBasic') || hasFeature(restaurant, 'inventoryRecipe')) {
       extra.push(INVENTORY_NAV_LINK);
     }

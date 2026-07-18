@@ -84,6 +84,23 @@ export interface Kitchen {
   _count?: { products: number };
 }
 
+/** Directorio de clientes: se crea/actualiza automáticamente al abrir una cuenta o hacer un pedido con teléfono. */
+export interface Customer {
+  id: string;
+  name: string;
+  phone: string;
+  idNumber?: string | null;
+  address?: string | null;
+}
+
+/** Proveedor (módulo de Gastos). */
+export interface Supplier {
+  id: string;
+  name: string;
+  phone?: string | null;
+  taxId?: string | null;
+}
+
 export interface Product {
   id: string;
   categoryId: string;

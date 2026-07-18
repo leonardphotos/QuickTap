@@ -15,4 +15,7 @@ export const movementController = {
   remove: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await movementService.remove(req.restaurantId!, req.params.id) });
   }),
+  markCreditPaid: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await movementService.markCreditPaid(req.restaurantId!, req.params.id) });
+  }),
 };

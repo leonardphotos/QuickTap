@@ -12,5 +12,6 @@ router.use(requireFeature('administration'));
 router.get('/', movementController.list);
 router.post('/', movementController.create);
 router.delete('/:id', movementController.remove);
+router.patch('/:id/mark-paid', movementController.markCreditPaid);
 
 export default router;

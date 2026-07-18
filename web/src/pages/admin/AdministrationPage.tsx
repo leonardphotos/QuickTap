@@ -80,26 +80,29 @@ function SummaryTab() {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [range, setRange] = useState<Range>('day');
+  const [date, setDate] = useState(''); // "YYYY-MM-DD"; si está seteado, manda a un lado los pills de rango
   const [result, setResult] = useState<HistoryResult | null>(null);
   const [movements, setMovements] = useState<MovementResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showMovementDialog, setShowMovementDialog] = useState(false);
 
+  const periodLabel = date ? new Date(date + 'T12:00:00').toLocaleDateString('es-VE') : RANGE_LABELS[range];
+
   function loadMovements() {
     api
-      .get('/movements', { params: { range } })
+      .get('/movements', { params: { range, date: date || undefined } })
       .then((res) => setMovements(res.data.data))
       .catch(() => setMovements(null));
   }
 
   useEffect(() => {
     api
-      .get('/orders/history', { params: { range, pageSize: 100 } })
+      .get('/orders/history', { params: { range, date: date || undefined, pageSize: 100 } })
       .then((res) => setResult(res.data.data))
       .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar el resumen.'));
     loadMovements();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range]);
+  }, [range, date]);
 
   async function removeMovement(id: string) {
     await api.delete(`/movements/${id}`);
@@ -111,18 +114,29 @@ function SummaryTab() {
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {(['day', 'week', 'month', 'year'] as Range[]).map((r) => (
             <button
               key={r}
-              onClick={() => setRange(r)}
+              onClick={() => {
+                setRange(r);
+                setDate('');
+              }}
               className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                range === r ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+                !date && range === r ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
               }`}
             >
               {RANGE_LABELS[r]}
             </button>
           ))}
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className={`text-xs font-medium px-2.5 py-1 rounded-full border-none ${
+              date ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+            }`}
+          />
         </div>
         <TextureButton
           variant="secondary"
@@ -146,13 +160,13 @@ function SummaryTab() {
           </div>
           <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
             <p className="text-2xl font-semibold text-brand-950">{result.total}</p>
-            <p className="text-xs text-brand-950/50 font-light mt-1">Pedidos · {RANGE_LABELS[range]}</p>
+            <p className="text-xs text-brand-950/50 font-light mt-1">Pedidos · {periodLabel}</p>
           </div>
         </div>
       )}
 
       <div>
-        <p className="text-sm font-medium text-brand-950/70 mb-3">Detalle de ventas · {RANGE_LABELS[range]}</p>
+        <p className="text-sm font-medium text-brand-950/70 mb-3">Detalle de ventas · {periodLabel}</p>
         <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06] max-h-[36rem] overflow-y-auto">
           {result?.orders.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin ventas en este período.</p>}
           {result?.orders.map((o) => (
@@ -169,7 +183,7 @@ function SummaryTab() {
       {movements && movements.movements.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-medium text-brand-950/70">Movimientos · {RANGE_LABELS[range]}</p>
+            <p className="text-sm font-medium text-brand-950/70">Movimientos · {periodLabel}</p>
             <p className="text-xs text-brand-950/50">
               +{formatBase(movements.totalIncome, symbol)} · −{formatBase(movements.totalExpense, symbol)}
             </p>

@@ -44,6 +44,20 @@ enum MovementType {
   EXPENSE
 }
 
+// Categoría de un egreso (módulo de Gastos en Administración).
+enum ExpenseCategory {
+  UTILITIES // Servicios públicos
+  SUPPLIES // Compra de producto e insumos
+  RENT // Arriendo
+  PAYROLL // Nómina
+  ADMINISTRATIVE // Gastos administrativos
+  MARKETING // Mercadeo y Publicidad
+  TRANSPORT // Transporte
+  MAINTENANCE // Mantenimiento
+  FURNITURE // Muebles
+  OTHER // Otros
+}
+
 enum CashSessionStatus {
   OPEN
   CLOSED
@@ -271,6 +285,8 @@ model Restaurant {
   deliveryZones     DeliveryZone[]
   movements         Movement[]
   cashSessions      CashSession[]
+  suppliers         Supplier[]
+  customers         Customer[]
 
   @@map("restaurants")
 }
@@ -600,6 +616,10 @@ model OrderPayment {
   orderId    String
   amountBase Decimal       @db.Decimal(12, 2)
   method     PaymentMethod
+  // Descuento aplicado a este pago puntual (no al pedido completo, porque
+  // pagos fraccionados distintos pueden llevar descuentos distintos).
+  discountPercent Decimal? @db.Decimal(5, 2)
+  discountBase    Decimal? @db.Decimal(12, 2)
   createdAt  DateTime      @default(now())
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -620,11 +640,70 @@ model Movement {
   createdByUserId String?
   createdAt       DateTime     @default(now())
 
-  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  createdByUser User?      @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  // --- Módulo de Gastos (todos opcionales; no afectan ingresos/propinas) ---
+  category           ExpenseCategory?
+  supplierId         String?
+  // Insumo reabastecido por este gasto (ej: compra de agua) y cantidad recibida:
+  // al crear el movimiento, se suma automáticamente a InventoryItem.quantity.
+  inventoryItemId    String?
+  inventoryQuantity  Decimal?         @db.Decimal(12, 2)
+  // Gasto tomado a crédito con el proveedor: cuenta pendiente por pagar
+  // (al revés de Order.awaitingPayment, que es lo que el cliente le debe
+  // al restaurante). El balance del período lo resta igual, ya esté pagado
+  // o no — esto solo lleva el seguimiento de si ya se le pagó al proveedor.
+  isCredit           Boolean          @default(false)
+  creditPaidAt        DateTime?
+
+  restaurant    Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  createdByUser User?          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
+  supplier      Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
 
   @@index([restaurantId, createdAt])
+  @@index([restaurantId, isCredit, creditPaidAt])
   @@map("movements")
+}
+
+// Proveedor al que se le compran insumos/servicios (módulo de Gastos).
+model Supplier {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  name  String
+  phone String?
+  // RIF o cédula del proveedor.
+  taxId String?
+
+  createdAt DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  movements  Movement[]
+
+  @@index([restaurantId])
+  @@map("suppliers")
+}
+
+// Directorio de clientes del restaurante: se crea/actualiza automáticamente
+// (upsert por teléfono) cada vez que se abre una cuenta de mesa o se hace un
+// pedido de delivery/pickup/manual con teléfono, para poder buscarlo después
+// en vez de tipear los datos de nuevo.
+model Customer {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  name    String
+  phone   String
+  idNumber String?
+  address String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, phone])
+  @@index([restaurantId, name])
+  @@map("customers")
 }
 
 // Turno de caja (botón "Abrir Caja" / "Cerrar Caja" en Administración → Resumen).
@@ -842,6 +921,7 @@ model InventoryItem {
 
   restaurant  Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   recipeLines RecipeIngredient[]
+  movements   Movement[]
 
   @@index([restaurantId])
   @@map("inventory_items")

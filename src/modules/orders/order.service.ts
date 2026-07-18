@@ -11,10 +11,11 @@ import {
 } from '../../utils/whatsapp';
 import { emitToKitchen, emitToTable, SocketEvents } from '../../sockets';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
-import { rangeFilter } from '../../utils/date-range';
+import { rangeFilter, resolveDateFilter } from '../../utils/date-range';
 import { startOfTodayCaracas } from '../../utils/timezone';
 import { haversineDistanceKm, isPointInPolygon, LatLng } from '../../utils/geo';
 import { tableSessionService } from '../table-sessions/table-session.service';
+import { customerService } from '../customers/customer.service';
 import {
   AddOrderItemInput,
   CartItemInput,
@@ -288,6 +289,12 @@ export const orderService = {
       });
     });
 
+    await customerService.upsertFromOrder(restaurantId, {
+      name: order.customerName,
+      phone: order.customerPhone,
+      idNumber: order.customerIdNumber,
+    });
+
     // Empuja el aviso en tiempo real: si necesita confirmación el mesero la ve
     // en "Órdenes de Mesa"; si no, entra directo a la cola de cocina.
     emitToKitchen(restaurantId, SocketEvents.ORDER_NEW, {
@@ -336,6 +343,16 @@ export const orderService = {
     });
     if (!restaurant) throw notFound('Restaurante no encontrado.');
 
+    // Cliente elegido del directorio (wizard → paso Clientes): sus datos rellenan
+    // los campos de contacto que no vinieron sueltos en el formulario.
+    const resolvedCustomer = input.customerId
+      ? await prisma.customer.findFirst({ where: { id: input.customerId, restaurantId } })
+      : null;
+    const customerName = input.customerName || resolvedCustomer?.name;
+    const customerPhone = input.customerPhone || resolvedCustomer?.phone;
+    const customerIdNumber = input.customerIdNumber || resolvedCustomer?.idNumber || undefined;
+    const customerAddress = input.customerAddress || resolvedCustomer?.address || undefined;
+
     const currency = restaurant.baseCurrency;
     const rate = await exchangeRateService.getRate(currency);
 
@@ -372,16 +389,16 @@ export const orderService = {
               let session = await tx.tableSession.findFirst({ where: { tableId: table.id, status: 'OPEN' } });
 
               if (!session) {
-                if (!input.customerName || !input.customerIdNumber || !input.customerPhone) {
+                if (!customerName || !customerIdNumber || !customerPhone) {
                   throw badRequest('Faltan los datos de facturación (nombre, cédula y teléfono) para abrir la cuenta.');
                 }
                 session = await tx.tableSession.create({
                   data: {
                     restaurantId,
                     tableId: table.id,
-                    customerName: input.customerName,
-                    customerIdNumber: input.customerIdNumber,
-                    customerPhone: input.customerPhone,
+                    customerName,
+                    customerIdNumber,
+                    customerPhone,
                   },
                 });
               }
@@ -407,6 +424,7 @@ export const orderService = {
                   totalBase,
                   exchangeRate: rate.rateBs,
                   totalBs,
+                  awaitingPayment: input.paymentIntent === 'DEBT',
                   items: { create: itemsCreate },
                 },
                 include: { items: true, table: { select: { number: true } } },
@@ -423,11 +441,12 @@ export const orderService = {
                 orderNumber,
                 channel: input.channel,
                 status: 'KITCHEN',
-                customerName: input.customerName,
-                customerPhone: input.customerPhone,
-                customerAddress: input.channel === 'DELIVERY' ? input.customerAddress : undefined,
+                customerName,
+                customerPhone,
+                customerAddress: input.channel === 'DELIVERY' ? customerAddress : undefined,
                 customerLat: input.channel === 'DELIVERY' ? input.customerLat : undefined,
                 customerLng: input.channel === 'DELIVERY' ? input.customerLng : undefined,
+                awaitingPayment: input.paymentIntent === 'DEBT',
                 customerNote: input.customerNote,
                 placedByUserId,
                 currency,
@@ -443,6 +462,13 @@ export const orderService = {
               include: { items: true, table: { select: { number: true } } },
             });
           });
+
+    await customerService.upsertFromOrder(restaurantId, {
+      name: order.customerName,
+      phone: order.customerPhone,
+      idNumber: order.customerIdNumber,
+      address: order.customerAddress,
+    });
 
     emitToKitchen(restaurantId, SocketEvents.ORDER_NEW, {
       orderId: order.id,
@@ -582,6 +608,13 @@ export const orderService = {
         },
         include: { items: true },
       });
+    });
+
+    await customerService.upsertFromOrder(restaurantId, {
+      name: order.customerName,
+      phone: order.customerPhone,
+      idNumber: order.customerIdNumber,
+      address: order.customerAddress,
     });
 
     // Notifica en vivo a la sección Delivery (y a Cocina, que también lista todos los canales).
@@ -868,18 +901,33 @@ export const orderService = {
     if (!order) throw notFound('Comanda no encontrada.');
     if (order.status === 'CANCELLED') throw badRequest('No se puede registrar un cobro en un pedido cancelado.');
 
-    const alreadyPaid = order.payments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0));
-    const balance = round2(order.totalBase.sub(alreadyPaid));
+    // "Saldado" cuenta lo cobrado en efectivo/transferencia MÁS los descuentos ya
+    // otorgados (un descuento perdona esa parte de la deuda, no queda pendiente).
+    const alreadySettled = order.payments.reduce(
+      (acc, p) => acc.add(p.amountBase).add(p.discountBase ?? toDecimal(0)),
+      toDecimal(0),
+    );
+    const balance = round2(order.totalBase.sub(alreadySettled));
     if (toDecimal(input.amountBase).gt(balance.add(0.01))) {
       throw badRequest(`El monto excede el saldo pendiente (${balance.toFixed(2)}).`);
     }
 
+    const discountBase = input.discountPercent
+      ? round2(balance.mul(input.discountPercent).div(100))
+      : undefined;
+
     await prisma.orderPayment.create({
-      data: { orderId, amountBase: input.amountBase, method: input.method },
+      data: {
+        orderId,
+        amountBase: input.amountBase,
+        method: input.method,
+        discountPercent: input.discountPercent,
+        discountBase,
+      },
     });
 
-    const paidBase = round2(alreadyPaid.add(input.amountBase));
-    const fullyPaid = paidBase.gte(order.totalBase.sub(0.01));
+    const settledBase = round2(alreadySettled.add(input.amountBase).add(discountBase ?? toDecimal(0)));
+    const fullyPaid = settledBase.gte(order.totalBase.sub(0.01));
     const updated = await prisma.order.update({
       where: { id: orderId },
       data: fullyPaid ? { awaitingPayment: false } : {},
@@ -1046,7 +1094,7 @@ export const orderService = {
     const where: Prisma.OrderWhereInput = {
       restaurantId,
       status: { not: 'CANCELLED' },
-      createdAt: rangeFilter(query.range),
+      createdAt: resolveDateFilter({ range: query.range, date: query.date }),
     };
     if (query.channel) where.channel = query.channel;
     if (query.paymentMethod) where.paymentMethod = query.paymentMethod;

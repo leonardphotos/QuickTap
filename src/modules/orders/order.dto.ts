@@ -43,6 +43,11 @@ export const manualOrderSchema = z
     // Ubicación GPS del cliente (autocompletar dirección o "usar mi ubicación actual").
     customerLat: z.number().min(-90).max(90).optional(),
     customerLng: z.number().min(-180).max(180).optional(),
+    // Cliente elegido del directorio (wizard "Crear pedido" → paso Clientes).
+    customerId: z.string().optional(),
+    // Cómo se piensa cobrar este pedido nuevo (wizard → paso Pago). 'DEBT' marca awaitingPayment
+    // de una vez; 'FULL'/'SPLIT' solo le indican al frontend qué diálogo de pago abrir después.
+    paymentIntent: z.enum(['FULL', 'SPLIT', 'DEBT']).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.channel === 'DINE_IN' && !data.tableId) {
@@ -112,6 +117,9 @@ export const setAwaitingPaymentSchema = z.object({
 export const recordPaymentSchema = z.object({
   amountBase: z.coerce.number().positive().max(1000000),
   method: paymentMethodSchema,
+  // Descuento aplicado a este pago puntual (0-100). Opcional, solo informativo:
+  // el monto real a acreditar sigue siendo `amountBase`.
+  discountPercent: z.coerce.number().min(0).max(100).optional(),
 });
 
 /** Añadir un producto nuevo a un pedido ya creado, desde el panel de Pedidos en vivo. */
@@ -146,6 +154,8 @@ export const deliveryQuoteSchema = z.object({
 /** Filtros del historial de pedidos y reportes (Administración, solo Premium). */
 export const orderHistoryQuerySchema = z.object({
   range: z.enum(['day', 'week', 'month', 'year', 'all']).optional().default('day'),
+  // Fecha exacta ("YYYY-MM-DD"): si viene, ignora `range` y filtra ese día completo.
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   channel: z.enum(['DINE_IN', 'DELIVERY', 'PICKUP']).optional(),
   paymentMethod: z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER']).optional(),
   // Solo aplica a channel=DINE_IN: 'staff' = cargado por un mesero, 'customer' = el cliente desde su teléfono.

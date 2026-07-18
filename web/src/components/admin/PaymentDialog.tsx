@@ -43,7 +43,8 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
 
-  const paidBase = order.payments.reduce((acc, p) => acc + Number(p.amountBase), 0);
+  // Un descuento perdona esa parte de la deuda: cuenta como "saldado" igual que el efectivo cobrado.
+  const paidBase = order.payments.reduce((acc, p) => acc + Number(p.amountBase) + Number(p.discountBase ?? 0), 0);
   const balanceBase = Math.max(0, Number(order.totalBase) - paidBase);
 
   const paymentConfig = restaurant?.paymentMethodsConfig;
@@ -54,12 +55,27 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
 
   const [method, setMethod] = useState<PaymentMethod>(paymentOptions[0] ?? 'CASH');
   const [amount, setAmount] = useState(mode === 'split' ? '' : balanceBase.toFixed(2));
+  const [discountPercent, setDiscountPercent] = useState('');
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paidNow, setPaidNow] = useState<number | null>(null);
 
   const selectedDetails = paymentConfig?.[method];
+  const discountPct = Math.min(100, Math.max(0, Number(discountPercent) || 0));
+  const discountedBalance = round2(balanceBase * (1 - discountPct / 100));
+
+  function round2(n: number) {
+    return Math.round(n * 100) / 100;
+  }
+
+  function onDiscountChange(v: string) {
+    const clean = v.replace(/[^0-9.]/g, '');
+    setDiscountPercent(clean);
+    if (mode === 'full') return; // el monto a cobrar en modo full se muestra calculado, no hace falta tocar `amount`
+    const pct = Math.min(100, Math.max(0, Number(clean) || 0));
+    setAmount(round2(balanceBase * (1 - pct / 100)).toFixed(2));
+  }
 
   async function copyField(key: string, value: string) {
     try {
@@ -72,7 +88,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   }
 
   async function submit() {
-    const amountBase = mode === 'split' ? Number(amount) : balanceBase;
+    const amountBase = mode === 'split' ? Number(amount) : discountedBalance;
     if (!amountBase || amountBase <= 0) {
       setError('Escribe un monto válido.');
       return;
@@ -84,7 +100,11 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
     setSending(true);
     setError(null);
     try {
-      await api.post(`/orders/${order.id}/payments`, { amountBase, method });
+      await api.post(`/orders/${order.id}/payments`, {
+        amountBase,
+        method,
+        discountPercent: discountPct > 0 ? discountPct : undefined,
+      });
       onPaid();
       const remaining = balanceBase - amountBase;
       if (mode === 'full' || remaining <= 0.01) {
@@ -133,9 +153,25 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
               ) : (
                 <p className="text-sm text-brand-950/60">Cuenta saldada.</p>
               )}
-              <TextureButton variant="secondary" size="default" onClick={onClose}>
-                Cerrar
-              </TextureButton>
+              <div className="flex gap-2 justify-center">
+                {mode === 'split' && remainingAfter > 0.01 && (
+                  <TextureButton
+                    variant="brand"
+                    size="default"
+                    className="!w-auto px-4"
+                    onClick={() => {
+                      setPaidNow(null);
+                      setAmount('');
+                      setDiscountPercent('');
+                    }}
+                  >
+                    Seguir pagando fraccionado
+                  </TextureButton>
+                )}
+                <TextureButton variant="secondary" size="default" className="!w-auto px-4" onClick={onClose}>
+                  {remainingAfter > 0.01 ? 'Cerrar por ahora' : 'Cerrar'}
+                </TextureButton>
+              </div>
             </div>
           ) : (
             <>
@@ -187,6 +223,16 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                 </div>
               )}
 
+              <div>
+                <p className="text-xs font-medium text-brand-950/50 mb-1.5">Descuento (%)</p>
+                <input
+                  value={discountPercent}
+                  onChange={(e) => onDiscountChange(e.target.value)}
+                  placeholder="0"
+                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                />
+              </div>
+
               {mode === 'split' ? (
                 <div>
                   <p className="text-xs font-medium text-brand-950/50 mb-1.5">Monto a abonar</p>
@@ -199,9 +245,17 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                   />
                 </div>
               ) : (
-                <div className="flex items-center justify-between text-sm font-semibold pt-1">
-                  <span>Monto a cobrar</span>
-                  <span>{formatBase(balanceBase, symbol)}</span>
+                <div className="space-y-1 pt-1">
+                  {discountPct > 0 && (
+                    <div className="flex items-center justify-between text-xs text-brand-950/50">
+                      <span>Descuento aplicado</span>
+                      <span>-{formatBase(round2(balanceBase - discountedBalance), symbol)}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between text-sm font-semibold">
+                    <span>Monto a cobrar</span>
+                    <span>{formatBase(discountedBalance, symbol)}</span>
+                  </div>
                 </div>
               )}
 

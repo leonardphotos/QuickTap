@@ -11,6 +11,12 @@ export function startOfTodayCaracas(): Date {
   return new Date(shifted.getTime() + CARACAS_OFFSET_MS);
 }
 
+/** Instante UTC que corresponde a la medianoche de una fecha exacta ("YYYY-MM-DD") en hora de Caracas. */
+export function startOfDayCaracas(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d, 4, 0, 0, 0));
+}
+
 /** Instante UTC que corresponde a la medianoche del lunes de "esta semana" en hora de Caracas. */
 export function startOfWeekCaracas(): Date {
   const shifted = new Date(Date.now() - CARACAS_OFFSET_MS);

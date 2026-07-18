@@ -33,6 +33,8 @@ import cashSessionRoutes from '../modules/cash-sessions/cash-session.routes';
 import deliveryCourierRoutes from '../modules/delivery-couriers/delivery-courier.routes';
 import deliveryZoneRoutes from '../modules/delivery-zones/delivery-zone.routes';
 import kitchenRoutes from '../modules/kitchens/kitchen.routes';
+import customerRoutes from '../modules/customers/customer.routes';
+import supplierRoutes from '../modules/suppliers/supplier.routes';
 
 /**
  * Enrutador raíz de la API v1.
@@ -60,6 +62,8 @@ router.use('/products', productRoutes);
 router.use('/orders', orderRoutes);
 router.use('/categories', categoryRoutes);
 router.use('/kitchens', kitchenRoutes);
+router.use('/customers', customerRoutes);
+router.use('/suppliers', supplierRoutes);
 router.use('/tables', tableRoutes);
 router.use('/zones', zoneRoutes);
 router.use('/team', teamRoutes);
