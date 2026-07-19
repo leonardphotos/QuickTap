@@ -1231,11 +1231,11 @@ export const orderService = {
     });
   },
 
-  /** Reporte de productos más/menos vendidos, con filtro de rango de fecha. */
+  /** Reporte de productos más/menos vendidos, con filtro de rango de fecha. Cada variante de precio cuenta como su propia fila. */
   async getProductReport(restaurantId: string, range: ReportRange) {
     const items = await prisma.orderItem.findMany({
       where: { order: { restaurantId, status: { not: 'CANCELLED' }, createdAt: rangeFilter(range) } },
-      select: { productId: true, productName: true, quantity: true, lineTotal: true },
+      select: { productId: true, productName: true, variantName: true, quantity: true, lineTotal: true },
     });
 
     const byProduct = new Map<
@@ -1243,7 +1243,8 @@ export const orderService = {
       { productId: string | null; name: string; quantity: number; revenueBase: Prisma.Decimal }
     >();
     for (const item of items) {
-      const key = item.productId ?? `name:${item.productName}`;
+      const name = item.variantName ? `${item.productName} (${item.variantName})` : item.productName;
+      const key = `${item.productId ?? `name:${item.productName}`}:${item.variantName ?? ''}`;
       const existing = byProduct.get(key);
       if (existing) {
         existing.quantity += item.quantity;
@@ -1251,7 +1252,7 @@ export const orderService = {
       } else {
         byProduct.set(key, {
           productId: item.productId,
-          name: item.productName,
+          name,
           quantity: item.quantity,
           revenueBase: toDecimal(item.lineTotal),
         });

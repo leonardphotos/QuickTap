@@ -961,7 +961,7 @@ function ProductsTab() {
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
         {sorted?.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin ventas en este rango.</p>}
         {sorted?.map((r, i) => (
-          <div key={r.productId ?? r.name} className="flex items-center justify-between gap-3 px-5 py-3">
+          <div key={`${r.productId ?? 'x'}-${r.name}`} className="flex items-center justify-between gap-3 px-5 py-3">
             <div className="flex items-center gap-3 min-w-0">
               <span className="text-xs text-brand-950/30 font-medium w-5 shrink-0">{i + 1}</span>
               <p className="text-sm font-medium text-brand-950 truncate">{r.name}</p>
