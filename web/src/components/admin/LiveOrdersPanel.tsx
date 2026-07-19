@@ -14,7 +14,6 @@ import {
   Rows3,
   SplitSquareHorizontal,
   Truck,
-  User,
   X,
 } from 'lucide-react';
 import { api, getToken } from '@/api/client';
@@ -71,6 +70,7 @@ export interface LiveOrder {
   createdAt: string;
   table: { number: string } | null;
   placedByUser: { id: string; name: string } | null;
+  acceptedByUserId: string | null;
   items: LiveOrderItem[];
   payments: LiveOrderPayment[];
   awaitingPayment: boolean;
@@ -157,7 +157,6 @@ export function LiveOrdersPanel() {
   const [courierPickerFor, setCourierPickerFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [channelFilter, setChannelFilter] = useState<ChannelFilter | null>(null);
-  const [mineOnly, setMineOnly] = useState(false);
   const [editingOrder, setEditingOrder] = useState<LiveOrder | null>(null);
   const [justAdded, setJustAdded] = useState<{ id: string; fading: boolean } | null>(null);
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
@@ -285,17 +284,27 @@ export function LiveOrdersPanel() {
     setCourierPickerFor(order.id);
   }
 
-  const channelFiltered = !channelFilter
-    ? orders
-    : channelFilter === 'AWAITING_PAYMENT'
-      ? (orders ?? []).filter((o) => o.awaitingPayment)
-      : channelFilter === 'PAID'
-        ? (orders ?? []).filter((o) => getPaymentStatus(o).fullyPaid)
-        : channelFilter === 'PARTIAL'
-          ? (orders ?? []).filter((o) => getPaymentStatus(o).owesBalance)
-          : (orders ?? []).filter((o) => o.channel === channelFilter);
+  // El rol Mesero solo ve: los pedidos que él mismo tomó (placedByUser), los
+  // que ya aceptó de un cliente que pidió desde su mesa (acceptedByUserId), y
+  // los que un cliente pidió y todavía nadie aceptó (para poder tomarlos). En
+  // cuanto otro mesero acepta uno de esos últimos, deja de aparecerle.
+  // El resto de los roles (Admin, Cajero, Cocina, Pantalla) ve todos.
+  const roleFiltered =
+    user?.role === 'WAITER'
+      ? (orders ?? []).filter(
+          (o) => o.placedByUser?.id === user.id || o.acceptedByUserId === user.id || (!o.placedByUser && !o.acceptedByUserId),
+        )
+      : orders;
 
-  const visibleOrders = mineOnly ? (channelFiltered ?? []).filter((o) => o.placedByUser?.id === user?.id) : channelFiltered;
+  const visibleOrders = !channelFilter
+    ? roleFiltered
+    : channelFilter === 'AWAITING_PAYMENT'
+      ? (roleFiltered ?? []).filter((o) => o.awaitingPayment)
+      : channelFilter === 'PAID'
+        ? (roleFiltered ?? []).filter((o) => getPaymentStatus(o).fullyPaid)
+        : channelFilter === 'PARTIAL'
+          ? (roleFiltered ?? []).filter((o) => getPaymentStatus(o).owesBalance)
+          : (roleFiltered ?? []).filter((o) => o.channel === channelFilter);
 
   if (!orders) return null;
 
@@ -304,9 +313,9 @@ export function LiveOrdersPanel() {
       <div className="grid grid-cols-3 items-center mb-3 gap-2">
         <div className="flex items-center gap-2.5 justify-self-start">
           <h2 className="text-lg font-semibold text-brand-950">Pedidos</h2>
-          {orders.length > 0 && (
+          {(roleFiltered?.length ?? 0) > 0 && (
             <span className="text-sm bg-brand-500 text-white rounded-full h-7 min-w-7 px-2 flex items-center justify-center font-bold">
-              {orders.length}
+              {roleFiltered?.length}
             </span>
           )}
         </div>
@@ -320,15 +329,6 @@ export function LiveOrdersPanel() {
           <Plus className="h-7 w-7" strokeWidth={2.5} />
         </TextureButton>
         <div className="flex items-center flex-wrap justify-end gap-2 justify-self-end">
-          <button
-            onClick={() => setMineOnly((v) => !v)}
-            className={`flex items-center gap-1.5 text-sm border rounded-lg px-2.5 py-1.5 ${
-              mineOnly ? 'border-brand-500 bg-brand-500/10 text-brand-600' : 'border-brand-950/15 bg-white text-brand-950/70'
-            }`}
-          >
-            <User className="h-3.5 w-3.5" />
-            Mis pedidos
-          </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-1.5 text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5 bg-white text-brand-950/70">

@@ -340,7 +340,8 @@ model User {
   canAccessInventory Boolean @default(false)
 
   restaurant         Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  placedOrders       Order[]
+  placedOrders       Order[]       @relation("OrderPlacedBy")
+  acceptedOrders     Order[]       @relation("OrderAcceptedBy")
   movements          Movement[]
   cashSessionsOpened CashSession[] @relation("CashSessionOpenedBy")
   cashSessionsClosed CashSession[] @relation("CashSessionClosedBy")
@@ -698,6 +699,11 @@ model Order {
   // ser el cliente desde su teléfono), queda el usuario que lo tomó.
   placedByUserId String?
 
+  // Mesero/staff que apretó "Aceptar" en un pedido pedido por el cliente
+  // (mesa/QR). Junto con placedByUserId, define qué pedidos ve el rol Mesero
+  // en el Dashboard (los suyos + los que él aceptó).
+  acceptedByUserId String?
+
   // Repartidor al que se despachó la comanda (botón "Delivery" del panel de
   // Pedidos), para poder ver el movimiento de cada repartidor en Administración.
   deliveryCourierId    String?
@@ -714,7 +720,8 @@ model Order {
   restaurant      Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   table           Table?           @relation(fields: [tableId], references: [id], onDelete: SetNull)
   tableSession    TableSession?    @relation(fields: [tableSessionId], references: [id], onDelete: SetNull)
-  placedByUser    User?            @relation(fields: [placedByUserId], references: [id], onDelete: SetNull)
+  placedByUser    User?            @relation("OrderPlacedBy", fields: [placedByUserId], references: [id], onDelete: SetNull)
+  acceptedByUser  User?            @relation("OrderAcceptedBy", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
   deliveryCourier DeliveryCourier? @relation(fields: [deliveryCourierId], references: [id], onDelete: SetNull)
   items           OrderItem[]
   payments        OrderPayment[]

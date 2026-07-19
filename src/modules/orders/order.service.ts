@@ -886,14 +886,19 @@ export const orderService = {
   },
 
   /** El mesero acepta un pedido de mesa en NEEDS_CONFIRMATION: recién ahí llega a cocina. */
-  async acceptOrder(restaurantId: string, orderId: string) {
+  async acceptOrder(restaurantId: string, orderId: string, acceptedByUserId?: string) {
     const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });
     if (!existing) throw notFound('Comanda no encontrada.');
     if (existing.status !== 'NEEDS_CONFIRMATION' && existing.status !== 'PENDING') {
       throw badRequest('Este pedido ya fue aceptado o no está pendiente.');
     }
 
-    const order = await prisma.order.update({ where: { id: orderId }, data: { status: 'KITCHEN' } });
+    // Registra quién aceptó el pedido del cliente (mesa/QR): junto con
+    // placedByUserId, define qué pedidos ve el rol Mesero en el Dashboard.
+    const order = await prisma.order.update({
+      where: { id: orderId },
+      data: { status: 'KITCHEN', acceptedByUserId: existing.placedByUserId ? undefined : acceptedByUserId },
+    });
     emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId: order.id, status: order.status });
     return order;
   },

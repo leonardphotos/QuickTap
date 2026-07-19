@@ -55,6 +55,10 @@ export function canAccessPath(role: UserRole | null | undefined, pathname: strin
   if (hasFullAccess(role)) return true;
   if (isScreenRole(role)) return pathname.startsWith(SCREEN_PATH);
   if (canAccessInventory && pathname.startsWith('/admin/inventory')) return true;
+  // El Dashboard ("/admin" exacto) también es visible para Mesero/Cocina: ahí ven
+  // sus propios pedidos (Mesero) o todos (Cocina) — no confundir con "/admin/*"
+  // en general, que sigue vedado para estos roles.
+  if (pathname === '/admin') return true;
   return RESTRICTED_PATHS.some((p) => pathname.startsWith(p));
 }
 
