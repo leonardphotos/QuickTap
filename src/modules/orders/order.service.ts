@@ -919,7 +919,7 @@ export const orderService = {
         items: { include: { modifiers: true } },
         table: { select: { number: true } },
         payments: true,
-        placedByUser: { select: { name: true } },
+        placedByUser: { select: { id: true, name: true } },
       },
     });
   },

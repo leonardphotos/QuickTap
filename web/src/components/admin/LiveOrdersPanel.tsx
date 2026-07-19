@@ -14,6 +14,7 @@ import {
   Rows3,
   SplitSquareHorizontal,
   Truck,
+  User,
   X,
 } from 'lucide-react';
 import { api, getToken } from '@/api/client';
@@ -69,7 +70,7 @@ export interface LiveOrder {
   customerNote: string | null;
   createdAt: string;
   table: { number: string } | null;
-  placedByUser: { name: string } | null;
+  placedByUser: { id: string; name: string } | null;
   items: LiveOrderItem[];
   payments: LiveOrderPayment[];
   awaitingPayment: boolean;
@@ -147,7 +148,7 @@ const FILTER_LABELS: Record<ChannelFilter, string> = {
 
 /** Panel "Pedidos": todos los pedidos activos con Aceptar/Cancelar/Finalizar/Delivery. Va en el Dashboard. */
 export function LiveOrdersPanel() {
-  const { restaurant } = useAuth();
+  const { restaurant, user } = useAuth();
   const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [orders, setOrders] = useState<LiveOrder[] | null>(null);
@@ -156,6 +157,7 @@ export function LiveOrdersPanel() {
   const [courierPickerFor, setCourierPickerFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [channelFilter, setChannelFilter] = useState<ChannelFilter | null>(null);
+  const [mineOnly, setMineOnly] = useState(false);
   const [editingOrder, setEditingOrder] = useState<LiveOrder | null>(null);
   const [justAdded, setJustAdded] = useState<{ id: string; fading: boolean } | null>(null);
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
@@ -283,7 +285,7 @@ export function LiveOrdersPanel() {
     setCourierPickerFor(order.id);
   }
 
-  const visibleOrders = !channelFilter
+  const channelFiltered = !channelFilter
     ? orders
     : channelFilter === 'AWAITING_PAYMENT'
       ? (orders ?? []).filter((o) => o.awaitingPayment)
@@ -292,6 +294,8 @@ export function LiveOrdersPanel() {
         : channelFilter === 'PARTIAL'
           ? (orders ?? []).filter((o) => getPaymentStatus(o).owesBalance)
           : (orders ?? []).filter((o) => o.channel === channelFilter);
+
+  const visibleOrders = mineOnly ? (channelFiltered ?? []).filter((o) => o.placedByUser?.id === user?.id) : channelFiltered;
 
   if (!orders) return null;
 
@@ -315,7 +319,16 @@ export function LiveOrdersPanel() {
         >
           <Plus className="h-7 w-7" strokeWidth={2.5} />
         </TextureButton>
-        <div className="flex items-center gap-2 justify-self-end">
+        <div className="flex items-center flex-wrap justify-end gap-2 justify-self-end">
+          <button
+            onClick={() => setMineOnly((v) => !v)}
+            className={`flex items-center gap-1.5 text-sm border rounded-lg px-2.5 py-1.5 ${
+              mineOnly ? 'border-brand-500 bg-brand-500/10 text-brand-600' : 'border-brand-950/15 bg-white text-brand-950/70'
+            }`}
+          >
+            <User className="h-3.5 w-3.5" />
+            Mis pedidos
+          </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button className="flex items-center gap-1.5 text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5 bg-white text-brand-950/70">
