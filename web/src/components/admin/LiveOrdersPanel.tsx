@@ -68,7 +68,7 @@ export interface LiveOrder {
   customerIdNumber: string | null;
   customerNote: string | null;
   createdAt: string;
-  table: { number: string } | null;
+  table: { number: string; assignedWaiterId: string | null } | null;
   placedByUser: { id: string; name: string } | null;
   acceptedByUserId: string | null;
   items: LiveOrderItem[];
@@ -285,15 +285,20 @@ export function LiveOrdersPanel() {
   }
 
   // El rol Mesero solo ve: los pedidos que él mismo tomó (placedByUser), los
-  // que ya aceptó de un cliente que pidió desde su mesa (acceptedByUserId), y
-  // los que un cliente pidió y todavía nadie aceptó (para poder tomarlos). En
-  // cuanto otro mesero acepta uno de esos últimos, deja de aparecerle.
+  // que ya aceptó de un cliente que pidió desde su mesa (acceptedByUserId),
+  // los de una mesa que tiene asignada (Equipo → "Asignar mesas", o porque él
+  // fue quien aceptó el primer pedido de esa mesa), y los que un cliente pidió
+  // desde una mesa sin dueño y todavía nadie aceptó (para poder tomarlos). En
+  // cuanto la mesa queda asignada a otro mesero, deja de aparecerle.
   // El resto de los roles (Admin, Cajero, Cocina, Pantalla) ve todos.
   const roleFiltered =
     user?.role === 'WAITER'
-      ? (orders ?? []).filter(
-          (o) => o.placedByUser?.id === user.id || o.acceptedByUserId === user.id || (!o.placedByUser && !o.acceptedByUserId),
-        )
+      ? (orders ?? []).filter((o) => {
+          if (o.placedByUser?.id === user.id) return true;
+          if (o.acceptedByUserId === user.id) return true;
+          if (o.table?.assignedWaiterId) return o.table.assignedWaiterId === user.id;
+          return !o.placedByUser && !o.acceptedByUserId;
+        })
       : orders;
 
   const visibleOrders = !channelFilter

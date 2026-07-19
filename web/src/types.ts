@@ -58,6 +58,9 @@ export interface Restaurant {
   whatsappPhone?: string | null;
   theme?: RestaurantTheme | null;
   orderingEnabled: boolean;
+  /** Según Ajustes → Horario. true si no hay horario configurado (siempre abierto). */
+  isOpen?: boolean;
+  closedReason?: string | null;
   requireOrderConfirmation: boolean;
   serviceChargeEnabled: boolean;
   ivaEnabled: boolean;
@@ -184,6 +187,7 @@ export interface TableItem {
   isActive: boolean;
   zoneId?: string | null;
   zone?: { id: string; name: string } | null;
+  assignedWaiterId?: string | null;
 }
 
 export interface StaffMember {

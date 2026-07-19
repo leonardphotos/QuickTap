@@ -6,6 +6,7 @@ import { ASSIGNABLE_TEAM_ROLES, ROLE_LABELS } from '@/utils/roles';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
 import { PasswordInput } from '@/components/ui/password-input';
+import { AssignTablesDialog } from '@/components/admin/AssignTablesDialog';
 
 const emptyForm = { name: '', email: '', password: '', role: 'WAITER' as UserRole, canAccessInventory: false };
 
@@ -21,6 +22,7 @@ export function TeamSection() {
     null,
   );
   const [savingEdit, setSavingEdit] = useState(false);
+  const [assigningTablesFor, setAssigningTablesFor] = useState<StaffMember | null>(null);
 
   function load() {
     api.get('/team').then((res) => setStaff(res.data.data));
@@ -206,6 +208,14 @@ export function TeamSection() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
+                  {s.role === 'WAITER' && (
+                    <button
+                      onClick={() => setAssigningTablesFor(s)}
+                      className="text-brand-500 hover:text-brand-400 text-xs"
+                    >
+                      Asignar mesas
+                    </button>
+                  )}
                   <button onClick={() => startEdit(s)} className="text-brand-500 hover:text-brand-400 text-xs">
                     Editar
                   </button>
@@ -221,6 +231,9 @@ export function TeamSection() {
           )}
         </ul>
       </TextureCardContent>
+      {assigningTablesFor && (
+        <AssignTablesDialog waiter={assigningTablesFor} onClose={() => setAssigningTablesFor(null)} />
+      )}
     </TextureCard>
   );
 }

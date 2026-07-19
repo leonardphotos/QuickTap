@@ -23,5 +23,10 @@ export const updateStaffSchema = z.object({
   canAccessInventory: z.boolean().optional(),
 });
 
+export const assignTablesSchema = z.object({
+  tableIds: z.array(z.string().min(1)),
+});
+
 export type CreateStaffInput = z.infer<typeof createStaffSchema>;
 export type UpdateStaffInput = z.infer<typeof updateStaffSchema>;
+export type AssignTablesInput = z.infer<typeof assignTablesSchema>;

@@ -157,6 +157,34 @@ export const tableService = {
     return { ok: true };
   },
 
+  /**
+   * Ajustes → Equipo → "Asignar mesas": reemplazo completo de las mesas de un
+   * mesero. Las que estaban asignadas a él y no vienen en `tableIds` quedan
+   * sin asignar; el resto de las mesas no se toca.
+   */
+  async assignTablesToWaiter(restaurantId: string, waiterId: string, tableIds: string[]) {
+    const waiter = await prisma.user.findFirst({ where: { id: waiterId, restaurantId }, select: { id: true } });
+    if (!waiter) throw notFound('Mesero no encontrado.');
+
+    if (tableIds.length > 0) {
+      const count = await prisma.table.count({ where: { id: { in: tableIds }, restaurantId } });
+      if (count !== tableIds.length) throw badRequest('Alguna mesa no existe o no pertenece a este restaurante.');
+    }
+
+    await prisma.$transaction([
+      prisma.table.updateMany({
+        where: { restaurantId, assignedWaiterId: waiterId, id: { notIn: tableIds } },
+        data: { assignedWaiterId: null },
+      }),
+      prisma.table.updateMany({
+        where: { restaurantId, id: { in: tableIds } },
+        data: { assignedWaiterId: waiterId },
+      }),
+    ]);
+
+    return prisma.table.findMany({ where: { restaurantId, assignedWaiterId: waiterId }, orderBy: { number: 'asc' } });
+  },
+
   /** El mesero atiende la solicitud desde el plano de mesas: la limpia y avisa al comensal. */
   async acknowledgeServiceRequest(restaurantId: string, tableId: string) {
     const table = await prisma.table.findFirst({ where: { id: tableId, restaurantId } });

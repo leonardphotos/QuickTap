@@ -2,13 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import type { ComponentType } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { io } from 'socket.io-client';
-import { BellRing, Receipt, Search, Share2, ShoppingCart } from 'lucide-react';
+import { BellRing, CalendarDays, Clock, Receipt, Search, Share2, ShoppingCart } from 'lucide-react';
 import { api } from '../../api/client';
 import type { CartLine, PublicMenu, Product, Restaurant, ServiceRequestType } from '../../types';
 import { cartLineUnitPrice, hexToRgba, publicPriceLabel } from '../../utils/format';
 import ProductGridCard from './ProductGridCard';
 import ProductDetailSheet from './ProductDetailSheet';
 import CartDrawer from './CartDrawer';
+import ReservationDialog from './ReservationDialog';
 import { Toast } from '@/components/ui/toast';
 import { FacebookIcon, InstagramIcon, TikTokIcon, WhatsAppIcon, XIcon } from '@/components/ui/social-icons';
 import {
@@ -36,6 +37,7 @@ export default function MenuPage() {
   const [callingWaiter, setCallingWaiter] = useState(false);
   const [requestingBill, setRequestingBill] = useState(false);
   const [showSocial, setShowSocial] = useState(false);
+  const [reservationOpen, setReservationOpen] = useState(false);
 
   useEffect(() => {
     api
@@ -226,6 +228,13 @@ export default function MenuPage() {
       </div>
 
       <main className="relative max-w-3xl mx-auto px-4 py-6 space-y-6">
+        {restaurant.isOpen === false && (
+          <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl px-4 py-3 text-sm">
+            <Clock className="h-4 w-4 shrink-0" />
+            <span>{restaurant.closedReason ?? 'El restaurante está cerrado en este momento.'} Puedes ver el menú, pero no pedir.</span>
+          </div>
+        )}
+
         {/* Buscador */}
         <div className="flex items-center gap-2 bg-white rounded-full px-4 py-2.5 shadow-[0_4px_16px_-4px_rgba(0,0,0,0.1)]">
           <Search className="h-4 w-4 text-brand-950/40 shrink-0" />
@@ -271,7 +280,7 @@ export default function MenuPage() {
                 restaurant={restaurant}
                 onAdd={addToCart}
                 onOpen={setSelectedProduct}
-                orderingEnabled={restaurant.orderingEnabled}
+                orderingEnabled={restaurant.orderingEnabled && restaurant.isOpen !== false}
               />
             )}
             {highlights.promos.length > 0 && (
@@ -281,7 +290,7 @@ export default function MenuPage() {
                 restaurant={restaurant}
                 onAdd={addToCart}
                 onOpen={setSelectedProduct}
-                orderingEnabled={restaurant.orderingEnabled}
+                orderingEnabled={restaurant.orderingEnabled && restaurant.isOpen !== false}
               />
             )}
             {highlights.houseSpecials.length > 0 && (
@@ -291,7 +300,7 @@ export default function MenuPage() {
                 restaurant={restaurant}
                 onAdd={addToCart}
                 onOpen={setSelectedProduct}
-                orderingEnabled={restaurant.orderingEnabled}
+                orderingEnabled={restaurant.orderingEnabled && restaurant.isOpen !== false}
               />
             )}
           </section>
@@ -322,7 +331,7 @@ export default function MenuPage() {
         onClose={() => setSelectedProduct(null)}
         onAdd={addToCart}
         onSelectProduct={setSelectedProduct}
-        orderingEnabled={restaurant.orderingEnabled}
+        orderingEnabled={restaurant.orderingEnabled && restaurant.isOpen !== false}
       />
 
       {cartOpen && (
@@ -340,9 +349,11 @@ export default function MenuPage() {
         />
       )}
 
+      {reservationOpen && <ReservationDialog restaurant={restaurant} onClose={() => setReservationOpen(false)} />}
+
       {/* Barra de navegación inferior: acciones de mesa (si aplica), WhatsApp, redes y carrito.
           Se oculta mientras hay una hoja abierta (carrito o detalle) para no tapar sus botones. */}
-      {!cartOpen && !selectedProduct && (
+      {!cartOpen && !selectedProduct && !reservationOpen && (
       <nav
         className="fixed bottom-0 inset-x-0 z-20 flex justify-center"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
@@ -407,6 +418,7 @@ export default function MenuPage() {
                 <NavIcon icon={Receipt} label="Cuenta" onClick={requestBill} disabled={requestingBill} />
               </>
             )}
+            <NavIcon icon={CalendarDays} label="Mesa" onClick={() => setReservationOpen(true)} />
             {restaurant.whatsappPhone && (
               <NavIcon
                 icon={WhatsAppIcon}

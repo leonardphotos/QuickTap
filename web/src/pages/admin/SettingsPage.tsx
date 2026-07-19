@@ -11,6 +11,7 @@ import { ThemeSection } from '@/components/admin/ThemeSection';
 import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection';
 import { WhatsappMessageSection } from '@/components/admin/WhatsappMessageSection';
 import { CheckoutSettingsSection } from '@/components/admin/CheckoutSettingsSection';
+import { ScheduleSection } from '@/components/admin/ScheduleSection';
 import { FullscreenImageSection } from '@/components/admin/FullscreenImageSection';
 import { DeliveryTeamSection } from '@/components/admin/DeliveryTeamSection';
 import { DeliveryPricingSection } from '@/components/admin/DeliveryPricingSection';
@@ -139,6 +140,8 @@ export default function SettingsPage() {
       </TextureCard>
 
       <CheckoutSettingsSection />
+
+      <ScheduleSection />
 
       <PaymentMethodsSection />
 

@@ -17,6 +17,15 @@ export function startOfDayCaracas(dateStr: string): Date {
   return new Date(Date.UTC(y, m - 1, d, 4, 0, 0, 0));
 }
 
+/** Día de la semana (0=domingo..6=sábado, igual que Date#getDay()) y hora "HH:mm" actuales en Caracas. */
+export function nowPartsCaracas(): { dayOfWeek: number; hhmm: string } {
+  const shifted = new Date(Date.now() - CARACAS_OFFSET_MS);
+  const dayOfWeek = shifted.getUTCDay();
+  const hh = String(shifted.getUTCHours()).padStart(2, '0');
+  const mm = String(shifted.getUTCMinutes()).padStart(2, '0');
+  return { dayOfWeek, hhmm: `${hh}:${mm}` };
+}
+
 /** Instante UTC que corresponde a la medianoche del lunes de "esta semana" en hora de Caracas. */
 export function startOfWeekCaracas(): Date {
   const shifted = new Date(Date.now() - CARACAS_OFFSET_MS);

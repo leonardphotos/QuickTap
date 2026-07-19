@@ -136,22 +136,22 @@ export const orderController = {
 
   /** GET /api/v1/orders/reports/products — más/menos vendidos (solo plan Premium). */
   productReport: asyncHandler(async (req: Request, res: Response) => {
-    const { range } = orderHistoryQuerySchema.pick({ range: true }).parse(req.query);
-    const rows = await orderService.getProductReport(req.restaurantId!, range);
+    const { range, date } = orderHistoryQuerySchema.pick({ range: true, date: true }).parse(req.query);
+    const rows = await orderService.getProductReport(req.restaurantId!, range, date);
     res.json({ data: rows });
   }),
 
   /** GET /api/v1/orders/reports/couriers — movimiento por repartidor (solo plan Premium). */
   courierReport: asyncHandler(async (req: Request, res: Response) => {
-    const { range } = orderHistoryQuerySchema.pick({ range: true }).parse(req.query);
-    const rows = await orderService.getCourierStats(req.restaurantId!, range);
+    const { range, date } = orderHistoryQuerySchema.pick({ range: true, date: true }).parse(req.query);
+    const rows = await orderService.getCourierStats(req.restaurantId!, range, date);
     res.json({ data: rows });
   }),
 
   /** GET /api/v1/orders/reports/payment-methods — movimiento por método de pago (solo plan Premium). */
   paymentMethodReport: asyncHandler(async (req: Request, res: Response) => {
-    const { range } = orderHistoryQuerySchema.pick({ range: true }).parse(req.query);
-    const rows = await orderService.getPaymentMethodStats(req.restaurantId!, range);
+    const { range, date } = orderHistoryQuerySchema.pick({ range: true, date: true }).parse(req.query);
+    const rows = await orderService.getPaymentMethodStats(req.restaurantId!, range, date);
     res.json({ data: rows });
   }),
 

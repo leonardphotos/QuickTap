@@ -11,6 +11,7 @@ router.use(requireRole(...TEAM_MANAGER_ROLES));
 router.get('/', teamController.list);
 router.post('/', teamController.create);
 router.patch('/:id', teamController.update);
+router.patch('/:id/tables', teamController.assignTables);
 router.delete('/:id', teamController.remove);
 
 export default router;

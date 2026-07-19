@@ -36,6 +36,7 @@ import kitchenRoutes from '../modules/kitchens/kitchen.routes';
 import customerRoutes from '../modules/customers/customer.routes';
 import supplierRoutes from '../modules/suppliers/supplier.routes';
 import modifierCategoryRoutes from '../modules/modifier-categories/modifier-category.routes';
+import { publicReservationRoutes, tenantReservationRoutes } from '../modules/reservations/reservation.routes';
 
 /**
  * Enrutador raíz de la API v1.
@@ -79,6 +80,7 @@ router.use('/movements', movementRoutes);
 router.use('/cash-sessions', cashSessionRoutes);
 router.use('/delivery-couriers', deliveryCourierRoutes);
 router.use('/delivery-zones', deliveryZoneRoutes);
+router.use('/reservations', tenantReservationRoutes);
 
 // --- Público ---
 router.use('/public', menuRoutes);
@@ -90,6 +92,7 @@ router.get('/public/exchange-rate', exchangeRateController.summary);
 router.use('/public/plan-requests', publicPlanRequestRoutes);
 router.use('/public/promo-codes', publicPromoCodeRoutes);
 router.use('/public/payment-methods', publicPlatformSettingsRoutes);
+router.use('/public/reservations', publicReservationRoutes);
 
 // --- Dashboard maestro (equipo de QuickTap, ve todos los restaurantes) ---
 router.use('/master/promo-codes', masterPromoCodeRoutes);

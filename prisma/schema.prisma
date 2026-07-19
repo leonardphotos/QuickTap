@@ -291,8 +291,29 @@ model Restaurant {
   modifierCategories ModifierCategory[]
   modifiers          Modifier[]
   productVariants    ProductVariant[]
+  schedules          RestaurantSchedule[]
+  reservations       Reservation[]
 
   @@map("restaurants")
+}
+
+// Horario de apertura/cierre por día de la semana (Ajustes → Horario). Si un
+// restaurante no tiene filas aquí, se considera siempre abierto (por defecto,
+// retrocompatible con restaurantes ya existentes). dayOfWeek sigue la misma
+// convención que Date#getDay(): 0=Domingo, 1=Lunes, ..., 6=Sábado.
+model RestaurantSchedule {
+  id           String  @id @default(cuid())
+  restaurantId String
+  dayOfWeek    Int
+  isClosed     Boolean @default(false)
+  // Hora local del restaurante (America/Caracas), formato "HH:mm". Null si isClosed.
+  openTime  String?
+  closeTime String?
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, dayOfWeek])
+  @@map("restaurant_schedules")
 }
 
 // ----------------------------------------------------------------------------
@@ -342,6 +363,7 @@ model User {
   restaurant         Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   placedOrders       Order[]       @relation("OrderPlacedBy")
   acceptedOrders     Order[]       @relation("OrderAcceptedBy")
+  assignedTables     Table[]       @relation("TableAssignedWaiter")
   movements          Movement[]
   cashSessionsOpened CashSession[] @relation("CashSessionOpenedBy")
   cashSessionsClosed CashSession[] @relation("CashSessionClosedBy")
@@ -594,15 +616,54 @@ model Table {
   serviceRequest   ServiceRequestType?
   serviceRequestAt DateTime?
 
-  restaurant Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  zone       Zone?          @relation(fields: [zoneId], references: [id], onDelete: SetNull)
-  orders     Order[]
-  sessions   TableSession[]
+  // Mesero al que le pertenece esta mesa: asignado a mano desde Equipo, o
+  // automático (el primer mesero que acepta un pedido de una mesa sin
+  // asignar se la queda). Mientras esté asignada, los pedidos de esta mesa
+  // solo le aparecen a él en el Dashboard — el resto de los roles sigue
+  // viendo todos los pedidos sin importar esto.
+  assignedWaiterId String?
+
+  restaurant     Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  zone           Zone?          @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  assignedWaiter User?          @relation("TableAssignedWaiter", fields: [assignedWaiterId], references: [id], onDelete: SetNull)
+  orders         Order[]
+  sessions       TableSession[]
+  reservations   Reservation[]
 
   @@unique([restaurantId, number])
   @@index([restaurantId])
   @@index([zoneId])
+  @@index([assignedWaiterId])
   @@map("tables")
+}
+
+enum ReservationStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+// Reserva de mesa hecha por el cliente desde el botón "Mesa" del menú
+// público. No pasa por aprobación: queda CONFIRMED de una vez; el staff
+// puede cancelarla desde Mesas.
+model Reservation {
+  id               String            @id @default(cuid())
+  restaurantId     String
+  // Fecha de la reserva (medianoche del día elegido, hora America/Caracas).
+  date             DateTime
+  // Hora elegida, formato "HH:mm".
+  time             String
+  partySize        Int
+  customerName     String
+  customerIdNumber String
+  customerPhone    String
+  status           ReservationStatus @default(CONFIRMED)
+  createdAt        DateTime          @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tables     Table[]
+
+  @@index([restaurantId, date])
+  @@map("reservations")
 }
 
 // ----------------------------------------------------------------------------

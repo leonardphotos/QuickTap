@@ -88,3 +88,19 @@ export const updateRestaurantSchema = z.object({
 
 export type RestaurantTheme = z.infer<typeof restaurantThemeSchema>;
 export type UpdateRestaurantInput = z.infer<typeof updateRestaurantSchema>;
+
+const timeString = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Hora inválida (usa HH:mm).');
+
+// Una fila por día de la semana (0=domingo..6=sábado). El frontend siempre
+// manda las 7 a la vez (Ajustes → Horario), así que se reemplaza completo.
+export const scheduleDaySchema = z.object({
+  dayOfWeek: z.number().int().min(0).max(6),
+  isClosed: z.boolean().optional().default(false),
+  openTime: timeString.optional(),
+  closeTime: timeString.optional(),
+});
+
+export const updateScheduleSchema = z.array(scheduleDaySchema).length(7, 'Debes enviar las 7 filas (Lunes a Domingo).');
+
+export type ScheduleDayInput = z.infer<typeof scheduleDaySchema>;
+export type UpdateScheduleInput = z.infer<typeof updateScheduleSchema>;

@@ -7,6 +7,7 @@ import { hasFeature } from '@/utils/subscription';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CashSessionControl } from '@/components/admin/CashSessionControl';
+import { ReportDialog } from '@/components/admin/ReportDialog';
 
 const BASE_TABS = [
   { id: 'summary', label: 'Resumen' },
@@ -33,7 +34,10 @@ export default function AdministrationPage() {
           <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Administración</h1>
           <p className="text-sm text-brand-950/60 font-light mt-1">Ventas, pedidos, propinas y productos de tu restaurante.</p>
         </div>
-        <CashSessionControl />
+        <div className="flex items-center gap-2">
+          <CashSessionControl />
+          <ReportDialog />
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">

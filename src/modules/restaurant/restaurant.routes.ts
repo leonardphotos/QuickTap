@@ -11,6 +11,8 @@ router.use(tenantGuard);
 const mutate = requireRole(...FULL_ACCESS_ROLES);
 
 router.patch('/', mutate, restaurantController.update);
+router.get('/schedule', restaurantController.getSchedule);
+router.put('/schedule', mutate, restaurantController.updateSchedule);
 router.post('/upload-logo', mutate, uploadLogo, optimizeImage(900, 900), restaurantController.uploadLogo);
 router.post(
   '/upload-cover-image',

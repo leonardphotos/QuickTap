@@ -1,11 +1,17 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
-import { createStaffSchema, updateStaffSchema } from './team.dto';
+import { assignTablesSchema, createStaffSchema, updateStaffSchema } from './team.dto';
 import { teamService } from './team.service';
+import { tableService } from '../tables/table.service';
 
 export const teamController = {
   list: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await teamService.list(req.restaurantId!) });
+  }),
+  assignTables: asyncHandler(async (req: Request, res: Response) => {
+    const input = assignTablesSchema.parse(req.body);
+    const tables = await tableService.assignTablesToWaiter(req.restaurantId!, req.params.id, input.tableIds);
+    res.json({ data: tables });
   }),
   create: asyncHandler(async (req: Request, res: Response) => {
     const input = createStaffSchema.parse(req.body);

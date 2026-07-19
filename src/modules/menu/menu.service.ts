@@ -3,6 +3,7 @@ import { HttpError, notFound } from '../../utils/http-error';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { CURRENCY_SYMBOLS, round2, toDecimal } from '../../utils/money';
 import { isLocked } from '../../utils/subscription';
+import { getRestaurantOpenStatus } from '../../utils/business-hours';
 
 /**
  * Servicio del menú público. Se resuelve por `slug` (no requiere auth) y
@@ -44,6 +45,8 @@ export const menuService = {
       throw new HttpError(403, 'Este menú no está disponible en este momento.', { code: 'ACCOUNT_LOCKED' });
     }
 
+    const openStatus = await getRestaurantOpenStatus(restaurant.id);
+
     // Modo Cartelera: solo la imagen de pantalla completa, sin catálogo.
     if (restaurant.fullscreenImageEnabled && restaurant.fullscreenImageUrl) {
       return {
@@ -59,6 +62,8 @@ export const menuService = {
           whatsappPhone: restaurant.whatsappPhone,
           theme: restaurant.theme,
           orderingEnabled: restaurant.orderingEnabled,
+          isOpen: openStatus.open,
+          closedReason: openStatus.reason ?? null,
           serviceChargeEnabled: restaurant.serviceChargeEnabled,
           paymentMethodsConfig: restaurant.paymentMethodsConfig,
           ivaEnabled: restaurant.ivaEnabled,
@@ -191,6 +196,8 @@ export const menuService = {
         whatsappPhone: restaurant.whatsappPhone,
         theme: restaurant.theme,
         orderingEnabled: restaurant.orderingEnabled,
+        isOpen: openStatus.open,
+        closedReason: openStatus.reason ?? null,
         serviceChargeEnabled: restaurant.serviceChargeEnabled,
         ivaEnabled: restaurant.ivaEnabled,
         paymentMethodsConfig: restaurant.paymentMethodsConfig,

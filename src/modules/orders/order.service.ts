@@ -11,8 +11,9 @@ import {
 } from '../../utils/whatsapp';
 import { emitToKitchen, emitToTable, SocketEvents } from '../../sockets';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
-import { rangeFilter, resolveDateFilter } from '../../utils/date-range';
+import { resolveDateFilter } from '../../utils/date-range';
 import { startOfTodayCaracas, startOfWeekCaracas } from '../../utils/timezone';
+import { assertRestaurantOpen } from '../../utils/business-hours';
 import { haversineDistanceKm, isPointInPolygon, LatLng } from '../../utils/geo';
 import { tableSessionService } from '../table-sessions/table-session.service';
 import { customerService } from '../customers/customer.service';
@@ -275,6 +276,7 @@ export const orderService = {
     if (!table.restaurant.orderingEnabled) {
       throw badRequest('Este restaurante no está aceptando pedidos en este momento.');
     }
+    await assertRestaurantOpen(table.restaurantId);
 
     const restaurantId = table.restaurantId;
     const currency = table.restaurant.baseCurrency;
@@ -381,6 +383,7 @@ export const orderService = {
    * -------------------------------------------------------------------------
    */
   async createManualOrder(restaurantId: string, input: ManualOrderInput, placedByUserId?: string) {
+    await assertRestaurantOpen(restaurantId);
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
       select: {
@@ -599,6 +602,7 @@ export const orderService = {
     if (!restaurant.whatsappPhone) {
       throw badRequest('El restaurante no tiene un número de WhatsApp configurado.');
     }
+    await assertRestaurantOpen(restaurant.id);
 
     const restaurantId = restaurant.id;
     const rate = await exchangeRateService.getRate(restaurant.baseCurrency);
@@ -781,6 +785,7 @@ export const orderService = {
 
   /** Añade un producto nuevo a un pedido ya creado (panel de Pedidos en vivo). */
   async addItem(restaurantId: string, orderId: string, input: AddOrderItemInput) {
+    await assertRestaurantOpen(restaurantId);
     const order = await prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { items: { include: { modifiers: true } } } });
     if (!order) throw notFound('Comanda no encontrada.');
     if (order.status === 'SERVED' || order.status === 'CANCELLED') {
@@ -895,10 +900,22 @@ export const orderService = {
 
     // Registra quién aceptó el pedido del cliente (mesa/QR): junto con
     // placedByUserId, define qué pedidos ve el rol Mesero en el Dashboard.
+    const shouldSetAcceptedBy = !existing.placedByUserId;
     const order = await prisma.order.update({
       where: { id: orderId },
-      data: { status: 'KITCHEN', acceptedByUserId: existing.placedByUserId ? undefined : acceptedByUserId },
+      data: { status: 'KITCHEN', acceptedByUserId: shouldSetAcceptedBy ? acceptedByUserId : undefined },
     });
+
+    // Mesa sin mesero asignado: el primero que acepta un pedido de esa mesa
+    // se la queda de forma permanente (Equipo → "Asignar mesas" la puede
+    // reasignar después a mano).
+    if (shouldSetAcceptedBy && acceptedByUserId && existing.tableId) {
+      await prisma.table.updateMany({
+        where: { id: existing.tableId, assignedWaiterId: null },
+        data: { assignedWaiterId: acceptedByUserId },
+      });
+    }
+
     emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId: order.id, status: order.status });
     return order;
   },
@@ -922,7 +939,7 @@ export const orderService = {
       orderBy: { createdAt: 'desc' },
       include: {
         items: { include: { modifiers: true } },
-        table: { select: { number: true } },
+        table: { select: { number: true, assignedWaiterId: true } },
         payments: true,
         placedByUser: { select: { id: true, name: true } },
       },
@@ -1236,10 +1253,10 @@ export const orderService = {
     });
   },
 
-  /** Reporte de productos más/menos vendidos, con filtro de rango de fecha. Cada variante de precio cuenta como su propia fila. */
-  async getProductReport(restaurantId: string, range: ReportRange) {
+  /** Reporte de productos más/menos vendidos, con filtro de rango o fecha exacta. Cada variante de precio cuenta como su propia fila. */
+  async getProductReport(restaurantId: string, range: ReportRange, date?: string) {
     const items = await prisma.orderItem.findMany({
-      where: { order: { restaurantId, status: { not: 'CANCELLED' }, createdAt: rangeFilter(range) } },
+      where: { order: { restaurantId, status: { not: 'CANCELLED' }, createdAt: resolveDateFilter({ range, date }) } },
       select: { productId: true, productName: true, variantName: true, quantity: true, lineTotal: true },
     });
 
@@ -1270,14 +1287,14 @@ export const orderService = {
   },
 
   /** Movimiento por repartidor (pedidos despachados y su valor), para Administración → Delivery. */
-  async getCourierStats(restaurantId: string, range: ReportRange) {
+  async getCourierStats(restaurantId: string, range: ReportRange, date?: string) {
     const couriers = await prisma.deliveryCourier.findMany({ where: { restaurantId }, orderBy: { name: 'asc' } });
     const orders = await prisma.order.findMany({
       where: {
         restaurantId,
         deliveryCourierId: { not: null },
         status: { not: 'CANCELLED' },
-        deliveryDispatchedAt: rangeFilter(range),
+        deliveryDispatchedAt: resolveDateFilter({ range, date }),
       },
       select: { deliveryCourierId: true, totalBase: true, totalBs: true, tipBase: true },
     });
@@ -1298,9 +1315,9 @@ export const orderService = {
   },
 
   /** Movimiento por método de pago, para Administración. */
-  async getPaymentMethodStats(restaurantId: string, range: ReportRange) {
+  async getPaymentMethodStats(restaurantId: string, range: ReportRange, date?: string) {
     const orders = await prisma.order.findMany({
-      where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: rangeFilter(range) },
+      where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: resolveDateFilter({ range, date }) },
       select: { paymentMethod: true, totalBase: true, totalBs: true },
     });
 

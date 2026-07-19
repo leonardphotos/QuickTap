@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest } from '../../utils/http-error';
-import { updateRestaurantSchema } from './restaurant.dto';
+import { updateRestaurantSchema, updateScheduleSchema } from './restaurant.dto';
 import { restaurantService } from './restaurant.service';
 
 export const restaurantController = {
@@ -9,6 +9,17 @@ export const restaurantController = {
     const input = updateRestaurantSchema.parse(req.body);
     const restaurant = await restaurantService.update(req.restaurantId!, input);
     res.json({ data: restaurant });
+  }),
+
+  getSchedule: asyncHandler(async (req: Request, res: Response) => {
+    const schedule = await restaurantService.getSchedule(req.restaurantId!);
+    res.json({ data: schedule });
+  }),
+
+  updateSchedule: asyncHandler(async (req: Request, res: Response) => {
+    const input = updateScheduleSchema.parse(req.body);
+    const schedule = await restaurantService.updateSchedule(req.restaurantId!, input);
+    res.json({ data: schedule });
   }),
 
   uploadLogo: asyncHandler(async (req: Request, res: Response) => {
