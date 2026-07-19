@@ -5,7 +5,7 @@ import { io } from 'socket.io-client';
 import { BellRing, Receipt, Search, Share2, ShoppingCart } from 'lucide-react';
 import { api } from '../../api/client';
 import type { CartLine, PublicMenu, Product, Restaurant, ServiceRequestType } from '../../types';
-import { hexToRgba, publicPriceLabel } from '../../utils/format';
+import { cartLineUnitPrice, hexToRgba, publicPriceLabel } from '../../utils/format';
 import ProductGridCard from './ProductGridCard';
 import ProductDetailSheet from './ProductDetailSheet';
 import CartDrawer from './CartDrawer';
@@ -121,7 +121,9 @@ export default function MenuPage() {
         (l) =>
           l.product.id === line.product.id &&
           l.note === line.note &&
-          JSON.stringify(l.modifiers) === JSON.stringify(line.modifiers),
+          l.variantId === line.variantId &&
+          JSON.stringify(l.selectedModifiers.map((m) => m.modifierId).sort()) ===
+            JSON.stringify(line.selectedModifiers.map((m) => m.modifierId).sort()),
       );
       if (matchIndex === -1) return [...prev, line];
       const next = [...prev];
@@ -135,7 +137,7 @@ export default function MenuPage() {
   }
 
   const subtotalBase = useMemo(
-    () => cart.reduce((acc, l) => acc + Number(l.product.price) * l.quantity, 0),
+    () => cart.reduce((acc, l) => acc + cartLineUnitPrice(l) * l.quantity, 0),
     [cart],
   );
 
@@ -495,6 +497,11 @@ function HighlightRow({
   );
 }
 
+/** Necesita abrir la hoja de detalle (no se puede "Agregar" directo) si hay que elegir variante u opciones obligatorias. */
+function needsPicker(product: Product): boolean {
+  return product.pricingMode === 'VARIANTS' || (product.modifierCategories ?? []).some((c) => c.isRequired);
+}
+
 function HighlightCard({
   product,
   restaurant,
@@ -536,7 +543,11 @@ function HighlightCard({
             size="sm"
             onClick={(e) => {
               e.stopPropagation();
-              onAdd({ product, quantity: 1, modifiers: [] });
+              if (needsPicker(product)) {
+                onOpen(product);
+                return;
+              }
+              onAdd({ product, quantity: 1, selectedModifiers: [] });
             }}
           >
             Agregar

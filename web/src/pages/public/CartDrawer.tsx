@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, Check, Copy, Lock, MapPin } from 'lucide-react';
 import { api } from '../../api/client';
 import type { CartLine, PaymentMethod, Restaurant } from '../../types';
-import { publicPriceLabel } from '../../utils/format';
+import { cartLineUnitPrice, publicPriceLabel } from '../../utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import {
@@ -157,7 +157,8 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
   const items = cart.map((l) => ({
     productId: l.product.id,
     quantity: l.quantity,
-    modifiers: l.modifiers,
+    variantId: l.variantId,
+    modifierIds: l.selectedModifiers.map((m) => m.modifierId),
     note: l.note,
   }));
 
@@ -412,13 +413,19 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                 ) : (
                   <ul className="space-y-2 max-h-48 overflow-y-auto">
                     {cart.map((l, i) => {
-                      const linePrice = publicPriceLabel(Number(l.product.price) * l.quantity, restaurant);
+                      const linePrice = publicPriceLabel(cartLineUnitPrice(l) * l.quantity, restaurant);
                       return (
                         <li key={i} className="flex items-start justify-between text-sm border-b border-brand-950/10 pb-2">
                           <div>
                             <p className="font-medium text-brand-950">
                               {l.quantity}x {l.product.name}
+                              {l.variantName && <span className="text-brand-950/50"> ({l.variantName})</span>}
                             </p>
+                            {l.selectedModifiers.length > 0 && (
+                              <p className="text-xs text-brand-950/50">
+                                {l.selectedModifiers.map((m) => m.name).join(', ')}
+                              </p>
+                            )}
                             {l.note && <p className="text-xs text-brand-950/50">📝 {l.note}</p>}
                           </div>
                           <div className="flex items-center gap-2 shrink-0">

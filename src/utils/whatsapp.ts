@@ -19,11 +19,13 @@ export type DeliveryMode = 'DELIVERY' | 'PICKUP';
 
 export interface WhatsappCartItem {
   name: string;
+  /** Nombre de la variante elegida, si el producto usa "Precio por variantes". */
+  variantName?: string;
   quantity: number;
   /** Precio unitario en la moneda base del restaurante ($ o €). */
   unitPrice: number | string;
-  /** Modificadores del plato: "Sin cebolla", "Extra queso"... */
-  modifiers?: string[];
+  /** Modificadores elegidos, con su precio adicional ya congelado. */
+  modifiers?: { name: string; priceBase: number | string }[];
   /** Nota de cocina para este ítem. */
   note?: string;
 }
@@ -137,14 +139,15 @@ export function buildWhatsappCheckoutUrl(
     subtotalBase = subtotalBase.add(lineTotalBase);
 
     // Línea principal en Bs (moneda de pago), con la base entre paréntesis.
+    const displayName = item.variantName ? `${item.name} (${item.variantName})` : item.name;
     lines.push(
-      `• ${qty}x ${item.name}  —  ${formatBs(lineTotalBs)} (${formatMoney(lineTotalBase, currencySymbol)})`,
+      `• ${qty}x ${displayName}  —  ${formatBs(lineTotalBs)} (${formatMoney(lineTotalBase, currencySymbol)})`,
     );
 
     // Modificadores
     if (item.modifiers && item.modifiers.length > 0) {
       for (const mod of item.modifiers) {
-        lines.push(`     ↳ ${mod}`);
+        lines.push(`     ↳ ${mod.name}`);
       }
     }
     // Nota de cocina del ítem

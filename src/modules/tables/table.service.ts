@@ -21,7 +21,13 @@ function serializeSession(session: {
     orderNumber: number;
     status: string;
     createdAt: Date;
-    items: { productName: string; quantity: number; modifiers: string[]; note: string | null }[];
+    items: {
+      productName: string;
+      variantName: string | null;
+      quantity: number;
+      modifiers: { name: string; priceBase: unknown }[];
+      note: string | null;
+    }[];
   }>;
 }) {
   return {
@@ -39,8 +45,9 @@ function serializeSession(session: {
       createdAt: o.createdAt,
       items: o.items.map((it) => ({
         name: it.productName,
+        variantName: it.variantName,
         quantity: it.quantity,
-        modifiers: it.modifiers,
+        modifiers: it.modifiers.map((m) => m.name),
         note: it.note,
       })),
     })),
@@ -108,7 +115,7 @@ export const tableService = {
           orders: {
             where: { channel: 'DINE_IN' },
             orderBy: { createdAt: 'asc' },
-            include: { items: true },
+            include: { items: { include: { modifiers: true } } },
           },
         },
       }),

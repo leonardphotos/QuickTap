@@ -109,7 +109,8 @@ export const ComandaReceipt = forwardRef<HTMLDivElement, Props>(({ order, restau
           <div key={it.id} style={{ ...row, marginTop: 6 }}>
             <span>
               {it.quantity}× {it.productName}
-              {it.modifiers.length > 0 && <span style={muted}>{it.modifiers.join(', ')}</span>}
+              {it.variantName && ` (${it.variantName})`}
+              {it.modifiers.length > 0 && <span style={muted}>{it.modifiers.map((m) => m.name).join(', ')}</span>}
             </span>
             <span style={{ flexShrink: 0 }}>{formatBase((Number(it.unitPrice) * it.quantity).toFixed(2), symbol)}</span>
           </div>

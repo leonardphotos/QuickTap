@@ -33,9 +33,10 @@ interface LiveOrderItem {
   id: string;
   productId: string | null;
   productName: string;
+  variantName?: string | null;
   unitPrice: string;
   quantity: number;
-  modifiers: string[];
+  modifiers: { name: string; priceBase: string }[];
   note?: string | null;
 }
 
@@ -391,6 +392,10 @@ export function LiveOrdersPanel() {
                 {o.items.map((it) => (
                   <li key={it.id}>
                     <span className="font-medium">{it.quantity}x</span> {it.productName}
+                    {it.variantName && <span className="text-brand-950/50"> ({it.variantName})</span>}
+                    {it.modifiers.length > 0 && (
+                      <span className="text-brand-950/50"> ({it.modifiers.map((m) => m.name).join(', ')})</span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -693,7 +698,13 @@ function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder; onClos
               {order.items.map((it) => (
                 <li key={it.id} className="flex items-center justify-between gap-2 border-b border-brand-950/10 pb-2">
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-brand-950 truncate">{it.productName}</p>
+                    <p className="text-sm font-medium text-brand-950 truncate">
+                      {it.productName}
+                      {it.variantName && <span className="text-brand-950/50"> ({it.variantName})</span>}
+                    </p>
+                    {it.modifiers.length > 0 && (
+                      <p className="text-xs text-brand-950/50 truncate">{it.modifiers.map((m) => m.name).join(', ')}</p>
+                    )}
                     <p className="text-xs text-brand-950/50">{it.unitPrice} c/u</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">

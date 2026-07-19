@@ -35,13 +35,20 @@ import {
  * ============================================================================
  */
 
+interface PricedLineModifier {
+  name: string;
+  priceBase: Prisma.Decimal;
+}
+
 interface PricedLine {
   productId: string;
   productName: string;
+  // Nombre de la variante elegida (si el producto usa "Precio por variantes").
+  variantName: string | null;
   unitPrice: Prisma.Decimal;
   quantity: number;
   lineTotal: Prisma.Decimal;
-  modifiers: string[];
+  modifiers: PricedLineModifier[];
   note?: string;
   // Snapshot de la cocina asignada al producto (null = sin asignar). Se
   // congela al pedir, igual que productName, para dividir la comanda.
@@ -51,13 +58,19 @@ interface PricedLine {
 /**
  * Toma los ítems del carrito, valida que los productos existan / estén
  * disponibles y pertenezcan al tenant, y CONGELA los precios desde la BD
- * (nunca se confía en el precio que envía el cliente).
+ * (nunca se confía en el precio que envía el cliente). Si el producto usa
+ * "Precio por variantes", resuelve la variante elegida; valida las categorías
+ * de modificadores asociadas (obligatoria / uno-vs-varios) y suma sus precios.
  */
 async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<PricedLine[]> {
   const productIds = [...new Set(items.map((i) => i.productId))];
   const products = await prisma.product.findMany({
     where: { id: { in: productIds }, restaurantId },
-    include: { kitchen: { select: { name: true } } },
+    include: {
+      kitchen: { select: { name: true } },
+      variants: true,
+      modifierCategories: { include: { modifierCategory: { include: { modifiers: true } } } },
+    },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
 
@@ -70,20 +83,68 @@ async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<
       throw badRequest(`"${product.name}" no está disponible en este momento.`);
     }
 
-    const unitPrice = product.price;
+    let basePrice = product.price;
+    let variantName: string | null = null;
+    if (product.pricingMode === 'VARIANTS') {
+      const variant = product.variants.find((v) => v.id === item.variantId);
+      if (!variant) throw badRequest(`Elige una variante para "${product.name}".`);
+      if (!variant.isAvailable) throw badRequest(`"${variant.name}" no está disponible en este momento.`);
+      basePrice = round2(
+        variant.priceBase.add(variant.packagingFeeBase ?? 0).sub(variant.discountBase ?? 0),
+      );
+      variantName = variant.name;
+    }
+
+    // Categorías de modificadores asociadas al producto: valida obligatoriedad y uno-vs-varios,
+    // y congela nombre + precio efectivo (precio - descuento) de cada modificador elegido.
+    const chosenIds = new Set(item.modifierIds ?? []);
+    const modifierLines: PricedLineModifier[] = [];
+    for (const link of product.modifierCategories) {
+      const category = link.modifierCategory;
+      const chosen = category.modifiers.filter((m) => chosenIds.has(m.id));
+      if (category.isRequired && chosen.length === 0) {
+        throw badRequest(`Elige una opción de "${category.name}" para "${product.name}".`);
+      }
+      if (!category.allowMultiple && chosen.length > 1) {
+        throw badRequest(`Solo puedes elegir una opción de "${category.name}" para "${product.name}".`);
+      }
+      for (const m of chosen) {
+        if (!m.isAvailable) throw badRequest(`"${m.name}" no está disponible en este momento.`);
+        modifierLines.push({ name: m.name, priceBase: round2(m.priceBase.sub(m.discountBase ?? 0)) });
+      }
+    }
+
+    const modifiersTotal = modifierLines.reduce((acc, m) => acc.add(m.priceBase), toDecimal(0));
+    const unitPrice = round2(basePrice.add(modifiersTotal));
     const lineTotal = round2(unitPrice.mul(item.quantity));
 
     return {
       productId: product.id,
       productName: product.name,
+      variantName,
       unitPrice,
       quantity: item.quantity,
       lineTotal,
-      modifiers: item.modifiers ?? [],
+      modifiers: modifierLines,
       note: item.note,
       kitchenName: product.kitchen?.name ?? null,
     };
   });
+}
+
+/** Forma de nested-create de Prisma para un OrderItem a partir de una línea ya congelada. */
+function buildOrderItemCreateData(line: PricedLine) {
+  return {
+    productId: line.productId,
+    productName: line.productName,
+    variantName: line.variantName,
+    unitPrice: line.unitPrice,
+    quantity: line.quantity,
+    lineTotal: line.lineTotal,
+    note: line.note,
+    kitchenName: line.kitchenName,
+    modifiers: { create: line.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase })) },
+  };
 }
 
 function sumSubtotal(lines: PricedLine[]): Prisma.Decimal {
@@ -273,19 +334,10 @@ export const orderService = {
           exchangeRate: rate.rateBs,
           totalBs,
           items: {
-            create: lines.map((l) => ({
-              productId: l.productId,
-              productName: l.productName,
-              unitPrice: l.unitPrice,
-              quantity: l.quantity,
-              lineTotal: l.lineTotal,
-              modifiers: l.modifiers,
-              note: l.note,
-              kitchenName: l.kitchenName,
-            })),
+            create: lines.map((l) => buildOrderItemCreateData(l)),
           },
         },
-        include: { items: true, table: { select: { number: true } } },
+        include: { items: { include: { modifiers: true } }, table: { select: { number: true } } },
       });
     });
 
@@ -306,8 +358,9 @@ export const orderService = {
       customerName: order.customerName,
       items: order.items.map((i) => ({
         name: i.productName,
+        variantName: i.variantName,
         quantity: i.quantity,
-        modifiers: i.modifiers,
+        modifiers: i.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase.toString() })),
         note: i.note,
       })),
       totalBase: order.totalBase,
@@ -368,16 +421,7 @@ export const orderService = {
     const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(deliveryFeeBase));
     const totalBs = baseToBs(totalBase, rate.rateBs);
 
-    const itemsCreate = lines.map((l) => ({
-      productId: l.productId,
-      productName: l.productName,
-      unitPrice: l.unitPrice,
-      quantity: l.quantity,
-      lineTotal: l.lineTotal,
-      modifiers: l.modifiers,
-      note: l.note,
-      kitchenName: l.kitchenName,
-    }));
+    const itemsCreate = lines.map((l) => buildOrderItemCreateData(l));
 
     const order =
       input.channel === 'DINE_IN'
@@ -428,7 +472,7 @@ export const orderService = {
                   awaitingPayment: input.paymentIntent === 'DEBT',
                   items: { create: itemsCreate },
                 },
-                include: { items: true, table: { select: { number: true } } },
+                include: { items: { include: { modifiers: true } }, table: { select: { number: true } } },
               });
             });
           })()
@@ -460,7 +504,7 @@ export const orderService = {
                 totalBs,
                 items: { create: itemsCreate },
               },
-              include: { items: true, table: { select: { number: true } } },
+              include: { items: { include: { modifiers: true } }, table: { select: { number: true } } },
             });
           });
 
@@ -480,8 +524,9 @@ export const orderService = {
       customerName: order.customerName,
       items: order.items.map((i) => ({
         name: i.productName,
+        variantName: i.variantName,
         quantity: i.quantity,
-        modifiers: i.modifiers,
+        modifiers: i.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase.toString() })),
         note: i.note,
       })),
       totalBase: order.totalBase,
@@ -595,19 +640,10 @@ export const orderService = {
           paymentMethod: input.customer.paymentMethod,
           customerNote: input.customer.note,
           items: {
-            create: lines.map((l) => ({
-              productId: l.productId,
-              productName: l.productName,
-              unitPrice: l.unitPrice,
-              quantity: l.quantity,
-              lineTotal: l.lineTotal,
-              modifiers: l.modifiers,
-              note: l.note,
-              kitchenName: l.kitchenName,
-            })),
+            create: lines.map((l) => buildOrderItemCreateData(l)),
           },
         },
-        include: { items: true },
+        include: { items: { include: { modifiers: true } } },
       });
     });
 
@@ -626,8 +662,9 @@ export const orderService = {
       customerName: order.customerName,
       items: order.items.map((i) => ({
         name: i.productName,
+        variantName: i.variantName,
         quantity: i.quantity,
-        modifiers: i.modifiers,
+        modifiers: i.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase.toString() })),
         note: i.note,
       })),
       totalBase: order.totalBase,
@@ -645,9 +682,10 @@ export const orderService = {
       mode: input.mode,
       items: lines.map((l) => ({
         name: l.productName,
+        variantName: l.variantName ?? undefined,
         quantity: l.quantity,
         unitPrice: l.unitPrice.toString(),
-        modifiers: l.modifiers,
+        modifiers: l.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase.toString() })),
         note: l.note,
       })),
       customer: input.customer,
@@ -670,7 +708,7 @@ export const orderService = {
     return prisma.order.findMany({
       where: { restaurantId, status: { in: ['PENDING', 'KITCHEN'] } },
       orderBy: { createdAt: 'asc' },
-      include: { items: true, table: { select: { number: true } } },
+      include: { items: { include: { modifiers: true } }, table: { select: { number: true } } },
     });
   },
 
@@ -679,7 +717,7 @@ export const orderService = {
     return prisma.order.findMany({
       where: { restaurantId, channel: { in: ['DELIVERY', 'PICKUP'] }, status: { in: ['PENDING', 'KITCHEN'] } },
       orderBy: { createdAt: 'asc' },
-      include: { items: true },
+      include: { items: { include: { modifiers: true } } },
     });
   },
 
@@ -687,7 +725,7 @@ export const orderService = {
   async updateItems(restaurantId: string, orderId: string, updates: UpdateOrderItemsInput['items']) {
     const order = await prisma.order.findFirst({
       where: { id: orderId, restaurantId },
-      include: { items: true },
+      include: { items: { include: { modifiers: true } } },
     });
     if (!order) throw notFound('Comanda no encontrada.');
     if (order.status === 'SERVED' || order.status === 'CANCELLED') {
@@ -736,21 +774,21 @@ export const orderService = {
       });
     });
 
-    const updated = await prisma.order.findUnique({ where: { id: orderId }, include: { items: true } });
+    const updated = await prisma.order.findUnique({ where: { id: orderId }, include: { items: { include: { modifiers: true } } } });
     emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: updated!.status });
     return updated;
   },
 
   /** Añade un producto nuevo a un pedido ya creado (panel de Pedidos en vivo). */
   async addItem(restaurantId: string, orderId: string, input: AddOrderItemInput) {
-    const order = await prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { items: true } });
+    const order = await prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { items: { include: { modifiers: true } } } });
     if (!order) throw notFound('Comanda no encontrada.');
     if (order.status === 'SERVED' || order.status === 'CANCELLED') {
       throw badRequest('No se puede editar un pedido ya finalizado o cancelado.');
     }
 
     const [line] = await priceCart(restaurantId, [
-      { productId: input.productId, quantity: input.quantity, modifiers: input.modifiers, note: input.note },
+      { productId: input.productId, quantity: input.quantity, variantId: input.variantId, modifierIds: input.modifierIds, note: input.note },
     ]);
 
     const subtotalBase = round2(
@@ -767,22 +805,12 @@ export const orderService = {
 
     await prisma.$transaction([
       prisma.orderItem.create({
-        data: {
-          orderId,
-          productId: line.productId,
-          productName: line.productName,
-          unitPrice: line.unitPrice,
-          quantity: line.quantity,
-          lineTotal: line.lineTotal,
-          modifiers: line.modifiers,
-          note: line.note,
-          kitchenName: line.kitchenName,
-        },
+        data: { orderId, ...buildOrderItemCreateData(line) },
       }),
       prisma.order.update({ where: { id: orderId }, data: { subtotalBase, serviceChargeBase, ivaBase, totalBase, totalBs } }),
     ]);
 
-    const updated = await prisma.order.findUnique({ where: { id: orderId }, include: { items: true } });
+    const updated = await prisma.order.findUnique({ where: { id: orderId }, include: { items: { include: { modifiers: true } } } });
     emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: updated!.status });
     return updated;
   },
@@ -802,7 +830,7 @@ export const orderService = {
 
   /** Cambia el estado de una comanda y notifica a la cocina. */
   async updateStatus(restaurantId: string, orderId: string, status: 'PENDING' | 'KITCHEN' | 'SERVED' | 'CANCELLED') {
-    const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { items: true } });
+    const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { items: { include: { modifiers: true } } } });
     if (!existing) throw notFound('Comanda no encontrada.');
 
     const order = await prisma.order.update({ where: { id: orderId }, data: { status } });
@@ -835,7 +863,7 @@ export const orderService = {
    * aviso al cliente) solo cuando TODAS sus estaciones ya marcaron listo.
    */
   async markKitchenReady(restaurantId: string, orderId: string, kitchenName: string | null) {
-    const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { items: true } });
+    const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { items: { include: { modifiers: true } } } });
     if (!existing) throw notFound('Comanda no encontrada.');
     if (existing.status !== 'PENDING' && existing.status !== 'KITCHEN') {
       throw badRequest('Este pedido ya no está en cocina.');
@@ -854,7 +882,7 @@ export const orderService = {
     }
 
     emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: existing.status });
-    return prisma.order.findUnique({ where: { id: orderId }, include: { items: true, table: { select: { number: true } } } });
+    return prisma.order.findUnique({ where: { id: orderId }, include: { items: { include: { modifiers: true } }, table: { select: { number: true } } } });
   },
 
   /** El mesero acepta un pedido de mesa en NEEDS_CONFIRMATION: recién ahí llega a cocina. */
@@ -888,7 +916,7 @@ export const orderService = {
       where: { restaurantId, status: { notIn: ['SERVED', 'CANCELLED'] } },
       orderBy: { createdAt: 'desc' },
       include: {
-        items: true,
+        items: { include: { modifiers: true } },
         table: { select: { number: true } },
         payments: true,
         placedByUser: { select: { name: true } },
@@ -932,7 +960,7 @@ export const orderService = {
     const updated = await prisma.order.update({
       where: { id: orderId },
       data: fullyPaid ? { awaitingPayment: false } : {},
-      include: { items: true, table: { select: { number: true } }, payments: true },
+      include: { items: { include: { modifiers: true } }, table: { select: { number: true } }, payments: true },
     });
 
     emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: updated.status });
@@ -946,7 +974,7 @@ export const orderService = {
    */
   async dispatchToCourier(restaurantId: string, orderId: string, courierId: string) {
     const [order, courier] = await Promise.all([
-      prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { items: true } }),
+      prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { items: { include: { modifiers: true } } } }),
       prisma.deliveryCourier.findFirst({ where: { id: courierId, restaurantId } }),
     ]);
     if (!order) throw notFound('Comanda no encontrada.');
@@ -957,8 +985,8 @@ export const orderService = {
     parts.push('━━━━━━━━━━━━━━━━━━━━');
     parts.push('*Comanda:*');
     for (const item of order.items) {
-      parts.push(`• ${item.quantity}x ${item.productName}`);
-      for (const mod of item.modifiers) parts.push(`     ↳ ${mod}`);
+      parts.push(`• ${item.quantity}x ${item.productName}${item.variantName ? ` (${item.variantName})` : ''}`);
+      for (const mod of item.modifiers) parts.push(`     ↳ ${mod.name}`);
       if (item.note) parts.push(`     📝 ${item.note}`);
     }
     parts.push('━━━━━━━━━━━━━━━━━━━━');
@@ -993,7 +1021,7 @@ export const orderService = {
     const order = await prisma.order.findFirst({
       where: { id: orderId, restaurantId },
       include: {
-        items: true,
+        items: { include: { modifiers: true } },
         table: { select: { number: true } },
         restaurant: { select: { name: true, whatsappOrderMessageTemplate: true } },
       },
@@ -1010,8 +1038,10 @@ export const orderService = {
 
     const itemLines: string[] = [];
     for (const item of order.items) {
-      itemLines.push(`• ${item.quantity}x ${item.productName} — ${formatMoney(item.lineTotal, symbol)}`);
-      for (const mod of item.modifiers) itemLines.push(`     ↳ ${mod}`);
+      itemLines.push(
+        `• ${item.quantity}x ${item.productName}${item.variantName ? ` (${item.variantName})` : ''} — ${formatMoney(item.lineTotal, symbol)}`,
+      );
+      for (const mod of item.modifiers) itemLines.push(`     ↳ ${mod.name}`);
       if (item.note) itemLines.push(`     📝 ${item.note}`);
     }
 

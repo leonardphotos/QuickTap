@@ -77,8 +77,9 @@ export default function DeliveryPage() {
                 {o.items.map((it) => (
                   <li key={it.id}>
                     <span className="font-medium">{it.quantity}x</span> {it.productName}
+                    {it.variantName && <span className="text-brand-950/50"> ({it.variantName})</span>}
                     {it.modifiers.length > 0 && (
-                      <span className="text-brand-950/50"> ({it.modifiers.join(', ')})</span>
+                      <span className="text-brand-950/50"> ({it.modifiers.map((m) => m.name).join(', ')})</span>
                     )}
                     {it.note && <span className="block text-xs text-brand-950/50">Nota: {it.note}</span>}
                   </li>

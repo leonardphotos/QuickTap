@@ -1,7 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { HttpError, notFound } from '../../utils/http-error';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
-import { CURRENCY_SYMBOLS } from '../../utils/money';
+import { CURRENCY_SYMBOLS, round2, toDecimal } from '../../utils/money';
 import { isLocked } from '../../utils/subscription';
 
 /**
@@ -93,17 +93,70 @@ export const menuService = {
             isStar: true,
             isPromo: true,
             isHouseSpecial: true,
+            pricingMode: true,
+            variants: {
+              where: { isAvailable: true },
+              orderBy: [{ priority: 'asc' }, { name: 'asc' }],
+              select: { id: true, name: true, priceBase: true, packagingFeeBase: true, discountBase: true },
+            },
+            modifierCategories: {
+              orderBy: { priority: 'asc' },
+              select: {
+                modifierCategory: {
+                  select: {
+                    id: true,
+                    name: true,
+                    isRequired: true,
+                    allowMultiple: true,
+                    modifiers: {
+                      where: { isAvailable: true },
+                      orderBy: [{ priority: 'asc' }, { name: 'asc' }],
+                      select: { id: true, name: true, priceBase: true, discountBase: true },
+                    },
+                  },
+                },
+              },
+            },
           },
         },
       },
     });
 
+    // Aplana la relación de asociación y ya resuelve el precio efectivo (precio - descuento) de
+    // variantes/modificadores, para que el frontend público no tenga que hacer esa cuenta.
     const structuredCategories = categories
       .filter((c) => c.products.length > 0)
       .map((c) => ({
         id: c.id,
         name: c.name,
-        products: c.products,
+        products: c.products.map((p) => ({
+          id: p.id,
+          name: p.name,
+          description: p.description,
+          price: p.price,
+          photoUrl: p.photoUrl,
+          prepTimeMinutes: p.prepTimeMinutes,
+          isStar: p.isStar,
+          isPromo: p.isPromo,
+          isHouseSpecial: p.isHouseSpecial,
+          pricingMode: p.pricingMode,
+          variants: p.variants.map((v) => ({
+            id: v.id,
+            name: v.name,
+            priceBase: round2(v.priceBase.add(v.packagingFeeBase ?? 0).sub(v.discountBase ?? 0)).toFixed(2),
+          })),
+          modifierCategories: p.modifierCategories.map((link) => ({
+            id: link.modifierCategory.id,
+            name: link.modifierCategory.name,
+            isRequired: link.modifierCategory.isRequired,
+            allowMultiple: link.modifierCategory.allowMultiple,
+            modifiers: link.modifierCategory.modifiers.map((m) => ({
+              id: m.id,
+              name: m.name,
+              priceBase: round2(toDecimal(m.priceBase).sub(m.discountBase ?? 0)).toFixed(2),
+            })),
+          })),
+        })),
       }));
 
     // Secciones destacadas transversales (para carruseles / banners arriba).

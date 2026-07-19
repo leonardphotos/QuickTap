@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Pencil, Plus, Tag } from 'lucide-react';
+import { ListPlus, Pencil, Plus, Tag } from 'lucide-react';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import type { Category, Kitchen, Product } from '../../types';
@@ -8,6 +8,7 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard } from '@/components/ui/texture-card';
 import { ProductFormDialog } from '@/components/admin/ProductFormDialog';
 import { CategoryDialog } from '@/components/admin/CategoryDialog';
+import { ModifierCategoriesDialog } from '@/components/admin/ModifierCategoriesDialog';
 
 export default function ProductsPage() {
   const { restaurant } = useAuth();
@@ -17,6 +18,7 @@ export default function ProductsPage() {
   const [kitchens, setKitchens] = useState<Kitchen[]>([]);
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
+  const [modifiersDialogOpen, setModifiersDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
 
   function load() {
@@ -52,17 +54,30 @@ export default function ProductsPage() {
     <div className="space-y-8">
       <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Productos</h1>
 
-      <div className="flex gap-3">
-        <TextureButton variant="brand" size="default" className="!w-auto px-4 flex items-center gap-1.5" onClick={openCreate}>
+      <div className="flex flex-wrap gap-2">
+        <TextureButton
+          variant="brand"
+          size="default"
+          className="!w-auto px-4 flex items-center gap-1.5 whitespace-nowrap"
+          onClick={openCreate}
+        >
           <Plus className="h-4 w-4" /> Nuevo producto
         </TextureButton>
         <TextureButton
           variant="minimal"
           size="default"
-          className="!w-auto px-4 flex items-center gap-1.5"
+          className="!w-auto px-4 flex items-center gap-1.5 whitespace-nowrap"
           onClick={() => setCategoryDialogOpen(true)}
         >
           <Tag className="h-4 w-4" /> Nueva categoría
+        </TextureButton>
+        <TextureButton
+          variant="minimal"
+          size="default"
+          className="!w-auto px-4 flex items-center gap-1.5 whitespace-nowrap"
+          onClick={() => setModifiersDialogOpen(true)}
+        >
+          <ListPlus className="h-4 w-4" /> Modificadores
         </TextureButton>
       </div>
 
@@ -113,8 +128,10 @@ export default function ProductsPage() {
         product={editingProduct}
         currencySymbol={currencySymbol}
         onSaved={load}
+        onCreated={setEditingProduct}
       />
       <CategoryDialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen} categories={categories} onChanged={load} />
+      <ModifierCategoriesDialog open={modifiersDialogOpen} onOpenChange={setModifiersDialogOpen} />
     </div>
   );
 }

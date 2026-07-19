@@ -3,6 +3,7 @@ import { requireFeature, requireRole, tenantGuard } from '../../middlewares/auth
 import { ADMIN_CASHIER_ROLES } from '../../utils/roles';
 import { optimizeImage, uploadProductPhoto } from '../../middlewares/upload.middleware';
 import { productController } from './product.controller';
+import { productVariantController } from './product-variant.controller';
 
 /**
  * Rutas protegidas de productos. `tenantGuard` inyecta `req.restaurantId`
@@ -26,5 +27,10 @@ router.get('/margin', mutate, requireFeature('administration'), productControlle
 router.get('/:id', productController.getOne);
 router.patch('/:id', mutate, productController.update);
 router.delete('/:id', mutate, productController.remove);
+
+router.get('/:productId/variants', productVariantController.list);
+router.post('/:productId/variants', mutate, productVariantController.create);
+router.patch('/:productId/variants/:variantId', mutate, productVariantController.update);
+router.delete('/:productId/variants/:variantId', mutate, productVariantController.remove);
 
 export default router;

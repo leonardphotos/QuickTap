@@ -35,6 +35,7 @@ import deliveryZoneRoutes from '../modules/delivery-zones/delivery-zone.routes';
 import kitchenRoutes from '../modules/kitchens/kitchen.routes';
 import customerRoutes from '../modules/customers/customer.routes';
 import supplierRoutes from '../modules/suppliers/supplier.routes';
+import modifierCategoryRoutes from '../modules/modifier-categories/modifier-category.routes';
 
 /**
  * Enrutador raíz de la API v1.
@@ -64,6 +65,7 @@ router.use('/categories', categoryRoutes);
 router.use('/kitchens', kitchenRoutes);
 router.use('/customers', customerRoutes);
 router.use('/suppliers', supplierRoutes);
+router.use('/modifier-categories', modifierCategoryRoutes);
 router.use('/tables', tableRoutes);
 router.use('/zones', zoneRoutes);
 router.use('/team', teamRoutes);

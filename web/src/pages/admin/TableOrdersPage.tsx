@@ -245,6 +245,7 @@ export default function TableOrdersPage() {
                       {o.items.map((it, i) => (
                         <li key={i}>
                           <span className="font-medium">{it.quantity}x</span> {it.name}
+                          {it.variantName && <span className="text-brand-950/50"> ({it.variantName})</span>}
                           {it.modifiers.length > 0 && (
                             <span className="text-brand-950/50"> ({it.modifiers.join(', ')})</span>
                           )}

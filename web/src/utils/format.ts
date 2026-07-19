@@ -1,4 +1,4 @@
-import type { Currency, Restaurant } from '../types';
+import type { CartLine, Currency, Restaurant } from '../types';
 
 export const CURRENCY_SYMBOLS: Record<Currency, string> = { USD: '$', EUR: '€' };
 
@@ -41,4 +41,13 @@ export function publicPriceLabel(
     primary: formatBs(amountBase, restaurant.exchangeRate.rateBs),
     secondary: formatBase(amountBase, restaurant.currencySymbol),
   };
+}
+
+/** Precio unitario efectivo de una línea del carrito: precio base (o de la variante elegida) + modificadores. */
+export function cartLineUnitPrice(line: CartLine): number {
+  const variant =
+    line.product.pricingMode === 'VARIANTS' ? line.product.variants?.find((v) => v.id === line.variantId) : undefined;
+  const base = variant ? Number(variant.priceBase) : Number(line.product.price);
+  const modifiersTotal = line.selectedModifiers.reduce((acc, m) => acc + Number(m.priceBase), 0);
+  return base + modifiersTotal;
 }

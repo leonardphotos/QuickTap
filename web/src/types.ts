@@ -101,6 +101,38 @@ export interface Supplier {
   taxId?: string | null;
 }
 
+export interface Modifier {
+  id: string;
+  name: string;
+  priceBase: string;
+  costBase?: string | null;
+  discountBase?: string | null;
+  isAvailable?: boolean;
+  priority?: number;
+}
+
+export interface ModifierCategory {
+  id: string;
+  name: string;
+  isRequired: boolean;
+  allowMultiple: boolean;
+  priority?: number;
+  /** Cuántos productos tienen esta categoría asociada (solo en la biblioteca de Modificadores). */
+  productCount?: number;
+  modifiers: Modifier[];
+}
+
+export interface ProductVariant {
+  id: string;
+  name: string;
+  priceBase: string;
+  packagingFeeBase?: string | null;
+  costBase?: string | null;
+  discountBase?: string | null;
+  isAvailable?: boolean;
+  priority?: number;
+}
+
 export interface Product {
   id: string;
   categoryId: string;
@@ -120,6 +152,11 @@ export interface Product {
   isHouseSpecial: boolean;
   priority: number;
   category?: { id: string; name: string };
+  // "SIMPLE" = precio único (el campo price); "VARIANTS" = el cliente elige entre `variants`.
+  pricingMode?: 'SIMPLE' | 'VARIANTS';
+  variants?: ProductVariant[];
+  // Categorías de modificadores asociadas a este producto (con sus modificadores anidados).
+  modifierCategories?: ModifierCategory[];
 }
 
 export interface PublicMenu {
@@ -197,7 +234,7 @@ export interface SessionOrder {
   orderNumber: number;
   status: OrderStatus;
   createdAt: string;
-  items: { name: string; quantity: number; modifiers: string[]; note?: string | null }[];
+  items: { name: string; variantName?: string | null; quantity: number; modifiers: string[]; note?: string | null }[];
 }
 
 export interface TableSession {
@@ -239,10 +276,11 @@ export type PaymentMethod = PaymentMethodKey;
 export interface OrderItemView {
   id: string;
   productName: string;
+  variantName?: string | null;
   quantity: number;
   unitPrice: string;
   lineTotal: string;
-  modifiers: string[];
+  modifiers: { name: string; priceBase: string }[];
   note?: string | null;
   /** Cocina asignada al producto al momento del pedido (snapshot). null = sin asignar. */
   kitchenName?: string | null;
@@ -264,9 +302,18 @@ export interface OrderView {
   items: OrderItemView[];
 }
 
+export interface SelectedModifier {
+  modifierId: string;
+  name: string;
+  priceBase: string;
+}
+
 export interface CartLine {
   product: Product;
   quantity: number;
-  modifiers: string[];
+  // Si el producto usa "Precio por variantes", cuál eligió el cliente.
+  variantId?: string;
+  variantName?: string;
+  selectedModifiers: SelectedModifier[];
   note?: string;
 }

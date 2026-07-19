@@ -2,13 +2,19 @@ import { useEffect, useMemo, useState } from 'react';
 import { Bike, Check, Clock, MapPin, Martini, ReceiptText, Search, SplitSquareHorizontal, Store, UtensilsCrossed } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, formatBase, formatBs } from '@/utils/format';
-import type { Customer, FloorPlan, Product } from '@/types';
+import { CURRENCY_SYMBOLS, cartLineUnitPrice, formatBase, formatBs } from '@/utils/format';
+import type { CartLine, Customer, FloorPlan, Product } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import { CustomerPicker } from './CustomerPicker';
+import { ProductOptionsDialog } from './ProductOptionsDialog';
 import type { LiveOrder } from './LiveOrdersPanel';
+
+/** Necesita abrir el selector de variante/modificadores en vez del stepper directo +/-. */
+function needsPicker(product: Product): boolean {
+  return product.pricingMode === 'VARIANTS' || (product.modifierCategories ?? []).some((c) => c.isRequired);
+}
 
 interface ExistingOrderOption {
   id: string;
@@ -69,7 +75,8 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   const [gettingLocation, setGettingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [customerNote, setCustomerNote] = useState('');
-  const [quantities, setQuantities] = useState<Record<string, number>>({});
+  const [lines, setLines] = useState<CartLine[]>([]);
+  const [optionsProduct, setOptionsProduct] = useState<Product | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deliveryFeeBase, setDeliveryFeeBase] = useState<number | null>(null);
@@ -148,12 +155,8 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
     });
   }, [products, categoryFilter, productSearch]);
 
-  const lines = useMemo(
-    () => products.map((p) => ({ product: p, quantity: quantities[p.id] ?? 0 })).filter((l) => l.quantity > 0),
-    [products, quantities],
-  );
   const totalItems = lines.reduce((acc, l) => acc + l.quantity, 0);
-  const subtotalBase = lines.reduce((acc, l) => acc + Number(l.product.price) * l.quantity, 0);
+  const subtotalBase = lines.reduce((acc, l) => acc + cartLineUnitPrice(l) * l.quantity, 0);
   const serviceChargeBase = restaurant?.serviceChargeEnabled ? subtotalBase * 0.1 : 0;
   const ivaBase = restaurant?.ivaEnabled ? subtotalBase * 0.16 : 0;
   const totalBase =
@@ -185,8 +188,45 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
     return nonDineInExistingOrders.filter((o) => matchesSearch(o, query));
   }, [nonDineInExistingOrders, existingSearch]);
 
-  function setQty(productId: string, quantity: number) {
-    setQuantities((q) => ({ ...q, [productId]: Math.max(0, quantity) }));
+  /** Solo para productos SIMPLE (sin variantes/modificadores obligatorios): stepper directo +/-. */
+  function setSimpleQty(product: Product, quantity: number) {
+    setLines((prev) => {
+      const idx = prev.findIndex((l) => l.product.id === product.id && !l.variantId && l.selectedModifiers.length === 0);
+      if (quantity <= 0) return idx === -1 ? prev : prev.filter((_, i) => i !== idx);
+      if (idx === -1) return [...prev, { product, quantity, selectedModifiers: [] }];
+      const next = [...prev];
+      next[idx] = { ...next[idx], quantity };
+      return next;
+    });
+  }
+
+  /** Línea armada en ProductOptionsDialog (con variante/modificadores elegidos): se fusiona con una idéntica si existe. */
+  function addPickedLine(line: CartLine) {
+    setLines((prev) => {
+      const matchIndex = prev.findIndex(
+        (l) =>
+          l.product.id === line.product.id &&
+          l.note === line.note &&
+          l.variantId === line.variantId &&
+          JSON.stringify(l.selectedModifiers.map((m) => m.modifierId).sort()) ===
+            JSON.stringify(line.selectedModifiers.map((m) => m.modifierId).sort()),
+      );
+      if (matchIndex === -1) return [...prev, line];
+      const next = [...prev];
+      next[matchIndex] = { ...next[matchIndex], quantity: next[matchIndex].quantity + line.quantity };
+      return next;
+    });
+  }
+
+  /** Ajusta la cantidad de una línea específica por índice (necesario porque un mismo producto puede tener varias líneas con distinta variante/modificadores). */
+  function adjustLineAt(index: number, delta: number) {
+    setLines((prev) => {
+      const next = [...prev];
+      const newQty = next[index].quantity + delta;
+      if (newQty <= 0) next.splice(index, 1);
+      else next[index] = { ...next[index], quantity: newQty };
+      return next;
+    });
   }
 
   function goToStep2() {
@@ -217,10 +257,16 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
       const res = await api.post('/orders/manual', {
         channel,
         tableId: channel === 'DINE_IN' ? tableId : undefined,
-        items: lines.map((l) => ({ productId: l.product.id, quantity: l.quantity })),
+        items: lines.map((l) => ({
+          productId: l.product.id,
+          quantity: l.quantity,
+          variantId: l.variantId,
+          modifierIds: l.selectedModifiers.map((m) => m.modifierId),
+          note: l.note,
+        })),
         // Nombre/cédula/teléfono ya no se piden en "Menú": vienen del cliente elegido en "Clientes".
         customerName: selectedCustomer?.name,
-        customerIdNumber: selectedCustomer?.idNumber,
+        customerIdNumber: selectedCustomer?.idNumber ?? undefined,
         customerPhone: selectedCustomer?.phone,
         customerAddress: channel === 'DELIVERY' ? customerAddress || selectedCustomer?.address || undefined : undefined,
         customerLat: channel === 'DELIVERY' ? addressCoords?.lat : undefined,
@@ -247,7 +293,13 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
     try {
       // Secuencial: el backend recalcula el total del pedido a partir de todos sus ítems en cada llamada.
       for (const l of lines) {
-        await api.post(`/orders/${orderId}/items`, { productId: l.product.id, quantity: l.quantity });
+        await api.post(`/orders/${orderId}/items`, {
+          productId: l.product.id,
+          quantity: l.quantity,
+          variantId: l.variantId,
+          modifierIds: l.selectedModifiers.map((m) => m.modifierId),
+          note: l.note,
+        });
       }
       onCreated();
       onSelectExisting(orderId);
@@ -426,7 +478,8 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
 
                 <div className="grid grid-cols-2 gap-2.5 max-h-64 overflow-y-auto pt-1">
                   {filteredProducts.map((p) => {
-                    const qty = quantities[p.id] ?? 0;
+                    const qty = lines.filter((l) => l.product.id === p.id).reduce((acc, l) => acc + l.quantity, 0);
+                    const withPicker = needsPicker(p);
                     return (
                       <div
                         key={p.id}
@@ -443,22 +496,32 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                             <p className="text-xs text-brand-950/50">{formatBase(p.price, symbol)}</p>
                           </div>
                         </div>
-                        <div className="flex items-center justify-center gap-2">
+                        {withPicker ? (
                           <button
-                            onClick={() => setQty(p.id, qty - 1)}
-                            disabled={qty === 0}
-                            className="w-6 h-6 rounded-full border border-brand-950/20 font-bold text-brand-950 text-xs disabled:opacity-30"
+                            type="button"
+                            onClick={() => setOptionsProduct(p)}
+                            className="w-full flex items-center justify-center gap-1 rounded-lg border border-brand-500/40 text-brand-500 text-xs font-medium py-1"
                           >
-                            −
+                            {qty > 0 ? `${qty} agregado${qty > 1 ? 's' : ''} · Agregar más` : 'Elegir opciones'}
                           </button>
-                          <span className="w-5 text-center text-xs font-medium">{qty}</span>
-                          <button
-                            onClick={() => setQty(p.id, qty + 1)}
-                            className="w-6 h-6 rounded-full border border-brand-950/20 font-bold text-brand-950 text-xs"
-                          >
-                            +
-                          </button>
-                        </div>
+                        ) : (
+                          <div className="flex items-center justify-center gap-2">
+                            <button
+                              onClick={() => setSimpleQty(p, qty - 1)}
+                              disabled={qty === 0}
+                              className="w-6 h-6 rounded-full border border-brand-950/20 font-bold text-brand-950 text-xs disabled:opacity-30"
+                            >
+                              −
+                            </button>
+                            <span className="w-5 text-center text-xs font-medium">{qty}</span>
+                            <button
+                              onClick={() => setSimpleQty(p, qty + 1)}
+                              className="w-6 h-6 rounded-full border border-brand-950/20 font-bold text-brand-950 text-xs"
+                            >
+                              +
+                            </button>
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -702,34 +765,40 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
             </DialogHeader>
             <div className="space-y-3">
               <ul className="space-y-2 max-h-80 overflow-y-auto">
-                {lines.map((l) => (
-                  <li
-                    key={l.product.id}
-                    className="flex items-center justify-between gap-2 border-b border-brand-950/10 pb-2"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-brand-950 truncate">{l.product.name}</p>
-                      <p className="text-xs text-brand-950/50">
-                        {formatBase(l.product.price, symbol)} c/u · {formatBase(Number(l.product.price) * l.quantity, symbol)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() => setQty(l.product.id, l.quantity - 1)}
-                        className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950"
-                      >
-                        −
-                      </button>
-                      <span className="w-5 text-center text-sm font-medium">{l.quantity}</span>
-                      <button
-                        onClick={() => setQty(l.product.id, l.quantity + 1)}
-                        className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950"
-                      >
-                        +
-                      </button>
-                    </div>
-                  </li>
-                ))}
+                {lines.map((l, i) => {
+                  const unitPrice = cartLineUnitPrice(l);
+                  return (
+                    <li key={i} className="flex items-center justify-between gap-2 border-b border-brand-950/10 pb-2">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-brand-950 truncate">
+                          {l.product.name}
+                          {l.variantName && <span className="text-brand-950/50"> ({l.variantName})</span>}
+                        </p>
+                        {l.selectedModifiers.length > 0 && (
+                          <p className="text-xs text-brand-950/50">{l.selectedModifiers.map((m) => m.name).join(', ')}</p>
+                        )}
+                        <p className="text-xs text-brand-950/50">
+                          {formatBase(unitPrice, symbol)} c/u · {formatBase(unitPrice * l.quantity, symbol)}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => adjustLineAt(i, -1)}
+                          className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950"
+                        >
+                          −
+                        </button>
+                        <span className="w-5 text-center text-sm font-medium">{l.quantity}</span>
+                        <button
+                          onClick={() => adjustLineAt(i, 1)}
+                          className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
                 {lines.length === 0 && (
                   <p className="text-sm text-brand-950/40 font-light text-center py-4">No hay productos agregados.</p>
                 )}
@@ -777,6 +846,15 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
             </div>
           </DialogContent>
         </Dialog>
+      )}
+
+      {optionsProduct && (
+        <ProductOptionsDialog
+          product={optionsProduct}
+          currencySymbol={symbol}
+          onClose={() => setOptionsProduct(null)}
+          onAdd={addPickedLine}
+        />
       )}
     </>
   );

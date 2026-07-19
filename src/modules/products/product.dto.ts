@@ -8,6 +8,9 @@ export const createProductSchema = z.object({
   name: z.string().min(1, 'El nombre es obligatorio.').max(120),
   description: z.string().max(500).optional(),
   price: z.coerce.number().nonnegative('El precio no puede ser negativo.'),
+  // "SIMPLE" = precio único (el campo `price`); "VARIANTS" = el cliente elige entre
+  // las filas de ProductVariant, cada una con su propio precio.
+  pricingMode: z.enum(['SIMPLE', 'VARIANTS']).optional().default('SIMPLE'),
   // Costo para el margen de utilidad (Administración → Margen de utilidad).
   // "RECIPE" ignora costBase y usa la suma en vivo de la receta del producto.
   costSource: z.enum(['MANUAL', 'RECIPE']).optional().default('MANUAL'),

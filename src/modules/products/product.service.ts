@@ -8,19 +8,61 @@ import { CreateProductInput, UpdateProductInput } from './product.dto';
  * garantizar el aislamiento por inquilino: nunca se lee ni escribe fuera del
  * tenant activo.
  */
+const PRODUCT_MODIFIER_INCLUDE = {
+  modifierCategories: {
+    include: {
+      modifierCategory: {
+        include: { modifiers: { orderBy: [{ priority: 'asc' as const }, { name: 'asc' as const }] } },
+      },
+    },
+  },
+};
+
+/** Aplana la fila de asociación (ProductModifierCategory -> ModifierCategory) para el frontend. */
+function serializeProduct<
+  T extends {
+    modifierCategories: {
+      modifierCategory: {
+        id: string;
+        name: string;
+        isRequired: boolean;
+        allowMultiple: boolean;
+        modifiers: unknown[];
+      };
+    }[];
+  },
+>(product: T) {
+  const { modifierCategories, ...rest } = product;
+  return {
+    ...rest,
+    modifierCategories: modifierCategories.map((link) => link.modifierCategory),
+  };
+}
+
 export const productService = {
   async list(restaurantId: string) {
-    return prisma.product.findMany({
+    const products = await prisma.product.findMany({
       where: { restaurantId },
       orderBy: [{ categoryId: 'asc' }, { priority: 'asc' }, { name: 'asc' }],
-      include: { category: { select: { id: true, name: true } } },
+      include: {
+        category: { select: { id: true, name: true } },
+        variants: { orderBy: [{ priority: 'asc' }, { name: 'asc' }] },
+        ...PRODUCT_MODIFIER_INCLUDE,
+      },
     });
+    return products.map(serializeProduct);
   },
 
   async getById(restaurantId: string, id: string) {
-    const product = await prisma.product.findFirst({ where: { id, restaurantId } });
+    const product = await prisma.product.findFirst({
+      where: { id, restaurantId },
+      include: {
+        variants: { orderBy: [{ priority: 'asc' }, { name: 'asc' }] },
+        ...PRODUCT_MODIFIER_INCLUDE,
+      },
+    });
     if (!product) throw notFound('Producto no encontrado.');
-    return product;
+    return serializeProduct(product);
   },
 
   async create(restaurantId: string, input: CreateProductInput) {
@@ -36,6 +78,7 @@ export const productService = {
         name: input.name,
         description: input.description,
         price: input.price,
+        pricingMode: input.pricingMode,
         costSource: input.costSource,
         costBase: input.costBase,
         photoUrl: input.photoUrl,

@@ -4,7 +4,11 @@ import { z } from 'zod';
 export const cartItemSchema = z.object({
   productId: z.string().min(1),
   quantity: z.coerce.number().int().positive().max(99),
-  modifiers: z.array(z.string().max(80)).optional().default([]),
+  // Si el producto usa "Precio por variantes", cuál variante eligió el cliente.
+  variantId: z.string().min(1).optional(),
+  // Modificadores elegidos (ids de Modifier). El service valida obligatoriedad/uno-vs-varios
+  // contra las categorías asociadas al producto y congela nombre+precio en el pedido.
+  modifierIds: z.array(z.string().min(1)).optional().default([]),
   note: z.string().max(200).optional(),
 });
 
@@ -128,7 +132,8 @@ export const recordPaymentSchema = z.object({
 export const addOrderItemSchema = z.object({
   productId: z.string().min(1),
   quantity: z.coerce.number().int().positive().max(99),
-  modifiers: z.array(z.string().max(80)).optional().default([]),
+  variantId: z.string().min(1).optional(),
+  modifierIds: z.array(z.string().min(1)).optional().default([]),
   note: z.string().max(200).optional(),
 });
 
