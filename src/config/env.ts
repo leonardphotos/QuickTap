@@ -23,6 +23,9 @@ export const env = {
   jwtSecret: required('JWT_SECRET'),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '7d',
 
+  // URL pública del sitio (para redirects de vuelta desde checkouts externos, ej. Ramblay).
+  appUrl: process.env.APP_URL ?? 'https://quicktap.club',
+
   corsOrigins: (process.env.CORS_ORIGINS ?? '*')
     .split(',')
     .map((o) => o.trim())
@@ -47,5 +50,14 @@ export const env = {
     resendApiKey: process.env.RESEND_API_KEY,
     fromEmail: process.env.MAIL_FROM_EMAIL ?? 'noreply@quicktap.club',
     fromName: process.env.MAIL_FROM_NAME ?? 'QuickTap.club',
+  },
+
+  // --- Pasarela de pago Ramblay (C2P / Binance Pay) ---
+  // Sin API key configurada, ramblayClient.createPayment() falla con un error
+  // claro en vez de tumbar el arranque del servidor (igual que mail.resendApiKey).
+  ramblay: {
+    apiKey: process.env.RAMBLAY_API_KEY,
+    baseUrl: process.env.RAMBLAY_BASE_URL ?? 'https://api.ramblay.com',
+    webhookSecret: process.env.RAMBLAY_WEBHOOK_SECRET,
   },
 };

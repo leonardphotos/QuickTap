@@ -9,11 +9,13 @@ import { planRequestController } from './plan-request.controller';
  */
 export const publicPlanRequestRoutes = Router();
 publicPlanRequestRoutes.post('/', planRequestController.create);
+publicPlanRequestRoutes.post('/ramblay-checkout', planRequestController.createRamblayCheckout);
 
 /** Base: /api/v1/plan-requests — pago de mensualidad, ya autenticado como restaurante. */
 export const tenantPlanRequestRoutes = Router();
 tenantPlanRequestRoutes.use(tenantGuard);
 tenantPlanRequestRoutes.post('/', planRequestController.createRenewal);
+tenantPlanRequestRoutes.post('/ramblay-checkout', planRequestController.createRenewalRamblayCheckout);
 
 /** Base: /api/v1/master/plan-requests — revisión de comprobantes del Dashboard maestro. */
 export const masterPlanRequestRoutes = Router();

@@ -37,6 +37,7 @@ import customerRoutes from '../modules/customers/customer.routes';
 import supplierRoutes from '../modules/suppliers/supplier.routes';
 import modifierCategoryRoutes from '../modules/modifier-categories/modifier-category.routes';
 import { publicReservationRoutes, tenantReservationRoutes } from '../modules/reservations/reservation.routes';
+import { publicRamblayRoutes } from '../modules/ramblay/ramblay.routes';
 
 /**
  * Enrutador raíz de la API v1.
@@ -93,6 +94,7 @@ router.use('/public/plan-requests', publicPlanRequestRoutes);
 router.use('/public/promo-codes', publicPromoCodeRoutes);
 router.use('/public/payment-methods', publicPlatformSettingsRoutes);
 router.use('/public/reservations', publicReservationRoutes);
+router.use('/public/ramblay', publicRamblayRoutes);
 
 // --- Dashboard maestro (equipo de QuickTap, ve todos los restaurantes) ---
 router.use('/master/promo-codes', masterPromoCodeRoutes);

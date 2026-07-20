@@ -28,6 +28,18 @@ export const createPlanRequestSchema = z.object({
 
 export type CreatePlanRequestInput = z.infer<typeof createPlanRequestSchema>;
 
+/**
+ * Igual que createPlanRequestSchema, pero sin paymentMethod/paymentReference:
+ * esos los llena el servidor (RAMBLAY + el id que devuelva su API) en vez de
+ * que el restaurante escriba un número de referencia a mano.
+ */
+export const createRamblayCheckoutSchema = createPlanRequestSchema.omit({
+  paymentMethod: true,
+  paymentReference: true,
+});
+
+export type CreateRamblayCheckoutInput = z.infer<typeof createRamblayCheckoutSchema>;
+
 export const approvePlanRequestSchema = z.object({
   // Solo necesario para solicitudes SIGNUP que aún no estén vinculadas a un restaurante.
   restaurantId: z.string().min(1).optional(),

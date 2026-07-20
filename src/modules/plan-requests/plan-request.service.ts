@@ -1,10 +1,17 @@
 import { BillingCycle, PlanRequestKind, PlanRequestStatus, SubscriptionPlan } from '@prisma/client';
+import { env } from '../../config/env';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { nextPeriodEnd } from '../../utils/subscription';
 import { buildWhatsappUrl } from '../../utils/whatsapp';
 import { promoCodeService } from '../promo-codes/promo-code.service';
-import { ActivateRestaurantInput, CreatePlanRequestInput, UpdatePlanRequestInput } from './plan-request.dto';
+import { ramblayClient } from '../ramblay/ramblay.client';
+import {
+  ActivateRestaurantInput,
+  CreatePlanRequestInput,
+  CreateRamblayCheckoutInput,
+  UpdatePlanRequestInput,
+} from './plan-request.dto';
 
 const PLAN_LABELS: Record<SubscriptionPlan, string> = {
   TRIAL: 'Prueba Gratuita',
@@ -100,18 +107,24 @@ async function applyActivation(
   });
 }
 
+/** Precio final del plan tras aplicar el código promocional, si hay uno válido. */
+async function resolvePrice(plan: 'DELIVERY' | 'PRO', billingCycle: BillingCycle, promoCode?: string) {
+  let priceUsd: number = FIXED_PLAN_PRICES[plan][billingCycle];
+  if (!Number.isFinite(priceUsd) || priceUsd <= 0) {
+    throw badRequest('No se pudo calcular el precio del plan.');
+  }
+
+  const promo = await promoCodeService.tryApply(promoCode);
+  if (promoCode && !promo) throw badRequest('Código de descuento inválido.');
+  if (promo) priceUsd = Math.round(priceUsd * (1 - promo.discountPercent / 100) * 100) / 100;
+
+  return { priceUsd, promo };
+}
+
 export const planRequestService = {
   /** Crea la solicitud de plan a partir del número de referencia que escribió el restaurante. */
   async create(input: CreatePlanRequestInput, opts: { kind: PlanRequestKind; restaurantId?: string }) {
-    let priceUsd: number = FIXED_PLAN_PRICES[input.plan][input.billingCycle];
-
-    if (!Number.isFinite(priceUsd) || priceUsd <= 0) {
-      throw badRequest('No se pudo calcular el precio del plan.');
-    }
-
-    const promo = await promoCodeService.tryApply(input.promoCode);
-    if (input.promoCode && !promo) throw badRequest('Código de descuento inválido.');
-    if (promo) priceUsd = Math.round(priceUsd * (1 - promo.discountPercent / 100) * 100) / 100;
+    const { priceUsd, promo } = await resolvePrice(input.plan, input.billingCycle, input.promoCode);
 
     return prisma.planRequest.create({
       data: {
@@ -137,6 +150,64 @@ export const planRequestService = {
         restaurantName: input.restaurantName,
       },
     });
+  },
+
+  /**
+   * Crea la solicitud de plan y, de una vez, la sesión de pago en Ramblay
+   * (C2P / Binance Pay): el restaurante no escribe ningún número de
+   * referencia, paga en el checkout de Ramblay y el webhook activa el plan
+   * solo (ver ramblayWebhookService). Si Ramblay falla al crear el pago, no
+   * dejamos una solicitud huérfana en PENDING sin forma de completarse.
+   */
+  async createRamblayCheckout(input: CreateRamblayCheckoutInput, opts: { kind: PlanRequestKind; restaurantId?: string }) {
+    const { priceUsd, promo } = await resolvePrice(input.plan, input.billingCycle, input.promoCode);
+
+    const planRequest = await prisma.planRequest.create({
+      data: {
+        kind: opts.kind,
+        restaurantId: opts.restaurantId,
+        plan: input.plan as SubscriptionPlan,
+        billingCycle: input.billingCycle,
+        customTables: null,
+        customUsers: null,
+        customOrders: null,
+        customAdministration: false,
+        customInventoryBasic: false,
+        customInventoryRecipe: false,
+        customAccountsPayable: false,
+        promoCode: promo?.code,
+        discountPercent: promo?.discountPercent,
+        priceUsd,
+        paymentMethod: 'RAMBLAY',
+        // Placeholder hasta que Ramblay responda con su id de pago (abajo).
+        paymentReference: 'Ramblay: pendiente',
+        contactName: input.contactName,
+        contactEmail: input.contactEmail,
+        contactPhone: input.contactPhone,
+        restaurantName: input.restaurantName,
+      },
+    });
+
+    try {
+      const payment = await ramblayClient.createPayment({
+        amount: priceUsd,
+        productName: `QuickTap · ${PLAN_LABELS[input.plan as SubscriptionPlan]}`,
+        productDescription: `Ciclo ${input.billingCycle}`,
+        clientReferenceId: planRequest.id,
+        successUrl: `${env.appUrl}/admin/billing?ramblay=success`,
+        cancelUrl: `${env.appUrl}/admin/billing?ramblay=cancel`,
+      });
+
+      await prisma.planRequest.update({
+        where: { id: planRequest.id },
+        data: { ramblayPaymentId: payment.payframeId, paymentReference: payment.payframeId },
+      });
+
+      return { planRequestId: planRequest.id, checkoutUrl: payment.checkoutUrl };
+    } catch (err) {
+      await prisma.planRequest.delete({ where: { id: planRequest.id } });
+      throw err;
+    }
   },
 
   /** Dashboard maestro: comprobantes de inscripción o de mensualidad, más recientes primero. */

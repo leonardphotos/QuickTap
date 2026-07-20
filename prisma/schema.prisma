@@ -131,6 +131,9 @@ enum SubscriptionPaymentMethod {
   PAGO_MOVIL
   BINANCE
   BANK_TRANSFER
+  // Pago vía pasarela Ramblay (C2P / Binance Pay): la aprobación llega sola
+  // por webhook, no por revisión manual de comprobante (ver PlanRequest.ramblayPaymentId).
+  RAMBLAY
 }
 
 // Estado persistido de la suscripción. El bloqueo (cuando vence `periodEnd` +
@@ -1011,8 +1014,14 @@ model PlanRequest {
   paymentMethod    SubscriptionPaymentMethod
   // Número de referencia de la transferencia/pago móvil/Binance (antes se
   // subía una foto/PDF del comprobante; ahora el restaurante solo escribe
-  // este número y el equipo de QuickTap lo valida contra su banco).
+  // este número y el equipo de QuickTap lo valida contra su banco). Para
+  // paymentMethod = RAMBLAY, se llena con el id que devuelve Ramblay al crear
+  // el pago (igual que ramblayPaymentId) en vez de un número tecleado a mano.
   paymentReference String
+
+  // Id de la transacción/sesión de pago en Ramblay (solo paymentMethod = RAMBLAY).
+  // Correlaciona el webhook de "pago aprobado/rechazado" con esta solicitud.
+  ramblayPaymentId String? @unique
 
   contactName    String
   contactEmail   String

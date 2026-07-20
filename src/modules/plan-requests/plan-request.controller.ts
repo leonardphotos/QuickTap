@@ -3,6 +3,7 @@ import { asyncHandler } from '../../middlewares/error.middleware';
 import {
   approvePlanRequestSchema,
   createPlanRequestSchema,
+  createRamblayCheckoutSchema,
   rejectPlanRequestSchema,
   updatePlanRequestSchema,
 } from './plan-request.dto';
@@ -24,6 +25,23 @@ export const planRequestController = {
       restaurantId: req.restaurantId!,
     });
     res.status(201).json({ data: request });
+  }),
+
+  /** POST /api/v1/public/plan-requests/ramblay-checkout — inscripción pagando con Ramblay (C2P/Binance Pay), sin comprobante manual. */
+  createRamblayCheckout: asyncHandler(async (req: Request, res: Response) => {
+    const input = createRamblayCheckoutSchema.parse(req.body);
+    const result = await planRequestService.createRamblayCheckout(input, { kind: 'SIGNUP' });
+    res.status(201).json({ data: result });
+  }),
+
+  /** POST /api/v1/plan-requests/ramblay-checkout — mensualidad pagando con Ramblay, ya autenticado. */
+  createRenewalRamblayCheckout: asyncHandler(async (req: Request, res: Response) => {
+    const input = createRamblayCheckoutSchema.parse(req.body);
+    const result = await planRequestService.createRamblayCheckout(input, {
+      kind: 'RENEWAL',
+      restaurantId: req.restaurantId!,
+    });
+    res.status(201).json({ data: result });
   }),
 
   /** GET /api/v1/master/plan-requests?kind=SIGNUP|RENEWAL&status=PENDING|APPROVED|REJECTED|PAYMENT_NOT_RECEIVED */

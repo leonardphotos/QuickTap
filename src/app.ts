@@ -6,6 +6,19 @@ import apiV1 from './routes';
 import { errorMiddleware } from './middlewares/error.middleware';
 import { UPLOADS_DIR } from './middlewares/upload.middleware';
 
+// Body crudo (antes de que express.json lo parsee) para verificar firmas de
+// webhooks (HMAC calculado sobre los bytes exactos que mandó el remitente,
+// nunca sobre un JSON re-serializado). Se guarda en cada request; el costo es
+// despreciable frente al límite de 1mb ya impuesto abajo.
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace Express {
+    interface Request {
+      rawBody?: Buffer;
+    }
+  }
+}
+
 export function createApp() {
   const app = express();
 
@@ -16,7 +29,14 @@ export function createApp() {
       credentials: true,
     }),
   );
-  app.use(express.json({ limit: '1mb' }));
+  app.use(
+    express.json({
+      limit: '1mb',
+      verify: (req, _res, buf) => {
+        (req as express.Request).rawBody = buf;
+      },
+    }),
+  );
 
   // Healthcheck
   app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'quicktap-api' }));
