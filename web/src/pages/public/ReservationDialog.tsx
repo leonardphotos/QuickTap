@@ -174,24 +174,24 @@ export default function ReservationDialog({ restaurant, onClose }: Props) {
                   )}
                 </div>
 
-                <div className="space-y-3">
-                  <label className="block">
+                <div className="flex flex-wrap items-center gap-4">
+                  <label className="inline-flex items-center gap-1.5">
                     <span className="text-xs font-semibold text-brand-950/60">Día</span>
                     <input
                       type="date"
                       value={date}
                       min={todayStr()}
                       onChange={(e) => setDate(e.target.value)}
-                      className="mt-1 w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                      className="w-auto text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
                     />
                   </label>
-                  <label className="block">
+                  <label className="inline-flex items-center gap-1.5">
                     <span className="text-xs font-semibold text-brand-950/60">Hora</span>
                     <input
                       type="time"
                       value={time}
                       onChange={(e) => setTime(e.target.value)}
-                      className="mt-1 w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                      className="w-auto text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
                     />
                   </label>
                 </div>
