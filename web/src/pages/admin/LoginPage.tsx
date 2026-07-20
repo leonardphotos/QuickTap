@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { getStoredSlug } from '../../api/client';
+import { clearRememberedEmail, getRememberedEmail, getStoredSlug, setRememberedEmail } from '../../api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 import { PasswordInput } from '@/components/ui/password-input';
 import AuthLayout from './AuthLayout';
@@ -10,8 +10,10 @@ import AuthLayout from './AuthLayout';
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const rememberedEmail = getRememberedEmail();
+  const [email, setEmail] = useState(rememberedEmail ?? '');
   const [password, setPassword] = useState('');
+  const [remember, setRemember] = useState(rememberedEmail !== null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -23,6 +25,8 @@ export default function LoginPage() {
       // Si este navegador ya conoce el restaurante (login previo) se manda
       // como atajo; si no, el backend resuelve la cuenta por el correo.
       await login(email, password, getStoredSlug() ?? undefined);
+      if (remember) setRememberedEmail(email);
+      else clearRememberedEmail();
       navigate('/admin');
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No se pudo iniciar sesión.');
@@ -44,11 +48,24 @@ export default function LoginPage() {
       }
     >
       <form onSubmit={onSubmit} className="space-y-4">
-        <Field label="Email" type="email" value={email} onChange={setEmail} />
-        <Field label="Contraseña" type="password" value={password} onChange={setPassword} />
-        <Link to="/admin/forgot-password" className="block text-sm text-brand-500 font-medium -mt-2">
-          ¿Olvidaste tu contraseña?
-        </Link>
+        <Field label="Email" type="email" value={email} onChange={setEmail} name="email" autoComplete="username" />
+        <Field
+          label="Contraseña"
+          type="password"
+          value={password}
+          onChange={setPassword}
+          name="password"
+          autoComplete="current-password"
+        />
+        <div className="flex items-center justify-between -mt-2">
+          <label className="flex items-center gap-1.5 text-sm text-brand-950/70">
+            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+            Recordarme
+          </label>
+          <Link to="/admin/forgot-password" className="text-sm text-brand-500 font-medium">
+            ¿Olvidaste tu contraseña?
+          </Link>
+        </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <TextureButton variant="brand" size="default" disabled={loading} className="mt-2 disabled:opacity-50">
           {loading ? 'Ingresando…' : 'Iniciar sesión'}
@@ -64,12 +81,16 @@ export function Field({
   onChange,
   type = 'text',
   placeholder,
+  name,
+  autoComplete,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
   type?: string;
   placeholder?: string;
+  name?: string;
+  autoComplete?: string;
 }) {
   const inputClassName =
     'mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500';
@@ -83,6 +104,8 @@ export function Field({
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
           className={inputClassName}
+          name={name}
+          autoComplete={autoComplete}
           required
         />
       ) : (
@@ -92,6 +115,8 @@ export function Field({
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
           className={inputClassName}
+          name={name}
+          autoComplete={autoComplete}
           required
         />
       )}

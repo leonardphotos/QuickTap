@@ -5,6 +5,7 @@ export const api = axios.create({ baseURL: '/api/v1' });
 
 const TOKEN_KEY = 'quicktap_token';
 const SLUG_KEY = 'quicktap_slug';
+const REMEMBER_EMAIL_KEY = 'quicktap_remember_email';
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY);
@@ -25,6 +26,23 @@ export function getStoredSlug(): string | null {
 
 export function setStoredSlug(slug: string): void {
   localStorage.setItem(SLUG_KEY, slug);
+}
+
+/**
+ * "Recordarme" del login: solo guarda el email (nunca la contraseña en texto
+ * plano — eso queda en manos del gestor de contraseñas del propio navegador,
+ * vía los atributos autoComplete del formulario).
+ */
+export function getRememberedEmail(): string | null {
+  return localStorage.getItem(REMEMBER_EMAIL_KEY);
+}
+
+export function setRememberedEmail(email: string): void {
+  localStorage.setItem(REMEMBER_EMAIL_KEY, email);
+}
+
+export function clearRememberedEmail(): void {
+  localStorage.removeItem(REMEMBER_EMAIL_KEY);
 }
 
 api.interceptors.request.use((config) => {

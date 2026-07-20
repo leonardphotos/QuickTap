@@ -13,6 +13,23 @@ function todayStr(): string {
   return local.toISOString().slice(0, 10);
 }
 
+type ReportRangeOption = 'day' | 'week' | 'month' | 'year' | 'custom';
+
+const RANGE_OPTION_LABELS: Record<ReportRangeOption, string> = {
+  day: 'Día',
+  week: 'Semana',
+  month: 'Mes',
+  year: 'Año',
+  custom: 'Personalizado',
+};
+
+const RANGE_PERIOD_LABELS: Record<Exclude<ReportRangeOption, 'custom'>, string> = {
+  day: 'Hoy',
+  week: 'Esta semana',
+  month: 'Este mes',
+  year: 'Este año',
+};
+
 /** Botón "Reporte": elige área de Administración + fecha exacta, genera un PDF descargable. */
 export function ReportDialog() {
   const [open, setOpen] = useState(false);
@@ -30,11 +47,14 @@ export function ReportDialog() {
 function ReportPickerDialog({ onClose }: { onClose: () => void }) {
   const { restaurant } = useAuth();
   const [area, setArea] = useState<ReportKind>('general');
+  const [rangeOption, setRangeOption] = useState<ReportRangeOption>('day');
   const [date, setDate] = useState(todayStr());
   const [report, setReport] = useState<ReportData | null>(null);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
+
+  const rangeParams = rangeOption === 'custom' ? { date } : { range: rangeOption };
 
   async function generate() {
     setGenerating(true);
@@ -42,8 +62,8 @@ function ReportPickerDialog({ onClose }: { onClose: () => void }) {
     try {
       if (area === 'general') {
         const [historyRes, movementsRes] = await Promise.all([
-          api.get('/orders/history', { params: { date, pageSize: 100 } }),
-          api.get('/movements', { params: { date } }),
+          api.get('/orders/history', { params: { ...rangeParams, pageSize: 100 } }),
+          api.get('/movements', { params: rangeParams }),
         ]);
         setReport({
           kind: 'general',
@@ -63,16 +83,16 @@ function ReportPickerDialog({ onClose }: { onClose: () => void }) {
           },
         });
       } else if (area === 'products') {
-        const res = await api.get('/orders/reports/products', { params: { date } });
+        const res = await api.get('/orders/reports/products', { params: rangeParams });
         setReport({ kind: 'products', data: res.data.data });
       } else if (area === 'delivery') {
-        const res = await api.get('/orders/reports/couriers', { params: { date } });
+        const res = await api.get('/orders/reports/couriers', { params: rangeParams });
         setReport({ kind: 'delivery', data: res.data.data });
       } else if (area === 'payments') {
-        const res = await api.get('/orders/reports/payment-methods', { params: { date } });
+        const res = await api.get('/orders/reports/payment-methods', { params: rangeParams });
         setReport({ kind: 'payments', data: res.data.data });
       } else {
-        const res = await api.get('/orders/history', { params: { date, pageSize: 100 } });
+        const res = await api.get('/orders/history', { params: { ...rangeParams, pageSize: 100 } });
         setReport({
           kind: 'history',
           data: res.data.data.orders.map((o: any) => ({
@@ -94,10 +114,10 @@ function ReportPickerDialog({ onClose }: { onClose: () => void }) {
   async function download() {
     if (!receiptRef.current) return;
     const { downloadElementAsPdf } = await import('@/utils/pdf');
-    await downloadElementAsPdf(receiptRef.current, `reporte-${area}-${date}.pdf`);
+    await downloadElementAsPdf(receiptRef.current, `reporte-${area}-${rangeOption === 'custom' ? date : rangeOption}.pdf`);
   }
 
-  const dateLabel = new Date(date + 'T12:00:00').toLocaleDateString('es-VE');
+  const dateLabel = rangeOption === 'custom' ? new Date(date + 'T12:00:00').toLocaleDateString('es-VE') : RANGE_PERIOD_LABELS[rangeOption];
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -124,15 +144,35 @@ function ReportPickerDialog({ onClose }: { onClose: () => void }) {
             </div>
 
             <div>
-              <p className="text-xs font-medium text-brand-950/50 mb-1.5">Fecha exacta</p>
-              <input
-                type="date"
-                value={date}
-                max={todayStr()}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-              />
+              <p className="text-xs font-medium text-brand-950/50 mb-1.5">Período</p>
+              <div className="flex flex-wrap gap-1.5">
+                {(Object.keys(RANGE_OPTION_LABELS) as ReportRangeOption[]).map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => setRangeOption(r)}
+                    className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                      rangeOption === r ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+                    }`}
+                  >
+                    {RANGE_OPTION_LABELS[r]}
+                  </button>
+                ))}
+              </div>
             </div>
+
+            {rangeOption === 'custom' && (
+              <div>
+                <p className="text-xs font-medium text-brand-950/50 mb-1.5">Fecha exacta</p>
+                <input
+                  type="date"
+                  value={date}
+                  max={todayStr()}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                />
+              </div>
+            )}
 
             {error && <p className="text-sm text-red-600">{error}</p>}
 

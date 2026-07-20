@@ -62,6 +62,8 @@ export default function KitchenPage() {
   const [kitchens, setKitchens] = useState<Kitchen[]>([]);
   const [connected, setConnected] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
+  // null = sin filtro (se muestran todas las cocinas); si no, solo las estaciones marcadas.
+  const [selectedLanes, setSelectedLanes] = useState<Set<string> | null>(null);
 
   function load() {
     api.get('/orders/kitchen').then((res) => setOrders(res.data.data));
@@ -99,6 +101,19 @@ export default function KitchenPage() {
   }
 
   const lanes = buildLanes(orders, kitchens);
+  const filterOptions = [...kitchens.map((k) => ({ key: k.name, label: k.name })), { key: UNASSIGNED_KEY, label: 'Sin asignar' }];
+
+  function toggleLaneFilter(key: string) {
+    setSelectedLanes((prev) => {
+      const base = prev ?? new Set(filterOptions.map((o) => o.key));
+      const next = new Set(base);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  const visibleLanes = selectedLanes === null ? lanes : lanes.filter((l) => selectedLanes.has(l.key));
 
   return (
     <div className="space-y-8">
@@ -119,12 +134,38 @@ export default function KitchenPage() {
         )}
       </div>
 
-      {lanes.length === 0 && (
+      {filterOptions.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={() => setSelectedLanes(null)}
+            className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+              selectedLanes === null ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+            }`}
+          >
+            Todas
+          </button>
+          {filterOptions.map((o) => (
+            <button
+              key={o.key}
+              onClick={() => toggleLaneFilter(o.key)}
+              className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                selectedLanes === null || selectedLanes.has(o.key)
+                  ? 'bg-brand-500 text-white'
+                  : 'bg-brand-950/[0.06] text-brand-950/50'
+              }`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {visibleLanes.length === 0 && (
         <p className="text-sm text-brand-950/40 py-10 text-center font-light">No hay comandas pendientes.</p>
       )}
 
       <div className="space-y-8">
-        {lanes.map((lane) => (
+        {visibleLanes.map((lane) => (
           <div key={lane.key}>
             <div className="flex items-center gap-2 mb-3">
               <h2 className="text-lg font-semibold text-brand-950">{lane.label}</h2>

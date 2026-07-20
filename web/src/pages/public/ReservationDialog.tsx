@@ -174,7 +174,7 @@ export default function ReservationDialog({ restaurant, onClose }: Props) {
                   )}
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-3">
                   <label className="block">
                     <span className="text-xs font-semibold text-brand-950/60">Día</span>
                     <input
