@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { Bitcoin, Copy, Landmark, Loader2, Tag, Wallet, X } from 'lucide-react';
+import { Bitcoin, Copy, CreditCard, Landmark, Loader2, Tag, Wallet, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { formatBs } from '@/utils/format';
 import {
@@ -66,6 +66,10 @@ export function PaymentForm({
   const { copy, toastMessage } = useCopyToast();
   const [methods, setMethods] = useState<PlatformPaymentMethods>({});
   const [method, setMethod] = useState<SubscriptionPaymentMethod>('PAGO_MOVIL');
+  // Ramblay (C2P/Binance Pay, activación automática) es la opción por
+  // defecto; "manual" es el flujo de siempre (transferencia/Zelle con
+  // número de referencia, revisado a mano por el equipo de QuickTap).
+  const [payWith, setPayWith] = useState<'ramblay' | 'manual'>('ramblay');
   const [contactName, setContactName] = useState(prefillName ?? '');
   const [contactEmail, setContactEmail] = useState(prefillEmail ?? '');
   const [contactPhone, setContactPhone] = useState('');
@@ -107,6 +111,10 @@ export function PaymentForm({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (payWith === 'ramblay') {
+      await payWithRamblay();
+      return;
+    }
     if (!paymentReference.trim()) {
       setError('Escribe el número de referencia del pago.');
       return;
@@ -144,6 +152,34 @@ export function PaymentForm({
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No se pudo enviar la solicitud.');
     } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function payWithRamblay() {
+    if (!contactName.trim() || !contactEmail.trim()) {
+      setError('Escribe tu nombre y correo para continuar.');
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const { data } = await api.post(
+        `${submitUrl}/ramblay-checkout`,
+        {
+          plan: selected.plan,
+          billingCycle: selected.billingCycle,
+          ...(promo ? { promoCode: promo.code } : {}),
+          contactName,
+          contactEmail,
+          ...(contactPhone ? { contactPhone } : {}),
+          ...(restaurantName ? { restaurantName } : {}),
+        },
+        authToken ? { headers: { Authorization: `Bearer ${authToken}` } } : undefined,
+      );
+      window.location.href = data.data.checkoutUrl;
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo iniciar el pago con Ramblay.');
       setSubmitting(false);
     }
   }
@@ -215,42 +251,73 @@ export function PaymentForm({
       </div>
 
       <div className="flex flex-wrap gap-2 mb-6">
-        {PAYMENT_METHODS.map((m) => {
-          const Icon = PAYMENT_METHOD_ICON[m];
-          return (
-            <button
-              key={m}
-              onClick={() => setMethod(m)}
-              className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-                method === m ? 'bg-brand-950 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
-              }`}
-            >
-              <Icon className="h-3.5 w-3.5" /> {PAYMENT_METHOD_LABEL[m]}
-            </button>
-          );
-        })}
+        <button
+          type="button"
+          onClick={() => setPayWith('ramblay')}
+          className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+            payWith === 'ramblay' ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+          }`}
+        >
+          <CreditCard className="h-3.5 w-3.5" /> Pagar con Ramblay
+        </button>
+        <button
+          type="button"
+          onClick={() => setPayWith('manual')}
+          className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+            payWith === 'manual' ? 'bg-brand-950 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+          }`}
+        >
+          Pago manual
+        </button>
       </div>
 
-      <div className="rounded-xl bg-brand-950/[0.03] p-4 mb-6 text-sm space-y-1.5">
-        {paymentMethodLines(method, methods).map((line) => (
-          <div key={line.label} className="flex items-center justify-between gap-2">
-            <p className="text-brand-950/70">
-              <span className="text-brand-950/50">{line.label}: </span>
-              {line.value}
-            </p>
-            {line.copyable && (
-              <button
-                type="button"
-                onClick={() => copy(line.value, `${line.label} copiado`)}
-                aria-label={`Copiar ${line.label}`}
-                className="shrink-0 text-brand-950/40 hover:text-brand-500 transition-colors"
-              >
-                <Copy className="h-3.5 w-3.5" />
-              </button>
-            )}
+      {payWith === 'ramblay' ? (
+        <p className="text-sm text-brand-950/60 font-light mb-6">
+          Pagas con C2P o Binance Pay en el checkout seguro de Ramblay. En cuanto se confirme, tu plan se activa solo —
+          sin esperar revisión manual.
+        </p>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-2 mb-6">
+            {PAYMENT_METHODS.map((m) => {
+              const Icon = PAYMENT_METHOD_ICON[m];
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMethod(m)}
+                  className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                    method === m ? 'bg-brand-950 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" /> {PAYMENT_METHOD_LABEL[m]}
+                </button>
+              );
+            })}
           </div>
-        ))}
-      </div>
+
+          <div className="rounded-xl bg-brand-950/[0.03] p-4 mb-6 text-sm space-y-1.5">
+            {paymentMethodLines(method, methods).map((line) => (
+              <div key={line.label} className="flex items-center justify-between gap-2">
+                <p className="text-brand-950/70">
+                  <span className="text-brand-950/50">{line.label}: </span>
+                  {line.value}
+                </p>
+                {line.copyable && (
+                  <button
+                    type="button"
+                    onClick={() => copy(line.value, `${line.label} copiado`)}
+                    aria-label={`Copiar ${line.label}`}
+                    className="shrink-0 text-brand-950/40 hover:text-brand-500 transition-colors"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="grid sm:grid-cols-2 gap-4">
@@ -260,13 +327,15 @@ export function PaymentForm({
           {!authToken && <Field label="Nombre del restaurante" value={restaurantName} onChange={setRestaurantName} />}
         </div>
 
-        <Field
-          label="Número de referencia del pago"
-          value={paymentReference}
-          onChange={setPaymentReference}
-          placeholder="Ej: 004215778901"
-          required
-        />
+        {payWith === 'manual' && (
+          <Field
+            label="Número de referencia del pago"
+            value={paymentReference}
+            onChange={setPaymentReference}
+            placeholder="Ej: 004215778901"
+            required
+          />
+        )}
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
@@ -277,7 +346,13 @@ export function PaymentForm({
           className="!w-auto px-6 disabled:opacity-50 flex items-center gap-2"
         >
           {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-          {submitting ? 'Enviando…' : 'Enviar solicitud'}
+          {submitting
+            ? payWith === 'ramblay'
+              ? 'Abriendo Ramblay…'
+              : 'Enviando…'
+            : payWith === 'ramblay'
+              ? 'Pagar con Ramblay'
+              : 'Enviar solicitud'}
         </TextureButton>
       </form>
       <Toast message={toastMessage} />
