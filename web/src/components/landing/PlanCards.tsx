@@ -62,7 +62,7 @@ export function PlanCards({ rateBs, billingCycle, onBillingCycleChange, onChoose
           <button
             key={c}
             onClick={() => onBillingCycleChange(c)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-[background-color,color,transform] duration-200 ease-out-strong active:scale-[0.96] ${
               billingCycle === c
                 ? 'bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]'
                 : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
@@ -77,13 +77,15 @@ export function PlanCards({ rateBs, billingCycle, onBillingCycleChange, onChoose
         {PLAN_CONTENT.map((plan) => (
           <div key={plan.id} className="relative">
             {plan.highlighted && (
-              <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 bg-brand-500 text-white text-xs font-medium px-3 py-1 rounded-full shadow">
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 bg-brand-500 text-white text-xs font-medium px-3 py-1 rounded-full">
                 Más popular
               </span>
             )}
             <div
               className={`h-full flex flex-col rounded-2xl border bg-white p-6 ${
-                plan.highlighted ? 'border-brand-400/50 ring-2 ring-brand-400/30 shadow-md' : 'border-brand-950/10 shadow-sm'
+                plan.highlighted
+                  ? 'border-brand-400/40 shadow-[0_16px_40px_-20px_rgba(5,108,242,0.45)]'
+                  : 'border-brand-950/10 shadow-sm'
               }`}
             >
               <p className="font-semibold text-brand-950">{plan.name}</p>

@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AnimatePresence, motion, useScroll, useTransform } from 'motion/react';
+import { AnimatePresence, motion, useScroll, useSpring, useTransform } from 'motion/react';
 import { Banknote, SmartphoneNfc, MessageCircle, ChefHat, CircleDollarSign, Boxes, Clock } from 'lucide-react';
 import { TextureButton } from '@/components/ui/texture-button';
 import { PricingSection } from '@/components/landing/PricingSection';
 import { IntroLoader } from '@/components/landing/IntroLoader';
+
+/** Espejo en JS de --ease-out-strong (index.css): arranca rápido, se siente intencional. */
+const EASE_OUT: [number, number, number, number] = [0.23, 1, 0.32, 1];
 
 const FEATURES = [
   {
@@ -66,10 +69,14 @@ export default function LandingPage() {
     target: heroRef,
     offset: ['start start', 'end start'],
   });
+  // El scroll crudo se siente mecánico (1:1 con el dedo/rueda, sin inercia).
+  // Un spring de por medio le da al parallax un settle natural, con leve
+  // "lag" físico en vez de seguir la posición de scroll al milímetro.
+  const smoothHeroProgress = useSpring(heroProgress, { stiffness: 300, damping: 40, mass: 0.5 });
 
-  const glowY = useTransform(heroProgress, [0, 1], ['0%', '30%']);
-  const heroContentY = useTransform(heroProgress, [0, 1], [0, 90]);
-  const heroContentOpacity = useTransform(heroProgress, [0, 1], [1, 0]);
+  const glowY = useTransform(smoothHeroProgress, [0, 1], ['0%', '30%']);
+  const heroContentY = useTransform(smoothHeroProgress, [0, 1], [0, 90]);
+  const heroContentOpacity = useTransform(smoothHeroProgress, [0, 1], [1, 0]);
 
   return (
     <>
@@ -77,7 +84,7 @@ export default function LandingPage() {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: showIntro ? 0 : 1 }}
-        transition={{ duration: 0.7, ease: 'easeOut' }}
+        transition={{ duration: 0.5, ease: EASE_OUT }}
         className="h-screen overflow-hidden text-brand-950"
       >
         {/* Nav flotante, estilo "cult-seo": pastilla oscura translúcida sobre el hero */}
@@ -147,7 +154,7 @@ export default function LandingPage() {
                   </TextureButton>
                 </Link>
                 <a href="#precios" className="w-full sm:w-auto">
-                  <button className="w-full sm:w-auto rounded-full border border-white/20 text-white font-medium px-6 py-2.5 hover:bg-white/10 transition-colors">
+                  <button className="w-full sm:w-auto rounded-full border border-white/20 text-white font-medium px-6 py-2.5 transition-[background-color,transform] duration-200 ease-out-strong hover:bg-white/10 active:scale-[0.97]">
                     Ver precios y planes
                   </button>
                 </a>
@@ -163,7 +170,7 @@ export default function LandingPage() {
                 {FEATURES.map((f) => (
                   <div
                     key={f.title}
-                    className="rounded-2xl border border-white/10 bg-brand-950 shadow-lg shadow-brand-950/30 p-5 hover:bg-brand-900 transition-colors"
+                    className="rounded-2xl border border-white/8 bg-white/[0.03] p-5 transition-[background-color,transform,box-shadow] duration-200 ease-out-strong hover:bg-white/[0.06] hover:-translate-y-0.5 hover:shadow-[0_8px_24px_-12px_rgba(0,0,0,0.5)]"
                   >
                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center mb-4 ${f.badge}`}>
                       <f.icon className="h-5 w-5" />

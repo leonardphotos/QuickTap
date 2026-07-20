@@ -51,6 +51,12 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+
+  /* Curva de easing propia para UI (más fuerte que el ease-out por defecto
+     de Tailwind/CSS): arranca rápido, se siente intencional. Espejo en JS
+     para Motion: EASE_OUT = [0.23, 1, 0.32, 1] en los componentes que animan
+     con motion/react en vez de clases Tailwind. */
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 :root {

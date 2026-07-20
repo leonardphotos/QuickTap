@@ -4,29 +4,32 @@ import { cva } from 'class-variance-authority';
 
 import { cn } from '@/lib/utils';
 
-const buttonVariantsOuter = cva('rounded-full transition duration-300 ease-in-out', {
-  variants: {
-    variant: {
-      primary: 'w-full shadow-[0_16px_32px_-8px_rgba(0,0,0,0.35)]',
-      accent: 'w-full shadow-[0_16px_32px_-8px_rgba(99,102,241,0.4)]',
-      brand: 'w-full shadow-[0_16px_32px_-8px_rgba(5,108,242,0.4)]',
-      destructive: 'w-full shadow-[0_16px_32px_-8px_rgba(239,68,68,0.4)]',
-      secondary: 'w-full border border-brand-950/10 shadow-[0_16px_32px_-8px_rgba(0,0,0,0.12)]',
-      minimal: 'group/texture-button w-full border border-brand-950/10',
-      icon: 'group/texture-button border border-brand-950/10',
+const buttonVariantsOuter = cva(
+  'rounded-full transition-transform duration-200 ease-out-strong active:scale-[0.97]',
+  {
+    variants: {
+      variant: {
+        primary: 'w-full shadow-[0_16px_32px_-8px_rgba(0,0,0,0.35)]',
+        accent: 'w-full shadow-[0_16px_32px_-8px_rgba(99,102,241,0.4)]',
+        brand: 'w-full shadow-[0_16px_32px_-8px_rgba(5,108,242,0.4)]',
+        destructive: 'w-full shadow-[0_16px_32px_-8px_rgba(239,68,68,0.4)]',
+        secondary: 'w-full border border-brand-950/10 shadow-[0_16px_32px_-8px_rgba(0,0,0,0.12)]',
+        minimal: 'group/texture-button w-full border border-brand-950/10',
+        icon: 'group/texture-button border border-brand-950/10',
+      },
+      size: {
+        sm: '',
+        default: '',
+        lg: '',
+        icon: '',
+      },
     },
-    size: {
-      sm: '',
-      default: '',
-      lg: '',
-      icon: '',
+    defaultVariants: {
+      variant: 'primary',
+      size: 'default',
     },
   },
-  defaultVariants: {
-    variant: 'primary',
-    size: 'default',
-  },
-});
+);
 
 const innerDivVariants = cva(
   'w-full h-full flex items-center justify-center text-muted-foreground',
