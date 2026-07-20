@@ -8,6 +8,14 @@ import { env } from '../../config/env';
  * desde el panel de Ramblay (Payment Gateways → Binance), y aparece solo en
  * el checkout hospedado una vez conectado.
  *
+ * payment_method_types incluye también "pago_movil": a diferencia de C2P
+ * (confirmación instantánea del banco), este es un método "manual/reportable"
+ * — el cliente sube su comprobante y alguien con acceso al dashboard de
+ * Ramblay debe verificarlo a mano antes de que dispare el webhook de
+ * "completado". Se agregó a propósito como alternativa para quienes no
+ * saben usar C2P, aceptando esa revisión manual (ya no ocurre en el panel
+ * de QuickTap, sino en el de Ramblay).
+ *
  * Auth: Authorization: Bearer sk_... — POST https://api.ramblay.com/payframes
  */
 
@@ -55,7 +63,7 @@ export const ramblayClient = {
         success_url: input.successUrl,
         cancel_url: input.cancelUrl,
         client_reference_id: input.clientReferenceId,
-        payment_method_types: ['c2p'],
+        payment_method_types: ['c2p', 'pago_movil'],
         line_items: [
           {
             inline_price: {
