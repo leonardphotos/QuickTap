@@ -1,10 +1,14 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AnimatePresence, motion } from 'motion/react';
 import { LogOut, Nfc, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { QrNfcQuoteDialog } from './QrNfcQuoteDialog';
 import { visibleNavLinks } from '@/pages/admin/nav-links';
+
+/** Curva de drawer estilo iOS (Ionic Framework): entra decidido, sin rebote. */
+const EASE_DRAWER: [number, number, number, number] = [0.32, 0.72, 0, 1];
 
 /**
  * Menú desplegable con todas las opciones del panel (según rol y plan),
@@ -25,10 +29,25 @@ export function NavMenuDrawer({ open, onClose }: { open: boolean; onClose: () =>
 
   return (
     <>
+      <AnimatePresence>
       {open && (
       <div className="fixed inset-0 z-40 flex justify-end" role="dialog" aria-modal="true">
-        <button className="absolute inset-0 bg-brand-950/40 backdrop-blur-sm" aria-label="Cerrar menú" onClick={onClose} />
-        <div className="relative w-72 max-w-[85vw] bg-white h-full shadow-xl p-5 flex flex-col overflow-y-auto">
+        <motion.button
+          className="absolute inset-0 bg-brand-950/40 backdrop-blur-sm"
+          aria-label="Cerrar menú"
+          onClick={onClose}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+        />
+        <motion.div
+          className="relative w-72 max-w-[85vw] bg-white h-full shadow-xl p-5 flex flex-col overflow-y-auto"
+          initial={{ x: '100%' }}
+          animate={{ x: 0 }}
+          exit={{ x: '100%' }}
+          transition={{ duration: 0.3, ease: EASE_DRAWER }}
+        >
           <div className="flex items-center justify-between mb-4">
             <p className="font-semibold text-brand-950">Menú</p>
             <button onClick={onClose} aria-label="Cerrar">
@@ -77,9 +96,10 @@ export function NavMenuDrawer({ open, onClose }: { open: boolean; onClose: () =>
               <LogOut className="h-4 w-4" /> Cerrar sesión
             </button>
           </div>
-        </div>
+        </motion.div>
       </div>
       )}
+      </AnimatePresence>
 
       {showQrNfcQuote && <QrNfcQuoteDialog onClose={() => setShowQrNfcQuote(false)} />}
     </>
