@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
-import { LogOut, Nfc, X } from 'lucide-react';
+import { ArrowLeftRight, LogOut, Nfc, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { QrNfcQuoteDialog } from './QrNfcQuoteDialog';
@@ -16,7 +16,7 @@ const EASE_DRAWER: [number, number, number, number] = [0.32, 0.72, 0, 1];
  * Dashboard y desde la barra flotante, así que vive en un solo lugar.
  */
 export function NavMenuDrawer({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const { user, restaurant, logout } = useAuth();
+  const { user, restaurant, logout, switchToParent } = useAuth();
   const [showQrNfcQuote, setShowQrNfcQuote] = useState(false);
 
   // El diálogo de cotización se abre DESDE este menú (cerrándolo primero), así
@@ -78,6 +78,19 @@ export function NavMenuDrawer({ open, onClose }: { open: boolean; onClose: () =>
               <Nfc className="h-5 w-5 text-brand-500 shrink-0" />
               <span className="text-sm font-medium text-brand-950">Cotiza tus QR NFC</span>
             </button>
+
+            {restaurant.parentRestaurantId && (
+              <button
+                onClick={() => {
+                  onClose();
+                  switchToParent();
+                }}
+                className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-brand-950/[0.05] transition-colors text-left"
+              >
+                <ArrowLeftRight className="h-5 w-5 text-brand-500 shrink-0" />
+                <span className="text-sm font-medium text-brand-950">Volver a sede principal</span>
+              </button>
+            )}
           </div>
 
           <div className="space-y-2 pt-3 border-t border-brand-950/10">

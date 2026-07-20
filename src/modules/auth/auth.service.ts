@@ -5,7 +5,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
 import { badRequest, conflict, unauthorized } from '../../utils/http-error';
-import { isLocked, trialPeriodEnd } from '../../utils/subscription';
+import { isLockedAsync, trialPeriodEnd } from '../../utils/subscription';
 import { sendMail } from '../../utils/mailer';
 import { ForgotPasswordInput, LoginInput, RegisterInput, ResetPasswordInput } from './auth.dto';
 
@@ -20,7 +20,7 @@ function hashResetCode(code: string): string {
   return crypto.createHash('sha256').update(code).digest('hex');
 }
 
-function signToken(payload: { userId: string; restaurantId: string; role: string }) {
+export function signToken(payload: { userId: string; restaurantId: string; role: string; parentRestaurantId?: string }) {
   return jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn } as jwt.SignOptions);
 }
 
@@ -57,6 +57,8 @@ const RESTAURANT_SELECT = {
   customInventoryBasic: true,
   customInventoryRecipe: true,
   customAccountsPayable: true,
+  parentRestaurantId: true,
+  pendingWelcomePlan: true,
 } as const;
 
 type RestaurantRow = {
@@ -90,10 +92,12 @@ type RestaurantRow = {
   customInventoryBasic: boolean;
   customInventoryRecipe: boolean;
   customAccountsPayable: boolean;
+  parentRestaurantId: string | null;
+  pendingWelcomePlan: string | null;
 };
 
-/** Forma que el frontend consume: agrega `locked`, calculado en vivo (nunca persistido). */
-function serializeRestaurant(restaurant: RestaurantRow) {
+/** Forma que el frontend consume: agrega `locked`, calculado en vivo (nunca persistido; ver isLockedAsync). */
+async function serializeRestaurant(restaurant: RestaurantRow) {
   return {
     id: restaurant.id,
     slug: restaurant.slug,
@@ -125,7 +129,9 @@ function serializeRestaurant(restaurant: RestaurantRow) {
     customInventoryBasic: restaurant.customInventoryBasic,
     customInventoryRecipe: restaurant.customInventoryRecipe,
     customAccountsPayable: restaurant.customAccountsPayable,
-    locked: isLocked(restaurant),
+    parentRestaurantId: restaurant.parentRestaurantId,
+    pendingWelcomePlan: restaurant.pendingWelcomePlan,
+    locked: await isLockedAsync(restaurant),
   };
 }
 
@@ -161,7 +167,7 @@ export const authService = {
 
     return {
       token,
-      restaurant: serializeRestaurant(restaurant),
+      restaurant: await serializeRestaurant(restaurant),
       user: {
         id: owner.id,
         name: owner.name,
@@ -207,14 +213,14 @@ export const authService = {
     throw unauthorized('Credenciales inválidas.');
   },
 
-  buildSession(
+  async buildSession(
     user: { id: string; name: string; email: string; role: string; canAccessInventory: boolean },
     restaurant: RestaurantRow,
   ) {
     const token = signToken({ userId: user.id, restaurantId: restaurant.id, role: user.role });
     return {
       token,
-      restaurant: serializeRestaurant(restaurant),
+      restaurant: await serializeRestaurant(restaurant),
       user: {
         id: user.id,
         name: user.name,
@@ -237,7 +243,7 @@ export const authService = {
       select: RESTAURANT_SELECT,
     });
 
-    return { user, restaurant: restaurant ? serializeRestaurant(restaurant) : null };
+    return { user, restaurant: restaurant ? await serializeRestaurant(restaurant) : null };
   },
 
   /**

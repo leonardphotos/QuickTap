@@ -51,18 +51,27 @@ export const masterSummaryService = {
 
     // La cuenta de demostración (seed-demo.ts, isDemo: true) se excluye de
     // todo el reporte: no es facturación ni actividad real de la plataforma.
+    // Las sucursales (parentRestaurantId seteado, ver src/modules/branches/)
+    // tampoco son cuentas propias que le pagan a QuickTap por separado —
+    // se excluyen igual para no inflar/duplicar restaurantes/dueños.
     const [monthOrders, quickTap, restaurantOwners, totalRestaurants, activeRestaurants] = await Promise.all([
       prisma.order.findMany({
-        where: { createdAt: { gte: monthStart }, status: { not: 'CANCELLED' }, restaurant: { isDemo: false } },
+        where: {
+          createdAt: { gte: monthStart },
+          status: { not: 'CANCELLED' },
+          restaurant: { isDemo: false, parentRestaurantId: null },
+        },
         select: { totalBs: true, totalBase: true, currency: true },
       }),
       sumQuickTapRevenue(),
-      prisma.user.count({ where: { role: 'OWNER', restaurant: { isDemo: false } } }),
-      prisma.restaurant.count({ where: { isDemo: false } }),
+      prisma.user.count({ where: { role: 'OWNER', restaurant: { isDemo: false, parentRestaurantId: null } } }),
+      prisma.restaurant.count({ where: { isDemo: false, parentRestaurantId: null } }),
       // Aproximación: no descuenta el bloqueo por vencimiento (se calcula en
       // vivo con periodEnd + 12h de gracia, no se persiste), igual que el
       // resto del código trata ese estado.
-      prisma.restaurant.count({ where: { subscriptionStatus: 'ACTIVE', suspended: false, isDemo: false } }),
+      prisma.restaurant.count({
+        where: { subscriptionStatus: 'ACTIVE', suspended: false, isDemo: false, parentRestaurantId: null },
+      }),
     ]);
 
     return {

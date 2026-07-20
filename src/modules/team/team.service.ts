@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
+import { isDeliveryTierPlan } from '../../utils/subscription';
 import { CreateStaffInput, UpdateStaffInput } from './team.dto';
 
 // OWNER nunca aparece en la lista de "Equipo" gestionable (es el dueño de la cuenta).
@@ -30,9 +31,9 @@ export const teamService = {
     });
     if (existing) throw badRequest('Ya existe un miembro del equipo con ese email.');
 
-    // Plan Solo Delivery: máximo 6 usuarios (incluye al dueño).
+    // Plan Solo Delivery (con o sin sucursales): máximo 6 usuarios (incluye al dueño).
     const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { subscriptionPlan: true } });
-    if (restaurant?.subscriptionPlan === 'DELIVERY') {
+    if (isDeliveryTierPlan(restaurant?.subscriptionPlan)) {
       const teamSize = await prisma.user.count({ where: { restaurantId } });
       if (teamSize >= 6) {
         throw badRequest('El Plan Solo Delivery permite hasta 6 usuarios. Mejora tu plan para agregar más.');

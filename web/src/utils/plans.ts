@@ -1,4 +1,4 @@
-export type PlanId = 'TRIAL' | 'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM' | 'CUSTOM';
+export type PlanId = 'TRIAL' | 'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM' | 'CUSTOM' | 'SUCURSALES' | 'DELIVERY_SUCURSALES';
 export type BillingCycle = 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL';
 export type SubscriptionPaymentMethod = 'PAGO_MOVIL' | 'BINANCE' | 'BANK_TRANSFER';
 
@@ -8,15 +8,20 @@ export const BILLING_CYCLE_LABEL: Record<BillingCycle, string> = {
   SEMIANNUAL: '6 meses',
 };
 
+export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'SUCURSALES' | 'DELIVERY_SUCURSALES';
+
 /**
  * Precios fijos por plan y ciclo de facturación (USD/mes). Espejo del cálculo
  * del backend (src/modules/plan-requests/plan-request.service.ts), que es la
  * única fuente de verdad real: aquí solo se usa para mostrar el precio antes
- * de enviar la solicitud. Solo dos planes vigentes: Delivery y Pro.
+ * de enviar la solicitud. Cuatro planes vigentes: Delivery, Pro, Sucursales
+ * (Pro + hasta 5 sucursales) y Delivery Sucursales (Delivery + hasta 5 sucursales).
  */
-export const FIXED_PLAN_PRICES: Record<'DELIVERY' | 'PRO', Record<BillingCycle, number>> = {
+export const FIXED_PLAN_PRICES: Record<PurchasablePlan, Record<BillingCycle, number>> = {
   DELIVERY: { MONTHLY: 9.99, QUARTERLY: 7.99, SEMIANNUAL: 5.99 },
   PRO: { MONTHLY: 19.99, QUARTERLY: 15.99, SEMIANNUAL: 11.99 },
+  SUCURSALES: { MONTHLY: 69.99, QUARTERLY: 55.99, SEMIANNUAL: 41.99 },
+  DELIVERY_SUCURSALES: { MONTHLY: 29.99, QUARTERLY: 23.99, SEMIANNUAL: 17.99 },
 };
 
 export const PAYMENT_METHOD_LABEL: Record<SubscriptionPaymentMethod, string> = {

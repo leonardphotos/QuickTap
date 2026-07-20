@@ -9,6 +9,12 @@ export const restaurantService = {
     });
   },
 
+  /** Confirma que ya se mostró la pantalla de bienvenida del plan recién activado. */
+  async markWelcomeSeen(restaurantId: string) {
+    await prisma.restaurant.update({ where: { id: restaurantId }, data: { pendingWelcomePlan: null } });
+    return { done: true };
+  },
+
   /** Ajustes → Horario: las 7 filas (domingo a sábado) de una sola vez. */
   async getSchedule(restaurantId: string) {
     const rows = await prisma.restaurantSchedule.findMany({ where: { restaurantId } });

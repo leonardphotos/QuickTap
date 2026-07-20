@@ -314,7 +314,7 @@ export function LiveOrdersPanel() {
   if (!orders) return null;
 
   return (
-    <div className={`w-full mb-8 ${viewMode === 'grid' ? 'max-w-5xl' : 'max-w-md'}`}>
+    <div className={`w-full mb-8 lg:max-w-none ${viewMode === 'grid' ? 'max-w-5xl' : 'max-w-md'}`}>
       <div className="grid grid-cols-3 items-center mb-3 gap-2">
         <div className="flex items-center gap-2.5 justify-self-start">
           <h2 className="text-lg font-semibold text-brand-950">Pedidos</h2>
@@ -372,7 +372,13 @@ export function LiveOrdersPanel() {
           <p className="text-sm text-brand-950/40 font-light">No hay pedidos activos.</p>
         </div>
       ) : (
-        <div className={viewMode === 'grid' ? 'grid grid-cols-2 sm:grid-cols-3 gap-3' : 'space-y-3'}>
+        <div
+          className={
+            viewMode === 'grid'
+              ? 'grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3'
+              : 'space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-3 lg:items-start'
+          }
+        >
           {visibleOrders?.map((o) => {
             const { balanceBase, owesBalance, fullyPaid } = getPaymentStatus(o);
             return (

@@ -20,6 +20,8 @@ const PLAN_LABELS: Record<SubscriptionPlan, string> = {
   PREMIUM: 'Plan Premium',
   DELIVERY: 'Plan Solo Delivery',
   CUSTOM: 'Plan Personalizado',
+  SUCURSALES: 'Plan Sucursales',
+  DELIVERY_SUCURSALES: 'Plan Delivery Sucursales',
 };
 
 // Beneficios breves para el mensaje de bienvenida por WhatsApp al activar la cuenta.
@@ -30,6 +32,8 @@ const PLAN_BENEFITS: Record<SubscriptionPlan, string> = {
   PREMIUM: 'Mesas y pedidos ilimitados, hasta 20 usuarios, Administración e Inventario por receta.',
   DELIVERY: 'Productos, Cocinas, sección de Delivery y pedidos ilimitados. Hasta 6 usuarios de tu equipo.',
   CUSTOM: 'Tu plan armado a la medida de tu restaurante.',
+  SUCURSALES: 'Todos los beneficios del Plan Pro, más hasta 5 sucursales con reporte consolidado de ventas, inventario y equipo.',
+  DELIVERY_SUCURSALES: 'Todos los beneficios del Plan Solo Delivery, más hasta 5 sucursales con reporte consolidado de ventas, inventario y equipo.',
 };
 
 function buildAcceptedMessage(plan: SubscriptionPlan): string {
@@ -55,15 +59,22 @@ function buildPaymentNotReceivedMessage(): string {
   ].join('\n\n');
 }
 
+export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'SUCURSALES' | 'DELIVERY_SUCURSALES';
+
 /**
  * Precios fijos por plan y ciclo de facturación (USD/mes). Única fuente de
  * verdad: el precio que llega del cliente NUNCA se usa, siempre se recalcula
- * aquí para evitar manipulación. Solo dos planes vigentes: Delivery y Pro
- * (todos los beneficios). 20%/40% de descuento en trimestral/semestral.
+ * aquí para evitar manipulación. Cuatro planes vigentes: Delivery y Pro (los
+ * de siempre) más Sucursales y Delivery Sucursales (mismos beneficios que
+ * Pro/Delivery respectivamente, más hasta 5 sucursales — ver MAX_BRANCHES en
+ * src/utils/subscription.ts). 20%/40% de descuento en trimestral/semestral,
+ * igual que los dos planes originales.
  */
-const FIXED_PLAN_PRICES: Record<'DELIVERY' | 'PRO', Record<BillingCycle, number>> = {
+const FIXED_PLAN_PRICES: Record<PurchasablePlan, Record<BillingCycle, number>> = {
   DELIVERY: { MONTHLY: 9.99, QUARTERLY: 7.99, SEMIANNUAL: 5.99 },
   PRO: { MONTHLY: 19.99, QUARTERLY: 15.99, SEMIANNUAL: 11.99 },
+  SUCURSALES: { MONTHLY: 69.99, QUARTERLY: 55.99, SEMIANNUAL: 41.99 },
+  DELIVERY_SUCURSALES: { MONTHLY: 29.99, QUARTERLY: 23.99, SEMIANNUAL: 17.99 },
 };
 
 export interface CustomAddons {
@@ -85,30 +96,49 @@ async function applyActivation(
   billingCycle: BillingCycle,
   addons?: CustomAddons,
 ) {
-  const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { periodEnd: true } });
+  const restaurant = await prisma.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { periodEnd: true, subscriptionPlan: true },
+  });
   if (!restaurant) throw notFound('Restaurante no encontrado.');
 
-  return prisma.restaurant.update({
+  const customFlags =
+    plan === 'CUSTOM' && addons
+      ? {
+          customAdministration: !!addons.administration,
+          customInventoryBasic: !!addons.inventoryBasic,
+          customInventoryRecipe: !!addons.inventoryRecipe,
+          customAccountsPayable: !!addons.accountsPayable,
+        }
+      : {};
+
+  const updated = await prisma.restaurant.update({
     where: { id: restaurantId },
     data: {
       subscriptionStatus: 'ACTIVE',
       subscriptionPlan: plan,
       billingCycle,
       periodEnd: nextPeriodEnd(billingCycle, restaurant.periodEnd),
-      ...(plan === 'CUSTOM' && addons
-        ? {
-            customAdministration: !!addons.administration,
-            customInventoryBasic: !!addons.inventoryBasic,
-            customInventoryRecipe: !!addons.inventoryRecipe,
-            customAccountsPayable: !!addons.accountsPayable,
-          }
-        : {}),
+      // Primera activación o cambio de plan (no una renovación del mismo
+      // plan): marca que falta mostrar la pantalla de bienvenida una vez.
+      ...(restaurant.subscriptionPlan !== plan ? { pendingWelcomePlan: plan } : {}),
+      ...customFlags,
     },
   });
+
+  // Las sucursales (Restaurant.parentRestaurantId, ver src/modules/branches/)
+  // no tienen suscripción propia: heredan plan/ciclo/adicionales de la sede
+  // principal apenas esta se activa o cambia de plan.
+  await prisma.restaurant.updateMany({
+    where: { parentRestaurantId: restaurantId },
+    data: { subscriptionPlan: plan, billingCycle, ...customFlags },
+  });
+
+  return updated;
 }
 
 /** Precio final del plan tras aplicar el código promocional, si hay uno válido. */
-async function resolvePrice(plan: 'DELIVERY' | 'PRO', billingCycle: BillingCycle, promoCode?: string) {
+async function resolvePrice(plan: PurchasablePlan, billingCycle: BillingCycle, promoCode?: string) {
   let priceUsd: number = FIXED_PLAN_PRICES[plan][billingCycle];
   if (!Number.isFinite(priceUsd) || priceUsd <= 0) {
     throw badRequest('No se pudo calcular el precio del plan.');

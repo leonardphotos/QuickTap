@@ -1,6 +1,6 @@
-import { Bike, Boxes, ChefHat, CircleDollarSign, Grid2x2, QrCode, Receipt, Settings, UtensilsCrossed } from 'lucide-react';
+import { Bike, Boxes, Building2, ChefHat, CircleDollarSign, Grid2x2, QrCode, Receipt, Settings, UtensilsCrossed } from 'lucide-react';
 import { RESTRICTED_ROLES, isAdminCashier, isScreenRole } from '../../utils/roles';
-import { hasFeature } from '../../utils/subscription';
+import { allowsBranches, hasFeature, isDeliveryTierPlan } from '../../utils/subscription';
 import type { UserRole } from '../../types';
 
 export interface AdminNavLink {
@@ -29,6 +29,8 @@ export const ADMINISTRATION_NAV_LINK: AdminNavLink = {
 export const INVENTORY_NAV_LINK: AdminNavLink = { to: '/admin/inventory', label: 'Inventario', icon: Boxes };
 // Módulo de Gastos: proveedores, categorías de egreso y balance. Mismo flag que Administración.
 export const EXPENSES_NAV_LINK: AdminNavLink = { to: '/admin/expenses', label: 'Gastos', icon: Receipt };
+// Visible solo con Plan Sucursales / Delivery Sucursales (crear sucursales + reporte consolidado).
+export const SUCURSALES_NAV_LINK: AdminNavLink = { to: '/admin/sucursales', label: 'Sucursales', icon: Building2 };
 
 const RESTRICTED_VISIBLE = new Set(['/admin/kitchen', '/admin/table-orders']);
 // Plan Solo Delivery: sin mesas, así que estas pestañas no aportan nada.
@@ -42,6 +44,7 @@ interface NavRestaurant {
   customInventoryBasic?: boolean;
   customInventoryRecipe?: boolean;
   customAccountsPayable?: boolean;
+  parentRestaurantId?: string | null;
 }
 
 export function visibleNavLinks(
@@ -58,7 +61,7 @@ export function visibleNavLinks(
       links = [...links, INVENTORY_NAV_LINK];
     }
   }
-  if (restaurant?.subscriptionPlan === 'DELIVERY') {
+  if (isDeliveryTierPlan(restaurant?.subscriptionPlan)) {
     links = links.filter((l) => !DELIVERY_HIDDEN.has(l.to));
   }
   if (!isRestricted && !isAdminCashier(role)) {
@@ -69,6 +72,10 @@ export function visibleNavLinks(
     if (isAdminCashier(role) && hasFeature(restaurant, 'administration')) extra.push(ADMINISTRATION_NAV_LINK, EXPENSES_NAV_LINK);
     if (hasFeature(restaurant, 'inventoryBasic') || hasFeature(restaurant, 'inventoryRecipe')) {
       extra.push(INVENTORY_NAV_LINK);
+    }
+    // Solo visible desde la sede principal: una sucursal no puede tener sus propias sucursales.
+    if (isAdminCashier(role) && !restaurant.parentRestaurantId && allowsBranches(restaurant.subscriptionPlan)) {
+      extra.push(SUCURSALES_NAV_LINK);
     }
     if (extra.length > 0) {
       const settingsIndex = links.findIndex((l) => l.to === '/admin/settings');

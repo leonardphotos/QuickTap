@@ -4,7 +4,7 @@ import { BILLING_CYCLE_LABEL, FIXED_PLAN_PRICES, type BillingCycle, type PlanId 
 import { TextureButton } from '@/components/ui/texture-button';
 
 export interface PlanContent {
-  id: 'DELIVERY' | 'PRO';
+  id: 'DELIVERY' | 'PRO' | 'SUCURSALES' | 'DELIVERY_SUCURSALES';
   name: string;
   subtitle: string;
   capacity: string;
@@ -34,6 +34,33 @@ export const PLAN_CONTENT: PlanContent[] = [
       'Cuentas por pagar: cuentas abiertas pendientes de cobro',
     ],
     highlighted: true,
+  },
+  {
+    id: 'SUCURSALES',
+    name: 'Plan Sucursales',
+    subtitle: 'Todos los beneficios de Pro, en hasta 5 sucursales',
+    capacity: 'Hasta 5 sucursales, cada una con mesas y pedidos ilimitados',
+    features: [
+      'Todos los beneficios del Plan Pro en cada sucursal',
+      'Cada sucursal con su propio catálogo, inventario, mesas y equipo',
+      'Reporte consolidado de ventas: sede principal + cada sucursal',
+      'Inventario por sucursal: qué falta reabastecer en cada una',
+      'Productos más vendidos por sucursal',
+      'Equipo de trabajo por sucursal',
+    ],
+  },
+  {
+    id: 'DELIVERY_SUCURSALES',
+    name: 'Delivery Sucursales',
+    subtitle: 'Todos los beneficios de Solo Delivery, en hasta 5 sucursales',
+    capacity: 'Hasta 5 sucursales — sin mesas ni códigos QR',
+    features: [
+      'Productos, Cocinas y Sección de Delivery en cada sucursal',
+      'Cada sucursal con su propio catálogo, inventario y equipo',
+      'Reporte consolidado de ventas: sede principal + cada sucursal',
+      'Inventario por sucursal: qué falta reabastecer en cada una',
+      'Productos más vendidos por sucursal',
+    ],
   },
 ];
 

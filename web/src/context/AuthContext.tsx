@@ -34,7 +34,7 @@ interface AuthRestaurant {
   fullscreenImageEnabled: boolean;
   fullscreenImageUrl?: string | null;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';
-  subscriptionPlan: 'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM' | 'CUSTOM' | null;
+  subscriptionPlan: 'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM' | 'CUSTOM' | 'SUCURSALES' | 'DELIVERY_SUCURSALES' | null;
   billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | null;
   /** Fin del período vigente (prueba o ciclo pagado). El bloqueo por vencimiento se calcula a partir de esto. */
   periodEnd: string;
@@ -46,6 +46,10 @@ interface AuthRestaurant {
   customInventoryBasic: boolean;
   customInventoryRecipe: boolean;
   customAccountsPayable: boolean;
+  /** Si esta cuenta es una sucursal, el id de su sede principal (ver src/modules/branches/). */
+  parentRestaurantId?: string | null;
+  /** Plan que acaba de activarse y todavía no se le mostró la pantalla de bienvenida. */
+  pendingWelcomePlan?: string | null;
 }
 
 interface AuthState {
@@ -64,6 +68,10 @@ interface AuthState {
   }) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
+  /** Cambia la sesión activa hacia una sucursal (ver src/modules/branches/). Recarga la app. */
+  switchToBranch: (branchId: string) => Promise<void>;
+  /** Inverso: de una sucursal, vuelve a la sesión de la sede principal. Recarga la app. */
+  switchToParent: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -126,8 +134,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRestaurant(null);
   }
 
+  // Cambiar de sede reemplaza el tenant activo de arriba a abajo (pedidos,
+  // productos, mesas, sockets...), así que en vez de solo actualizar el
+  // estado se recarga la app entera con el token nuevo ya guardado.
+  async function switchToBranch(branchId: string) {
+    const { data } = await api.post(`/branches/${branchId}/switch`);
+    setToken(data.data.token);
+    window.location.href = '/admin';
+  }
+
+  async function switchToParent() {
+    const { data } = await api.post('/branches/switch-to-parent');
+    setToken(data.data.token);
+    window.location.href = '/admin';
+  }
+
   return (
-    <AuthContext.Provider value={{ user, restaurant, loading, login, register, logout, refresh }}>
+    <AuthContext.Provider
+      value={{ user, restaurant, loading, login, register, logout, refresh, switchToBranch, switchToParent }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -16,6 +16,8 @@ const PLAN_LABELS: Record<string, string> = {
   PRO: 'Plan Pro',
   PREMIUM: 'Plan Premium',
   CUSTOM: 'Plan Personalizado',
+  SUCURSALES: 'Plan Sucursales',
+  DELIVERY_SUCURSALES: 'Delivery Sucursales',
 };
 
 export default function DashboardPage() {
@@ -41,8 +43,10 @@ export default function DashboardPage() {
 
   return (
     <div className="py-2">
+      {/* En pantallas anchas la barra superior de AdminLayout ya muestra el logo y el
+          nombre del restaurante — aquí solo queda el badge de plan + vencimiento, sin duplicar. */}
       <div className="flex items-start justify-between gap-3 mb-8">
-        <Link to="/admin/billing" className="flex items-center gap-3 min-w-0">
+        <Link to="/admin/billing" className="flex items-center gap-3 min-w-0 lg:hidden">
           <img
             src={restaurant.logoUrl || '/logo/icono.png'}
             alt=""
@@ -54,6 +58,13 @@ export default function DashboardPage() {
               {planLabel ?? 'Sin plan'}
             </span>
           </div>
+        </Link>
+
+        <Link
+          to="/admin/billing"
+          className="hidden lg:inline-block text-xs font-medium text-brand-500 bg-brand-500/10 rounded-full px-2.5 py-1"
+        >
+          {planLabel ?? 'Sin plan'}
         </Link>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -68,21 +79,25 @@ export default function DashboardPage() {
           <button
             onClick={() => setMenuOpen(true)}
             aria-label="Abrir menú"
-            className="h-9 w-9 rounded-full bg-brand-950/[0.06] hover:bg-brand-950/10 flex items-center justify-center shrink-0"
+            className="lg:hidden h-9 w-9 rounded-full bg-brand-950/[0.06] hover:bg-brand-950/10 flex items-center justify-center shrink-0"
           >
             <Menu className="h-4.5 w-4.5 text-brand-950/70" />
           </button>
         </div>
       </div>
 
-      <div className="flex flex-col items-center text-center">
-        <a href={`/r/${restaurant.slug}`} target="_blank" rel="noopener noreferrer" className="mb-4">
-          <TextureButton variant="minimal" size="sm" className="!w-auto px-4">
-            <ExternalLink className="h-3.5 w-3.5 mr-1.5" /> Ver mi menú
-          </TextureButton>
-        </a>
-        {isAdminCashier(user?.role) && <DailySalesSummary />}
-        <LiveOrdersPanel />
+      <div className="flex flex-col items-center text-center lg:flex-row lg:items-start lg:text-left lg:gap-8">
+        <div className="lg:w-72 lg:shrink-0 lg:sticky lg:top-24 flex flex-col items-center lg:items-stretch">
+          <a href={`/r/${restaurant.slug}`} target="_blank" rel="noopener noreferrer" className="mb-4 lg:self-start">
+            <TextureButton variant="minimal" size="sm" className="!w-auto px-4">
+              <ExternalLink className="h-3.5 w-3.5 mr-1.5" /> Ver mi menú
+            </TextureButton>
+          </a>
+          {isAdminCashier(user?.role) && <DailySalesSummary />}
+        </div>
+        <div className="w-full lg:flex-1 lg:min-w-0">
+          <LiveOrdersPanel />
+        </div>
       </div>
 
       <NavMenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />

@@ -17,7 +17,11 @@ function withSubscriptionInfo<T extends { periodEnd: Date; suspended: boolean }>
 export const masterRestaurantsService = {
   /** Lista de todos los restaurantes para el Dashboard maestro. */
   async list() {
+    // Las sucursales son otra fila de Restaurant (ver src/modules/branches/):
+    // no son cuentas propias que le pagan a QuickTap, así que se excluyen
+    // de este listado para no inflar/duplicar el conteo de restaurantes.
     const restaurants = await prisma.restaurant.findMany({
+      where: { parentRestaurantId: null },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,

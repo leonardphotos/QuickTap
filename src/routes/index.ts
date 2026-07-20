@@ -38,6 +38,7 @@ import supplierRoutes from '../modules/suppliers/supplier.routes';
 import modifierCategoryRoutes from '../modules/modifier-categories/modifier-category.routes';
 import { publicReservationRoutes, tenantReservationRoutes } from '../modules/reservations/reservation.routes';
 import { publicRamblayRoutes } from '../modules/ramblay/ramblay.routes';
+import branchRoutes from '../modules/branches/branch.routes';
 
 /**
  * Enrutador raíz de la API v1.
@@ -82,6 +83,7 @@ router.use('/cash-sessions', cashSessionRoutes);
 router.use('/delivery-couriers', deliveryCourierRoutes);
 router.use('/delivery-zones', deliveryZoneRoutes);
 router.use('/reservations', tenantReservationRoutes);
+router.use('/branches', branchRoutes);
 
 // --- Público ---
 router.use('/public', menuRoutes);

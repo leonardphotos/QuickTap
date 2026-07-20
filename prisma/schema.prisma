@@ -119,6 +119,8 @@ enum SubscriptionPlan {
   PREMIUM // Plan Premium / Grandes Formatos
   DELIVERY // Plan Solo Delivery: Cocina + pedidos por WhatsApp, sin mesas/QR
   CUSTOM // Plan Personalizado (por sumatoria de mesas/usuarios/pedidos)
+  SUCURSALES // Todos los beneficios de Pro + hasta 5 sucursales
+  DELIVERY_SUCURSALES // Plan Solo Delivery + hasta 5 sucursales
 }
 
 enum BillingCycle {
@@ -252,6 +254,22 @@ model Restaurant {
   billingCycle       BillingCycle?
   periodEnd          DateTime
 
+  // Plan que acaba de activarse (primera vez o cambio de plan) y todavía no
+  // se le mostró al restaurante la pantalla de bienvenida ("Bienvenido al
+  // Club"). Se limpia (null) apenas el frontend confirma haberla mostrado.
+  // No se toca en una renovación del MISMO plan (ver applyActivation()).
+  pendingWelcomePlan SubscriptionPlan?
+
+  // --- Sucursales (Plan Sucursales / Delivery Sucursales, tope de 5) ---
+  // Una sucursal es otra fila de Restaurant (reutiliza TODO el modelo tal
+  // cual: catálogo, inventario, pedidos, equipo, mesas propias) enlazada a
+  // su sede principal solo para el reporte consolidado y para heredar
+  // plan/vigencia — no paga ni se bloquea de forma independiente (ver
+  // isLockedAsync() en src/utils/subscription.ts y applyActivation()).
+  parentRestaurantId String?
+  parent             Restaurant?  @relation("RestaurantBranches", fields: [parentRestaurantId], references: [id])
+  branches           Restaurant[] @relation("RestaurantBranches")
+
   // --- Adicionales del Plan Personalizado (CUSTOM) ---
   // Para PRO/PREMIUM el acceso a estas funciones ya viene incluido según el
   // plan (ver src/utils/subscription.ts, hasFeature()); estos 4 campos solo
@@ -297,6 +315,7 @@ model Restaurant {
   schedules          RestaurantSchedule[]
   reservations       Reservation[]
 
+  @@index([parentRestaurantId])
   @@map("restaurants")
 }
 

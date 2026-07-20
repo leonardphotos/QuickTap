@@ -148,7 +148,7 @@ export function PaymentForm({
         },
         authToken ? { headers: { Authorization: `Bearer ${authToken}` } } : undefined,
       );
-      setSuccessMessage('¡Solicitud enviada! Verificaremos tu pago y activaremos tu cuenta a la brevedad.');
+      setSuccessMessage('En máximo 10 minutos tu plan estará activo.');
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No se pudo enviar la solicitud.');
     } finally {
@@ -258,7 +258,7 @@ export function PaymentForm({
             payWith === 'ramblay' ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
           }`}
         >
-          <CreditCard className="h-3.5 w-3.5" /> Pagar con Ramblay
+          <CreditCard className="h-3.5 w-3.5" /> Pago Automatizado
         </button>
         <button
           type="button"
@@ -320,21 +320,23 @@ export function PaymentForm({
       )}
 
       <form onSubmit={onSubmit} className="space-y-4">
-        <div className="grid sm:grid-cols-2 gap-4">
-          <Field label="Nombre" value={contactName} onChange={setContactName} required />
-          <Field label="Correo" type="email" value={contactEmail} onChange={setContactEmail} required />
-          <Field label="Teléfono" value={contactPhone} onChange={setContactPhone} placeholder="584141234567" />
-          {!authToken && <Field label="Nombre del restaurante" value={restaurantName} onChange={setRestaurantName} />}
-        </div>
-
         {payWith === 'manual' && (
-          <Field
-            label="Número de referencia del pago"
-            value={paymentReference}
-            onChange={setPaymentReference}
-            placeholder="Ej: 004215778901"
-            required
-          />
+          <>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <Field label="Nombre" value={contactName} onChange={setContactName} required />
+              <Field label="Correo" type="email" value={contactEmail} onChange={setContactEmail} required />
+              <Field label="Teléfono" value={contactPhone} onChange={setContactPhone} placeholder="584141234567" />
+              {!authToken && <Field label="Nombre del restaurante" value={restaurantName} onChange={setRestaurantName} />}
+            </div>
+
+            <Field
+              label="Número de referencia del pago"
+              value={paymentReference}
+              onChange={setPaymentReference}
+              placeholder="Ej: 004215778901"
+              required
+            />
+          </>
         )}
 
         {error && <p className="text-sm text-red-600">{error}</p>}
@@ -352,7 +354,7 @@ export function PaymentForm({
               : 'Enviando…'
             : payWith === 'ramblay'
               ? 'Pagar con Ramblay'
-              : 'Enviar solicitud'}
+              : 'Pagar'}
         </TextureButton>
       </form>
       <Toast message={toastMessage} />

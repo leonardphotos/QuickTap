@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 import { prisma } from '../config/prisma';
 import { forbidden, HttpError, unauthorized } from '../utils/http-error';
-import { FeatureFlag, hasFeature, isLocked } from '../utils/subscription';
+import { FeatureFlag, hasFeature, isLockedAsync } from '../utils/subscription';
 import { FULL_ACCESS_ROLES } from '../utils/roles';
 
 /**
@@ -14,6 +14,10 @@ export interface AuthPayload {
   userId: string;
   restaurantId: string;
   role: string;
+  // Presente solo en el token de una sucursal: el restaurantId de su sede
+  // principal (ver src/modules/branches/). Permite "volver a sede principal"
+  // sin tener que resolverlo con otra consulta.
+  parentRestaurantId?: string;
 }
 
 // Extiende el Request de Express con el usuario autenticado + el tenant.
@@ -73,9 +77,9 @@ export function requireRole(...roles: string[]) {
  */
 function blockIfLocked(req: Request, _res: Response, next: NextFunction) {
   prisma.restaurant
-    .findUnique({ where: { id: req.restaurantId }, select: { periodEnd: true, suspended: true } })
-    .then((restaurant) => {
-      if (restaurant && isLocked(restaurant)) {
+    .findUnique({ where: { id: req.restaurantId }, select: { periodEnd: true, suspended: true, parentRestaurantId: true } })
+    .then(async (restaurant) => {
+      if (restaurant && (await isLockedAsync(restaurant))) {
         throw new HttpError(403, 'Esta cuenta está bloqueada por falta de pago.', { code: 'ACCOUNT_LOCKED' });
       }
       next();

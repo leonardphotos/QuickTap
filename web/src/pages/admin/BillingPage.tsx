@@ -8,6 +8,7 @@ import { PaymentForm, type SelectedPlan } from '@/components/landing/PaymentForm
 import { TextureButton } from '@/components/ui/texture-button';
 
 type ChoosablePlan = Exclude<PlanId, 'TRIAL' | 'STARTER' | 'PREMIUM' | 'CUSTOM'>;
+const VALID_PLANS: ChoosablePlan[] = ['DELIVERY', 'PRO', 'SUCURSALES', 'DELIVERY_SUCURSALES'];
 
 /** Activar el plan (fin de la prueba) o pagar la mensualidad, ya autenticado. */
 export default function BillingPage() {
@@ -25,6 +26,16 @@ export default function BillingPage() {
       .catch(() => setRateBs(null));
   }, []);
 
+  // Vuelta desde el checkout hospedado de Ramblay (ver plan-request.service.ts,
+  // createRamblayCheckout): refresca el restaurante para traer el plan recién
+  // activado (si el webhook ya llegó) y vuelve al panel — si `pendingWelcomePlan`
+  // quedó seteado, AdminLayout redirige solo a la bienvenida.
+  useEffect(() => {
+    if (searchParams.get('ramblay') !== 'success') return;
+    refresh().then(() => navigate('/admin', { replace: true }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function choosePlan(plan: ChoosablePlan, cycle: BillingCycle = billingCycle) {
     setSelected({ plan, billingCycle: cycle, priceUsd: FIXED_PLAN_PRICES[plan][cycle] });
     requestAnimationFrame(() => {
@@ -36,8 +47,7 @@ export default function BillingPage() {
   // pre-selecciona el plan y muestra el formulario de pago directamente.
   useEffect(() => {
     const planParam = searchParams.get('plan');
-    const validPlans: ChoosablePlan[] = ['DELIVERY', 'PRO'];
-    if (!planParam || !validPlans.includes(planParam as ChoosablePlan)) return;
+    if (!planParam || !VALID_PLANS.includes(planParam as ChoosablePlan)) return;
     const plan = planParam as ChoosablePlan;
     const cycleParam = searchParams.get('cycle');
     const cycle: BillingCycle =
@@ -76,7 +86,7 @@ export default function BillingPage() {
             prefillEmail={user?.email}
             renderSuccess={(message) => (
               <div className="rounded-2xl border border-brand-950/10 bg-white p-8 text-center shadow-sm">
-                <p className="text-lg font-semibold text-brand-950">¡Solicitud enviada!</p>
+                <p className="text-lg font-semibold text-brand-950">Pago en verificación</p>
                 <p className="text-sm text-brand-950/60 font-light mt-1">{message}</p>
                 <TextureButton
                   variant="brand"

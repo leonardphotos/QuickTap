@@ -22,6 +22,10 @@ export const restaurantController = {
     res.json({ data: schedule });
   }),
 
+  markWelcomeSeen: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await restaurantService.markWelcomeSeen(req.restaurantId!) });
+  }),
+
   uploadLogo: asyncHandler(async (req: Request, res: Response) => {
     if (!req.file) throw badRequest('No se recibió ningún archivo.');
     res.status(201).json({ data: { url: `/uploads/logos/${req.file.filename}` } });

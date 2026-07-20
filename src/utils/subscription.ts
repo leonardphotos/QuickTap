@@ -1,4 +1,5 @@
-import { BillingCycle } from '@prisma/client';
+import { BillingCycle, SubscriptionPlan } from '@prisma/client';
+import { prisma } from '../config/prisma';
 
 export const TRIAL_DAYS = 15;
 // Al llegar a 0 días, el restaurante tiene 12h de gracia antes de bloquearse.
@@ -29,6 +30,26 @@ export function isLocked(restaurant: { periodEnd: Date; suspended?: boolean }): 
   if (restaurant.suspended) return true;
   const graceDeadline = restaurant.periodEnd.getTime() + GRACE_HOURS * 60 * 60 * 1000;
   return Date.now() > graceDeadline;
+}
+
+/**
+ * Igual que `isLocked`, pero para una sucursal (Restaurant.parentRestaurantId
+ * seteado) resuelve el bloqueo con el `periodEnd`/`suspended` de la SEDE
+ * PRINCIPAL, no los propios: una sucursal nunca se bloquea de forma
+ * independiente, depende de que la cuenta principal esté al día.
+ */
+export async function isLockedAsync(restaurant: {
+  periodEnd: Date;
+  suspended?: boolean;
+  parentRestaurantId?: string | null;
+}): Promise<boolean> {
+  if (!restaurant.parentRestaurantId) return isLocked(restaurant);
+  const parent = await prisma.restaurant.findUnique({
+    where: { id: restaurant.parentRestaurantId },
+    select: { periodEnd: true, suspended: true },
+  });
+  if (!parent) return isLocked(restaurant);
+  return isLocked(parent);
 }
 
 /** Días completos restantes hasta `periodEnd` (0 el día que vence, negativo ya en gracia/bloqueado). */
@@ -68,10 +89,28 @@ const CUSTOM_FLAG_FIELD: Record<FeatureFlag, keyof FeatureCheckRestaurant> = {
   accountsPayable: 'customAccountsPayable',
 };
 
+/** Planes "completos" (todos los beneficios de Administración/Inventario/etc.), con o sin sucursales. */
+export function isFullTierPlan(plan?: string | null): boolean {
+  return plan === 'PRO' || plan === 'PREMIUM' || plan === 'SUCURSALES';
+}
+
+/** Planes "Solo Delivery" (sin mesas/QR, acceso directo a Cocina), con o sin sucursales. */
+export function isDeliveryTierPlan(plan?: string | null): boolean {
+  return plan === 'DELIVERY' || plan === 'DELIVERY_SUCURSALES';
+}
+
+/** Planes que habilitan crear sucursales (tope de MAX_BRANCHES cada uno). */
+export function allowsBranches(plan?: string | null): boolean {
+  return plan === 'SUCURSALES' || plan === 'DELIVERY_SUCURSALES';
+}
+
+export const MAX_BRANCHES = 5;
+
 export function hasFeature(restaurant: FeatureCheckRestaurant, feature: FeatureFlag): boolean {
   // Plan Pro (único plan completo desde la reducción a 2 planes): todos los beneficios,
   // igual que Premium (mantenido por compatibilidad con restaurantes ya activados en él).
-  if (restaurant.subscriptionPlan === 'PRO' || restaurant.subscriptionPlan === 'PREMIUM') return true;
+  // Sucursales trae exactamente los mismos beneficios que Pro, más sucursales.
+  if (isFullTierPlan(restaurant.subscriptionPlan)) return true;
   if (restaurant.subscriptionPlan === 'CUSTOM') return Boolean(restaurant[CUSTOM_FLAG_FIELD[feature]]);
   return false;
 }

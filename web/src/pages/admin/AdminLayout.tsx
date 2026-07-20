@@ -8,6 +8,7 @@ import { NavMenuDrawer } from '@/components/admin/NavMenuDrawer';
 import { useCopyToast } from '../../hooks/useCopyToast';
 import { canAccessPath, defaultPathFor, isScreenRole } from '../../utils/roles';
 import { daysRemaining, graceHoursRemaining } from '../../utils/subscription';
+import { visibleNavLinks } from './nav-links';
 
 export default function AdminLayout() {
   const { user, restaurant, loading, logout } = useAuth();
@@ -41,6 +42,12 @@ export default function AdminLayout() {
     );
   }
 
+  // Plan recién activado/cambiado (pago manual aprobado o webhook de Ramblay):
+  // se muestra la bienvenida una sola vez antes de dejar entrar al panel.
+  if (restaurant.pendingWelcomePlan) {
+    return <Navigate to="/admin/welcome" replace />;
+  }
+
   if (!canAccessPath(user.role, pathname, user.canAccessInventory)) {
     return <Navigate to={defaultPathFor(user.role)} replace />;
   }
@@ -58,6 +65,7 @@ export default function AdminLayout() {
   const daysLeft = daysRemaining(restaurant.periodEnd);
   const graceHours = graceHoursRemaining(restaurant.periodEnd);
   const showExpirationWarning = daysLeft <= 3;
+  const navLinks = visibleNavLinks(user.role, restaurant, user.canAccessInventory);
 
   return (
     <div className="min-h-screen bg-[#fafafa]">
@@ -71,12 +79,60 @@ export default function AdminLayout() {
             : `En ${daysLeft} día${daysLeft === 1 ? '' : 's'} vence tu plan. Actívalo aquí.`}
         </Link>
       )}
-      <main className="max-w-5xl mx-auto px-6 pt-10 pb-28">
+
+      {/* Barra superior: solo en pantallas anchas (tablet horizontal / escritorio) — en
+          celular la navegación sigue siendo el dock flotante de abajo, más cómodo con el pulgar. */}
+      <div className="hidden lg:block sticky top-0 z-30 backdrop-blur-md bg-white/80 border-b border-brand-950/[0.06]">
+        <div className="max-w-7xl mx-auto px-8 h-16 flex items-center justify-between gap-6">
+          <Link to="/admin" className="flex items-center gap-2.5 min-w-0 shrink-0">
+            <img
+              src={restaurant.logoUrl || '/logo/icono.png'}
+              alt=""
+              className="h-8 w-8 rounded-full object-cover shrink-0"
+            />
+            <span className="text-sm font-semibold text-brand-950 truncate max-w-40">{restaurant.name}</span>
+          </Link>
+
+          <nav className="flex items-center gap-1 rounded-full bg-brand-950/[0.04] p-1 overflow-x-auto">
+            {navLinks.map((l) => {
+              const active = pathname === l.to;
+              return (
+                <Link
+                  key={l.to}
+                  to={l.to}
+                  className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors ${
+                    active ? 'bg-brand-500 text-white shadow-[0_6px_16px_-6px_rgba(5,108,242,0.5)]' : 'text-brand-950/60 hover:bg-brand-950/[0.06]'
+                  }`}
+                >
+                  <l.icon className="h-4 w-4" /> {l.label}
+                </Link>
+              );
+            })}
+          </nav>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            <TextureButton
+              variant="icon"
+              size="icon"
+              className="!h-9 !w-9"
+              aria-label="Compartir enlace del menú"
+              onClick={() => copy(`${window.location.origin}/r/${restaurant.slug}`, 'Enlace copiado')}
+            >
+              <Share2 className="h-4 w-4 text-brand-950/70" />
+            </TextureButton>
+            <TextureButton variant="icon" size="icon" className="!h-9 !w-9" aria-label="Abrir menú" onClick={() => setMenuOpen(true)}>
+              <Menu className="h-4 w-4 text-brand-950/70" />
+            </TextureButton>
+          </div>
+        </div>
+      </div>
+
+      <main className="max-w-5xl lg:max-w-7xl mx-auto px-6 lg:px-8 pt-10 lg:pt-8 pb-28 lg:pb-12">
         <Outlet />
       </main>
 
-      {/* Dock flotante: única navegación del panel, siempre centrada abajo. */}
-      <div className="fixed bottom-5 inset-x-0 z-30 flex justify-center pointer-events-none">
+      {/* Dock flotante: navegación en celular/tablet vertical (la barra superior la reemplaza en pantallas anchas). */}
+      <div className="lg:hidden fixed bottom-5 inset-x-0 z-30 flex justify-center pointer-events-none">
         <div className="pointer-events-auto flex items-center gap-2.5 rounded-full bg-white/90 backdrop-blur-md border border-brand-950/[0.08] shadow-lg shadow-brand-950/10 px-3 py-3">
           <Link to="/admin">
             <TextureButton variant="icon" size="icon" className="!h-11 !w-11" aria-label="Inicio">

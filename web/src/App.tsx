@@ -21,6 +21,8 @@ const BillingPage = lazy(() => import('./pages/admin/BillingPage'));
 const AdministrationPage = lazy(() => import('./pages/admin/AdministrationPage'));
 const InventoryPage = lazy(() => import('./pages/admin/InventoryPage'));
 const ExpensesPage = lazy(() => import('./pages/admin/ExpensesPage'));
+const SucursalesPage = lazy(() => import('./pages/admin/SucursalesPage'));
+const WelcomePage = lazy(() => import('./pages/admin/WelcomePage'));
 const MasterLoginPage = lazy(() => import('./pages/master/MasterLoginPage'));
 const MasterLayout = lazy(() => import('./pages/master/MasterLayout'));
 const MasterRestaurantsPage = lazy(() => import('./pages/master/MasterRestaurantsPage'));
@@ -59,6 +61,8 @@ export default function App() {
             <Route path="/admin/login" element={<LoginPage />} />
             <Route path="/admin/register" element={<RegisterPage />} />
             <Route path="/admin/forgot-password" element={<ForgotPasswordPage />} />
+            {/* Pantalla única post-pago, sin el chrome de AdminLayout (ver Restaurant.pendingWelcomePlan). */}
+            <Route path="/admin/welcome" element={<WelcomePage />} />
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<DashboardPage />} />
               <Route path="kitchen" element={<KitchenPage />} />
@@ -71,6 +75,7 @@ export default function App() {
               <Route path="administration" element={<AdministrationPage />} />
               <Route path="inventory" element={<InventoryPage />} />
               <Route path="expenses" element={<ExpensesPage />} />
+              <Route path="sucursales" element={<SucursalesPage />} />
               <Route path="screen" element={<ScreenPage />} />
             </Route>
 

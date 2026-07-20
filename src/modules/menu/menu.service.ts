@@ -2,7 +2,7 @@ import { prisma } from '../../config/prisma';
 import { HttpError, notFound } from '../../utils/http-error';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { CURRENCY_SYMBOLS, round2, toDecimal } from '../../utils/money';
-import { isLocked } from '../../utils/subscription';
+import { isLockedAsync } from '../../utils/subscription';
 import { getRestaurantOpenStatus } from '../../utils/business-hours';
 
 /**
@@ -25,6 +25,7 @@ export const menuService = {
         theme: true,
         periodEnd: true,
         suspended: true,
+        parentRestaurantId: true,
         orderingEnabled: true,
         serviceChargeEnabled: true,
         ivaEnabled: true,
@@ -41,7 +42,7 @@ export const menuService = {
     }
 
     // Cuenta bloqueada por falta de pago: se apaga también el menú público.
-    if (isLocked(restaurant)) {
+    if (await isLockedAsync(restaurant)) {
       throw new HttpError(403, 'Este menú no está disponible en este momento.', { code: 'ACCOUNT_LOCKED' });
     }
 
