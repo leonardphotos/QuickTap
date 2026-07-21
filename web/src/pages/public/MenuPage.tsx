@@ -8,6 +8,7 @@ import type { CartLine, PublicMenu, Product, Restaurant, ServiceRequestType } fr
 import { cartLineUnitPrice, hexToRgba, publicPriceLabel } from '../../utils/format';
 import ProductGridCard from './ProductGridCard';
 import ProductDetailSheet from './ProductDetailSheet';
+import PhotoGallery from './PhotoGallery';
 import CartDrawer from './CartDrawer';
 import ReservationDialog from './ReservationDialog';
 import { Toast } from '@/components/ui/toast';
@@ -31,6 +32,7 @@ export default function MenuPage() {
   const [cart, setCart] = useState<CartLine[]>([]);
   const [cartOpen, setCartOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [readyMessage, setReadyMessage] = useState<string | null>(null);
@@ -144,7 +146,14 @@ export default function MenuPage() {
   );
 
   const allProducts = useMemo(() => menu?.categories.flatMap((c) => c.products) ?? [], [menu]);
+  // Solo los productos con foto pueden aparecer en la galería estilo carrusel.
+  const galleryProducts = useMemo(() => allProducts.filter((p) => p.photoUrl), [allProducts]);
   const searchTerm = search.trim().toLowerCase();
+
+  function openGallery(product: Product) {
+    const idx = galleryProducts.findIndex((p) => p.id === product.id);
+    if (idx >= 0) setGalleryIndex(idx);
+  }
 
   // Categorías a mostrar: si hay búsqueda, un solo grupo de resultados;
   // si no, las categorías reales filtradas por la pestaña activa y/o "solo destacados".
@@ -317,7 +326,13 @@ export default function MenuPage() {
             <h2 className="text-base font-semibold text-brand-950 mb-3">{cat.name}</h2>
             <div className="grid grid-cols-2 gap-3">
               {cat.products.map((p) => (
-                <ProductGridCard key={p.id} product={p} restaurant={restaurant} onOpen={setSelectedProduct} />
+                <ProductGridCard
+                  key={p.id}
+                  product={p}
+                  restaurant={restaurant}
+                  onOpen={setSelectedProduct}
+                  onOpenGallery={openGallery}
+                />
               ))}
             </div>
           </section>
@@ -333,6 +348,21 @@ export default function MenuPage() {
         onSelectProduct={setSelectedProduct}
         orderingEnabled={restaurant.orderingEnabled && restaurant.isOpen !== false}
       />
+
+      {galleryIndex !== null && (
+        <PhotoGallery
+          products={galleryProducts}
+          initialIndex={galleryIndex}
+          restaurant={restaurant}
+          orderingEnabled={restaurant.orderingEnabled && restaurant.isOpen !== false}
+          onClose={() => setGalleryIndex(null)}
+          onAdd={addToCart}
+          onNeedsPicker={(product) => {
+            setGalleryIndex(null);
+            setSelectedProduct(product);
+          }}
+        />
+      )}
 
       {cartOpen && (
         <CartDrawer

@@ -314,12 +314,12 @@ export function ProductFormDialog({
           </label>
 
           {/* Agregar modificadores: categorías reutilizables (armadas en "Modificadores") asociadas a este producto. */}
-          {product && (
-            <div className="rounded-xl border border-brand-950/10 p-3 space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-medium text-brand-950/70">
-                  Agregar modificadores {linkedCategories.length > 0 && `(${linkedCategories.length})`}
-                </p>
+          <div className="rounded-xl border border-brand-950/10 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium text-brand-950/70">
+                Agregar modificadores {linkedCategories.length > 0 && `(${linkedCategories.length})`}
+              </p>
+              {product && (
                 <button
                   type="button"
                   onClick={() => setShowCategoryPicker((s) => !s)}
@@ -327,42 +327,48 @@ export function ProductFormDialog({
                 >
                   <Plus className="h-4 w-4" />
                 </button>
-              </div>
-              {showCategoryPicker && (
-                <select
-                  autoFocus
-                  value=""
-                  onChange={(e) => associateCategory(e.target.value)}
-                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-                >
-                  <option value="">Elige una categoría de modificadores…</option>
-                  {availableToLink.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {linkedCategories.length === 0 ? (
-                <p className="text-xs text-brand-950/40 font-light">Ingredientes, sabores, cubiertos…</p>
-              ) : (
-                <ul className="divide-y divide-brand-950/10">
-                  {linkedCategories.map((c) => (
-                    <li key={c.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                      <span className="text-brand-950 truncate">{c.name}</span>
-                      <button
-                        type="button"
-                        onClick={() => dissociateCategory(c.id)}
-                        className="text-brand-950/30 hover:text-red-500 shrink-0"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
               )}
             </div>
-          )}
+            {!product ? (
+              <p className="text-xs text-brand-950/50">Guarda el producto primero para agregar modificadores.</p>
+            ) : (
+              <>
+                {showCategoryPicker && (
+                  <select
+                    autoFocus
+                    value=""
+                    onChange={(e) => associateCategory(e.target.value)}
+                    className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                  >
+                    <option value="">Elige una categoría de modificadores…</option>
+                    {availableToLink.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {linkedCategories.length === 0 ? (
+                  <p className="text-xs text-brand-950/40 font-light">Ingredientes, sabores, cubiertos…</p>
+                ) : (
+                  <ul className="divide-y divide-brand-950/10">
+                    {linkedCategories.map((c) => (
+                      <li key={c.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+                        <span className="text-brand-950 truncate">{c.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => dissociateCategory(c.id)}
+                          className="text-brand-950/30 hover:text-red-500 shrink-0"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
 
           <div className="flex flex-wrap gap-4 text-sm">
             <label className="flex items-center gap-1.5">
