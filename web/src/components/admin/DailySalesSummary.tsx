@@ -82,7 +82,7 @@ export function DailySalesSummary() {
   return (
     <div className="w-full">
       {/* Celular: tarjeta compacta de 3 columnas, todo dentro de la misma ventana. */}
-      <div className="lg:hidden max-w-md mb-8 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm px-5 py-4 text-left">
+      <div className="lg:hidden w-full mb-8 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm px-5 py-4 text-left">
         <div className="flex items-center gap-2 mb-3">
           <TrendingUp className="h-5 w-5 text-brand-500" />
           <p className="text-sm font-semibold text-brand-950">Movimientos del día</p>
