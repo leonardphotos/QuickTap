@@ -711,7 +711,7 @@ function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder; onClos
                 placeholder="Nota (opcional)"
                 className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
               />
-              <TextureButton variant="minimal" size="sm" className="!w-auto px-4" disabled={saving} onClick={saveCustomer}>
+              <TextureButton variant="minimal" size="sm" className="!w-auto" disabled={saving} onClick={saveCustomer}>
                 Guardar datos del cliente
               </TextureButton>
             </div>
@@ -818,16 +818,16 @@ function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder; onClos
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <div className="flex flex-wrap gap-2">
-            <TextureButton variant="secondary" size="sm" className="!w-auto px-3" disabled={printing} onClick={printComanda}>
+            <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={printing} onClick={printComanda}>
               <Printer className="h-3.5 w-3.5" /> {printing ? 'Enviando…' : 'Imprimir'}
             </TextureButton>
-            <TextureButton variant="secondary" size="sm" className="!w-auto px-3" disabled={downloading} onClick={downloadJpg}>
+            <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={downloading} onClick={downloadJpg}>
               <Download className="h-3.5 w-3.5" /> {downloading ? 'Generando…' : 'Descargar'}
             </TextureButton>
             <TextureButton
               variant="secondary"
               size="sm"
-              className="!w-auto px-3"
+              className="!w-auto"
               disabled={sendingWhatsapp || !order.customerPhone}
               onClick={sendWhatsapp}
               title={order.customerPhone ? undefined : 'Este pedido no tiene teléfono registrado.'}

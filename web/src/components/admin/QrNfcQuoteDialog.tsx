@@ -54,7 +54,7 @@ export function QrNfcQuoteDialog({ onClose }: Props) {
             <p className="text-sm text-brand-950/60 font-light">
               Te contactaremos pronto para coordinar el pago y la entrega.
             </p>
-            <TextureButton variant="brand" size="default" onClick={onClose} className="mt-2 !w-auto px-6 mx-auto">
+            <TextureButton variant="brand" size="default" onClick={onClose} className="mt-2 !w-auto mx-auto">
               Listo
             </TextureButton>
           </div>

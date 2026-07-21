@@ -158,7 +158,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                   <TextureButton
                     variant="brand"
                     size="default"
-                    className="!w-auto px-4"
+                    className="!w-auto"
                     onClick={() => {
                       setPaidNow(null);
                       setAmount('');
@@ -168,7 +168,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     Seguir pagando fraccionado
                   </TextureButton>
                 )}
-                <TextureButton variant="secondary" size="default" className="!w-auto px-4" onClick={onClose}>
+                <TextureButton variant="secondary" size="default" className="!w-auto" onClick={onClose}>
                   {remainingAfter > 0.01 ? 'Cerrar por ahora' : 'Cerrar'}
                 </TextureButton>
               </div>

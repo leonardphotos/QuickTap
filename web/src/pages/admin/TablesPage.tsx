@@ -133,7 +133,7 @@ export default function TablesPage() {
         <TextureButton
           variant="minimal"
           size="default"
-          className="!w-auto px-4 flex items-center gap-1.5"
+          className="!w-auto flex items-center gap-1.5"
           onClick={() => setZoneDialogOpen(true)}
         >
           <MapPin className="h-4 w-4" /> Zona
@@ -142,7 +142,7 @@ export default function TablesPage() {
         <TextureButton
           variant="minimal"
           size="default"
-          className="!w-auto px-4 flex items-center gap-1.5 disabled:opacity-50"
+          className="!w-auto flex items-center gap-1.5 disabled:opacity-50"
           onClick={downloadAll}
           disabled={downloading || tables.length === 0}
         >

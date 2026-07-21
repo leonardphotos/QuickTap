@@ -112,7 +112,7 @@ export function ExpenseFormDialog({ onClose, onCreated }: { onClose: () => void;
                 setShowSupplierPicker(false);
               }}
             />
-            <TextureButton variant="minimal" size="sm" className="!w-auto px-3" onClick={() => setShowSupplierPicker(false)}>
+            <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={() => setShowSupplierPicker(false)}>
               Cancelar
             </TextureButton>
           </div>

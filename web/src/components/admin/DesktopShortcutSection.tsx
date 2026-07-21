@@ -46,7 +46,7 @@ export function DesktopShortcutSection() {
         <TextureButton
           variant="secondary"
           size="sm"
-          className="!w-auto px-4 flex items-center gap-1.5"
+          className="!w-auto flex items-center gap-1.5"
           onClick={downloadShortcut}
         >
           <Download className="h-3.5 w-3.5" /> Descargar acceso directo

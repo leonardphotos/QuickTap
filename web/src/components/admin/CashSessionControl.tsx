@@ -33,12 +33,12 @@ export function CashSessionControl() {
   return (
     <>
       {!session && (
-        <TextureButton variant="secondary" size="sm" className="!w-auto px-3" onClick={() => setShowOpen(true)}>
+        <TextureButton variant="secondary" size="sm" className="!w-auto" onClick={() => setShowOpen(true)}>
           <Unlock className="h-3.5 w-3.5" /> Abrir Caja
         </TextureButton>
       )}
       {session && (
-        <TextureButton variant="secondary" size="sm" className="!w-auto px-3" onClick={() => setClosingSession(session)}>
+        <TextureButton variant="secondary" size="sm" className="!w-auto" onClick={() => setClosingSession(session)}>
           <Lock className="h-3.5 w-3.5" /> Cerrar Caja
           <span className="text-[10px] text-brand-950/40 font-normal ml-1">
             desde {new Date(session.openedAt).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })}

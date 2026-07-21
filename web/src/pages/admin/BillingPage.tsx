@@ -91,7 +91,7 @@ export default function BillingPage() {
                 <TextureButton
                   variant="brand"
                   size="default"
-                  className="mt-5 !w-auto px-6"
+                  className="mt-5 !w-auto"
                   onClick={() => {
                     refresh();
                     navigate('/admin');

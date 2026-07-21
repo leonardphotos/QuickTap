@@ -72,7 +72,7 @@ export function WhatsappMessageSection() {
         {message && <p className="text-sm text-brand-500">{message}</p>}
 
         <div className="flex gap-2">
-          <TextureButton variant="brand" size="default" disabled={saving} onClick={save} className="!w-auto px-4 disabled:opacity-50">
+          <TextureButton variant="brand" size="default" disabled={saving} onClick={save} className="!w-auto disabled:opacity-50">
             {saving ? 'Guardando…' : 'Guardar cambios'}
           </TextureButton>
           <TextureButton
@@ -80,7 +80,7 @@ export function WhatsappMessageSection() {
             size="default"
             disabled={saving}
             onClick={() => setTemplate(DEFAULT_TEMPLATE)}
-            className="!w-auto px-4"
+            className="!w-auto"
           >
             Restaurar mensaje por defecto
           </TextureButton>

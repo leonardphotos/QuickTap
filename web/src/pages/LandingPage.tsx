@@ -149,7 +149,7 @@ export default function LandingPage() {
               </p>
               <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3">
                 <Link to="/admin/register" className="w-full sm:w-auto">
-                  <TextureButton variant="brand" size="lg" className="sm:!w-auto px-2">
+                  <TextureButton variant="brand" size="lg" className="sm:!w-auto">
                     Regístrate y comienza gratis hoy
                   </TextureButton>
                 </Link>
@@ -202,7 +202,7 @@ export default function LandingPage() {
                   Iniciar sesión
                 </Link>
                 <Link to="/admin/register">
-                  <TextureButton variant="primary" size="sm" className="!w-auto px-1">
+                  <TextureButton variant="primary" size="sm" className="!w-auto">
                     Regístrate y comienza gratis hoy
                   </TextureButton>
                 </Link>

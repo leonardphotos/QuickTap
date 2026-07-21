@@ -36,7 +36,7 @@ export function ReportDialog() {
 
   return (
     <>
-      <TextureButton variant="secondary" size="sm" className="!w-auto px-3" onClick={() => setOpen(true)}>
+      <TextureButton variant="secondary" size="sm" className="!w-auto" onClick={() => setOpen(true)}>
         <FileText className="h-3.5 w-3.5" /> Reporte
       </TextureButton>
       {open && <ReportPickerDialog onClose={() => setOpen(false)} />}

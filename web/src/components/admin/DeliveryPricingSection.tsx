@@ -120,7 +120,7 @@ export function DeliveryPricingSection() {
             <TextureButton
               variant="minimal"
               size="sm"
-              className="!w-auto px-4"
+              className="!w-auto"
               disabled={gettingLocation}
               onClick={useCurrentLocationAsOrigin}
             >
@@ -158,7 +158,7 @@ export function DeliveryPricingSection() {
         {error && <p className="text-sm text-red-600">{error}</p>}
         {message && <p className="text-sm text-brand-500">{message}</p>}
 
-        <TextureButton variant="brand" size="default" disabled={saving} onClick={save} className="!w-auto px-4 disabled:opacity-50">
+        <TextureButton variant="brand" size="default" disabled={saving} onClick={save} className="!w-auto disabled:opacity-50">
           {saving ? 'Guardando…' : 'Guardar cambios'}
         </TextureButton>
 
@@ -341,17 +341,17 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
       <div className="flex items-center justify-between flex-wrap gap-2">
         <p className="text-sm font-medium text-brand-950">Zonas de envío</p>
         {!drawing && !pendingSave && (
-          <TextureButton variant="brand" size="sm" className="!w-auto px-4" onClick={startDrawing}>
+          <TextureButton variant="brand" size="sm" className="!w-auto" onClick={startDrawing}>
             + Dibujar zona
           </TextureButton>
         )}
         {drawing && (
           <div className="flex items-center gap-2">
             <span className="text-xs text-brand-950/60">{draftCount} punto(s) · haz clic en el mapa</span>
-            <TextureButton variant="brand" size="sm" className="!w-auto px-3" onClick={finishDrawing}>
+            <TextureButton variant="brand" size="sm" className="!w-auto" onClick={finishDrawing}>
               Finalizar zona
             </TextureButton>
-            <TextureButton variant="minimal" size="sm" className="!w-auto px-3" onClick={cancelDrawing}>
+            <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={cancelDrawing}>
               Cancelar
             </TextureButton>
           </div>
@@ -378,10 +378,10 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
             />
           </div>
           <div className="flex gap-2">
-            <TextureButton variant="brand" size="sm" className="!w-auto px-4" onClick={saveZone}>
+            <TextureButton variant="brand" size="sm" className="!w-auto" onClick={saveZone}>
               Guardar zona
             </TextureButton>
-            <TextureButton variant="minimal" size="sm" className="!w-auto px-4" onClick={cancelDrawing}>
+            <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={cancelDrawing}>
               Cancelar
             </TextureButton>
           </div>

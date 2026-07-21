@@ -118,7 +118,7 @@ export function ScheduleSection() {
             size="default"
             disabled={saving || !days}
             onClick={save}
-            className="!w-auto px-4 disabled:opacity-50"
+            className="!w-auto disabled:opacity-50"
           >
             {saving ? 'Guardando…' : 'Guardar cambios'}
           </TextureButton>

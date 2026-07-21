@@ -345,7 +345,7 @@ export function PaymentForm({
           variant="brand"
           size="default"
           disabled={submitting}
-          className="!w-auto px-6 disabled:opacity-50 flex items-center gap-2"
+          className="!w-auto disabled:opacity-50 flex items-center gap-2"
         >
           {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
           {submitting

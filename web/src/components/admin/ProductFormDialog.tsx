@@ -383,7 +383,7 @@ export function ProductFormDialog({
             </label>
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto px-4 disabled:opacity-50">
+          <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto disabled:opacity-50">
             {saving ? 'Guardando…' : product ? 'Guardar cambios' : 'Crear producto'}
           </TextureButton>
           {!product && !justCreated && (

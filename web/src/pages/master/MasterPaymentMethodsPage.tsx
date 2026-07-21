@@ -95,7 +95,7 @@ export default function MasterPaymentMethodsPage() {
       </Section>
 
       {message && <p className="text-sm text-brand-950/70">{message}</p>}
-      <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto px-6 disabled:opacity-50" onClick={save}>
+      <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto disabled:opacity-50" onClick={save}>
         {saving ? 'Guardando…' : 'Guardar cambios'}
       </TextureButton>
     </div>

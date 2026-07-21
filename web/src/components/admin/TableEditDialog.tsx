@@ -70,7 +70,7 @@ export function TableEditDialog({ table, zones, onOpenChange, onSaved }: Props) 
             ))}
           </select>
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto px-4 disabled:opacity-50">
+          <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto disabled:opacity-50">
             {saving ? 'Guardando…' : 'Guardar cambios'}
           </TextureButton>
         </form>

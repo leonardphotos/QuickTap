@@ -578,7 +578,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                           <TextureButton
                             variant="secondary"
                             size="sm"
-                            className="!w-auto px-3 shrink-0 disabled:opacity-40"
+                            className="!w-auto shrink-0 disabled:opacity-40"
                             disabled={lines.length === 0 || addingToId !== null}
                             onClick={() => addToExisting(o.id)}
                           >
@@ -651,7 +651,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                 {error && <p className="text-sm text-red-600">{error}</p>}
 
                 <div className="flex gap-2">
-                  <TextureButton variant="secondary" size="default" className="!w-auto px-4" onClick={() => setStep(1)}>
+                  <TextureButton variant="secondary" size="default" className="!w-auto" onClick={() => setStep(1)}>
                     Atrás
                   </TextureButton>
                   <TextureButton
@@ -723,7 +723,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                           <TextureButton
                             variant="secondary"
                             size="sm"
-                            className="!w-auto px-3 shrink-0 disabled:opacity-40"
+                            className="!w-auto shrink-0 disabled:opacity-40"
                             disabled={addingToId !== null}
                             onClick={() => addToExisting(o.id)}
                           >
@@ -738,7 +738,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                 {error && <p className="text-sm text-red-600">{error}</p>}
 
                 <div className="flex gap-2">
-                  <TextureButton variant="secondary" size="default" className="!w-auto px-4" onClick={() => setStep(2)}>
+                  <TextureButton variant="secondary" size="default" className="!w-auto" onClick={() => setStep(2)}>
                     Atrás
                   </TextureButton>
                   <TextureButton

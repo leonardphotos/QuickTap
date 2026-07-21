@@ -70,7 +70,7 @@ export function DeliveryTeamSection() {
             variant="brand"
             size="default"
             disabled={saving}
-            className="!w-auto px-4 disabled:opacity-50 sm:col-span-2"
+            className="!w-auto disabled:opacity-50 sm:col-span-2"
           >
             {saving ? 'Guardando…' : 'Agregar repartidor'}
           </TextureButton>

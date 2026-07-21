@@ -58,7 +58,7 @@ export default function ProductsPage() {
         <TextureButton
           variant="brand"
           size="default"
-          className="!w-auto px-4 flex items-center gap-1.5 whitespace-nowrap"
+          className="!w-auto flex items-center gap-1.5 whitespace-nowrap"
           onClick={openCreate}
         >
           <Plus className="h-4 w-4" /> Nuevo producto
@@ -66,7 +66,7 @@ export default function ProductsPage() {
         <TextureButton
           variant="minimal"
           size="default"
-          className="!w-auto px-4 flex items-center gap-1.5 whitespace-nowrap"
+          className="!w-auto flex items-center gap-1.5 whitespace-nowrap"
           onClick={() => setCategoryDialogOpen(true)}
         >
           <Tag className="h-4 w-4" /> Nueva categoría
@@ -74,7 +74,7 @@ export default function ProductsPage() {
         <TextureButton
           variant="minimal"
           size="default"
-          className="!w-auto px-4 flex items-center gap-1.5 whitespace-nowrap"
+          className="!w-auto flex items-center gap-1.5 whitespace-nowrap"
           onClick={() => setModifiersDialogOpen(true)}
         >
           <ListPlus className="h-4 w-4" /> Modificadores

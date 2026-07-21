@@ -56,7 +56,7 @@ export default function ExpensesPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Gastos</h1>
-        <TextureButton variant="brand" size="default" className="!w-auto px-4 flex items-center gap-1.5" onClick={() => setShowFormDialog(true)}>
+        <TextureButton variant="brand" size="default" className="!w-auto flex items-center gap-1.5" onClick={() => setShowFormDialog(true)}>
           <Plus className="h-4 w-4" /> Agregar gasto
         </TextureButton>
       </div>
@@ -109,7 +109,7 @@ export default function ExpensesPage() {
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <span className="font-semibold text-red-600">{formatBase(m.amountBase, symbol)}</span>
-                    <TextureButton variant="secondary" size="sm" className="!w-auto px-3" onClick={() => markPaid(m.id)}>
+                    <TextureButton variant="secondary" size="sm" className="!w-auto" onClick={() => markPaid(m.id)}>
                       Marcar pagado
                     </TextureButton>
                   </div>

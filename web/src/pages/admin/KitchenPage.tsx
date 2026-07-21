@@ -126,7 +126,7 @@ export default function KitchenPage() {
           <TextureButton
             variant="minimal"
             size="sm"
-            className="!w-auto px-3 flex items-center gap-1.5 ml-auto"
+            className="!w-auto flex items-center gap-1.5 ml-auto"
             onClick={() => setManageOpen(true)}
           >
             <ChefHat className="h-3.5 w-3.5" /> Cocinas

@@ -135,12 +135,12 @@ export function QuickTapRevenueDialog({ onClose, onChanged }: { onClose: () => v
                       variant="brand"
                       size="sm"
                       disabled={busyId === row.id}
-                      className="!w-auto px-3 disabled:opacity-50"
+                      className="!w-auto disabled:opacity-50"
                       onClick={() => saveEdit(row.id)}
                     >
                       {busyId === row.id ? 'Guardando…' : 'Guardar'}
                     </TextureButton>
-                    <TextureButton variant="minimal" size="sm" className="!w-auto px-3" onClick={() => setEditingId(null)}>
+                    <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={() => setEditingId(null)}>
                       Cancelar
                     </TextureButton>
                   </div>

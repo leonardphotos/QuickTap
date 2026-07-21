@@ -72,7 +72,7 @@ export function ModifierCategoriesDialog({ open, onOpenChange }: Props) {
                 <TextureButton
                   variant="secondary"
                   size="sm"
-                  className="!w-auto px-3 flex items-center gap-1.5"
+                  className="!w-auto flex items-center gap-1.5"
                   onClick={() => setCreating(true)}
                 >
                   <Plus className="h-3.5 w-3.5" /> Crear categoría
@@ -89,7 +89,7 @@ export function ModifierCategoriesDialog({ open, onOpenChange }: Props) {
                     placeholder="Ej: ¿Cómo la prefieres?"
                     className="flex-1 text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
                   />
-                  <TextureButton variant="brand" size="sm" className="!w-auto px-3" onClick={createCategory}>
+                  <TextureButton variant="brand" size="sm" className="!w-auto" onClick={createCategory}>
                     Crear
                   </TextureButton>
                 </div>

@@ -107,10 +107,10 @@ export function SupplierPicker({ onSelect }: Props) {
           />
           {error && <p className="text-xs text-red-600">{error}</p>}
           <div className="flex gap-2">
-            <TextureButton variant="brand" size="sm" className="!w-auto px-3 disabled:opacity-50" disabled={saving} onClick={createNew}>
+            <TextureButton variant="brand" size="sm" className="!w-auto disabled:opacity-50" disabled={saving} onClick={createNew}>
               {saving ? 'Guardando…' : 'Crear y elegir'}
             </TextureButton>
-            <TextureButton variant="minimal" size="sm" className="!w-auto px-3" onClick={() => setShowNewForm(false)}>
+            <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={() => setShowNewForm(false)}>
               Cancelar
             </TextureButton>
           </div>

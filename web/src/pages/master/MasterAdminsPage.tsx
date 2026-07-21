@@ -103,7 +103,7 @@ export default function MasterAdminsPage() {
           </label>
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto px-5 disabled:opacity-50">
+        <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto disabled:opacity-50">
           {saving ? 'Creando…' : 'Crear cuenta'}
         </TextureButton>
       </form>
@@ -231,7 +231,7 @@ function EditAdminDialog({
             </select>
           </label>
           {error && <p className="text-sm text-red-600">{error}</p>}
-          <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto px-5 disabled:opacity-50">
+          <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto disabled:opacity-50">
             {saving ? 'Guardando…' : 'Guardar cambios'}
           </TextureButton>
         </form>

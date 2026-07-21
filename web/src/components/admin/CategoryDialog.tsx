@@ -57,7 +57,7 @@ export function CategoryDialog({ open, onOpenChange, categories, onChanged }: Pr
             className="flex-1 border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
             required
           />
-          <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto px-4 disabled:opacity-50">
+          <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto disabled:opacity-50">
             {saving ? 'Guardando…' : 'Agregar'}
           </TextureButton>
         </form>

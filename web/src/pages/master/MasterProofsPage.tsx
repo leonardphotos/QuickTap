@@ -243,7 +243,7 @@ export default function MasterProofsPage() {
                     variant="brand"
                     size="sm"
                     disabled={busyId === req.id || (!req.restaurantId && !linking[req.id])}
-                    className="!w-auto px-4 disabled:opacity-50"
+                    className="!w-auto disabled:opacity-50"
                     onClick={() => approve(req)}
                   >
                     {busyId === req.id ? 'Guardando…' : 'Activar cuenta'}
@@ -252,7 +252,7 @@ export default function MasterProofsPage() {
                     variant="secondary"
                     size="sm"
                     disabled={busyId === req.id}
-                    className="!w-auto px-4 disabled:opacity-50"
+                    className="!w-auto disabled:opacity-50"
                     onClick={() => reject(req, 'PAYMENT_NOT_RECEIVED')}
                   >
                     Pago no recibido
@@ -261,7 +261,7 @@ export default function MasterProofsPage() {
                     variant="destructive"
                     size="sm"
                     disabled={busyId === req.id}
-                    className="!w-auto px-4 disabled:opacity-50"
+                    className="!w-auto disabled:opacity-50"
                     onClick={() => reject(req, 'REJECTED')}
                   >
                     Rechazar
@@ -320,7 +320,7 @@ export default function MasterProofsPage() {
                       variant="brand"
                       size="sm"
                       disabled={!pendingWhatsapp[req.id]}
-                      className="!w-auto px-4 disabled:opacity-50"
+                      className="!w-auto disabled:opacity-50"
                       onClick={() => sendWhatsapp(req.id)}
                     >
                       Sí, enviar
@@ -328,7 +328,7 @@ export default function MasterProofsPage() {
                     <TextureButton
                       variant="minimal"
                       size="sm"
-                      className="!w-auto px-4"
+                      className="!w-auto"
                       onClick={() => dismissWhatsapp(req.id)}
                     >
                       No

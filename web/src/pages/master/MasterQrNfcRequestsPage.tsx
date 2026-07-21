@@ -90,7 +90,7 @@ export default function MasterQrNfcRequestsPage() {
                   variant="brand"
                   size="sm"
                   disabled={busyId === req.id}
-                  className="!w-auto px-4 disabled:opacity-50 shrink-0"
+                  className="!w-auto disabled:opacity-50 shrink-0"
                   onClick={() => approve(req)}
                 >
                   {busyId === req.id ? 'Guardando…' : 'Marcar atendida'}

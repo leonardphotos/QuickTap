@@ -1,6 +1,8 @@
 #!/bin/bash
-# Estacion de Impresion QuickTap — doble clic para abrir.
-cd "$(dirname "$0")"
+# Estacion de Impresion QuickTap.
+# Este script vive en QuickTap - Estacion de Impresion.app/Contents/MacOS/,
+# la carpeta print-station (con index.html) es 3 niveles arriba.
+cd "$(dirname "$0")/../../.."
 
 PORT=5500
 URL="http://localhost:$PORT"

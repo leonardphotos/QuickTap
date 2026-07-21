@@ -85,10 +85,10 @@ export function ImageCropDialog({ imageSrc, aspect, onCancel, onCropped }: Props
           </label>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex items-center gap-2">
-            <TextureButton variant="brand" size="default" disabled={processing} className="!w-auto px-5" onClick={confirm}>
+            <TextureButton variant="brand" size="default" disabled={processing} className="!w-auto" onClick={confirm}>
               {processing ? 'Recortando…' : 'Usar esta imagen'}
             </TextureButton>
-            <TextureButton variant="minimal" size="default" className="!w-auto px-5" onClick={onCancel}>
+            <TextureButton variant="minimal" size="default" className="!w-auto" onClick={onCancel}>
               Cancelar
             </TextureButton>
           </div>

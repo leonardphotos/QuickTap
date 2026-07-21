@@ -34,7 +34,7 @@ export default function AdminLayout() {
               : `${restaurant.name} está bloqueada por falta de pago. Contacta al equipo de QuickTap para reactivarla.`}{' '}
             Solo se puede desbloquear desde el Dashboard de administrador.
           </p>
-          <TextureButton variant="minimal" size="default" className="mt-6 !w-auto px-6" onClick={logout}>
+          <TextureButton variant="minimal" size="default" className="mt-6 !w-auto" onClick={logout}>
             Cerrar sesión
           </TextureButton>
         </div>

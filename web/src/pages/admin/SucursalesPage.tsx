@@ -54,7 +54,7 @@ export default function SucursalesPage() {
         <TextureButton
           variant="brand"
           size="default"
-          className="!w-auto px-4 flex items-center gap-2"
+          className="!w-auto flex items-center gap-2"
           onClick={() => setShowAddDialog(true)}
         >
           <Plus className="h-4 w-4" /> Agregar sucursal
@@ -77,7 +77,7 @@ export default function SucursalesPage() {
               <TextureButton
                 variant="minimal"
                 size="sm"
-                className="!w-auto px-3 flex items-center gap-1.5"
+                className="!w-auto flex items-center gap-1.5"
                 onClick={() => switchToBranch(b.id)}
               >
                 Entrar <ArrowRight className="h-3.5 w-3.5" />

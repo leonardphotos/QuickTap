@@ -152,7 +152,7 @@ function SummaryTab() {
         <TextureButton
           variant="secondary"
           size="sm"
-          className="!w-auto px-3"
+          className="!w-auto"
           onClick={() => setShowMovementDialog(true)}
         >
           <Plus className="h-3.5 w-3.5" /> Añadir movimiento
@@ -881,7 +881,7 @@ function HistoryTab() {
 
       {result && result.total > result.pageSize && (
         <div className="flex items-center justify-center gap-3">
-          <TextureButton variant="minimal" size="sm" className="!w-auto px-4" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+          <TextureButton variant="minimal" size="sm" className="!w-auto" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
             Anterior
           </TextureButton>
           <span className="text-xs text-brand-950/50">
@@ -890,7 +890,7 @@ function HistoryTab() {
           <TextureButton
             variant="minimal"
             size="sm"
-            className="!w-auto px-4"
+            className="!w-auto"
             disabled={page >= Math.ceil(result.total / result.pageSize)}
             onClick={() => setPage((p) => p + 1)}
           >
@@ -1304,7 +1304,7 @@ function PayableTab() {
               <TextureButton
                 variant="brand"
                 size="sm"
-                className="!w-auto px-3"
+                className="!w-auto"
                 disabled={busyId === o.id}
                 onClick={() => markPaid(o.id)}
               >

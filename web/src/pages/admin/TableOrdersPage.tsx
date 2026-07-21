@@ -332,7 +332,7 @@ export default function TableOrdersPage() {
                       size="sm"
                       onClick={closeTable}
                       disabled={busy}
-                      className="!w-auto px-4 disabled:opacity-50"
+                      className="!w-auto disabled:opacity-50"
                     >
                       {busy ? 'Cerrando…' : 'Confirmar cierre'}
                     </TextureButton>
@@ -343,7 +343,7 @@ export default function TableOrdersPage() {
                         setClosing(false);
                         setClosePaymentMethod('');
                       }}
-                      className="!w-auto px-4"
+                      className="!w-auto"
                     >
                       Cancelar
                     </TextureButton>

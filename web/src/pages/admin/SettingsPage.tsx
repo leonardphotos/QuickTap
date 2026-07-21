@@ -17,6 +17,7 @@ import { FullscreenImageSection } from '@/components/admin/FullscreenImageSectio
 import { DeliveryTeamSection } from '@/components/admin/DeliveryTeamSection';
 import { DeliveryPricingSection } from '@/components/admin/DeliveryPricingSection';
 import { PaymentMethodsSection } from '@/components/admin/PaymentMethodsSection';
+import { PrintStationSection } from '@/components/admin/PrintStationSection';
 
 interface RateInfo {
   currency: Currency;
@@ -135,7 +136,7 @@ export default function SettingsPage() {
           {error && <p className="text-sm text-red-600">{error}</p>}
           {message && <p className="text-sm text-brand-500">{message}</p>}
 
-          <TextureButton variant="brand" size="default" disabled={saving} onClick={saveCurrency} className="!w-auto px-2 disabled:opacity-50">
+          <TextureButton variant="brand" size="default" disabled={saving} onClick={saveCurrency} className="!w-auto disabled:opacity-50">
             {saving ? 'Guardando…' : 'Guardar cambios'}
           </TextureButton>
         </TextureCardContent>
@@ -156,6 +157,8 @@ export default function SettingsPage() {
       <FullscreenImageSection />
 
       {canManageTeam(user?.role) && <TeamSection />}
+
+      <PrintStationSection />
     </div>
   );
 }

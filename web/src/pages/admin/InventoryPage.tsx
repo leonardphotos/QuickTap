@@ -231,11 +231,11 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
         </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="flex gap-2">
-          <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto px-4 disabled:opacity-50">
+          <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto disabled:opacity-50">
             {saving ? 'Guardando…' : editingId ? 'Guardar cambios' : 'Agregar insumo'}
           </TextureButton>
           {editingId && (
-            <TextureButton variant="minimal" size="default" type="button" className="!w-auto px-4" onClick={cancelEdit}>
+            <TextureButton variant="minimal" size="default" type="button" className="!w-auto" onClick={cancelEdit}>
               Cancelar
             </TextureButton>
           )}
@@ -249,7 +249,7 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
           <TextureButton
             variant="secondary"
             size="sm"
-            className="!w-auto px-3"
+            className="!w-auto"
             disabled={printingList || !items?.length}
             onClick={printInsumosList}
           >
@@ -346,7 +346,7 @@ function RecetasTab({ insumos }: { insumos: InventoryItem[] }) {
             <TextureButton
               variant={r.hasRecipe ? 'minimal' : 'brand'}
               size="sm"
-              className="!w-auto px-4 shrink-0"
+              className="!w-auto shrink-0"
               onClick={() => setOpenProductId(r.productId)}
             >
               Receta
@@ -499,10 +499,10 @@ function RecipeDialog({
               <p className="text-xs text-brand-950/40">El costo se calcula automáticamente según el precio del insumo.</p>
               {error && <p className="text-xs text-red-600">{error}</p>}
               <div className="flex gap-2">
-                <TextureButton variant="brand" size="sm" className="!w-auto px-4" onClick={addIngredient}>
+                <TextureButton variant="brand" size="sm" className="!w-auto" onClick={addIngredient}>
                   Guardar ingrediente
                 </TextureButton>
-                <TextureButton variant="minimal" size="sm" className="!w-auto px-4" onClick={() => setAdding(false)}>
+                <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={() => setAdding(false)}>
                   Cancelar
                 </TextureButton>
               </div>

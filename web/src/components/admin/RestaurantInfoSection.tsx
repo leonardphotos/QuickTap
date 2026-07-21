@@ -85,7 +85,7 @@ export function RestaurantInfoSection() {
         {error && <p className="text-sm text-red-600">{error}</p>}
         {message && <p className="text-sm text-brand-500">{message}</p>}
 
-        <TextureButton variant="brand" size="default" disabled={saving} onClick={save} className="!w-auto px-4 disabled:opacity-50">
+        <TextureButton variant="brand" size="default" disabled={saving} onClick={save} className="!w-auto disabled:opacity-50">
           {saving ? 'Guardando…' : 'Guardar cambios'}
         </TextureButton>
       </TextureCardContent>

@@ -209,7 +209,7 @@ export default function MasterRestaurantDetailPage() {
             variant={detail.suspended ? 'brand' : 'destructive'}
             size="sm"
             disabled={busy}
-            className="!w-auto px-4 shrink-0"
+            className="!w-auto shrink-0"
             onClick={toggleSuspended}
           >
             {detail.suspended ? 'Desbloquear cuenta' : 'Bloquear cuenta'}
@@ -249,7 +249,7 @@ export default function MasterRestaurantDetailPage() {
                 ))}
               </select>
             </label>
-            <TextureButton variant="brand" size="default" disabled={busy} className="!w-auto px-5" onClick={activate}>
+            <TextureButton variant="brand" size="default" disabled={busy} className="!w-auto" onClick={activate}>
               {busy ? 'Activando…' : 'Activar / Extender'}
             </TextureButton>
           </div>
@@ -273,7 +273,7 @@ export default function MasterRestaurantDetailPage() {
               variant="minimal"
               size="default"
               disabled={busy}
-              className="!w-auto px-5"
+              className="!w-auto"
               onClick={applyExtendDays}
             >
               {busy ? 'Guardando…' : 'Aplicar'}
@@ -299,7 +299,7 @@ export default function MasterRestaurantDetailPage() {
               variant="minimal"
               size="default"
               disabled={busy || !exactPeriodEnd}
-              className="!w-auto px-5 disabled:opacity-50"
+              className="!w-auto disabled:opacity-50"
               onClick={applyExactPeriodEnd}
             >
               {busy ? 'Guardando…' : 'Establecer fecha'}
@@ -371,7 +371,7 @@ export default function MasterRestaurantDetailPage() {
         <TextureButton
           variant="destructive"
           size="sm"
-          className="!w-auto px-4 shrink-0"
+          className="!w-auto shrink-0"
           onClick={() => setShowDeleteDialog(true)}
         >
           Eliminar restaurante

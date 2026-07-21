@@ -89,7 +89,7 @@ export default function DashboardPage() {
       <div className="flex flex-col items-center text-center lg:flex-row lg:items-start lg:text-left lg:gap-8">
         <div className="lg:w-72 lg:shrink-0 lg:sticky lg:top-24 flex flex-col items-center lg:items-stretch">
           <a href={`/r/${restaurant.slug}`} target="_blank" rel="noopener noreferrer" className="mb-4 lg:self-start">
-            <TextureButton variant="minimal" size="sm" className="!w-auto px-4">
+            <TextureButton variant="minimal" size="sm" className="!w-auto">
               <ExternalLink className="h-3.5 w-3.5 mr-1.5" /> Ver mi menú
             </TextureButton>
           </a>

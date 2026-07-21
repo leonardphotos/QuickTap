@@ -122,7 +122,7 @@ export function DailySalesSummary() {
         <TextureButton
           variant="secondary"
           size="sm"
-          className="!w-auto px-3 mt-3 flex items-center gap-1.5"
+          className="!w-auto mt-3 flex items-center gap-1.5"
           onClick={() => setShowExpenseDialog(true)}
         >
           <Plus className="h-3.5 w-3.5" /> Añadir egreso
@@ -162,7 +162,7 @@ export function DailySalesSummary() {
         <TextureButton
           variant="secondary"
           size="sm"
-          className="!w-auto px-3 mb-4 flex items-center gap-1.5"
+          className="!w-auto mb-4 flex items-center gap-1.5"
           onClick={() => setShowExpenseDialog(true)}
         >
           <Plus className="h-3.5 w-3.5" /> Añadir egreso

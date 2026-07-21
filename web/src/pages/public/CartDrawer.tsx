@@ -375,7 +375,7 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                     variant="brand"
                     size="default"
                     disabled={pinFlowBusy}
-                    className="!w-auto px-6 mx-auto disabled:opacity-50"
+                    className="!w-auto mx-auto disabled:opacity-50"
                     onClick={pinFlow === 'enter' ? submitPinDraft : submitPinConfirm}
                   >
                     {pinFlowBusy ? 'Guardando…' : pinFlow === 'enter' ? 'Continuar' : 'Confirmar clave'}
@@ -390,7 +390,7 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                   <p className="text-sm text-brand-950/60 font-light">
                     A partir de ahora hace falta la clave para pedir de nuevo en esta mesa.
                   </p>
-                  <TextureButton variant="brand" size="default" onClick={onClearAndClose} className="mt-2 !w-auto px-6 mx-auto">
+                  <TextureButton variant="brand" size="default" onClick={onClearAndClose} className="mt-2 !w-auto mx-auto">
                     Listo
                   </TextureButton>
                 </div>
@@ -399,7 +399,7 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                   <p className="text-4xl">✅</p>
                   <p className="font-semibold text-brand-950">¡Pedido enviado a cocina!</p>
                   <p className="text-sm text-brand-950/60 font-light">Ya lo están preparando.</p>
-                  <TextureButton variant="brand" size="default" onClick={onClearAndClose} className="mt-4 !w-auto px-2 mx-auto">
+                  <TextureButton variant="brand" size="default" onClick={onClearAndClose} className="mt-4 !w-auto mx-auto">
                     Listo
                   </TextureButton>
                 </div>
