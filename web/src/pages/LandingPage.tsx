@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AnimatePresence, motion, useScroll, useSpring, useTransform } from 'motion/react';
-import { Banknote, SmartphoneNfc, MessageCircle, ChefHat, CircleDollarSign, Boxes, Clock } from 'lucide-react';
+import { Banknote, SmartphoneNfc, MessageCircle, ChefHat, CircleDollarSign, Boxes, Clock, Printer } from 'lucide-react';
 import { TextureButton } from '@/components/ui/texture-button';
 import { PricingSection } from '@/components/landing/PricingSection';
 import { IntroLoader } from '@/components/landing/IntroLoader';
@@ -51,6 +51,12 @@ const FEATURES = [
     title: 'Cuentas pendientes por pagar',
     text: 'Deja la cuenta del cliente abierta con un toque y llévala organizada hasta que se cobre.',
     badge: 'bg-rose-500/15 text-rose-400',
+  },
+  {
+    icon: Printer,
+    title: 'Impresión automática de comandas',
+    text: 'Cada pedido sale solo en la impresora térmica correcta — cocina, barra o caja — sin tocar nada.',
+    badge: 'bg-sky-500/15 text-sky-400',
   },
 ];
 

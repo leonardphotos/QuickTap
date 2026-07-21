@@ -101,18 +101,27 @@ export function PlanCards({ rateBs, billingCycle, onBillingCycleChange, onChoose
       </div>
 
       <div className="grid sm:grid-cols-2 gap-5 max-w-2xl mx-auto">
-        {PLAN_CONTENT.map((plan) => (
+        {PLAN_CONTENT.map((plan) => {
+          const isSucursales = plan.id === 'SUCURSALES' || plan.id === 'DELIVERY_SUCURSALES';
+          return (
           <div key={plan.id} className="relative">
             {plan.highlighted && (
               <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 bg-brand-500 text-white text-xs font-medium px-3 py-1 rounded-full">
                 Más popular
               </span>
             )}
+            {isSucursales && (
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 bg-[#D4AF37] text-white text-xs font-medium px-3 py-1 rounded-full shadow-[0_4px_12px_-2px_rgba(212,175,55,0.6)]">
+                ✨ Premium
+              </span>
+            )}
             <div
               className={`h-full flex flex-col rounded-2xl border bg-white p-6 ${
                 plan.highlighted
                   ? 'border-brand-400/40 shadow-[0_16px_40px_-20px_rgba(5,108,242,0.45)]'
-                  : 'border-brand-950/10 shadow-sm'
+                  : isSucursales
+                    ? 'border-2 border-[#D4AF37] shadow-[0_16px_40px_-20px_rgba(212,175,55,0.5)]'
+                    : 'border-brand-950/10 shadow-sm'
               }`}
             >
               <p className="font-semibold text-brand-950">{plan.name}</p>
@@ -141,7 +150,8 @@ export function PlanCards({ rateBs, billingCycle, onBillingCycleChange, onChoose
               </TextureButton>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

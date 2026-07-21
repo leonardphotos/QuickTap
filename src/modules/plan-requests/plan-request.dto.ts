@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
 export const createPlanRequestSchema = z.object({
-  // Cuatro planes vigentes: Delivery ($9.99), Pro ($19.99, todos los
-  // beneficios), Sucursales ($69.99, Pro + hasta 5 sucursales) y Delivery
-  // Sucursales ($29.99, Delivery + hasta 5 sucursales).
+  // Cuatro planes vigentes: Delivery ($18.99), Pro ($28.99, todos los
+  // beneficios), Sucursales ($78.99, Pro + hasta 5 sucursales) y Delivery
+  // Sucursales ($38.99, Delivery + hasta 5 sucursales).
   plan: z.enum(['DELIVERY', 'PRO', 'SUCURSALES', 'DELIVERY_SUCURSALES']),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL']),
   paymentMethod: z.enum(['PAGO_MOVIL', 'BINANCE', 'BANK_TRANSFER']),

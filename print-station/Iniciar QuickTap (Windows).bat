@@ -8,7 +8,7 @@ start "" /min powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden 
 rem --- Crea un acceso directo en el Escritorio la primera vez que se abre ---
 set SHORTCUT=%USERPROFILE%\Desktop\QuickTap - Estacion de Impresion.lnk
 if not exist "%SHORTCUT%" (
-    powershell -NoProfile -Command "$s=(New-Object -COM WScript.Shell).CreateShortcut('%SHORTCUT%'); $s.TargetPath='%~f0'; $s.WorkingDirectory='%~dp0'; $s.IconLocation='%~dp0icon.ico'; $s.WindowStyle=7; $s.Description='Estacion de Impresion QuickTap'; $s.Save()"
+    powershell -NoProfile -Command "$s=(New-Object -COM WScript.Shell).CreateShortcut('%SHORTCUT%'); $s.TargetPath='%~f0'; $s.WorkingDirectory='%~dp0'; $s.IconLocation='%~dp0icon.ico'; $s.WindowStyle=7; $s.Description='Estacion de Impresion QuickTap v1.2'; $s.Save()"
 )
 
 timeout /t 1 /nobreak >nul
