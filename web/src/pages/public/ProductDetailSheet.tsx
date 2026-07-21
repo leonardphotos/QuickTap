@@ -18,6 +18,8 @@ interface Props {
   onClose: () => void;
   onAdd: (line: CartLine) => void;
   onSelectProduct: (product: Product) => void;
+  /** Al tocar la foto grande de arriba se abre la galería a pantalla completa. */
+  onOpenGallery: (product: Product) => void;
   orderingEnabled: boolean;
 }
 
@@ -39,6 +41,7 @@ export default function ProductDetailSheet({
   onClose,
   onAdd,
   onSelectProduct,
+  onOpenGallery,
   orderingEnabled,
 }: Props) {
   const [quantity, setQuantity] = useState(1);
@@ -138,7 +141,12 @@ export default function ProductDetailSheet({
 
             <div className="max-h-[75vh] overflow-y-auto">
               {product.photoUrl ? (
-                <img src={product.photoUrl} alt={product.name} className="h-52 w-full object-cover" />
+                <img
+                  src={product.photoUrl}
+                  alt={product.name}
+                  onClick={() => onOpenGallery(product)}
+                  className="h-52 w-full object-cover cursor-pointer"
+                />
               ) : (
                 <div className="h-52 w-full bg-gradient-to-br from-brand-400/20 to-brand-500/10 flex items-center justify-center text-6xl">
                   🍽️

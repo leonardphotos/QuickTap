@@ -140,6 +140,26 @@ export default function MenuPage() {
     setCart((prev) => prev.filter((_, i) => i !== index));
   }
 
+  /** Quita una unidad de la línea que coincide con `line` (usado por el stepper +/- de la galería). */
+  function removeOneFromCart(line: CartLine) {
+    setCart((prev) => {
+      const matchIndex = prev.findIndex(
+        (l) =>
+          l.product.id === line.product.id &&
+          l.note === line.note &&
+          l.variantId === line.variantId &&
+          JSON.stringify(l.selectedModifiers.map((m) => m.modifierId).sort()) ===
+            JSON.stringify(line.selectedModifiers.map((m) => m.modifierId).sort()),
+      );
+      if (matchIndex === -1) return prev;
+      const newQuantity = prev[matchIndex].quantity - 1;
+      if (newQuantity <= 0) return prev.filter((_, i) => i !== matchIndex);
+      const next = [...prev];
+      next[matchIndex] = { ...next[matchIndex], quantity: newQuantity };
+      return next;
+    });
+  }
+
   const subtotalBase = useMemo(
     () => cart.reduce((acc, l) => acc + cartLineUnitPrice(l) * l.quantity, 0),
     [cart],
@@ -152,7 +172,13 @@ export default function MenuPage() {
 
   function openGallery(product: Product) {
     const idx = galleryProducts.findIndex((p) => p.id === product.id);
-    if (idx >= 0) setGalleryIndex(idx);
+    if (idx >= 0) {
+      // Si la galería se abre desde la foto del ProductDetailSheet, hay que cerrar
+      // esa hoja: al quedar montada detrás, su overlay de Radix bloquea los clics
+      // sobre la galería (pointer-events: none propagado al resto de la página).
+      setSelectedProduct(null);
+      setGalleryIndex(idx);
+    }
   }
 
   // Categorías a mostrar: si hay búsqueda, un solo grupo de resultados;
@@ -240,7 +266,7 @@ export default function MenuPage() {
         {restaurant.isOpen === false && (
           <div className="flex items-center gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl px-4 py-3 text-sm">
             <Clock className="h-4 w-4 shrink-0" />
-            <span>{restaurant.closedReason ?? 'El restaurante está cerrado en este momento.'} Puedes ver el menú, pero no pedir.</span>
+            <span>{restaurant.closedReason ?? 'El restaurante está cerrado en este momento.'} Puedes armar tu pedido, pero no podrás confirmarlo hasta que abramos.</span>
           </div>
         )}
 
@@ -289,7 +315,7 @@ export default function MenuPage() {
                 restaurant={restaurant}
                 onAdd={addToCart}
                 onOpen={setSelectedProduct}
-                orderingEnabled={restaurant.orderingEnabled && restaurant.isOpen !== false}
+                orderingEnabled={restaurant.orderingEnabled}
               />
             )}
             {highlights.promos.length > 0 && (
@@ -299,7 +325,7 @@ export default function MenuPage() {
                 restaurant={restaurant}
                 onAdd={addToCart}
                 onOpen={setSelectedProduct}
-                orderingEnabled={restaurant.orderingEnabled && restaurant.isOpen !== false}
+                orderingEnabled={restaurant.orderingEnabled}
               />
             )}
             {highlights.houseSpecials.length > 0 && (
@@ -309,7 +335,7 @@ export default function MenuPage() {
                 restaurant={restaurant}
                 onAdd={addToCart}
                 onOpen={setSelectedProduct}
-                orderingEnabled={restaurant.orderingEnabled && restaurant.isOpen !== false}
+                orderingEnabled={restaurant.orderingEnabled}
               />
             )}
           </section>
@@ -346,7 +372,8 @@ export default function MenuPage() {
         onClose={() => setSelectedProduct(null)}
         onAdd={addToCart}
         onSelectProduct={setSelectedProduct}
-        orderingEnabled={restaurant.orderingEnabled && restaurant.isOpen !== false}
+        onOpenGallery={openGallery}
+        orderingEnabled={restaurant.orderingEnabled}
       />
 
       {galleryIndex !== null && (
@@ -354,13 +381,11 @@ export default function MenuPage() {
           products={galleryProducts}
           initialIndex={galleryIndex}
           restaurant={restaurant}
-          orderingEnabled={restaurant.orderingEnabled && restaurant.isOpen !== false}
+          orderingEnabled={restaurant.orderingEnabled}
+          cart={cart}
           onClose={() => setGalleryIndex(null)}
           onAdd={addToCart}
-          onNeedsPicker={(product) => {
-            setGalleryIndex(null);
-            setSelectedProduct(product);
-          }}
+          onRemoveOne={removeOneFromCart}
         />
       )}
 

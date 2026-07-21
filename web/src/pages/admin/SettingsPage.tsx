@@ -72,8 +72,8 @@ export default function SettingsPage() {
   const activeRate = rates?.[baseCurrency];
 
   return (
-    <div className="space-y-8 max-w-2xl">
-      <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Ajustes</h1>
+    <div className="space-y-8 max-w-2xl lg:max-w-none lg:space-y-0 lg:grid lg:grid-cols-2 lg:items-start lg:gap-8">
+      <h1 className="text-3xl font-semibold tracking-tight text-brand-950 lg:col-span-2">Ajustes</h1>
 
       <RestaurantInfoSection />
       <DesktopShortcutSection />
@@ -150,9 +150,13 @@ export default function SettingsPage() {
 
       <DeliveryTeamSection />
 
-      <DeliveryPricingSection />
+      <div className="lg:col-span-2">
+        <DeliveryPricingSection />
+      </div>
 
-      <ThemeSection />
+      <div className="lg:col-span-2">
+        <ThemeSection />
+      </div>
 
       <FullscreenImageSection />
 
