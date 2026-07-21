@@ -36,6 +36,8 @@ export const SocketEvents = {
   TABLE_SERVICE_REQUEST: 'table:service-request', // comensal llama al mesero / pide la cuenta
   TABLE_SERVICE_ACK: 'table:service-ack', // el mesero atendió la solicitud
   PRINT_REQUEST: 'print:request', // impresión bajo demanda (reimprimir comanda, lista de insumos) -> estación de impresión
+  RESERVATION_NEW: 'reservation:new', // reserva nueva desde el menú público -> pestaña Reservas (Cajero/Admin)
+  RESERVATION_UPDATED: 'reservation:updated', // se aceptó o canceló una reserva
 } as const;
 
 export function initSockets(server: HttpServer): IOServer {

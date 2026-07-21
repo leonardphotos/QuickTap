@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Home, Menu, Settings, Share2, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Home, Menu, Settings, Share2, TriangleAlert } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Toast } from '@/components/ui/toast';
 import { NavMenuDrawer } from '@/components/admin/NavMenuDrawer';
 import { useCopyToast } from '../../hooks/useCopyToast';
-import { canAccessPath, defaultPathFor, isScreenRole } from '../../utils/roles';
+import { usePendingReservationsCount } from '../../hooks/usePendingReservations';
+import { canAccessPath, defaultPathFor, isAdminCashier, isScreenRole } from '../../utils/roles';
 import { daysRemaining, graceHoursRemaining } from '../../utils/subscription';
 import { visibleNavLinks } from './nav-links';
 
@@ -16,6 +17,7 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const { copy, toastMessage } = useCopyToast();
   const [menuOpen, setMenuOpen] = useState(false);
+  const pendingReservations = usePendingReservationsCount(user?.role);
 
   if (loading) return <div className="p-10 text-center text-brand-950/50 font-light">Cargando…</div>;
   if (!user || !restaurant) return <Navigate to="/admin/login" replace />;
@@ -96,15 +98,21 @@ export default function AdminLayout() {
           <nav className="flex items-center gap-1 rounded-full bg-brand-950/[0.04] p-1 overflow-x-auto">
             {navLinks.map((l) => {
               const active = pathname === l.to;
+              const showAlert = l.to === '/admin/reservations' && pendingReservations > 0;
               return (
                 <Link
                   key={l.to}
                   to={l.to}
-                  className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors ${
+                  className={`relative flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors ${
                     active ? 'bg-brand-500 text-white shadow-[0_6px_16px_-6px_rgba(5,108,242,0.5)]' : 'text-brand-950/60 hover:bg-brand-950/[0.06]'
                   }`}
                 >
                   <l.icon className="h-4 w-4" /> {l.label}
+                  {showAlert && (
+                    <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center ring-2 ring-white">
+                      {pendingReservations}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -153,6 +161,24 @@ export default function AdminLayout() {
           >
             <Share2 className="h-5 w-5 text-brand-950/70" />
           </TextureButton>
+          {isAdminCashier(user.role) && (
+            <Link to="/admin/reservations" className="relative" aria-label="Reservas">
+              <div
+                className={`flex items-center justify-center h-11 w-11 rounded-full transition-colors ${
+                  pendingReservations > 0
+                    ? 'bg-red-500 shadow-[0_8px_20px_-6px_rgba(220,38,38,0.6)] animate-pulse'
+                    : 'bg-white border border-brand-950/10'
+                }`}
+              >
+                <CalendarDays className={`h-5 w-5 ${pendingReservations > 0 ? 'text-white' : 'text-brand-950/70'}`} />
+              </div>
+              {pendingReservations > 0 && (
+                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-white text-red-600 text-[10px] font-bold flex items-center justify-center ring-2 ring-red-500">
+                  {pendingReservations}
+                </span>
+              )}
+            </Link>
+          )}
           {canSeeSettings && (
             <Link to="/admin/settings">
               <TextureButton variant="icon" size="icon" className="!h-11 !w-11" aria-label="Ajustes">

@@ -15,9 +15,14 @@ export const reservationController = {
     res.status(201).json({ data: reservation });
   }),
 
-  listUpcoming: asyncHandler(async (req: Request, res: Response) => {
-    const reservations = await reservationService.listUpcoming(req.restaurantId!);
+  list: asyncHandler(async (req: Request, res: Response) => {
+    const reservations = await reservationService.list(req.restaurantId!);
     res.json({ data: reservations });
+  }),
+
+  accept: asyncHandler(async (req: Request, res: Response) => {
+    const reservation = await reservationService.accept(req.restaurantId!, req.params.id);
+    res.json({ data: reservation });
   }),
 
   cancel: asyncHandler(async (req: Request, res: Response) => {

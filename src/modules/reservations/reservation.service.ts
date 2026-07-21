@@ -1,6 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { startOfDayCaracas, startOfTodayCaracas } from '../../utils/timezone';
+import { emitToKitchen, SocketEvents } from '../../sockets';
 import { CreateReservationInput } from './reservation.dto';
 
 export const reservationService = {
@@ -55,7 +56,7 @@ export const reservationService = {
       throw badRequest('Alguna mesa elegida no existe o no está disponible.');
     }
 
-    return prisma.reservation.create({
+    const reservation = await prisma.reservation.create({
       data: {
         restaurantId: restaurant.id,
         date: startOfDayCaracas(input.date),
@@ -68,21 +69,38 @@ export const reservationService = {
       },
       include: { tables: { select: { id: true, number: true } } },
     });
+
+    // Avisa en vivo a Cajero/Administrador (pestaña "Reservas") para que la acepten o rechacen.
+    emitToKitchen(restaurant.id, SocketEvents.RESERVATION_NEW, reservation);
+
+    return reservation;
   },
 
-  /** Ajustes/Mesas → lista de reservas próximas (hoy en adelante), para que el staff sepa qué viene. */
-  async listUpcoming(restaurantId: string) {
+  /** Pestaña "Reservas" del panel: pendientes por aceptar + confirmadas próximas (hoy en adelante). */
+  async list(restaurantId: string) {
     const todayStart = startOfTodayCaracas();
-    return prisma.reservation.findMany({
-      where: { restaurantId, status: 'CONFIRMED', date: { gte: todayStart } },
+    const reservations = await prisma.reservation.findMany({
+      where: { restaurantId, status: { in: ['PENDING', 'CONFIRMED'] }, date: { gte: todayStart } },
       orderBy: [{ date: 'asc' }, { time: 'asc' }],
       include: { tables: { select: { id: true, number: true } } },
     });
+    // Las pendientes primero: son las que requieren acción del staff.
+    return reservations.sort((a, b) => (a.status === b.status ? 0 : a.status === 'PENDING' ? -1 : 1));
+  },
+
+  async accept(restaurantId: string, id: string) {
+    const existing = await prisma.reservation.findFirst({ where: { id, restaurantId } });
+    if (!existing) throw notFound('Reserva no encontrada.');
+    const reservation = await prisma.reservation.update({ where: { id }, data: { status: 'CONFIRMED' } });
+    emitToKitchen(restaurantId, SocketEvents.RESERVATION_UPDATED, { reservationId: id, status: reservation.status });
+    return reservation;
   },
 
   async cancel(restaurantId: string, id: string) {
     const existing = await prisma.reservation.findFirst({ where: { id, restaurantId } });
     if (!existing) throw notFound('Reserva no encontrada.');
-    return prisma.reservation.update({ where: { id }, data: { status: 'CANCELLED' } });
+    const reservation = await prisma.reservation.update({ where: { id }, data: { status: 'CANCELLED' } });
+    emitToKitchen(restaurantId, SocketEvents.RESERVATION_UPDATED, { reservationId: id, status: reservation.status });
+    return reservation;
   },
 };

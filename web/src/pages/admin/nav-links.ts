@@ -1,4 +1,16 @@
-import { Bike, Boxes, Building2, ChefHat, CircleDollarSign, Grid2x2, QrCode, Receipt, Settings, UtensilsCrossed } from 'lucide-react';
+import {
+  Bike,
+  Boxes,
+  Building2,
+  CalendarDays,
+  ChefHat,
+  CircleDollarSign,
+  Grid2x2,
+  QrCode,
+  Receipt,
+  Settings,
+  UtensilsCrossed,
+} from 'lucide-react';
 import { RESTRICTED_ROLES, isAdminCashier, isScreenRole } from '../../utils/roles';
 import { allowsBranches, hasFeature, isDeliveryTierPlan } from '../../utils/subscription';
 import type { UserRole } from '../../types';
@@ -31,6 +43,8 @@ export const INVENTORY_NAV_LINK: AdminNavLink = { to: '/admin/inventory', label:
 export const EXPENSES_NAV_LINK: AdminNavLink = { to: '/admin/expenses', label: 'Gastos', icon: Receipt };
 // Visible solo con Plan Sucursales / Delivery Sucursales (crear sucursales + reporte consolidado).
 export const SUCURSALES_NAV_LINK: AdminNavLink = { to: '/admin/sucursales', label: 'Sucursales', icon: Building2 };
+// Reservas hechas desde el botón "Mesa" del menú público: solo dueño/admin/cajero, que son quienes las aceptan.
+export const RESERVATIONS_NAV_LINK: AdminNavLink = { to: '/admin/reservations', label: 'Reservas', icon: CalendarDays };
 
 const RESTRICTED_VISIBLE = new Set(['/admin/kitchen', '/admin/table-orders']);
 // Plan Solo Delivery: sin mesas, así que estas pestañas no aportan nada.
@@ -69,6 +83,7 @@ export function visibleNavLinks(
   }
   if (!isRestricted && restaurant) {
     const extra: AdminNavLink[] = [];
+    if (isAdminCashier(role)) extra.push(RESERVATIONS_NAV_LINK);
     if (isAdminCashier(role) && hasFeature(restaurant, 'administration')) extra.push(ADMINISTRATION_NAV_LINK, EXPENSES_NAV_LINK);
     if (hasFeature(restaurant, 'inventoryBasic') || hasFeature(restaurant, 'inventoryRecipe')) {
       extra.push(INVENTORY_NAV_LINK);
