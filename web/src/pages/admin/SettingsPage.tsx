@@ -9,6 +9,7 @@ import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } 
 import { TeamSection } from '@/components/admin/TeamSection';
 import { ThemeSection } from '@/components/admin/ThemeSection';
 import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection';
+import { DesktopShortcutSection } from '@/components/admin/DesktopShortcutSection';
 import { WhatsappMessageSection } from '@/components/admin/WhatsappMessageSection';
 import { CheckoutSettingsSection } from '@/components/admin/CheckoutSettingsSection';
 import { ScheduleSection } from '@/components/admin/ScheduleSection';
@@ -74,6 +75,7 @@ export default function SettingsPage() {
       <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Ajustes</h1>
 
       <RestaurantInfoSection />
+      <DesktopShortcutSection />
       <WhatsappMessageSection />
 
       <TextureCard>

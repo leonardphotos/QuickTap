@@ -21,3 +21,12 @@ export async function downloadElementAsPdf(element: HTMLElement, filename: strin
   pdf.addImage(imgData, 'PNG', 0, 0, widthMm, heightMm);
   pdf.save(filename);
 }
+
+/** Captura el mismo elemento y lo descarga como imagen JPG (botón "Descargar" de una comanda). */
+export async function downloadElementAsJpg(element: HTMLElement, filename: string) {
+  const canvas = await html2canvas(element, { scale: 2, backgroundColor: '#ffffff' });
+  const link = document.createElement('a');
+  link.href = canvas.toDataURL('image/jpeg', 0.92);
+  link.download = filename;
+  link.click();
+}

@@ -35,6 +35,7 @@ export const SocketEvents = {
   ORDER_READY: 'order:ready', // aviso público para el cliente de la mesa
   TABLE_SERVICE_REQUEST: 'table:service-request', // comensal llama al mesero / pide la cuenta
   TABLE_SERVICE_ACK: 'table:service-ack', // el mesero atendió la solicitud
+  PRINT_REQUEST: 'print:request', // impresión bajo demanda (reimprimir comanda, lista de insumos) -> estación de impresión
 } as const;
 
 export function initSockets(server: HttpServer): IOServer {

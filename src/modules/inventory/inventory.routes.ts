@@ -22,6 +22,7 @@ router.get('/', requireFeature('inventoryBasic'), requireInventoryAccess, invent
 router.post('/', requireFeature('inventoryBasic'), mutate, inventoryController.create);
 router.patch('/:id', requireFeature('inventoryBasic'), mutate, inventoryController.update);
 router.delete('/:id', requireFeature('inventoryBasic'), mutate, inventoryController.remove);
+router.post('/print-list', requireFeature('inventoryBasic'), requireInventoryAccess, inventoryController.printList);
 
 // Recetas: vincula productos del menú con insumos (descuenta stock al vender).
 router.get('/recipes', requireFeature('inventoryRecipe'), requireInventoryAccess, recipeController.listOverview);

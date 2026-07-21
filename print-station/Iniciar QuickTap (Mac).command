@@ -1,0 +1,31 @@
+#!/bin/bash
+# Estacion de Impresion QuickTap — doble clic para abrir.
+cd "$(dirname "$0")"
+
+PORT=5500
+URL="http://localhost:$PORT"
+
+# Arranca el servidor local solo si no hay uno ya corriendo en ese puerto
+# (para no duplicarlo si ya estaba abierto desde antes).
+if ! lsof -i "tcp:$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+    if command -v python3 >/dev/null 2>&1; then
+        nohup python3 -m http.server "$PORT" --bind 127.0.0.1 >/tmp/quicktap-print-station.log 2>&1 &
+        disown
+    elif command -v npx >/dev/null 2>&1; then
+        nohup npx --yes serve -l "$PORT" . >/tmp/quicktap-print-station.log 2>&1 &
+        disown
+    else
+        osascript -e 'display alert "QuickTap" message "No se encontró Python3 ni Node en esta Mac. Instala Python desde python.org (o Node desde nodejs.org) y vuelve a intentar." as critical'
+        exit 1
+    fi
+    sleep 1
+fi
+
+# Abre en "modo app" (sin barra de direcciones) si hay Chrome o Edge instalado.
+if [ -d "/Applications/Google Chrome.app" ]; then
+    open -na "Google Chrome" --args --app="$URL"
+elif [ -d "/Applications/Microsoft Edge.app" ]; then
+    open -na "Microsoft Edge" --args --app="$URL"
+else
+    open "$URL"
+fi

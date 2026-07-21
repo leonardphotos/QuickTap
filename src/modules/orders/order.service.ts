@@ -1093,6 +1093,37 @@ export const orderService = {
     return { url: buildWhatsappUrl(customerWhatsapp, message) };
   },
 
+  /** Botón "Imprimir" del panel: reenvía la comanda a la estación de impresión (misma room de
+   * cocina que recibe las comandas nuevas) para que la imprima en las impresoras conectadas. */
+  async printComanda(restaurantId: string, orderId: string) {
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      include: { items: { include: { modifiers: true } }, table: { select: { number: true } } },
+    });
+    if (!order) throw notFound('Comanda no encontrada.');
+
+    emitToKitchen(restaurantId, SocketEvents.PRINT_REQUEST, {
+      type: 'comanda',
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      channel: order.channel,
+      table: order.table?.number,
+      customerName: order.customerName,
+      items: order.items.map((i) => ({
+        name: i.productName,
+        variantName: i.variantName,
+        quantity: i.quantity,
+        modifiers: i.modifiers.map((m) => ({ name: m.name })),
+        note: i.note,
+      })),
+      totalBase: order.totalBase,
+      currency: order.currency,
+      createdAt: order.createdAt,
+    });
+
+    return { sent: true };
+  },
+
   /** Resumen de ventas del día (hora de Caracas) para el Dashboard del restaurante. */
   async getTodaySummary(restaurantId: string) {
     const restaurant = await prisma.restaurant.findUnique({

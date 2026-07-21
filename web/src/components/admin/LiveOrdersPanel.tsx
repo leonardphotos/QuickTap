@@ -6,12 +6,11 @@ import {
   ChefHat,
   Clock,
   CreditCard,
-  LayoutGrid,
+  Download,
   ListFilter,
   MessageCircle,
   Plus,
   Printer,
-  Rows3,
   SplitSquareHorizontal,
   Truck,
   X,
@@ -161,9 +160,9 @@ export function LiveOrdersPanel() {
   const [justAdded, setJustAdded] = useState<{ id: string; fading: boolean } | null>(null);
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState<{ order: LiveOrder; mode: 'full' | 'split' } | null>(null);
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
-  // En cuadrícula las tarjetas son más angostas: solo iconos, sin texto, para que los botones no se deformen.
-  const actionBtnClass = viewMode === 'grid' ? 'text-[10.5px] font-medium py-2.5 px-0.5 leading-tight' : 'text-xs font-medium py-3';
+  // Una sola columna con texto en celular; en pantallas anchas siempre cuadrícula
+  // compacta (solo iconos) para aprovechar el espacio — ya no es una opción manual.
+  const actionBtnClass = 'text-xs font-medium py-3 lg:text-[10.5px] lg:py-2.5 lg:px-0.5 lg:leading-tight';
 
   function load() {
     api.get('/orders/live').then((res) => setOrders(res.data.data));
@@ -314,7 +313,7 @@ export function LiveOrdersPanel() {
   if (!orders) return null;
 
   return (
-    <div className={`w-full mb-8 lg:max-w-none ${viewMode === 'grid' ? 'max-w-5xl' : 'max-w-md'}`}>
+    <div className="w-full mb-8 max-w-md lg:max-w-none">
       <div className="grid grid-cols-3 items-center mb-3 gap-2">
         <div className="flex items-center gap-2.5 justify-self-start">
           <h2 className="text-lg font-semibold text-brand-950">Pedidos</h2>
@@ -355,13 +354,6 @@ export function LiveOrdersPanel() {
               <DropdownMenuItem onClick={() => setChannelFilter('PARTIAL')}>Pago fraccionado</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <button
-            onClick={() => setViewMode((v) => (v === 'list' ? 'grid' : 'list'))}
-            aria-label={viewMode === 'list' ? 'Ver en cuadrícula' : 'Ver en fila'}
-            className="flex items-center justify-center text-sm border border-brand-950/15 rounded-lg p-2 bg-white text-brand-950/70 hover:bg-brand-950/[0.03]"
-          >
-            {viewMode === 'list' ? <LayoutGrid className="h-3.5 w-3.5" /> : <Rows3 className="h-3.5 w-3.5" />}
-          </button>
         </div>
       </div>
 
@@ -372,13 +364,7 @@ export function LiveOrdersPanel() {
           <p className="text-sm text-brand-950/40 font-light">No hay pedidos activos.</p>
         </div>
       ) : (
-        <div
-          className={
-            viewMode === 'grid'
-              ? 'grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-3'
-              : 'space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 xl:grid-cols-3 lg:gap-3 lg:items-start'
-          }
-        >
+        <div className="space-y-3 lg:space-y-0 lg:grid lg:grid-cols-3 xl:grid-cols-4 lg:gap-3 lg:items-start">
           {visibleOrders?.map((o) => {
             const { balanceBase, owesBalance, fullyPaid } = getPaymentStatus(o);
             return (
@@ -464,7 +450,7 @@ export function LiveOrdersPanel() {
                     title="Aceptar"
                     className={`flex flex-col items-center justify-center gap-1 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white ${actionBtnClass} transition-colors disabled:opacity-40`}
                   >
-                    <Check className="h-4 w-4" /> {viewMode === 'list' && 'Aceptar'}
+                    <Check className="h-4 w-4" /> <span className="lg:hidden">Aceptar</span>
                   </button>
                   <button
                     onClick={() => cancel(o.id)}
@@ -472,7 +458,7 @@ export function LiveOrdersPanel() {
                     title="Cancelar"
                     className={`flex flex-col items-center justify-center gap-1 rounded-xl bg-red-500 hover:bg-red-600 text-white ${actionBtnClass} transition-colors disabled:opacity-50`}
                   >
-                    <X className="h-4 w-4" /> {viewMode === 'list' && 'Cancelar'}
+                    <X className="h-4 w-4" /> <span className="lg:hidden">Cancelar</span>
                   </button>
                   <button
                     onClick={() => finish(o.id)}
@@ -480,7 +466,7 @@ export function LiveOrdersPanel() {
                     title="Finalizar"
                     className={`flex flex-col items-center justify-center gap-1 rounded-xl bg-brand-500 hover:bg-brand-400 text-white ${actionBtnClass} transition-colors disabled:opacity-50`}
                   >
-                    <ChefHat className="h-4 w-4" /> {viewMode === 'list' && 'Finalizar'}
+                    <ChefHat className="h-4 w-4" /> <span className="lg:hidden">Finalizar</span>
                   </button>
                   <button
                     onClick={() => handleDeliveryClick(o)}
@@ -488,7 +474,7 @@ export function LiveOrdersPanel() {
                     title="Delivery"
                     className={`flex flex-col items-center justify-center gap-1 rounded-xl bg-brand-950 hover:bg-brand-900 text-white ${actionBtnClass} transition-colors disabled:opacity-40`}
                   >
-                    <Truck className="h-4 w-4" /> {viewMode === 'list' && 'Delivery'}
+                    <Truck className="h-4 w-4" /> <span className="lg:hidden">Delivery</span>
                   </button>
                   {canAccountsPayable && (
                     <button
@@ -499,7 +485,7 @@ export function LiveOrdersPanel() {
                         o.awaitingPayment ? 'bg-amber-600 hover:bg-amber-700' : 'bg-amber-500 hover:bg-amber-600'
                       }`}
                     >
-                      <Clock className="h-4 w-4" /> {viewMode === 'list' && (o.awaitingPayment ? 'Pendiente' : 'Cta. abierta')}
+                      <Clock className="h-4 w-4" /> <span className="lg:hidden">{o.awaitingPayment ? 'Pendiente' : 'Cta. abierta'}</span>
                     </button>
                   )}
                 </div>
@@ -514,14 +500,14 @@ export function LiveOrdersPanel() {
                     title="Pagar"
                     className="flex items-center justify-center gap-1.5 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-xs font-medium py-2.5 transition-colors"
                   >
-                    <CreditCard className="h-4 w-4" /> {viewMode === 'list' && 'Pagar'}
+                    <CreditCard className="h-4 w-4" /> <span className="lg:hidden">Pagar</span>
                   </button>
                   <button
                     onClick={() => setPaymentDialog({ order: o, mode: 'split' })}
                     title="Pago fraccionado"
                     className="flex items-center justify-center gap-1.5 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-xs font-medium py-2.5 transition-colors"
                   >
-                    <SplitSquareHorizontal className="h-4 w-4" /> {viewMode === 'list' && 'Pago fraccionado'}
+                    <SplitSquareHorizontal className="h-4 w-4" /> <span className="lg:hidden">Pago fraccionado</span>
                   </button>
                 </div>
               )}
@@ -577,6 +563,7 @@ function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder; onClos
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [printing, setPrinting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
   const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
   const receiptRef = useRef<HTMLDivElement>(null);
 
@@ -584,16 +571,30 @@ function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder; onClos
     api.get('/products').then((res) => setProducts(res.data.data));
   }, []);
 
+  /** Botón "Imprimir": no imprime desde este navegador — reenvía la comanda a la
+   * estación de impresión (print-station), que es quien tiene las impresoras conectadas. */
   async function printComanda() {
-    if (!receiptRef.current) return;
     setPrinting(true);
+    setError(null);
     try {
-      // Import dinámico: html2canvas + jsPDF pesan ~600KB, no tiene sentido
-      // que carguen en cada visita a Pedidos si nunca se imprime una comanda.
-      const { downloadElementAsPdf } = await import('@/utils/pdf');
-      await downloadElementAsPdf(receiptRef.current, `comanda-${order.orderNumber}.pdf`);
+      await api.post(`/orders/${order.id}/print-comanda`);
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo enviar la comanda a la estación de impresión.');
     } finally {
       setPrinting(false);
+    }
+  }
+
+  async function downloadJpg() {
+    if (!receiptRef.current) return;
+    setDownloading(true);
+    try {
+      // Import dinámico: html2canvas pesa bastante, no tiene sentido que cargue
+      // en cada visita a Pedidos si nunca se descarga una comanda.
+      const { downloadElementAsJpg } = await import('@/utils/pdf');
+      await downloadElementAsJpg(receiptRef.current, `comanda-${order.orderNumber}.jpg`);
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -818,7 +819,10 @@ function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder; onClos
 
           <div className="flex flex-wrap gap-2">
             <TextureButton variant="secondary" size="sm" className="!w-auto px-3" disabled={printing} onClick={printComanda}>
-              <Printer className="h-3.5 w-3.5" /> {printing ? 'Generando…' : 'Imprimir comanda'}
+              <Printer className="h-3.5 w-3.5" /> {printing ? 'Enviando…' : 'Imprimir'}
+            </TextureButton>
+            <TextureButton variant="secondary" size="sm" className="!w-auto px-3" disabled={downloading} onClick={downloadJpg}>
+              <Download className="h-3.5 w-3.5" /> {downloading ? 'Generando…' : 'Descargar'}
             </TextureButton>
             <TextureButton
               variant="secondary"

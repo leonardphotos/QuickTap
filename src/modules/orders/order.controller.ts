@@ -186,6 +186,12 @@ export const orderController = {
     res.json({ data: result });
   }),
 
+  /** POST /api/v1/orders/:id/print-comanda — "Imprimir": reenvía la comanda a la estación de impresión. */
+  printComanda: asyncHandler(async (req: Request, res: Response) => {
+    const result = await orderService.printComanda(req.restaurantId!, req.params.id);
+    res.json({ data: result });
+  }),
+
   /** GET /api/v1/orders/reports/sales-stats — botón "Estadísticas": semana/mes vs. período anterior + por usuario. */
   salesStats: asyncHandler(async (req: Request, res: Response) => {
     const range = req.query.range === 'month' ? 'month' : 'week';

@@ -3,6 +3,7 @@ import { prisma } from '../../config/prisma';
 import { notFound } from '../../utils/http-error';
 import { bsToBase, round2, toDecimal } from '../../utils/money';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
+import { emitToKitchen, SocketEvents } from '../../sockets';
 import { CreateInventoryItemInput, UpdateInventoryItemInput } from './inventory.dto';
 
 /**
@@ -77,5 +78,27 @@ export const inventoryService = {
     if (!existing) throw notFound('Insumo no encontrado.');
     await prisma.inventoryItem.delete({ where: { id } });
     return { deleted: true };
+  },
+
+  /** Botón "Imprimir lista de insumos": envía la lista completa (con cantidad disponible) a la
+   * estación de impresión, para saber qué falta comprar. */
+  async printList(restaurantId: string) {
+    const [items, restaurant] = await Promise.all([
+      prisma.inventoryItem.findMany({ where: { restaurantId }, orderBy: { name: 'asc' } }),
+      prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { name: true } }),
+    ]);
+
+    emitToKitchen(restaurantId, SocketEvents.PRINT_REQUEST, {
+      type: 'insumos',
+      restaurantName: restaurant?.name ?? '',
+      items: items.map((i) => ({
+        name: i.name,
+        quantity: i.quantity.toFixed(2),
+        unit: i.unit,
+        low: Number(i.quantity) < Number(i.minQuantity),
+      })),
+    });
+
+    return { sent: true };
   },
 };

@@ -18,4 +18,7 @@ export const inventoryController = {
   remove: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await inventoryService.remove(req.restaurantId!, req.params.id) });
   }),
+  printList: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await inventoryService.printList(req.restaurantId!) });
+  }),
 };

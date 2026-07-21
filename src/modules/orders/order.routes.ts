@@ -33,6 +33,7 @@ router.post('/manual', orderController.createManual);
 router.post('/:id/accept', orderController.accept);
 router.post('/:id/dispatch-courier', orderController.dispatchCourier);
 router.post('/:id/send-whatsapp', orderController.sendWhatsapp);
+router.post('/:id/print-comanda', orderController.printComanda);
 router.post('/:id/items', orderController.addItem);
 router.post('/:id/payments', orderController.addPayment);
 router.patch('/:id/status', orderController.updateStatus);

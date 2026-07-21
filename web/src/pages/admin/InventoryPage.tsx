@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { AlertTriangle, Plus, X } from 'lucide-react';
+import { AlertTriangle, Plus, Printer, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { hasFeature } from '@/utils/subscription';
@@ -96,6 +96,21 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [printingList, setPrintingList] = useState(false);
+  const [printSent, setPrintSent] = useState(false);
+
+  async function printInsumosList() {
+    setPrintingList(true);
+    try {
+      await api.post('/inventory/print-list');
+      setPrintSent(true);
+      setTimeout(() => setPrintSent(false), 2500);
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo enviar la lista a la estación de impresión.');
+    } finally {
+      setPrintingList(false);
+    }
+  }
 
   function startEdit(item: InventoryItem) {
     setEditingId(item.id);
@@ -226,6 +241,22 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
           )}
         </div>
       </form>
+
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-brand-950">Insumos</h2>
+        <div className="flex items-center gap-2">
+          {printSent && <span className="text-xs text-emerald-600 font-medium">Enviado a la estación de impresión</span>}
+          <TextureButton
+            variant="secondary"
+            size="sm"
+            className="!w-auto px-3"
+            disabled={printingList || !items?.length}
+            onClick={printInsumosList}
+          >
+            <Printer className="h-3.5 w-3.5" /> {printingList ? 'Enviando…' : 'Imprimir lista de insumos'}
+          </TextureButton>
+        </div>
+      </div>
 
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
         {items?.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin insumos todavía.</p>}
