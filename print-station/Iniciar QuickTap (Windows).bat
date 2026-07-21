@@ -21,10 +21,16 @@ if not exist %CHROME% set CHROME="%LocalAppData%\Google\Chrome\Application\chrom
 set EDGE="%ProgramFiles(x86)%\Microsoft\Edge\Application\msedge.exe"
 if not exist %EDGE% set EDGE="%ProgramFiles%\Microsoft\Edge\Application\msedge.exe"
 
+rem --kiosk-printing imprime directo en la impresora predeterminada de Windows,
+rem sin mostrar el dialogo de "Imprimir". Necesita un --user-data-dir aparte:
+rem con el perfil normal de Chrome, si ya hay una ventana abierta, el navegador
+rem ignora estos flags en la ventana nueva.
+set PROFILE_DIR=%LocalAppData%\QuickTapPrintStation
+
 if exist %CHROME% (
-    start "" %CHROME% --app=http://localhost:5500
+    start "" %CHROME% --app=http://localhost:5500 --kiosk-printing --user-data-dir="%PROFILE_DIR%"
 ) else if exist %EDGE% (
-    start "" %EDGE% --app=http://localhost:5500
+    start "" %EDGE% --app=http://localhost:5500 --kiosk-printing --user-data-dir="%PROFILE_DIR%"
 ) else (
     start "" http://localhost:5500
 )

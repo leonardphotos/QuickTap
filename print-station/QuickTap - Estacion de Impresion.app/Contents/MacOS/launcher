@@ -24,10 +24,15 @@ if ! lsof -i "tcp:$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
 fi
 
 # Abre en "modo app" (sin barra de direcciones) si hay Chrome o Edge instalado.
+# --kiosk-printing hace que window.print() imprima directo en la impresora
+# predeterminada del sistema, sin mostrar el dialogo de "Imprimir" — por eso
+# hace falta un --user-data-dir aparte: con el perfil normal de Chrome, si ya
+# hay una ventana abierta, el navegador ignora estos flags en la ventana nueva.
+PROFILE_DIR="$HOME/Library/Application Support/QuickTapPrintStation"
 if [ -d "/Applications/Google Chrome.app" ]; then
-    open -na "Google Chrome" --args --app="$URL"
+    open -na "Google Chrome" --args --app="$URL" --kiosk-printing --user-data-dir="$PROFILE_DIR"
 elif [ -d "/Applications/Microsoft Edge.app" ]; then
-    open -na "Microsoft Edge" --args --app="$URL"
+    open -na "Microsoft Edge" --args --app="$URL" --kiosk-printing --user-data-dir="$PROFILE_DIR"
 else
     open "$URL"
 fi

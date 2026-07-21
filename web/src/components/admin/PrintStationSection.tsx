@@ -44,8 +44,18 @@ export function PrintStationSection() {
               La primera vez, clic derecho → Abrir (para saltar el aviso de "desarrollador no identificado").
             </li>
             <li>Conéctate una vez con el correo y contraseña del restaurante — queda guardado para la próxima.</li>
+            <li>
+              En esa computadora, deja la ticketera configurada como{' '}
+              <span className="font-medium">impresora predeterminada</span> del sistema (Windows: Configuración →
+              Impresoras; Mac: Preferencias del Sistema → Impresoras). Las comandas se imprimen ahí automáticamente,
+              sin ningún diálogo de "Imprimir" en pantalla.
+            </li>
           </ol>
         </div>
+        <p className="text-xs text-brand-950/40 font-light">
+          Si ya la tenías instalada, descárgala de nuevo para que las comandas dejen de mostrar el diálogo de
+          impresión de Chrome/Edge.
+        </p>
       </TextureCardContent>
     </TextureCard>
   );

@@ -417,7 +417,10 @@ const state = {
   demoMode: false,
   socket: null,
   orders: [],
-  autoPrint: localStorage.getItem('qt_autoPrint') === '1',
+  // Auto-imprimir viene ACTIVADO por defecto (solo se apaga si el usuario lo
+  // desactiva a mano en Configuración) — así una instalación nueva imprime
+  // las comandas apenas llegan, sin que haga falta tocar nada.
+  autoPrint: localStorage.getItem('qt_autoPrint') !== '0',
   printReceipt: localStorage.getItem('qt_printReceipt') === '1',
   paperWidth: localStorage.getItem('qt_paperWidth') || '80',
   serialPort: null,
