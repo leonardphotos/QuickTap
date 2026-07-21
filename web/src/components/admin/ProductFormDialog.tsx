@@ -108,7 +108,7 @@ export function ProductFormDialog({
         pricingMode,
         costSource: form.costSource,
         costBase: form.costSource === 'MANUAL' && form.costBase ? Number(form.costBase) : undefined,
-        photoUrl: form.photoUrl || undefined,
+        photoUrl: form.photoUrl === null ? null : form.photoUrl || undefined,
         description: form.description || undefined,
         prepTimeMinutes: form.prepTimeMinutes ? Number(form.prepTimeMinutes) : undefined,
         isStar: form.isStar,
