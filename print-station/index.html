@@ -330,16 +330,18 @@
       <p class="muted">Conecta esta computadora a tu restaurante. Las comandas que se generen en QuickTap llegarán aquí en tiempo real, listas para imprimir en las impresoras instaladas.</p>
 
       <div class="field">
-        <label>URL del servidor</label>
-        <input type="text" id="serverUrl" placeholder="http://localhost:4000" value="http://localhost:4000">
-      </div>
-      <div class="field">
         <label>Correo</label>
         <input type="email" id="loginEmail" placeholder="tu@restaurante.com">
       </div>
       <div class="field">
         <label>Contraseña</label>
         <input type="password" id="loginPassword" placeholder="••••••••">
+      </div>
+
+      <button type="button" class="btn-link" id="toggleServerUrlBtn" style="font-size:12px;background:none;border:none;color:#888;cursor:pointer;padding:0;margin:-4px 0 10px;text-align:left;">⚙️ Configuración avanzada (servidor)</button>
+      <div class="field" id="serverUrlField" hidden>
+        <label>URL del servidor</label>
+        <input type="text" id="serverUrl" placeholder="https://quicktap.club" value="https://quicktap.club">
       </div>
 
       <div class="error-msg" id="loginError" hidden></div>
@@ -409,7 +411,7 @@
    ============================================================ */
 const state = {
   token: localStorage.getItem('qt_token') || null,
-  serverUrl: localStorage.getItem('qt_serverUrl') || 'http://localhost:4000',
+  serverUrl: localStorage.getItem('qt_serverUrl') || 'https://quicktap.club',
   restaurant: JSON.parse(localStorage.getItem('qt_restaurant') || 'null'),
   user: JSON.parse(localStorage.getItem('qt_user') || 'null'),
   demoMode: false,
@@ -461,6 +463,13 @@ function setStatus(kind, text){
 /* ============================================================
    Login / sesión
    ============================================================ */
+// Oculto por defecto: la URL del servidor ya viene con el valor de
+// producción (https://quicktap.club), así que el 99% de los restaurantes
+// solo necesita escribir correo y clave. Este botón es solo para soporte/dev.
+$('toggleServerUrlBtn').addEventListener('click', () => {
+  $('serverUrlField').hidden = !$('serverUrlField').hidden;
+});
+
 $('loginBtn').addEventListener('click', async () => {
   const serverUrl = $('serverUrl').value.trim().replace(/\/+$/,'');
   const email = $('loginEmail').value.trim();

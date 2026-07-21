@@ -5,6 +5,7 @@ import { badRequest, notFound } from '../../utils/http-error';
 import { nextPeriodEnd } from '../../utils/subscription';
 import { buildWhatsappUrl } from '../../utils/whatsapp';
 import { promoCodeService } from '../promo-codes/promo-code.service';
+import { platformSettingsService } from '../platform-settings/platform-settings.service';
 import { ramblayClient } from '../ramblay/ramblay.client';
 import {
   ActivateRestaurantInput,
@@ -154,6 +155,11 @@ async function resolvePrice(plan: PurchasablePlan, billingCycle: BillingCycle, p
 export const planRequestService = {
   /** Crea la solicitud de plan a partir del número de referencia que escribió el restaurante. */
   async create(input: CreatePlanRequestInput, opts: { kind: PlanRequestKind; restaurantId?: string }) {
+    const { manualPaymentEnabled } = await platformSettingsService.getPaymentTogglesOrDefault();
+    if (!manualPaymentEnabled) {
+      throw badRequest('El pago manual está deshabilitado por ahora. Intenta con Ramblay o contáctanos.');
+    }
+
     const { priceUsd, promo } = await resolvePrice(input.plan, input.billingCycle, input.promoCode);
 
     return prisma.planRequest.create({
@@ -190,6 +196,11 @@ export const planRequestService = {
    * dejamos una solicitud huérfana en PENDING sin forma de completarse.
    */
   async createRamblayCheckout(input: CreateRamblayCheckoutInput, opts: { kind: PlanRequestKind; restaurantId?: string }) {
+    const { ramblayEnabled } = await platformSettingsService.getPaymentTogglesOrDefault();
+    if (!ramblayEnabled) {
+      throw badRequest('El pago con Ramblay está deshabilitado por ahora. Intenta con el pago manual.');
+    }
+
     const { priceUsd, promo } = await resolvePrice(input.plan, input.billingCycle, input.promoCode);
 
     const planRequest = await prisma.planRequest.create({

@@ -35,6 +35,9 @@ export interface PlatformPaymentMethods {
   pagoMovil?: { banco?: string; telefono?: string; cedula?: string; titular?: string };
   binance?: { id?: string; correo?: string };
   bankTransfer?: { banco?: string; cuenta?: string; titular?: string; rif?: string };
+  /** Interruptores globales de la pasarela: si alguno está apagado, PaymentForm oculta esa opción. */
+  ramblayEnabled?: boolean;
+  manualPaymentEnabled?: boolean;
 }
 
 export interface PaymentMethodLine {

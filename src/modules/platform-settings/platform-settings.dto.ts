@@ -23,6 +23,8 @@ export const updatePaymentMethodsSchema = z.object({
   pagoMovil: pagoMovilSchema.optional(),
   binance: binanceSchema.optional(),
   bankTransfer: bankTransferSchema.optional(),
+  ramblayEnabled: z.boolean().optional(),
+  manualPaymentEnabled: z.boolean().optional(),
 });
 
 export type UpdatePaymentMethodsInput = z.infer<typeof updatePaymentMethodsSchema>;

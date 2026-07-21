@@ -35,6 +35,23 @@ export default function MasterPaymentMethodsPage() {
         </p>
       </div>
 
+      <Section title="Pasarela de pago">
+        <div className="col-span-full">
+          <Toggle
+            checked={methods.ramblayEnabled ?? true}
+            onChange={(v) => setMethods({ ...methods, ramblayEnabled: v })}
+            label="Pago automatizado (Ramblay)"
+            description="C2P/Binance Pay con activación automática. Si lo apagas, los restaurantes solo verán la opción de pago manual."
+          />
+          <Toggle
+            checked={methods.manualPaymentEnabled ?? true}
+            onChange={(v) => setMethods({ ...methods, manualPaymentEnabled: v })}
+            label="Pago manual"
+            description="Transferencia/Zelle/Binance con número de referencia, revisado a mano. Si lo apagas, solo quedará Ramblay."
+          />
+        </div>
+      </Section>
+
       <Section title="Pago Móvil">
         <Field
           label="Banco"
@@ -108,6 +125,38 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       <p className="font-semibold text-brand-950">{title}</p>
       <div className="grid sm:grid-cols-2 gap-4">{children}</div>
     </div>
+  );
+}
+
+function Toggle({
+  checked,
+  onChange,
+  label,
+  description,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  description: string;
+}) {
+  return (
+    <label className="flex items-start justify-between gap-4 py-3 cursor-pointer">
+      <div>
+        <p className="text-sm font-medium text-brand-950">{label}</p>
+        <p className="text-xs text-brand-950/50 font-light mt-0.5">{description}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${checked ? 'bg-brand-500' : 'bg-brand-950/15'}`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-5' : ''}`}
+        />
+      </button>
+    </label>
   );
 }
 

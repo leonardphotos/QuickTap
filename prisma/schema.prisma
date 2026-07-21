@@ -1102,9 +1102,13 @@ model PromoCode {
 // Configuración global (no por restaurante) de la plataforma: datos de pago
 // mostrados en la pasarela manual. Fila única, JSON flexible.
 model PlatformSettings {
-  id             String   @id @default("singleton")
-  paymentMethods Json?
-  updatedAt      DateTime @updatedAt
+  id                   String   @id @default("singleton")
+  paymentMethods       Json?
+  // Interruptores globales de la pasarela de pago (landing + billing autenticado).
+  // Si se apagan ambos, PaymentForm no deja pagar hasta que se reactive uno.
+  ramblayEnabled       Boolean  @default(true)
+  manualPaymentEnabled Boolean  @default(true)
+  updatedAt            DateTime @updatedAt
 
   @@map("platform_settings")
 }

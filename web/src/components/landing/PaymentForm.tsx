@@ -68,8 +68,11 @@ export function PaymentForm({
   const [method, setMethod] = useState<SubscriptionPaymentMethod>('PAGO_MOVIL');
   // Ramblay (C2P/Binance Pay, activación automática) es la opción por
   // defecto; "manual" es el flujo de siempre (transferencia/Zelle con
-  // número de referencia, revisado a mano por el equipo de QuickTap).
+  // número de referencia, revisado a mano por el equipo de QuickTap). El
+  // Dashboard maestro puede apagar cualquiera de las dos globalmente.
   const [payWith, setPayWith] = useState<'ramblay' | 'manual'>('ramblay');
+  const ramblayEnabled = methods.ramblayEnabled ?? true;
+  const manualPaymentEnabled = methods.manualPaymentEnabled ?? true;
   const [contactName, setContactName] = useState(prefillName ?? '');
   const [contactEmail, setContactEmail] = useState(prefillEmail ?? '');
   const [contactPhone, setContactPhone] = useState('');
@@ -86,7 +89,12 @@ export function PaymentForm({
   useEffect(() => {
     api
       .get('/public/payment-methods')
-      .then((res) => setMethods(res.data.data ?? {}))
+      .then((res) => {
+        const data: PlatformPaymentMethods = res.data.data ?? {};
+        setMethods(data);
+        // Si Ramblay (la opción por defecto) está apagado, cae al manual automáticamente.
+        if (data.ramblayEnabled === false && data.manualPaymentEnabled !== false) setPayWith('manual');
+      })
       .catch(() => setMethods({}));
   }, []);
 
@@ -250,28 +258,38 @@ export function PaymentForm({
         {promoError && <p className="text-xs text-red-600 mt-1">{promoError}</p>}
       </div>
 
-      <div className="flex flex-wrap gap-2 mb-6">
-        <button
-          type="button"
-          onClick={() => setPayWith('ramblay')}
-          className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-            payWith === 'ramblay' ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
-          }`}
-        >
-          <CreditCard className="h-3.5 w-3.5" /> Pago Automatizado
-        </button>
-        <button
-          type="button"
-          onClick={() => setPayWith('manual')}
-          className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
-            payWith === 'manual' ? 'bg-brand-950 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
-          }`}
-        >
-          Pago manual
-        </button>
-      </div>
+      {(ramblayEnabled || manualPaymentEnabled) && (
+        <div className="flex flex-wrap gap-2 mb-6">
+          {ramblayEnabled && (
+            <button
+              type="button"
+              onClick={() => setPayWith('ramblay')}
+              className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                payWith === 'ramblay' ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+              }`}
+            >
+              <CreditCard className="h-3.5 w-3.5" /> Pago Automatizado
+            </button>
+          )}
+          {manualPaymentEnabled && (
+            <button
+              type="button"
+              onClick={() => setPayWith('manual')}
+              className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                payWith === 'manual' ? 'bg-brand-950 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+              }`}
+            >
+              Pago manual
+            </button>
+          )}
+        </div>
+      )}
 
-      {payWith === 'ramblay' ? (
+      {!ramblayEnabled && !manualPaymentEnabled ? (
+        <p className="text-sm text-amber-600 font-medium mb-6">
+          Los pagos están deshabilitados temporalmente. Contáctanos para activar tu plan.
+        </p>
+      ) : payWith === 'ramblay' ? (
         <p className="text-sm text-brand-950/60 font-light mb-6">
           Pagas con C2P o Binance Pay en el checkout seguro de Ramblay. En cuanto se confirme, tu plan se activa solo —
           sin esperar revisión manual.
@@ -319,7 +337,7 @@ export function PaymentForm({
         </>
       )}
 
-      <form onSubmit={onSubmit} className="space-y-4">
+      <form onSubmit={onSubmit} className={`space-y-4 ${!ramblayEnabled && !manualPaymentEnabled ? 'hidden' : ''}`}>
         {payWith === 'manual' && (
           <>
             <div className="grid sm:grid-cols-2 gap-4">
