@@ -364,6 +364,10 @@ export const orderService = {
         quantity: i.quantity,
         modifiers: i.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase.toString() })),
         note: i.note,
+        // Estación de cocina de este producto (snapshot congelado al crear el pedido):
+        // la Estación de Impresión la usa para mandar cada comanda a la impresora
+        // que el usuario asignó a esa cocina.
+        kitchenName: i.kitchenName,
       })),
       totalBase: order.totalBase,
       currency: order.currency,
@@ -531,6 +535,10 @@ export const orderService = {
         quantity: i.quantity,
         modifiers: i.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase.toString() })),
         note: i.note,
+        // Estación de cocina de este producto (snapshot congelado al crear el pedido):
+        // la Estación de Impresión la usa para mandar cada comanda a la impresora
+        // que el usuario asignó a esa cocina.
+        kitchenName: i.kitchenName,
       })),
       totalBase: order.totalBase,
       currency: order.currency,
@@ -670,6 +678,10 @@ export const orderService = {
         quantity: i.quantity,
         modifiers: i.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase.toString() })),
         note: i.note,
+        // Estación de cocina de este producto (snapshot congelado al crear el pedido):
+        // la Estación de Impresión la usa para mandar cada comanda a la impresora
+        // que el usuario asignó a esa cocina.
+        kitchenName: i.kitchenName,
       })),
       totalBase: order.totalBase,
       currency: order.currency,
@@ -1115,6 +1127,7 @@ export const orderService = {
         quantity: i.quantity,
         modifiers: i.modifiers.map((m) => ({ name: m.name })),
         note: i.note,
+        kitchenName: i.kitchenName,
       })),
       totalBase: order.totalBase,
       currency: order.currency,

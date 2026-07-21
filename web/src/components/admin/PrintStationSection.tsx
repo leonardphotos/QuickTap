@@ -45,10 +45,16 @@ export function PrintStationSection() {
             </li>
             <li>Conéctate una vez con el correo y contraseña del restaurante — queda guardado para la próxima.</li>
             <li>
-              En esa computadora, deja la ticketera configurada como{' '}
+              Si solo tienes una ticketera en esa computadora, déjala como{' '}
               <span className="font-medium">impresora predeterminada</span> del sistema (Windows: Configuración →
-              Impresoras; Mac: Preferencias del Sistema → Impresoras). Las comandas se imprimen ahí automáticamente,
-              sin ningún diálogo de "Imprimir" en pantalla.
+              Impresoras; Mac: Preferencias del Sistema → Impresoras) y listo — todo se imprime ahí solo, sin ningún
+              diálogo de "Imprimir" en pantalla.
+            </li>
+            <li>
+              Si tienes varias ticketeras conectadas (una por cocina, y otra en caja), entra a{' '}
+              <span className="font-medium">⚙️ Configuración → Impresoras</span> dentro de la app, conecta cada una y
+              asígnale su cocina o "Caja" — cada comanda sale sola en la impresora correcta, y los recibos de caja
+              incluyen el texto "Factura no fiscal".
             </li>
           </ol>
         </div>

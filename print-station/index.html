@@ -385,10 +385,10 @@
       </div>
 
       <div class="card">
-        <h3>Impresora directa (avanzado)</h3>
-        <p class="muted small" style="margin-bottom:10px;line-height:1.5;">Conecta una impresora térmica por USB/Serial para imprimir sin abrir el diálogo del navegador. Solo Chrome/Edge, requiere HTTPS o localhost.</p>
-        <button class="btn btn-secondary btn-block" id="connectSerialBtn">🔌 Conectar impresora</button>
-        <p class="muted small" id="serialStatus" style="margin-top:8px;">No conectada · se usará impresión del navegador</p>
+        <h3>Impresoras</h3>
+        <p class="muted small" style="margin-bottom:10px;line-height:1.5;">Conecta una impresora térmica por USB/Serial por cada cocina o caja, y asígnale su estación — así cada comanda sale sola en la impresora correcta. Solo Chrome/Edge, requiere HTTPS o localhost. Si no conectas ninguna, se usa la impresión normal del navegador.</p>
+        <button class="btn btn-secondary btn-block" id="connectSerialBtn">🔌 Conectar otra impresora</button>
+        <div id="printersList" style="margin-top:10px;"></div>
       </div>
 
       <div class="card">
@@ -423,9 +423,23 @@ const state = {
   autoPrint: localStorage.getItem('qt_autoPrint') !== '0',
   printReceipt: localStorage.getItem('qt_printReceipt') === '1',
   paperWidth: localStorage.getItem('qt_paperWidth') || '80',
-  serialPort: null,
-  serialWriter: null,
+  // Cocinas configuradas en el restaurante (para el selector de "a qué estación
+  // va cada impresora"), y las impresoras térmicas conectadas por Web Serial.
+  // printers: [{ key, label, port, writer, assignment }] — assignment es el
+  // nombre de una cocina, 'CAJA', o null (sin asignar todavía).
+  kitchens: [],
+  printers: [],
 };
+
+/** Asignaciones guardadas de una sesión a otra (clave = vendorId:productId de la impresora). */
+function loadSavedAssignments(){
+  try{ return JSON.parse(localStorage.getItem('qt_printerAssignments') || '{}'); }catch(e){ return {}; }
+}
+function saveAssignment(key, assignment){
+  const map = loadSavedAssignments();
+  if(assignment) map[key] = assignment; else delete map[key];
+  localStorage.setItem('qt_printerAssignments', JSON.stringify(map));
+}
 
 const $ = (id) => document.getElementById(id);
 
@@ -513,6 +527,8 @@ $('loginBtn').addEventListener('click', async () => {
     connectSocket();
     showMain();
     updateConnCard();
+    loadKitchens();
+    reconnectSavedPrinters();
   }catch(err){
     $('loginError').textContent = err.message || 'No se pudo conectar. Verifica la URL del servidor y tus credenciales.';
     $('loginError').hidden = false;
@@ -528,6 +544,8 @@ $('tryDemoBtn').addEventListener('click', () => {
   state.user = { name: 'Invitado' };
   showMain();
   updateConnCard();
+  renderPrintersList();
+  reconnectSavedPrinters();
   setStatus('connecting', 'Modo demo (sin servidor)');
   setTimeout(() => setStatus('connected', 'Modo demo'), 400);
 });
@@ -666,7 +684,23 @@ function printOrderById(orderId){
 /* ============================================================
    Impresión — genera el ticket y lo manda a imprimir
    ============================================================ */
-function buildTicketHtml(order, kind){
+// Sin cocina asignada al producto (ej. bebidas sin estación configurada):
+// van todas juntas en un ticket aparte con este nombre.
+const SIN_COCINA = 'Sin cocina asignada';
+
+/** Agrupa los productos del pedido por cocina — una comanda de papel por estación. */
+function groupItemsByKitchen(order){
+  const groups = new Map();
+  for(const it of (order.items || [])){
+    const key = it.kitchenName || SIN_COCINA;
+    if(!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(it);
+  }
+  if(groups.size === 0) groups.set(SIN_COCINA, []);
+  return groups;
+}
+
+function buildTicketHtml(order, kind, station){
   const bizName = state.restaurant?.name || 'QuickTap';
   const channelLabel = CHANNEL_LABEL[order.channel] || order.channel || '';
   const tableInfo = order.table ? `Mesa ${esc(order.table)}` : '';
@@ -691,10 +725,15 @@ function buildTicketHtml(order, kind){
     total = order.totalBase ?? items.reduce((s,it)=> s + (it.quantity||0), 0);
   }
 
+  // Título: "COMANDA · Parrilla" si hay más de una estación en juego, o el
+  // genérico de siempre si es la única cocina del pedido.
+  const kitchenTitle = station && station !== SIN_COCINA ? `COMANDA · ${esc(station)}` : 'COMANDA DE COCINA';
+
   return `
     <div class="r-center r-bold r-title">${esc(bizName)}</div>
     <div class="r-line"></div>
-    <div class="r-center r-bold r-big">${kind==='cocina' ? 'COMANDA DE COCINA' : 'RECIBO'}</div>
+    <div class="r-center r-bold r-big">${kind==='cocina' ? kitchenTitle : 'RECIBO'}</div>
+    ${kind==='recibo' ? '<div class="r-center r-bold">Factura no fiscal</div>' : ''}
     <div class="r-line"></div>
     <div class="r-row"><span>Orden:</span><span>#${esc(order.orderNumber ?? '—')}</span></div>
     <div class="r-row"><span>Canal:</span><span>${esc(channelLabel)}</span></div>
@@ -736,11 +775,36 @@ async function printInsumosList(payload){
   const receiptEl = $('receipt');
   receiptEl.className = state.paperWidth === '58' ? 'w58' : 'w80';
   receiptEl.innerHTML = buildInsumosTicketHtml(payload);
+  await sendTicket('CAJA', receiptEl);
+}
 
-  if(state.serialWriter){
-    await printViaSerial(receiptToPlainText(receiptEl));
+/**
+ * Manda un ticket ya renderizado a la impresora correcta:
+ *  - Si hay una sola impresora conectada (el caso de siempre, un solo
+ *    puesto), todo sale ahí sin importar la estación — no hace falta
+ *    configurar nada para el uso más común.
+ *  - Si hay varias, busca la que el usuario asignó a esa estación
+ *    (nombre de cocina, o 'CAJA' para el recibo).
+ *  - Si no encuentra ninguna impresora para esa estación, cae al diálogo
+ *    normal del navegador (que con --kiosk-printing imprime solo, sin
+ *    diálogo, en la impresora predeterminada del sistema).
+ */
+async function sendTicket(assignment, receiptEl){
+  let printer = null;
+  if(state.printers.length === 1){
+    printer = state.printers[0];
+  } else if(state.printers.length > 1){
+    printer = state.printers.find(p => p.assignment === assignment) || null;
+  }
+
+  if(printer && printer.writer){
+    await printViaSerial(printer, receiptToPlainText(receiptEl));
   } else {
-    window.print();
+    await new Promise(resolve => {
+      window.print();
+      // Pequeña pausa para no encolar dos print() casi simultáneos.
+      setTimeout(resolve, 400);
+    });
   }
 }
 
@@ -748,20 +812,17 @@ async function printOrder(order){
   const receiptEl = $('receipt');
   receiptEl.className = state.paperWidth === '58' ? 'w58' : 'w80';
 
-  const kinds = state.printReceipt ? ['cocina', 'recibo'] : ['cocina'];
+  // Una comanda de papel por cada cocina involucrada, a la impresora que le
+  // asignaste a esa cocina (o a la única impresora conectada, si solo hay una).
+  const groups = groupItemsByKitchen(order);
+  for(const [station, items] of groups){
+    receiptEl.innerHTML = buildTicketHtml({ ...order, items }, 'cocina', station);
+    await sendTicket(station, receiptEl);
+  }
 
-  for(const kind of kinds){
-    receiptEl.innerHTML = buildTicketHtml(order, kind);
-
-    if(state.serialWriter){
-      await printViaSerial(receiptToPlainText(receiptEl));
-    } else {
-      await new Promise(resolve => {
-        window.print();
-        // Pequeña pausa para no encolar los dos print() casi simultáneos.
-        setTimeout(resolve, 400);
-      });
-    }
+  if(state.printReceipt){
+    receiptEl.innerHTML = buildTicketHtml(order, 'recibo');
+    await sendTicket('CAJA', receiptEl);
   }
 
   order._printed = true;
@@ -778,36 +839,111 @@ function receiptToPlainText(el){
 }
 
 /* ============================================================
-   Impresora directa (Web Serial) — opcional, Chrome/Edge
+   Impresoras directas (Web Serial) — opcional, Chrome/Edge.
+   Cada impresora conectada queda guardada (vendorId:productId) para
+   reconectarse sola la próxima vez, con la misma asignación de estación.
    ============================================================ */
+function printerKey(port){
+  const info = port.getInfo ? port.getInfo() : {};
+  return `${info.usbVendorId ?? 'x'}:${info.usbProductId ?? 'x'}`;
+}
+
+async function addPrinter(port, presetAssignment){
+  try{
+    if(!port.readable && !port.writable) await port.open({ baudRate: 9600 });
+  }catch(err){
+    // Ya estaba abierta (típico al reconectar una guardada) — se sigue de largo.
+  }
+  const key = printerKey(port);
+  if(state.printers.some(p => p.key === key)) return;
+  const writer = port.writable.getWriter();
+  const saved = loadSavedAssignments();
+  state.printers.push({ key, label: `Impresora ${state.printers.length + 1}`, port, writer, assignment: presetAssignment ?? saved[key] ?? null });
+  renderPrintersList();
+}
+
+/** Al abrir la app, reconecta sin pedir permiso otra vez las impresoras ya autorizadas antes. */
+async function reconnectSavedPrinters(){
+  if(!('serial' in navigator)) return;
+  try{
+    const ports = await navigator.serial.getPorts();
+    for(const port of ports) await addPrinter(port);
+  }catch(err){
+    console.error('No se pudieron reconectar las impresoras guardadas:', err);
+  }
+}
+
 $('connectSerialBtn').addEventListener('click', async () => {
   if(!('serial' in navigator)){
-    $('serialStatus').textContent = 'Tu navegador no soporta Web Serial. Usa Chrome o Edge sobre HTTPS/localhost.';
+    alert('Tu navegador no soporta Web Serial. Usa Chrome o Edge sobre HTTPS/localhost.');
     return;
   }
   try{
     const port = await navigator.serial.requestPort();
-    await port.open({ baudRate: 9600 });
-    state.serialPort = port;
-    state.serialWriter = port.writable.getWriter();
-    $('serialStatus').textContent = '✅ Impresora conectada — se usará impresión directa.';
+    await addPrinter(port);
   }catch(err){
-    $('serialStatus').textContent = 'No se conectó ninguna impresora.';
+    // El usuario cerró el selector sin elegir nada — no hace falta avisar de error.
   }
 });
 
-async function printViaSerial(text){
+/** Dibuja la lista de impresoras conectadas con su selector de estación (cocina o caja). */
+function renderPrintersList(){
+  const el = $('printersList');
+  if(state.printers.length === 0){
+    el.innerHTML = '<p class="muted small">Ninguna conectada · se usará la impresión normal del navegador.</p>';
+    return;
+  }
+  el.innerHTML = state.printers.map((p, idx) => {
+    const options = ['<option value="">Sin asignar</option>', '<option value="CAJA">Caja (recibo)</option>']
+      .concat(state.kitchens.map(k => `<option value="${esc(k.name)}">${esc(k.name)}</option>`))
+      .join('');
+    return `
+      <div class="printer-row" style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+        <span class="muted small" style="flex:1;">🖨️ ${esc(p.label)}</span>
+        <select data-printer-key="${esc(p.key)}" class="printer-assign" style="flex:1;">${options}</select>
+      </div>
+    `;
+  }).join('');
+
+  el.querySelectorAll('.printer-assign').forEach(sel => {
+    const key = sel.getAttribute('data-printer-key');
+    const printer = state.printers.find(p => p.key === key);
+    if(printer) sel.value = printer.assignment || '';
+    sel.addEventListener('change', (e) => {
+      const value = e.target.value || null;
+      if(printer) printer.assignment = value;
+      saveAssignment(key, value);
+    });
+  });
+}
+
+async function printViaSerial(printer, text){
   const encoder = new TextEncoder();
   const ESC_INIT = new Uint8Array([0x1b, 0x40]); // ESC @  (init)
   const CUT = new Uint8Array([0x1d, 0x56, 0x42, 0x00]); // GS V B 0 (corte parcial)
   try{
-    await state.serialWriter.write(ESC_INIT);
-    await state.serialWriter.write(encoder.encode(text));
-    await state.serialWriter.write(CUT);
+    await printer.writer.write(ESC_INIT);
+    await printer.writer.write(encoder.encode(text));
+    await printer.writer.write(CUT);
   }catch(err){
     console.error('Error imprimiendo por serial:', err);
     window.print();
   }
+}
+
+/** Cocinas configuradas en el restaurante, para el selector de asignación de impresoras. */
+async function loadKitchens(){
+  if(state.demoMode || !state.token) return;
+  try{
+    const res = await fetch(`${state.serverUrl}/api/v1/kitchens`, {
+      headers: { Authorization: `Bearer ${state.token}` },
+    });
+    const body = await res.json();
+    state.kitchens = res.ok ? (body.data || []) : [];
+  }catch(err){
+    state.kitchens = [];
+  }
+  renderPrintersList();
 }
 
 /* ============================================================
@@ -862,6 +998,8 @@ function init(){
     showMain();
     updateConnCard();
     connectSocket();
+    loadKitchens();
+    reconnectSavedPrinters();
   }else{
     showLogin();
   }
