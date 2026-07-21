@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { io } from 'socket.io-client';
@@ -11,6 +11,7 @@ import ProductDetailSheet from './ProductDetailSheet';
 import CartDrawer from './CartDrawer';
 import ReservationDialog from './ReservationDialog';
 import { Toast } from '@/components/ui/toast';
+import { useFlyToCart } from '@/components/ui/fly-to-cart';
 import { FacebookIcon, InstagramIcon, TikTokIcon, WhatsAppIcon, XIcon } from '@/components/ui/social-icons';
 import {
   MinimalCard,
@@ -38,6 +39,8 @@ export default function MenuPage() {
   const [requestingBill, setRequestingBill] = useState(false);
   const [showSocial, setShowSocial] = useState(false);
   const [reservationOpen, setReservationOpen] = useState(false);
+  const cartButtonRef = useRef<HTMLButtonElement>(null);
+  const { trigger: flyToCart, layer: flyToCartLayer } = useFlyToCart(cartButtonRef);
 
   useEffect(() => {
     api
@@ -117,7 +120,8 @@ export default function MenuPage() {
     }
   }
 
-  function addToCart(line: CartLine) {
+  function addToCart(line: CartLine, originRect?: DOMRect) {
+    if (originRect) flyToCart(originRect, line.product.photoUrl);
     setCart((prev) => {
       const matchIndex = prev.findIndex(
         (l) =>
@@ -352,11 +356,14 @@ export default function MenuPage() {
       {reservationOpen && <ReservationDialog restaurant={restaurant} onClose={() => setReservationOpen(false)} />}
 
       {/* Barra de navegación inferior: acciones de mesa (si aplica), WhatsApp, redes y carrito.
-          Se oculta mientras hay una hoja abierta (carrito o detalle) para no tapar sus botones. */}
-      {!cartOpen && !selectedProduct && !reservationOpen && (
+          Se oculta (con opacidad, no desmontando) mientras hay una hoja abierta, así el botón
+          del carrito sigue montado y la animación de "volar al carrito" siempre tiene destino. */}
       <nav
-        className="fixed bottom-0 inset-x-0 z-20 flex justify-center"
+        className={`fixed bottom-0 inset-x-0 z-20 flex justify-center transition-opacity duration-150 ${
+          cartOpen || selectedProduct || reservationOpen ? 'opacity-0 pointer-events-none' : 'opacity-100'
+        }`}
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        aria-hidden={cartOpen || !!selectedProduct || reservationOpen}
       >
         <div className="relative w-full max-w-md mx-3 mb-3">
           {showSocial && hasSocialLinks && (
@@ -431,6 +438,7 @@ export default function MenuPage() {
             )}
 
             <button
+              ref={cartButtonRef}
               onClick={() => setCartOpen(true)}
               aria-label="Ver carrito"
               className="relative flex items-center justify-center h-12 w-12 rounded-full bg-white text-brand-500 shadow-[0_8px_20px_-6px_rgba(0,0,0,0.35)]"
@@ -445,9 +453,9 @@ export default function MenuPage() {
           </div>
         </div>
       </nav>
-      )}
 
       <Toast message={readyMessage} />
+      {flyToCartLayer}
     </div>
   );
 }
@@ -486,7 +494,7 @@ function HighlightRow({
   title: string;
   products: PublicMenu['highlights']['stars'];
   restaurant: Restaurant;
-  onAdd: (l: CartLine) => void;
+  onAdd: (l: CartLine, originRect?: DOMRect) => void;
   onOpen: (product: Product) => void;
   orderingEnabled: boolean;
 }) {
@@ -523,7 +531,7 @@ function HighlightCard({
 }: {
   product: Product;
   restaurant: Restaurant;
-  onAdd: (l: CartLine) => void;
+  onAdd: (l: CartLine, originRect?: DOMRect) => void;
   onOpen: (product: Product) => void;
   orderingEnabled: boolean;
 }) {
@@ -559,7 +567,7 @@ function HighlightCard({
                 onOpen(product);
                 return;
               }
-              onAdd({ product, quantity: 1, selectedModifiers: [] });
+              onAdd({ product, quantity: 1, selectedModifiers: [] }, e.currentTarget.getBoundingClientRect());
             }}
           >
             Agregar

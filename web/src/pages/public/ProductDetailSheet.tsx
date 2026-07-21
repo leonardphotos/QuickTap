@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { MouseEvent } from 'react';
 import { Check, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import type { CartLine, ModifierCategory, Product, Restaurant, SelectedModifier } from '../../types';
 import { formatBase, publicPriceLabel } from '../../utils/format';
@@ -16,7 +17,7 @@ interface Props {
   restaurant: Restaurant;
   allProducts: Product[];
   onClose: () => void;
-  onAdd: (line: CartLine) => void;
+  onAdd: (line: CartLine, originRect?: DOMRect) => void;
   onSelectProduct: (product: Product) => void;
   orderingEnabled: boolean;
 }
@@ -111,16 +112,19 @@ export default function ProductDetailSheet({
     });
   }
 
-  function confirmAdd() {
+  function confirmAdd(e: MouseEvent<HTMLButtonElement>) {
     if (!product || !canAdd) return;
-    onAdd({
-      product,
-      quantity,
-      variantId: selectedVariant?.id,
-      variantName: selectedVariant?.name,
-      selectedModifiers: chosenModifiers,
-      note: note.trim() || undefined,
-    });
+    onAdd(
+      {
+        product,
+        quantity,
+        variantId: selectedVariant?.id,
+        variantName: selectedVariant?.name,
+        selectedModifiers: chosenModifiers,
+        note: note.trim() || undefined,
+      },
+      e.currentTarget.getBoundingClientRect(),
+    );
     setQuantity(1);
     setNote('');
     setJustAdded(true);
