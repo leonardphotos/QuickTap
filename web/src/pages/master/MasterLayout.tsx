@@ -1,5 +1,5 @@
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
-import { BarChart3, LogOut, Nfc, Receipt, ShieldCheck, Store, Tag, Users, Wallet } from 'lucide-react';
+import { BarChart3, DollarSign, LogOut, Nfc, Receipt, ShieldCheck, Store, Tag, Users, Wallet } from 'lucide-react';
 import { useMasterAuth } from '../../context/MasterAuthContext';
 import { MoneyVisibilityProvider } from '@/context/MoneyVisibilityContext';
 import { MoneyVisibilityToggle } from '@/components/master/MoneyVisibilityToggle';
@@ -12,6 +12,7 @@ const NAV_LINKS = [
   { to: '/master/qrnfc-requests', label: 'Solicitud QRNFC', icon: Nfc },
   { to: '/master/promo-codes', label: 'Códigos promo', icon: Tag },
   { to: '/master/payment-methods', label: 'Datos de pago', icon: Wallet },
+  { to: '/master/plans', label: 'Planes', icon: DollarSign },
   { to: '/master/admins', label: 'Usuarios', icon: Users },
 ];
 

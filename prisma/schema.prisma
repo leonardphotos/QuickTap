@@ -1108,6 +1108,10 @@ model PlatformSettings {
   // Si se apagan ambos, PaymentForm no deja pagar hasta que se reactive uno.
   ramblayEnabled       Boolean  @default(true)
   manualPaymentEnabled Boolean  @default(true)
+  // Precios/descripción editables por plan desde el Dashboard maestro. Parcial
+  // (solo los planes que el master haya tocado); se fusiona con los valores
+  // por defecto en platform-settings.service.ts al leer.
+  planContent          Json?
   updatedAt            DateTime @updatedAt
 
   @@map("platform_settings")

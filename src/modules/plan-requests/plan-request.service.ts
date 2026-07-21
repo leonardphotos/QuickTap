@@ -140,7 +140,10 @@ async function applyActivation(
 
 /** Precio final del plan tras aplicar el código promocional, si hay uno válido. */
 async function resolvePrice(plan: PurchasablePlan, billingCycle: BillingCycle, promoCode?: string) {
-  let priceUsd: number = FIXED_PLAN_PRICES[plan][billingCycle];
+  // Fuente de verdad real: lo editado desde el Dashboard maestro (platform_settings.planContent),
+  // con FIXED_PLAN_PRICES como respaldo si por lo que sea la fila no tuviera nada cargado aún.
+  let priceUsd: number = await platformSettingsService.getPlanPrice(plan, billingCycle);
+  if (!Number.isFinite(priceUsd) || priceUsd <= 0) priceUsd = FIXED_PLAN_PRICES[plan][billingCycle];
   if (!Number.isFinite(priceUsd) || priceUsd <= 0) {
     throw badRequest('No se pudo calcular el precio del plan.');
   }

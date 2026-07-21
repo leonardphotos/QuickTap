@@ -25,6 +25,8 @@ import { publicPromoCodeRoutes, masterPromoCodeRoutes } from '../modules/promo-c
 import {
   publicPlatformSettingsRoutes,
   masterPlatformSettingsRoutes,
+  publicPlanContentRoutes,
+  masterPlanContentRoutes,
 } from '../modules/platform-settings/platform-settings.routes';
 import masterRestaurantsRoutes from '../modules/master/master-restaurants.routes';
 import masterAdminsRoutes from '../modules/master/master-admins.routes';
@@ -96,12 +98,14 @@ router.get('/public/exchange-rate', exchangeRateController.summary);
 router.use('/public/plan-requests', publicPlanRequestRoutes);
 router.use('/public/promo-codes', publicPromoCodeRoutes);
 router.use('/public/payment-methods', publicPlatformSettingsRoutes);
+router.use('/public/plans', publicPlanContentRoutes);
 router.use('/public/reservations', publicReservationRoutes);
 router.use('/public/ramblay', publicRamblayRoutes);
 
 // --- Dashboard maestro (equipo de QuickTap, ve todos los restaurantes) ---
 router.use('/master/promo-codes', masterPromoCodeRoutes);
 router.use('/master/payment-methods', masterPlatformSettingsRoutes);
+router.use('/master/plans', masterPlanContentRoutes);
 router.use('/master/plan-requests', masterPlanRequestRoutes);
 router.use('/master/qr-nfc-requests', masterQrNfcRequestRoutes);
 router.use('/master/summary', masterSummaryRoutes);

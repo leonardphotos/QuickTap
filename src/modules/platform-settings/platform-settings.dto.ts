@@ -28,3 +28,27 @@ export const updatePaymentMethodsSchema = z.object({
 });
 
 export type UpdatePaymentMethodsInput = z.infer<typeof updatePaymentMethodsSchema>;
+
+const planPricesSchema = z.object({
+  MONTHLY: z.coerce.number().positive().max(100000).optional(),
+  QUARTERLY: z.coerce.number().positive().max(100000).optional(),
+  SEMIANNUAL: z.coerce.number().positive().max(100000).optional(),
+});
+
+const planContentEntrySchema = z.object({
+  name: z.string().min(1).max(80).optional(),
+  subtitle: z.string().min(1).max(200).optional(),
+  capacity: z.string().min(1).max(200).optional(),
+  features: z.array(z.string().min(1).max(200)).max(20).optional(),
+  prices: planPricesSchema.optional(),
+});
+
+/** Editor de planes del Dashboard maestro: precios/descripción, parcial por plan. */
+export const updatePlanContentSchema = z.object({
+  DELIVERY: planContentEntrySchema.optional(),
+  PRO: planContentEntrySchema.optional(),
+  SUCURSALES: planContentEntrySchema.optional(),
+  DELIVERY_SUCURSALES: planContentEntrySchema.optional(),
+});
+
+export type UpdatePlanContentInput = z.infer<typeof updatePlanContentSchema>;

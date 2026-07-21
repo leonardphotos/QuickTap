@@ -1137,6 +1137,37 @@ export const orderService = {
     return { sent: true };
   },
 
+  /** POST /api/v1/orders/:id/print-receipt — "¿Desea imprimir la cuenta?" al saldar el pedido: reenvía a la impresora de Caja. */
+  async printReceipt(restaurantId: string, orderId: string) {
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      include: { items: { include: { modifiers: true } }, table: { select: { number: true } } },
+    });
+    if (!order) throw notFound('Pedido no encontrado.');
+
+    emitToKitchen(restaurantId, SocketEvents.PRINT_REQUEST, {
+      type: 'recibo',
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      channel: order.channel,
+      table: order.table?.number,
+      customerName: order.customerName,
+      items: order.items.map((i) => ({
+        name: i.productName,
+        variantName: i.variantName,
+        quantity: i.quantity,
+        modifiers: i.modifiers.map((m) => ({ name: m.name })),
+        note: i.note,
+        kitchenName: i.kitchenName,
+      })),
+      totalBase: order.totalBase,
+      currency: order.currency,
+      createdAt: order.createdAt,
+    });
+
+    return { sent: true };
+  },
+
   /** Resumen de ventas del día (hora de Caracas) para el Dashboard del restaurante. */
   async getTodaySummary(restaurantId: string) {
     const restaurant = await prisma.restaurant.findUnique({

@@ -60,6 +60,8 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paidNow, setPaidNow] = useState<number | null>(null);
+  const [showPrintPrompt, setShowPrintPrompt] = useState(false);
+  const [printing, setPrinting] = useState(false);
 
   const selectedDetails = paymentConfig?.[method];
   const discountPct = Math.min(100, Math.max(0, Number(discountPercent) || 0));
@@ -108,7 +110,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
       onPaid();
       const remaining = balanceBase - amountBase;
       if (mode === 'full' || remaining <= 0.01) {
-        onClose();
+        setShowPrintPrompt(true);
       } else {
         setPaidNow(amountBase);
         setAmount('');
@@ -117,6 +119,18 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
       setError(e.response?.data?.error ?? 'No se pudo registrar el pago.');
     } finally {
       setSending(false);
+    }
+  }
+
+  async function printReceipt() {
+    setPrinting(true);
+    try {
+      await api.post(`/orders/${order.id}/print-receipt`);
+    } catch {
+      // La estación de impresión puede estar apagada/desconectada; no bloqueamos el cierre por eso.
+    } finally {
+      setPrinting(false);
+      onClose();
     }
   }
 
@@ -141,7 +155,20 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
             </div>
           )}
 
-          {paidNow != null ? (
+          {showPrintPrompt ? (
+            <div className="space-y-3 text-center py-2">
+              <p className="text-sm font-medium text-emerald-600">✓ Cuenta saldada</p>
+              <p className="text-sm text-brand-950/70">¿Desea imprimir la cuenta?</p>
+              <div className="flex gap-2 justify-center">
+                <TextureButton variant="brand" size="default" className="!w-auto disabled:opacity-50" disabled={printing} onClick={printReceipt}>
+                  {printing ? 'Imprimiendo…' : 'Sí, imprimir'}
+                </TextureButton>
+                <TextureButton variant="secondary" size="default" className="!w-auto" disabled={printing} onClick={onClose}>
+                  No
+                </TextureButton>
+              </div>
+            </div>
+          ) : paidNow != null ? (
             <div className="space-y-3 text-center py-2">
               <p className="text-sm font-medium text-emerald-600">
                 ✓ Pago de {formatBase(paidNow, symbol)} registrado

@@ -11,3 +11,13 @@ export const masterPlatformSettingsRoutes = Router();
 masterPlatformSettingsRoutes.use(platformAuthGuard);
 masterPlatformSettingsRoutes.get('/', platformSettingsController.getPaymentMethods);
 masterPlatformSettingsRoutes.patch('/', platformSettingsController.updatePaymentMethods);
+
+/** Base: /api/v1/public/plans — precios/descripción de los 4 planes (landing + billing). */
+export const publicPlanContentRoutes = Router();
+publicPlanContentRoutes.get('/', platformSettingsController.getPlanContent);
+
+/** Base: /api/v1/master/plans — editor de precios/descripción del Dashboard maestro. */
+export const masterPlanContentRoutes = Router();
+masterPlanContentRoutes.use(platformAuthGuard);
+masterPlanContentRoutes.get('/', platformSettingsController.getPlanContent);
+masterPlanContentRoutes.patch('/', platformSettingsController.updatePlanContent);

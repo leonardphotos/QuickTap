@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
+import { api } from '@/api/client';
 import { formatBs } from '@/utils/format';
 import { BILLING_CYCLE_LABEL, FIXED_PLAN_PRICES, type BillingCycle, type PlanId } from '@/utils/plans';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -71,7 +73,26 @@ interface Props {
   onChoosePlan: (plan: Exclude<PlanId, 'TRIAL' | 'STARTER' | 'PREMIUM' | 'CUSTOM'>) => void;
 }
 
+interface FetchedPlan {
+  name: string;
+  subtitle: string;
+  capacity: string;
+  features: string[];
+  prices: Record<BillingCycle, number>;
+}
+
 export function PlanCards({ rateBs, billingCycle, onBillingCycleChange, onChoosePlan }: Props) {
+  // Precios/descripción editables desde el Dashboard maestro; hasta que carguen,
+  // se muestran los valores por defecto (PLAN_CONTENT/FIXED_PLAN_PRICES).
+  const [dynamicContent, setDynamicContent] = useState<Record<string, FetchedPlan> | null>(null);
+
+  useEffect(() => {
+    api
+      .get('/public/plans')
+      .then((res) => setDynamicContent(res.data.data ?? null))
+      .catch(() => {});
+  }, []);
+
   function priceLabel(usd: number) {
     return (
       <>
@@ -103,6 +124,12 @@ export function PlanCards({ rateBs, billingCycle, onBillingCycleChange, onChoose
       <div className="grid sm:grid-cols-2 gap-5 max-w-2xl mx-auto">
         {PLAN_CONTENT.map((plan) => {
           const isSucursales = plan.id === 'SUCURSALES' || plan.id === 'DELIVERY_SUCURSALES';
+          const d = dynamicContent?.[plan.id];
+          const name = d?.name ?? plan.name;
+          const subtitle = d?.subtitle ?? plan.subtitle;
+          const capacity = d?.capacity ?? plan.capacity;
+          const features = d?.features ?? plan.features;
+          const price = d?.prices[billingCycle] ?? FIXED_PLAN_PRICES[plan.id][billingCycle];
           return (
           <div key={plan.id} className="relative">
             {plan.highlighted && (
@@ -124,16 +151,16 @@ export function PlanCards({ rateBs, billingCycle, onBillingCycleChange, onChoose
                     : 'border-brand-950/10 shadow-sm'
               }`}
             >
-              <p className="font-semibold text-brand-950">{plan.name}</p>
-              <p className="text-xs text-brand-950/50 font-light mt-0.5">{plan.subtitle}</p>
+              <p className="font-semibold text-brand-950">{name}</p>
+              <p className="text-xs text-brand-950/50 font-light mt-0.5">{subtitle}</p>
 
-              <div className="mt-4">{priceLabel(FIXED_PLAN_PRICES[plan.id][billingCycle])}</div>
+              <div className="mt-4">{priceLabel(price)}</div>
 
               <ul className="mt-4 space-y-2 text-sm text-brand-950/70 flex-1 font-light">
                 <li className="flex items-start gap-2">
-                  <Check className="h-4 w-4 text-brand-500 shrink-0 mt-0.5" /> {plan.capacity}
+                  <Check className="h-4 w-4 text-brand-500 shrink-0 mt-0.5" /> {capacity}
                 </li>
-                {plan.features.map((f) => (
+                {features.map((f) => (
                   <li key={f} className="flex items-start gap-2">
                     <Check className="h-4 w-4 text-brand-500 shrink-0 mt-0.5" /> {f}
                   </li>

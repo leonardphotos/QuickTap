@@ -610,7 +610,20 @@ function handlePrintRequest(payload){
   if(payload.type === 'comanda'){
     const order = { ...payload, _receivedAt: new Date().toISOString(), _printed: false };
     printOrder(order);
+    return;
   }
+  if(payload.type === 'recibo'){
+    const order = { ...payload, _receivedAt: new Date().toISOString(), _printed: false };
+    printReceiptOnly(order);
+  }
+}
+
+/** "¿Desea imprimir la cuenta?" al saldar un pedido: solo la cuenta, a la impresora de Caja — no las comandas de cocina. */
+async function printReceiptOnly(order){
+  const receiptEl = $('receipt');
+  receiptEl.className = state.paperWidth === '58' ? 'w58' : 'w80';
+  receiptEl.innerHTML = buildTicketHtml(order, 'recibo');
+  await sendTicket('CAJA', receiptEl);
 }
 
 function handleIncomingOrder(payload){
