@@ -72,14 +72,20 @@ export default function SettingsPage() {
   const activeRate = rates?.[baseCurrency];
 
   return (
-    <div className="space-y-8 max-w-2xl lg:max-w-none lg:space-y-0 lg:grid lg:grid-cols-2 lg:items-start lg:gap-8">
-      <h1 className="text-3xl font-semibold tracking-tight text-brand-950 lg:col-span-2">Ajustes</h1>
+    <div className="space-y-8 max-w-2xl lg:max-w-none lg:space-y-0 lg:columns-2 lg:gap-8">
+      <h1 className="text-3xl font-semibold tracking-tight text-brand-950 [column-span:all] lg:mb-8">Ajustes</h1>
 
-      <RestaurantInfoSection />
-      <DesktopShortcutSection />
-      <WhatsappMessageSection />
+      <div className="break-inside-avoid lg:mb-8">
+        <RestaurantInfoSection />
+      </div>
+      <div className="break-inside-avoid lg:mb-8">
+        <DesktopShortcutSection />
+      </div>
+      <div className="break-inside-avoid lg:mb-8">
+        <WhatsappMessageSection />
+      </div>
 
-      <TextureCard>
+      <TextureCard className="break-inside-avoid lg:mb-8">
         <TextureCardHeader className="px-6">
           <TextureCardTitle className="pl-0">Tasa cambiaria</TextureCardTitle>
           <p className="text-sm text-brand-950/60 font-light">
@@ -142,27 +148,47 @@ export default function SettingsPage() {
         </TextureCardContent>
       </TextureCard>
 
-      <CheckoutSettingsSection />
+      <div className="break-inside-avoid lg:mb-8">
+        <CheckoutSettingsSection />
+      </div>
 
-      <ScheduleSection />
+      <div className="break-inside-avoid lg:mb-8">
+        <ScheduleSection />
+      </div>
 
-      <PaymentMethodsSection />
+      <div className="break-inside-avoid lg:mb-8">
+        <PaymentMethodsSection />
+      </div>
 
-      <DeliveryTeamSection />
+      <div className="break-inside-avoid lg:mb-8">
+        <DeliveryTeamSection />
+      </div>
 
-      <div className="lg:col-span-2">
+      <div className="break-inside-avoid lg:mb-8">
+        <FullscreenImageSection />
+      </div>
+
+      {canManageTeam(user?.role) && (
+        <div className="break-inside-avoid lg:mb-8">
+          <TeamSection />
+        </div>
+      )}
+
+      <div className="break-inside-avoid lg:mb-8">
+        <PrintStationSection />
+      </div>
+
+      {/* Estas dos van al final y ocupan todo el ancho: si quedaran en medio del
+          flujo, cortan el balanceo de columnas en dos regiones separadas y el
+          grupo final (con pocas tarjetas de tamaños muy distintos) deja un hueco
+          grande en una de las columnas. */}
+      <div className="[column-span:all] lg:mb-8">
         <DeliveryPricingSection />
       </div>
 
-      <div className="lg:col-span-2">
+      <div className="[column-span:all] lg:mb-8">
         <ThemeSection />
       </div>
-
-      <FullscreenImageSection />
-
-      {canManageTeam(user?.role) && <TeamSection />}
-
-      <PrintStationSection />
     </div>
   );
 }
