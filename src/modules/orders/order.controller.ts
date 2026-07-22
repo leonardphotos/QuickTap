@@ -209,4 +209,11 @@ export const orderController = {
     const stats = await orderService.getSalesStats(req.restaurantId!, range);
     res.json({ data: stats });
   }),
+
+  /** GET /api/v1/orders/reports/sales-stats/user/:userId — drill-down: ventas del período de un usuario (o "CUSTOMER" = autoservicio). */
+  salesStatsUserOrders: asyncHandler(async (req: Request, res: Response) => {
+    const range = req.query.range === 'month' ? 'month' : 'week';
+    const orders = await orderService.getSalesStatsUserOrders(req.restaurantId!, range, req.params.userId);
+    res.json({ data: orders });
+  }),
 };

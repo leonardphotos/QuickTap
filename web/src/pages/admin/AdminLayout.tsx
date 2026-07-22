@@ -1,14 +1,14 @@
 import { lazy, useState } from 'react';
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, CalendarDays, Home, Menu, Settings, Share2, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, Boxes, CalendarDays, Home, Menu, Share2, TriangleAlert } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Toast } from '@/components/ui/toast';
 import { NavMenuDrawer } from '@/components/admin/NavMenuDrawer';
 import { useCopyToast } from '../../hooks/useCopyToast';
 import { usePendingReservationsCount } from '../../hooks/usePendingReservations';
-import { canAccessPath, defaultPathFor, isAdminCashier, isScreenRole } from '../../utils/roles';
-import { daysRemaining, graceHoursRemaining } from '../../utils/subscription';
+import { RESTRICTED_ROLES, canAccessPath, defaultPathFor, isAdminCashier, isScreenRole } from '../../utils/roles';
+import { daysRemaining, graceHoursRemaining, hasFeature } from '../../utils/subscription';
 import { visibleNavLinks } from './nav-links';
 
 const WaiterLayout = lazy(() => import('./WaiterLayout'));
@@ -72,7 +72,12 @@ export default function AdminLayout() {
     return <WaiterLayout />;
   }
 
-  const canSeeSettings = canAccessPath(user.role, '/admin/settings');
+  // Mismo criterio que nav-links.ts: canAccessInventory solo aplica a roles restringidos
+  // (Mesero/Cocina no llegan aquí salvo Cocina); Dueño/Admin/Cajero ven Inventario si el
+  // plan lo incluye, sin depender de ese flag por-usuario.
+  const canSeeInventory =
+    (!RESTRICTED_ROLES.includes(user.role) || user.canAccessInventory) &&
+    (hasFeature(restaurant, 'inventoryBasic') || hasFeature(restaurant, 'inventoryRecipe'));
   const daysLeft = daysRemaining(restaurant.periodEnd);
   const graceHours = graceHoursRemaining(restaurant.periodEnd);
   const showExpirationWarning = daysLeft <= 3;
@@ -188,10 +193,10 @@ export default function AdminLayout() {
               )}
             </Link>
           )}
-          {canSeeSettings && (
-            <Link to="/admin/settings">
-              <TextureButton variant="icon" size="icon" className="!h-11 !w-11" aria-label="Ajustes">
-                <Settings className="h-5 w-5 text-brand-950/70" />
+          {canSeeInventory && (
+            <Link to="/admin/inventory">
+              <TextureButton variant="icon" size="icon" className="!h-11 !w-11" aria-label="Inventario">
+                <Boxes className="h-5 w-5 text-brand-950/70" />
               </TextureButton>
             </Link>
           )}

@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { TextureButton } from '@/components/ui/texture-button';
 import type { LiveOrder, LiveOrderPayment } from './LiveOrdersPanel';
 
-const PAYMENT_LABELS: Record<PaymentMethod, string> = {
+export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   MOBILE_PAYMENT: 'Pago Móvil',
   ZELLE: 'Zelle',
   CASH: 'Efectivo Bs',

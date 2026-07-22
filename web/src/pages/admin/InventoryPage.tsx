@@ -261,10 +261,16 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
         {items?.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin insumos todavía.</p>}
         {items?.map((item) => {
-          const low = Number(item.quantity) < Number(item.minQuantity);
+          const qty = Number(item.quantity);
+          const minQty = Number(item.minQuantity);
+          const low = qty < minQty;
+          // Barra: se llena hasta el doble del mínimo ("stock sano"); se acorta y cambia de
+          // color mientras se acerca al punto de aviso, para que se note antes de llegar a cero.
+          const ratio = minQty > 0 ? Math.min(1, qty / (minQty * 2)) : 1;
+          const barColor = low ? 'bg-red-500' : ratio < 0.75 ? 'bg-amber-500' : 'bg-emerald-500';
           return (
             <div key={item.id} className="flex items-center justify-between gap-3 px-5 py-4">
-              <div>
+              <div className="flex-1 min-w-0">
                 <p className="font-medium text-brand-950 flex items-center gap-1.5">
                   {item.name}
                   {low && (
@@ -277,6 +283,14 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
                   {item.quantity} {item.unit} · mínimo {item.minQuantity} {item.unit}
                   {item.pricePerUnitBase && ` · ${symbol}${item.pricePerUnitBase}/${item.unit}`}
                 </p>
+                {minQty > 0 && (
+                  <div className="h-1.5 w-full max-w-48 rounded-full bg-brand-950/[0.08] overflow-hidden mt-1.5">
+                    <div
+                      className={`h-full rounded-full transition-all ${barColor}`}
+                      style={{ width: `${ratio * 100}%` }}
+                    />
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-3 shrink-0">
                 <button onClick={() => startEdit(item)} className="text-xs font-medium text-brand-500 hover:underline">

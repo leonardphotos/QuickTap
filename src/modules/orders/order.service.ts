@@ -244,6 +244,11 @@ async function deductRecipeStock(restaurantId: string, items: { productId: strin
   }
 }
 
+/** Inicio del período usado por getSalesStats/getSalesStatsUserOrders (semana o mes en curso) — debe coincidir en ambos para que los totales no se desalineen. */
+function salesStatsPeriodStart(range: 'week' | 'month', now: Date): Date {
+  return range === 'week' ? startOfWeekCaracas() : new Date(now.getFullYear(), now.getMonth(), 1);
+}
+
 export const orderService = {
   /**
    * -------------------------------------------------------------------------
@@ -1183,7 +1188,7 @@ export const orderService = {
     const currency = restaurant?.baseCurrency ?? 'USD';
     const rate = await exchangeRateService.getRate(currency);
 
-    const [orders, movements] = await Promise.all([
+    const [orders, movements, latePayments] = await Promise.all([
       prisma.order.findMany({
         where: { restaurantId, createdAt: { gte: startOfTodayCaracas() }, status: { not: 'CANCELLED' } },
         select: { channel: true, totalBase: true, totalBs: true, currency: true },
@@ -1191,6 +1196,16 @@ export const orderService = {
       prisma.movement.findMany({
         where: { restaurantId, createdAt: { gte: startOfTodayCaracas() } },
         select: { type: true, amountBase: true },
+      }),
+      // Cuentas de días anteriores que se terminan de cobrar hoy: el dinero entró hoy aunque
+      // la comanda sea vieja, así que ese cobro cuenta para el Balance de hoy (no para "ventas
+      // de hoy" — eso sigue siendo solo lo creado hoy, para no inflar el conteo de pedidos).
+      prisma.orderPayment.findMany({
+        where: {
+          createdAt: { gte: startOfTodayCaracas() },
+          order: { restaurantId, createdAt: { lt: startOfTodayCaracas() }, status: { not: 'CANCELLED' } },
+        },
+        select: { amountBase: true },
       }),
     ]);
 
@@ -1207,7 +1222,8 @@ export const orderService = {
     const egresosBase = round2(
       movements.filter((m) => m.type === 'EXPENSE').reduce((acc, m) => acc.add(m.amountBase), toDecimal(0)),
     );
-    const ingresosBase = round2(totalBase.add(incomeMovementsBase));
+    const latePaymentsBase = round2(latePayments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0)));
+    const ingresosBase = round2(totalBase.add(incomeMovementsBase).add(latePaymentsBase));
     const balanceBase = round2(ingresosBase.sub(egresosBase));
 
     return {
@@ -1432,7 +1448,7 @@ export const orderService = {
    */
   async getSalesStats(restaurantId: string, range: 'week' | 'month') {
     const now = new Date();
-    const currentStart = range === 'week' ? startOfWeekCaracas() : new Date(now.getFullYear(), now.getMonth(), 1);
+    const currentStart = salesStatsPeriodStart(range, now);
     const previousStart =
       range === 'week'
         ? new Date(currentStart.getTime() - 7 * 24 * 60 * 60 * 1000)
@@ -1487,5 +1503,68 @@ export const orderService = {
         .map(([userId, v]) => ({ userId, name: v.name, count: v.count, totalBase: round2(v.totalBase).toFixed(2) }))
         .sort((a, b) => Number(b.totalBase) - Number(a.totalBase)),
     };
+  },
+
+  /**
+   * Detalle de ventas de un usuario (o del bucket "CUSTOMER" = autoservicio) dentro del
+   * mismo período que getSalesStats, para el drill-down de "ventas por usuario" en
+   * Administración → Estadísticas: cada venta con su comanda completa y sus pagos.
+   */
+  async getSalesStatsUserOrders(restaurantId: string, range: 'week' | 'month', userId: string) {
+    const currentStart = salesStatsPeriodStart(range, new Date());
+
+    const orders = await prisma.order.findMany({
+      where: {
+        restaurantId,
+        status: { not: 'CANCELLED' },
+        createdAt: { gte: currentStart },
+        placedByUserId: userId === 'CUSTOMER' ? null : userId,
+      },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        orderNumber: true,
+        channel: true,
+        status: true,
+        paymentMethod: true,
+        totalBase: true,
+        totalBs: true,
+        currency: true,
+        customerName: true,
+        createdAt: true,
+        table: { select: { number: true } },
+        items: { select: { productName: true, variantName: true, quantity: true, unitPrice: true, lineTotal: true } },
+        payments: {
+          select: { method: true, referenceNumber: true, amountBase: true, discountBase: true, createdAt: true },
+        },
+      },
+    });
+
+    return orders.map((o) => ({
+      id: o.id,
+      orderNumber: o.orderNumber,
+      channel: o.channel,
+      status: o.status,
+      paymentMethod: o.paymentMethod,
+      totalBase: o.totalBase.toFixed(2),
+      totalBs: o.totalBs.toFixed(2),
+      currency: o.currency,
+      customerName: o.customerName,
+      table: o.table?.number ?? null,
+      createdAt: o.createdAt,
+      items: o.items.map((i) => ({
+        productName: i.variantName ? `${i.productName} (${i.variantName})` : i.productName,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice.toFixed(2),
+        lineTotal: i.lineTotal.toFixed(2),
+      })),
+      payments: o.payments.map((p) => ({
+        method: p.method,
+        referenceNumber: p.referenceNumber,
+        amountBase: p.amountBase.toFixed(2),
+        discountBase: p.discountBase?.toFixed(2) ?? null,
+        createdAt: p.createdAt,
+      })),
+    }));
   },
 };

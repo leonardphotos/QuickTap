@@ -29,6 +29,12 @@ router.get(
   orderController.paymentMethodReport,
 );
 router.get('/reports/sales-stats', adminOnly, requireFeature('administration'), orderController.salesStats);
+router.get(
+  '/reports/sales-stats/user/:userId',
+  adminOnly,
+  requireFeature('administration'),
+  orderController.salesStatsUserOrders,
+);
 router.post('/manual', orderController.createManual);
 router.post('/:id/accept', orderController.accept);
 router.post('/:id/dispatch-courier', orderController.dispatchCourier);

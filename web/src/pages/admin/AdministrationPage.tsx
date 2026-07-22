@@ -8,6 +8,8 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { CashSessionControl } from '@/components/admin/CashSessionControl';
 import { ReportDialog } from '@/components/admin/ReportDialog';
+import { PAYMENT_LABELS as ALL_PAYMENT_LABELS } from '@/components/admin/PaymentDialog';
+import type { PaymentMethod as AnyPaymentMethod } from '@/types';
 
 const BASE_TABS = [
   { id: 'summary', label: 'Resumen' },
@@ -334,6 +336,37 @@ interface SalesStats {
   byUser: SalesStatsUserRow[];
 }
 
+interface UserSaleItem {
+  productName: string;
+  quantity: number;
+  unitPrice: string;
+  lineTotal: string;
+}
+
+interface UserSalePayment {
+  method: string;
+  referenceNumber: string | null;
+  amountBase: string;
+  discountBase: string | null;
+  createdAt: string;
+}
+
+interface UserSale {
+  id: string;
+  orderNumber: number;
+  channel: Channel;
+  status: string;
+  paymentMethod: string | null;
+  totalBase: string;
+  totalBs: string;
+  currency: string;
+  customerName: string | null;
+  table: string | null;
+  createdAt: string;
+  items: UserSaleItem[];
+  payments: UserSalePayment[];
+}
+
 const STATS_RANGE_LABELS = { week: 'Esta semana', month: 'Este mes' } as const;
 const STATS_PREVIOUS_LABELS = { week: 'la semana pasada', month: 'el mes pasado' } as const;
 
@@ -343,6 +376,10 @@ function StatsTab() {
   const [range, setRange] = useState<'week' | 'month'>('week');
   const [stats, setStats] = useState<SalesStats | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
+  const [userSales, setUserSales] = useState<UserSale[] | null>(null);
+  const [loadingSales, setLoadingSales] = useState(false);
+  const [selectedSale, setSelectedSale] = useState<UserSale | null>(null);
 
   useEffect(() => {
     api
@@ -350,6 +387,21 @@ function StatsTab() {
       .then((res) => setStats(res.data.data))
       .catch((err) => setError(err.response?.data?.error ?? 'No se pudieron cargar las estadísticas.'));
   }, [range]);
+
+  function toggleUser(userId: string) {
+    if (expandedUserId === userId) {
+      setExpandedUserId(null);
+      setUserSales(null);
+      return;
+    }
+    setExpandedUserId(userId);
+    setUserSales(null);
+    setLoadingSales(true);
+    api
+      .get(`/orders/reports/sales-stats/user/${userId}`, { params: { range } })
+      .then((res) => setUserSales(res.data.data))
+      .finally(() => setLoadingSales(false));
+  }
 
   if (error) return <p className="text-sm text-red-600">{error}</p>;
 
@@ -404,18 +456,126 @@ function StatsTab() {
         <p className="text-sm font-medium text-brand-950/70 mb-3">Ventas por usuario · {stats ? STATS_RANGE_LABELS[stats.range] : ''}</p>
         <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
           {stats?.byUser.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin ventas en este período.</p>}
-          {stats?.byUser.map((u) => (
-            <div key={u.userId} className="flex items-center justify-between gap-3 px-5 py-3">
-              <p className="text-sm font-medium text-brand-950">{u.name}</p>
-              <div className="text-right shrink-0">
-                <p className="text-sm font-semibold text-brand-950">{formatBase(u.totalBase, symbol)}</p>
-                <p className="text-xs text-brand-950/50 font-light">{u.count} pedido{u.count === 1 ? '' : 's'}</p>
+          {stats?.byUser.map((u) => {
+            const expanded = expandedUserId === u.userId;
+            return (
+              <div key={u.userId}>
+                <button
+                  onClick={() => toggleUser(u.userId)}
+                  className="w-full flex items-center justify-between gap-3 px-5 py-3 text-left hover:bg-brand-950/[0.02]"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <ChevronDown className={`h-4 w-4 text-brand-950/30 shrink-0 transition-transform ${expanded ? 'rotate-180' : ''}`} />
+                    <p className="text-sm font-medium text-brand-950 truncate">{u.name}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-semibold text-brand-950">{formatBase(u.totalBase, symbol)}</p>
+                    <p className="text-xs text-brand-950/50 font-light">{u.count} pedido{u.count === 1 ? '' : 's'}</p>
+                  </div>
+                </button>
+                {expanded && (
+                  <div className="px-5 pb-3 pl-11 space-y-1">
+                    {loadingSales && <p className="text-xs text-brand-950/40 font-light py-2">Cargando ventas…</p>}
+                    {!loadingSales && userSales?.length === 0 && (
+                      <p className="text-xs text-brand-950/40 font-light py-2">Sin ventas registradas.</p>
+                    )}
+                    {!loadingSales &&
+                      userSales?.map((sale) => (
+                        <button
+                          key={sale.id}
+                          onClick={() => setSelectedSale(sale)}
+                          className="w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-xs hover:bg-brand-950/[0.04]"
+                        >
+                          <div className="min-w-0">
+                            <p className="font-medium text-brand-950">
+                              #{sale.orderNumber} · {sale.table ? `Mesa ${sale.table}` : CHANNEL_ROW_LABELS[sale.channel]}
+                            </p>
+                            <p className="text-brand-950/40">
+                              {new Date(sale.createdAt).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })}
+                            </p>
+                          </div>
+                          <p className="font-semibold text-brand-950 shrink-0">{formatBase(sale.totalBase, symbol)}</p>
+                        </button>
+                      ))}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
+
+      {selectedSale && <SaleDetailDialog sale={selectedSale} symbol={symbol} onClose={() => setSelectedSale(null)} />}
     </div>
+  );
+}
+
+/** Detalle de una venta del drill-down "Ventas por usuario": comanda completa + pagos con método/referencia. */
+function SaleDetailDialog({ sale, symbol, onClose }: { sale: UserSale; symbol: string; onClose: () => void }) {
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            Pedido #{sale.orderNumber} · {sale.table ? `Mesa ${sale.table}` : CHANNEL_ROW_LABELS[sale.channel]}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-xs text-brand-950/50 font-light">
+            {new Date(sale.createdAt).toLocaleString('es-VE', { dateStyle: 'medium', timeStyle: 'short' })}
+            {sale.customerName && ` · ${sale.customerName}`}
+          </p>
+
+          <div>
+            <p className="text-xs font-medium text-brand-950/60 mb-1.5">Comanda</p>
+            <div className="rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
+              {sale.items.map((item, i) => (
+                <div key={i} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                  <p className="text-brand-950/80">
+                    {item.quantity}× {item.productName}
+                  </p>
+                  <p className="font-medium text-brand-950 shrink-0">{formatBase(item.lineTotal, symbol)}</p>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between gap-2 px-1 pt-2 text-sm font-semibold text-brand-950">
+              <p>Total</p>
+              <p>
+                {formatBase(sale.totalBase, symbol)} · {formatBsAbsolute(sale.totalBs)}
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-brand-950/60 mb-1.5">Pago{sale.payments.length === 1 ? '' : 's'}</p>
+            {sale.payments.length === 0 ? (
+              <p className="text-xs text-brand-950/40 font-light">
+                Sin pago registrado{sale.paymentMethod ? ` (método: ${ALL_PAYMENT_LABELS[sale.paymentMethod as AnyPaymentMethod] ?? sale.paymentMethod})` : ''}.
+              </p>
+            ) : (
+              <div className="rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
+                {sale.payments.map((p, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                    <div className="min-w-0">
+                      <p className="font-medium text-brand-950">{ALL_PAYMENT_LABELS[p.method as AnyPaymentMethod] ?? p.method}</p>
+                      {p.referenceNumber && <p className="text-xs text-brand-950/40 truncate">Ref: {p.referenceNumber}</p>}
+                      {Number(p.discountBase ?? 0) > 0 && (
+                        <p className="text-xs text-brand-950/40">Descuento: {formatBase(p.discountBase!, symbol)}</p>
+                      )}
+                    </div>
+                    <p className="font-semibold text-brand-950 shrink-0">{formatBase(p.amountBase, symbol)}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <TextureButton variant="minimal" size="default" onClick={onClose}>
+            Cerrar
+          </TextureButton>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
