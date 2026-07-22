@@ -7,6 +7,7 @@ import type { FloorPlan, FloorPlanTable, Product } from '../../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { ManualOrderDialog } from '@/components/admin/ManualOrderDialog';
+import { EditOrderDialog, type LiveOrder } from '@/components/admin/LiveOrdersPanel';
 
 const STATUS_LABEL: Record<string, string> = {
   NEEDS_CONFIRMATION: 'Por confirmar',
@@ -33,13 +34,22 @@ export default function TableOrdersPage({ onPayOrder }: Props = {}) {
   const [closing, setClosing] = useState(false);
   const [closePaymentMethod, setClosePaymentMethod] = useState('');
   const [printingId, setPrintingId] = useState<string | null>(null);
+  const [liveOrders, setLiveOrders] = useState<LiveOrder[] | null>(null);
+  const [editingOrder, setEditingOrder] = useState<LiveOrder | null>(null);
 
   function load() {
     api.get('/tables/floor-plan').then((res) => setPlan(res.data.data));
   }
 
+  /** Pedidos completos (con ítems editables, precios, etc.) para poder abrir "Editar pedido"
+   * al tocar un pedido de la mesa — `plan.session.orders` solo trae un resumen de solo lectura. */
+  function loadOrders() {
+    api.get('/orders/live').then((res) => setLiveOrders(res.data.data));
+  }
+
   useEffect(() => {
     load();
+    loadOrders();
     api.get('/products').then((res) => setProducts(res.data.data));
 
     const socket: Socket = io('/', { auth: { token: getToken() } });
@@ -47,6 +57,8 @@ export default function TableOrdersPage({ onPayOrder }: Props = {}) {
     socket.on('order:updated', load);
     socket.on('table:service-request', load);
     socket.on('table:service-ack', load);
+    socket.on('order:new', loadOrders);
+    socket.on('order:updated', loadOrders);
 
     return () => {
       socket.disconnect();
@@ -264,7 +276,14 @@ export default function TableOrdersPage({ onPayOrder }: Props = {}) {
 
               <ul className="space-y-3 max-h-72 overflow-y-auto">
                 {selected.session.orders.map((o) => (
-                  <li key={o.orderId} className="border-b border-brand-950/10 pb-2">
+                  <li
+                    key={o.orderId}
+                    className="border-b border-brand-950/10 pb-2 cursor-pointer -mx-1 px-1 rounded-lg hover:bg-brand-950/[0.03] transition-colors"
+                    onClick={() => {
+                      const full = liveOrders?.find((lo) => lo.id === o.orderId);
+                      if (full) setEditingOrder(full);
+                    }}
+                  >
                     <div className="flex items-center justify-between gap-2">
                       <p className="text-sm font-semibold text-brand-950">
                         Pedido #{o.pedidoNumber}{' '}
@@ -276,7 +295,10 @@ export default function TableOrdersPage({ onPayOrder }: Props = {}) {
                       </p>
                       {o.status === 'NEEDS_CONFIRMATION' && (
                         <button
-                          onClick={() => acceptOrder(o.orderId)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            acceptOrder(o.orderId);
+                          }}
                           disabled={busy}
                           className="shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-400 text-amber-950 hover:bg-amber-300 disabled:opacity-50"
                         >
@@ -298,7 +320,10 @@ export default function TableOrdersPage({ onPayOrder }: Props = {}) {
                     </ul>
                     <div className="flex gap-1.5 mt-2">
                       <button
-                        onClick={() => printOrder(o.orderId)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          printOrder(o.orderId);
+                        }}
                         disabled={printingId === o.orderId}
                         className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full bg-brand-950/[0.06] text-brand-950/70 hover:bg-brand-950/10 disabled:opacity-50"
                       >
@@ -306,7 +331,8 @@ export default function TableOrdersPage({ onPayOrder }: Props = {}) {
                       </button>
                       {onPayOrder && (
                         <button
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             onPayOrder(o.orderId);
                             setSelected(null);
                           }}
@@ -463,6 +489,17 @@ export default function TableOrdersPage({ onPayOrder }: Props = {}) {
           products={products}
           onClose={() => setManualOrderOpen(false)}
           onCreated={load}
+        />
+      )}
+
+      {editingOrder && (
+        <EditOrderDialog
+          order={editingOrder}
+          onClose={() => setEditingOrder(null)}
+          onSaved={() => {
+            load();
+            loadOrders();
+          }}
         />
       )}
     </div>

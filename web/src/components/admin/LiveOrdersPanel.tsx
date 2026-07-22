@@ -581,7 +581,7 @@ export function LiveOrdersPanel({ autoOpenPaymentOrderId, onAutoOpenHandled }: P
   );
 }
 
-function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder; onClose: () => void; onSaved: () => void }) {
+export function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder; onClose: () => void; onSaved: () => void }) {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [name, setName] = useState(order.customerName ?? '');

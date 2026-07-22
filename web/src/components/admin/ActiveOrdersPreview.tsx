@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import { api, getToken } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
-import type { LiveOrder } from './LiveOrdersPanel';
+import { EditOrderDialog, type LiveOrder } from './LiveOrdersPanel';
 
 const CHANNEL_LABEL: Record<LiveOrder['channel'], string> = {
   DINE_IN: 'Mesa',
@@ -24,16 +24,12 @@ function timeAgo(iso: string) {
   return secs < 60 ? `hace ${secs}s` : `hace ${Math.floor(secs / 60)} min`;
 }
 
-interface Props {
-  /** Toca una fila: cambia a la pestaña Comandas para ver/gestionar el pedido completo. */
-  onNavigate: () => void;
-}
-
-/** Vista rápida de pedidos activos del mesero, debajo del mapa de mesas — sin botones de
- * acción (para eso está la pestaña Comandas), solo para tener un vistazo sin cambiar de pestaña. */
-export function ActiveOrdersPreview({ onNavigate }: Props) {
+/** Vista rápida de pedidos activos del mesero, debajo del mapa de mesas — tocar una fila
+ * abre el pedido completo (mismo editor que usa la pestaña Comandas). */
+export function ActiveOrdersPreview() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<LiveOrder[] | null>(null);
+  const [editingOrder, setEditingOrder] = useState<LiveOrder | null>(null);
 
   function load() {
     api.get('/orders/live').then((res) => setOrders(res.data.data));
@@ -72,7 +68,7 @@ export function ActiveOrdersPreview({ onNavigate }: Props) {
           return (
             <button
               key={o.id}
-              onClick={onNavigate}
+              onClick={() => setEditingOrder(o)}
               className="flex items-center gap-3 bg-white border border-brand-950/10 rounded-2xl px-3.5 py-3 text-left shadow-sm hover:shadow-md transition-shadow"
             >
               <div
@@ -99,6 +95,10 @@ export function ActiveOrdersPreview({ onNavigate }: Props) {
           );
         })}
       </div>
+
+      {editingOrder && (
+        <EditOrderDialog order={editingOrder} onClose={() => setEditingOrder(null)} onSaved={load} />
+      )}
     </div>
   );
 }

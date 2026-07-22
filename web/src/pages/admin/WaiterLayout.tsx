@@ -88,7 +88,7 @@ export default function WaiterLayout() {
                   setTab('comandas');
                 }}
               />
-              <ActiveOrdersPreview onNavigate={() => setTab('comandas')} />
+              <ActiveOrdersPreview />
             </div>
           )}
           {tab === 'cocina' && <KitchenPage />}
