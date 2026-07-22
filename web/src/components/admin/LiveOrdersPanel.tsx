@@ -11,6 +11,7 @@ import {
   MessageCircle,
   Plus,
   Printer,
+  Receipt,
   Search,
   SplitSquareHorizontal,
   Truck,
@@ -80,7 +81,7 @@ export interface LiveOrder {
 type ChannelFilter = LiveOrder['channel'] | 'AWAITING_PAYMENT' | 'PAID' | 'PARTIAL';
 
 /** Estado de pago de un pedido, para colorear la tarjeta y filtrar el Dashboard. */
-function getPaymentStatus(o: LiveOrder) {
+export function getPaymentStatus(o: LiveOrder) {
   // Un descuento perdona esa parte de la deuda: cuenta como "saldado" igual que el efectivo cobrado.
   const paidBase = o.payments.reduce((acc, p) => acc + Number(p.amountBase) + Number(p.discountBase ?? 0), 0);
   const balanceBase = Math.max(0, Number(o.totalBase) - paidBase);
@@ -164,9 +165,10 @@ export function LiveOrdersPanel() {
   const [channelFilter, setChannelFilter] = useState<ChannelFilter | null>(null);
   const [editingOrder, setEditingOrder] = useState<LiveOrder | null>(null);
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
-  // Solo se usa al crear un pedido con intención de pago (wizard "Crear pedido"), para que
-  // EditOrderDialog abra ese sub-diálogo de pago de una vez.
-  const [autoOpenPaymentMode, setAutoOpenPaymentMode] = useState<'full' | 'split' | null>(null);
+  const [paymentDialog, setPaymentDialog] = useState<{ order: LiveOrder; mode: 'full' | 'split' } | null>(null);
+  const [comandaMenuFor, setComandaMenuFor] = useState<string | null>(null);
+  const [printingId, setPrintingId] = useState<string | null>(null);
+  const [sendingWhatsappId, setSendingWhatsappId] = useState<string | null>(null);
   // Una sola columna con texto en celular; en pantallas anchas siempre cuadrícula
   // compacta (solo iconos) para aprovechar el espacio — ya no es una opción manual.
   const actionBtnClass = 'text-xs font-medium py-3 lg:text-[10.5px] lg:py-2.5 lg:px-0.5 lg:leading-tight';
@@ -194,6 +196,59 @@ export function LiveOrdersPanel() {
     const fresh = orders.find((o) => o.id === editingOrder.id);
     if (fresh) setEditingOrder(fresh);
   }, [orders]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Igual, mientras el diálogo de pago está abierto (para reflejar el saldo tras cada abono).
+  useEffect(() => {
+    if (!paymentDialog || !orders) return;
+    const fresh = orders.find((o) => o.id === paymentDialog.order.id);
+    if (fresh) setPaymentDialog((d) => (d ? { ...d, order: fresh } : d));
+  }, [orders]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function toggleAwaitingPayment(id: string, awaitingPayment: boolean) {
+    setBusyId(id);
+    setError(null);
+    try {
+      await api.patch(`/orders/${id}/awaiting-payment`, { awaitingPayment });
+      load();
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo actualizar la cuenta por pagar.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  /** Botón "Imprimir" del menú Comanda: no imprime desde este navegador — reenvía la
+   * comanda a la estación de impresión (print-station), que es quien tiene las impresoras. */
+  async function printComanda(orderId: string) {
+    setPrintingId(orderId);
+    setError(null);
+    try {
+      await api.post(`/orders/${orderId}/print-comanda`);
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo enviar la comanda a la estación de impresión.');
+    } finally {
+      setPrintingId(null);
+      setComandaMenuFor(null);
+    }
+  }
+
+  async function sendWhatsapp(order: LiveOrder) {
+    // Abrir la pestaña ANTES del await: si se abre después de esperar la respuesta del
+    // servidor, el navegador pierde el contexto de "acción del usuario" y bloquea el popup.
+    const win = window.open('', '_blank');
+    setSendingWhatsappId(order.id);
+    setError(null);
+    try {
+      const { data } = await api.post(`/orders/${order.id}/send-whatsapp`);
+      openInTabAndAutoClose(win, data.data.url);
+    } catch (e: any) {
+      win?.close();
+      setError(e.response?.data?.error ?? 'No se pudo enviar la comanda por WhatsApp.');
+    } finally {
+      setSendingWhatsappId(null);
+      setComandaMenuFor(null);
+    }
+  }
 
   async function accept(id: string) {
     setBusyId(id);
@@ -471,7 +526,68 @@ export function LiveOrdersPanel() {
                 </div>
               )}
 
-              {fullyPaid && <p className="text-xs text-emerald-600 font-medium text-center mt-2">✓ Pagado</p>}
+              {fullyPaid ? (
+                <p className="text-xs text-emerald-600 font-medium text-center mt-2">✓ Pagado</p>
+              ) : (
+                <div
+                  className={`grid ${canAccountsPayable ? 'grid-cols-4' : 'grid-cols-3'} gap-1.5 mt-2`}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    onClick={() => setPaymentDialog({ order: o, mode: 'full' })}
+                    title="Pagar"
+                    className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-xs font-medium py-2.5 transition-colors"
+                  >
+                    <CreditCard className="h-4 w-4" /> <span className="lg:hidden">Pagar</span>
+                  </button>
+                  <button
+                    onClick={() => setPaymentDialog({ order: o, mode: 'split' })}
+                    title="Pago fraccionado"
+                    className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-xs font-medium py-2.5 transition-colors"
+                  >
+                    <SplitSquareHorizontal className="h-4 w-4" /> <span className="lg:hidden">Fraccionado</span>
+                  </button>
+                  {canAccountsPayable && (
+                    <button
+                      onClick={() => toggleAwaitingPayment(o.id, !o.awaitingPayment)}
+                      disabled={busyId === o.id}
+                      title={o.awaitingPayment ? 'Pendiente' : 'Cta. abierta'}
+                      className={`flex flex-col items-center justify-center gap-1 rounded-xl text-white text-xs font-medium py-2.5 transition-colors disabled:opacity-40 ${
+                        o.awaitingPayment ? 'bg-amber-600 hover:bg-amber-700' : 'bg-amber-500 hover:bg-amber-600'
+                      }`}
+                    >
+                      <Clock className="h-4 w-4" /> <span className="lg:hidden">{o.awaitingPayment ? 'Pendiente' : 'Cta. abierta'}</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setComandaMenuFor(comandaMenuFor === o.id ? null : o.id)}
+                    title="Comanda"
+                    className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-xs font-medium py-2.5 transition-colors"
+                  >
+                    <Receipt className="h-4 w-4" /> <span className="lg:hidden">Comanda</span>
+                  </button>
+                </div>
+              )}
+
+              {comandaMenuFor === o.id && (
+                <div className="grid grid-cols-2 gap-1.5 mt-1.5" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => printComanda(o.id)}
+                    disabled={printingId === o.id}
+                    className="flex items-center justify-center gap-1.5 rounded-xl bg-brand-950/[0.06] text-brand-950/70 hover:bg-brand-950/10 text-xs font-medium py-2 transition-colors disabled:opacity-50"
+                  >
+                    <Printer className="h-3.5 w-3.5" /> {printingId === o.id ? 'Enviando…' : 'Imprimir'}
+                  </button>
+                  <button
+                    onClick={() => sendWhatsapp(o)}
+                    disabled={sendingWhatsappId === o.id || !o.customerPhone}
+                    title={o.customerPhone ? undefined : 'Este pedido no tiene teléfono registrado.'}
+                    className="flex items-center justify-center gap-1.5 rounded-xl bg-brand-950/[0.06] text-brand-950/70 hover:bg-brand-950/10 text-xs font-medium py-2 transition-colors disabled:opacity-50"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" /> {sendingWhatsappId === o.id ? 'Enviando…' : 'WhatsApp'}
+                  </button>
+                </div>
+              )}
             </div>
             );
           })}
@@ -479,15 +595,7 @@ export function LiveOrdersPanel() {
       )}
 
       {editingOrder && (
-        <EditOrderDialog
-          order={editingOrder}
-          onClose={() => {
-            setEditingOrder(null);
-            setAutoOpenPaymentMode(null);
-          }}
-          onSaved={load}
-          autoOpenPayment={autoOpenPaymentMode}
-        />
+        <EditOrderDialog order={editingOrder} onClose={() => setEditingOrder(null)} onSaved={load} />
       )}
 
       {createOrderOpen && (
@@ -496,16 +604,22 @@ export function LiveOrdersPanel() {
           onClose={() => setCreateOrderOpen(false)}
           onCreated={(newOrder, paymentMode) => {
             load();
-            if (newOrder && paymentMode) {
-              setEditingOrder(newOrder);
-              setAutoOpenPaymentMode(paymentMode);
-            }
+            if (newOrder && paymentMode) setPaymentDialog({ order: newOrder, mode: paymentMode });
           }}
           onSelectExisting={(orderId) => {
             setCreateOrderOpen(false);
             const target = orders.find((o) => o.id === orderId);
             if (target) setEditingOrder(target);
           }}
+        />
+      )}
+
+      {paymentDialog && (
+        <PaymentDialog
+          order={paymentDialog.order}
+          mode={paymentDialog.mode}
+          onClose={() => setPaymentDialog(null)}
+          onPaid={load}
         />
       )}
     </div>
@@ -516,17 +630,14 @@ interface EditOrderDialogProps {
   order: LiveOrder;
   onClose: () => void;
   onSaved: () => void;
-  /** Al crear un pedido nuevo con intención de pago (wizard "Crear pedido"), abre ese sub-diálogo de una vez. */
-  autoOpenPayment?: 'full' | 'split' | null;
   /** Órdenes de Mesa: pestañas para saltar a otro pedido activo de la misma mesa + Rodar/Cerrar
    * mesa, fijos arriba (no se pierden al desplazarse dentro del editor). */
   mesaFooter?: ReactNode;
 }
 
-export function EditOrderDialog({ order, onClose, onSaved, autoOpenPayment, mesaFooter }: EditOrderDialogProps) {
+export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrderDialogProps) {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
-  const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
   const [name, setName] = useState(order.customerName ?? '');
   const [phone, setPhone] = useState(order.customerPhone ?? '');
   const [address, setAddress] = useState(order.customerAddress ?? '');
@@ -543,8 +654,7 @@ export function EditOrderDialog({ order, onClose, onSaved, autoOpenPayment, mesa
   const [printing, setPrinting] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
-  const [showPagoMenu, setShowPagoMenu] = useState(false);
-  const [paymentMode, setPaymentMode] = useState<'full' | 'split' | null>(autoOpenPayment ?? null);
+  const [showComandaMenu, setShowComandaMenu] = useState(false);
   const receiptRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -699,20 +809,6 @@ export function EditOrderDialog({ order, onClose, onSaved, autoOpenPayment, mesa
       .filter((m) => it.modifiers.some((im) => im.name === m.name))
       .map((m) => m.id);
     return { variantId: variant?.id ?? null, modifierIds };
-  }
-
-  async function toggleAwaitingPayment() {
-    setSaving(true);
-    setError(null);
-    try {
-      await api.patch(`/orders/${order.id}/awaiting-payment`, { awaitingPayment: !order.awaitingPayment });
-      setShowPagoMenu(false);
-      onSaved();
-    } catch (e: any) {
-      setError(e.response?.data?.error ?? 'No se pudo actualizar la cuenta por pagar.');
-    } finally {
-      setSaving(false);
-    }
   }
 
   return (
@@ -923,88 +1019,42 @@ export function EditOrderDialog({ order, onClose, onSaved, autoOpenPayment, mesa
             </div>
           </div>
 
-          <div className="pt-2 border-t border-brand-950/10">
-            {getPaymentStatus(order).fullyPaid ? (
-              <p className="text-xs text-emerald-600 font-medium text-center">✓ Pagado</p>
-            ) : (
-              <>
-                <TextureButton
-                  variant="secondary"
-                  size="sm"
-                  className="!w-auto"
-                  onClick={() => setShowPagoMenu((s) => !s)}
-                >
-                  <CreditCard className="h-3.5 w-3.5" /> Pago
-                </TextureButton>
-                {showPagoMenu && (
-                  <div className={`grid ${canAccountsPayable ? 'grid-cols-3' : 'grid-cols-2'} gap-1.5 mt-2`}>
-                    <button
-                      onClick={() => setPaymentMode('full')}
-                      className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-xs font-medium py-2.5 transition-colors"
-                    >
-                      <CreditCard className="h-4 w-4" /> Pagar
-                    </button>
-                    <button
-                      onClick={() => setPaymentMode('split')}
-                      className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-xs font-medium py-2.5 transition-colors"
-                    >
-                      <SplitSquareHorizontal className="h-4 w-4" /> Pago fraccionado
-                    </button>
-                    {canAccountsPayable && (
-                      <button
-                        onClick={toggleAwaitingPayment}
-                        disabled={saving}
-                        className={`flex flex-col items-center justify-center gap-1 rounded-xl text-white text-xs font-medium py-2.5 transition-colors disabled:opacity-40 ${
-                          order.awaitingPayment ? 'bg-amber-600 hover:bg-amber-700' : 'bg-amber-500 hover:bg-amber-600'
-                        }`}
-                      >
-                        <Clock className="h-4 w-4" /> {order.awaitingPayment ? 'Pendiente' : 'Cta. abierta'}
-                      </button>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
           {error && <p className="text-sm text-red-600">{error}</p>}
 
-          <div className="flex flex-wrap gap-2">
-            <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={printing} onClick={printComanda}>
-              <Printer className="h-3.5 w-3.5" /> {printing ? 'Enviando…' : 'Imprimir'}
+          <div className="pt-2 border-t border-brand-950/10 flex flex-wrap gap-2">
+            <TextureButton variant="secondary" size="sm" className="!w-auto" onClick={() => setShowComandaMenu((s) => !s)}>
+              <Receipt className="h-3.5 w-3.5" /> Comanda
             </TextureButton>
             <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={downloading} onClick={downloadJpg}>
               <Download className="h-3.5 w-3.5" /> {downloading ? 'Generando…' : 'Descargar'}
             </TextureButton>
-            <TextureButton
-              variant="secondary"
-              size="sm"
-              className="!w-auto"
-              disabled={sendingWhatsapp || !order.customerPhone}
-              onClick={sendWhatsapp}
-              title={order.customerPhone ? undefined : 'Este pedido no tiene teléfono registrado.'}
-            >
-              <MessageCircle className="h-3.5 w-3.5" /> {sendingWhatsapp ? 'Enviando…' : 'Enviar vía WhatsApp'}
-            </TextureButton>
           </div>
+
+          {showComandaMenu && (
+            <div className="grid grid-cols-2 gap-1.5">
+              <button
+                onClick={printComanda}
+                disabled={printing}
+                className="flex items-center justify-center gap-1.5 rounded-xl bg-brand-950/[0.06] text-brand-950/70 hover:bg-brand-950/10 text-xs font-medium py-2 transition-colors disabled:opacity-50"
+              >
+                <Printer className="h-3.5 w-3.5" /> {printing ? 'Enviando…' : 'Imprimir'}
+              </button>
+              <button
+                onClick={sendWhatsapp}
+                disabled={sendingWhatsapp || !order.customerPhone}
+                title={order.customerPhone ? undefined : 'Este pedido no tiene teléfono registrado.'}
+                className="flex items-center justify-center gap-1.5 rounded-xl bg-brand-950/[0.06] text-brand-950/70 hover:bg-brand-950/10 text-xs font-medium py-2 transition-colors disabled:opacity-50"
+              >
+                <MessageCircle className="h-3.5 w-3.5" /> {sendingWhatsapp ? 'Enviando…' : 'WhatsApp'}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="fixed -left-[9999px] top-0">
           <ComandaReceipt ref={receiptRef} order={order} restaurantName={restaurant?.name ?? ''} />
         </div>
       </DialogContent>
-
-      {paymentMode && (
-        <PaymentDialog
-          order={order}
-          mode={paymentMode}
-          onClose={() => setPaymentMode(null)}
-          onPaid={() => {
-            setShowPagoMenu(false);
-            onSaved();
-          }}
-        />
-      )}
 
       {optionsProduct &&
         (() => {

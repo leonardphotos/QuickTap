@@ -7,7 +7,8 @@ import type { FloorPlan, FloorPlanTable, Product } from '../../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { ManualOrderDialog } from '@/components/admin/ManualOrderDialog';
-import { EditOrderDialog, type LiveOrder } from '@/components/admin/LiveOrdersPanel';
+import { EditOrderDialog, getPaymentStatus, type LiveOrder } from '@/components/admin/LiveOrdersPanel';
+import { PaymentDialog } from '@/components/admin/PaymentDialog';
 
 const STATUS_LABEL: Record<string, string> = {
   NEEDS_CONFIRMATION: 'Por confirmar',
@@ -25,11 +26,10 @@ export default function TableOrdersPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [closing, setClosing] = useState(false);
-  const [closePaymentMethod, setClosePaymentMethod] = useState('');
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [liveOrders, setLiveOrders] = useState<LiveOrder[] | null>(null);
   const [editingOrder, setEditingOrder] = useState<LiveOrder | null>(null);
+  const [payBeforeClosing, setPayBeforeClosing] = useState<LiveOrder | null>(null);
 
   function load() {
     api.get('/tables/floor-plan').then((res) => setPlan(res.data.data));
@@ -64,11 +64,6 @@ export default function TableOrdersPage() {
     return [...plan.zones, ...(plan.unzoned.length > 0 ? [{ id: 'unzoned', name: 'Sin zona', tables: plan.unzoned }] : [])];
   }, [plan]);
 
-  useEffect(() => {
-    setClosing(false);
-    setClosePaymentMethod('');
-  }, [selected?.id]);
-
   // Refresca la mesa seleccionada con los datos frescos cada vez que llega el plan.
   useEffect(() => {
     if (!selected || !plan) return;
@@ -83,6 +78,13 @@ export default function TableOrdersPage() {
     if (fresh) setEditingOrder(fresh);
   }, [liveOrders]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Igual, mientras el "Pagar antes de cerrar" está abierto (para reflejar el saldo tras cada abono).
+  useEffect(() => {
+    if (!payBeforeClosing || !liveOrders) return;
+    const fresh = liveOrders.find((lo) => lo.id === payBeforeClosing.id);
+    if (fresh) setPayBeforeClosing(fresh);
+  }, [liveOrders]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const freeTables = useMemo(
     () => sections.flatMap((s) => s.tables).filter((t) => !t.session && t.id !== selected?.id),
     [sections, selected],
@@ -93,19 +95,31 @@ export default function TableOrdersPage() {
     setBusy(true);
     setError(null);
     try {
-      await api.patch(`/table-sessions/${selected.session.id}/close`, {
-        paymentMethod: closePaymentMethod || undefined,
-      });
+      await api.patch(`/table-sessions/${selected.session.id}/close`);
       setSelected(null);
       setEditingOrder(null);
-      setClosing(false);
-      setClosePaymentMethod('');
       load();
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo cerrar la mesa.');
     } finally {
       setBusy(false);
     }
+  }
+
+  /** "Cerrar mesa": si algún pedido de la sesión todavía no está pagado, abre "Pagar" para
+   * ese pedido en vez de cerrar — no debe poder cerrarse una mesa dejando saldo sin cobrar.
+   * Si todo ya está pagado, cierra directo sin preguntar cómo se pagó. */
+  function handleCerrarMesaClick() {
+    if (!selected?.session) return;
+    const unpaid = selected.session.orders
+      .map((o) => liveOrders?.find((lo) => lo.id === o.orderId))
+      .filter((full): full is LiveOrder => !!full && !getPaymentStatus(full).fullyPaid);
+    if (unpaid.length === 0) {
+      closeTable();
+      return;
+    }
+    const current = editingOrder && unpaid.find((o) => o.id === editingOrder.id);
+    setPayBeforeClosing(current ?? unpaid[0]);
   }
 
   /** No imprime desde este navegador — reenvía la comanda a la estación de impresión. */
@@ -231,7 +245,7 @@ export default function TableOrdersPage() {
         <TextureButton
           variant="destructive"
           size="default"
-          onClick={() => setClosing(true)}
+          onClick={handleCerrarMesaClick}
           disabled={busy}
           className="flex items-center justify-center gap-1.5 disabled:opacity-50"
         >
@@ -488,63 +502,6 @@ export default function TableOrdersPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={closing}
-        onOpenChange={(o) => {
-          if (!o) {
-            setClosing(false);
-            setClosePaymentMethod('');
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Cerrar mesa {selected?.number}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2.5">
-            <p className="text-sm text-brand-950">¿Cómo pagó la mesa? (opcional)</p>
-            <div className="flex flex-wrap gap-1.5">
-              {[
-                { value: '', label: 'Sin indicar' },
-                { value: 'CASH', label: 'Efectivo Bs' },
-                { value: 'CASH_USD', label: 'Efectivo $' },
-                { value: 'MOBILE_PAYMENT', label: 'Pago Móvil' },
-                { value: 'CARD', label: 'Punto de Venta' },
-                { value: 'ZELLE', label: 'Zelle' },
-              ].map((opt) => (
-                <button
-                  key={opt.value}
-                  onClick={() => setClosePaymentMethod(opt.value)}
-                  className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                    closePaymentMethod === opt.value
-                      ? 'bg-brand-500 text-white'
-                      : 'bg-white text-brand-950/60 border border-brand-950/10'
-                  }`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex gap-2">
-              <TextureButton variant="destructive" size="sm" onClick={closeTable} disabled={busy} className="!w-auto disabled:opacity-50">
-                {busy ? 'Cerrando…' : 'Confirmar cierre'}
-              </TextureButton>
-              <TextureButton
-                variant="minimal"
-                size="sm"
-                onClick={() => {
-                  setClosing(false);
-                  setClosePaymentMethod('');
-                }}
-                className="!w-auto"
-              >
-                Cancelar
-              </TextureButton>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-
       {manualOrderOpen && selected && (
         <ManualOrderDialog
           tableId={selected.id}
@@ -568,6 +525,18 @@ export default function TableOrdersPage() {
             loadOrders();
           }}
           mesaFooter={mesaFooter}
+        />
+      )}
+
+      {payBeforeClosing && (
+        <PaymentDialog
+          order={payBeforeClosing}
+          mode="full"
+          onClose={() => setPayBeforeClosing(null)}
+          onPaid={() => {
+            load();
+            loadOrders();
+          }}
         />
       )}
     </div>

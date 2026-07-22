@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
+import { Clock, CreditCard, MessageCircle, Printer, Receipt, SplitSquareHorizontal } from 'lucide-react';
 import { api, getToken } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
+import { hasFeature } from '@/utils/subscription';
 import { abbreviateTableBadge } from '@/utils/format';
-import { EditOrderDialog, type LiveOrder } from './LiveOrdersPanel';
+import { EditOrderDialog, getPaymentStatus, type LiveOrder } from './LiveOrdersPanel';
+import { PaymentDialog } from './PaymentDialog';
 
 const CHANNEL_LABEL: Record<LiveOrder['channel'], string> = {
   DINE_IN: 'Mesa',
@@ -25,12 +28,37 @@ function timeAgo(iso: string) {
   return secs < 60 ? `hace ${secs}s` : `hace ${Math.floor(secs / 60)} min`;
 }
 
+/** Igual que openInTabAndAutoClose en LiveOrdersPanel.tsx: en móvil, wa.me le entrega el
+ * control a la app de WhatsApp de inmediato y la pestaña queda pegada en "about:blank". */
+function openInTabAndAutoClose(win: Window | null, url: string) {
+  if (!win) {
+    window.location.href = url;
+    return;
+  }
+  win.location.href = url;
+  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+    setTimeout(() => {
+      try {
+        win.close();
+      } catch {
+        // Algunos navegadores no dejan cerrar pestañas con las que el usuario ya interactuó.
+      }
+    }, 1200);
+  }
+}
+
 /** Vista rápida de pedidos activos del mesero, debajo del mapa de mesas — tocar una fila
  * abre el pedido completo (mismo editor que usa la pestaña Comandas). */
 export function ActiveOrdersPreview() {
-  const { user } = useAuth();
+  const { user, restaurant } = useAuth();
+  const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
   const [orders, setOrders] = useState<LiveOrder[] | null>(null);
   const [editingOrder, setEditingOrder] = useState<LiveOrder | null>(null);
+  const [paymentDialog, setPaymentDialog] = useState<{ order: LiveOrder; mode: 'full' | 'split' } | null>(null);
+  const [comandaMenuFor, setComandaMenuFor] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [printingId, setPrintingId] = useState<string | null>(null);
+  const [sendingWhatsappId, setSendingWhatsappId] = useState<string | null>(null);
 
   function load() {
     api.get('/orders/live').then((res) => setOrders(res.data.data));
@@ -45,6 +73,47 @@ export function ActiveOrdersPreview() {
       socket.disconnect();
     };
   }, []);
+
+  // Mientras el diálogo de pago está abierto, lo refresca con los datos frescos que lleguen.
+  useEffect(() => {
+    if (!paymentDialog || !orders) return;
+    const fresh = orders.find((o) => o.id === paymentDialog.order.id);
+    if (fresh) setPaymentDialog((d) => (d ? { ...d, order: fresh } : d));
+  }, [orders]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function toggleAwaitingPayment(id: string, awaitingPayment: boolean) {
+    setBusyId(id);
+    try {
+      await api.patch(`/orders/${id}/awaiting-payment`, { awaitingPayment });
+      load();
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function printComanda(orderId: string) {
+    setPrintingId(orderId);
+    try {
+      await api.post(`/orders/${orderId}/print-comanda`);
+    } finally {
+      setPrintingId(null);
+      setComandaMenuFor(null);
+    }
+  }
+
+  async function sendWhatsapp(order: LiveOrder) {
+    const win = window.open('', '_blank');
+    setSendingWhatsappId(order.id);
+    try {
+      const { data } = await api.post(`/orders/${order.id}/send-whatsapp`);
+      openInTabAndAutoClose(win, data.data.url);
+    } catch {
+      win?.close();
+    } finally {
+      setSendingWhatsappId(null);
+      setComandaMenuFor(null);
+    }
+  }
 
   // Mismo criterio de "me corresponde" que usa LiveOrdersPanel para el rol Mesero.
   const mine = (orders ?? []).filter((o) => {
@@ -66,39 +135,110 @@ export function ActiveOrdersPreview() {
         {mine.map((o) => {
           const meta = STATUS_META[o.status] ?? { label: o.status, bg: '#eef3fc', fg: 'var(--color-brand-950)' };
           const itemsSummary = o.items.map((it) => `${it.quantity}x ${it.productName}`).join(', ');
+          const { fullyPaid } = getPaymentStatus(o);
           return (
-            <button
-              key={o.id}
-              onClick={() => setEditingOrder(o)}
-              className="flex items-center gap-3 bg-white border border-brand-950/10 rounded-2xl px-3.5 py-3 text-left shadow-sm hover:shadow-md transition-shadow"
-            >
+            <div key={o.id} className="bg-white border border-brand-950/10 rounded-2xl px-3.5 py-3 shadow-sm">
               <div
-                className="h-[38px] w-[38px] rounded-[11px] flex items-center justify-center font-semibold text-[13px] shrink-0"
-                style={{ background: meta.bg, color: meta.fg }}
+                onClick={() => setEditingOrder(o)}
+                className="flex items-center gap-3 text-left cursor-pointer"
               >
-                {o.channel === 'DINE_IN' && o.table ? abbreviateTableBadge(o.table.number) : '—'}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1.5 text-[13.5px] font-medium text-brand-950">
-                  {CHANNEL_LABEL[o.channel]}
-                  <span
-                    className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full shrink-0"
-                    style={{ background: meta.bg, color: meta.fg }}
-                  >
-                    {meta.label}
-                  </span>
+                <div
+                  className="h-[38px] w-[38px] rounded-[11px] flex items-center justify-center font-semibold text-[13px] shrink-0"
+                  style={{ background: meta.bg, color: meta.fg }}
+                >
+                  {o.channel === 'DINE_IN' && o.table ? abbreviateTableBadge(o.table.number) : '—'}
                 </div>
-                <p className="text-[11.5px] text-brand-950/50 truncate mt-0.5">
-                  {itemsSummary || 'Sin productos'} · {timeAgo(o.createdAt)}
-                </p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 text-[13.5px] font-medium text-brand-950">
+                    {CHANNEL_LABEL[o.channel]}
+                    <span
+                      className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full shrink-0"
+                      style={{ background: meta.bg, color: meta.fg }}
+                    >
+                      {meta.label}
+                    </span>
+                  </div>
+                  <p className="text-[11.5px] text-brand-950/50 truncate mt-0.5">
+                    {itemsSummary || 'Sin productos'} · {timeAgo(o.createdAt)}
+                  </p>
+                </div>
               </div>
-            </button>
+
+              {fullyPaid ? (
+                <p className="text-xs text-emerald-600 font-medium text-center mt-2">✓ Pagado</p>
+              ) : (
+                <div className={`grid ${canAccountsPayable ? 'grid-cols-4' : 'grid-cols-3'} gap-1.5 mt-2`}>
+                  <button
+                    onClick={() => setPaymentDialog({ order: o, mode: 'full' })}
+                    title="Pagar"
+                    className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-[11px] font-medium py-2 transition-colors"
+                  >
+                    <CreditCard className="h-4 w-4" /> Pagar
+                  </button>
+                  <button
+                    onClick={() => setPaymentDialog({ order: o, mode: 'split' })}
+                    title="Pago fraccionado"
+                    className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-[11px] font-medium py-2 transition-colors"
+                  >
+                    <SplitSquareHorizontal className="h-4 w-4" /> Fraccionado
+                  </button>
+                  {canAccountsPayable && (
+                    <button
+                      onClick={() => toggleAwaitingPayment(o.id, !o.awaitingPayment)}
+                      disabled={busyId === o.id}
+                      title={o.awaitingPayment ? 'Pendiente' : 'Cta. abierta'}
+                      className={`flex flex-col items-center justify-center gap-1 rounded-xl text-white text-[11px] font-medium py-2 transition-colors disabled:opacity-40 ${
+                        o.awaitingPayment ? 'bg-amber-600 hover:bg-amber-700' : 'bg-amber-500 hover:bg-amber-600'
+                      }`}
+                    >
+                      <Clock className="h-4 w-4" /> {o.awaitingPayment ? 'Pendiente' : 'Cta. abierta'}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setComandaMenuFor(comandaMenuFor === o.id ? null : o.id)}
+                    title="Comanda"
+                    className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-[11px] font-medium py-2 transition-colors"
+                  >
+                    <Receipt className="h-4 w-4" /> Comanda
+                  </button>
+                </div>
+              )}
+
+              {comandaMenuFor === o.id && (
+                <div className="grid grid-cols-2 gap-1.5 mt-1.5">
+                  <button
+                    onClick={() => printComanda(o.id)}
+                    disabled={printingId === o.id}
+                    className="flex items-center justify-center gap-1.5 rounded-xl bg-brand-950/[0.06] text-brand-950/70 hover:bg-brand-950/10 text-xs font-medium py-2 transition-colors disabled:opacity-50"
+                  >
+                    <Printer className="h-3.5 w-3.5" /> {printingId === o.id ? 'Enviando…' : 'Imprimir'}
+                  </button>
+                  <button
+                    onClick={() => sendWhatsapp(o)}
+                    disabled={sendingWhatsappId === o.id || !o.customerPhone}
+                    title={o.customerPhone ? undefined : 'Este pedido no tiene teléfono registrado.'}
+                    className="flex items-center justify-center gap-1.5 rounded-xl bg-brand-950/[0.06] text-brand-950/70 hover:bg-brand-950/10 text-xs font-medium py-2 transition-colors disabled:opacity-50"
+                  >
+                    <MessageCircle className="h-3.5 w-3.5" /> {sendingWhatsappId === o.id ? 'Enviando…' : 'WhatsApp'}
+                  </button>
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
 
       {editingOrder && (
         <EditOrderDialog order={editingOrder} onClose={() => setEditingOrder(null)} onSaved={load} />
+      )}
+
+      {paymentDialog && (
+        <PaymentDialog
+          order={paymentDialog.order}
+          mode={paymentDialog.mode}
+          onClose={() => setPaymentDialog(null)}
+          onPaid={load}
+        />
       )}
     </div>
   );
