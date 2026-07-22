@@ -6,9 +6,12 @@ rem --- Arranca el mini-servidor local (oculto) si no esta corriendo ya ---
 start "" /min powershell -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0serve.ps1"
 
 rem --- Crea un acceso directo en el Escritorio la primera vez que se abre ---
+rem (si el Escritorio esta redirigido a OneDrive u otra ruta, %USERPROFILE%\Desktop
+rem  puede no existir; el New-Item de abajo lo crea antes de guardar el acceso
+rem  directo para que $s.Save() no falle con DirectoryNotFoundException).
 set SHORTCUT=%USERPROFILE%\Desktop\QuickTap - Estacion de Impresion.lnk
 if not exist "%SHORTCUT%" (
-    powershell -NoProfile -Command "$s=(New-Object -COM WScript.Shell).CreateShortcut('%SHORTCUT%'); $s.TargetPath='%~f0'; $s.WorkingDirectory='%~dp0'; $s.IconLocation='%~dp0icon.ico'; $s.WindowStyle=7; $s.Description='Estacion de Impresion QuickTap v1.2'; $s.Save()"
+    powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path (Split-Path '%SHORTCUT%') | Out-Null; $s=(New-Object -COM WScript.Shell).CreateShortcut('%SHORTCUT%'); $s.TargetPath='%~f0'; $s.WorkingDirectory='%~dp0'; $s.IconLocation='%~dp0icon.ico'; $s.WindowStyle=7; $s.Description='Estacion de Impresion QuickTap v1.2'; $s.Save()"
 )
 
 timeout /t 1 /nobreak >nul
