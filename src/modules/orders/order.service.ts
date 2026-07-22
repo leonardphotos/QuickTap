@@ -379,8 +379,12 @@ export const orderService = {
         // que el usuario asignó a esa cocina.
         kitchenName: i.kitchenName,
       })),
+      subtotalBase: order.subtotalBase,
+      serviceChargeBase: order.serviceChargeBase,
+      ivaBase: order.ivaBase,
       totalBase: order.totalBase,
       currency: order.currency,
+      exchangeRate: order.exchangeRate,
       totalBs: order.totalBs,
       createdAt: order.createdAt,
     });
@@ -554,8 +558,12 @@ export const orderService = {
         // que el usuario asignó a esa cocina.
         kitchenName: i.kitchenName,
       })),
+      subtotalBase: order.subtotalBase,
+      serviceChargeBase: order.serviceChargeBase,
+      ivaBase: order.ivaBase,
       totalBase: order.totalBase,
       currency: order.currency,
+      exchangeRate: order.exchangeRate,
       totalBs: order.totalBs,
       createdAt: order.createdAt,
     });
@@ -701,8 +709,12 @@ export const orderService = {
         // que el usuario asignó a esa cocina.
         kitchenName: i.kitchenName,
       })),
+      subtotalBase: order.subtotalBase,
+      serviceChargeBase: order.serviceChargeBase,
+      ivaBase: order.ivaBase,
       totalBase: order.totalBase,
       currency: order.currency,
+      exchangeRate: order.exchangeRate,
       totalBs: order.totalBs,
       createdAt: order.createdAt,
     });
@@ -1202,7 +1214,11 @@ export const orderService = {
         note: i.note,
         kitchenName: i.kitchenName,
       })),
+      subtotalBase: order.subtotalBase,
+      serviceChargeBase: order.serviceChargeBase,
+      ivaBase: order.ivaBase,
       totalBase: order.totalBase,
+      exchangeRate: order.exchangeRate,
       totalBs: order.totalBs,
       currency: order.currency,
       createdAt: order.createdAt,

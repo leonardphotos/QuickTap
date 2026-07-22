@@ -276,22 +276,31 @@
   .conn-row span:last-child{font-weight:500;text-align:right;}
 
   /* ---------------- Receipt (print target) ---------------- */
+  /* Todo en negro puro y en negrita: en térmica, el gris (#444, peso 400)
+     se traduce a puntos salteados que salen ilegibles sin importar el
+     tamaño de letra — con negro sólido + bold el cabezal quema el punto
+     completo y se lee bien incluso en 58mm. */
   #receipt{
     display:none;
     font-family:"Courier New",Courier,monospace;
     font-size:12.5px;
-    line-height:1.45;
+    line-height:1.5;
+    font-weight:700;
+    color:#000;
+    text-align:center;
   }
   #receipt.w58{width:58mm;font-size:11px;}
   #receipt.w80{width:80mm;font-size:12.5px;}
   .r-center{text-align:center;}
   .r-bold{font-weight:700;}
   .r-line{border-top:1px dashed #000;margin:6px 0;}
-  .r-row{display:flex;justify-content:space-between;gap:6px;}
-  .r-item-name{flex:1;}
+  .r-line-sm{border-top:1px dashed #000;margin:2px 0;}
+  .r-row{display:flex;justify-content:center;flex-wrap:wrap;gap:4px 6px;text-align:center;}
+  .r-item-name{text-align:center;}
   .r-title{font-size:14px;}
   .r-big{font-size:16px;}
-  .r-muted{color:#444;font-size:11px;}
+  .r-sub{font-size:12px;}
+  .r-muted{color:#000;font-weight:600;font-size:11px;}
 
   @media print{
     body *{visibility:hidden;}
@@ -300,6 +309,8 @@
       display:block;
       position:absolute;top:0;left:0;
       padding:6px 4px;
+      -webkit-print-color-adjust:exact;
+      print-color-adjust:exact;
     }
     @page{margin:0;}
   }
@@ -759,11 +770,16 @@ function groupItemsByKitchen(order){
 
 function buildTicketHtml(order, kind, station){
   const bizName = state.restaurant?.name || 'QuickTap';
+  const bizAddress = state.restaurant?.description || '';
   const channelLabel = CHANNEL_LABEL[order.channel] || order.channel || '';
   const tableInfo = order.table ? `Mesa ${esc(order.table)}` : '';
   const items = order.items || [];
+  const rate = order.exchangeRate != null ? Number(order.exchangeRate) : null;
 
   const currencySymbol = order.currency === 'EUR' ? '€' : '$';
+  // Bs de cada monto en $: usa la tasa congelada del pedido, la misma con la
+  // que se calculó totalBs, para que el desglose por ítem cuadre con el total.
+  const bsLine = (amountBase) => (rate != null ? `<div class="r-row r-muted"><span>${formatBs(amountBase * rate)}</span></div>` : '');
   const itemsHtml = items.map(it => {
     if(kind === 'recibo'){
       // lineTotal viene congelado del pedido; si por alguna razón no llega
@@ -773,28 +789,37 @@ function buildTicketHtml(order, kind, station){
       return `<div class="r-row">
         <span class="r-item-name">${esc(it.quantity)}x ${esc(it.name)}${it.variantName ? ' ('+esc(it.variantName)+')' : ''}</span>
         ${lineAmount != null ? `<span>${currencySymbol}${lineAmount.toFixed(2)}</span>` : ''}
-      </div>${(it.note) ? `<div class="r-muted">&nbsp;&nbsp;Nota: ${esc(it.note)}</div>` : ''}`;
+      </div>${lineAmount != null ? bsLine(lineAmount) : ''}${(it.note) ? `<div class="r-muted">&nbsp;&nbsp;Nota: ${esc(it.note)}</div>` : ''}`;
     }
     return `<div class="r-row">
       <span class="r-bold">${esc(it.quantity)}x</span>
       <span class="r-item-name">&nbsp;${esc(it.name)}${it.variantName ? ' ('+esc(it.variantName)+')' : ''}</span>
     </div>
-    ${(it.modifiers && it.modifiers.length) ? `<div class="r-muted">&nbsp;&nbsp;${it.modifiers.map(m=>esc(m.name)).join(', ')}</div>` : ''}
-    ${it.note ? `<div class="r-muted">&nbsp;&nbsp;Nota: ${esc(it.note)}</div>` : ''}`;
+    ${(it.modifiers && it.modifiers.length) ? it.modifiers.map(m => `<div class="r-muted">+1 ${esc(m.name)}</div>`).join('') : ''}
+    ${it.note ? `<div class="r-muted">Nota: ${esc(it.note)}</div>` : ''}`;
   }).join('');
 
+  const subtotalBase = order.subtotalBase != null ? Number(order.subtotalBase) : null;
+  const serviceChargeBase = order.serviceChargeBase != null ? Number(order.serviceChargeBase) : 0;
+  const ivaBase = order.ivaBase != null ? Number(order.ivaBase) : 0;
   const totalBase = Number(order.totalBase ?? items.reduce((s,it)=> s + (it.lineTotal!=null? Number(it.lineTotal): 0), 0));
-  const totalBs = order.totalBs != null ? Number(order.totalBs) : null;
 
   // Título: "COMANDA · Parrilla" si hay más de una estación en juego, o el
   // genérico de siempre si es la única cocina del pedido.
   const kitchenTitle = station && station !== SIN_COCINA ? `COMANDA · ${esc(station)}` : 'COMANDA DE COCINA';
 
+  // Espacio: en la comanda de cocina se ahorra papel achicando el encabezado
+  // (sin dirección, línea más angosta) y el pie — la línea/tamaño de "COMANDA
+  // DE COCINA" en sí no se toca, tal como lo pidió el usuario.
+  const headerLine = kind === 'cocina' ? 'r-line-sm' : 'r-line';
+  const footerLine = kind === 'cocina' ? 'r-line-sm' : 'r-line';
+
   return `
     <div class="r-center r-bold r-title">${esc(bizName)}</div>
-    <div class="r-line"></div>
-    <div class="r-center r-bold r-big">${kind==='cocina' ? kitchenTitle : 'RECIBO'}</div>
-    ${kind==='recibo' ? '<div class="r-center r-bold">Factura no fiscal</div>' : ''}
+    ${(bizAddress && kind !== 'cocina') ? `<div class="r-center">${esc(bizAddress)}</div>` : ''}
+    <div class="${headerLine}"></div>
+    <div class="r-center r-bold r-sub">${kind==='cocina' ? kitchenTitle : 'RECIBO'}</div>
+    ${kind==='recibo' ? '<div class="r-center">Factura no fiscal</div>' : ''}
     <div class="r-line"></div>
     <div class="r-row"><span>Orden:</span><span>#${esc(order.orderNumber ?? '—')}</span></div>
     <div class="r-row"><span>Canal:</span><span>${esc(channelLabel)}</span></div>
@@ -805,10 +830,14 @@ function buildTicketHtml(order, kind, station){
     ${itemsHtml || '<div class="r-muted r-center">Sin productos</div>'}
     ${kind==='recibo' ? `
       <div class="r-line"></div>
+      ${subtotalBase != null ? `<div class="r-row"><span>Subtotal</span><span>${currencySymbol}${subtotalBase.toFixed(2)}</span></div>` : ''}
+      ${serviceChargeBase > 0 ? `<div class="r-row"><span>Servicio (10%)</span><span>${currencySymbol}${serviceChargeBase.toFixed(2)}</span></div>` : ''}
+      ${ivaBase > 0 ? `<div class="r-row"><span>IVA (16%)</span><span>${currencySymbol}${ivaBase.toFixed(2)}</span></div>` : ''}
       <div class="r-row r-bold"><span>TOTAL</span><span>${currencySymbol}${totalBase.toFixed(2)}</span></div>
-      ${totalBs != null ? `<div class="r-row r-bold"><span>&nbsp;</span><span>${formatBs(totalBs)}</span></div>` : ''}
+      ${bsLine(totalBase)}
+      ${rate != null ? `<div class="r-row r-muted"><span>Tasa del día: ${formatBs(rate)}/${currencySymbol}1</span></div>` : ''}
     ` : ''}
-    <div class="r-line"></div>
+    <div class="${footerLine}"></div>
     <div class="r-center r-muted">Impreso con QuickTap</div>
   `;
 }
@@ -1146,8 +1175,12 @@ $('testOrderBtn').addEventListener('click', () => {
       { name:'Pizza Margarita', quantity:1, unitPrice:12, lineTotal:12, note: Math.random() > 0.6 ? 'Sin cebolla' : null, modifiers:[] },
       { name:'Refresco', variantName:'Grande', quantity:2, unitPrice:6.25, lineTotal:12.5, modifiers:[{name:'Con hielo'}] },
     ],
-    totalBase: 24.5,
-    totalBs: 18062.14,
+    subtotalBase: 24.5,
+    serviceChargeBase: 2.45,
+    ivaBase: 3.92,
+    totalBase: 30.87,
+    exchangeRate: 220.5,
+    totalBs: 6806.85,
     currency: 'USD',
     createdAt: new Date().toISOString(),
   };
