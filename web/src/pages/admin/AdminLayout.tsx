@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, useState } from 'react';
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Home, Menu, Settings, Share2, TriangleAlert } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -9,6 +9,8 @@ import { useCopyToast } from '../../hooks/useCopyToast';
 import { canAccessPath, defaultPathFor, isScreenRole } from '../../utils/roles';
 import { daysRemaining, graceHoursRemaining } from '../../utils/subscription';
 import { visibleNavLinks } from './nav-links';
+
+const WaiterLayout = lazy(() => import('./WaiterLayout'));
 
 export default function AdminLayout() {
   const { user, restaurant, loading, logout } = useAuth();
@@ -59,6 +61,13 @@ export default function AdminLayout() {
         <Outlet />
       </div>
     );
+  }
+
+  // Mesero: panel simplificado con pestañas arriba en vez del menú lateral/dock — ver
+  // WaiterLayout. Reemplaza el <Outlet/> normal (ignora qué ruta /admin/* haya
+  // matcheado; WaiterLayout renderiza sus propias pestañas internamente).
+  if (user.role === 'WAITER') {
+    return <WaiterLayout />;
   }
 
   const canSeeSettings = canAccessPath(user.role, '/admin/settings');
