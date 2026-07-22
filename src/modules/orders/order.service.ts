@@ -368,6 +368,10 @@ export const orderService = {
         name: i.productName,
         variantName: i.variantName,
         quantity: i.quantity,
+        // Congelados en el pedido: la Estación de Impresión los usa para mostrar
+        // el monto de cada ítem en el recibo (la comanda de cocina los ignora).
+        unitPrice: i.unitPrice.toString(),
+        lineTotal: i.lineTotal.toString(),
         modifiers: i.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase.toString() })),
         note: i.note,
         // Estación de cocina de este producto (snapshot congelado al crear el pedido):
@@ -539,6 +543,10 @@ export const orderService = {
         name: i.productName,
         variantName: i.variantName,
         quantity: i.quantity,
+        // Congelados en el pedido: la Estación de Impresión los usa para mostrar
+        // el monto de cada ítem en el recibo (la comanda de cocina los ignora).
+        unitPrice: i.unitPrice.toString(),
+        lineTotal: i.lineTotal.toString(),
         modifiers: i.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase.toString() })),
         note: i.note,
         // Estación de cocina de este producto (snapshot congelado al crear el pedido):
@@ -682,6 +690,10 @@ export const orderService = {
         name: i.productName,
         variantName: i.variantName,
         quantity: i.quantity,
+        // Congelados en el pedido: la Estación de Impresión los usa para mostrar
+        // el monto de cada ítem en el recibo (la comanda de cocina los ignora).
+        unitPrice: i.unitPrice.toString(),
+        lineTotal: i.lineTotal.toString(),
         modifiers: i.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase.toString() })),
         note: i.note,
         // Estación de cocina de este producto (snapshot congelado al crear el pedido):
@@ -1184,11 +1196,14 @@ export const orderService = {
         name: i.productName,
         variantName: i.variantName,
         quantity: i.quantity,
+        unitPrice: i.unitPrice.toString(),
+        lineTotal: i.lineTotal.toString(),
         modifiers: i.modifiers.map((m) => ({ name: m.name })),
         note: i.note,
         kitchenName: i.kitchenName,
       })),
       totalBase: order.totalBase,
+      totalBs: order.totalBs,
       currency: order.currency,
       createdAt: order.createdAt,
     });
