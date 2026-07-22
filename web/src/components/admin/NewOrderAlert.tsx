@@ -11,7 +11,7 @@ import type { LiveOrder } from './LiveOrdersPanel';
 const CHANNEL_META: Record<LiveOrder['channel'], { label: string; icon: typeof Bike; className: string }> = {
   DINE_IN: { label: 'Mesa', icon: Grid2x2, className: 'bg-secondary text-brand-950' },
   DELIVERY: { label: 'Delivery', icon: Bike, className: 'bg-accent text-accent-foreground' },
-  PICKUP: { label: 'Pick-up', icon: ShoppingBag, className: 'bg-emerald-50 text-emerald-700' },
+  PICKUP: { label: 'Pick-up', icon: ShoppingBag, className: 'bg-[#e3f5ec] text-[#0f6e46]' },
   BAR: { label: 'Barra', icon: Martini, className: 'bg-secondary text-brand-950' },
 };
 

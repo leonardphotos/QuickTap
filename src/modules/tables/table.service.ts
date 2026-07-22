@@ -3,6 +3,7 @@ import { ServiceRequestType } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { emitToKitchen, emitToTable, SocketEvents } from '../../sockets';
+import { startOfTodayCaracas } from '../../utils/timezone';
 import { CreateTableInput, UpdateTableInput } from './table.dto';
 
 async function assertZoneBelongs(restaurantId: string, zoneId: string) {
@@ -94,10 +95,16 @@ export const tableService = {
    * Plano de Órdenes de Mesa: mesas agrupadas por zona (cuadrícula automática).
    * Una mesa se pinta en verde mientras tenga una CUENTA ABIERTA (TableSession),
    * sin importar si sus pedidos individuales ya fueron servidos: la cuenta
-   * sigue viva hasta que el restaurante la cierre.
+   * sigue viva hasta que el restaurante la cierre. `reserved` usa el mismo
+   * criterio que ya ve el comensal en el menú público (reservationService.
+   * getTableStatuses): tiene una reserva CONFIRMED para hoy. Si la mesa está
+   * ocupada ahora mismo, esa realidad física manda sobre la reserva.
    */
   async floorPlan(restaurantId: string) {
-    const [zones, unzonedTables, openSessions] = await Promise.all([
+    const todayStart = startOfTodayCaracas();
+    const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+
+    const [zones, unzonedTables, openSessions, todaysReservations] = await Promise.all([
       prisma.zone.findMany({
         where: { restaurantId },
         orderBy: [{ priority: 'asc' }, { name: 'asc' }],
@@ -119,9 +126,14 @@ export const tableService = {
           },
         },
       }),
+      prisma.reservation.findMany({
+        where: { restaurantId, status: 'CONFIRMED', date: { gte: todayStart, lt: todayEnd } },
+        select: { tables: { select: { id: true } } },
+      }),
     ]);
 
     const sessionByTable = new Map(openSessions.map((s) => [s.tableId, s]));
+    const reservedTableIds = new Set(todaysReservations.flatMap((r) => r.tables.map((t) => t.id)));
 
     const mapTable = (table: { id: string; number: string; serviceRequest: ServiceRequestType | null }) => {
       const session = sessionByTable.get(table.id);
@@ -130,6 +142,7 @@ export const tableService = {
         number: table.number,
         session: session ? serializeSession(session) : null,
         serviceRequest: table.serviceRequest,
+        reserved: !session && reservedTableIds.has(table.id),
       };
     };
 

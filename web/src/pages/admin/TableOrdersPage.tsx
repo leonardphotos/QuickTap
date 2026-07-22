@@ -175,6 +175,22 @@ export default function TableOrdersPage({ onPayOrder }: Props = {}) {
       )}
 
       <div className="rounded-3xl border border-brand-950/10 bg-white p-8 space-y-10 shadow-sm">
+        {sections.length > 0 && (
+          <div className="flex flex-wrap gap-x-4 gap-y-1.5 -mt-2 text-xs text-brand-950/50 font-light">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-[#0f6e46]" /> Libre
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-brand-950" /> Ocupada
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-[#8a5106]" /> Piden cuenta
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-[#9d2469]" /> Reservada
+            </span>
+          </div>
+        )}
         {sections.map((zone) => (
           <div key={zone.id}>
             <h2 className="text-sm font-semibold text-brand-950/70 mb-4">{zone.name}</h2>
@@ -183,13 +199,20 @@ export default function TableOrdersPage({ onPayOrder }: Props = {}) {
                 <div key={t.id} className="relative">
                   <button
                     onClick={() => setSelected(t)}
-                    className={`aspect-square w-full rounded-2xl flex items-center justify-center font-semibold text-sm transition-all duration-200 hover:scale-[1.04] ${
-                      t.session
-                        ? 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm'
-                        : 'bg-brand-950/[0.06] text-brand-950/50 hover:bg-brand-950/10'
+                    className={`aspect-square w-full rounded-2xl flex flex-col items-center justify-center gap-0.5 font-semibold text-sm transition-all duration-200 hover:scale-[1.04] ${
+                      t.serviceRequest
+                        ? 'bg-[#fbedd6] text-[#8a5106]'
+                        : t.session
+                          ? 'bg-secondary text-brand-950'
+                          : t.reserved
+                            ? 'bg-[#fbe7f1] text-[#9d2469]'
+                            : 'bg-[#e3f5ec] text-[#0f6e46]'
                     }`}
                   >
-                    {t.number}
+                    <span>{t.number}</span>
+                    <span className="text-[9px] font-medium opacity-80">
+                      {t.serviceRequest ? 'Cuenta' : t.session ? 'Ocupada' : t.reserved ? 'Reservada' : 'Libre'}
+                    </span>
                   </button>
                   {t.serviceRequest && (
                     <button

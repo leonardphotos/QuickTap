@@ -7,7 +7,6 @@ import {
   Clock,
   CreditCard,
   Download,
-  ListFilter,
   MessageCircle,
   Plus,
   Printer,
@@ -19,7 +18,6 @@ import { api, getToken } from '@/api/client';
 import type { DeliveryCourier, Product } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import { CreateOrderDialog } from './CreateOrderDialog';
 import { PaymentDialog } from './PaymentDialog';
@@ -128,22 +126,21 @@ const STATUS_LABELS: Record<string, string> = {
   KITCHEN: 'En cocina',
 };
 
+/** Badge/chip de estado del pedido en la tarjeta — mismos tokens de color en toda la app. */
+const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
+  NEEDS_CONFIRMATION: { label: 'Nueva', bg: '#fbedd6', fg: '#8a5106' },
+  PENDING: { label: 'En cocina', bg: '#e6f2fe', fg: 'var(--color-brand-900)' },
+  KITCHEN: { label: 'En cocina', bg: '#e6f2fe', fg: 'var(--color-brand-900)' },
+  SERVED: { label: 'Servido', bg: '#e3f5ec', fg: '#0f6e46' },
+  CANCELLED: { label: 'Cancelado', bg: '#f1f4f9', fg: '#5b6785' },
+};
+
 const CHANNEL_TABS: { value: LiveOrder['channel']; label: string }[] = [
   { value: 'DINE_IN', label: 'Mesas' },
   { value: 'BAR', label: 'Barra' },
   { value: 'DELIVERY', label: 'Delivery' },
   { value: 'PICKUP', label: 'Pick-up' },
 ];
-
-const FILTER_LABELS: Record<ChannelFilter, string> = {
-  DINE_IN: 'Mesas',
-  DELIVERY: 'Delivery',
-  PICKUP: 'Pick-up',
-  BAR: 'Barra',
-  AWAITING_PAYMENT: 'Deudas',
-  PAID: 'Pagados',
-  PARTIAL: 'Pago fraccionado',
-};
 
 /** Panel "Pedidos": todos los pedidos activos con Aceptar/Cancelar/Finalizar/Delivery. Va en el Dashboard. */
 interface Props {
@@ -328,6 +325,14 @@ export function LiveOrdersPanel({ autoOpenPaymentOrderId, onAutoOpenHandled }: P
 
   if (!orders) return null;
 
+  const filterOptions: { value: ChannelFilter | null; label: string }[] = [
+    { value: null, label: 'Todos' },
+    ...CHANNEL_TABS,
+    ...(canAccountsPayable ? [{ value: 'AWAITING_PAYMENT' as const, label: 'Deudas' }] : []),
+    { value: 'PAID', label: 'Pagados' },
+    { value: 'PARTIAL', label: 'Fraccionado' },
+  ];
+
   return (
     <div className="w-full mb-8 max-w-md mx-auto lg:max-w-none lg:mx-0">
       <div className="grid grid-cols-3 items-center mb-3 gap-2">
@@ -348,29 +353,23 @@ export function LiveOrdersPanel({ autoOpenPaymentOrderId, onAutoOpenHandled }: P
         >
           <Plus className="h-7 w-7" strokeWidth={2.5} />
         </TextureButton>
-        <div className="flex items-center flex-wrap justify-end gap-2 justify-self-end">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-1.5 text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5 bg-white text-brand-950/70">
-                <ListFilter className="h-3.5 w-3.5" />
-                {channelFilter ? FILTER_LABELS[channelFilter] : 'Filtro'}
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setChannelFilter(null)}>Todos los pedidos</DropdownMenuItem>
-              {CHANNEL_TABS.map((t) => (
-                <DropdownMenuItem key={t.value} onClick={() => setChannelFilter(t.value)}>
-                  {t.label}
-                </DropdownMenuItem>
-              ))}
-              {canAccountsPayable && (
-                <DropdownMenuItem onClick={() => setChannelFilter('AWAITING_PAYMENT')}>Deudas</DropdownMenuItem>
-              )}
-              <DropdownMenuItem onClick={() => setChannelFilter('PAID')}>Pagados</DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setChannelFilter('PARTIAL')}>Pago fraccionado</DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <div className="justify-self-end" />
+      </div>
+
+      <div className="flex gap-1.5 mb-3 overflow-x-auto -mx-0.5 px-0.5 pb-0.5">
+        {filterOptions.map((f) => (
+          <button
+            key={f.label}
+            onClick={() => setChannelFilter(f.value)}
+            className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+              channelFilter === f.value
+                ? 'bg-brand-500 text-white border-brand-500'
+                : 'bg-white text-brand-950/60 border-brand-950/15'
+            }`}
+          >
+            {f.label}
+          </button>
+        ))}
       </div>
 
       {error && <p className="text-sm text-red-600 mb-3 text-left">{error}</p>}
@@ -400,19 +399,36 @@ export function LiveOrdersPanel({ autoOpenPaymentOrderId, onAutoOpenHandled }: P
                   Añadido a cuentas por pagar
                 </div>
               )}
-              <div className="flex items-center justify-between gap-2 mb-1.5">
-                <p className="font-semibold text-brand-950 flex items-center gap-1.5">
-                  #{o.orderNumber}
-                  {o.customerName && <span className="font-normal text-brand-950/60"> · {o.customerName}</span>}
-                  {o.awaitingPayment && <Clock className="h-3.5 w-3.5 text-amber-500" />}
-                </p>
-                <span className="text-xs bg-brand-950/[0.06] px-2 py-0.5 rounded-full shrink-0">
-                  {CHANNEL_LABELS[o.channel]}
-                  {o.table && ` ${o.table.number}`}
-                </span>
-              </div>
-
-              <p className="text-xs text-brand-950/50 font-light mb-2">{STATUS_LABELS[o.status] ?? o.status}</p>
+              {(() => {
+                const statusMeta = STATUS_META[o.status] ?? { label: STATUS_LABELS[o.status] ?? o.status, bg: '#eef3fc', fg: 'var(--color-brand-950)' };
+                return (
+                  <div className="flex items-start gap-3 mb-2">
+                    <div
+                      className="h-[38px] w-[38px] rounded-[11px] flex items-center justify-center font-semibold text-[13px] shrink-0"
+                      style={{ background: statusMeta.bg, color: statusMeta.fg }}
+                    >
+                      {o.channel === 'DINE_IN' && o.table ? o.table.number : '—'}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-brand-950 flex items-center gap-1.5 flex-wrap">
+                        {CHANNEL_LABELS[o.channel]}
+                        {o.table && ` ${o.table.number}`}
+                        <span
+                          className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0"
+                          style={{ background: statusMeta.bg, color: statusMeta.fg }}
+                        >
+                          {statusMeta.label}
+                        </span>
+                        {o.awaitingPayment && <Clock className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
+                      </p>
+                      <p className="text-xs text-brand-950/50 font-light truncate">
+                        #{o.orderNumber}
+                        {o.customerName && ` · ${o.customerName}`}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <ul className="text-sm space-y-0.5 font-light mb-2">
                 {o.items.map((it) => (

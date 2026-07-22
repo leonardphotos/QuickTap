@@ -5,6 +5,7 @@ import { hasFeature } from '../../utils/subscription';
 import { LiveOrdersPanel } from '@/components/admin/LiveOrdersPanel';
 import { TableServiceAlert } from '@/components/admin/TableServiceAlert';
 import { NewOrderAlert } from '@/components/admin/NewOrderAlert';
+import { ActiveOrdersPreview } from '@/components/admin/ActiveOrdersPreview';
 
 const TableOrdersPage = lazy(() => import('./TableOrdersPage'));
 const KitchenPage = lazy(() => import('./KitchenPage'));
@@ -80,12 +81,15 @@ export default function WaiterLayout() {
       <main className="px-4 py-4 pb-10">
         <Suspense fallback={<div className="p-10 text-center text-brand-950/30 font-light text-sm">Cargando…</div>}>
           {tab === 'mesas' && (
-            <TableOrdersPage
-              onPayOrder={(orderId) => {
-                setPayOrderId(orderId);
-                setTab('comandas');
-              }}
-            />
+            <div className="space-y-8">
+              <TableOrdersPage
+                onPayOrder={(orderId) => {
+                  setPayOrderId(orderId);
+                  setTab('comandas');
+                }}
+              />
+              <ActiveOrdersPreview onNavigate={() => setTab('comandas')} />
+            </div>
           )}
           {tab === 'cocina' && <KitchenPage />}
           {tab === 'comandas' && (

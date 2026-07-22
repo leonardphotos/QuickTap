@@ -257,6 +257,8 @@ export interface FloorPlanTable {
   number: string;
   session: TableSession | null;
   serviceRequest: ServiceRequestType | null;
+  /** Tiene una reserva confirmada para hoy y no está ocupada ahora mismo. */
+  reserved: boolean;
 }
 
 export interface FloorPlan {

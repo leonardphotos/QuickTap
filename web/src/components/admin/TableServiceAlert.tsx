@@ -64,7 +64,7 @@ export function TableServiceAlert() {
       <DialogContent className="max-w-xs text-center">
         <div
           className={`mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full ${
-            isCall ? 'bg-accent text-accent-foreground' : 'bg-emerald-50 text-emerald-700'
+            isCall ? 'bg-accent text-accent-foreground' : 'bg-[#e3f5ec] text-[#0f6e46]'
           }`}
         >
           {isCall ? <BellRing className="h-6 w-6" /> : <Receipt className="h-6 w-6" />}
