@@ -20,14 +20,17 @@ async function bootstrap() {
     env.exchangeRate.ttlHours * 60 * 60 * 1000,
   );
 
-  server.listen(env.port, () => {
-    // eslint-disable-next-line no-console
+  // Solo localhost: Nginx (misma máquina) es el único que debe llegar a este
+  // puerto — así queda fuera de alcance directo de internet aunque el
+  // firewall se desconfigure alguna vez.
+  server.listen(env.port, '127.0.0.1', () => {
+
     console.log(`🚀 QuickTap API escuchando en http://localhost:${env.port} (${env.nodeEnv})`);
   });
 
   // Apagado ordenado.
   const shutdown = async (signal: string) => {
-    // eslint-disable-next-line no-console
+
     console.log(`\n${signal} recibido. Cerrando...`);
     clearInterval(refreshInterval);
     server.close();
@@ -39,7 +42,7 @@ async function bootstrap() {
 }
 
 bootstrap().catch((err) => {
-  // eslint-disable-next-line no-console
+
   console.error('Fallo al iniciar el servidor:', err);
   process.exit(1);
 });

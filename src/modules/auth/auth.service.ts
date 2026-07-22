@@ -13,7 +13,9 @@ const RESET_CODE_TTL_MINUTES = 15;
 const RESET_CODE_MAX_ATTEMPTS = 5;
 
 function generateResetCode(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  // crypto.randomInt (no Math.random): el código habilita cambiar la
+  // contraseña, así que su generación debe ser impredecible de verdad.
+  return String(crypto.randomInt(100000, 1000000));
 }
 
 function hashResetCode(code: string): string {

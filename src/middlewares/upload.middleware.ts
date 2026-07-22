@@ -14,10 +14,9 @@ import { asyncHandler } from './error.middleware';
 // sharp falle en runtime; el require de abajo es el único acceso real.
 let sharp: typeof SharpFactory | null = null;
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
   sharp = require('sharp');
 } catch (err) {
-  // eslint-disable-next-line no-console
   console.error('⚠️  No se pudo cargar "sharp": las imágenes subidas no se redimensionarán en el servidor.', err);
 }
 

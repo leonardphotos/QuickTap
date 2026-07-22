@@ -9,7 +9,7 @@ const resend = env.mail.resendApiKey ? new Resend(env.mail.resendApiKey) : null;
  */
 export async function sendMail(to: string, subject: string, html: string) {
   if (!resend) {
-    // eslint-disable-next-line no-console
+
     console.log(`📧 [mailer simulado, falta configurar RESEND_API_KEY] Para: ${to} — ${subject}\n${html}`);
     return;
   }

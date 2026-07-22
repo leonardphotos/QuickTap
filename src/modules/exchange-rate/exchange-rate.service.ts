@@ -73,7 +73,7 @@ export const exchangeRateService = {
         update: { rateBs, source, fetchedAt: new Date() },
       });
     } catch (err) {
-      // eslint-disable-next-line no-console
+
       console.error(`[exchange-rate] No se pudo refrescar ${currency}:`, (err as Error).message);
       // No relanzamos: el caller sigue funcionando con la tasa cacheada (si existe).
     }

@@ -1,4 +1,4 @@
-import { BillingCycle, SubscriptionPlan } from '@prisma/client';
+import { BillingCycle } from '@prisma/client';
 import { prisma } from '../config/prisma';
 
 export const TRIAL_DAYS = 15;

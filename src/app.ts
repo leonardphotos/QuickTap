@@ -22,6 +22,12 @@ declare global {
 export function createApp() {
   const app = express();
 
+  // Nginx (misma máquina) es el único proxy delante de la app: sin esto,
+  // Express ve todas las requests viniendo de 127.0.0.1 y el rate-limit de
+  // /auth (ver rate-limit.middleware.ts) contaría a todos los clientes como
+  // uno solo en vez de por IP real.
+  app.set('trust proxy', 1);
+
   app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
   app.use(
     cors({
