@@ -146,7 +146,14 @@ const FILTER_LABELS: Record<ChannelFilter, string> = {
 };
 
 /** Panel "Pedidos": todos los pedidos activos con Aceptar/Cancelar/Finalizar/Delivery. Va en el Dashboard. */
-export function LiveOrdersPanel() {
+interface Props {
+  /** Dashboard del Mesero: al elegir "Pagar" en Órdenes de Mesa, se cambia a esta pestaña
+   * con el id del pedido — abre aquí mismo el diálogo de pago (completo/fraccionado/deuda). */
+  autoOpenPaymentOrderId?: string | null;
+  onAutoOpenHandled?: () => void;
+}
+
+export function LiveOrdersPanel({ autoOpenPaymentOrderId, onAutoOpenHandled }: Props = {}) {
   const { restaurant, user } = useAuth();
   const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
@@ -194,6 +201,15 @@ export function LiveOrdersPanel() {
     const fresh = orders.find((o) => o.id === paymentDialog.order.id);
     if (fresh) setPaymentDialog((d) => (d ? { ...d, order: fresh } : d));
   }, [orders]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!autoOpenPaymentOrderId || !orders) return;
+    const found = orders.find((o) => o.id === autoOpenPaymentOrderId);
+    if (found) {
+      setPaymentDialog({ order: found, mode: 'full' });
+      onAutoOpenHandled?.();
+    }
+  }, [orders, autoOpenPaymentOrderId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function accept(id: string) {
     setBusyId(id);
@@ -313,7 +329,7 @@ export function LiveOrdersPanel() {
   if (!orders) return null;
 
   return (
-    <div className="w-full mb-8 max-w-md lg:max-w-none">
+    <div className="w-full mb-8 max-w-md mx-auto lg:max-w-none lg:mx-0">
       <div className="grid grid-cols-3 items-center mb-3 gap-2">
         <div className="flex items-center gap-2.5 justify-self-start">
           <h2 className="text-lg font-semibold text-brand-950">Pedidos</h2>

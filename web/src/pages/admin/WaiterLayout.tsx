@@ -21,6 +21,7 @@ type WaiterTab = 'mesas' | 'cocina' | 'comandas' | 'inventario';
 export default function WaiterLayout() {
   const { user, restaurant, logout } = useAuth();
   const [tab, setTab] = useState<WaiterTab>('mesas');
+  const [payOrderId, setPayOrderId] = useState<string | null>(null);
 
   if (!user || !restaurant) return null;
 
@@ -78,9 +79,18 @@ export default function WaiterLayout() {
 
       <main className="px-4 py-4 pb-10">
         <Suspense fallback={<div className="p-10 text-center text-brand-950/30 font-light text-sm">Cargando…</div>}>
-          {tab === 'mesas' && <TableOrdersPage />}
+          {tab === 'mesas' && (
+            <TableOrdersPage
+              onPayOrder={(orderId) => {
+                setPayOrderId(orderId);
+                setTab('comandas');
+              }}
+            />
+          )}
           {tab === 'cocina' && <KitchenPage />}
-          {tab === 'comandas' && <LiveOrdersPanel />}
+          {tab === 'comandas' && (
+            <LiveOrdersPanel autoOpenPaymentOrderId={payOrderId} onAutoOpenHandled={() => setPayOrderId(null)} />
+          )}
           {tab === 'inventario' && canSeeInventory && <InventoryPage />}
         </Suspense>
       </main>

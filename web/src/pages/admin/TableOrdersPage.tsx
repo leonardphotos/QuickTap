@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
-import { BellRing, Lock, LogOut, MoveHorizontal, Plus, Receipt } from 'lucide-react';
+import { BellRing, CreditCard, Lock, LogOut, MoveHorizontal, Plus, Printer, Receipt } from 'lucide-react';
 import { api, getToken } from '../../api/client';
 import type { FloorPlan, FloorPlanTable, Product } from '../../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -16,7 +16,13 @@ const STATUS_LABEL: Record<string, string> = {
   CANCELLED: 'Cancelado',
 };
 
-export default function TableOrdersPage() {
+interface Props {
+  /** Solo en el dashboard del Mesero: botón "Pagar" de un pedido cambia a la pestaña Comandas
+   * y abre ahí el diálogo de pago (completo/fraccionado/deuda) para ese pedido. */
+  onPayOrder?: (orderId: string) => void;
+}
+
+export default function TableOrdersPage({ onPayOrder }: Props = {}) {
   const [plan, setPlan] = useState<FloorPlan | null>(null);
   const [selected, setSelected] = useState<FloorPlanTable | null>(null);
   const [moveOpen, setMoveOpen] = useState(false);
@@ -26,6 +32,7 @@ export default function TableOrdersPage() {
   const [error, setError] = useState<string | null>(null);
   const [closing, setClosing] = useState(false);
   const [closePaymentMethod, setClosePaymentMethod] = useState('');
+  const [printingId, setPrintingId] = useState<string | null>(null);
 
   function load() {
     api.get('/tables/floor-plan').then((res) => setPlan(res.data.data));
@@ -84,6 +91,19 @@ export default function TableOrdersPage() {
       setError(e.response?.data?.error ?? 'No se pudo cerrar la mesa.');
     } finally {
       setBusy(false);
+    }
+  }
+
+  /** No imprime desde este navegador — reenvía la comanda a la estación de impresión. */
+  async function printOrder(orderId: string) {
+    setPrintingId(orderId);
+    setError(null);
+    try {
+      await api.post(`/orders/${orderId}/print-comanda`);
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo enviar la comanda a la estación de impresión.');
+    } finally {
+      setPrintingId(null);
     }
   }
 
@@ -253,6 +273,26 @@ export default function TableOrdersPage() {
                         </li>
                       ))}
                     </ul>
+                    <div className="flex gap-1.5 mt-2">
+                      <button
+                        onClick={() => printOrder(o.orderId)}
+                        disabled={printingId === o.orderId}
+                        className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full bg-brand-950/[0.06] text-brand-950/70 hover:bg-brand-950/10 disabled:opacity-50"
+                      >
+                        <Printer className="h-3.5 w-3.5" /> {printingId === o.orderId ? 'Enviando…' : 'Imprimir comanda'}
+                      </button>
+                      {onPayOrder && (
+                        <button
+                          onClick={() => {
+                            onPayOrder(o.orderId);
+                            setSelected(null);
+                          }}
+                          className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full bg-brand-500 text-white hover:bg-brand-400"
+                        >
+                          <CreditCard className="h-3.5 w-3.5" /> Pagar
+                        </button>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>
