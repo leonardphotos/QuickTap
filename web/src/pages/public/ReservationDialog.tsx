@@ -116,9 +116,9 @@ export default function ReservationDialog({ restaurant, onClose }: Props) {
             {done ? (
               <div className="text-center py-8 space-y-2">
                 <p className="text-4xl">✅</p>
-                <p className="font-semibold text-brand-950">¡Reserva confirmada!</p>
+                <p className="font-semibold text-brand-950">¡Solicitud enviada!</p>
                 <p className="text-sm text-brand-950/60 font-light">
-                  Te esperamos el {date} a las {time}.
+                  Recibirás la confirmación de tu reserva vía WhatsApp.
                 </p>
                 <TextureButton variant="brand" size="default" onClick={onClose} className="mt-4 !w-auto mx-auto">
                   Listo
@@ -240,7 +240,7 @@ export default function ReservationDialog({ restaurant, onClose }: Props) {
                   onClick={submit}
                   className="disabled:opacity-50"
                 >
-                  {sending ? 'Reservando…' : 'Confirmar reserva'}
+                  {sending ? 'Enviando…' : 'Solicitar reserva'}
                 </TextureButton>
               </div>
             )}

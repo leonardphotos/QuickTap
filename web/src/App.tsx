@@ -22,6 +22,7 @@ const AdministrationPage = lazy(() => import('./pages/admin/AdministrationPage')
 const InventoryPage = lazy(() => import('./pages/admin/InventoryPage'));
 const ExpensesPage = lazy(() => import('./pages/admin/ExpensesPage'));
 const SucursalesPage = lazy(() => import('./pages/admin/SucursalesPage'));
+const ReservationsPage = lazy(() => import('./pages/admin/ReservationsPage'));
 const WelcomePage = lazy(() => import('./pages/admin/WelcomePage'));
 const MasterLoginPage = lazy(() => import('./pages/master/MasterLoginPage'));
 const MasterLayout = lazy(() => import('./pages/master/MasterLayout'));
@@ -77,6 +78,7 @@ export default function App() {
               <Route path="inventory" element={<InventoryPage />} />
               <Route path="expenses" element={<ExpensesPage />} />
               <Route path="sucursales" element={<SucursalesPage />} />
+              <Route path="reservations" element={<ReservationsPage />} />
               <Route path="screen" element={<ScreenPage />} />
             </Route>
 

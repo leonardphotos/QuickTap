@@ -660,13 +660,14 @@ model Table {
 }
 
 enum ReservationStatus {
+  PENDING
   CONFIRMED
   CANCELLED
 }
 
 // Reserva de mesa hecha por el cliente desde el botón "Mesa" del menú
-// público. No pasa por aprobación: queda CONFIRMED de una vez; el staff
-// puede cancelarla desde Mesas.
+// público. Queda PENDING hasta que Cajero/Administrador la acepte o la
+// cancele desde la pestaña "Reservas" del panel.
 model Reservation {
   id               String            @id @default(cuid())
   restaurantId     String
@@ -678,7 +679,7 @@ model Reservation {
   customerName     String
   customerIdNumber String
   customerPhone    String
-  status           ReservationStatus @default(CONFIRMED)
+  status           ReservationStatus @default(PENDING)
   createdAt        DateTime          @default(now())
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)

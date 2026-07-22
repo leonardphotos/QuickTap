@@ -28,7 +28,14 @@ const RESTRICTED_PATHS = ['/admin/kitchen', '/admin/table-orders'];
 const SCREEN_PATH = '/admin/screen';
 // Dentro de FULL_ACCESS_ROLES, STAFF (Personal) no puede entrar a estas rutas
 // aunque tenga "acceso total" al resto del panel (toma de pedidos, cocina, etc).
-const ADMIN_CASHIER_ONLY_PATHS = ['/admin/products', '/admin/tables', '/admin/administration', '/admin/expenses', '/admin/sucursales'];
+const ADMIN_CASHIER_ONLY_PATHS = [
+  '/admin/products',
+  '/admin/tables',
+  '/admin/administration',
+  '/admin/expenses',
+  '/admin/sucursales',
+  '/admin/reservations',
+];
 
 export function hasFullAccess(role?: UserRole | null): boolean {
   if (!role) return false;

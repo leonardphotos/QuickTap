@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { api } from '../../api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 import { PasswordInput } from '@/components/ui/password-input';
+import { OtpInput } from '@/components/ui/otp-input';
 import AuthLayout from './AuthLayout';
 import { Field } from './LoginPage';
 
@@ -91,21 +93,22 @@ export default function ForgotPasswordPage() {
         </Link>
       }
     >
-      <form onSubmit={confirmReset} className="space-y-4">
+      <motion.form
+        onSubmit={confirmReset}
+        className="space-y-4"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35, ease: 'easeOut' }}
+      >
         <p className="text-sm text-brand-950/60 font-light -mt-2 mb-2">
           Enviamos un código de 6 dígitos a <span className="font-medium text-brand-950">{email}</span>. Vence en 15 minutos.
         </p>
-        <label className="block text-sm">
+        <div className="block text-sm">
           <span className="text-brand-950/70">Código</span>
-          <input
-            value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-            inputMode="numeric"
-            placeholder="123456"
-            required
-            className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-center text-lg tracking-[0.3em] focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-          />
-        </label>
+          <div className="mt-2">
+            <OtpInput value={code} onChange={(v) => setCode(v.slice(0, 6))} autoFocus />
+          </div>
+        </div>
         <label className="block text-sm">
           <span className="text-brand-950/70">Nueva contraseña</span>
           <PasswordInput
@@ -132,7 +135,7 @@ export default function ForgotPasswordPage() {
         >
           {cooldown > 0 ? `Reenviar código (${cooldown}s)` : 'Reenviar código'}
         </button>
-      </form>
+      </motion.form>
     </AuthLayout>
   );
 }

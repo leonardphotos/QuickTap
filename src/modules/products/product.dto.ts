@@ -15,7 +15,8 @@ export const createProductSchema = z.object({
   // "RECIPE" ignora costBase y usa la suma en vivo de la receta del producto.
   costSource: z.enum(['MANUAL', 'RECIPE']).optional().default('MANUAL'),
   costBase: z.coerce.number().nonnegative('El costo no puede ser negativo.').optional(),
-  photoUrl: z.string().min(1).optional(),
+  // null = borrar la foto existente; undefined/ausente = no tocarla.
+  photoUrl: z.string().min(1).nullable().optional(),
   isAvailable: z.boolean().optional().default(true),
   // Tiempo aproximado de preparación, en minutos (informativo, opcional).
   prepTimeMinutes: z.coerce.number().int().min(0).max(600).optional(),

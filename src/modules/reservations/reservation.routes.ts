@@ -11,7 +11,8 @@ publicReservationRoutes.post('/:slug', reservationController.create);
 /** Panel del restaurante: ver/cancelar reservas (mismos roles que Mesas). */
 export const tenantReservationRoutes = Router();
 tenantReservationRoutes.use(tenantGuard);
-tenantReservationRoutes.get('/', requireRole(...ADMIN_CASHIER_ROLES), reservationController.listUpcoming);
+tenantReservationRoutes.get('/', requireRole(...ADMIN_CASHIER_ROLES), reservationController.list);
+tenantReservationRoutes.patch('/:id/accept', requireRole(...ADMIN_CASHIER_ROLES), reservationController.accept);
 tenantReservationRoutes.patch('/:id/cancel', requireRole(...ADMIN_CASHIER_ROLES), reservationController.cancel);
 
 export default tenantReservationRoutes;
