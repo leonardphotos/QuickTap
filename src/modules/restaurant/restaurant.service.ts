@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import { prisma } from '../../config/prisma';
 import { UpdateRestaurantInput, UpdateScheduleInput } from './restaurant.dto';
 
@@ -51,5 +52,12 @@ export const restaurantService = {
       ),
     );
     return this.getSchedule(restaurantId);
+  },
+
+  /** Ajustes → código de 6 dígitos para eliminar comandas (solo lo crea/cambia Dueño/Admin). */
+  async setDeleteOrderPin(restaurantId: string, pin: string) {
+    const deleteOrderPinHash = await bcrypt.hash(pin, 10);
+    await prisma.restaurant.update({ where: { id: restaurantId }, data: { deleteOrderPinHash } });
+    return { done: true };
   },
 };

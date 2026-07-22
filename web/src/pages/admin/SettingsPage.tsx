@@ -18,6 +18,7 @@ import { DeliveryTeamSection } from '@/components/admin/DeliveryTeamSection';
 import { DeliveryPricingSection } from '@/components/admin/DeliveryPricingSection';
 import { PaymentMethodsSection } from '@/components/admin/PaymentMethodsSection';
 import { PrintStationSection } from '@/components/admin/PrintStationSection';
+import { DeleteOrderPinSection } from '@/components/admin/DeleteOrderPinSection';
 
 interface RateInfo {
   currency: Currency;
@@ -171,6 +172,12 @@ export default function SettingsPage() {
       {canManageTeam(user?.role) && (
         <div className="break-inside-avoid lg:mb-8">
           <TeamSection />
+        </div>
+      )}
+
+      {canManageTeam(user?.role) && (
+        <div className="break-inside-avoid lg:mb-8">
+          <DeleteOrderPinSection />
         </div>
       )}
 

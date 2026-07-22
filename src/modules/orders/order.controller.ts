@@ -4,6 +4,7 @@ import { forbidden } from '../../utils/http-error';
 import { DISCOUNT_ROLES } from '../../utils/roles';
 import {
   addOrderItemSchema,
+  deleteOrderSchema,
   deliveryCheckoutSchema,
   deliveryQuoteSchema,
   dineInCheckoutSchema,
@@ -172,9 +173,11 @@ export const orderController = {
     res.json({ data: orders });
   }),
 
-  /** DELETE /api/v1/orders/:id — "Cancelar" desde Pedidos en vivo: borra, no queda registrado. */
+  /** DELETE /api/v1/orders/:id — "Cancelar" desde Pedidos en vivo: borra, no queda registrado.
+   * Si quien elimina es Mesero, exige el código de 6 dígitos creado en Ajustes. */
   remove: asyncHandler(async (req: Request, res: Response) => {
-    const result = await orderService.deleteOrderHard(req.restaurantId!, req.params.id);
+    const { pin } = deleteOrderSchema.parse(req.body ?? {});
+    const result = await orderService.deleteOrderHard(req.restaurantId!, req.params.id, req.auth!.role, pin);
     res.json({ data: result });
   }),
 

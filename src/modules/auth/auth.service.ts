@@ -59,6 +59,7 @@ const RESTAURANT_SELECT = {
   customAccountsPayable: true,
   parentRestaurantId: true,
   pendingWelcomePlan: true,
+  deleteOrderPinHash: true,
 } as const;
 
 type RestaurantRow = {
@@ -94,6 +95,7 @@ type RestaurantRow = {
   customAccountsPayable: boolean;
   parentRestaurantId: string | null;
   pendingWelcomePlan: string | null;
+  deleteOrderPinHash: string | null;
 };
 
 /** Forma que el frontend consume: agrega `locked`, calculado en vivo (nunca persistido; ver isLockedAsync). */
@@ -131,6 +133,7 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
     customAccountsPayable: restaurant.customAccountsPayable,
     parentRestaurantId: restaurant.parentRestaurantId,
     pendingWelcomePlan: restaurant.pendingWelcomePlan,
+    hasDeleteOrderPin: !!restaurant.deleteOrderPinHash,
     locked: await isLockedAsync(restaurant),
   };
 }

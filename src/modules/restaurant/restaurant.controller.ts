@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest } from '../../utils/http-error';
-import { updateRestaurantSchema, updateScheduleSchema } from './restaurant.dto';
+import { setDeleteOrderPinSchema, updateRestaurantSchema, updateScheduleSchema } from './restaurant.dto';
 import { restaurantService } from './restaurant.service';
 
 export const restaurantController = {
@@ -24,6 +24,11 @@ export const restaurantController = {
 
   markWelcomeSeen: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await restaurantService.markWelcomeSeen(req.restaurantId!) });
+  }),
+
+  setDeleteOrderPin: asyncHandler(async (req: Request, res: Response) => {
+    const { pin } = setDeleteOrderPinSchema.parse(req.body);
+    res.json({ data: await restaurantService.setDeleteOrderPin(req.restaurantId!, pin) });
   }),
 
   uploadLogo: asyncHandler(async (req: Request, res: Response) => {

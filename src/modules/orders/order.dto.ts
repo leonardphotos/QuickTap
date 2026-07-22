@@ -122,6 +122,11 @@ export const setAwaitingPaymentSchema = z.object({
   awaitingPayment: z.coerce.boolean().optional().default(true),
 });
 
+/** "Cancelar" (borrado duro) en Pedidos: el Mesero debe mandar el código de 6 dígitos de Ajustes. */
+export const deleteOrderSchema = z.object({
+  pin: z.string().optional(),
+});
+
 /** Registrar un cobro (botones "Pagar" / "Pago Fraccionado" en Pedidos). */
 export const recordPaymentSchema = z
   .object({
@@ -199,6 +204,7 @@ export type ManualOrderInput = z.infer<typeof manualOrderSchema>;
 export type UpdateOrderItemsInput = z.infer<typeof updateOrderItemsSchema>;
 export type SetTipInput = z.infer<typeof setTipSchema>;
 export type SetAwaitingPaymentInput = z.infer<typeof setAwaitingPaymentSchema>;
+export type DeleteOrderInput = z.infer<typeof deleteOrderSchema>;
 export type DispatchCourierInput = z.infer<typeof dispatchCourierSchema>;
 export type AddOrderItemInput = z.infer<typeof addOrderItemSchema>;
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;

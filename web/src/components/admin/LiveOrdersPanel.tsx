@@ -169,6 +169,10 @@ export function LiveOrdersPanel() {
   const [comandaMenuFor, setComandaMenuFor] = useState<string | null>(null);
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [sendingWhatsappId, setSendingWhatsappId] = useState<string | null>(null);
+  // Mesero: eliminar una comanda exige el código de 6 dígitos creado en Ajustes (ver deleteOrderHard en el backend).
+  const [pinPromptFor, setPinPromptFor] = useState<string | null>(null);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState<string | null>(null);
   // Una sola columna con texto en celular; en pantallas anchas siempre cuadrícula
   // compacta (solo iconos) para aprovechar el espacio — ya no es una opción manual.
   const actionBtnClass = 'text-xs font-medium py-3 lg:text-[10.5px] lg:py-2.5 lg:px-0.5 lg:leading-tight';
@@ -264,6 +268,14 @@ export function LiveOrdersPanel() {
   }
 
   async function cancel(id: string) {
+    // El Mesero necesita el código de 6 dígitos de Ajustes (ver deleteOrderHard en el
+    // backend); pedirlo ya es la confirmación, así que no hace falta el confirm() de abajo.
+    if (user?.role === 'WAITER') {
+      setPinInput('');
+      setPinError(null);
+      setPinPromptFor(id);
+      return;
+    }
     if (!confirm('¿Cancelar este pedido? No quedará registrado en el sistema.')) return;
     setBusyId(id);
     setError(null);
@@ -272,6 +284,21 @@ export function LiveOrdersPanel() {
       load();
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo cancelar el pedido.');
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function confirmCancelWithPin() {
+    if (!pinPromptFor) return;
+    setBusyId(pinPromptFor);
+    setPinError(null);
+    try {
+      await api.delete(`/orders/${pinPromptFor}`, { data: { pin: pinInput } });
+      setPinPromptFor(null);
+      load();
+    } catch (e: any) {
+      setPinError(e.response?.data?.error ?? 'No se pudo cancelar el pedido.');
     } finally {
       setBusyId(null);
     }
@@ -621,6 +648,39 @@ export function LiveOrdersPanel() {
           onClose={() => setPaymentDialog(null)}
           onPaid={load}
         />
+      )}
+
+      {pinPromptFor && (
+        <Dialog open onOpenChange={(open) => !open && setPinPromptFor(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Código para eliminar comanda</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <p className="text-sm text-brand-950/60 font-light">
+                Pide el código de 6 dígitos al dueño o administrador para eliminar este pedido.
+              </p>
+              <input
+                autoFocus
+                value={pinInput}
+                onChange={(e) => setPinInput(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                inputMode="numeric"
+                placeholder="Código de 6 dígitos"
+                className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm tracking-widest text-center focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              />
+              {pinError && <p className="text-sm text-red-600">{pinError}</p>}
+              <TextureButton
+                variant="brand"
+                size="default"
+                disabled={busyId === pinPromptFor || pinInput.length !== 6}
+                onClick={confirmCancelWithPin}
+                className="disabled:opacity-50"
+              >
+                {busyId === pinPromptFor ? 'Eliminando…' : 'Eliminar comanda'}
+              </TextureButton>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

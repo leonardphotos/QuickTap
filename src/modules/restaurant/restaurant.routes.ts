@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
-import { FULL_ACCESS_ROLES } from '../../utils/roles';
+import { FULL_ACCESS_ROLES, TEAM_MANAGER_ROLES } from '../../utils/roles';
 import { optimizeImage, uploadCoverImage, uploadFullscreenImage, uploadLogo } from '../../middlewares/upload.middleware';
 import { restaurantController } from './restaurant.controller';
 
@@ -12,6 +12,8 @@ const mutate = requireRole(...FULL_ACCESS_ROLES);
 
 router.patch('/', mutate, restaurantController.update);
 router.patch('/welcome-seen', restaurantController.markWelcomeSeen);
+// Código para eliminar comandas (Ajustes): solo Dueño/Admin lo crean o cambian.
+router.patch('/delete-order-pin', requireRole(...TEAM_MANAGER_ROLES), restaurantController.setDeleteOrderPin);
 router.get('/schedule', restaurantController.getSchedule);
 router.put('/schedule', mutate, restaurantController.updateSchedule);
 router.post('/upload-logo', mutate, uploadLogo, optimizeImage(900, 900), restaurantController.uploadLogo);

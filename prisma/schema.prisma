@@ -245,6 +245,11 @@ model Restaurant {
   fullscreenImageEnabled Boolean @default(false)
   fullscreenImageUrl     String?
 
+  // Código de 6 dígitos (hasheado, igual que TableSession.pinHash) que el Mesero
+  // debe ingresar para eliminar una comanda. Solo lo crea/cambia Dueño/Admin desde
+  // Ajustes. Null = todavía no se ha configurado (el Mesero no puede eliminar).
+  deleteOrderPinHash String?
+
   // --- Suscripción QuickTap ---
   // Arranca en TRIALING con periodEnd = registro + 15 días. Al aprobar un
   // PlanRequest (o activación manual desde el Dashboard maestro) pasa a

@@ -380,6 +380,9 @@ function StatsTab() {
   const [userSales, setUserSales] = useState<UserSale[] | null>(null);
   const [loadingSales, setLoadingSales] = useState(false);
   const [selectedSale, setSelectedSale] = useState<UserSale | null>(null);
+  const [showAllSales, setShowAllSales] = useState(false);
+  const [allSales, setAllSales] = useState<UserSale[] | null>(null);
+  const [loadingAllSales, setLoadingAllSales] = useState(false);
 
   useEffect(() => {
     api
@@ -401,6 +404,16 @@ function StatsTab() {
       .get(`/orders/reports/sales-stats/user/${userId}`, { params: { range } })
       .then((res) => setUserSales(res.data.data))
       .finally(() => setLoadingSales(false));
+  }
+
+  function openAllSales() {
+    setShowAllSales(true);
+    setAllSales(null);
+    setLoadingAllSales(true);
+    api
+      .get('/orders/reports/sales-stats/user/ALL', { params: { range } })
+      .then((res) => setAllSales(res.data.data))
+      .finally(() => setLoadingAllSales(false));
   }
 
   if (error) return <p className="text-sm text-red-600">{error}</p>;
@@ -425,15 +438,21 @@ function StatsTab() {
 
       {stats && (
         <div className="grid sm:grid-cols-3 gap-4">
-          <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
+          <button
+            onClick={openAllSales}
+            className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 text-left hover:bg-brand-950/[0.02]"
+          >
             <p className="text-2xl font-semibold text-brand-950">{formatBsAbsolute(stats.totalBs)}</p>
             <p className="text-xs text-brand-950/50 font-light mt-1">{formatBase(stats.totalBase, symbol)}</p>
             <p className="text-xs text-brand-950/40 font-light mt-1">Ventas · {STATS_RANGE_LABELS[stats.range]}</p>
-          </div>
-          <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
+          </button>
+          <button
+            onClick={openAllSales}
+            className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 text-left hover:bg-brand-950/[0.02]"
+          >
             <p className="text-2xl font-semibold text-brand-950">{stats.ordersCount}</p>
             <p className="text-xs text-brand-950/50 font-light mt-1">Pedidos · {STATS_RANGE_LABELS[stats.range]}</p>
-          </div>
+          </button>
           <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
             {stats.changePercent == null ? (
               <p className="text-sm text-brand-950/40 font-light">Sin datos de {STATS_PREVIOUS_LABELS[stats.range]}.</p>
@@ -505,8 +524,68 @@ function StatsTab() {
         </div>
       </div>
 
+      {showAllSales && (
+        <SalesListDialog
+          title={`Ventas · ${stats ? STATS_RANGE_LABELS[stats.range] : ''}`}
+          sales={allSales}
+          loading={loadingAllSales}
+          symbol={symbol}
+          onSelectSale={setSelectedSale}
+          onClose={() => setShowAllSales(false)}
+        />
+      )}
+
       {selectedSale && <SaleDetailDialog sale={selectedSale} symbol={symbol} onClose={() => setSelectedSale(null)} />}
     </div>
+  );
+}
+
+/** Lista de todas las ventas del período (botones "Ventas"/"Pedidos" de Estadísticas): cada fila abre el detalle completo. */
+function SalesListDialog({
+  title,
+  sales,
+  loading,
+  symbol,
+  onSelectSale,
+  onClose,
+}: {
+  title: string;
+  sales: UserSale[] | null;
+  loading: boolean;
+  symbol: string;
+  onSelectSale: (sale: UserSale) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+        </DialogHeader>
+        <div className="max-h-[60vh] overflow-y-auto space-y-1">
+          {loading && <p className="text-sm text-brand-950/40 font-light py-2">Cargando ventas…</p>}
+          {!loading && sales?.length === 0 && <p className="text-sm text-brand-950/40 font-light py-2">Sin ventas en este período.</p>}
+          {!loading &&
+            sales?.map((sale) => (
+              <button
+                key={sale.id}
+                onClick={() => onSelectSale(sale)}
+                className="w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-brand-950/[0.04]"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-brand-950">
+                    #{sale.orderNumber} · {sale.table ? `Mesa ${sale.table}` : CHANNEL_ROW_LABELS[sale.channel]}
+                  </p>
+                  <p className="text-xs text-brand-950/40">
+                    {new Date(sale.createdAt).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })}
+                  </p>
+                </div>
+                <p className="font-semibold text-brand-950 shrink-0">{formatBase(sale.totalBase, symbol)}</p>
+              </button>
+            ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

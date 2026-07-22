@@ -104,3 +104,9 @@ export const updateScheduleSchema = z.array(scheduleDaySchema).length(7, 'Debes 
 
 export type ScheduleDayInput = z.infer<typeof scheduleDaySchema>;
 export type UpdateScheduleInput = z.infer<typeof updateScheduleSchema>;
+
+// Ajustes → código de 6 dígitos que el Mesero debe ingresar para eliminar una comanda.
+export const setDeleteOrderPinSchema = z.object({
+  pin: z.string().regex(/^\d{6}$/, 'El código debe tener 6 dígitos.'),
+});
+export type SetDeleteOrderPinInput = z.infer<typeof setDeleteOrderPinSchema>;

@@ -1,3 +1,4 @@
+import bcrypt from 'bcryptjs';
 import { OrderChannel, Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
@@ -940,8 +941,24 @@ export const orderService = {
     return order;
   },
 
-  /** "Cancelar" desde el panel de Pedidos en vivo: borra el pedido, no queda registrado. */
-  async deleteOrderHard(restaurantId: string, orderId: string) {
+  /**
+   * "Cancelar" desde el panel de Pedidos en vivo: borra el pedido, no queda registrado.
+   * Un Mesero necesita el código de 6 dígitos que Dueño/Admin crean en Ajustes — el resto
+   * de los roles (Dueño/Admin/Cajero) puede eliminar directo, sin código.
+   */
+  async deleteOrderHard(restaurantId: string, orderId: string, role: string, pin?: string) {
+    if (role === 'WAITER') {
+      const restaurant = await prisma.restaurant.findUnique({
+        where: { id: restaurantId },
+        select: { deleteOrderPinHash: true },
+      });
+      if (!restaurant?.deleteOrderPinHash) {
+        throw badRequest('El dueño o administrador debe crear un código de 6 dígitos en Ajustes antes de poder eliminar comandas.');
+      }
+      if (!pin || !(await bcrypt.compare(pin, restaurant.deleteOrderPinHash))) {
+        throw badRequest('Código incorrecto.');
+      }
+    }
     const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });
     if (!existing) throw notFound('Comanda no encontrada.');
     await prisma.order.delete({ where: { id: orderId } });
@@ -1506,9 +1523,10 @@ export const orderService = {
   },
 
   /**
-   * Detalle de ventas de un usuario (o del bucket "CUSTOMER" = autoservicio) dentro del
-   * mismo período que getSalesStats, para el drill-down de "ventas por usuario" en
+   * Detalle de ventas dentro del mismo período que getSalesStats, para los drill-down de
    * Administración → Estadísticas: cada venta con su comanda completa y sus pagos.
+   * userId acepta un id de usuario real, "CUSTOMER" (bucket de autoservicio) o "ALL"
+   * (todas las ventas del período, sin filtrar por quién la cargó).
    */
   async getSalesStatsUserOrders(restaurantId: string, range: 'week' | 'month', userId: string) {
     const currentStart = salesStatsPeriodStart(range, new Date());
@@ -1518,7 +1536,7 @@ export const orderService = {
         restaurantId,
         status: { not: 'CANCELLED' },
         createdAt: { gte: currentStart },
-        placedByUserId: userId === 'CUSTOMER' ? null : userId,
+        ...(userId === 'ALL' ? {} : { placedByUserId: userId === 'CUSTOMER' ? null : userId }),
       },
       orderBy: { createdAt: 'desc' },
       select: {

@@ -50,6 +50,8 @@ interface AuthRestaurant {
   parentRestaurantId?: string | null;
   /** Plan que acaba de activarse y todavía no se le mostró la pantalla de bienvenida. */
   pendingWelcomePlan?: string | null;
+  /** true si Dueño/Admin ya crearon el código de 6 dígitos para eliminar comandas (Ajustes). */
+  hasDeleteOrderPin: boolean;
 }
 
 interface AuthState {
