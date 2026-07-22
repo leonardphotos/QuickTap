@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { api } from '../../api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 import { PasswordInput } from '@/components/ui/password-input';

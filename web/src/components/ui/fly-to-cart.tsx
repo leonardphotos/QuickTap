@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import type { RefObject } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'motion/react';
 
 interface FlyItem {
   id: number;
@@ -14,7 +14,7 @@ interface FlyItem {
 let nextId = 0;
 
 /** Anima un clon del producto volando desde el botón "Agregar" hasta el ícono del carrito. */
-export function useFlyToCart(targetRef: RefObject<HTMLElement>) {
+export function useFlyToCart(targetRef: RefObject<HTMLElement | null>) {
   const [items, setItems] = useState<FlyItem[]>([]);
 
   const trigger = useCallback(

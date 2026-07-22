@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import type { ClipboardEvent, KeyboardEvent } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { cn } from '@/lib/utils';
 
 interface Props {
