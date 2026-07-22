@@ -27,14 +27,15 @@ interface Props {
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   MOBILE_PAYMENT: 'Pago Móvil',
   ZELLE: 'Zelle',
-  CASH: 'Efectivo',
+  CASH: 'Efectivo Bs',
+  CASH_USD: 'Efectivo $',
   CARD: 'Punto de Venta',
   BINANCE: 'Binance',
   PAYPAL: 'PayPal',
   TRANSFER: 'Transferencia',
 };
 
-const DEFAULT_PAYMENT_OPTIONS: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CARD'];
+const DEFAULT_PAYMENT_OPTIONS: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD'];
 
 const PAYMENT_FIELD_LABELS: Record<string, string> = {
   banco: 'Banco',

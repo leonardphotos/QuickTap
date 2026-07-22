@@ -28,7 +28,7 @@ export interface RestaurantTheme {
   socialLinks?: RestaurantSocialLinks;
 }
 
-export type PaymentMethodKey = 'CASH' | 'MOBILE_PAYMENT' | 'ZELLE' | 'BINANCE' | 'PAYPAL' | 'TRANSFER' | 'CARD';
+export type PaymentMethodKey = 'CASH' | 'CASH_USD' | 'MOBILE_PAYMENT' | 'ZELLE' | 'BINANCE' | 'PAYPAL' | 'TRANSFER' | 'CARD';
 
 /** Datos propios de cada método de pago (los que apliquen); todos opcionales. */
 export interface PaymentMethodFields {

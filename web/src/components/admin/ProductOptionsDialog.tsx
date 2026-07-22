@@ -9,6 +9,13 @@ interface Props {
   currencySymbol: string;
   onClose: () => void;
   onAdd: (line: CartLine) => void;
+  /** Editar un ítem ya pedido (ej: cambiar un ceviche pequeño por uno grande con extra de camarón):
+   * preselecciona por nombre lo que ya tenía (best-effort, no hay FK guardada al variante/modificador). */
+  initialVariantId?: string | null;
+  initialModifierIds?: string[];
+  initialQuantity?: number;
+  initialNote?: string;
+  confirmLabel?: string;
 }
 
 function categoryHint(category: NonNullable<Product['modifierCategories']>[number]): string {
@@ -16,20 +23,42 @@ function categoryHint(category: NonNullable<Product['modifierCategories']>[numbe
   return category.allowMultiple ? 'Elige las que quieras' : 'Opcional';
 }
 
-/** Elegir variante + modificadores + cantidad para un producto, usado por el wizard "Crear pedido" del panel. */
-export function ProductOptionsDialog({ product, currencySymbol, onClose, onAdd }: Props) {
-  const [quantity, setQuantity] = useState(1);
-  const [note, setNote] = useState('');
+/** Elegir variante + modificadores + cantidad para un producto, usado por el wizard "Crear pedido"
+ * del panel y por "Editar pedido" (añadir producto nuevo o editar la variante/modificadores de uno ya pedido). */
+export function ProductOptionsDialog({
+  product,
+  currencySymbol,
+  onClose,
+  onAdd,
+  initialVariantId,
+  initialModifierIds,
+  initialQuantity,
+  initialNote,
+  confirmLabel,
+}: Props) {
+  const [quantity, setQuantity] = useState(initialQuantity ?? 1);
+  const [note, setNote] = useState(initialNote ?? '');
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
-    product.pricingMode === 'VARIANTS' ? product.variants?.find((v) => v.isAvailable !== false)?.id ?? null : null,
+    initialVariantId !== undefined
+      ? initialVariantId
+      : product.pricingMode === 'VARIANTS'
+        ? product.variants?.find((v) => v.isAvailable !== false)?.id ?? null
+        : null,
   );
-  const [selectedModifierIds, setSelectedModifierIds] = useState<string[]>([]);
+  const [selectedModifierIds, setSelectedModifierIds] = useState<string[]>(initialModifierIds ?? []);
 
   useEffect(() => {
-    setQuantity(1);
-    setNote('');
-    setSelectedVariantId(product.pricingMode === 'VARIANTS' ? product.variants?.find((v) => v.isAvailable !== false)?.id ?? null : null);
-    setSelectedModifierIds([]);
+    setQuantity(initialQuantity ?? 1);
+    setNote(initialNote ?? '');
+    setSelectedVariantId(
+      initialVariantId !== undefined
+        ? initialVariantId
+        : product.pricingMode === 'VARIANTS'
+          ? product.variants?.find((v) => v.isAvailable !== false)?.id ?? null
+          : null,
+    );
+    setSelectedModifierIds(initialModifierIds ?? []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product]);
 
   const modifierCategories = product.modifierCategories ?? [];
@@ -177,7 +206,7 @@ export function ProductOptionsDialog({ product, currencySymbol, onClose, onAdd }
             onClick={confirmAdd}
             className="disabled:opacity-50"
           >
-            Agregar · {formatBase(unitPrice * quantity, currencySymbol)}
+            {confirmLabel ?? 'Agregar'} · {formatBase(unitPrice * quantity, currencySymbol)}
           </TextureButton>
         </div>
       </DialogContent>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import {
@@ -10,21 +11,23 @@ import {
   MessageCircle,
   Plus,
   Printer,
+  Search,
   SplitSquareHorizontal,
   Truck,
   X,
 } from 'lucide-react';
 import { api, getToken } from '@/api/client';
-import type { DeliveryCourier, Product } from '@/types';
+import type { CartLine, DeliveryCourier, Product } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import { CreateOrderDialog } from './CreateOrderDialog';
 import { PaymentDialog } from './PaymentDialog';
 import { ComandaReceipt } from './ComandaReceipt';
+import { ProductOptionsDialog } from './ProductOptionsDialog';
 import { useAuth } from '@/context/AuthContext';
 import { hasFeature } from '@/utils/subscription';
-import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
+import { abbreviateTableBadge, CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
 
 interface LiveOrderItem {
   id: string;
@@ -42,6 +45,7 @@ export interface LiveOrderPayment {
   amountBase: string;
   method: string;
   discountBase?: string | null;
+  referenceNumber?: string | null;
   createdAt: string;
 }
 
@@ -83,6 +87,11 @@ function getPaymentStatus(o: LiveOrder) {
   const owesBalance = paidBase > 0 && balanceBase > 0.01;
   const fullyPaid = o.payments.length > 0 && balanceBase <= 0.01;
   return { paidBase, balanceBase, owesBalance, fullyPaid };
+}
+
+/** Necesita abrir el selector de variante/modificadores en vez de añadirse directo. */
+function needsPicker(product: Product): boolean {
+  return product.pricingMode === 'VARIANTS' || (product.modifierCategories ?? []).some((c) => c.isRequired);
 }
 
 const isMobileDevice = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -143,14 +152,7 @@ const CHANNEL_TABS: { value: LiveOrder['channel']; label: string }[] = [
 ];
 
 /** Panel "Pedidos": todos los pedidos activos con Aceptar/Cancelar/Finalizar/Delivery. Va en el Dashboard. */
-interface Props {
-  /** Dashboard del Mesero: al elegir "Pagar" en Órdenes de Mesa, se cambia a esta pestaña
-   * con el id del pedido — abre aquí mismo el diálogo de pago (completo/fraccionado/deuda). */
-  autoOpenPaymentOrderId?: string | null;
-  onAutoOpenHandled?: () => void;
-}
-
-export function LiveOrdersPanel({ autoOpenPaymentOrderId, onAutoOpenHandled }: Props = {}) {
+export function LiveOrdersPanel() {
   const { restaurant, user } = useAuth();
   const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
@@ -161,9 +163,10 @@ export function LiveOrdersPanel({ autoOpenPaymentOrderId, onAutoOpenHandled }: P
   const [error, setError] = useState<string | null>(null);
   const [channelFilter, setChannelFilter] = useState<ChannelFilter | null>(null);
   const [editingOrder, setEditingOrder] = useState<LiveOrder | null>(null);
-  const [justAdded, setJustAdded] = useState<{ id: string; fading: boolean } | null>(null);
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
-  const [paymentDialog, setPaymentDialog] = useState<{ order: LiveOrder; mode: 'full' | 'split' } | null>(null);
+  // Solo se usa al crear un pedido con intención de pago (wizard "Crear pedido"), para que
+  // EditOrderDialog abra ese sub-diálogo de pago de una vez.
+  const [autoOpenPaymentMode, setAutoOpenPaymentMode] = useState<'full' | 'split' | null>(null);
   // Una sola columna con texto en celular; en pantallas anchas siempre cuadrícula
   // compacta (solo iconos) para aprovechar el espacio — ya no es una opción manual.
   const actionBtnClass = 'text-xs font-medium py-3 lg:text-[10.5px] lg:py-2.5 lg:px-0.5 lg:leading-tight';
@@ -191,22 +194,6 @@ export function LiveOrdersPanel({ autoOpenPaymentOrderId, onAutoOpenHandled }: P
     const fresh = orders.find((o) => o.id === editingOrder.id);
     if (fresh) setEditingOrder(fresh);
   }, [orders]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Igual, mientras el diálogo de pago está abierto (para reflejar el saldo tras cada abono).
-  useEffect(() => {
-    if (!paymentDialog || !orders) return;
-    const fresh = orders.find((o) => o.id === paymentDialog.order.id);
-    if (fresh) setPaymentDialog((d) => (d ? { ...d, order: fresh } : d));
-  }, [orders]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!autoOpenPaymentOrderId || !orders) return;
-    const found = orders.find((o) => o.id === autoOpenPaymentOrderId);
-    if (found) {
-      setPaymentDialog({ order: found, mode: 'full' });
-      onAutoOpenHandled?.();
-    }
-  }, [orders, autoOpenPaymentOrderId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function accept(id: string) {
     setBusyId(id);
@@ -243,24 +230,6 @@ export function LiveOrdersPanel({ autoOpenPaymentOrderId, onAutoOpenHandled }: P
       load();
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo finalizar el pedido.');
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  async function toggleAwaitingPayment(id: string, awaitingPayment: boolean) {
-    setBusyId(id);
-    setError(null);
-    try {
-      await api.patch(`/orders/${id}/awaiting-payment`, { awaitingPayment });
-      load();
-      if (awaitingPayment) {
-        setJustAdded({ id, fading: false });
-        setTimeout(() => setJustAdded((j) => (j && j.id === id ? { ...j, fading: true } : j)), 1200);
-        setTimeout(() => setJustAdded((j) => (j && j.id === id ? null : j)), 1700);
-      }
-    } catch (e: any) {
-      setError(e.response?.data?.error ?? 'No se pudo actualizar la cuenta por pagar.');
     } finally {
       setBusyId(null);
     }
@@ -390,15 +359,6 @@ export function LiveOrdersPanel({ autoOpenPaymentOrderId, onAutoOpenHandled }: P
                 fullyPaid ? 'border-emerald-300 bg-emerald-50/40' : 'border-amber-300 bg-amber-50/40'
               }`}
             >
-              {justAdded?.id === o.id && (
-                <div
-                  className={`absolute inset-0 z-10 flex items-center justify-center rounded-2xl bg-brand-950/85 text-white text-sm font-medium text-center px-4 transition-opacity duration-500 ${
-                    justAdded.fading ? 'opacity-0' : 'opacity-100'
-                  }`}
-                >
-                  Añadido a cuentas por pagar
-                </div>
-              )}
               {(() => {
                 const statusMeta = STATUS_META[o.status] ?? { label: STATUS_LABELS[o.status] ?? o.status, bg: '#eef3fc', fg: 'var(--color-brand-950)' };
                 return (
@@ -407,7 +367,7 @@ export function LiveOrdersPanel({ autoOpenPaymentOrderId, onAutoOpenHandled }: P
                       className="h-[38px] w-[38px] rounded-[11px] flex items-center justify-center font-semibold text-[13px] shrink-0"
                       style={{ background: statusMeta.bg, color: statusMeta.fg }}
                     >
-                      {o.channel === 'DINE_IN' && o.table ? o.table.number : '—'}
+                      {o.channel === 'DINE_IN' && o.table ? abbreviateTableBadge(o.table.number) : '—'}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="font-semibold text-brand-950 flex items-center gap-1.5 flex-wrap">
@@ -475,7 +435,7 @@ export function LiveOrdersPanel({ autoOpenPaymentOrderId, onAutoOpenHandled }: P
                   </div>
                 </div>
               ) : (
-                <div className={`grid ${canAccountsPayable ? 'grid-cols-5' : 'grid-cols-4'} gap-1.5`} onClick={(e) => e.stopPropagation()}>
+                <div className="grid grid-cols-4 gap-1.5" onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={() => accept(o.id)}
                     disabled={busyId === o.id || (o.status !== 'PENDING' && o.status !== 'NEEDS_CONFIRMATION')}
@@ -508,41 +468,10 @@ export function LiveOrdersPanel({ autoOpenPaymentOrderId, onAutoOpenHandled }: P
                   >
                     <Truck className="h-4 w-4" /> <span className="lg:hidden">Delivery</span>
                   </button>
-                  {canAccountsPayable && (
-                    <button
-                      onClick={() => toggleAwaitingPayment(o.id, !o.awaitingPayment)}
-                      disabled={busyId === o.id}
-                      title={o.awaitingPayment ? 'Pendiente' : 'Cta. abierta'}
-                      className={`flex flex-col items-center justify-center gap-1 rounded-xl text-white ${actionBtnClass} transition-colors disabled:opacity-40 ${
-                        o.awaitingPayment ? 'bg-amber-600 hover:bg-amber-700' : 'bg-amber-500 hover:bg-amber-600'
-                      }`}
-                    >
-                      <Clock className="h-4 w-4" /> <span className="lg:hidden">{o.awaitingPayment ? 'Pendiente' : 'Cta. abierta'}</span>
-                    </button>
-                  )}
                 </div>
               )}
 
-              {fullyPaid ? (
-                <p className="text-xs text-emerald-600 font-medium text-center mt-2">✓ Pagado</p>
-              ) : (
-                <div className="grid grid-cols-2 gap-1.5 mt-2" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    onClick={() => setPaymentDialog({ order: o, mode: 'full' })}
-                    title="Pagar"
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-xs font-medium py-2.5 transition-colors"
-                  >
-                    <CreditCard className="h-4 w-4" /> <span className="lg:hidden">Pagar</span>
-                  </button>
-                  <button
-                    onClick={() => setPaymentDialog({ order: o, mode: 'split' })}
-                    title="Pago fraccionado"
-                    className="flex items-center justify-center gap-1.5 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-xs font-medium py-2.5 transition-colors"
-                  >
-                    <SplitSquareHorizontal className="h-4 w-4" /> <span className="lg:hidden">Pago fraccionado</span>
-                  </button>
-                </div>
-              )}
+              {fullyPaid && <p className="text-xs text-emerald-600 font-medium text-center mt-2">✓ Pagado</p>}
             </div>
             );
           })}
@@ -550,7 +479,15 @@ export function LiveOrdersPanel({ autoOpenPaymentOrderId, onAutoOpenHandled }: P
       )}
 
       {editingOrder && (
-        <EditOrderDialog order={editingOrder} onClose={() => setEditingOrder(null)} onSaved={load} />
+        <EditOrderDialog
+          order={editingOrder}
+          onClose={() => {
+            setEditingOrder(null);
+            setAutoOpenPaymentMode(null);
+          }}
+          onSaved={load}
+          autoOpenPayment={autoOpenPaymentMode}
+        />
       )}
 
       {createOrderOpen && (
@@ -559,7 +496,10 @@ export function LiveOrdersPanel({ autoOpenPaymentOrderId, onAutoOpenHandled }: P
           onClose={() => setCreateOrderOpen(false)}
           onCreated={(newOrder, paymentMode) => {
             load();
-            if (newOrder && paymentMode) setPaymentDialog({ order: newOrder, mode: paymentMode });
+            if (newOrder && paymentMode) {
+              setEditingOrder(newOrder);
+              setAutoOpenPaymentMode(paymentMode);
+            }
           }}
           onSelectExisting={(orderId) => {
             setCreateOrderOpen(false);
@@ -568,35 +508,43 @@ export function LiveOrdersPanel({ autoOpenPaymentOrderId, onAutoOpenHandled }: P
           }}
         />
       )}
-
-      {paymentDialog && (
-        <PaymentDialog
-          order={paymentDialog.order}
-          mode={paymentDialog.mode}
-          onClose={() => setPaymentDialog(null)}
-          onPaid={load}
-        />
-      )}
     </div>
   );
 }
 
-export function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder; onClose: () => void; onSaved: () => void }) {
+interface EditOrderDialogProps {
+  order: LiveOrder;
+  onClose: () => void;
+  onSaved: () => void;
+  /** Al crear un pedido nuevo con intención de pago (wizard "Crear pedido"), abre ese sub-diálogo de una vez. */
+  autoOpenPayment?: 'full' | 'split' | null;
+  /** Órdenes de Mesa: pestañas para saltar a otro pedido activo de la misma mesa + Rodar/Cerrar
+   * mesa, fijos arriba (no se pierden al desplazarse dentro del editor). */
+  mesaFooter?: ReactNode;
+}
+
+export function EditOrderDialog({ order, onClose, onSaved, autoOpenPayment, mesaFooter }: EditOrderDialogProps) {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
+  const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
   const [name, setName] = useState(order.customerName ?? '');
   const [phone, setPhone] = useState(order.customerPhone ?? '');
   const [address, setAddress] = useState(order.customerAddress ?? '');
   const [addressCoords, setAddressCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [note, setNote] = useState(order.customerNote ?? '');
   const [products, setProducts] = useState<Product[] | null>(null);
-  const [addingProductId, setAddingProductId] = useState('');
-  const [addingQty, setAddingQty] = useState('1');
+  const [showAddProduct, setShowAddProduct] = useState(false);
+  const [productSearch, setProductSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [optionsProduct, setOptionsProduct] = useState<Product | null>(null);
+  const [editingItem, setEditingItem] = useState<LiveOrderItem | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [printing, setPrinting] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
+  const [showPagoMenu, setShowPagoMenu] = useState(false);
+  const [paymentMode, setPaymentMode] = useState<'full' | 'split' | null>(autoOpenPayment ?? null);
   const receiptRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -682,20 +630,86 @@ export function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder;
     }
   }
 
-  async function addProduct() {
-    if (!addingProductId) return;
+  async function addProductLine(line: CartLine) {
     setSaving(true);
     setError(null);
     try {
       await api.post(`/orders/${order.id}/items`, {
-        productId: addingProductId,
-        quantity: Number(addingQty) || 1,
+        productId: line.product.id,
+        quantity: line.quantity,
+        variantId: line.variantId,
+        modifierIds: line.selectedModifiers.map((m) => m.modifierId),
+        note: line.note,
       });
-      setAddingProductId('');
-      setAddingQty('1');
       onSaved();
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo añadir el producto.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /** Reemplaza un ítem ya pedido (ej: cambiar ceviche pequeño por grande + extra camarón):
+   * como OrderItem es un snapshot congelado, "editar" = borrar la línea vieja y añadir la nueva. */
+  async function replaceItemWithLine(oldItemId: string, line: CartLine) {
+    setSaving(true);
+    setError(null);
+    try {
+      await api.patch(`/orders/${order.id}/items`, { items: [{ orderItemId: oldItemId, quantity: 0 }] });
+      await api.post(`/orders/${order.id}/items`, {
+        productId: line.product.id,
+        quantity: line.quantity,
+        variantId: line.variantId,
+        modifierIds: line.selectedModifiers.map((m) => m.modifierId),
+        note: line.note,
+      });
+      onSaved();
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo actualizar el producto.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  /** Tocar un ítem ya pedido: si tiene variantes/modificadores, abre el selector precargado
+   * con lo que ya tenía (buscado por nombre, ya que el snapshot no guarda el id original). */
+  function openItemForEdit(it: LiveOrderItem) {
+    const product = products?.find((p) => p.id === it.productId);
+    if (!product || !needsPicker(product)) return;
+    setEditingItem(it);
+    setOptionsProduct(product);
+  }
+
+  const categoryNames = [...new Set((products ?? []).map((p) => p.category?.name ?? 'Sin categoría'))].sort((a, b) =>
+    a.localeCompare(b, 'es'),
+  );
+  const filteredProducts = (products ?? []).filter((p) => {
+    const query = productSearch.trim().toLowerCase();
+    const matchesCategory = !categoryFilter || (p.category?.name ?? 'Sin categoría') === categoryFilter;
+    const matchesSearch = !query || p.name.toLowerCase().includes(query);
+    return matchesCategory && matchesSearch;
+  });
+
+  /** Preselección best-effort para editar un ítem: busca por nombre contra el producto actual,
+   * ya que el snapshot del pedido no guarda el id original de la variante/modificadores. */
+  function initialSelectionFor(it: LiveOrderItem, product: Product) {
+    const variant = product.variants?.find((v) => v.name === it.variantName);
+    const modifierIds = (product.modifierCategories ?? [])
+      .flatMap((c) => c.modifiers)
+      .filter((m) => it.modifiers.some((im) => im.name === m.name))
+      .map((m) => m.id);
+    return { variantId: variant?.id ?? null, modifierIds };
+  }
+
+  async function toggleAwaitingPayment() {
+    setSaving(true);
+    setError(null);
+    try {
+      await api.patch(`/orders/${order.id}/awaiting-payment`, { awaitingPayment: !order.awaitingPayment });
+      setShowPagoMenu(false);
+      onSaved();
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo actualizar la cuenta por pagar.');
     } finally {
       setSaving(false);
     }
@@ -707,6 +721,7 @@ export function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder;
         <DialogHeader>
           <DialogTitle>Editar pedido #{order.orderNumber}</DialogTitle>
         </DialogHeader>
+        {mesaFooter && <div className="space-y-2 pb-2 border-b border-brand-950/10">{mesaFooter}</div>}
         <div className="space-y-4 max-h-[70vh] overflow-y-auto">
           {order.channel !== 'DINE_IN' && (
             <div className="space-y-2">
@@ -752,66 +767,127 @@ export function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder;
           <div className="space-y-2 pt-2 border-t border-brand-950/10">
             <p className="text-sm font-semibold text-brand-950">Productos</p>
             <ul className="space-y-2 max-h-56 overflow-y-auto">
-              {order.items.map((it) => (
-                <li key={it.id} className="flex items-center justify-between gap-2 border-b border-brand-950/10 pb-2">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-brand-950 truncate">
-                      {it.productName}
-                      {it.variantName && <span className="text-brand-950/50"> ({it.variantName})</span>}
-                    </p>
-                    {it.modifiers.length > 0 && (
-                      <p className="text-xs text-brand-950/50 truncate">{it.modifiers.map((m) => m.name).join(', ')}</p>
-                    )}
-                    <p className="text-xs text-brand-950/50">{it.unitPrice} c/u</p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={() => setQty(it.id, it.quantity - 1)}
-                      disabled={saving}
-                      className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30"
+              {order.items.map((it) => {
+                const canEdit = Boolean(products?.find((p) => p.id === it.productId && needsPicker(p)));
+                return (
+                  <li key={it.id} className="flex items-center justify-between gap-2 border-b border-brand-950/10 pb-2">
+                    <div
+                      className={`min-w-0 ${canEdit ? 'cursor-pointer' : ''}`}
+                      onClick={() => canEdit && openItemForEdit(it)}
                     >
-                      −
-                    </button>
-                    <span className="w-5 text-center text-sm font-medium">{it.quantity}</span>
-                    <button
-                      onClick={() => setQty(it.id, it.quantity + 1)}
-                      disabled={saving}
-                      className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30"
-                    >
-                      +
-                    </button>
-                  </div>
-                </li>
-              ))}
+                      <p className="text-sm font-medium text-brand-950 truncate">
+                        {it.productName}
+                        {it.variantName && <span className="text-brand-950/50"> ({it.variantName})</span>}
+                        {canEdit && <span className="text-brand-500 text-xs font-normal"> · editar</span>}
+                      </p>
+                      {it.modifiers.length > 0 && (
+                        <p className="text-xs text-brand-950/50 truncate">{it.modifiers.map((m) => m.name).join(', ')}</p>
+                      )}
+                      <p className="text-xs text-brand-950/50">{it.unitPrice} c/u</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        onClick={() => setQty(it.id, it.quantity - 1)}
+                        disabled={saving}
+                        className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30"
+                      >
+                        −
+                      </button>
+                      <span className="w-5 text-center text-sm font-medium">{it.quantity}</span>
+                      <button
+                        onClick={() => setQty(it.id, it.quantity + 1)}
+                        disabled={saving}
+                        className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
 
-            <div className="flex items-center gap-2">
-              <select
-                value={addingProductId}
-                onChange={(e) => setAddingProductId(e.target.value)}
-                className="flex-1 min-w-0 text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-              >
-                <option value="">Añadir producto…</option>
-                {products?.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} — {p.price}
-                  </option>
-                ))}
-              </select>
-              <input
-                value={addingQty}
-                onChange={(e) => setAddingQty(e.target.value.replace(/[^0-9]/g, ''))}
-                className="w-14 text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 text-center"
-              />
-              <button
-                onClick={addProduct}
-                disabled={saving || !addingProductId}
-                className="h-9 w-9 rounded-full bg-brand-500 text-white flex items-center justify-center shrink-0 disabled:opacity-40"
-                aria-label="Añadir"
-              >
-                <Plus className="h-4 w-4" />
-              </button>
-            </div>
+            {showAddProduct ? (
+              <div className="space-y-2 rounded-xl border border-brand-950/10 p-2.5">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-950/30" />
+                  <input
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                    placeholder="Buscar en el menú…"
+                    className="w-full text-sm border border-brand-950/15 rounded-lg pl-8 pr-2.5 py-1.5"
+                  />
+                </div>
+                <div className="flex gap-1.5 flex-wrap">
+                  <button
+                    onClick={() => setCategoryFilter(null)}
+                    className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                      !categoryFilter ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+                    }`}
+                  >
+                    Todas
+                  </button>
+                  {categoryNames.map((c) => (
+                    <button
+                      key={c}
+                      onClick={() => setCategoryFilter(c)}
+                      className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                        categoryFilter === c ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+                      }`}
+                    >
+                      {c}
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto">
+                  {filteredProducts.map((p) => (
+                    <div key={p.id} className="rounded-xl border border-brand-950/10 p-2 space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        {p.photoUrl ? (
+                          <img src={p.photoUrl} alt="" className="h-9 w-9 rounded-lg object-cover shrink-0" />
+                        ) : (
+                          <div className="h-9 w-9 rounded-lg bg-brand-950/5 shrink-0" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-xs font-medium text-brand-950 truncate">{p.name}</p>
+                          <p className="text-xs text-brand-950/50">{formatBase(p.price, symbol)}</p>
+                        </div>
+                      </div>
+                      {needsPicker(p) ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingItem(null);
+                            setOptionsProduct(p);
+                          }}
+                          className="w-full flex items-center justify-center gap-1 rounded-lg border border-brand-500/40 text-brand-500 text-xs font-medium py-1"
+                        >
+                          Elegir opciones
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={saving}
+                          onClick={() => addProductLine({ product: p, quantity: 1, selectedModifiers: [] })}
+                          className="w-full flex items-center justify-center gap-1 rounded-lg bg-brand-500 text-white text-xs font-medium py-1 disabled:opacity-40"
+                        >
+                          <Plus className="h-3.5 w-3.5" /> Añadir
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  {filteredProducts.length === 0 && (
+                    <p className="col-span-2 text-sm text-brand-950/40 font-light text-center py-3">
+                      No hay productos que coincidan.
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={() => setShowAddProduct(true)}>
+                <Plus className="h-3.5 w-3.5" /> Añadir producto
+              </TextureButton>
+            )}
           </div>
 
           <div className="text-xs text-brand-950/60 space-y-1 pt-2 border-t border-brand-950/10">
@@ -847,6 +923,50 @@ export function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder;
             </div>
           </div>
 
+          <div className="pt-2 border-t border-brand-950/10">
+            {getPaymentStatus(order).fullyPaid ? (
+              <p className="text-xs text-emerald-600 font-medium text-center">✓ Pagado</p>
+            ) : (
+              <>
+                <TextureButton
+                  variant="secondary"
+                  size="sm"
+                  className="!w-auto"
+                  onClick={() => setShowPagoMenu((s) => !s)}
+                >
+                  <CreditCard className="h-3.5 w-3.5" /> Pago
+                </TextureButton>
+                {showPagoMenu && (
+                  <div className={`grid ${canAccountsPayable ? 'grid-cols-3' : 'grid-cols-2'} gap-1.5 mt-2`}>
+                    <button
+                      onClick={() => setPaymentMode('full')}
+                      className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-xs font-medium py-2.5 transition-colors"
+                    >
+                      <CreditCard className="h-4 w-4" /> Pagar
+                    </button>
+                    <button
+                      onClick={() => setPaymentMode('split')}
+                      className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-xs font-medium py-2.5 transition-colors"
+                    >
+                      <SplitSquareHorizontal className="h-4 w-4" /> Pago fraccionado
+                    </button>
+                    {canAccountsPayable && (
+                      <button
+                        onClick={toggleAwaitingPayment}
+                        disabled={saving}
+                        className={`flex flex-col items-center justify-center gap-1 rounded-xl text-white text-xs font-medium py-2.5 transition-colors disabled:opacity-40 ${
+                          order.awaitingPayment ? 'bg-amber-600 hover:bg-amber-700' : 'bg-amber-500 hover:bg-amber-600'
+                        }`}
+                      >
+                        <Clock className="h-4 w-4" /> {order.awaitingPayment ? 'Pendiente' : 'Cta. abierta'}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <div className="flex flex-wrap gap-2">
@@ -873,6 +993,44 @@ export function EditOrderDialog({ order, onClose, onSaved }: { order: LiveOrder;
           <ComandaReceipt ref={receiptRef} order={order} restaurantName={restaurant?.name ?? ''} />
         </div>
       </DialogContent>
+
+      {paymentMode && (
+        <PaymentDialog
+          order={order}
+          mode={paymentMode}
+          onClose={() => setPaymentMode(null)}
+          onPaid={() => {
+            setShowPagoMenu(false);
+            onSaved();
+          }}
+        />
+      )}
+
+      {optionsProduct &&
+        (() => {
+          const initial = editingItem ? initialSelectionFor(editingItem, optionsProduct) : null;
+          return (
+            <ProductOptionsDialog
+              product={optionsProduct}
+              currencySymbol={symbol}
+              initialVariantId={initial?.variantId}
+              initialModifierIds={initial?.modifierIds}
+              initialQuantity={editingItem?.quantity}
+              initialNote={editingItem?.note ?? undefined}
+              confirmLabel={editingItem ? 'Guardar cambios' : undefined}
+              onClose={() => {
+                setOptionsProduct(null);
+                setEditingItem(null);
+              }}
+              onAdd={(line) => {
+                if (editingItem) replaceItemWithLine(editingItem.id, line);
+                else addProductLine(line);
+                setOptionsProduct(null);
+                setEditingItem(null);
+              }}
+            />
+          );
+        })()}
     </Dialog>
   );
 }

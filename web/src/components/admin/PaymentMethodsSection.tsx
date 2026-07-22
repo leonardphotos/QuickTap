@@ -12,7 +12,8 @@ interface MethodDef {
 }
 
 const METHODS: MethodDef[] = [
-  { key: 'CASH', label: 'Efectivo', fields: [] },
+  { key: 'CASH', label: 'Efectivo Bs', fields: [] },
+  { key: 'CASH_USD', label: 'Efectivo $', fields: [] },
   {
     key: 'MOBILE_PAYMENT',
     label: 'Pago Móvil',

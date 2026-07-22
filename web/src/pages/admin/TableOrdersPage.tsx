@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
-import { BellRing, CreditCard, Lock, LogOut, MoveHorizontal, Plus, Printer, Receipt } from 'lucide-react';
+import { BellRing, Check, Lock, LogOut, MoveHorizontal, Plus, Printer, Receipt } from 'lucide-react';
 import { api, getToken } from '../../api/client';
 import type { FloorPlan, FloorPlanTable, Product } from '../../types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -17,13 +17,7 @@ const STATUS_LABEL: Record<string, string> = {
   CANCELLED: 'Cancelado',
 };
 
-interface Props {
-  /** Solo en el dashboard del Mesero: botón "Pagar" de un pedido cambia a la pestaña Comandas
-   * y abre ahí el diálogo de pago (completo/fraccionado/deuda) para ese pedido. */
-  onPayOrder?: (orderId: string) => void;
-}
-
-export default function TableOrdersPage({ onPayOrder }: Props = {}) {
+export default function TableOrdersPage() {
   const [plan, setPlan] = useState<FloorPlan | null>(null);
   const [selected, setSelected] = useState<FloorPlanTable | null>(null);
   const [moveOpen, setMoveOpen] = useState(false);
@@ -82,6 +76,13 @@ export default function TableOrdersPage({ onPayOrder }: Props = {}) {
     if (fresh) setSelected(fresh);
   }, [plan]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Mientras "Editar pedido" está abierto desde una mesa, lo refresca con los datos frescos que lleguen.
+  useEffect(() => {
+    if (!editingOrder || !liveOrders) return;
+    const fresh = liveOrders.find((lo) => lo.id === editingOrder.id);
+    if (fresh) setEditingOrder(fresh);
+  }, [liveOrders]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const freeTables = useMemo(
     () => sections.flatMap((s) => s.tables).filter((t) => !t.session && t.id !== selected?.id),
     [sections, selected],
@@ -96,6 +97,7 @@ export default function TableOrdersPage({ onPayOrder }: Props = {}) {
         paymentMethod: closePaymentMethod || undefined,
       });
       setSelected(null);
+      setEditingOrder(null);
       setClosing(false);
       setClosePaymentMethod('');
       load();
@@ -125,6 +127,7 @@ export default function TableOrdersPage({ onPayOrder }: Props = {}) {
     try {
       await api.post(`/orders/${orderId}/accept`);
       load();
+      loadOrders();
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo aceptar el pedido.');
     } finally {
@@ -164,6 +167,7 @@ export default function TableOrdersPage({ onPayOrder }: Props = {}) {
       await api.patch(`/table-sessions/${selected.session.id}/move`, { tableId: newTableId });
       setMoveOpen(false);
       setSelected(null);
+      setEditingOrder(null);
       load();
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo rodar la mesa.');
@@ -171,6 +175,111 @@ export default function TableOrdersPage({ onPayOrder }: Props = {}) {
       setBusy(false);
     }
   }
+
+  /** Al tocar una mesa con cuenta abierta, abre directo "Editar pedido" del pedido más
+   * reciente (igual que tocar una comanda activa), sin pasar por una lista intermedia. */
+  function openTable(t: FloorPlanTable) {
+    setSelected(t);
+    if (!t.session || t.session.orders.length === 0) return;
+    const mostRecent = [...t.session.orders].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )[0];
+    const full = liveOrders?.find((lo) => lo.id === mostRecent.orderId);
+    if (full) setEditingOrder(full);
+  }
+
+  function selectOrderTab(orderId: string) {
+    const full = liveOrders?.find((lo) => lo.id === orderId);
+    if (full) setEditingOrder(full);
+  }
+
+  /** Generar orden / Rodar mesa / Quitar clave / Cerrar mesa — se muestran tanto en el diálogo
+   * de mesa (mesa libre / respaldo sin pedido cargado aún) como fijos arriba de "Editar pedido". */
+  function renderMesaActions() {
+    if (!selected?.session) return null;
+    return (
+      <div className="flex flex-wrap gap-2">
+        <TextureButton
+          variant="brand"
+          size="default"
+          onClick={() => setManualOrderOpen(true)}
+          disabled={busy}
+          className="flex items-center justify-center gap-1.5 disabled:opacity-50"
+        >
+          <Plus className="h-4 w-4" /> Generar orden
+        </TextureButton>
+        <TextureButton
+          variant="minimal"
+          size="default"
+          onClick={() => setMoveOpen(true)}
+          disabled={busy}
+          className="flex items-center justify-center gap-1.5 disabled:opacity-50"
+        >
+          <MoveHorizontal className="h-4 w-4" /> Rodar mesa
+        </TextureButton>
+        {selected.session.pinRequired && (
+          <TextureButton
+            variant="minimal"
+            size="default"
+            onClick={resetPin}
+            disabled={busy}
+            className="flex items-center justify-center gap-1.5 disabled:opacity-50"
+          >
+            <Lock className="h-4 w-4" /> Quitar clave
+          </TextureButton>
+        )}
+        <TextureButton
+          variant="destructive"
+          size="default"
+          onClick={() => setClosing(true)}
+          disabled={busy}
+          className="flex items-center justify-center gap-1.5 disabled:opacity-50"
+        >
+          <LogOut className="h-4 w-4" /> Cerrar mesa
+        </TextureButton>
+      </div>
+    );
+  }
+
+  const activeSessionOrders = selected?.session?.orders ?? [];
+  const mesaFooter =
+    selected?.session && editingOrder ? (
+      <>
+        <p className="text-sm font-semibold text-brand-950 flex items-center gap-2">
+          Mesa {selected.number}
+          {selected.session.pinRequired && (
+            <span className="inline-flex items-center gap-1 text-xs text-brand-500 font-normal">
+              <Lock className="h-3 w-3" /> Con clave
+            </span>
+          )}
+        </p>
+        {activeSessionOrders.length > 1 && (
+          <div className="flex flex-wrap gap-1.5">
+            {activeSessionOrders.map((o) => (
+              <button
+                key={o.orderId}
+                onClick={() => selectOrderTab(o.orderId)}
+                className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                  editingOrder.id === o.orderId ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60'
+                }`}
+              >
+                Pedido #{o.pedidoNumber}
+              </button>
+            ))}
+          </div>
+        )}
+        {editingOrder.status === 'NEEDS_CONFIRMATION' && (
+          <button
+            onClick={() => acceptOrder(editingOrder.id)}
+            disabled={busy}
+            className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1.5 rounded-full bg-amber-400 text-amber-950 hover:bg-amber-300 disabled:opacity-50 w-fit"
+          >
+            <Check className="h-3.5 w-3.5" /> Aceptar pedido
+          </button>
+        )}
+        {renderMesaActions()}
+      </>
+    ) : null;
 
   if (!plan) {
     return <p className="text-brand-950/50 font-light">Cargando plano de mesas…</p>;
@@ -210,7 +319,7 @@ export default function TableOrdersPage({ onPayOrder }: Props = {}) {
               {zone.tables.map((t) => (
                 <div key={t.id} className="relative">
                   <button
-                    onClick={() => setSelected(t)}
+                    onClick={() => openTable(t)}
                     className={`aspect-square w-full rounded-2xl flex flex-col items-center justify-center gap-0.5 font-semibold text-sm transition-all duration-200 hover:scale-[1.04] ${
                       t.serviceRequest
                         ? 'bg-[#fbedd6] text-[#8a5106]'
@@ -256,7 +365,7 @@ export default function TableOrdersPage({ onPayOrder }: Props = {}) {
         ))}
       </div>
 
-      <Dialog open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
+      <Dialog open={!!selected && !editingOrder} onOpenChange={(o) => !o && setSelected(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Mesa {selected?.number}</DialogTitle>
@@ -329,18 +438,6 @@ export default function TableOrdersPage({ onPayOrder }: Props = {}) {
                       >
                         <Printer className="h-3.5 w-3.5" /> {printingId === o.orderId ? 'Enviando…' : 'Imprimir comanda'}
                       </button>
-                      {onPayOrder && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onPayOrder(o.orderId);
-                            setSelected(null);
-                          }}
-                          className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full bg-brand-500 text-white hover:bg-brand-400"
-                        >
-                          <CreditCard className="h-3.5 w-3.5" /> Pagar
-                        </button>
-                      )}
                     </div>
                   </li>
                 ))}
@@ -348,97 +445,7 @@ export default function TableOrdersPage({ onPayOrder }: Props = {}) {
 
               {error && <p className="text-sm text-red-600">{error}</p>}
 
-              <div className="flex flex-wrap gap-2">
-                <TextureButton
-                  variant="brand"
-                  size="default"
-                  onClick={() => setManualOrderOpen(true)}
-                  disabled={busy}
-                  className="flex items-center justify-center gap-1.5 disabled:opacity-50"
-                >
-                  <Plus className="h-4 w-4" /> Generar orden
-                </TextureButton>
-                <TextureButton
-                  variant="minimal"
-                  size="default"
-                  onClick={() => setMoveOpen(true)}
-                  disabled={busy}
-                  className="flex items-center justify-center gap-1.5 disabled:opacity-50"
-                >
-                  <MoveHorizontal className="h-4 w-4" /> Rodar mesa
-                </TextureButton>
-                {selected.session.pinRequired && (
-                  <TextureButton
-                    variant="minimal"
-                    size="default"
-                    onClick={resetPin}
-                    disabled={busy}
-                    className="flex items-center justify-center gap-1.5 disabled:opacity-50"
-                  >
-                    <Lock className="h-4 w-4" /> Quitar clave
-                  </TextureButton>
-                )}
-                {!closing && (
-                  <TextureButton
-                    variant="destructive"
-                    size="default"
-                    onClick={() => setClosing(true)}
-                    disabled={busy}
-                    className="flex items-center justify-center gap-1.5 disabled:opacity-50"
-                  >
-                    <LogOut className="h-4 w-4" /> Cerrar mesa
-                  </TextureButton>
-                )}
-              </div>
-
-              {closing && (
-                <div className="rounded-xl bg-brand-950/[0.04] p-3 space-y-2.5">
-                  <p className="text-sm text-brand-950">¿Cómo pagó la mesa? (opcional)</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {[
-                      { value: '', label: 'Sin indicar' },
-                      { value: 'CASH', label: 'Efectivo' },
-                      { value: 'MOBILE_PAYMENT', label: 'Pago Móvil' },
-                      { value: 'CARD', label: 'Tarjeta' },
-                      { value: 'ZELLE', label: 'Zelle' },
-                    ].map((opt) => (
-                      <button
-                        key={opt.value}
-                        onClick={() => setClosePaymentMethod(opt.value)}
-                        className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                          closePaymentMethod === opt.value
-                            ? 'bg-brand-500 text-white'
-                            : 'bg-white text-brand-950/60 border border-brand-950/10'
-                        }`}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="flex gap-2">
-                    <TextureButton
-                      variant="destructive"
-                      size="sm"
-                      onClick={closeTable}
-                      disabled={busy}
-                      className="!w-auto disabled:opacity-50"
-                    >
-                      {busy ? 'Cerrando…' : 'Confirmar cierre'}
-                    </TextureButton>
-                    <TextureButton
-                      variant="minimal"
-                      size="sm"
-                      onClick={() => {
-                        setClosing(false);
-                        setClosePaymentMethod('');
-                      }}
-                      className="!w-auto"
-                    >
-                      Cancelar
-                    </TextureButton>
-                  </div>
-                </div>
-              )}
+              {renderMesaActions()}
             </div>
           ) : (
             <div className="space-y-3">
@@ -481,6 +488,63 @@ export default function TableOrdersPage({ onPayOrder }: Props = {}) {
         </DialogContent>
       </Dialog>
 
+      <Dialog
+        open={closing}
+        onOpenChange={(o) => {
+          if (!o) {
+            setClosing(false);
+            setClosePaymentMethod('');
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cerrar mesa {selected?.number}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2.5">
+            <p className="text-sm text-brand-950">¿Cómo pagó la mesa? (opcional)</p>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { value: '', label: 'Sin indicar' },
+                { value: 'CASH', label: 'Efectivo Bs' },
+                { value: 'CASH_USD', label: 'Efectivo $' },
+                { value: 'MOBILE_PAYMENT', label: 'Pago Móvil' },
+                { value: 'CARD', label: 'Punto de Venta' },
+                { value: 'ZELLE', label: 'Zelle' },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setClosePaymentMethod(opt.value)}
+                  className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                    closePaymentMethod === opt.value
+                      ? 'bg-brand-500 text-white'
+                      : 'bg-white text-brand-950/60 border border-brand-950/10'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <TextureButton variant="destructive" size="sm" onClick={closeTable} disabled={busy} className="!w-auto disabled:opacity-50">
+                {busy ? 'Cerrando…' : 'Confirmar cierre'}
+              </TextureButton>
+              <TextureButton
+                variant="minimal"
+                size="sm"
+                onClick={() => {
+                  setClosing(false);
+                  setClosePaymentMethod('');
+                }}
+                className="!w-auto"
+              >
+                Cancelar
+              </TextureButton>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {manualOrderOpen && selected && (
         <ManualOrderDialog
           tableId={selected.id}
@@ -495,11 +559,15 @@ export default function TableOrdersPage({ onPayOrder }: Props = {}) {
       {editingOrder && (
         <EditOrderDialog
           order={editingOrder}
-          onClose={() => setEditingOrder(null)}
+          onClose={() => {
+            setEditingOrder(null);
+            setSelected(null);
+          }}
           onSaved={() => {
             load();
             loadOrders();
           }}
+          mesaFooter={mesaFooter}
         />
       )}
     </div>

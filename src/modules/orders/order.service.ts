@@ -796,8 +796,11 @@ export const orderService = {
   },
 
   /** Añade un producto nuevo a un pedido ya creado (panel de Pedidos en vivo). */
+  // Nota: a diferencia de checkoutDineIn/checkoutDelivery/createManualOrder (que SÍ
+  // exigen que el restaurante esté abierto para arrancar un pedido nuevo), este método
+  // solo AÑADE una línea a un pedido que ya existe — el horario público no debe bloquear
+  // que el staff termine de editar una comanda ya en curso.
   async addItem(restaurantId: string, orderId: string, input: AddOrderItemInput) {
-    await assertRestaurantOpen(restaurantId);
     const order = await prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { items: { include: { modifiers: true } } } });
     if (!order) throw notFound('Comanda no encontrada.');
     if (order.status === 'SERVED' || order.status === 'CANCELLED') {
@@ -986,11 +989,14 @@ export const orderService = {
         method: input.method,
         discountPercent: input.discountPercent,
         discountBase,
+        referenceNumber: input.referenceNumber,
       },
     });
 
+    // Sin margen de tolerancia: hasta el último centavo debe quedar cobrado (o condonado
+    // explícitamente vía descuento) antes de dar por saldada la cuenta.
     const settledBase = round2(alreadySettled.add(input.amountBase).add(discountBase ?? toDecimal(0)));
-    const fullyPaid = settledBase.gte(order.totalBase.sub(0.01));
+    const fullyPaid = settledBase.gte(order.totalBase);
     const updated = await prisma.order.update({
       where: { id: orderId },
       data: fullyPaid ? { awaitingPayment: false } : {},

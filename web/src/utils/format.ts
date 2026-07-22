@@ -43,6 +43,20 @@ export function publicPriceLabel(
   };
 }
 
+/**
+ * Abrevia el identificador de mesa para el cuadrito pequeño de las tarjetas de pedido
+ * (ej: "Terraza-1" -> "T1", "Barra-2" -> "B2"). Números cortos ("5", "12") se dejan igual.
+ */
+export function abbreviateTableBadge(number: string): string {
+  if (number.length <= 3) return number;
+  const match = number.match(/^(\D*)(\d+)?/);
+  const letters = (match?.[1] ?? '').replace(/[^A-Za-zÁ-Úá-ú]/g, '');
+  const digits = match?.[2] ?? '';
+  if (letters && digits) return `${letters[0].toUpperCase()}${digits}`;
+  if (digits) return digits;
+  return number.slice(0, 2).toUpperCase();
+}
+
 /** Precio unitario efectivo de una línea del carrito: precio base (o de la variante elegida) + modificadores. */
 export function cartLineUnitPrice(line: CartLine): number {
   const variant =

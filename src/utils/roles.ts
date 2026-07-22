@@ -19,5 +19,9 @@ export const SCREEN_ROLES = ['SCREEN'] as const;
 // Roles que pueden administrar la sección "Equipo" (crear/editar/eliminar personal).
 export const TEAM_MANAGER_ROLES = ['OWNER', 'ADMIN'] as const;
 
+// Roles que pueden condonar/descontar parte del saldo de un pedido al cobrar
+// (campo "Descuento %" en Pagar/Pago fraccionado). Cajero/Mesero no pueden.
+export const DISCOUNT_ROLES = ['OWNER', 'ADMIN'] as const;
+
 // Roles asignables desde la UI de Equipo (OWNER/STAFF no se asignan ahí).
 export const ASSIGNABLE_TEAM_ROLES = ['ADMIN', 'CASHIER', 'WAITER', 'KITCHEN', 'SCREEN'] as const;

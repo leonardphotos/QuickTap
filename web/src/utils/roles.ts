@@ -11,6 +11,8 @@ export const RESTRICTED_ROLES: UserRole[] = ['WAITER', 'KITCHEN'];
 // Pantalla: un único monitor/TV con Mesas + Cocina en formato horizontal.
 export const SCREEN_ROLES: UserRole[] = ['SCREEN'];
 export const TEAM_MANAGER_ROLES: UserRole[] = ['OWNER', 'ADMIN'];
+// Quién puede condonar/descontar saldo al cobrar (campo "Descuento %" en Pagar/Pago fraccionado).
+export const DISCOUNT_ROLES: UserRole[] = ['OWNER', 'ADMIN'];
 export const ASSIGNABLE_TEAM_ROLES: UserRole[] = ['ADMIN', 'CASHIER', 'WAITER', 'KITCHEN', 'SCREEN'];
 
 export const ROLE_LABELS: Record<UserRole, string> = {
@@ -55,6 +57,11 @@ export function isScreenRole(role?: UserRole | null): boolean {
 export function canManageTeam(role?: UserRole | null): boolean {
   if (!role) return false;
   return TEAM_MANAGER_ROLES.includes(role);
+}
+
+export function canApplyDiscount(role?: UserRole | null): boolean {
+  if (!role) return false;
+  return DISCOUNT_ROLES.includes(role);
 }
 
 export function canAccessPath(role: UserRole | null | undefined, pathname: string, canAccessInventory?: boolean): boolean {

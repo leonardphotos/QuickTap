@@ -2,23 +2,32 @@ import { useState } from 'react';
 import { Check, Copy } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
+import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
+import { canApplyDiscount } from '@/utils/roles';
 import type { PaymentMethod } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
-import type { LiveOrder } from './LiveOrdersPanel';
+import type { LiveOrder, LiveOrderPayment } from './LiveOrdersPanel';
 
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   MOBILE_PAYMENT: 'Pago Móvil',
   ZELLE: 'Zelle',
-  CASH: 'Efectivo',
+  CASH: 'Efectivo Bs',
+  CASH_USD: 'Efectivo $',
   CARD: 'Punto de Venta',
   BINANCE: 'Binance',
   PAYPAL: 'PayPal',
   TRANSFER: 'Transferencia',
 };
 
-const DEFAULT_PAYMENT_OPTIONS: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CARD'];
+const DEFAULT_PAYMENT_OPTIONS: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD'];
+
+// Métodos que exigen un número de referencia/comprobante al registrar el cobro.
+const METHODS_REQUIRING_REFERENCE: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'CARD'];
+
+function referenceLabel(method: PaymentMethod): string {
+  return method === 'CARD' ? 'Número de ticket' : 'Número de referencia';
+}
 
 const PAYMENT_FIELD_LABELS: Record<string, string> = {
   banco: 'Banco',
@@ -38,10 +47,27 @@ interface Props {
   onPaid: () => void;
 }
 
+/** Fila de un pago ya registrado (histórico o hecho en esta misma sesión del diálogo), para el desglose final. */
+function PaymentRow({ payment, symbol }: { payment: LiveOrderPayment; symbol: string }) {
+  return (
+    <div className="flex items-center justify-between gap-2 text-xs py-1.5 border-b border-brand-950/[0.06] last:border-0">
+      <div className="min-w-0">
+        <p className="font-medium text-brand-950">{PAYMENT_LABELS[payment.method as PaymentMethod] ?? payment.method}</p>
+        {payment.referenceNumber && <p className="text-brand-950/40 truncate">Ref: {payment.referenceNumber}</p>}
+        {Number(payment.discountBase ?? 0) > 0 && (
+          <p className="text-brand-950/40">Descuento: {formatBase(payment.discountBase!, symbol)}</p>
+        )}
+      </div>
+      <p className="font-semibold text-brand-950 shrink-0">{formatBase(payment.amountBase, symbol)}</p>
+    </div>
+  );
+}
+
 /** "Pagar" / "Pago Fraccionado": selecciona método, muestra sus datos de cobro y registra el pago del pedido. */
 export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
-  const { restaurant } = useAuth();
+  const { restaurant, user } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
+  const showDiscount = canApplyDiscount(user?.role);
 
   // Un descuento perdona esa parte de la deuda: cuenta como "saldado" igual que el efectivo cobrado.
   const paidBase = order.payments.reduce((acc, p) => acc + Number(p.amountBase) + Number(p.discountBase ?? 0), 0);
@@ -56,16 +82,20 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   const [method, setMethod] = useState<PaymentMethod>(paymentOptions[0] ?? 'CASH');
   const [amount, setAmount] = useState(mode === 'split' ? '' : balanceBase.toFixed(2));
   const [discountPercent, setDiscountPercent] = useState('');
+  const [referenceNumber, setReferenceNumber] = useState('');
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paidNow, setPaidNow] = useState<number | null>(null);
   const [showPrintPrompt, setShowPrintPrompt] = useState(false);
   const [printing, setPrinting] = useState(false);
+  // Pagos registrados durante esta sesión del diálogo (para el desglose final, junto a order.payments).
+  const [sessionPayments, setSessionPayments] = useState<LiveOrderPayment[]>([]);
 
   const selectedDetails = paymentConfig?.[method];
-  const discountPct = Math.min(100, Math.max(0, Number(discountPercent) || 0));
+  const discountPct = showDiscount ? Math.min(100, Math.max(0, Number(discountPercent) || 0)) : 0;
   const discountedBalance = round2(balanceBase * (1 - discountPct / 100));
+  const needsReference = METHODS_REQUIRING_REFERENCE.includes(method);
 
   function round2(n: number) {
     return Math.round(n * 100) / 100;
@@ -99,14 +129,30 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
       setError(`El monto no puede superar el saldo pendiente (${formatBase(balanceBase, symbol)}).`);
       return;
     }
+    if (needsReference && !referenceNumber.trim()) {
+      setError(`Escribe el ${referenceLabel(method).toLowerCase()}.`);
+      return;
+    }
     setSending(true);
     setError(null);
     try {
-      await api.post(`/orders/${order.id}/payments`, {
+      const { data } = await api.post(`/orders/${order.id}/payments`, {
         amountBase,
         method,
         discountPercent: discountPct > 0 ? discountPct : undefined,
+        referenceNumber: needsReference ? referenceNumber.trim() : undefined,
       });
+      setSessionPayments((prev) => [
+        ...prev,
+        {
+          id: data.data?.id ?? `local-${prev.length}`,
+          amountBase: amountBase.toFixed(2),
+          method,
+          discountBase: discountPct > 0 ? round2(balanceBase - discountedBalance).toFixed(2) : null,
+          referenceNumber: needsReference ? referenceNumber.trim() : null,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
       onPaid();
       const remaining = balanceBase - amountBase;
       if (mode === 'full' || remaining <= 0.01) {
@@ -114,6 +160,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
       } else {
         setPaidNow(amountBase);
         setAmount('');
+        setReferenceNumber('');
       }
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo registrar el pago.');
@@ -135,6 +182,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   }
 
   const remainingAfter = paidNow != null ? Math.max(0, balanceBase - paidNow) : balanceBase;
+  const allPayments = [...order.payments, ...sessionPayments];
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -144,10 +192,36 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between text-sm bg-brand-950/[0.03] rounded-xl px-3 py-2.5">
-            <span className="text-brand-950/60">Total del pedido</span>
-            <span className="font-semibold text-brand-950">{formatBase(order.totalBase, symbol)}</span>
+          <div className="rounded-xl bg-brand-950/[0.03] px-3 py-2.5 space-y-1">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-brand-950/60">Total del pedido</span>
+              <span className="font-semibold text-brand-950">{formatBase(order.totalBase, symbol)}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-brand-950/40">Equivalente</span>
+              <span className="text-brand-950/50">{formatBsAbsolute(order.totalBs)}</span>
+            </div>
           </div>
+
+          <details className="rounded-xl border border-brand-950/10 px-3 py-2" open>
+            <summary className="text-xs font-medium text-brand-950/60 cursor-pointer select-none">
+              Detalle del pedido ({order.items.length} {order.items.length === 1 ? 'ítem' : 'ítems'})
+            </summary>
+            <ul className="text-sm space-y-1 mt-2 max-h-32 overflow-y-auto">
+              {order.items.map((it) => (
+                <li key={it.id} className="flex items-start justify-between gap-2">
+                  <span className="min-w-0">
+                    <span className="font-medium">{it.quantity}x</span> {it.productName}
+                    {it.variantName && <span className="text-brand-950/50"> ({it.variantName})</span>}
+                    {it.modifiers.length > 0 && (
+                      <span className="text-brand-950/50"> ({it.modifiers.map((m) => m.name).join(', ')})</span>
+                    )}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </details>
+
           {paidBase > 0 && (
             <div className="flex items-center justify-between text-sm bg-brand-950/[0.03] rounded-xl px-3 py-2.5 -mt-2">
               <span className="text-brand-950/60">Ya pagado</span>
@@ -158,6 +232,13 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
           {showPrintPrompt ? (
             <div className="space-y-3 text-center py-2">
               <p className="text-sm font-medium text-emerald-600">✓ Cuenta saldada</p>
+              {allPayments.length > 0 && (
+                <div className="text-left rounded-xl border border-brand-950/10 px-3 py-2">
+                  {allPayments.map((p) => (
+                    <PaymentRow key={p.id} payment={p} symbol={symbol} />
+                  ))}
+                </div>
+              )}
               <p className="text-sm text-brand-950/70">¿Desea imprimir la cuenta?</p>
               <div className="flex gap-2 justify-center">
                 <TextureButton variant="brand" size="default" className="!w-auto disabled:opacity-50" disabled={printing} onClick={printReceipt}>
@@ -173,6 +254,13 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
               <p className="text-sm font-medium text-emerald-600">
                 ✓ Pago de {formatBase(paidNow, symbol)} registrado
               </p>
+              {allPayments.length > 0 && (
+                <div className="text-left rounded-xl border border-brand-950/10 px-3 py-2">
+                  {allPayments.map((p) => (
+                    <PaymentRow key={p.id} payment={p} symbol={symbol} />
+                  ))}
+                </div>
+              )}
               {remainingAfter > 0.01 ? (
                 <p className="text-sm text-brand-950/60">
                   Aún debe <span className="font-semibold text-brand-950">{formatBase(remainingAfter, symbol)}</span>
@@ -190,6 +278,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                       setPaidNow(null);
                       setAmount('');
                       setDiscountPercent('');
+                      setReferenceNumber('');
                     }}
                   >
                     Seguir pagando fraccionado
@@ -250,15 +339,29 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                 </div>
               )}
 
-              <div>
-                <p className="text-xs font-medium text-brand-950/50 mb-1.5">Descuento (%)</p>
-                <input
-                  value={discountPercent}
-                  onChange={(e) => onDiscountChange(e.target.value)}
-                  placeholder="0"
-                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-                />
-              </div>
+              {needsReference && (
+                <div>
+                  <p className="text-xs font-medium text-brand-950/50 mb-1.5">{referenceLabel(method)}</p>
+                  <input
+                    value={referenceNumber}
+                    onChange={(e) => setReferenceNumber(e.target.value)}
+                    placeholder={referenceLabel(method)}
+                    className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                  />
+                </div>
+              )}
+
+              {showDiscount && (
+                <div>
+                  <p className="text-xs font-medium text-brand-950/50 mb-1.5">Descuento (%)</p>
+                  <input
+                    value={discountPercent}
+                    onChange={(e) => onDiscountChange(e.target.value)}
+                    placeholder="0"
+                    className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                  />
+                </div>
+              )}
 
               {mode === 'split' ? (
                 <div>

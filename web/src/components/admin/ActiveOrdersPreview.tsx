@@ -3,6 +3,7 @@ import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import { api, getToken } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
+import { abbreviateTableBadge } from '@/utils/format';
 import { EditOrderDialog, type LiveOrder } from './LiveOrdersPanel';
 
 const CHANNEL_LABEL: Record<LiveOrder['channel'], string> = {
@@ -75,7 +76,7 @@ export function ActiveOrdersPreview() {
                 className="h-[38px] w-[38px] rounded-[11px] flex items-center justify-center font-semibold text-[13px] shrink-0"
                 style={{ background: meta.bg, color: meta.fg }}
               >
-                {o.channel === 'DINE_IN' && o.table ? o.table.number : '—'}
+                {o.channel === 'DINE_IN' && o.table ? abbreviateTableBadge(o.table.number) : '—'}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5 text-[13.5px] font-medium text-brand-950">

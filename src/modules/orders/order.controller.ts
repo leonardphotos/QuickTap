@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
+import { forbidden } from '../../utils/http-error';
+import { DISCOUNT_ROLES } from '../../utils/roles';
 import {
   addOrderItemSchema,
   deliveryCheckoutSchema,
@@ -76,6 +78,9 @@ export const orderController = {
   /** POST /api/v1/orders/:id/payments — registrar un cobro, botones "Pagar" / "Pago Fraccionado" (protegido). */
   addPayment: asyncHandler(async (req: Request, res: Response) => {
     const input = recordPaymentSchema.parse(req.body);
+    if (input.discountPercent && !DISCOUNT_ROLES.includes(req.auth!.role as (typeof DISCOUNT_ROLES)[number])) {
+      throw forbidden('No tienes permiso para aplicar descuentos.');
+    }
     const order = await orderService.addPayment(req.restaurantId!, req.params.id, input);
     res.status(201).json({ data: order });
   }),

@@ -67,7 +67,10 @@ export const manualOrderSchema = z
     }
   });
 
-const paymentMethodSchema = z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER']);
+const paymentMethodSchema = z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER']);
+
+// Métodos que requieren capturar un número de referencia/comprobante (Punto de venta = "ticket").
+const METHODS_REQUIRING_REFERENCE = ['MOBILE_PAYMENT', 'ZELLE', 'CARD'] as const;
 
 /** Checkout de delivery/pickup -> genera enlace de WhatsApp. Todo es obligatorio salvo la nota. */
 export const deliveryCheckoutSchema = z.object({
@@ -120,13 +123,25 @@ export const setAwaitingPaymentSchema = z.object({
 });
 
 /** Registrar un cobro (botones "Pagar" / "Pago Fraccionado" en Pedidos). */
-export const recordPaymentSchema = z.object({
-  amountBase: z.coerce.number().positive().max(1000000),
-  method: paymentMethodSchema,
-  // Descuento aplicado a este pago puntual (0-100). Opcional, solo informativo:
-  // el monto real a acreditar sigue siendo `amountBase`.
-  discountPercent: z.coerce.number().min(0).max(100).optional(),
-});
+export const recordPaymentSchema = z
+  .object({
+    amountBase: z.coerce.number().positive().max(1000000),
+    method: paymentMethodSchema,
+    // Descuento aplicado a este pago puntual (0-100). Opcional, solo informativo:
+    // el monto real a acreditar sigue siendo `amountBase`.
+    discountPercent: z.coerce.number().min(0).max(100).optional(),
+    // Número de referencia (Pago Móvil/Zelle) o de ticket (Punto de venta). Obligatorio para esos métodos.
+    referenceNumber: z.string().max(60).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (METHODS_REQUIRING_REFERENCE.includes(data.method as any) && !data.referenceNumber?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: data.method === 'CARD' ? 'Escribe el número de ticket.' : 'Escribe el número de referencia.',
+        path: ['referenceNumber'],
+      });
+    }
+  });
 
 /** Añadir un producto nuevo a un pedido ya creado, desde el panel de Pedidos en vivo. */
 export const addOrderItemSchema = z.object({
@@ -164,7 +179,7 @@ export const orderHistoryQuerySchema = z.object({
   // Fecha exacta ("YYYY-MM-DD"): si viene, ignora `range` y filtra ese día completo.
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   channel: z.enum(['DINE_IN', 'DELIVERY', 'PICKUP', 'BAR']).optional(),
-  paymentMethod: z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER']).optional(),
+  paymentMethod: z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER']).optional(),
   // Solo aplica a channel=DINE_IN: 'staff' = cargado por un mesero, 'customer' = el cliente desde su teléfono.
   placedBy: z.enum(['staff', 'customer']).optional(),
   // Filtra por el mesero/staff específico que cargó el pedido (Historial > "Mesero").

@@ -13,7 +13,7 @@ import { baseToBs, formatBs, formatMoney, round2, toDecimal } from './money';
  *  restaurante ($/€) como referencia entre paréntesis.
  */
 
-export type PaymentMethod = 'MOBILE_PAYMENT' | 'ZELLE' | 'CASH' | 'CARD' | 'BINANCE' | 'PAYPAL' | 'TRANSFER';
+export type PaymentMethod = 'MOBILE_PAYMENT' | 'ZELLE' | 'CASH' | 'CASH_USD' | 'CARD' | 'BINANCE' | 'PAYPAL' | 'TRANSFER';
 
 export type DeliveryMode = 'DELIVERY' | 'PICKUP';
 
@@ -69,7 +69,8 @@ export interface WhatsappCheckoutResult {
 export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   MOBILE_PAYMENT: 'Pago Móvil',
   ZELLE: 'Zelle',
-  CASH: 'Efectivo',
+  CASH: 'Efectivo Bs',
+  CASH_USD: 'Efectivo $',
   CARD: 'Punto de Venta',
   BINANCE: 'Binance',
   PAYPAL: 'PayPal',
