@@ -1,8 +1,9 @@
 #!/bin/bash
 # Estacion de Impresion QuickTap.
-# Este script vive en QuickTap - Estacion de Impresion.app/Contents/MacOS/,
-# la carpeta print-station (con index.html) es 3 niveles arriba.
-cd "$(dirname "$0")/../../.."
+# Este script vive en QuickTap - Estacion de Impresion.app/Contents/MacOS/;
+# index.html vive junto a él en Contents/Resources/ (la app es autocontenida,
+# así funciona igual desde /Applications que desde el .dmg).
+cd "$(dirname "$0")/../Resources"
 
 PORT=5500
 URL="http://localhost:$PORT"

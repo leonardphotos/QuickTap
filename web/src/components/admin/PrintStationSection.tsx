@@ -39,9 +39,11 @@ export function PrintStationSection() {
               acceso directo con el ícono de QuickTap en el Escritorio.
             </li>
             <li>
-              Mac: copia la carpeta <span className="font-medium">"dmg"</span> a esa computadora y arrastra{' '}
-              <span className="font-medium">"QuickTap - Estacion de Impresion.app"</span> al Dock o a Aplicaciones.
-              La primera vez, clic derecho → Abrir (para saltar el aviso de "desarrollador no identificado").
+              Mac: abre el archivo <span className="font-medium">"QuickTap - Estacion de Impresion.dmg"</span> dentro
+              de la carpeta "dmg", y en la ventana que se abre arrastra el ícono de QuickTap sobre{' '}
+              <span className="font-medium">"Aplicaciones"</span>. Después ábrela desde el Launchpad o la carpeta
+              Aplicaciones (nunca directo desde Descargas). La primera vez, clic derecho → Abrir (para saltar el
+              aviso de "desarrollador no identificado").
             </li>
             <li>Conéctate una vez con el correo y contraseña del restaurante — queda guardado para la próxima.</li>
             <li>
