@@ -90,9 +90,11 @@ export function getPaymentStatus(o: LiveOrder) {
   return { paidBase, balanceBase, owesBalance, fullyPaid };
 }
 
-/** Necesita abrir el selector de variante/modificadores en vez de añadirse directo. */
+/** Necesita abrir el selector de variante/modificadores en vez de añadirse directo. Incluye
+ * categorías opcionales (no solo obligatorias) para que, al editar un ítem ya pedido, se puedan
+ * ajustar también los extras opcionales — no solo los que son obligatorios al crear el pedido. */
 function needsPicker(product: Product): boolean {
-  return product.pricingMode === 'VARIANTS' || (product.modifierCategories ?? []).some((c) => c.isRequired);
+  return product.pricingMode === 'VARIANTS' || (product.modifierCategories ?? []).length > 0;
 }
 
 const isMobileDevice = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
@@ -152,8 +154,14 @@ const CHANNEL_TABS: { value: LiveOrder['channel']; label: string }[] = [
   { value: 'PICKUP', label: 'Pick-up' },
 ];
 
+interface LiveOrdersPanelProps {
+  /** El dashboard de Mesero ya tiene su propio botón flotante "Crear pedido" (fijo abajo a la
+   * izquierda, visible en todas sus pestañas) — se oculta este para no duplicarlo en Comandas. */
+  hideCreateButton?: boolean;
+}
+
 /** Panel "Pedidos": todos los pedidos activos con Aceptar/Cancelar/Finalizar/Delivery. Va en el Dashboard. */
-export function LiveOrdersPanel() {
+export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {}) {
   const { restaurant, user } = useAuth();
   const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
@@ -395,15 +403,19 @@ export function LiveOrdersPanel() {
             </span>
           )}
         </div>
-        <TextureButton
-          variant="brand"
-          size="icon"
-          className="!w-14 !h-14 justify-self-center"
-          onClick={() => setCreateOrderOpen(true)}
-          aria-label="Crear pedido"
-        >
-          <Plus className="h-7 w-7" strokeWidth={2.5} />
-        </TextureButton>
+        {hideCreateButton ? (
+          <div />
+        ) : (
+          <TextureButton
+            variant="brand"
+            size="icon"
+            className="!w-14 !h-14 justify-self-center"
+            onClick={() => setCreateOrderOpen(true)}
+            aria-label="Crear pedido"
+          >
+            <Plus className="h-7 w-7" strokeWidth={2.5} />
+          </TextureButton>
+        )}
         <div className="justify-self-end" />
       </div>
 
@@ -712,9 +724,10 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [printing, setPrinting] = useState(false);
+  const [printingReceipt, setPrintingReceipt] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
-  const [showComandaMenu, setShowComandaMenu] = useState(false);
+  const [showReciboMenu, setShowReciboMenu] = useState(false);
   const receiptRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -732,6 +745,20 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
       setError(e.response?.data?.error ?? 'No se pudo enviar la comanda a la estación de impresión.');
     } finally {
       setPrinting(false);
+    }
+  }
+
+  /** Botón "Recibo": reenvía el recibo detallado (precio en Bs y $, desglose completo) a la
+   * impresora de Caja — independiente de "Comanda", que nunca imprime el recibo. */
+  async function printReceiptFull() {
+    setPrintingReceipt(true);
+    setError(null);
+    try {
+      await api.post(`/orders/${order.id}/print-receipt`);
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo enviar el recibo a la estación de impresión.');
+    } finally {
+      setPrintingReceipt(false);
     }
   }
 
@@ -1082,22 +1109,30 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <div className="pt-2 border-t border-brand-950/10 flex flex-wrap gap-2">
-            <TextureButton variant="secondary" size="sm" className="!w-auto" onClick={() => setShowComandaMenu((s) => !s)}>
-              <Receipt className="h-3.5 w-3.5" /> Comanda
+            <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={printing} onClick={printComanda}>
+              <Printer className="h-3.5 w-3.5" /> {printing ? 'Enviando…' : 'Comanda'}
+            </TextureButton>
+            <TextureButton
+              variant="secondary"
+              size="sm"
+              className="!w-auto"
+              onClick={() => setShowReciboMenu((s) => !s)}
+            >
+              <Receipt className="h-3.5 w-3.5" /> Recibo
             </TextureButton>
             <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={downloading} onClick={downloadJpg}>
               <Download className="h-3.5 w-3.5" /> {downloading ? 'Generando…' : 'Descargar'}
             </TextureButton>
           </div>
 
-          {showComandaMenu && (
+          {showReciboMenu && (
             <div className="grid grid-cols-2 gap-1.5">
               <button
-                onClick={printComanda}
-                disabled={printing}
+                onClick={printReceiptFull}
+                disabled={printingReceipt}
                 className="flex items-center justify-center gap-1.5 rounded-xl bg-brand-950/[0.06] text-brand-950/70 hover:bg-brand-950/10 text-xs font-medium py-2 transition-colors disabled:opacity-50"
               >
-                <Printer className="h-3.5 w-3.5" /> {printing ? 'Enviando…' : 'Imprimir'}
+                <Printer className="h-3.5 w-3.5" /> {printingReceipt ? 'Enviando…' : 'Imprimir'}
               </button>
               <button
                 onClick={sendWhatsapp}

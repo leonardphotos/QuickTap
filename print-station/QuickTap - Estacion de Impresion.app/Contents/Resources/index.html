@@ -394,14 +394,20 @@
             <option value="1.3">Muy grande</option>
           </select>
         </div>
-        <div class="toggle-field">
+        <div class="toggle-field" style="margin-bottom:0;">
           <label>Auto-imprimir comandas nuevas</label>
           <label class="switch"><input type="checkbox" id="autoPrintToggle"><span class="slider"></span></label>
         </div>
-        <div class="toggle-field" style="margin-bottom:0;">
-          <label>Imprimir también el recibo</label>
-          <label class="switch"><input type="checkbox" id="printReceiptToggle"><span class="slider"></span></label>
+      </div>
+
+      <div class="card">
+        <h3>Personalizar tickets</h3>
+        <p class="muted small" style="margin-bottom:10px;line-height:1.5;">Elige qué información aparece en la comanda de cocina y en el recibo, y en qué orden salen los datos del pedido (Orden/Canal/Mesa…). El botón "Comanda" siempre imprime solo comandas; el recibo solo sale con el botón "Recibo" o al saldar la cuenta.</p>
+        <div style="display:flex;gap:6px;margin-bottom:12px;">
+          <button type="button" class="btn btn-sm" id="ticketCfgTabComanda" style="flex:1;">Comanda</button>
+          <button type="button" class="btn btn-sm" id="ticketCfgTabRecibo" style="flex:1;">Recibo</button>
         </div>
+        <div id="ticketCfgBody"></div>
       </div>
 
       <div class="card">
@@ -435,6 +441,48 @@
 /* ============================================================
    Estado
    ============================================================ */
+
+// Qué información aparece en cada tipo de ticket y en qué orden salen los
+// datos del pedido (Orden/Canal/Mesa/Cliente/Hora) — editable en Configuración
+// → "Personalizar tickets". Se guarda en localStorage, por eso el merge con
+// los valores por defecto: una instalación vieja no tiene 'showTasa', etc.
+const DEFAULT_TICKET_CONFIG = {
+  comanda: {
+    showBizAddress: false,
+    infoFields: ['orden', 'canal', 'mesa', 'cliente', 'hora'],
+    showModifiers: true,
+    showNotes: true,
+    showFooter: true,
+  },
+  recibo: {
+    showBizAddress: true,
+    infoFields: ['orden', 'canal', 'mesa', 'cliente', 'hora'],
+    showFacturaNoFiscal: true,
+    showNotes: true,
+    showItemBs: true,
+    showSubtotal: true,
+    showServicio: true,
+    showIva: true,
+    showTotalBs: true,
+    showTasa: true,
+    showFooter: true,
+  },
+};
+
+function loadTicketConfig(){
+  let saved = null;
+  try{ saved = JSON.parse(localStorage.getItem('qt_ticketConfig') || 'null'); }catch(e){ saved = null; }
+  const merged = { comanda: { ...DEFAULT_TICKET_CONFIG.comanda }, recibo: { ...DEFAULT_TICKET_CONFIG.recibo } };
+  if(saved && saved.comanda) Object.assign(merged.comanda, saved.comanda);
+  if(saved && saved.recibo) Object.assign(merged.recibo, saved.recibo);
+  if(!Array.isArray(merged.comanda.infoFields) || merged.comanda.infoFields.length === 0) merged.comanda.infoFields = [...DEFAULT_TICKET_CONFIG.comanda.infoFields];
+  if(!Array.isArray(merged.recibo.infoFields) || merged.recibo.infoFields.length === 0) merged.recibo.infoFields = [...DEFAULT_TICKET_CONFIG.recibo.infoFields];
+  return merged;
+}
+function saveTicketConfig(){
+  localStorage.setItem('qt_ticketConfig', JSON.stringify(state.ticketConfig));
+}
+
 const state = {
   token: localStorage.getItem('qt_token') || null,
   serverUrl: localStorage.getItem('qt_serverUrl') || 'https://quicktap.club',
@@ -447,7 +495,6 @@ const state = {
   // desactiva a mano en Configuración) — así una instalación nueva imprime
   // las comandas apenas llegan, sin que haga falta tocar nada.
   autoPrint: localStorage.getItem('qt_autoPrint') !== '0',
-  printReceipt: localStorage.getItem('qt_printReceipt') === '1',
   paperWidth: localStorage.getItem('qt_paperWidth') || '80',
   // Escala del tamaño de letra del ticket impreso (1 = normal). Se aplica sobre
   // el tamaño base de cada ancho de papel (58mm/80mm) al momento de imprimir.
@@ -458,6 +505,7 @@ const state = {
   // nombre de una cocina, 'CAJA', o null (sin asignar todavía).
   kitchens: [],
   printers: [],
+  ticketConfig: loadTicketConfig(),
 };
 
 /** Asignaciones guardadas de una sesión a otra (clave = vendorId:productId de la impresora). */
@@ -768,11 +816,21 @@ function groupItemsByKitchen(order){
   return groups;
 }
 
+/** Etiqueta + valor de cada dato del pedido que se puede reordenar en
+ * Configuración → "Personalizar tickets" → Orden de los datos del pedido. */
+const INFO_FIELD_BUILDERS = {
+  orden: (order) => ({ show: true, label: 'Orden:', value: `#${esc(order.orderNumber ?? '—')}` }),
+  canal: (order, ctx) => ({ show: true, label: 'Canal:', value: esc(ctx.channelLabel) }),
+  mesa: (order) => ({ show: Boolean(order.table), label: 'Mesa:', value: esc(order.table) }),
+  cliente: (order) => ({ show: Boolean(order.customerName), label: 'Cliente:', value: esc(order.customerName) }),
+  hora: (order) => ({ show: true, label: 'Hora:', value: timeLabel(order.createdAt || order._receivedAt) }),
+};
+
 function buildTicketHtml(order, kind, station){
+  const cfg = state.ticketConfig[kind === 'cocina' ? 'comanda' : 'recibo'];
   const bizName = state.restaurant?.name || 'QuickTap';
   const bizAddress = state.restaurant?.description || '';
   const channelLabel = CHANNEL_LABEL[order.channel] || order.channel || '';
-  const tableInfo = order.table ? `Mesa ${esc(order.table)}` : '';
   const items = order.items || [];
   const rate = order.exchangeRate != null ? Number(order.exchangeRate) : null;
 
@@ -789,14 +847,16 @@ function buildTicketHtml(order, kind, station){
       return `<div class="r-row">
         <span class="r-item-name">${esc(it.quantity)}x ${esc(it.name)}${it.variantName ? ' ('+esc(it.variantName)+')' : ''}</span>
         ${lineAmount != null ? `<span>${currencySymbol}${lineAmount.toFixed(2)}</span>` : ''}
-      </div>${lineAmount != null ? bsLine(lineAmount) : ''}${(it.note) ? `<div class="r-muted">&nbsp;&nbsp;Nota: ${esc(it.note)}</div>` : ''}`;
+      </div>${(cfg.showItemBs && lineAmount != null) ? bsLine(lineAmount) : ''}${(cfg.showNotes && it.note) ? `<div class="r-muted">&nbsp;&nbsp;Nota: ${esc(it.note)}</div>` : ''}`;
     }
+    // Comanda de cocina: el nombre del producto va primero y la cantidad al
+    // lado derecho (no "1x Pizza", sino "Pizza  1x").
     return `<div class="r-row">
+      <span class="r-item-name">${esc(it.name)}${it.variantName ? ' ('+esc(it.variantName)+')' : ''}</span>
       <span class="r-bold">${esc(it.quantity)}x</span>
-      <span class="r-item-name">&nbsp;${esc(it.name)}${it.variantName ? ' ('+esc(it.variantName)+')' : ''}</span>
     </div>
-    ${(it.modifiers && it.modifiers.length) ? it.modifiers.map(m => `<div class="r-muted">+1 ${esc(m.name)}</div>`).join('') : ''}
-    ${it.note ? `<div class="r-muted">Nota: ${esc(it.note)}</div>` : ''}`;
+    ${(cfg.showModifiers && it.modifiers && it.modifiers.length) ? it.modifiers.map(m => `<div class="r-muted">+1 ${esc(m.name)}</div>`).join('') : ''}
+    ${(cfg.showNotes && it.note) ? `<div class="r-muted">Nota: ${esc(it.note)}</div>` : ''}`;
   }).join('');
 
   const subtotalBase = order.subtotalBase != null ? Number(order.subtotalBase) : null;
@@ -808,37 +868,40 @@ function buildTicketHtml(order, kind, station){
   // genérico de siempre si es la única cocina del pedido.
   const kitchenTitle = station && station !== SIN_COCINA ? `COMANDA · ${esc(station)}` : 'COMANDA DE COCINA';
 
-  // Espacio: en la comanda de cocina se ahorra papel achicando el encabezado
-  // (sin dirección, línea más angosta) y el pie — la línea/tamaño de "COMANDA
-  // DE COCINA" en sí no se toca, tal como lo pidió el usuario.
+  // Espacio: en la comanda de cocina se ahorra papel con una línea más angosta
+  // en encabezado/pie — la línea/tamaño de "COMANDA DE COCINA" en sí no se toca.
   const headerLine = kind === 'cocina' ? 'r-line-sm' : 'r-line';
   const footerLine = kind === 'cocina' ? 'r-line-sm' : 'r-line';
 
+  const infoRowsHtml = cfg.infoFields
+    .map((key) => INFO_FIELD_BUILDERS[key] && INFO_FIELD_BUILDERS[key](order, { channelLabel }))
+    .filter((f) => f && f.show)
+    .map((f) => `<div class="r-row"><span>${f.label}</span><span>${f.value}</span></div>`)
+    .join('');
+
   return `
     <div class="r-center r-bold r-title">${esc(bizName)}</div>
-    ${(bizAddress && kind !== 'cocina') ? `<div class="r-center">${esc(bizAddress)}</div>` : ''}
+    ${(cfg.showBizAddress && bizAddress) ? `<div class="r-center">${esc(bizAddress)}</div>` : ''}
     <div class="${headerLine}"></div>
     <div class="r-center r-bold r-sub">${kind==='cocina' ? kitchenTitle : 'RECIBO'}</div>
-    ${kind==='recibo' ? '<div class="r-center">Factura no fiscal</div>' : ''}
+    ${(kind==='recibo' && cfg.showFacturaNoFiscal) ? '<div class="r-center">Factura no fiscal</div>' : ''}
     <div class="r-line"></div>
-    <div class="r-row"><span>Orden:</span><span>#${esc(order.orderNumber ?? '—')}</span></div>
-    <div class="r-row"><span>Canal:</span><span>${esc(channelLabel)}</span></div>
-    ${tableInfo ? `<div class="r-row"><span>Mesa:</span><span>${esc(order.table)}</span></div>` : ''}
-    ${order.customerName ? `<div class="r-row"><span>Cliente:</span><span>${esc(order.customerName)}</span></div>` : ''}
-    <div class="r-row"><span>Hora:</span><span>${timeLabel(order.createdAt || order._receivedAt)}</span></div>
+    ${infoRowsHtml}
     <div class="r-line"></div>
     ${itemsHtml || '<div class="r-muted r-center">Sin productos</div>'}
     ${kind==='recibo' ? `
       <div class="r-line"></div>
-      ${subtotalBase != null ? `<div class="r-row"><span>Subtotal</span><span>${currencySymbol}${subtotalBase.toFixed(2)}</span></div>` : ''}
-      ${serviceChargeBase > 0 ? `<div class="r-row"><span>Servicio (10%)</span><span>${currencySymbol}${serviceChargeBase.toFixed(2)}</span></div>` : ''}
-      ${ivaBase > 0 ? `<div class="r-row"><span>IVA (16%)</span><span>${currencySymbol}${ivaBase.toFixed(2)}</span></div>` : ''}
+      ${(cfg.showSubtotal && subtotalBase != null) ? `<div class="r-row"><span>Subtotal</span><span>${currencySymbol}${subtotalBase.toFixed(2)}</span></div>` : ''}
+      ${(cfg.showServicio && serviceChargeBase > 0) ? `<div class="r-row"><span>Servicio (10%)</span><span>${currencySymbol}${serviceChargeBase.toFixed(2)}</span></div>` : ''}
+      ${(cfg.showIva && ivaBase > 0) ? `<div class="r-row"><span>IVA (16%)</span><span>${currencySymbol}${ivaBase.toFixed(2)}</span></div>` : ''}
       <div class="r-row r-bold"><span>TOTAL</span><span>${currencySymbol}${totalBase.toFixed(2)}</span></div>
-      ${bsLine(totalBase)}
-      ${rate != null ? `<div class="r-row r-muted"><span>Tasa del día: ${formatBs(rate)}/${currencySymbol}1</span></div>` : ''}
+      ${cfg.showTotalBs ? bsLine(totalBase) : ''}
+      ${(cfg.showTasa && rate != null) ? `<div class="r-row r-muted"><span>Tasa del día: ${formatBs(rate)}/${currencySymbol}1</span></div>` : ''}
     ` : ''}
-    <div class="${footerLine}"></div>
-    <div class="r-center r-muted">Impreso con QuickTap</div>
+    ${cfg.showFooter ? `
+      <div class="${footerLine}"></div>
+      <div class="r-center r-muted">Impreso con QuickTap</div>
+    ` : ''}
   `;
 }
 
@@ -917,15 +980,13 @@ async function printOrder(order){
 
   // Una comanda de papel por cada cocina involucrada, a la impresora que le
   // asignaste a esa cocina (o a la única impresora conectada, si solo hay una).
+  // Solo comandas de cocina — el recibo nunca sale desde aquí (ni al llegar un
+  // pedido nuevo ni al presionar "Comanda"): sale únicamente con el botón
+  // "Recibo" o al saldar la cuenta, para no imprimirlo antes de que se pague.
   const groups = groupItemsByKitchen(order);
   for(const [station, items] of groups){
     receiptEl.innerHTML = buildTicketHtml({ ...order, items }, 'cocina', station);
     await sendTicket(station, receiptEl);
-  }
-
-  if(state.printReceipt){
-    receiptEl.innerHTML = buildTicketHtml(order, 'recibo');
-    await sendTicket('CAJA', receiptEl);
   }
 
   order._printed = true;
@@ -1188,12 +1249,11 @@ $('testOrderBtn').addEventListener('click', () => {
 });
 
 /* ============================================================
-   Preferencias (paper width / auto print / print receipt)
+   Preferencias (paper width / auto print)
    ============================================================ */
 $('paperWidth').value = state.paperWidth;
 $('fontScale').value = String(state.fontScale);
 $('autoPrintToggle').checked = state.autoPrint;
-$('printReceiptToggle').checked = state.printReceipt;
 
 $('paperWidth').addEventListener('change', (e) => {
   state.paperWidth = e.target.value;
@@ -1207,10 +1267,89 @@ $('autoPrintToggle').addEventListener('change', (e) => {
   state.autoPrint = e.target.checked;
   localStorage.setItem('qt_autoPrint', state.autoPrint ? '1' : '0');
 });
-$('printReceiptToggle').addEventListener('change', (e) => {
-  state.printReceipt = e.target.checked;
-  localStorage.setItem('qt_printReceipt', state.printReceipt ? '1' : '0');
-});
+
+/* ============================================================
+   Personalizar tickets (qué información aparece y en qué orden)
+   ============================================================ */
+let ticketCfgTab = 'comanda';
+
+const TICKET_CONTENT_TOGGLES = {
+  comanda: [
+    { key: 'showBizAddress', label: 'Dirección del restaurante' },
+    { key: 'showModifiers', label: 'Modificadores (extras)' },
+    { key: 'showNotes', label: 'Notas del producto' },
+    { key: 'showFooter', label: 'Pie "Impreso con QuickTap"' },
+  ],
+  recibo: [
+    { key: 'showBizAddress', label: 'Dirección del restaurante' },
+    { key: 'showFacturaNoFiscal', label: '"Factura no fiscal"' },
+    { key: 'showNotes', label: 'Notas del producto' },
+    { key: 'showItemBs', label: 'Bs debajo de cada monto' },
+    { key: 'showSubtotal', label: 'Subtotal' },
+    { key: 'showServicio', label: 'Servicio (10%)' },
+    { key: 'showIva', label: 'IVA (16%)' },
+    { key: 'showTotalBs', label: 'Bs debajo del total' },
+    { key: 'showTasa', label: 'Tasa del día' },
+    { key: 'showFooter', label: 'Pie "Impreso con QuickTap"' },
+  ],
+};
+
+const INFO_FIELD_LABELS = { orden: 'Orden', canal: 'Canal', mesa: 'Mesa', cliente: 'Cliente', hora: 'Hora' };
+
+function renderTicketConfigEditor(){
+  const cfg = state.ticketConfig[ticketCfgTab];
+  $('ticketCfgTabComanda').className = 'btn btn-sm ' + (ticketCfgTab === 'comanda' ? 'btn-primary' : 'btn-secondary');
+  $('ticketCfgTabRecibo').className = 'btn btn-sm ' + (ticketCfgTab === 'recibo' ? 'btn-primary' : 'btn-secondary');
+
+  const togglesHtml = TICKET_CONTENT_TOGGLES[ticketCfgTab].map(t => `
+    <div class="toggle-field">
+      <label>${t.label}</label>
+      <label class="switch"><input type="checkbox" data-cfg-toggle="${t.key}" ${cfg[t.key] ? 'checked' : ''}><span class="slider"></span></label>
+    </div>
+  `).join('');
+
+  const orderHtml = cfg.infoFields.map((key, i) => `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:6px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;margin-bottom:6px;">
+      <span style="font-size:13px;">${INFO_FIELD_LABELS[key] || key}</span>
+      <span style="display:flex;gap:4px;">
+        <button type="button" class="btn btn-secondary btn-sm" data-move-field="${key}" data-dir="up" ${i === 0 ? 'disabled' : ''} style="padding:2px 9px;">↑</button>
+        <button type="button" class="btn btn-secondary btn-sm" data-move-field="${key}" data-dir="down" ${i === cfg.infoFields.length - 1 ? 'disabled' : ''} style="padding:2px 9px;">↓</button>
+      </span>
+    </div>
+  `).join('');
+
+  $('ticketCfgBody').innerHTML = `
+    <p class="muted small" style="margin:0 0 6px;">Qué información se muestra:</p>
+    ${togglesHtml}
+    <p class="muted small" style="margin:14px 0 6px;">Orden de los datos del pedido:</p>
+    ${orderHtml}
+  `;
+
+  $('ticketCfgBody').querySelectorAll('[data-cfg-toggle]').forEach(el => {
+    el.addEventListener('change', (e) => {
+      cfg[e.target.getAttribute('data-cfg-toggle')] = e.target.checked;
+      saveTicketConfig();
+    });
+  });
+  $('ticketCfgBody').querySelectorAll('[data-move-field]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.getAttribute('data-move-field');
+      const dir = btn.getAttribute('data-dir');
+      const idx = cfg.infoFields.indexOf(key);
+      const swapWith = dir === 'up' ? idx - 1 : idx + 1;
+      if(swapWith < 0 || swapWith >= cfg.infoFields.length) return;
+      const tmp = cfg.infoFields[idx];
+      cfg.infoFields[idx] = cfg.infoFields[swapWith];
+      cfg.infoFields[swapWith] = tmp;
+      saveTicketConfig();
+      renderTicketConfigEditor();
+    });
+  });
+}
+
+$('ticketCfgTabComanda').addEventListener('click', () => { ticketCfgTab = 'comanda'; renderTicketConfigEditor(); });
+$('ticketCfgTabRecibo').addEventListener('click', () => { ticketCfgTab = 'recibo'; renderTicketConfigEditor(); });
+renderTicketConfigEditor();
 
 /* ============================================================
    Arranque

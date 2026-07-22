@@ -1,17 +1,45 @@
-import { lazy, Suspense, useState } from 'react';
-import { Boxes, ChefHat, Grid2x2, LogOut, Receipt } from 'lucide-react';
+import { lazy, Suspense, useRef, useState } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
+import { Boxes, ChefHat, Grid2x2, LogOut, Plus, Receipt } from 'lucide-react';
+import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { hasFeature } from '../../utils/subscription';
-import { LiveOrdersPanel } from '@/components/admin/LiveOrdersPanel';
+import { LiveOrdersPanel, EditOrderDialog, type LiveOrder } from '@/components/admin/LiveOrdersPanel';
 import { TableServiceAlert } from '@/components/admin/TableServiceAlert';
 import { NewOrderAlert } from '@/components/admin/NewOrderAlert';
 import { ActiveOrdersPreview } from '@/components/admin/ActiveOrdersPreview';
+import { CreateOrderDialog } from '@/components/admin/CreateOrderDialog';
+import { PaymentDialog } from '@/components/admin/PaymentDialog';
+import { TextureButton } from '@/components/ui/texture-button';
 
 const TableOrdersPage = lazy(() => import('./TableOrdersPage'));
 const KitchenPage = lazy(() => import('./KitchenPage'));
 const InventoryPage = lazy(() => import('./InventoryPage'));
 
 type WaiterTab = 'mesas' | 'cocina' | 'comandas' | 'inventario';
+
+// Botón flotante "Nuevo pedido": el mesero lo puede arrastrar a donde le quede
+// más cómodo (una mano, una zona sin tapar la mesa que está mirando, etc.) — la
+// posición se guarda en localStorage por dispositivo.
+const FAB_SIZE = 64;
+const FAB_MARGIN = 8;
+const FAB_STORAGE_KEY = 'qt_waiter_fab_pos';
+
+function clampFabPosition(left: number, top: number) {
+  const maxLeft = Math.max(FAB_MARGIN, window.innerWidth - FAB_SIZE - FAB_MARGIN);
+  const maxTop = Math.max(FAB_MARGIN, window.innerHeight - FAB_SIZE - FAB_MARGIN);
+  return { left: Math.min(Math.max(FAB_MARGIN, left), maxLeft), top: Math.min(Math.max(FAB_MARGIN, top), maxTop) };
+}
+
+function loadFabPosition() {
+  try {
+    const saved = localStorage.getItem(FAB_STORAGE_KEY);
+    if (saved) return JSON.parse(saved) as { left: number; top: number };
+  } catch {
+    // localStorage corrupto o inaccesible: se usa la posición por defecto.
+  }
+  return clampFabPosition(20, window.innerHeight - FAB_SIZE - 20);
+}
 
 /**
  * Panel simplificado para el rol Mesero: pestañas arriba en vez del menú lateral/dock
@@ -22,8 +50,52 @@ type WaiterTab = 'mesas' | 'cocina' | 'comandas' | 'inventario';
 export default function WaiterLayout() {
   const { user, restaurant, logout } = useAuth();
   const [tab, setTab] = useState<WaiterTab>('mesas');
+  const [existingOrders, setExistingOrders] = useState<LiveOrder[]>([]);
+  const [createOrderOpen, setCreateOrderOpen] = useState(false);
+  const [editingOrder, setEditingOrder] = useState<LiveOrder | null>(null);
+  const [paymentDialog, setPaymentDialog] = useState<{ order: LiveOrder; mode: 'full' | 'split' } | null>(null);
+  const [fabPos, setFabPos] = useState(loadFabPosition);
+  const fabDrag = useRef<{ startX: number; startY: number; startLeft: number; startTop: number; moved: boolean } | null>(
+    null,
+  );
 
   if (!user || !restaurant) return null;
+
+  function loadExistingOrders() {
+    api.get('/orders/live').then((res) => setExistingOrders(res.data.data));
+  }
+
+  function openCreateOrder() {
+    loadExistingOrders();
+    setCreateOrderOpen(true);
+  }
+
+  function handleFabPointerDown(e: ReactPointerEvent<HTMLButtonElement>) {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    fabDrag.current = { startX: e.clientX, startY: e.clientY, startLeft: fabPos.left, startTop: fabPos.top, moved: false };
+  }
+
+  function handleFabPointerMove(e: ReactPointerEvent<HTMLButtonElement>) {
+    const drag = fabDrag.current;
+    if (!drag) return;
+    const dx = e.clientX - drag.startX;
+    const dy = e.clientY - drag.startY;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) drag.moved = true;
+    if (drag.moved) setFabPos(clampFabPosition(drag.startLeft + dx, drag.startTop + dy));
+  }
+
+  function handleFabPointerUp() {
+    const drag = fabDrag.current;
+    fabDrag.current = null;
+    if (drag?.moved) {
+      setFabPos((pos) => {
+        localStorage.setItem(FAB_STORAGE_KEY, JSON.stringify(pos));
+        return pos;
+      });
+    } else {
+      openCreateOrder();
+    }
+  }
 
   const canSeeInventory =
     user.canAccessInventory && (hasFeature(restaurant, 'inventoryBasic') || hasFeature(restaurant, 'inventoryRecipe'));
@@ -77,7 +149,7 @@ export default function WaiterLayout() {
         })}
       </nav>
 
-      <main className="px-4 py-4 pb-10">
+      <main className="px-4 py-4 pb-28">
         <Suspense fallback={<div className="p-10 text-center text-brand-950/30 font-light text-sm">Cargando…</div>}>
           {tab === 'mesas' && (
             <div className="space-y-8">
@@ -86,13 +158,58 @@ export default function WaiterLayout() {
             </div>
           )}
           {tab === 'cocina' && <KitchenPage />}
-          {tab === 'comandas' && <LiveOrdersPanel />}
+          {tab === 'comandas' && <LiveOrdersPanel hideCreateButton />}
           {tab === 'inventario' && canSeeInventory && <InventoryPage />}
         </Suspense>
       </main>
 
       <TableServiceAlert />
       <NewOrderAlert onNavigate={() => setTab('comandas')} />
+
+      {/* Botón flotante "Nuevo pedido": visible en cualquier pestaña, y el mesero lo puede
+       * arrastrar a donde le quede más cómodo (la posición se recuerda en este dispositivo). */}
+      <TextureButton
+        variant="brand"
+        size="icon"
+        onPointerDown={handleFabPointerDown}
+        onPointerMove={handleFabPointerMove}
+        onPointerUp={handleFabPointerUp}
+        onPointerCancel={handleFabPointerUp}
+        aria-label="Crear pedido (mantén presionado y arrastra para moverlo)"
+        style={{ position: 'fixed', left: fabPos.left, top: fabPos.top, touchAction: 'none' }}
+        className="z-30 !h-16 !w-16 rounded-full shadow-lg shadow-brand-950/25"
+      >
+        <Plus className="h-8 w-8" strokeWidth={2.5} />
+      </TextureButton>
+
+      {createOrderOpen && (
+        <CreateOrderDialog
+          existingOrders={existingOrders}
+          onClose={() => setCreateOrderOpen(false)}
+          onCreated={(newOrder, paymentMode) => {
+            setCreateOrderOpen(false);
+            if (newOrder && paymentMode) setPaymentDialog({ order: newOrder, mode: paymentMode });
+          }}
+          onSelectExisting={(orderId) => {
+            setCreateOrderOpen(false);
+            const target = existingOrders.find((o) => o.id === orderId);
+            if (target) setEditingOrder(target);
+          }}
+        />
+      )}
+
+      {editingOrder && (
+        <EditOrderDialog order={editingOrder} onClose={() => setEditingOrder(null)} onSaved={loadExistingOrders} />
+      )}
+
+      {paymentDialog && (
+        <PaymentDialog
+          order={paymentDialog.order}
+          mode={paymentDialog.mode}
+          onClose={() => setPaymentDialog(null)}
+          onPaid={loadExistingOrders}
+        />
+      )}
     </div>
   );
 }
