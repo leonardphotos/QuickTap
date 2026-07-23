@@ -749,11 +749,48 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
   const [showPayMenu, setShowPayMenu] = useState(false);
   const [paymentMode, setPaymentMode] = useState<'full' | 'split' | null>(null);
   const [markingDebt, setMarkingDebt] = useState(false);
+  const [couriers, setCouriers] = useState<DeliveryCourier[]>([]);
+  const [showCourierPicker, setShowCourierPicker] = useState(false);
+  const [dispatching, setDispatching] = useState(false);
   const receiptRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     api.get('/products').then((res) => setProducts(res.data.data));
-  }, []);
+    if (order.channel === 'DELIVERY') {
+      api.get('/delivery-couriers').then((res) => setCouriers(res.data.data));
+    }
+  }, [order.channel]);
+
+  /** Botón "Delivery": despacha el pedido al repartidor elegido (o directo, si solo
+   * hay uno registrado) — mismo endpoint que el botón "Delivery" de la tarjeta. */
+  async function dispatchCourier(courierId: string) {
+    const win = window.open('', '_blank');
+    setDispatching(true);
+    setError(null);
+    try {
+      const { data } = await api.post(`/orders/${order.id}/dispatch-courier`, { courierId });
+      openInTabAndAutoClose(win, data.data.url);
+      setShowCourierPicker(false);
+      onSaved();
+    } catch (e: any) {
+      win?.close();
+      setError(e.response?.data?.error ?? 'No se pudo despachar el pedido.');
+    } finally {
+      setDispatching(false);
+    }
+  }
+
+  function handleDeliveryClick() {
+    if (couriers.length === 0) {
+      setError('Agrega un repartidor en Ajustes → Equipo de Delivery primero.');
+      return;
+    }
+    if (couriers.length === 1) {
+      dispatchCourier(couriers[0].id);
+      return;
+    }
+    setShowCourierPicker(true);
+  }
 
   /** Botón "Imprimir": no imprime desde este navegador — reenvía la comanda a la
    * estación de impresión (print-station), que es quien tiene las impresoras conectadas. */
@@ -1171,7 +1208,42 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
             <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={downloading} onClick={downloadJpg}>
               <Download className="h-3.5 w-3.5" /> {downloading ? 'Generando…' : 'Descargar'}
             </TextureButton>
+            {order.channel === 'DELIVERY' && (
+              <TextureButton
+                variant="secondary"
+                size="sm"
+                className="!w-auto"
+                disabled={dispatching}
+                onClick={handleDeliveryClick}
+              >
+                <Truck className="h-3.5 w-3.5" /> {dispatching ? 'Despachando…' : 'Delivery'}
+              </TextureButton>
+            )}
           </div>
+
+          {showCourierPicker && (
+            <div className="space-y-1.5">
+              <p className="text-xs text-brand-950/60">Elige el repartidor:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {couriers.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => dispatchCourier(c.id)}
+                    disabled={dispatching}
+                    className="text-xs font-medium px-3 py-1.5 rounded-full bg-brand-950/[0.06] hover:bg-brand-950/10 disabled:opacity-50"
+                  >
+                    {c.name}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setShowCourierPicker(false)}
+                  className="text-xs font-medium px-3 py-1.5 rounded-full text-brand-950/50"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
 
           {showReciboMenu && (
             <div className="grid grid-cols-2 gap-1.5">
@@ -1272,11 +1344,7 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
           order={order}
           mode={paymentMode}
           onClose={() => setPaymentMode(null)}
-          onPaid={() => {
-            setPaymentMode(null);
-            onSaved();
-            onClose();
-          }}
+          onPaid={onSaved}
         />
       )}
     </Dialog>

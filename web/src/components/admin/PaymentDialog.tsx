@@ -142,17 +142,13 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
         discountPercent: discountPct > 0 ? discountPct : undefined,
         referenceNumber: needsReference ? referenceNumber.trim() : undefined,
       });
-      setSessionPayments((prev) => [
-        ...prev,
-        {
-          id: data.data?.id ?? `local-${prev.length}`,
-          amountBase: amountBase.toFixed(2),
-          method,
-          discountBase: discountPct > 0 ? round2(balanceBase - discountedBalance).toFixed(2) : null,
-          referenceNumber: needsReference ? referenceNumber.trim() : null,
-          createdAt: new Date().toISOString(),
-        },
-      ]);
+      // El endpoint devuelve el pedido completo (no solo el pago nuevo). Se identifica el/los
+      // pago(s) recién creados comparando contra los que ya conocíamos ANTES de este POST — así
+      // sessionPayments guarda el objeto real (mismo id que luego traerá `order.payments` al
+      // refrescar), en vez de uno inventado en el cliente que nunca podría des-duplicarse.
+      const freshPayments: LiveOrderPayment[] = data.data?.payments ?? [];
+      const newPayments = freshPayments.filter((fp) => !order.payments.some((p) => p.id === fp.id));
+      setSessionPayments((prev) => [...prev, ...newPayments]);
       onPaid();
       const remaining = balanceBase - amountBase;
       if (mode === 'full' || remaining <= 0.01) {
@@ -182,7 +178,11 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   }
 
   const remainingAfter = paidNow != null ? Math.max(0, balanceBase - paidNow) : balanceBase;
-  const allPayments = [...order.payments, ...sessionPayments];
+  // `order` es una prop que el padre mantiene sincronizada con el servidor (se refresca
+  // en segundo plano apenas hay datos nuevos) — una vez que ese refresco llega, el pago que
+  // acabamos de registrar aparece TANTO en `order.payments` como en `sessionPayments` (lo
+  // guardamos localmente para no depender de esa carrera). Se filtra por id para no duplicarlo.
+  const allPayments = [...order.payments, ...sessionPayments.filter((sp) => !order.payments.some((p) => p.id === sp.id))];
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
