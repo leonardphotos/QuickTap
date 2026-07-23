@@ -51,6 +51,8 @@ async function computeSummary(restaurantId: string, since: Date) {
         type: m.type,
         amountBase: m.amountBase.toFixed(2),
         description: m.description,
+        incomeCategory: m.incomeCategory,
+        paymentMethod: m.paymentMethod,
         createdByName: m.createdByUser?.name ?? null,
         createdAt: m.createdAt,
       })),
@@ -61,7 +63,10 @@ async function computeSummary(restaurantId: string, since: Date) {
 
 export const cashSessionService = {
   async getCurrent(restaurantId: string) {
-    return prisma.cashSession.findFirst({ where: { restaurantId, status: 'OPEN' } });
+    return prisma.cashSession.findFirst({
+      where: { restaurantId, status: 'OPEN' },
+      include: { openedByUser: { select: { name: true, role: true } } },
+    });
   },
 
   /** Botón "Abrir Caja": no puede haber dos sesiones abiertas a la vez. */
@@ -108,7 +113,7 @@ export const cashSessionService = {
           closeNumber,
           closingSummary: summary,
         },
-        include: { openedByUser: { select: { name: true } }, closedByUser: { select: { name: true } } },
+        include: { openedByUser: { select: { name: true, role: true } }, closedByUser: { select: { name: true, role: true } } },
       });
     });
   },
@@ -116,7 +121,7 @@ export const cashSessionService = {
   async getById(restaurantId: string, id: string) {
     const session = await prisma.cashSession.findFirst({
       where: { id, restaurantId },
-      include: { openedByUser: { select: { name: true } }, closedByUser: { select: { name: true } } },
+      include: { openedByUser: { select: { name: true, role: true } }, closedByUser: { select: { name: true, role: true } } },
     });
     if (!session) throw notFound('Cierre de caja no encontrado.');
     return session;

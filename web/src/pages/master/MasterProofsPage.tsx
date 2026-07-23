@@ -60,11 +60,27 @@ export default function MasterProofsPage() {
   // guardamos aquí el enlace listo para mostrar el confirm "¿Enviar por WhatsApp?".
   const [pendingWhatsapp, setPendingWhatsapp] = useState<Record<string, string | null>>({});
 
+  // Cuántas solicitudes PENDIENTES hay en CADA pestaña (inscripción/mensualidad), sin importar
+  // cuál esté abierta ahora — así nunca pasa que una solicitud "no llegue" simplemente porque
+  // quedó en la otra pestaña (ej: un restaurante ya autenticado pidiendo Sucursales crea una
+  // solicitud "por mensualidad", no "por inscripción").
+  const [pendingCounts, setPendingCounts] = useState<Record<'SIGNUP' | 'RENEWAL', number>>({ SIGNUP: 0, RENEWAL: 0 });
+
   function load() {
     masterApi.get('/master/plan-requests', { params: { kind, status } }).then((res) => setRequests(res.data.data));
   }
 
+  function loadPendingCounts() {
+    Promise.all([
+      masterApi.get('/master/plan-requests', { params: { kind: 'SIGNUP', status: 'PENDING' } }),
+      masterApi.get('/master/plan-requests', { params: { kind: 'RENEWAL', status: 'PENDING' } }),
+    ]).then(([signup, renewal]) => {
+      setPendingCounts({ SIGNUP: signup.data.data.length, RENEWAL: renewal.data.data.length });
+    });
+  }
+
   useEffect(load, [kind, status]);
+  useEffect(loadPendingCounts, []);
   useEffect(() => {
     masterApi.get('/master/restaurants').then((res) => setRestaurants(res.data.data));
   }, []);
@@ -80,6 +96,7 @@ export default function MasterProofsPage() {
       );
       setPendingWhatsapp((p) => ({ ...p, [req.id]: data.data.whatsappUrl }));
       load();
+      loadPendingCounts();
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No se pudo activar.');
     } finally {
@@ -94,6 +111,7 @@ export default function MasterProofsPage() {
       const { data } = await masterApi.post(`/master/plan-requests/${req.id}/reject`, { status: newStatus });
       setPendingWhatsapp((p) => ({ ...p, [req.id]: data.data.whatsappUrl }));
       load();
+      loadPendingCounts();
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No se pudo actualizar.');
     } finally {
@@ -108,6 +126,7 @@ export default function MasterProofsPage() {
     try {
       await masterApi.delete(`/master/plan-requests/${req.id}`);
       load();
+      loadPendingCounts();
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No se pudo eliminar.');
     } finally {
@@ -158,13 +177,22 @@ export default function MasterProofsPage() {
           <button
             key={t.kind}
             onClick={() => setKind(t.kind)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+            className={`flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
               kind === t.kind
                 ? 'bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]'
                 : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
             }`}
           >
             {t.label}
+            {pendingCounts[t.kind] > 0 && (
+              <span
+                className={`text-[10px] font-bold rounded-full h-5 min-w-5 px-1 flex items-center justify-center ${
+                  kind === t.kind ? 'bg-white text-brand-600' : 'bg-red-500 text-white'
+                }`}
+              >
+                {pendingCounts[t.kind]}
+              </span>
+            )}
           </button>
         ))}
       </div>

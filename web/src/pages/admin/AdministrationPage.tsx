@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { CashSessionControl } from '@/components/admin/CashSessionControl';
 import { ReportDialog } from '@/components/admin/ReportDialog';
 import { PAYMENT_LABELS as ALL_PAYMENT_LABELS } from '@/components/admin/PaymentDialog';
+import { IncomeFormDialog, INCOME_CATEGORY_LABELS, type IncomeCategory } from '@/components/admin/IncomeFormDialog';
 import type { PaymentMethod as AnyPaymentMethod } from '@/types';
 
 const BASE_TABS = [
@@ -75,6 +76,8 @@ interface MovementRow {
   type: 'INCOME' | 'EXPENSE';
   amountBase: string;
   description: string;
+  incomeCategory: IncomeCategory | null;
+  paymentMethod: AnyPaymentMethod | null;
   createdByName: string | null;
   createdAt: string;
 }
@@ -154,10 +157,10 @@ function SummaryTab() {
         <TextureButton
           variant="secondary"
           size="sm"
-          className="!w-auto"
+          className="!w-auto !text-emerald-600"
           onClick={() => setShowMovementDialog(true)}
         >
-          <Plus className="h-3.5 w-3.5" /> Añadir movimiento
+          <Plus className="h-3.5 w-3.5" /> Añadir ingreso
         </TextureButton>
       </div>
 
@@ -220,7 +223,11 @@ function SummaryTab() {
             {movements.movements.map((m) => (
               <div key={m.id} className="flex items-center justify-between gap-3 px-5 py-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-brand-950 truncate">{m.description}</p>
+                  <p className="text-sm font-medium text-brand-950 truncate">
+                    {m.description}
+                    {m.incomeCategory && <span className="text-brand-950/40"> · {INCOME_CATEGORY_LABELS[m.incomeCategory]}</span>}
+                    {m.paymentMethod && <span className="text-brand-950/40"> · {ALL_PAYMENT_LABELS[m.paymentMethod]}</span>}
+                  </p>
                   <p className="text-xs text-brand-950/40">
                     {new Date(m.createdAt).toLocaleString('es-VE')}
                     {m.createdByName && ` · ${m.createdByName}`}
@@ -246,7 +253,7 @@ function SummaryTab() {
       )}
 
       {showMovementDialog && (
-        <AddMovementDialog
+        <IncomeFormDialog
           onClose={() => setShowMovementDialog(false)}
           onCreated={() => {
             setShowMovementDialog(false);
@@ -660,95 +667,6 @@ function SaleDetailDialog({ sale, symbol, onClose }: { sale: UserSale; symbol: s
 
 /** Botón "Añadir movimiento": solo ingresos manuales (con "Propina" como atajo). Los egresos
  * se cargan siempre desde el módulo de Gastos, para que queden vinculados a categoría/proveedor. */
-function AddMovementDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [amount, setAmount] = useState('');
-  const [description, setDescription] = useState('');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  function pickTip() {
-    setDescription('Propina');
-  }
-
-  async function submit() {
-    const amountBase = Number(amount);
-    if (!amountBase || amountBase <= 0) {
-      setError('Escribe un monto válido.');
-      return;
-    }
-    if (!description.trim()) {
-      setError('Escribe una descripción.');
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      await api.post('/movements', { type: 'INCOME', amountBase, description: description.trim() });
-      onCreated();
-    } catch (e: any) {
-      setError(e.response?.data?.error ?? 'No se pudo guardar el movimiento.');
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Añadir movimiento (ingreso)</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              onClick={() => setDescription('')}
-              className={`text-xs font-medium px-3 py-1.5 rounded-full ${
-                description !== 'Propina' ? 'bg-emerald-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60'
-              }`}
-            >
-              Ingreso
-            </button>
-            <button
-              onClick={pickTip}
-              className={`text-xs font-medium px-3 py-1.5 rounded-full ${
-                description === 'Propina' ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60'
-              }`}
-            >
-              Propina
-            </button>
-          </div>
-
-          <div>
-            <p className="text-xs font-medium text-brand-950/50 mb-1.5">Monto</p>
-            <input
-              autoFocus
-              value={amount}
-              onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
-              placeholder="0.00"
-              className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-            />
-          </div>
-
-          <div>
-            <p className="text-xs font-medium text-brand-950/50 mb-1.5">Descripción</p>
-            <input
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Ej: Compra de insumos, propina en efectivo…"
-              className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-            />
-          </div>
-
-          {error && <p className="text-sm text-red-600">{error}</p>}
-
-          <TextureButton variant="brand" size="default" disabled={saving} onClick={submit} className="disabled:opacity-50">
-            {saving ? 'Guardando…' : 'Guardar movimiento'}
-          </TextureButton>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 // -----------------------------------------------------------------------------
 //  Historial de pedidos + propinas

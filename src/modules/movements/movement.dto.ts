@@ -13,6 +13,19 @@ const EXPENSE_CATEGORIES = [
   'OTHER',
 ] as const;
 
+const INCOME_CATEGORIES = ['TIP', 'DEBT', 'OTHER'] as const;
+
+const PAYMENT_METHODS = [
+  'MOBILE_PAYMENT',
+  'ZELLE',
+  'CASH',
+  'CASH_USD',
+  'CARD',
+  'BINANCE',
+  'PAYPAL',
+  'TRANSFER',
+] as const;
+
 /** Botón "Añadir movimiento" en Administración → Resumen: ingreso/egreso/propina manual.
  * También cubre el módulo de Gastos: categoría, proveedor, reabastecimiento de inventario y crédito. */
 export const createMovementSchema = z
@@ -23,6 +36,9 @@ export const createMovementSchema = z
     // moneda base del restaurante con la tasa BCV vigente antes de guardarlo.
     amountCurrency: z.enum(['BASE', 'BS']).optional().default('BASE'),
     description: z.string().min(1, 'Escribe una descripción.').max(200),
+    // Solo aplican cuando type = INCOME (botón "Añadir ingreso").
+    incomeCategory: z.enum(INCOME_CATEGORIES).optional(),
+    paymentMethod: z.enum(PAYMENT_METHODS).optional(),
     category: z.enum(EXPENSE_CATEGORIES).optional(),
     supplierId: z.string().optional(),
     // Si viene, además de registrar el gasto suma `inventoryQuantity` al insumo.

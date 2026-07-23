@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Copy } from 'lucide-react';
+import { ArrowLeft, Check, Copy } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
@@ -187,7 +187,21 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
-        <DialogHeader>
+        <DialogHeader className={showPrintPrompt || paidNow != null ? undefined : 'flex-row items-center gap-2 pr-6'}>
+          {/* Botón de retorno: solo antes de registrar el pago, para que el cajero pueda
+              salir y elegir otra modalidad (Pago/Fraccionado/Deuda) si el cliente cambia de
+              opinión sobre cómo va a pagar. Una vez registrado el pago ya no tiene sentido
+              "volver" — se cierra con "Cerrar"/"Sí, imprimir" más abajo. */}
+          {!showPrintPrompt && paidNow == null && (
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Volver"
+              className="shrink-0 h-8 w-8 rounded-full bg-brand-950/[0.06] hover:bg-brand-950/10 flex items-center justify-center focus:outline-none"
+            >
+              <ArrowLeft className="h-4 w-4 text-brand-950/70" />
+            </button>
+          )}
           <DialogTitle>{mode === 'full' ? 'Pagar' : 'Pago fraccionado'}</DialogTitle>
         </DialogHeader>
 

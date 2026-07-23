@@ -5,6 +5,8 @@ import { useAuth } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { formatBase } from '@/utils/format';
+import { ROLE_LABELS } from '@/utils/roles';
+import type { UserRole } from '@/types';
 import { CashSessionReceipt, PAYMENT_METHOD_LABELS, type CashSessionData, type CashSessionSummary } from './CashSessionReceipt';
 
 const PAYMENT_METHODS = ['CASH', 'MOBILE_PAYMENT', 'ZELLE', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER'];
@@ -41,7 +43,11 @@ export function CashSessionControl() {
         <TextureButton variant="secondary" size="sm" className="!w-auto" onClick={() => setClosingSession(session)}>
           <Lock className="h-3.5 w-3.5" /> Cerrar Caja
           <span className="text-[10px] text-brand-950/40 font-normal ml-1">
-            desde {new Date(session.openedAt).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })}
+            {session.openedByUser
+              ? `abierta por ${session.openedByUser.name} (${ROLE_LABELS[session.openedByUser.role as UserRole] ?? session.openedByUser.role}) · `
+              : ''}
+            {new Date(session.openedAt).toLocaleDateString('es-VE', { day: '2-digit', month: 'short' })}{' '}
+            {new Date(session.openedAt).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })}
           </span>
         </TextureButton>
       )}

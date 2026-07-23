@@ -7,7 +7,9 @@ import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ExpenseFormDialog, CATEGORY_LABELS, type ExpenseCategory } from './ExpenseFormDialog';
-import type { Currency } from '@/types';
+import { IncomeFormDialog, INCOME_CATEGORY_LABELS, type IncomeCategory } from './IncomeFormDialog';
+import { PAYMENT_LABELS } from './PaymentDialog';
+import type { Currency, PaymentMethod } from '@/types';
 
 interface TodaySummary {
   ordersCount: number;
@@ -29,6 +31,8 @@ interface MovementRow {
   amountBase: string;
   description: string;
   category: ExpenseCategory | null;
+  incomeCategory: IncomeCategory | null;
+  paymentMethod: PaymentMethod | null;
   supplier: { id: string; name: string } | null;
   inventoryItem: { id: string; name: string } | null;
   inventoryQuantity: string | null;
@@ -48,6 +52,7 @@ export function DailySalesSummary() {
   const [summary, setSummary] = useState<TodaySummary | null>(null);
   const [movements, setMovements] = useState<MovementRow[]>([]);
   const [showExpenseDialog, setShowExpenseDialog] = useState(false);
+  const [showIncomeDialog, setShowIncomeDialog] = useState(false);
   const [selectedMovement, setSelectedMovement] = useState<MovementRow | null>(null);
 
   function load() {
@@ -84,9 +89,24 @@ export function DailySalesSummary() {
       {/* Celular: tarjeta "Ventas de hoy" — fondo azul de marca a pantalla completa, con
           el desglose Balance/Ingresos/Egresos abajo, todo dentro de la misma ventana. */}
       <div className="lg:hidden w-full mb-4 rounded-[20px] bg-brand-500 shadow-sm px-4 py-4 text-left">
-        <div className="flex items-baseline justify-between mb-3">
-          <p className="text-sm font-semibold text-white">Ventas de hoy</p>
-          <span className="text-[11px] text-white/75">Hora de Caracas</span>
+        <div className="flex items-center justify-between mb-3 gap-2">
+          <p className="text-sm font-semibold text-white shrink-0">Ventas de hoy</p>
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => setShowExpenseDialog(true)}
+              className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full bg-white/15 text-amber-300 hover:bg-white/25 transition-colors whitespace-nowrap"
+            >
+              <Plus className="h-3 w-3" /> Egreso
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowIncomeDialog(true)}
+              className="flex items-center gap-1 text-[10px] font-semibold px-2 py-1 rounded-full bg-white/15 text-emerald-300 hover:bg-white/25 transition-colors whitespace-nowrap"
+            >
+              <Plus className="h-3 w-3" /> Ingreso
+            </button>
+          </div>
         </div>
 
         <div className="flex items-baseline gap-1.5">
@@ -129,15 +149,6 @@ export function DailySalesSummary() {
         </div>
       </div>
 
-      <TextureButton
-        variant="secondary"
-        size="sm"
-        className="!w-auto mb-8 lg:hidden flex items-center gap-1.5"
-        onClick={() => setShowExpenseDialog(true)}
-      >
-        <Plus className="h-3.5 w-3.5" /> Añadir egreso
-      </TextureButton>
-
       {/* Pantallas anchas: la ventana solo trae Balance/Ingresos/Egresos desglosados hacia
           abajo; "Añadir egreso" y los últimos movimientos quedan debajo, fuera de la ventana. */}
       <div className="hidden lg:block mb-4 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm px-5 py-4 text-left">
@@ -168,14 +179,24 @@ export function DailySalesSummary() {
       </div>
 
       <div className="hidden lg:block">
-        <TextureButton
-          variant="secondary"
-          size="sm"
-          className="!w-auto mb-4 flex items-center gap-1.5"
-          onClick={() => setShowExpenseDialog(true)}
-        >
-          <Plus className="h-3.5 w-3.5" /> Añadir egreso
-        </TextureButton>
+        <div className="flex items-center gap-2 mb-4">
+          <TextureButton
+            variant="secondary"
+            size="sm"
+            className="!w-auto flex items-center gap-1.5 !text-amber-600"
+            onClick={() => setShowExpenseDialog(true)}
+          >
+            <Plus className="h-3.5 w-3.5" /> Añadir egreso
+          </TextureButton>
+          <TextureButton
+            variant="secondary"
+            size="sm"
+            className="!w-auto flex items-center gap-1.5 !text-emerald-600"
+            onClick={() => setShowIncomeDialog(true)}
+          >
+            <Plus className="h-3.5 w-3.5" /> Añadir ingreso
+          </TextureButton>
+        </div>
 
         <p className="text-xs font-semibold text-brand-950/50 uppercase tracking-wide mb-2">Últimos movimientos</p>
         {movements.length === 0 ? (
@@ -215,6 +236,17 @@ export function DailySalesSummary() {
         />
       )}
 
+      {showIncomeDialog && (
+        <IncomeFormDialog
+          onClose={() => setShowIncomeDialog(false)}
+          onCreated={() => {
+            setShowIncomeDialog(false);
+            load();
+            loadMovements();
+          }}
+        />
+      )}
+
       {selectedMovement && (
         <MovementDetailDialog movement={selectedMovement} symbol={symbol} onClose={() => setSelectedMovement(null)} />
       )}
@@ -245,6 +277,18 @@ function MovementDetailDialog({ movement, symbol, onClose }: { movement: Movemen
             <div className="flex items-center justify-between">
               <span className="text-brand-950/50">Categoría</span>
               <span className="text-brand-950">{CATEGORY_LABELS[movement.category]}</span>
+            </div>
+          )}
+          {movement.incomeCategory && (
+            <div className="flex items-center justify-between">
+              <span className="text-brand-950/50">Tipo de ingreso</span>
+              <span className="text-brand-950">{INCOME_CATEGORY_LABELS[movement.incomeCategory]}</span>
+            </div>
+          )}
+          {movement.paymentMethod && (
+            <div className="flex items-center justify-between">
+              <span className="text-brand-950/50">Método de pago</span>
+              <span className="text-brand-950">{PAYMENT_LABELS[movement.paymentMethod]}</span>
             </div>
           )}
           {movement.supplier && (

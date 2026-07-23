@@ -42,7 +42,13 @@ interface RestaurantDetail {
   }[];
 }
 
-const PLAN_OPTIONS = ['DELIVERY', 'PRO'] as const;
+const PLAN_OPTIONS = ['DELIVERY', 'PRO', 'SUCURSALES', 'DELIVERY_SUCURSALES'] as const;
+const PLAN_OPTION_LABELS: Record<(typeof PLAN_OPTIONS)[number], string> = {
+  DELIVERY: 'DELIVERY — Solo Delivery',
+  PRO: 'PRO — Plan Pro',
+  SUCURSALES: 'SUCURSALES — Plan Sucursales',
+  DELIVERY_SUCURSALES: 'DELIVERY_SUCURSALES — Delivery Sucursales',
+};
 const CYCLE_OPTIONS = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL'] as const;
 
 export default function MasterRestaurantDetailPage() {
@@ -230,7 +236,7 @@ export default function MasterRestaurantDetailPage() {
               >
                 {PLAN_OPTIONS.map((p) => (
                   <option key={p} value={p}>
-                    {p}
+                    {PLAN_OPTION_LABELS[p]}
                   </option>
                 ))}
               </select>

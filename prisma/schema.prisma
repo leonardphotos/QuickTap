@@ -44,6 +44,13 @@ enum MovementType {
   EXPENSE
 }
 
+// Tipo de un ingreso manual (botón "Añadir ingreso" en Ventas de hoy / Administración).
+enum IncomeCategory {
+  TIP // Propina
+  DEBT // Cobro de una deuda pendiente del cliente
+  OTHER // Otro ingreso
+}
+
 // Categoría de un egreso (módulo de Gastos en Administración).
 enum ExpenseCategory {
   UTILITIES // Servicios públicos
@@ -856,6 +863,10 @@ model Movement {
   description     String
   createdByUserId String?
   createdAt       DateTime     @default(now())
+
+  // --- Botón "Añadir ingreso" (solo aplica cuando type = INCOME) ---
+  incomeCategory IncomeCategory?
+  paymentMethod  PaymentMethod?
 
   // --- Módulo de Gastos (todos opcionales; no afectan ingresos/propinas) ---
   category           ExpenseCategory?

@@ -1,6 +1,9 @@
 import { forwardRef, type CSSProperties } from 'react';
 import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
-import type { Currency } from '@/types';
+import { ROLE_LABELS } from '@/utils/roles';
+import { INCOME_CATEGORY_LABELS, type IncomeCategory } from './IncomeFormDialog';
+import { PAYMENT_LABELS } from './PaymentDialog';
+import type { Currency, PaymentMethod, UserRole } from '@/types';
 
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   MOBILE_PAYMENT: 'Pago Móvil',
@@ -18,7 +21,16 @@ export interface CashSessionSummary {
   movements: {
     totalIncome: string;
     totalExpense: string;
-    list: { id: string; type: 'INCOME' | 'EXPENSE'; amountBase: string; description: string; createdByName: string | null; createdAt: string }[];
+    list: {
+      id: string;
+      type: 'INCOME' | 'EXPENSE';
+      amountBase: string;
+      description: string;
+      incomeCategory: IncomeCategory | null;
+      paymentMethod: PaymentMethod | null;
+      createdByName: string | null;
+      createdAt: string;
+    }[];
   };
   totalNet: string;
 }
@@ -30,8 +42,8 @@ export interface CashSessionData {
   closedAt: string | null;
   openingBalances: Record<string, string | number>;
   closingSummary: CashSessionSummary | null;
-  openedByUser: { name: string } | null;
-  closedByUser: { name: string } | null;
+  openedByUser: { name: string; role: string } | null;
+  closedByUser: { name: string; role: string } | null;
 }
 
 interface Props {
@@ -99,13 +111,17 @@ export const CashSessionReceipt = forwardRef<HTMLDivElement, Props>(({ session, 
         {session.openedByUser && (
           <div style={rowGap}>
             <span>Abierta por</span>
-            <span>{session.openedByUser.name}</span>
+            <span>
+              {session.openedByUser.name} ({ROLE_LABELS[session.openedByUser.role as UserRole] ?? session.openedByUser.role})
+            </span>
           </div>
         )}
         {session.closedByUser && (
           <div style={rowGap}>
             <span>Cerrada por</span>
-            <span>{session.closedByUser.name}</span>
+            <span>
+              {session.closedByUser.name} ({ROLE_LABELS[session.closedByUser.role as UserRole] ?? session.closedByUser.role})
+            </span>
           </div>
         )}
       </div>
@@ -144,7 +160,11 @@ export const CashSessionReceipt = forwardRef<HTMLDivElement, Props>(({ session, 
               <div style={list}>
                 {summary.movements.list.map((m) => (
                   <div key={m.id} style={listRow}>
-                    <span>{m.description}</span>
+                    <span>
+                      {m.description}
+                      {m.incomeCategory && ` · ${INCOME_CATEGORY_LABELS[m.incomeCategory]}`}
+                      {m.paymentMethod && ` · ${PAYMENT_LABELS[m.paymentMethod]}`}
+                    </span>
                     <span style={{ color: m.type === 'INCOME' ? EMERALD_700 : RED_700 }}>
                       {m.type === 'INCOME' ? '+' : '−'}
                       {formatBase(m.amountBase, symbol)}
