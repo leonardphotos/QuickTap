@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import type { DeliveryZone } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
-import { AddressAutocomplete } from '@/components/AddressAutocomplete';
+import { AddressAutocomplete, reverseGeocode } from '@/components/AddressAutocomplete';
 
 // Los íconos por defecto de Leaflet se rompen con bundlers (rutas relativas al CSS).
 // No usamos marcador de ícono personalizado, así que no hace falta arreglarlo aquí.
@@ -43,9 +43,16 @@ export function DeliveryPricingSection() {
     setGettingLocation(true);
     setError(null);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setOriginLat(pos.coords.latitude);
-        setOriginLng(pos.coords.longitude);
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
+        setOriginLat(latitude);
+        setOriginLng(longitude);
+        // El campo de dirección nunca debe quedar vacío tras tomar la ubicación —
+        // si no se había escrito nada, se rellena con la dirección legible (o, si
+        // falla el reverse geocoding, con las coordenadas).
+        if (!originAddress.trim()) {
+          setOriginAddress(await reverseGeocode(latitude, longitude));
+        }
         setGettingLocation(false);
       },
       () => {

@@ -6,7 +6,7 @@ import { CURRENCY_SYMBOLS, cartLineUnitPrice, formatBase, formatBs } from '@/uti
 import type { CartLine, Customer, FloorPlan, Product } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
-import { AddressAutocomplete } from '@/components/AddressAutocomplete';
+import { AddressAutocomplete, reverseGeocode } from '@/components/AddressAutocomplete';
 import { CustomerPicker } from './CustomerPicker';
 import { ProductOptionsDialog } from './ProductOptionsDialog';
 import type { LiveOrder } from './LiveOrdersPanel';
@@ -97,9 +97,15 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
     setGettingLocation(true);
     setLocationError(null);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
         const { latitude, longitude } = pos.coords;
         setAddressCoords({ lat: latitude, lng: longitude });
+        // El campo de dirección nunca debe quedar vacío tras tomar la ubicación —
+        // si no se había escrito nada, se rellena con la dirección legible (o, si
+        // falla el reverse geocoding, con las coordenadas).
+        if (!customerAddress.trim()) {
+          setCustomerAddress(await reverseGeocode(latitude, longitude));
+        }
         setGettingLocation(false);
       },
       () => {

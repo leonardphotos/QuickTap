@@ -4,7 +4,7 @@ import { api } from '../../api/client';
 import type { CartLine, PaymentMethod, Restaurant } from '../../types';
 import { cartLineUnitPrice, publicPriceLabel } from '../../utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
-import { AddressAutocomplete } from '@/components/AddressAutocomplete';
+import { AddressAutocomplete, reverseGeocode } from '@/components/AddressAutocomplete';
 import {
   FamilyDrawerRoot,
   FamilyDrawerPortal,
@@ -268,10 +268,17 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
     setGettingLocation(true);
     setLocationError(null);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
         const { latitude, longitude } = pos.coords;
         setLocationUrl(`https://www.google.com/maps?q=${latitude},${longitude}`);
         setLocationCoords({ lat: latitude, lng: longitude });
+        // El campo de dirección nunca debe quedar vacío tras tomar la ubicación —
+        // si el cliente no había escrito nada, se rellena con la dirección legible
+        // (o, si falla el reverse geocoding, con las coordenadas) para que se note
+        // que sí quedó algo cargado.
+        if (!address.trim()) {
+          setAddress(await reverseGeocode(latitude, longitude));
+        }
         setGettingLocation(false);
       },
       () => {
