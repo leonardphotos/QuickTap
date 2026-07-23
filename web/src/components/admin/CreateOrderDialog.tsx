@@ -11,11 +11,6 @@ import { CustomerPicker } from './CustomerPicker';
 import { ProductOptionsDialog } from './ProductOptionsDialog';
 import type { LiveOrder } from './LiveOrdersPanel';
 
-/** Necesita abrir el selector de variante/modificadores en vez del stepper directo +/-. */
-function needsPicker(product: Product): boolean {
-  return product.pricingMode === 'VARIANTS' || (product.modifierCategories ?? []).some((c) => c.isRequired);
-}
-
 interface ExistingOrderOption {
   id: string;
   orderNumber: number;
@@ -193,18 +188,6 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
     const query = existingSearch.trim().toLowerCase();
     return nonDineInExistingOrders.filter((o) => matchesSearch(o, query));
   }, [nonDineInExistingOrders, existingSearch]);
-
-  /** Solo para productos SIMPLE (sin variantes/modificadores obligatorios): stepper directo +/-. */
-  function setSimpleQty(product: Product, quantity: number) {
-    setLines((prev) => {
-      const idx = prev.findIndex((l) => l.product.id === product.id && !l.variantId && l.selectedModifiers.length === 0);
-      if (quantity <= 0) return idx === -1 ? prev : prev.filter((_, i) => i !== idx);
-      if (idx === -1) return [...prev, { product, quantity, selectedModifiers: [] }];
-      const next = [...prev];
-      next[idx] = { ...next[idx], quantity };
-      return next;
-    });
-  }
 
   /** Línea armada en ProductOptionsDialog (con variante/modificadores elegidos): se fusiona con una idéntica si existe. */
   function addPickedLine(line: CartLine) {
@@ -482,52 +465,30 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                   ))}
                 </div>
 
-                <div className="grid grid-cols-2 gap-2.5 max-h-64 overflow-y-auto pt-1">
+                <div className="grid grid-cols-2 gap-3 max-h-[26rem] overflow-y-auto pt-1">
                   {filteredProducts.map((p) => {
                     const qty = lines.filter((l) => l.product.id === p.id).reduce((acc, l) => acc + l.quantity, 0);
-                    const withPicker = needsPicker(p);
                     return (
                       <div
                         key={p.id}
-                        className={`rounded-xl border p-2.5 space-y-1.5 ${qty > 0 ? 'border-brand-400/50 bg-brand-500/5' : 'border-brand-950/10'}`}
+                        className={`rounded-xl border p-3 space-y-2 ${qty > 0 ? 'border-brand-400/50 bg-brand-500/5' : 'border-brand-950/10'}`}
                       >
-                        <div className="flex items-center gap-2">
-                          {p.photoUrl ? (
-                            <img src={p.photoUrl} alt="" className="h-10 w-10 rounded-lg object-cover shrink-0" />
-                          ) : (
-                            <div className="h-10 w-10 rounded-lg bg-brand-950/5 shrink-0" />
-                          )}
-                          <div className="min-w-0">
-                            <p className="text-xs font-medium text-brand-950 truncate">{p.name}</p>
-                            <p className="text-xs text-brand-950/50">{formatBase(p.price, symbol)}</p>
-                          </div>
-                        </div>
-                        {withPicker ? (
-                          <button
-                            type="button"
-                            onClick={() => setOptionsProduct(p)}
-                            className="w-full flex items-center justify-center gap-1 rounded-lg border border-brand-500/40 text-brand-500 text-xs font-medium py-1"
-                          >
-                            {qty > 0 ? `${qty} agregado${qty > 1 ? 's' : ''} · Agregar más` : 'Elegir opciones'}
-                          </button>
+                        {p.photoUrl ? (
+                          <img src={p.photoUrl} alt="" className="h-24 w-full rounded-lg object-cover" />
                         ) : (
-                          <div className="flex items-center justify-center gap-2">
-                            <button
-                              onClick={() => setSimpleQty(p, qty - 1)}
-                              disabled={qty === 0}
-                              className="w-6 h-6 rounded-full border border-brand-950/20 font-bold text-brand-950 text-xs disabled:opacity-30"
-                            >
-                              −
-                            </button>
-                            <span className="w-5 text-center text-xs font-medium">{qty}</span>
-                            <button
-                              onClick={() => setSimpleQty(p, qty + 1)}
-                              className="w-6 h-6 rounded-full border border-brand-950/20 font-bold text-brand-950 text-xs"
-                            >
-                              +
-                            </button>
-                          </div>
+                          <div className="h-24 w-full rounded-lg bg-brand-950/5" />
                         )}
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-brand-950 truncate">{p.name}</p>
+                          <p className="text-sm text-brand-950/50">{formatBase(p.price, symbol)}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setOptionsProduct(p)}
+                          className="w-full flex items-center justify-center gap-1 rounded-lg border border-brand-500/40 text-brand-500 text-xs font-medium py-1.5"
+                        >
+                          {qty > 0 ? `${qty} agregado${qty > 1 ? 's' : ''} · Añadir más` : 'Añadir'}
+                        </button>
                       </div>
                     );
                   })}
