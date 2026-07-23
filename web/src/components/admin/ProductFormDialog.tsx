@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Plus, Trash2, X } from 'lucide-react';
+import { Eye, EyeOff, Plus, Trash2, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { hasFeature } from '@/utils/subscription';
@@ -427,7 +427,7 @@ function VariantRow({
 
   return (
     <div className="rounded-lg border border-brand-950/10 p-2 space-y-1.5">
-      <div className="grid grid-cols-[1fr_auto_auto] gap-1.5 items-center">
+      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-1.5 items-center">
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -443,6 +443,14 @@ function VariantRow({
             className="w-16 text-sm border border-brand-950/15 rounded-lg px-2 py-1.5"
           />
         </div>
+        <button
+          type="button"
+          onClick={() => onSave(variant.id, { isAvailable: !variant.isAvailable })}
+          title={variant.isAvailable ? 'Ocultar' : 'Mostrar'}
+          className={variant.isAvailable ? 'text-brand-500' : 'text-brand-950/25'}
+        >
+          {variant.isAvailable ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+        </button>
         <button type="button" onClick={() => onRemove(variant.id)} className="text-brand-950/30 hover:text-red-500">
           <Trash2 className="h-3.5 w-3.5" />
         </button>
