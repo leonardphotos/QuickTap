@@ -3,7 +3,6 @@ import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import { BellRing, Receipt } from 'lucide-react';
 import { api, getToken } from '@/api/client';
-import { useAuth } from '@/context/AuthContext';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import type { ServiceRequestType, TableItem } from '@/types';
@@ -14,11 +13,13 @@ interface PendingAlert {
   type: ServiceRequestType;
 }
 
-/** Aviso emergente centrado cuando una mesa asignada a este mesero llama o pide la cuenta
+/** Aviso emergente centrado cuando cualquier mesa llama al mesero o pide la cuenta
  * (hoy esos eventos solo prenden un ícono pasivo en "Órdenes de Mesa" — este componente
- * los hace imposibles de ignorar). Reutiliza el mismo evento/endpoint que ya existe. */
+ * los hace imposibles de ignorar). Le aparece a TODOS los meseros conectados, sin importar
+ * si la mesa tiene un mesero asignado, porque el llamado es urgente y cualquiera puede
+ * atenderlo; en cuanto uno lo atiende, el evento table:service-ack cierra el aviso a los demás.
+ * Reutiliza el mismo evento/endpoint que ya existe. */
 export function TableServiceAlert() {
-  const { user } = useAuth();
   const [alert, setAlert] = useState<PendingAlert | null>(null);
   const tablesRef = useRef<TableItem[]>([]);
 
@@ -31,8 +32,7 @@ export function TableServiceAlert() {
 
     socket.on('table:service-request', (payload: { tableId: string; type: ServiceRequestType }) => {
       const table = tablesRef.current.find((t) => t.id === payload.tableId);
-      if (!table || table.assignedWaiterId !== user?.id) return;
-      setAlert({ tableId: payload.tableId, tableNumber: table.number, type: payload.type });
+      setAlert({ tableId: payload.tableId, tableNumber: table?.number ?? '', type: payload.type });
       new Audio('/sounds/notification.mp3').play().catch(() => {});
     });
 
@@ -43,7 +43,7 @@ export function TableServiceAlert() {
     return () => {
       socket.disconnect();
     };
-  }, [user?.id]);
+  }, []);
 
   async function attend() {
     if (!alert) return;
