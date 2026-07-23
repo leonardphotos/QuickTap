@@ -5,6 +5,7 @@ import type { Socket } from 'socket.io-client';
 import {
   Check,
   ChefHat,
+  ChevronLeft,
   Clock,
   CreditCard,
   Download,
@@ -20,7 +21,7 @@ import {
 import { api, getToken } from '@/api/client';
 import type { CartLine, DeliveryCourier, Product } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
 import { CreateOrderDialog } from './CreateOrderDialog';
 import { PaymentDialog } from './PaymentDialog';
@@ -98,6 +99,12 @@ function needsPicker(product: Product): boolean {
 }
 
 const isMobileDevice = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+/** Resumen "hace X min" para la tarjeta compacta de celular. */
+function timeAgo(iso: string) {
+  const secs = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
+  return secs < 60 ? `hace ${secs}s` : `hace ${Math.floor(secs / 60)} min`;
+}
 
 /**
  * Navega la pestaña abierta con `window.open('', '_blank')` a `url` (WhatsApp,
@@ -484,6 +491,14 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
                 );
               })()}
 
+              {/* En celular la tarjeta es solo un resumen — todas las acciones (pagar,
+                  imprimir, aceptar/cancelar, etc.) viven en la hoja de "Editar pedido"
+                  que se abre al tocarla. En escritorio se mantiene la tarjeta completa. */}
+              <p className="lg:hidden text-xs text-brand-950/50 truncate">
+                {o.items.map((it) => `${it.quantity}x ${it.productName}`).join(', ') || 'Sin productos'} · {timeAgo(o.createdAt)}
+              </p>
+
+              <div className="hidden lg:block">
               <ul className="text-sm space-y-0.5 font-light mb-2">
                 {o.items.map((it) => (
                   <li key={it.id}>
@@ -627,6 +642,7 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
                   </button>
                 </div>
               )}
+              </div>
             </div>
             );
           })}
@@ -710,6 +726,8 @@ interface EditOrderDialogProps {
 export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrderDialogProps) {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
+  const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
+  const { fullyPaid } = getPaymentStatus(order);
   const [name, setName] = useState(order.customerName ?? '');
   const [phone, setPhone] = useState(order.customerPhone ?? '');
   const [address, setAddress] = useState(order.customerAddress ?? '');
@@ -728,6 +746,9 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
   const [downloading, setDownloading] = useState(false);
   const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
   const [showReciboMenu, setShowReciboMenu] = useState(false);
+  const [showPayMenu, setShowPayMenu] = useState(false);
+  const [paymentMode, setPaymentMode] = useState<'full' | 'split' | null>(null);
+  const [markingDebt, setMarkingDebt] = useState(false);
   const receiptRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -791,6 +812,19 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
       setError(e.response?.data?.error ?? 'No se pudo enviar la comanda por WhatsApp.');
     } finally {
       setSendingWhatsapp(false);
+    }
+  }
+
+  /** Botón "Deuda" del disclosure de Pago: marca el pedido como cuenta abierta
+   * (mismo endpoint que el toggle Cta. abierta/Pendiente de la tarjeta). */
+  async function markDebt() {
+    setMarkingDebt(true);
+    try {
+      await api.patch(`/orders/${order.id}/awaiting-payment`, { awaitingPayment: true });
+      onSaved();
+    } finally {
+      setMarkingDebt(false);
+      setShowPayMenu(false);
     }
   }
 
@@ -900,9 +934,23 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Editar pedido #{order.orderNumber}</DialogTitle>
+      {/* En celular sube como una hoja desde abajo (más cómoda para el pulgar que un
+          modal centrado); en pantallas sm+ se mantiene el modal centrado de siempre. */}
+      <DialogContent
+        hideClose
+        className="inset-x-0 left-0 bottom-0 top-auto max-w-none translate-x-0 translate-y-0 rounded-b-none rounded-t-[28px] max-h-[92vh] pb-[max(1.5rem,env(safe-area-inset-bottom))] data-[state=open]:animate-sheet-in data-[state=closed]:animate-sheet-out sm:inset-auto sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[24px] sm:max-h-[85vh] sm:pb-6 sm:data-[state=open]:animate-scale-in sm:data-[state=closed]:animate-scale-out"
+      >
+        <DialogHeader className="flex-row items-center gap-3 pr-0">
+          {/* Celular: chevron atrás, como la hoja del mockup. Escritorio: X de siempre, arriba a la derecha. */}
+          <DialogClose className="sm:hidden shrink-0 h-8 w-8 rounded-full bg-brand-950/[0.06] hover:bg-brand-950/10 flex items-center justify-center focus:outline-none">
+            <ChevronLeft className="h-4 w-4 text-brand-950/70" />
+            <span className="sr-only">Cerrar</span>
+          </DialogClose>
+          <DialogTitle className="flex-1 sm:pr-6">Editar pedido #{order.orderNumber}</DialogTitle>
+          <DialogClose className="hidden sm:flex absolute right-4 top-4 rounded-full p-1 text-brand-950/40 hover:text-brand-950 hover:bg-brand-950/5 transition-colors focus:outline-none">
+            <X className="h-4 w-4" />
+            <span className="sr-only">Cerrar</span>
+          </DialogClose>
         </DialogHeader>
         {mesaFooter && <div className="space-y-2 pb-2 border-b border-brand-950/10">{mesaFooter}</div>}
         <div className="space-y-4 max-h-[70vh] overflow-y-auto">
@@ -1144,6 +1192,48 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
               </button>
             </div>
           )}
+
+          {/* Pago: solo en celular — en escritorio la tarjeta de "Pedidos en vivo" ya
+              tiene Pagar/Fraccionado/Cta.abierta a la mano sin abrir esta hoja. */}
+          <div className="sm:hidden">
+            {fullyPaid ? (
+              <p className="text-sm text-emerald-600 font-medium text-center">✓ Pagado</p>
+            ) : (
+              <>
+                <button
+                  onClick={() => setShowPayMenu((s) => !s)}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-white text-sm font-semibold py-3 transition-colors"
+                >
+                  <CreditCard className="h-4 w-4" /> Pagar
+                </button>
+                {showPayMenu && (
+                  <div className={`grid ${canAccountsPayable ? 'grid-cols-3' : 'grid-cols-2'} gap-1.5 mt-2`}>
+                    <button
+                      onClick={() => setPaymentMode('full')}
+                      className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-[11px] font-medium py-2.5 transition-colors"
+                    >
+                      <CreditCard className="h-4 w-4 text-brand-500" /> Pago
+                    </button>
+                    <button
+                      onClick={() => setPaymentMode('split')}
+                      className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-[11px] font-medium py-2.5 transition-colors"
+                    >
+                      <SplitSquareHorizontal className="h-4 w-4 text-brand-500" /> Pago fraccionado
+                    </button>
+                    {canAccountsPayable && (
+                      <button
+                        onClick={markDebt}
+                        disabled={markingDebt}
+                        className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-[11px] font-medium py-2.5 transition-colors disabled:opacity-50"
+                      >
+                        <Clock className="h-4 w-4 text-amber-600" /> Deuda
+                      </button>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
 
         <div className="fixed -left-[9999px] top-0">
@@ -1176,6 +1266,19 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
             />
           );
         })()}
+
+      {paymentMode && (
+        <PaymentDialog
+          order={order}
+          mode={paymentMode}
+          onClose={() => setPaymentMode(null)}
+          onPaid={() => {
+            setPaymentMode(null);
+            onSaved();
+            onClose();
+          }}
+        />
+      )}
     </Dialog>
   );
 }

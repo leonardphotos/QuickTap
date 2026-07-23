@@ -81,53 +81,62 @@ export function DailySalesSummary() {
 
   return (
     <div className="w-full">
-      {/* Celular: tarjeta compacta de 3 columnas, todo dentro de la misma ventana. */}
-      <div className="lg:hidden w-full mb-8 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm px-5 py-4 text-left">
-        <div className="flex items-center gap-2 mb-3">
-          <TrendingUp className="h-5 w-5 text-brand-500" />
-          <p className="text-sm font-semibold text-brand-950">Movimientos del día</p>
+      {/* Celular: tarjeta "Ventas de hoy" — fondo azul de marca a pantalla completa, con
+          el desglose Balance/Ingresos/Egresos abajo, todo dentro de la misma ventana. */}
+      <div className="lg:hidden w-full mb-4 rounded-[20px] bg-brand-500 shadow-sm px-4 py-4 text-left">
+        <div className="flex items-baseline justify-between mb-3">
+          <p className="text-sm font-semibold text-white">Ventas de hoy</p>
+          <span className="text-[11px] text-white/75">Hora de Caracas</span>
         </div>
 
-        <div className="grid grid-cols-3 gap-2">
+        <div className="flex items-baseline gap-1.5">
+          <p className="text-[26px] font-bold text-white tracking-tight">{formatBase(summary.ingresosBase, symbol)}</p>
+          <span className="text-[13px] font-medium text-white/75">· {formatBsAbsolute(summary.ingresosBs)}</span>
+        </div>
+        <p className="text-[11.5px] text-white/80 mt-0.5">
+          {summary.ordersCount} pedido{summary.ordersCount === 1 ? '' : 's'} completado{summary.ordersCount === 1 ? '' : 's'}
+        </p>
+
+        {channels.length > 0 && (
+          <div className="flex gap-1.5 mt-3.5">
+            {channels.map(([channel, count]) => (
+              <span
+                key={channel}
+                className="flex-1 text-center text-[9.5px] font-semibold px-1 py-1.5 rounded-full bg-white text-brand-500 whitespace-nowrap"
+              >
+                {CHANNEL_LABEL[channel] ?? channel} · {count}
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="grid grid-cols-3 gap-2 mt-4 pt-3.5 border-t border-white/25">
           <div>
-            <p className="text-lg font-semibold text-emerald-600">{formatBsAbsolute(summary.ingresosBs)}</p>
-            <p className="text-[11px] text-brand-950/40 font-light">{formatBase(summary.ingresosBase, symbol)}</p>
-            <p className="text-[11px] text-brand-950/50 font-medium mt-0.5">Ingresos</p>
+            <p className="text-[9.5px] font-semibold text-white uppercase tracking-wide">Balance</p>
+            <p className="text-[13.5px] font-semibold text-white mt-0.5">{formatBase(summary.balanceBase, symbol)}</p>
+            <p className="text-[9.5px] font-medium text-white/70">{formatBsAbsolute(summary.balanceBs)}</p>
           </div>
           <div>
-            <p className="text-lg font-semibold text-red-600">{formatBsAbsolute(summary.egresosBs)}</p>
-            <p className="text-[11px] text-brand-950/40 font-light">{formatBase(summary.egresosBase, symbol)}</p>
-            <p className="text-[11px] text-brand-950/50 font-medium mt-0.5">Egresos</p>
+            <p className="text-[9.5px] font-semibold text-white uppercase tracking-wide">Ingresos</p>
+            <p className="text-[13.5px] font-semibold text-emerald-300 mt-0.5">{formatBase(summary.ingresosBase, symbol)}</p>
+            <p className="text-[9.5px] font-medium text-white/70">{formatBsAbsolute(summary.ingresosBs)}</p>
           </div>
           <div>
-            <p className={`text-lg font-semibold ${Number(summary.balanceBase) < 0 ? 'text-red-600' : 'text-brand-950'}`}>
-              {formatBsAbsolute(summary.balanceBs)}
-            </p>
-            <p className="text-[11px] text-brand-950/40 font-light">{formatBase(summary.balanceBase, symbol)}</p>
-            <p className="text-[11px] text-brand-950/50 font-medium mt-0.5">Balance</p>
+            <p className="text-[9.5px] font-semibold text-white uppercase tracking-wide">Egresos</p>
+            <p className="text-[13.5px] font-semibold text-amber-300 mt-0.5">{formatBase(summary.egresosBase, symbol)}</p>
+            <p className="text-[9.5px] font-medium text-white/70">{formatBsAbsolute(summary.egresosBs)}</p>
           </div>
         </div>
-
-        <div className="flex items-center gap-2 mt-3 flex-wrap">
-          <span className="text-xs bg-brand-950/[0.06] text-brand-950/70 px-2.5 py-1 rounded-full font-medium">
-            {summary.ordersCount} pedido{summary.ordersCount === 1 ? '' : 's'}
-          </span>
-          {channels.map(([channel, count]) => (
-            <span key={channel} className="text-xs bg-brand-950/[0.06] text-brand-950/60 px-2.5 py-1 rounded-full">
-              {CHANNEL_LABEL[channel] ?? channel}: {count}
-            </span>
-          ))}
-        </div>
-
-        <TextureButton
-          variant="secondary"
-          size="sm"
-          className="!w-auto mt-3 flex items-center gap-1.5"
-          onClick={() => setShowExpenseDialog(true)}
-        >
-          <Plus className="h-3.5 w-3.5" /> Añadir egreso
-        </TextureButton>
       </div>
+
+      <TextureButton
+        variant="secondary"
+        size="sm"
+        className="!w-auto mb-8 lg:hidden flex items-center gap-1.5"
+        onClick={() => setShowExpenseDialog(true)}
+      >
+        <Plus className="h-3.5 w-3.5" /> Añadir egreso
+      </TextureButton>
 
       {/* Pantallas anchas: la ventana solo trae Balance/Ingresos/Egresos desglosados hacia
           abajo; "Añadir egreso" y los últimos movimientos quedan debajo, fuera de la ventana. */}

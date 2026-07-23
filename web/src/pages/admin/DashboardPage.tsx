@@ -9,6 +9,21 @@ import { DailySalesSummary } from '@/components/admin/DailySalesSummary';
 import { LiveOrdersPanel } from '@/components/admin/LiveOrdersPanel';
 import { NavMenuDrawer } from '@/components/admin/NavMenuDrawer';
 import { TextureButton } from '@/components/ui/texture-button';
+import { dashboardSectionLinks } from './nav-links';
+
+// Colores rotativos para los íconos de "Accesos rápidos" — solo distinguen
+// visualmente una sección de otra, no tienen significado propio (a diferencia
+// de los chips de estado de pedido/mesa, que sí usan color con significado).
+const SHORTCUT_COLORS = [
+  'bg-brand-500/10 text-brand-600',
+  'bg-emerald-100 text-emerald-700',
+  'bg-amber-100 text-amber-700',
+  'bg-sky-100 text-sky-700',
+  'bg-violet-100 text-violet-700',
+  'bg-rose-100 text-rose-700',
+  'bg-teal-100 text-teal-700',
+  'bg-orange-100 text-orange-700',
+];
 
 const PLAN_LABELS: Record<string, string> = {
   DELIVERY: 'Solo Delivery',
@@ -31,6 +46,8 @@ export default function DashboardPage() {
   const planLabel = restaurant.subscriptionPlan ? (PLAN_LABELS[restaurant.subscriptionPlan] ?? restaurant.subscriptionPlan) : null;
   const daysLeft = daysRemaining(restaurant.periodEnd);
   const graceHours = graceHoursRemaining(restaurant.periodEnd);
+
+  const shortcuts = dashboardSectionLinks(user?.role, restaurant, user?.canAccessInventory);
 
   const expiryLabel =
     trialDaysLeft !== null
@@ -94,6 +111,26 @@ export default function DashboardPage() {
             </TextureButton>
           </a>
           {isAdminCashier(user?.role) && <DailySalesSummary />}
+
+          {/* Solo en celular: en escritorio ya está la barra lateral con estas mismas
+              secciones, así que esta cuadrícula sería redundante ahí. */}
+          {shortcuts.length > 0 && (
+            <div className="w-full mt-5 lg:hidden">
+              <h3 className="text-sm font-semibold text-brand-950/70 mb-3 text-left">Accesos rápidos</h3>
+              <div className="grid grid-cols-4 gap-3">
+                {shortcuts.map(({ to, label, icon: Icon }, i) => (
+                  <Link key={to} to={to} className="flex flex-col items-center gap-1.5 text-center">
+                    <span
+                      className={`flex h-12 w-12 items-center justify-center rounded-2xl ${SHORTCUT_COLORS[i % SHORTCUT_COLORS.length]}`}
+                    >
+                      <Icon className="h-5 w-5" />
+                    </span>
+                    <span className="text-[11px] font-medium text-brand-950/70 leading-tight">{label}</span>
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <div className="w-full lg:flex-1 lg:min-w-0">
           <LiveOrdersPanel />

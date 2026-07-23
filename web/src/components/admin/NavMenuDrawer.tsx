@@ -24,7 +24,12 @@ export function NavMenuDrawer({ open, onClose }: { open: boolean; onClose: () =>
   // esconde el diálogo antes de que el usuario llegue a verlo.
   if (!restaurant) return null;
 
-  const links = visibleNavLinks(user?.role, restaurant, user?.canAccessInventory);
+  // Las secciones del panel (Cocina, Delivery, Productos, etc.) ya viven en la
+  // cuadrícula de "Accesos rápidos" del Dashboard y en la barra/dock de navegación —
+  // este menú queda solo para Ajustes y lo secundario, para no duplicarlas.
+  const settingsLink = visibleNavLinks(user?.role, restaurant, user?.canAccessInventory).find(
+    (l) => l.to === '/admin/settings',
+  );
   const isTrialing = restaurant.subscriptionStatus === 'TRIALING';
 
   return (
@@ -56,17 +61,16 @@ export function NavMenuDrawer({ open, onClose }: { open: boolean; onClose: () =>
           </div>
 
           <div className="space-y-1 flex-1">
-            {links.map((l) => (
+            {settingsLink && (
               <Link
-                key={l.to}
-                to={l.to}
+                to={settingsLink.to}
                 onClick={onClose}
                 className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-brand-950/[0.05] transition-colors"
               >
-                <l.icon className="h-5 w-5 text-brand-500 shrink-0" />
-                <span className="text-sm font-medium text-brand-950">{l.label}</span>
+                <settingsLink.icon className="h-5 w-5 text-brand-500 shrink-0" />
+                <span className="text-sm font-medium text-brand-950">{settingsLink.label}</span>
               </Link>
-            ))}
+            )}
 
             <button
               onClick={() => {
