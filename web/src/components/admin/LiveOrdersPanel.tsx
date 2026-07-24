@@ -773,7 +773,6 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
   const [downloading, setDownloading] = useState(false);
   const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
   const [showReciboMenu, setShowReciboMenu] = useState(false);
-  const [showPayMenu, setShowPayMenu] = useState(false);
   const [paymentMode, setPaymentMode] = useState<'full' | 'split' | null>(null);
   const [markingDebt, setMarkingDebt] = useState(false);
   const [couriers, setCouriers] = useState<DeliveryCourier[]>([]);
@@ -781,12 +780,57 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
   const [dispatching, setDispatching] = useState(false);
   const receiptRef = useRef<HTMLDivElement>(null);
 
+  // Cambiar el tipo de pedido (Mesa/Delivery/Pick-up/Barra) desde este mismo diálogo.
+  const [pendingChannel, setPendingChannel] = useState<LiveOrder['channel'] | null>(null);
+  const [channelTables, setChannelTables] = useState<{ id: string; number: string; zoneName: string | null }[] | null>(null);
+  const [channelTableId, setChannelTableId] = useState('');
+  const [channelAddress, setChannelAddress] = useState('');
+  const [channelAddressCoords, setChannelAddressCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [changingChannel, setChangingChannel] = useState(false);
+
   useEffect(() => {
     api.get('/products').then((res) => setProducts(res.data.data));
     if (order.channel === 'DELIVERY') {
       api.get('/delivery-couriers').then((res) => setCouriers(res.data.data));
     }
   }, [order.channel]);
+
+  async function applyChannelChange(
+    channel: LiveOrder['channel'],
+    extra?: { tableId?: string; customerAddress?: string; customerLat?: number; customerLng?: number },
+  ) {
+    setChangingChannel(true);
+    setError(null);
+    try {
+      await api.patch(`/orders/${order.id}/channel`, { channel, ...extra });
+      setPendingChannel(null);
+      onSaved();
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo cambiar el tipo de pedido.');
+    } finally {
+      setChangingChannel(false);
+    }
+  }
+
+  function handleChannelSelect(channel: LiveOrder['channel']) {
+    if (channel === order.channel) return;
+    if (channel === 'PICKUP' || channel === 'BAR') {
+      applyChannelChange(channel);
+      return;
+    }
+    setPendingChannel(channel);
+    setChannelTableId('');
+    setChannelAddress(order.customerAddress ?? '');
+    setChannelAddressCoords(null);
+    if (channel === 'DINE_IN' && channelTables === null) {
+      api.get('/tables/floor-plan').then((res) => {
+        const plan = res.data.data;
+        const zoned = plan.zones.flatMap((z: any) => z.tables.map((t: any) => ({ id: t.id, number: t.number, zoneName: z.name })));
+        const unzoned = plan.unzoned.map((t: any) => ({ id: t.id, number: t.number, zoneName: null }));
+        setChannelTables([...zoned, ...unzoned]);
+      });
+    }
+  }
 
   /** Botón "Delivery": despacha el pedido al repartidor elegido (o directo, si solo
    * hay uno registrado) — mismo endpoint que el botón "Delivery" de la tarjeta. */
@@ -891,7 +935,6 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
       onSaved();
     } finally {
       setMarkingDebt(false);
-      setShowPayMenu(false);
     }
   }
 
@@ -1021,6 +1064,98 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
             <span className="sr-only">Cerrar</span>
           </DialogClose>
         </DialogHeader>
+
+        <div className="space-y-2 pb-2 border-b border-brand-950/10">
+          <label className="flex items-center gap-2 text-xs font-medium text-brand-950/60">
+            Tipo de pedido
+            <select
+              value={pendingChannel ?? order.channel}
+              onChange={(e) => handleChannelSelect(e.target.value as LiveOrder['channel'])}
+              disabled={changingChannel}
+              className="border border-brand-950/15 rounded-lg px-2 py-1 text-sm font-medium text-brand-950 disabled:opacity-50"
+            >
+              <option value="DINE_IN">Mesa</option>
+              <option value="DELIVERY">Delivery</option>
+              <option value="PICKUP">Pick-up</option>
+              <option value="BAR">Barra</option>
+            </select>
+          </label>
+
+          {pendingChannel === 'DINE_IN' && (
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                value={channelTableId}
+                onChange={(e) => setChannelTableId(e.target.value)}
+                className="flex-1 min-w-[10rem] border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+              >
+                <option value="">{channelTables === null ? 'Cargando mesas…' : 'Selecciona una mesa…'}</option>
+                {channelTables?.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.zoneName ? `${t.zoneName} · Mesa ${t.number}` : `Mesa ${t.number}`}
+                  </option>
+                ))}
+              </select>
+              <TextureButton
+                variant="brand"
+                size="sm"
+                className="!w-auto"
+                disabled={!channelTableId || changingChannel}
+                onClick={() => applyChannelChange('DINE_IN', { tableId: channelTableId })}
+              >
+                {changingChannel ? 'Cambiando…' : 'Confirmar cambio'}
+              </TextureButton>
+              <button
+                type="button"
+                onClick={() => setPendingChannel(null)}
+                className="text-xs font-medium text-brand-950/50 hover:text-brand-950/70"
+              >
+                Cancelar
+              </button>
+            </div>
+          )}
+
+          {pendingChannel === 'DELIVERY' && (
+            <div className="space-y-2">
+              <AddressAutocomplete
+                value={channelAddress}
+                onChange={setChannelAddress}
+                onSelect={(s) => {
+                  setChannelAddress(s.displayName);
+                  setChannelAddressCoords({ lat: s.lat, lng: s.lng });
+                }}
+                biasLat={restaurant?.deliveryOriginLat}
+                biasLng={restaurant?.deliveryOriginLng}
+                placeholder="Dirección de entrega *"
+                className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+              />
+              <div className="flex items-center gap-2">
+                <TextureButton
+                  variant="brand"
+                  size="sm"
+                  className="!w-auto"
+                  disabled={!channelAddress.trim() || changingChannel}
+                  onClick={() =>
+                    applyChannelChange('DELIVERY', {
+                      customerAddress: channelAddress,
+                      customerLat: channelAddressCoords?.lat,
+                      customerLng: channelAddressCoords?.lng,
+                    })
+                  }
+                >
+                  {changingChannel ? 'Cambiando…' : 'Confirmar cambio'}
+                </TextureButton>
+                <button
+                  type="button"
+                  onClick={() => setPendingChannel(null)}
+                  className="text-xs font-medium text-brand-950/50 hover:text-brand-950/70"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
         {mesaFooter && <div className="space-y-2 pb-2 border-b border-brand-950/10">{mesaFooter}</div>}
         <div className="space-y-4 max-h-[70vh] overflow-y-auto">
           {order.channel !== 'DINE_IN' && (
@@ -1273,47 +1408,36 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
             </div>
           )}
 
-          {/* Pago: solo en celular — en escritorio la tarjeta de "Pedidos en vivo" ya
-              tiene Pagar/Fraccionado/Cta.abierta a la mano sin abrir esta hoja. */}
-          <div className="sm:hidden">
-            {fullyPaid ? (
-              <p className="text-sm text-emerald-600 font-medium text-center">✓ Pagado</p>
-            ) : (
-              <>
+          {/* Fila de pago: siempre visible (igual que la tarjeta de "Pedidos en vivo") — no
+              se puede depender de una tarjeta exterior porque este diálogo también se abre
+              directo desde Mesa/Pedidos sin pasar por esa lista. */}
+          {fullyPaid ? (
+            <p className="text-sm text-emerald-600 font-medium text-center">✓ Pagado</p>
+          ) : (
+            <div className={`grid ${canAccountsPayable ? 'grid-cols-3' : 'grid-cols-2'} gap-1.5`}>
+              <button
+                onClick={() => setPaymentMode('full')}
+                className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-xs font-medium py-2.5 transition-colors"
+              >
+                <CreditCard className="h-4 w-4 text-brand-500" /> Pagar
+              </button>
+              <button
+                onClick={() => setPaymentMode('split')}
+                className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-xs font-medium py-2.5 transition-colors"
+              >
+                <SplitSquareHorizontal className="h-4 w-4 text-brand-500" /> Fraccionado
+              </button>
+              {canAccountsPayable && (
                 <button
-                  onClick={() => setShowPayMenu((s) => !s)}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-500 hover:bg-brand-400 text-white text-sm font-semibold py-3 transition-colors"
+                  onClick={markDebt}
+                  disabled={markingDebt}
+                  className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-xs font-medium py-2.5 transition-colors disabled:opacity-50"
                 >
-                  <CreditCard className="h-4 w-4" /> Pagar
+                  <Clock className="h-4 w-4 text-amber-600" /> Deuda
                 </button>
-                {showPayMenu && (
-                  <div className={`grid ${canAccountsPayable ? 'grid-cols-3' : 'grid-cols-2'} gap-1.5 mt-2`}>
-                    <button
-                      onClick={() => setPaymentMode('full')}
-                      className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-[11px] font-medium py-2.5 transition-colors"
-                    >
-                      <CreditCard className="h-4 w-4 text-brand-500" /> Pago
-                    </button>
-                    <button
-                      onClick={() => setPaymentMode('split')}
-                      className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-[11px] font-medium py-2.5 transition-colors"
-                    >
-                      <SplitSquareHorizontal className="h-4 w-4 text-brand-500" /> Pago fraccionado
-                    </button>
-                    {canAccountsPayable && (
-                      <button
-                        onClick={markDebt}
-                        disabled={markingDebt}
-                        className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 text-brand-950/70 hover:bg-brand-950/[0.03] text-[11px] font-medium py-2.5 transition-colors disabled:opacity-50"
-                      >
-                        <Clock className="h-4 w-4 text-amber-600" /> Deuda
-                      </button>
-                    )}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="fixed -left-[9999px] top-0">

@@ -187,6 +187,24 @@ export const updateOrderCustomerSchema = z.object({
   customerLng: z.number().min(-180).max(180).optional(),
 });
 
+/** Cambiar el tipo (canal) de un pedido ya creado, ej. de Mesa a Delivery. */
+export const changeChannelSchema = z
+  .object({
+    channel: z.enum(['DINE_IN', 'DELIVERY', 'PICKUP', 'BAR']),
+    tableId: z.string().min(1).optional(),
+    customerAddress: z.string().max(300).optional(),
+    customerLat: z.number().min(-90).max(90).optional(),
+    customerLng: z.number().min(-180).max(180).optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.channel === 'DINE_IN' && !data.tableId) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Selecciona una mesa.', path: ['tableId'] });
+    }
+    if (data.channel === 'DELIVERY' && !data.customerAddress?.trim()) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Escribe la dirección de entrega.', path: ['customerAddress'] });
+    }
+  });
+
 /** "Delivery" en el panel de Pedidos en vivo: a qué repartidor despachar la comanda. */
 export const dispatchCourierSchema = z.object({
   courierId: z.string().min(1, 'Elige un repartidor.'),
@@ -229,4 +247,5 @@ export type DispatchCourierInput = z.infer<typeof dispatchCourierSchema>;
 export type AddOrderItemInput = z.infer<typeof addOrderItemSchema>;
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
 export type UpdateOrderCustomerInput = z.infer<typeof updateOrderCustomerSchema>;
+export type ChangeChannelInput = z.infer<typeof changeChannelSchema>;
 export type OrderHistoryQuery = z.infer<typeof orderHistoryQuerySchema>;

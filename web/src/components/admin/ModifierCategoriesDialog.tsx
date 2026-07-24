@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   ArrowUp,
   ArrowDown,
+  Copy,
   Eye,
   EyeOff,
   MoreVertical,
@@ -176,11 +177,13 @@ function CategoryEditor({
   const [name, setName] = useState(category.name);
   const [maxSelections, setMaxSelectionsInput] = useState(category.maxSelections?.toString() ?? '');
   const [minSelections, setMinSelectionsInput] = useState(category.minSelections?.toString() ?? '');
+  const [unlimitedMax, setUnlimitedMax] = useState(category.maxSelections == null);
   const [allProducts, setAllProducts] = useState<{ id: string; name: string }[] | null>(null);
   const [linkedProducts, setLinkedProducts] = useState<LinkedProduct[] | null>(null);
 
   useEffect(() => setName(category.name), [category.id, category.name]);
   useEffect(() => setMaxSelectionsInput(category.maxSelections?.toString() ?? ''), [category.id, category.maxSelections]);
+  useEffect(() => setUnlimitedMax(category.maxSelections == null), [category.id, category.maxSelections]);
   useEffect(() => setMinSelectionsInput(category.minSelections?.toString() ?? ''), [category.id, category.minSelections]);
   useEffect(() => {
     setAllProducts(null);
@@ -218,6 +221,20 @@ function CategoryEditor({
     if (n === (category.minSelections ?? null)) return;
     await api.patch(`/modifier-categories/${category.id}`, { minSelections: n });
     onChanged();
+  }
+
+  /** Casilla "Ilimitado": al marcarla, quita el tope (maxSelections = null) de inmediato.
+   * Al desmarcarla, solo muestra el campo "Limitado a" — el número se guarda cuando el
+   * usuario lo escribe y sale del campo (igual que el resto de los campos de este diálogo). */
+  async function toggleUnlimitedMax(checked: boolean) {
+    setUnlimitedMax(checked);
+    if (checked) {
+      setMaxSelectionsInput('');
+      if (category.maxSelections != null) {
+        await api.patch(`/modifier-categories/${category.id}`, { maxSelections: null });
+        onChanged();
+      }
+    }
   }
 
   async function addModifier() {
@@ -357,27 +374,35 @@ function CategoryEditor({
         </div>
 
         {category.allowMultiple && (
-          <div className="flex gap-3">
-            <OutlinedField label="Min" className="flex-1">
-              <input
-                value={minSelections}
-                onChange={(e) => setMinSelectionsInput(e.target.value.replace(/[^0-9]/g, ''))}
-                onBlur={saveMinSelections}
-                placeholder="0"
-                inputMode="numeric"
-                className={outlinedFieldInputClass}
-              />
-            </OutlinedField>
-            <OutlinedField label="Max" className="flex-1">
-              <input
-                value={maxSelections}
-                onChange={(e) => setMaxSelectionsInput(e.target.value.replace(/[^0-9]/g, ''))}
-                onBlur={saveMaxSelections}
-                placeholder="Sin límite"
-                inputMode="numeric"
-                className={outlinedFieldInputClass}
-              />
-            </OutlinedField>
+          <div className="space-y-2">
+            <div className="flex gap-3">
+              <OutlinedField label="Min" className="flex-1">
+                <input
+                  value={minSelections}
+                  onChange={(e) => setMinSelectionsInput(e.target.value.replace(/[^0-9]/g, ''))}
+                  onBlur={saveMinSelections}
+                  placeholder="0"
+                  inputMode="numeric"
+                  className={outlinedFieldInputClass}
+                />
+              </OutlinedField>
+              {!unlimitedMax && (
+                <OutlinedField label="Limitado a" className="flex-1">
+                  <input
+                    value={maxSelections}
+                    onChange={(e) => setMaxSelectionsInput(e.target.value.replace(/[^0-9]/g, ''))}
+                    onBlur={saveMaxSelections}
+                    placeholder="Ej: 3"
+                    inputMode="numeric"
+                    className={outlinedFieldInputClass}
+                  />
+                </OutlinedField>
+              )}
+            </div>
+            <label className="flex items-center gap-1.5 text-sm text-brand-950/70">
+              <input type="checkbox" checked={unlimitedMax} onChange={(e) => toggleUnlimitedMax(e.target.checked)} />
+              Ilimitado (sin tope de selecciones)
+            </label>
           </div>
         )}
 
@@ -392,6 +417,7 @@ function CategoryEditor({
               <ModifierRow
                 key={m.id}
                 modifier={m}
+                categoryId={category.id}
                 symbol={symbol}
                 allowMultiple={category.allowMultiple}
                 isFirst={index === 0}
@@ -416,6 +442,7 @@ function CategoryEditor({
 
 function ModifierRow({
   modifier,
+  categoryId,
   symbol,
   allowMultiple,
   isFirst,
@@ -425,6 +452,7 @@ function ModifierRow({
   onChanged,
 }: {
   modifier: Modifier;
+  categoryId: string;
   symbol: string;
   allowMultiple: boolean;
   isFirst: boolean;
@@ -475,6 +503,20 @@ function ModifierRow({
     onChanged();
   }
 
+  /** Crea una copia de este modificador en la misma categoría, con el mismo precio/costo/SKU/etc. */
+  async function duplicate() {
+    await api.post(`/modifier-categories/${categoryId}/modifiers`, {
+      name: `${modifier.name} (copia)`,
+      priceBase: Number(modifier.priceBase) || 0,
+      costBase: modifier.costBase ? Number(modifier.costBase) : undefined,
+      discountBase: modifier.discountBase ? Number(modifier.discountBase) : undefined,
+      isAvailable: modifier.isAvailable,
+      maxQuantity: modifier.maxQuantity,
+      sku: modifier.sku,
+    });
+    onChanged();
+  }
+
   return (
     <div className="rounded-xl border border-brand-950/10 p-2.5 space-y-2">
       <div className="flex items-start gap-1.5">
@@ -513,7 +555,10 @@ function ModifierRow({
         >
           {modifier.isAvailable ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
         </button>
-        <button onClick={remove} className="mt-1.5 text-brand-950/30 hover:text-red-500 shrink-0">
+        <button onClick={duplicate} title="Duplicar" className="mt-1.5 text-brand-950/30 hover:text-brand-500 shrink-0">
+          <Copy className="h-3.5 w-3.5" />
+        </button>
+        <button onClick={remove} title="Eliminar" className="mt-1.5 text-brand-950/30 hover:text-red-500 shrink-0">
           <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>

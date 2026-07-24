@@ -4,6 +4,7 @@ import { forbidden } from '../../utils/http-error';
 import { DISCOUNT_ROLES } from '../../utils/roles';
 import {
   addOrderItemSchema,
+  changeChannelSchema,
   deleteOrderSchema,
   deliveryCheckoutSchema,
   deliveryQuoteSchema,
@@ -90,6 +91,13 @@ export const orderController = {
   updateCustomer: asyncHandler(async (req: Request, res: Response) => {
     const input = updateOrderCustomerSchema.parse(req.body);
     const order = await orderService.updateCustomer(req.restaurantId!, req.params.id, input);
+    res.json({ data: order });
+  }),
+
+  /** PATCH /api/v1/orders/:id/channel — cambiar el tipo de pedido, ej. Mesa -> Delivery (protegido). */
+  changeChannel: asyncHandler(async (req: Request, res: Response) => {
+    const input = changeChannelSchema.parse(req.body);
+    const order = await orderService.changeChannel(req.restaurantId!, req.params.id, input);
     res.json({ data: order });
   }),
 

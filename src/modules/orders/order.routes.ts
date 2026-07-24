@@ -47,6 +47,7 @@ router.patch('/:id/status', orderController.updateStatus);
 router.patch('/:id/kitchen-ready', orderController.markKitchenReady);
 router.patch('/:id/items', orderController.updateItems);
 router.patch('/:id/customer', orderController.updateCustomer);
+router.patch('/:id/channel', orderController.changeChannel);
 router.patch('/:id/tip', adminOnly, requireFeature('administration'), orderController.setTip);
 router.patch('/:id/awaiting-payment', requireFeature('accountsPayable'), orderController.setAwaitingPayment);
 router.delete('/:id', orderController.remove);

@@ -21,6 +21,7 @@ import { customerService } from '../customers/customer.service';
 import {
   AddOrderItemInput,
   CartItemInput,
+  ChangeChannelInput,
   DeliveryCheckoutInput,
   DineInCheckoutInput,
   ManualOrderInput,
@@ -405,7 +406,11 @@ export const orderService = {
             create: lines.map((l) => buildOrderItemCreateData(l)),
           },
         },
-        include: { items: { include: { modifiers: true } }, table: { select: { number: true } } },
+        include: {
+          items: { include: { modifiers: true } },
+          table: { select: { number: true, zone: { select: { name: true } } } },
+          placedByUser: { select: { name: true } },
+        },
       });
     });
 
@@ -422,7 +427,8 @@ export const orderService = {
       orderNumber: order.orderNumber,
       channel: order.channel,
       tableId: order.tableId,
-      table: order.table?.number,
+      table: order.table ? { number: order.table.number, zoneName: order.table.zone?.name ?? null } : null,
+      placedByUser: order.placedByUser?.name ?? null,
       customerName: order.customerName,
       items: order.items.map((i) => ({
         name: i.productName,
@@ -565,7 +571,11 @@ export const orderService = {
                   awaitingPayment: input.paymentIntent === 'DEBT',
                   items: { create: itemsCreate },
                 },
-                include: { items: { include: { modifiers: true } }, table: { select: { number: true } } },
+                include: {
+                  items: { include: { modifiers: true } },
+                  table: { select: { number: true, zone: { select: { name: true } } } },
+                  placedByUser: { select: { name: true } },
+                },
               });
             });
           })()
@@ -597,7 +607,11 @@ export const orderService = {
                 totalBs,
                 items: { create: itemsCreate },
               },
-              include: { items: { include: { modifiers: true } }, table: { select: { number: true } } },
+              include: {
+                items: { include: { modifiers: true } },
+                table: { select: { number: true, zone: { select: { name: true } } } },
+                placedByUser: { select: { name: true } },
+              },
             });
           });
 
@@ -613,7 +627,8 @@ export const orderService = {
       orderNumber: order.orderNumber,
       channel: order.channel,
       tableId: order.tableId,
-      table: order.table?.number,
+      table: order.table ? { number: order.table.number, zoneName: order.table.zone?.name ?? null } : null,
+      placedByUser: order.placedByUser?.name ?? null,
       customerName: order.customerName,
       items: order.items.map((i) => ({
         name: i.productName,
@@ -956,6 +971,94 @@ export const orderService = {
     return updated;
   },
 
+  /** Cambia el tipo (canal) de un pedido ya creado, ej. de Mesa a Delivery o viceversa. */
+  async changeChannel(restaurantId: string, orderId: string, input: ChangeChannelInput) {
+    const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });
+    if (!existing) throw notFound('Comanda no encontrada.');
+    if (existing.status === 'SERVED' || existing.status === 'CANCELLED') {
+      throw badRequest('No se puede editar un pedido ya finalizado o cancelado.');
+    }
+    if (input.channel === existing.channel) return existing;
+
+    let tableId: string | null = null;
+    let tableSessionId: string | null = null;
+    let deliveryFeeBase = toDecimal(0);
+    let customerAddress: string | null = existing.customerAddress;
+    let customerLat: number | null = existing.customerLat;
+    let customerLng: number | null = existing.customerLng;
+
+    if (input.channel === 'DINE_IN') {
+      const table = await prisma.table.findFirst({ where: { id: input.tableId, restaurantId } });
+      if (!table || !table.isActive) throw notFound('Mesa no válida.');
+
+      const openSessions = await tableSessionService.listOpenForTable(table.id);
+      if (openSessions.length > 1) {
+        throw conflict('Esta mesa tiene varias cuentas abiertas — usa "Generar orden" desde Mesas para elegir a cuál agregarlo.');
+      }
+      if (openSessions.length === 1) {
+        tableSessionId = openSessions[0].id;
+      } else {
+        if (!existing.customerName || !existing.customerIdNumber || !existing.customerPhone) {
+          throw badRequest(
+            'Faltan los datos de facturación (nombre, cédula y teléfono) del cliente para abrir la cuenta en esta mesa. Edítalos primero en "Datos del cliente".',
+          );
+        }
+        const session = await prisma.tableSession.create({
+          data: {
+            restaurantId,
+            tableId: table.id,
+            customerName: existing.customerName,
+            customerIdNumber: existing.customerIdNumber,
+            customerPhone: existing.customerPhone,
+          },
+        });
+        tableSessionId = session.id;
+      }
+      tableId = table.id;
+      customerAddress = null;
+      customerLat = null;
+      customerLng = null;
+    } else if (input.channel === 'DELIVERY') {
+      const restaurant = await prisma.restaurant.findUnique({
+        where: { id: restaurantId },
+        select: { id: true, deliveryPricingMode: true, deliveryOriginLat: true, deliveryOriginLng: true, deliveryBaseFee: true, deliveryPricePerKm: true },
+      });
+      const customerPoint = input.customerLat != null && input.customerLng != null ? { lat: input.customerLat, lng: input.customerLng } : null;
+      deliveryFeeBase = await computeDeliveryFee(restaurant!, customerPoint);
+      customerAddress = input.customerAddress!;
+      customerLat = input.customerLat ?? null;
+      customerLng = input.customerLng ?? null;
+    } else {
+      // PICKUP / BAR: sin mesa ni envío.
+      customerAddress = null;
+      customerLat = null;
+      customerLng = null;
+    }
+
+    const totalBase = round2(existing.subtotalBase.add(existing.serviceChargeBase).add(existing.ivaBase).add(deliveryFeeBase));
+    const totalBs = baseToBs(totalBase, existing.exchangeRate);
+
+    const updated = await prisma.$transaction(async (tx) => {
+      return tx.order.update({
+        where: { id: orderId },
+        data: {
+          channel: input.channel,
+          tableId,
+          tableSessionId,
+          customerAddress,
+          customerLat,
+          customerLng,
+          deliveryFeeBase,
+          totalBase,
+          totalBs,
+        },
+      });
+    });
+
+    emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: updated.status });
+    return updated;
+  },
+
   /** Cambia el estado de una comanda y notifica a la cocina. */
   async updateStatus(restaurantId: string, orderId: string, status: 'PENDING' | 'KITCHEN' | 'SERVED' | 'CANCELLED') {
     const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { items: { include: { modifiers: true } } } });
@@ -1276,7 +1379,11 @@ export const orderService = {
   async printComanda(restaurantId: string, orderId: string) {
     const order = await prisma.order.findFirst({
       where: { id: orderId, restaurantId },
-      include: { items: { include: { modifiers: true } }, table: { select: { number: true } } },
+      include: {
+        items: { include: { modifiers: true } },
+        table: { select: { number: true, zone: { select: { name: true } } } },
+        placedByUser: { select: { name: true } },
+      },
     });
     if (!order) throw notFound('Comanda no encontrada.');
 
@@ -1285,7 +1392,8 @@ export const orderService = {
       orderId: order.id,
       orderNumber: order.orderNumber,
       channel: order.channel,
-      table: order.table?.number,
+      table: order.table ? { number: order.table.number, zoneName: order.table.zone?.name ?? null } : null,
+      placedByUser: order.placedByUser?.name ?? null,
       customerName: order.customerName,
       items: order.items.map((i) => ({
         name: i.productName,
@@ -1307,7 +1415,11 @@ export const orderService = {
   async printReceipt(restaurantId: string, orderId: string) {
     const order = await prisma.order.findFirst({
       where: { id: orderId, restaurantId },
-      include: { items: { include: { modifiers: true } }, table: { select: { number: true } } },
+      include: {
+        items: { include: { modifiers: true } },
+        table: { select: { number: true, zone: { select: { name: true } } } },
+        placedByUser: { select: { name: true } },
+      },
     });
     if (!order) throw notFound('Pedido no encontrado.');
 
@@ -1316,7 +1428,8 @@ export const orderService = {
       orderId: order.id,
       orderNumber: order.orderNumber,
       channel: order.channel,
-      table: order.table?.number,
+      table: order.table ? { number: order.table.number, zoneName: order.table.zone?.name ?? null } : null,
+      placedByUser: order.placedByUser?.name ?? null,
       customerName: order.customerName,
       items: order.items.map((i) => ({
         name: i.productName,
@@ -1331,6 +1444,7 @@ export const orderService = {
       subtotalBase: order.subtotalBase,
       serviceChargeBase: order.serviceChargeBase,
       ivaBase: order.ivaBase,
+      deliveryFeeBase: order.deliveryFeeBase,
       totalBase: order.totalBase,
       exchangeRate: order.exchangeRate,
       totalBs: order.totalBs,

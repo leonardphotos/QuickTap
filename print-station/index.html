@@ -301,6 +301,15 @@
   .r-big{font-size:16px;}
   .r-sub{font-size:12px;}
   .r-muted{color:#000;font-weight:600;font-size:11px;}
+  /* Recibo (factura no fiscal): a diferencia de .r-row (centrado), estas filas van
+     con columnas fijas alineadas izquierda/derecha, como una factura real. */
+  .r-row2{display:flex;justify-content:space-between;gap:6px;text-align:left;}
+  .r-row2 span:last-child{text-align:right;}
+  .r-row3{display:flex;justify-content:space-between;gap:4px;text-align:left;}
+  .r-row3 .r-col-name{flex:1;text-align:left;}
+  .r-row3 .r-col-qty{width:34px;text-align:center;flex-shrink:0;}
+  .r-row3 .r-col-amount{width:64px;text-align:right;flex-shrink:0;}
+  .r-upper{text-transform:uppercase;}
 
   @media print{
     body *{visibility:hidden;}
@@ -555,6 +564,21 @@ function timeLabel(iso){
     return new Date(iso).toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'});
   }catch(e){ return ''; }
 }
+/** "23/07/2026 - 11:30 pm" — fecha+hora para el encabezado del recibo (factura no fiscal). */
+function dateTimeLabel(iso){
+  try{
+    const d = new Date(iso);
+    const pad = (n) => String(n).padStart(2, '0');
+    const date = `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+    const time = d.toLocaleTimeString('en-US', {hour:'2-digit', minute:'2-digit', hour12:true}).toLowerCase();
+    return `${date} - ${time}`;
+  }catch(e){ return ''; }
+}
+/** Número en formato es-VE (punto de miles, coma decimal) sin prefijo de moneda — para las
+ * columnas del recibo, donde la moneda ya la indica la etiqueta de la fila ("TOTAL Bs.:"). */
+function bsNumber(n){
+  return (Number(n) || 0).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 const CHANNEL_LABEL = { DINE_IN:'Mesa', DELIVERY:'Delivery', PICKUP:'Para llevar', BAR:'Bar' };
 const CHANNEL_BADGE = { DINE_IN:'badge-dinein', DELIVERY:'badge-delivery', PICKUP:'badge-pickup', BAR:'badge-bar' };
 
@@ -761,7 +785,7 @@ function renderQueue(){
 function orderCardHtml(order){
   const badgeClass = CHANNEL_BADGE[order.channel] || 'badge-dinein';
   const channelLabel = CHANNEL_LABEL[order.channel] || order.channel || '';
-  const tableInfo = order.table ? `Mesa ${esc(order.table)}` : (order.customerName ? esc(order.customerName) : '');
+  const tableInfo = order.table ? `Mesa ${esc(order.table.number)}` : (order.customerName ? esc(order.customerName) : '');
   const itemsHtml = (order.items || []).map(it => `
     <li>
       <span class="qty">${esc(it.quantity)}x</span>
@@ -821,7 +845,7 @@ function groupItemsByKitchen(order){
 const INFO_FIELD_BUILDERS = {
   orden: (order) => ({ show: true, label: 'Orden:', value: `#${esc(order.orderNumber ?? '—')}` }),
   canal: (order, ctx) => ({ show: true, label: 'Canal:', value: esc(ctx.channelLabel) }),
-  mesa: (order) => ({ show: Boolean(order.table), label: 'Mesa:', value: esc(order.table) }),
+  mesa: (order) => ({ show: Boolean(order.table), label: 'Mesa:', value: esc(order.table?.number) }),
   cliente: (order) => ({ show: Boolean(order.customerName), label: 'Cliente:', value: esc(order.customerName) }),
   hora: (order) => ({ show: true, label: 'Hora:', value: timeLabel(order.createdAt || order._receivedAt) }),
 };
@@ -833,45 +857,84 @@ function buildTicketHtml(order, kind, station){
   const channelLabel = CHANNEL_LABEL[order.channel] || order.channel || '';
   const items = order.items || [];
   const rate = order.exchangeRate != null ? Number(order.exchangeRate) : null;
-
   const currencySymbol = order.currency === 'EUR' ? '€' : '$';
-  // Bs de cada monto en $: usa la tasa congelada del pedido, la misma con la
-  // que se calculó totalBs, para que el desglose por ítem cuadre con el total.
-  const bsLine = (amountBase) => (rate != null ? `<div class="r-row r-muted"><span>${formatBs(amountBase * rate)}</span></div>` : '');
-  const itemsHtml = items.map(it => {
-    if(kind === 'recibo'){
-      // lineTotal viene congelado del pedido; si por alguna razón no llega
-      // (payload viejo en caché), se calcula con unitPrice*cantidad.
+
+  const subtotalBase = order.subtotalBase != null ? Number(order.subtotalBase) : 0;
+  const serviceChargeBase = order.serviceChargeBase != null ? Number(order.serviceChargeBase) : 0;
+  const ivaBase = order.ivaBase != null ? Number(order.ivaBase) : 0;
+  const deliveryFeeBase = order.deliveryFeeBase != null ? Number(order.deliveryFeeBase) : 0;
+  const totalBase = Number(order.totalBase ?? items.reduce((s,it)=> s + (it.lineTotal!=null? Number(it.lineTotal): 0), 0));
+  const toBs = (amountBase) => (rate != null ? amountBase * rate : amountBase);
+
+  if(kind === 'recibo'){
+    // "Factura no fiscal": exento de IVA si el restaurante no lo cobra en este pedido —
+    // se marca cada ítem con "(E)" y la línea EXENTO, igual que un ticket fiscal real.
+    const isExento = ivaBase <= 0;
+    const rowsHtml = items.map(it => {
       const lineAmount = it.lineTotal != null ? Number(it.lineTotal)
-        : (it.unitPrice != null ? Number(it.unitPrice) * (it.quantity || 0) : null);
-      return `<div class="r-row">
-        <span class="r-item-name">${esc(it.quantity)}x ${esc(it.name)}${it.variantName ? ' ('+esc(it.variantName)+')' : ''}</span>
-        ${lineAmount != null ? `<span>${currencySymbol}${lineAmount.toFixed(2)}</span>` : ''}
-      </div>${(cfg.showItemBs && lineAmount != null) ? bsLine(lineAmount) : ''}${(cfg.showNotes && it.note) ? `<div class="r-muted">&nbsp;&nbsp;Nota: ${esc(it.note)}</div>` : ''}`;
-    }
-    // Comanda de cocina: el nombre del producto va primero y la cantidad al
-    // lado derecho (no "1x Pizza", sino "Pizza  1x").
-    return `<div class="r-row">
+        : (it.unitPrice != null ? Number(it.unitPrice) * (it.quantity || 0) : 0);
+      const name = `${isExento ? '(E)' : ''}${esc(it.name)}${it.variantName ? ' ('+esc(it.variantName)+')' : ''}`;
+      return `<div class="r-row3">
+        <span class="r-col-name r-upper">${name}</span>
+        <span class="r-col-qty">${(it.quantity || 0).toFixed(2)}</span>
+        <span class="r-col-amount">${bsNumber(toBs(lineAmount))}</span>
+      </div>${(cfg.showNotes && it.note) ? `<div class="r-muted">&nbsp;&nbsp;Nota: ${esc(it.note)}</div>` : ''}`;
+    }).join('');
+
+    const placedByName = order.placedByUser || '—';
+    const mesaLine = order.channel === 'DINE_IN' && order.table
+      ? `MESA # ${esc(order.table.number)}${order.table.zoneName ? ' - ' + esc(order.table.zoneName) : ''}.`
+      : `${esc(channelLabel)}.`;
+
+    return `
+      <div class="r-center r-bold r-title">${esc(bizName)}</div>
+      <div class="r-line"></div>
+      <div class="r-row2"><span>CAJERO:</span><span>CAJA</span></div>
+      <div class="r-row2"><span>EMPLEADO:</span><span>${esc(placedByName)}</span></div>
+      <div class="r-row2"><span>FECHA:</span><span>${dateTimeLabel(order.createdAt || order._receivedAt)}</span></div>
+      <div class="r-row2"><span>NOTA DE CONSUMO:</span><span>${esc(order.orderNumber)} / 1</span></div>
+      <div class="r-center">${mesaLine}</div>
+      <div class="r-center">NO VALIDO COMO FACTURA.</div>
+      <div class="r-line"></div>
+      <div class="r-row3 r-bold"><span class="r-col-name">DESCRIPCION</span><span class="r-col-qty">CANT.</span><span class="r-col-amount">MONTO</span></div>
+      <div class="r-line"></div>
+      ${rowsHtml || '<div class="r-muted r-center">Sin productos</div>'}
+      <div class="r-line"></div>
+      <div class="r-row2"><span>BASE:</span><span>${bsNumber(toBs(subtotalBase))}</span></div>
+      <div class="r-row2"><span>SUB-TOTAL :</span><span>${bsNumber(toBs(subtotalBase))}</span></div>
+      ${serviceChargeBase > 0 ? `<div class="r-row2"><span>SERVICIO (10%):</span><span>${bsNumber(toBs(serviceChargeBase))}</span></div>` : ''}
+      ${deliveryFeeBase > 0 ? `<div class="r-row2"><span>ENVIO:</span><span>${bsNumber(toBs(deliveryFeeBase))}</span></div>` : ''}
+      ${isExento
+        ? `<div class="r-row2"><span>(E) EXENTO:</span><span>${bsNumber(toBs(subtotalBase))}</span></div>`
+        : `<div class="r-row2"><span>IVA (16%):</span><span>${bsNumber(toBs(ivaBase))}</span></div>`
+      }
+      <div class="r-row2 r-bold"><span>TOTAL Bs.:</span><span>${bsNumber(toBs(totalBase))}</span></div>
+      <div class="r-line"></div>
+      <div class="r-row2"><span>TOTAL (${currencySymbol}):</span><span>${totalBase.toFixed(2)}</span></div>
+      <div class="r-line"></div>
+      <div class="r-row2"><span>PROPINA :</span><span>______________</span></div>
+      <div class="r-row2"><span>TOTAL&nbsp;&nbsp;&nbsp;:</span><span>______________</span></div>
+      <div class="r-row2"><span>FIRMA&nbsp;&nbsp;&nbsp;:</span><span>______________</span></div>
+      ${cfg.showFooter ? `
+        <div class="r-line"></div>
+        <div class="r-center r-bold">*** SIN DERECHO A CREDITO FISCAL ***</div>
+      ` : ''}
+    `;
+  }
+
+  // kind === 'cocina' (comanda de cocina): el nombre del producto va primero y la
+  // cantidad al lado derecho (no "1x Pizza", sino "Pizza  1x").
+  const itemsHtml = items.map(it => `<div class="r-row">
       <span class="r-item-name">${esc(it.name)}${it.variantName ? ' ('+esc(it.variantName)+')' : ''}</span>
       <span class="r-bold">${esc(it.quantity)}x</span>
     </div>
     ${(cfg.showModifiers && it.modifiers && it.modifiers.length) ? it.modifiers.map(m => `<div class="r-muted">+${esc(m.quantity||1)} ${esc(m.name)}</div>`).join('') : ''}
-    ${(cfg.showNotes && it.note) ? `<div class="r-muted">Nota: ${esc(it.note)}</div>` : ''}`;
-  }).join('');
-
-  const subtotalBase = order.subtotalBase != null ? Number(order.subtotalBase) : null;
-  const serviceChargeBase = order.serviceChargeBase != null ? Number(order.serviceChargeBase) : 0;
-  const ivaBase = order.ivaBase != null ? Number(order.ivaBase) : 0;
-  const totalBase = Number(order.totalBase ?? items.reduce((s,it)=> s + (it.lineTotal!=null? Number(it.lineTotal): 0), 0));
+    ${(cfg.showNotes && it.note) ? `<div class="r-muted">Nota: ${esc(it.note)}</div>` : ''}`
+  ).join('');
 
   // Título: "COMANDA · Parrilla" si hay más de una estación en juego, o el
   // genérico de siempre si es la única cocina del pedido.
   const kitchenTitle = station && station !== SIN_COCINA ? `COMANDA · ${esc(station)}` : 'COMANDA DE COCINA';
-
-  // Espacio: en la comanda de cocina se ahorra papel con una línea más angosta
-  // en encabezado/pie — la línea/tamaño de "COMANDA DE COCINA" en sí no se toca.
-  const headerLine = kind === 'cocina' ? 'r-line-sm' : 'r-line';
-  const footerLine = kind === 'cocina' ? 'r-line-sm' : 'r-line';
 
   const infoRowsHtml = cfg.infoFields
     .map((key) => INFO_FIELD_BUILDERS[key] && INFO_FIELD_BUILDERS[key](order, { channelLabel }))
@@ -882,24 +945,14 @@ function buildTicketHtml(order, kind, station){
   return `
     <div class="r-center r-bold r-title">${esc(bizName)}</div>
     ${(cfg.showBizAddress && bizAddress) ? `<div class="r-center">${esc(bizAddress)}</div>` : ''}
-    <div class="${headerLine}"></div>
-    <div class="r-center r-bold r-sub">${kind==='cocina' ? kitchenTitle : 'RECIBO'}</div>
-    ${(kind==='recibo' && cfg.showFacturaNoFiscal) ? '<div class="r-center">Factura no fiscal</div>' : ''}
+    <div class="r-line-sm"></div>
+    <div class="r-center r-bold r-sub">${kitchenTitle}</div>
     <div class="r-line"></div>
     ${infoRowsHtml}
     <div class="r-line"></div>
     ${itemsHtml || '<div class="r-muted r-center">Sin productos</div>'}
-    ${kind==='recibo' ? `
-      <div class="r-line"></div>
-      ${(cfg.showSubtotal && subtotalBase != null) ? `<div class="r-row"><span>Subtotal</span><span>${currencySymbol}${subtotalBase.toFixed(2)}</span></div>` : ''}
-      ${(cfg.showServicio && serviceChargeBase > 0) ? `<div class="r-row"><span>Servicio (10%)</span><span>${currencySymbol}${serviceChargeBase.toFixed(2)}</span></div>` : ''}
-      ${(cfg.showIva && ivaBase > 0) ? `<div class="r-row"><span>IVA (16%)</span><span>${currencySymbol}${ivaBase.toFixed(2)}</span></div>` : ''}
-      <div class="r-row r-bold"><span>TOTAL</span><span>${currencySymbol}${totalBase.toFixed(2)}</span></div>
-      ${cfg.showTotalBs ? bsLine(totalBase) : ''}
-      ${(cfg.showTasa && rate != null) ? `<div class="r-row r-muted"><span>Tasa del día: ${formatBs(rate)}/${currencySymbol}1</span></div>` : ''}
-    ` : ''}
     ${cfg.showFooter ? `
-      <div class="${footerLine}"></div>
+      <div class="r-line-sm"></div>
       <div class="r-center r-muted">Impreso con QuickTap</div>
     ` : ''}
   `;

@@ -33,7 +33,15 @@ const SUB_UNITS: Record<string, { value: string; label: string; toBase: number }
   unidad: [{ value: 'unidad', label: 'Unidad', toBase: 1 }],
 };
 
-const emptyForm = { name: '', unit: '', quantity: '', minQuantity: '', price: '', priceCurrency: 'BASE' as 'BASE' | 'BS' };
+const emptyForm = {
+  name: '',
+  unit: '',
+  subUnit: '',
+  quantity: '',
+  minQuantity: '',
+  price: '',
+  priceCurrency: 'BASE' as 'BASE' | 'BS',
+};
 
 /** Inventario: insumos con stock directo ("normal", Pro+), o por receta vinculada al producto (solo Premium). */
 export default function InventoryPage() {
@@ -187,8 +195,18 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
 
   function startEdit(item: InventoryItem) {
     setEditingId(item.id);
-    setForm({ name: item.name, unit: item.unit, quantity: item.quantity, minQuantity: item.minQuantity, price: '', priceCurrency: 'BASE' });
+    setForm({
+      name: item.name,
+      unit: item.unit,
+      subUnit: item.unit,
+      quantity: item.quantity,
+      minQuantity: item.minQuantity,
+      price: '',
+      priceCurrency: 'BASE',
+    });
   }
+
+  const subUnitOptions = SUB_UNITS[form.unit] ?? [];
 
   function cancelEdit() {
     setEditingId(null);
@@ -200,11 +218,13 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
     setSaving(true);
     setError(null);
     try {
+      const subUnit = subUnitOptions.find((u) => u.value === form.subUnit);
+      const toBase = subUnit?.toBase ?? 1;
       const payload = {
         name: form.name,
         unit: form.unit,
-        quantity: Number(form.quantity) || 0,
-        minQuantity: Number(form.minQuantity) || 0,
+        quantity: (Number(form.quantity) || 0) * toBase,
+        minQuantity: (Number(form.minQuantity) || 0) * toBase,
         price: form.price ? Number(form.price) : undefined,
         priceCurrency: form.priceCurrency,
       };
@@ -242,7 +262,10 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
           />
           <select
             value={form.unit}
-            onChange={(e) => setForm({ ...form, unit: e.target.value })}
+            onChange={(e) => {
+              const unit = e.target.value;
+              setForm({ ...form, unit, subUnit: (SUB_UNITS[unit] ?? [])[0]?.value ?? '' });
+            }}
             required
             className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
           >
@@ -252,19 +275,37 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
             <option value="ml">Ml</option>
             <option value="unidad">Unidad</option>
           </select>
-          <input
-            value={form.quantity}
-            onChange={(e) => setForm({ ...form, quantity: e.target.value })}
-            placeholder="Cantidad"
-            type="number"
-            step="0.01"
-            min="0"
-            className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-          />
+          <div className="flex gap-1.5">
+            <input
+              value={form.quantity}
+              onChange={(e) => setForm({ ...form, quantity: e.target.value })}
+              placeholder="Cantidad"
+              type="number"
+              step="0.01"
+              min="0"
+              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            />
+            {subUnitOptions.length > 1 && (
+              <select
+                value={form.subUnit}
+                onChange={(e) => setForm({ ...form, subUnit: e.target.value })}
+                className="shrink-0 border border-brand-950/15 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              >
+                {subUnitOptions.map((u) => (
+                  <option key={u.value} value={u.value}>
+                    {u.label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
         </div>
         <div className="grid sm:grid-cols-4 gap-3">
           <label className="block text-sm sm:col-span-2">
-            <span className="text-brand-950/70">Stock mínimo (aviso de reabastecer)</span>
+            <span className="text-brand-950/70">
+              Stock mínimo (aviso de reabastecer)
+              {subUnitOptions.length > 1 && ` — en ${subUnitOptions.find((u) => u.value === form.subUnit)?.label ?? ''}`}
+            </span>
             <input
               value={form.minQuantity}
               onChange={(e) => setForm({ ...form, minQuantity: e.target.value })}
@@ -277,7 +318,10 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
           </label>
           <label className="block text-sm">
             <span className="text-brand-950/70">
-              Precio por Unidad{form.quantity ? ` (de ${form.quantity} ${UNIT_LABELS[form.unit] ?? ''})` : ''}
+              Precio por Unidad
+              {form.quantity
+                ? ` (de ${form.quantity} ${subUnitOptions.find((u) => u.value === form.subUnit)?.label ?? UNIT_LABELS[form.unit] ?? ''})`
+                : ''}
             </span>
             <input
               value={form.price}

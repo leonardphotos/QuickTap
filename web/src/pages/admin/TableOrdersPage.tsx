@@ -311,7 +311,7 @@ export default function TableOrdersPage() {
 
   const activeSessionOrders = activeSession?.orders ?? [];
   const mesaFooter =
-    activeSession && editingOrder ? (
+    activeSession && editingOrder && editingOrder.channel === 'DINE_IN' ? (
       <>
         <p className="text-sm font-semibold text-brand-950 flex items-center gap-2">
           Mesa {selected?.number}
