@@ -5,6 +5,7 @@ import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { hasFeature } from '@/utils/subscription';
 import { CURRENCY_SYMBOLS } from '@/utils/format';
+import type { Product } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
@@ -17,7 +18,7 @@ interface InventoryItem {
   pricePerUnitBase: string | null;
 }
 
-const UNIT_LABELS: Record<string, string> = { kg: 'Kg', lt: 'Lt', unidad: 'Unidad' };
+const UNIT_LABELS: Record<string, string> = { kg: 'Kg', lt: 'Lt', ml: 'Ml', unidad: 'Unidad' };
 // Sub-unidades para cargar la cantidad de receta en algo más chico que la unidad del insumo.
 const SUB_UNITS: Record<string, { value: string; label: string; toBase: number }[]> = {
   kg: [
@@ -28,6 +29,7 @@ const SUB_UNITS: Record<string, { value: string; label: string; toBase: number }
     { value: 'lt', label: 'Lt', toBase: 1 },
     { value: 'ml', label: 'Ml', toBase: 0.001 },
   ],
+  ml: [{ value: 'ml', label: 'Ml', toBase: 1 }],
   unidad: [{ value: 'unidad', label: 'Unidad', toBase: 1 }],
 };
 
@@ -40,6 +42,7 @@ export default function InventoryPage() {
   const TABS = [
     { id: 'insumos', label: 'Insumos (normal)' },
     ...(canRecipes ? [{ id: 'recetas', label: 'Recetas' }] : []),
+    { id: 'stock', label: 'Stock de productos' },
   ] as const;
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('insumos');
   const [items, setItems] = useState<InventoryItem[] | null>(null);
@@ -61,26 +64,96 @@ export default function InventoryPage() {
         </p>
       </div>
 
-      {canRecipes && (
-        <div className="flex flex-wrap gap-2">
-          {TABS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                tab === t.id
-                  ? 'bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]'
-                  : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="flex flex-wrap gap-2">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+              tab === t.id
+                ? 'bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]'
+                : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
       {tab === 'insumos' && <InsumosTab items={items} onChanged={loadItems} />}
       {tab === 'recetas' && canRecipes && <RecetasTab insumos={items ?? []} />}
+      {tab === 'stock' && <StockTab />}
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+//  Stock de productos: contador simple por producto (independiente de insumos/receta),
+//  disponible para todos los planes.
+// -----------------------------------------------------------------------------
+
+function StockTab() {
+  const [products, setProducts] = useState<Product[] | null>(null);
+  const [savingId, setSavingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.get('/products').then((res) => setProducts(res.data.data));
+  }, []);
+
+  async function patchProduct(id: string, patch: Record<string, unknown>) {
+    setSavingId(id);
+    try {
+      const res = await api.patch(`/products/${id}`, patch);
+      setProducts((prev) => prev?.map((p) => (p.id === id ? { ...p, ...res.data.data } : p)) ?? null);
+    } finally {
+      setSavingId(null);
+    }
+  }
+
+  if (!products) return <p className="text-brand-950/50 font-light">Cargando…</p>;
+
+  return (
+    <div className="space-y-2">
+      <p className="text-sm text-brand-950/60 font-light">
+        Activa el control de stock por producto: al llegar a 0 se marca como agotado en el menú público.
+      </p>
+      <ul className="divide-y divide-brand-950/10 rounded-2xl border border-brand-950/10 bg-white">
+        {products.map((p) => (
+          <li key={p.id} className="flex items-center justify-between gap-3 px-4 py-3">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium text-brand-950 truncate">{p.name}</p>
+              <label className="flex items-center gap-1.5 text-xs text-brand-950/60 mt-0.5">
+                <input
+                  type="checkbox"
+                  checked={p.stockControlEnabled ?? false}
+                  onChange={(e) => patchProduct(p.id, { stockControlEnabled: e.target.checked, stockQuantity: e.target.checked ? p.stockQuantity ?? 0 : null })}
+                />
+                Controlar stock
+              </label>
+            </div>
+            {p.stockControlEnabled && (
+              <div className="flex items-center gap-2 shrink-0">
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  defaultValue={p.stockQuantity ?? 0}
+                  disabled={savingId === p.id}
+                  onBlur={(e) => patchProduct(p.id, { stockControlEnabled: true, stockQuantity: Number(e.target.value) || 0 })}
+                  className="w-20 border border-brand-950/15 rounded-lg px-2 py-1 text-sm text-right"
+                />
+                <span
+                  className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
+                    (p.stockQuantity ?? 0) <= 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+                  }`}
+                >
+                  {(p.stockQuantity ?? 0) <= 0 ? 'Agotado' : 'En stock'}
+                </span>
+              </div>
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
@@ -176,6 +249,7 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
             <option value="">Unidad…</option>
             <option value="kg">Kg</option>
             <option value="lt">Lt</option>
+            <option value="ml">Ml</option>
             <option value="unidad">Unidad</option>
           </select>
           <input

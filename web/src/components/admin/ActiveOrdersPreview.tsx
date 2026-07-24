@@ -145,6 +145,11 @@ export function ActiveOrdersPreview() {
   async function printComanda(orderId: string) {
     setPrintingId(orderId);
     try {
+      const o = orders?.find((x) => x.id === orderId);
+      if (o && (o.status === 'PENDING' || o.status === 'NEEDS_CONFIRMATION')) {
+        // Si ya se aceptó justo antes (doble click), el 400 de "ya no está pendiente" no debe frenar la impresión.
+        await api.post(`/orders/${orderId}/accept`).catch(() => {});
+      }
       await api.post(`/orders/${orderId}/print-comanda`);
     } finally {
       setPrintingId(null);

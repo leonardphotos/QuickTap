@@ -18,15 +18,21 @@ const PRODUCT_MODIFIER_INCLUDE = {
   },
 };
 
-/** Aplana la fila de asociación (ProductModifierCategory -> ModifierCategory) para el frontend. */
+/** Aplana la fila de asociación (ProductModifierCategory -> ModifierCategory) para el frontend,
+ * resolviendo el límite efectivo de selecciones (override del producto, si lo tiene, si no el de
+ * la categoría) para que el cliente solo tenga que leer un único `maxSelections` ya resuelto. */
 function serializeProduct<
   T extends {
+    stockControlEnabled: boolean;
+    stockQuantity: number | null;
     modifierCategories: {
+      maxSelectionsOverride: number | null;
       modifierCategory: {
         id: string;
         name: string;
         isRequired: boolean;
         allowMultiple: boolean;
+        maxSelections: number | null;
         modifiers: unknown[];
       };
     }[];
@@ -35,7 +41,12 @@ function serializeProduct<
   const { modifierCategories, ...rest } = product;
   return {
     ...rest,
-    modifierCategories: modifierCategories.map((link) => link.modifierCategory),
+    // Distingue "agotado por stock" de "desactivado a mano" (isAvailable) para el panel.
+    stockDepleted: rest.stockControlEnabled && (rest.stockQuantity ?? 0) <= 0,
+    modifierCategories: modifierCategories.map((link) => ({
+      ...link.modifierCategory,
+      maxSelections: link.maxSelectionsOverride ?? link.modifierCategory.maxSelections,
+    })),
   };
 }
 
@@ -83,6 +94,9 @@ export const productService = {
         costBase: input.costBase,
         photoUrl: input.photoUrl,
         prepTimeMinutes: input.prepTimeMinutes,
+        sku: input.sku,
+        stockControlEnabled: input.stockControlEnabled,
+        stockQuantity: input.stockQuantity,
         isAvailable: input.isAvailable,
         isStar: input.isStar,
         isPromo: input.isPromo,

@@ -40,6 +40,7 @@ const RESTAURANT_SELECT = {
   theme: true,
   serviceChargeEnabled: true,
   ivaEnabled: true,
+  rif: true,
   orderingEnabled: true,
   requireOrderConfirmation: true,
   deliveryOriginLat: true,
@@ -76,6 +77,7 @@ type RestaurantRow = {
   theme: unknown;
   serviceChargeEnabled: boolean;
   ivaEnabled: boolean;
+  rif: string | null;
   orderingEnabled: boolean;
   requireOrderConfirmation: boolean;
   deliveryOriginLat: number | null;
@@ -114,6 +116,7 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
     theme: restaurant.theme,
     serviceChargeEnabled: restaurant.serviceChargeEnabled,
     ivaEnabled: restaurant.ivaEnabled,
+    rif: restaurant.rif,
     orderingEnabled: restaurant.orderingEnabled,
     requireOrderConfirmation: restaurant.requireOrderConfirmation,
     deliveryOriginLat: restaurant.deliveryOriginLat,

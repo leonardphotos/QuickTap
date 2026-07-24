@@ -106,7 +106,7 @@ export default function ScreenPage() {
                   <div key={t.id} className="relative">
                     <div
                       className={`aspect-square rounded-xl flex items-center justify-center font-semibold text-sm ${
-                        t.session ? 'bg-emerald-500 text-white shadow-sm' : 'bg-brand-950/[0.06] text-brand-950/50'
+                        t.sessions.length > 0 ? 'bg-emerald-500 text-white shadow-sm' : 'bg-brand-950/[0.06] text-brand-950/50'
                       }`}
                     >
                       {t.number}

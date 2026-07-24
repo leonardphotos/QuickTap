@@ -1,5 +1,5 @@
 import { forwardRef, type CSSProperties } from 'react';
-import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
+import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute, formatModifierLabel } from '@/utils/format';
 import type { LiveOrder } from './LiveOrdersPanel';
 
 const CHANNEL_LABELS: Record<LiveOrder['channel'], string> = {
@@ -110,7 +110,7 @@ export const ComandaReceipt = forwardRef<HTMLDivElement, Props>(({ order, restau
             <span>
               {it.quantity}× {it.productName}
               {it.variantName && ` (${it.variantName})`}
-              {it.modifiers.length > 0 && <span style={muted}>{it.modifiers.map((m) => m.name).join(', ')}</span>}
+              {it.modifiers.length > 0 && <span style={muted}>{it.modifiers.map(formatModifierLabel).join(', ')}</span>}
             </span>
             <span style={{ flexShrink: 0 }}>{formatBase((Number(it.unitPrice) * it.quantity).toFixed(2), symbol)}</span>
           </div>

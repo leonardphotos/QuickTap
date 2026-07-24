@@ -4,6 +4,7 @@ import { activateRestaurantSchema } from '../plan-requests/plan-request.dto';
 import { planRequestService } from '../plan-requests/plan-request.service';
 import {
   extendDaysSchema,
+  setIvaEnabledSchema,
   setPeriodEndSchema,
   setSuspendedSchema,
   updateRestaurantUserSchema,
@@ -36,6 +37,11 @@ export const masterRestaurantsController = {
   setPeriodEnd: asyncHandler(async (req: Request, res: Response) => {
     const { periodEnd } = setPeriodEndSchema.parse(req.body);
     res.json({ data: await masterRestaurantsService.setPeriodEnd(req.params.id, periodEnd) });
+  }),
+  /** Activa/desactiva el IVA (16%). Requiere que el restaurante ya tenga su RIF registrado. */
+  setIvaEnabled: asyncHandler(async (req: Request, res: Response) => {
+    const { ivaEnabled } = setIvaEnabledSchema.parse(req.body);
+    res.json({ data: await masterRestaurantsService.setIvaEnabled(req.params.id, ivaEnabled) });
   }),
   /** Edita nombre/correo/contraseña de un usuario del restaurante. */
   updateUser: asyncHandler(async (req: Request, res: Response) => {

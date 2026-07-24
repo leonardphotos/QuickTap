@@ -1,12 +1,14 @@
 import { lazy, useState } from 'react';
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Boxes, CalendarDays, Home, Menu, Share2, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, Boxes, CalendarDays, Home, Menu, PackageX, Share2, TriangleAlert } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Toast } from '@/components/ui/toast';
 import { NavMenuDrawer } from '@/components/admin/NavMenuDrawer';
+import { LowStockAlert } from '@/components/admin/LowStockAlert';
 import { useCopyToast } from '../../hooks/useCopyToast';
 import { usePendingReservationsCount } from '../../hooks/usePendingReservations';
+import { useLowStockItems } from '../../hooks/useLowStockItems';
 import { RESTRICTED_ROLES, canAccessPath, defaultPathFor, isAdminCashier, isScreenRole } from '../../utils/roles';
 import { daysRemaining, graceHoursRemaining, hasFeature } from '../../utils/subscription';
 import { visibleNavLinks } from './nav-links';
@@ -20,6 +22,7 @@ export default function AdminLayout() {
   const { copy, toastMessage } = useCopyToast();
   const [menuOpen, setMenuOpen] = useState(false);
   const pendingReservations = usePendingReservationsCount(user?.role);
+  const lowStockItems = useLowStockItems(user?.role, user?.canAccessInventory);
 
   if (loading) return <div className="p-10 text-center text-brand-950/50 font-light">Cargando…</div>;
   if (!user || !restaurant) return <Navigate to="/admin/login" replace />;
@@ -133,6 +136,19 @@ export default function AdminLayout() {
           </nav>
 
           <div className="flex items-center gap-1.5 shrink-0">
+            {isAdminCashier(user.role) && lowStockItems.length > 0 && (
+              <Link
+                to="/admin/inventory"
+                className="relative flex items-center justify-center h-9 w-9 rounded-full bg-red-500/10"
+                aria-label="Insumos por agotarse"
+                title={`Insumos por agotarse: ${lowStockItems.map((i) => i.name).join(', ')}`}
+              >
+                <PackageX className="h-4 w-4 text-red-600" />
+                <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center ring-2 ring-white">
+                  {lowStockItems.length}
+                </span>
+              </Link>
+            )}
             <TextureButton
               variant="icon"
               size="icon"
@@ -194,10 +210,15 @@ export default function AdminLayout() {
             </Link>
           )}
           {canSeeInventory && (
-            <Link to="/admin/inventory">
+            <Link to="/admin/inventory" className="relative">
               <TextureButton variant="icon" size="icon" className="!h-11 !w-11" aria-label="Inventario">
                 <Boxes className="h-5 w-5 text-brand-950/70" />
               </TextureButton>
+              {isAdminCashier(user.role) && lowStockItems.length > 0 && (
+                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
+                  {lowStockItems.length}
+                </span>
+              )}
             </Link>
           )}
           <TextureButton variant="icon" size="icon" className="!h-11 !w-11" aria-label="Abrir menú" onClick={() => setMenuOpen(true)}>
@@ -209,6 +230,7 @@ export default function AdminLayout() {
       <NavMenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
 
       <Toast message={toastMessage} />
+      <LowStockAlert />
     </div>
   );
 }

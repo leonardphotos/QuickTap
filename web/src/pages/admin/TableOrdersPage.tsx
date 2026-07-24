@@ -4,6 +4,8 @@ import type { Socket } from 'socket.io-client';
 import { BellRing, Check, Lock, LogOut, MoveHorizontal, Plus, Printer, Receipt } from 'lucide-react';
 import { api, getToken } from '../../api/client';
 import type { FloorPlan, FloorPlanTable, Product } from '../../types';
+import { useAuth } from '@/context/AuthContext';
+import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { ManualOrderDialog } from '@/components/admin/ManualOrderDialog';
@@ -19,8 +21,13 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function TableOrdersPage() {
+  const { restaurant } = useAuth();
+  const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [plan, setPlan] = useState<FloorPlan | null>(null);
   const [selected, setSelected] = useState<FloorPlanTable | null>(null);
+  // Mesa con varias cuentas abiertas: cuál de ellas está activa en el diálogo/footer. Null = mesa
+  // libre o con una sola cuenta (en ese caso `activeSession` cae directo a `sessions[0]`).
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [moveOpen, setMoveOpen] = useState(false);
   const [manualOrderOpen, setManualOrderOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
@@ -86,16 +93,19 @@ export default function TableOrdersPage() {
   }, [liveOrders]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const freeTables = useMemo(
-    () => sections.flatMap((s) => s.tables).filter((t) => !t.session && t.id !== selected?.id),
+    () => sections.flatMap((s) => s.tables).filter((t) => t.sessions.length === 0 && t.id !== selected?.id),
     [sections, selected],
   );
 
+  // Con una sola cuenta (el caso de siempre), cae directo a ella sin que el mesero tenga que elegir nada.
+  const activeSession = selected ? selected.sessions.find((s) => s.id === selectedSessionId) ?? selected.sessions[0] ?? null : null;
+
   async function closeTable() {
-    if (!selected?.session) return;
+    if (!activeSession) return;
     setBusy(true);
     setError(null);
     try {
-      await api.patch(`/table-sessions/${selected.session.id}/close`);
+      await api.patch(`/table-sessions/${activeSession.id}/close`);
       setSelected(null);
       setEditingOrder(null);
       load();
@@ -106,12 +116,12 @@ export default function TableOrdersPage() {
     }
   }
 
-  /** "Cerrar mesa": si algún pedido de la sesión todavía no está pagado, abre "Pagar" para
-   * ese pedido en vez de cerrar — no debe poder cerrarse una mesa dejando saldo sin cobrar.
+  /** "Cerrar mesa": si algún pedido de la cuenta activa todavía no está pagado, abre "Pagar" para
+   * ese pedido en vez de cerrar — no debe poder cerrarse una cuenta dejando saldo sin cobrar.
    * Si todo ya está pagado, cierra directo sin preguntar cómo se pagó. */
   function handleCerrarMesaClick() {
-    if (!selected?.session) return;
-    const unpaid = selected.session.orders
+    if (!activeSession) return;
+    const unpaid = activeSession.orders
       .map((o) => liveOrders?.find((lo) => lo.id === o.orderId))
       .filter((full): full is LiveOrder => !!full && !getPaymentStatus(full).fullyPaid);
     if (unpaid.length === 0) {
@@ -123,10 +133,14 @@ export default function TableOrdersPage() {
   }
 
   /** No imprime desde este navegador — reenvía la comanda a la estación de impresión. */
-  async function printOrder(orderId: string) {
+  async function printOrder(orderId: string, status: string) {
     setPrintingId(orderId);
     setError(null);
     try {
+      if (status === 'PENDING' || status === 'NEEDS_CONFIRMATION') {
+        // Si ya se aceptó justo antes (doble click), el 400 de "ya no está pendiente" no debe frenar la impresión.
+        await api.post(`/orders/${orderId}/accept`).catch(() => {});
+      }
       await api.post(`/orders/${orderId}/print-comanda`);
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo enviar la comanda a la estación de impresión.');
@@ -159,12 +173,12 @@ export default function TableOrdersPage() {
   }
 
   async function resetPin() {
-    if (!selected?.session) return;
-    if (!confirm('¿Quitar la clave de esta mesa? Cualquiera podrá pedir sin necesidad de clave hasta que se defina una nueva.')) return;
+    if (!activeSession) return;
+    if (!confirm('¿Quitar la clave de esta cuenta? Cualquiera podrá pedir sin necesidad de clave hasta que se defina una nueva.')) return;
     setBusy(true);
     setError(null);
     try {
-      await api.patch(`/table-sessions/${selected.session.id}/reset-pin`);
+      await api.patch(`/table-sessions/${activeSession.id}/reset-pin`);
       load();
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo quitar la clave.');
@@ -174,11 +188,11 @@ export default function TableOrdersPage() {
   }
 
   async function moveTable(newTableId: string) {
-    if (!selected?.session) return;
+    if (!activeSession) return;
     setBusy(true);
     setError(null);
     try {
-      await api.patch(`/table-sessions/${selected.session.id}/move`, { tableId: newTableId });
+      await api.patch(`/table-sessions/${activeSession.id}/move`, { tableId: newTableId });
       setMoveOpen(false);
       setSelected(null);
       setEditingOrder(null);
@@ -190,12 +204,32 @@ export default function TableOrdersPage() {
     }
   }
 
-  /** Al tocar una mesa con cuenta abierta, abre directo "Editar pedido" del pedido más
-   * reciente (igual que tocar una comanda activa), sin pasar por una lista intermedia. */
+  /** Al tocar una mesa con cuenta(s) abierta(s), muestra la más reciente por defecto y abre
+   * directo "Editar pedido" del pedido más reciente de esa cuenta, sin pasar por una lista intermedia. */
   function openTable(t: FloorPlanTable) {
     setSelected(t);
-    if (!t.session || t.session.orders.length === 0) return;
-    const mostRecent = [...t.session.orders].sort(
+    if (t.sessions.length === 0) {
+      setSelectedSessionId(null);
+      return;
+    }
+    const mostRecentSession = t.sessions[t.sessions.length - 1];
+    setSelectedSessionId(mostRecentSession.id);
+    if (mostRecentSession.orders.length === 0) return;
+    const mostRecent = [...mostRecentSession.orders].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    )[0];
+    const full = liveOrders?.find((lo) => lo.id === mostRecent.orderId);
+    if (full) setEditingOrder(full);
+  }
+
+  /** Cambia de cuenta dentro de la misma mesa: recarga el pedido más reciente de la cuenta elegida. */
+  function selectAccount(session: NonNullable<typeof activeSession>) {
+    setSelectedSessionId(session.id);
+    if (session.orders.length === 0) {
+      setEditingOrder(null);
+      return;
+    }
+    const mostRecent = [...session.orders].sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
     )[0];
     const full = liveOrders?.find((lo) => lo.id === mostRecent.orderId);
@@ -210,7 +244,7 @@ export default function TableOrdersPage() {
   /** Generar orden / Rodar mesa / Quitar clave / Cerrar mesa — se muestran tanto en el diálogo
    * de mesa (mesa libre / respaldo sin pedido cargado aún) como fijos arriba de "Editar pedido". */
   function renderMesaActions() {
-    if (!selected?.session) return null;
+    if (!activeSession) return null;
     return (
       <div className="flex flex-wrap gap-2">
         <TextureButton
@@ -231,7 +265,7 @@ export default function TableOrdersPage() {
         >
           <MoveHorizontal className="h-4 w-4" /> Rodar mesa
         </TextureButton>
-        {selected.session.pinRequired && (
+        {activeSession.pinRequired && (
           <TextureButton
             variant="minimal"
             size="default"
@@ -255,18 +289,39 @@ export default function TableOrdersPage() {
     );
   }
 
-  const activeSessionOrders = selected?.session?.orders ?? [];
+  /** Chips para elegir cuenta cuando la mesa tiene más de una abierta a la vez. */
+  function renderAccountSwitcher() {
+    if (!selected || selected.sessions.length < 2) return null;
+    return (
+      <div className="flex flex-wrap gap-1.5">
+        {selected.sessions.map((s, i) => (
+          <button
+            key={s.id}
+            onClick={() => selectAccount(s)}
+            className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+              activeSession?.id === s.id ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60'
+            }`}
+          >
+            {s.label ?? `Cuenta ${i + 1}`} · {formatBase(s.totalBase, symbol)}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  const activeSessionOrders = activeSession?.orders ?? [];
   const mesaFooter =
-    selected?.session && editingOrder ? (
+    activeSession && editingOrder ? (
       <>
         <p className="text-sm font-semibold text-brand-950 flex items-center gap-2">
-          Mesa {selected.number}
-          {selected.session.pinRequired && (
+          Mesa {selected?.number}
+          {activeSession.pinRequired && (
             <span className="inline-flex items-center gap-1 text-xs text-brand-500 font-normal">
               <Lock className="h-3 w-3" /> Con clave
             </span>
           )}
         </p>
+        {renderAccountSwitcher()}
         {activeSessionOrders.length > 1 && (
           <div className="flex flex-wrap gap-1.5">
             {activeSessionOrders.map((o) => (
@@ -337,7 +392,7 @@ export default function TableOrdersPage() {
                     className={`aspect-square w-full rounded-2xl flex flex-col items-center justify-center gap-0.5 font-semibold text-sm transition-all duration-200 hover:scale-[1.04] ${
                       t.serviceRequest
                         ? 'bg-[#fbedd6] text-[#8a5106]'
-                        : t.session
+                        : t.sessions.length > 0
                           ? 'bg-secondary text-brand-950'
                           : t.reserved
                             ? 'bg-[#fbe7f1] text-[#9d2469]'
@@ -346,7 +401,15 @@ export default function TableOrdersPage() {
                   >
                     <span>{t.number}</span>
                     <span className="text-[9px] font-medium opacity-80">
-                      {t.serviceRequest ? 'Cuenta' : t.session ? 'Ocupada' : t.reserved ? 'Reservada' : 'Libre'}
+                      {t.serviceRequest
+                        ? 'Cuenta'
+                        : t.sessions.length > 1
+                          ? `${t.sessions.length} cuentas`
+                          : t.sessions.length === 1
+                            ? 'Ocupada'
+                            : t.reserved
+                              ? 'Reservada'
+                              : 'Libre'}
                     </span>
                   </button>
                   {t.serviceRequest && (
@@ -384,13 +447,14 @@ export default function TableOrdersPage() {
           <DialogHeader>
             <DialogTitle>Mesa {selected?.number}</DialogTitle>
           </DialogHeader>
-          {selected?.session ? (
+          {activeSession ? (
             <div className="space-y-4">
+              {renderAccountSwitcher()}
               <p className="text-sm text-brand-950/70">
-                <span className="font-medium text-brand-950">{selected.session.customerName}</span>
+                <span className="font-medium text-brand-950">{activeSession.customerName}</span>
                 {' · Cédula '}
-                {selected.session.customerIdNumber}
-                {selected.session.pinRequired && (
+                {activeSession.customerIdNumber}
+                {activeSession.pinRequired && (
                   <span className="ml-2 inline-flex items-center gap-1 text-xs text-brand-500">
                     <Lock className="h-3 w-3" /> Con clave
                   </span>
@@ -398,7 +462,7 @@ export default function TableOrdersPage() {
               </p>
 
               <ul className="space-y-3 max-h-72 overflow-y-auto">
-                {selected.session.orders.map((o) => (
+                {activeSession.orders.map((o) => (
                   <li
                     key={o.orderId}
                     className="border-b border-brand-950/10 pb-2 cursor-pointer -mx-1 px-1 rounded-lg hover:bg-brand-950/[0.03] transition-colors"
@@ -445,7 +509,7 @@ export default function TableOrdersPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          printOrder(o.orderId);
+                          printOrder(o.orderId, o.status);
                         }}
                         disabled={printingId === o.orderId}
                         className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-full bg-brand-950/[0.06] text-brand-950/70 hover:bg-brand-950/10 disabled:opacity-50"
@@ -506,7 +570,7 @@ export default function TableOrdersPage() {
         <ManualOrderDialog
           tableId={selected.id}
           tableNumber={selected.number}
-          hasOpenSession={!!selected.session}
+          sessions={selected.sessions}
           products={products}
           onClose={() => setManualOrderOpen(false)}
           onCreated={load}

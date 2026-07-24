@@ -221,7 +221,12 @@ model Restaurant {
 
   // --- Cargos opcionales del checkout (aplican sobre el subtotal) ---
   serviceChargeEnabled Boolean @default(false) // 10% de servicio
-  ivaEnabled           Boolean @default(false) // 16% de IVA
+  // 16% de IVA. Solo lo activa el equipo QuickTap desde el Master Dashboard (no autoservicio
+  // del restaurante), y solo si ya tiene `rif` registrado — ver master-restaurants.service.ts.
+  ivaEnabled           Boolean @default(false)
+  // RIF fiscal del restaurante (lo escribe el restaurante en Ajustes). Distinto del `rif` que
+  // vive dentro de paymentMethodsConfig, que es el RIF de una cuenta de cobro puntual.
+  rif                  String?
 
   // --- Control de pedidos ---
   // Si es false, el menú público queda solo para ver: sin carrito ni checkout
@@ -475,6 +480,14 @@ model Product {
   // Disponibilidad para la venta.
   isAvailable Boolean @default(true)
 
+  // Código interno opcional (back-office). Nunca se expone en el menú público.
+  sku String?
+
+  // Control de stock simple por producto (independiente del sistema de insumos/receta).
+  // stockQuantity null = sin control de stock; en 0 el producto se muestra agotado en el menú público.
+  stockControlEnabled Boolean @default(false)
+  stockQuantity        Int?
+
   // --- Banderas de marketing ---
   isStar         Boolean @default(false) // Producto Estrella
   isPromo        Boolean @default(false) // Promoción
@@ -520,6 +533,13 @@ model ModifierCategory {
   isRequired Boolean @default(false)
   // false = el cliente elige un solo modificador (radio); true = puede elegir varios (checkboxes).
   allowMultiple Boolean @default(false)
+  // Límite de selecciones totales cuando allowMultiple=true (permite repetir la misma opción,
+  // ej. "Ketchup x4"). null = sin límite. Un producto puntual puede sobreescribirlo, ver
+  // ProductModifierCategory.maxSelectionsOverride.
+  maxSelections Int?
+  // Mínimo de selecciones totales cuando allowMultiple=true. null = usa el default (1 si
+  // isRequired, 0 si no).
+  minSelections Int?
 
   // Orden al mostrarse dentro de un producto.
   priority Int @default(0)
@@ -548,6 +568,11 @@ model Modifier {
   discountBase Decimal? @db.Decimal(12, 2)
   // Visible/oculto en el menú público (el ícono de ojo de la referencia).
   isAvailable Boolean @default(true)
+  // Tope de repetición de este modificador puntual (ej. "Ketchup máx. 2"), independiente del
+  // límite de la categoría. null = sin tope propio (solo limita el máximo de la categoría).
+  maxQuantity Int?
+  // Código interno opcional (back-office). Nunca se expone en el menú público.
+  sku String?
 
   priority Int @default(0)
 
@@ -567,6 +592,8 @@ model ProductModifierCategory {
   productId          String
   modifierCategoryId String
   priority           Int    @default(0)
+  // Sobreescribe ModifierCategory.maxSelections solo para este producto. null = usa el de la categoría.
+  maxSelectionsOverride Int?
 
   product          Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
   modifierCategory ModifierCategory @relation(fields: [modifierCategoryId], references: [id], onDelete: Cascade)
@@ -727,6 +754,10 @@ model TableSession {
   // mientras la cuenta esté abierta (se resetea al cerrar/rodar la mesa).
   pinHash    String?
   pinSkipped Boolean @default(false)
+
+  // Nombre de la cuenta cuando una mesa tiene varias abiertas a la vez (ej. "Cuenta 1").
+  // Null = mesa de una sola cuenta (comportamiento de siempre).
+  label String?
 
   status TableSessionStatus @default(OPEN)
 
@@ -979,6 +1010,10 @@ model OrderItem {
   quantity    Int     @default(1)
   lineTotal   Decimal @db.Decimal(12, 2)
 
+  // Cuánto de esta línea ya se cobró (fraccionar pago por ítems). Nunca supera `quantity`;
+  // no es la fuente de verdad de "pedido saldado" (eso sigue siendo por monto en Order/OrderPayment).
+  paidQuantity Int @default(0)
+
   // Nota de cocina (ej: "Sin cebolla").
   note String?
 
@@ -1004,6 +1039,8 @@ model OrderItemModifier {
   orderItemId String
   name        String
   priceBase   Decimal @db.Decimal(12, 2)
+  // Cuántas veces se eligió esta misma opción (ej. "Ketchup x4"). Snapshot, igual que name/priceBase.
+  quantity    Int     @default(1)
 
   orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
 

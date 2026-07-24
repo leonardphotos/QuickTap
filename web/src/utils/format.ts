@@ -62,6 +62,22 @@ export function cartLineUnitPrice(line: CartLine): number {
   const variant =
     line.product.pricingMode === 'VARIANTS' ? line.product.variants?.find((v) => v.id === line.variantId) : undefined;
   const base = variant ? Number(variant.priceBase) : Number(line.product.price);
-  const modifiersTotal = line.selectedModifiers.reduce((acc, m) => acc + Number(m.priceBase), 0);
+  const modifiersTotal = line.selectedModifiers.reduce((acc, m) => acc + Number(m.priceBase) * (m.quantity ?? 1), 0);
   return base + modifiersTotal;
+}
+
+/** Etiqueta de un modificador elegido, con "xN" cuando se repitió la misma opción (ej. "Ketchup x4"). */
+export function formatModifierLabel(m: { name: string; quantity?: number }): string {
+  return m.quantity && m.quantity > 1 ? `${m.name} x${m.quantity}` : m.name;
+}
+
+/** Clave estable para comparar si dos líneas del carrito eligieron exactamente los mismos
+ * modificadores CON la misma cantidad cada uno (para saber si dos líneas se pueden fusionar
+ * en una sola con la cantidad sumada, ej. dos veces "Ceviche + Ketchup x4" pero no confundirlo
+ * con "Ceviche + Ketchup x2"). */
+export function modifierSelectionKey(mods: { modifierId: string; quantity: number }[]): string {
+  return mods
+    .map((m) => `${m.modifierId}:${m.quantity}`)
+    .sort()
+    .join('|');
 }

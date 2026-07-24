@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react';
 import { Search } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, cartLineUnitPrice, formatBase } from '@/utils/format';
-import type { CartLine, Product } from '@/types';
+import { CURRENCY_SYMBOLS, cartLineUnitPrice, formatBase, modifierSelectionKey } from '@/utils/format';
+import type { CartLine, Product, TableSession } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { ProductOptionsDialog } from './ProductOptionsDialog';
@@ -11,23 +11,27 @@ import { ProductOptionsDialog } from './ProductOptionsDialog';
 interface Props {
   tableId: string;
   tableNumber: string;
-  hasOpenSession: boolean;
+  /** Cuenta(s) abierta(s) de la mesa. Vacío = mesa libre (se abrirá una cuenta al enviar). */
+  sessions: TableSession[];
   products: Product[];
   onClose: () => void;
   onCreated: () => void;
 }
 
-export function ManualOrderDialog({ tableId, tableNumber, hasOpenSession, products, onClose, onCreated }: Props) {
+export function ManualOrderDialog({ tableId, tableNumber, sessions, products, onClose, onCreated }: Props) {
   const { restaurant } = useAuth();
   const [lines, setLines] = useState<CartLine[]>([]);
   const [optionsProduct, setOptionsProduct] = useState<Product | null>(null);
   const [customerName, setCustomerName] = useState('');
   const [customerIdNumber, setCustomerIdNumber] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  // Mesa con cuenta(s) abierta(s): a cuál se agrega, o 'new' para abrir una independiente.
+  const [accountChoice, setAccountChoice] = useState<string | 'new' | null>(sessions.length === 1 ? sessions[0].id : null);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const needsNewAccount = sessions.length === 0 || accountChoice === 'new';
 
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
 
@@ -56,8 +60,7 @@ export function ManualOrderDialog({ tableId, tableNumber, hasOpenSession, produc
           l.product.id === line.product.id &&
           l.note === line.note &&
           l.variantId === line.variantId &&
-          JSON.stringify(l.selectedModifiers.map((m) => m.modifierId).sort()) ===
-            JSON.stringify(line.selectedModifiers.map((m) => m.modifierId).sort()),
+          modifierSelectionKey(l.selectedModifiers) === modifierSelectionKey(line.selectedModifiers),
       );
       if (matchIndex === -1) return [...prev, line];
       const next = [...prev];
@@ -71,7 +74,11 @@ export function ManualOrderDialog({ tableId, tableNumber, hasOpenSession, produc
       setError('Agrega al menos un producto.');
       return;
     }
-    if (!hasOpenSession) {
+    if (sessions.length > 1 && !accountChoice) {
+      setError('Elige a cuál cuenta agregar el pedido, o abre una nueva.');
+      return;
+    }
+    if (needsNewAccount) {
       if (!customerName.trim() || !customerIdNumber.trim() || !customerPhone.trim()) {
         setError('Escribe el nombre, la cédula y el teléfono del cliente para abrir la cuenta.');
         return;
@@ -86,16 +93,18 @@ export function ManualOrderDialog({ tableId, tableNumber, hasOpenSession, produc
           productId: l.product.id,
           quantity: l.quantity,
           variantId: l.variantId,
-          modifierIds: l.selectedModifiers.map((m) => m.modifierId),
+          modifierIds: l.selectedModifiers.flatMap((m) => Array(m.quantity ?? 1).fill(m.modifierId)),
           note: l.note,
         })),
-        ...(hasOpenSession
-          ? {}
-          : {
+        sessionId: !needsNewAccount && accountChoice ? accountChoice : undefined,
+        openNewAccount: accountChoice === 'new' ? true : undefined,
+        ...(needsNewAccount
+          ? {
               customerName: customerName.trim(),
               customerIdNumber: customerIdNumber.trim(),
               customerPhone: customerPhone.trim(),
-            }),
+            }
+          : {}),
       });
       onCreated();
       onClose();
@@ -115,7 +124,38 @@ export function ManualOrderDialog({ tableId, tableNumber, hasOpenSession, produc
           </DialogHeader>
 
           <div className="space-y-4">
-            {!hasOpenSession && (
+            {sessions.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-brand-950/50">
+                  {sessions.length > 1 ? 'Elige a cuál cuenta agregar, o abre una nueva:' : 'Esta mesa ya tiene una cuenta abierta:'}
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {sessions.map((s, i) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setAccountChoice(s.id)}
+                      className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                        accountChoice === s.id ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+                      }`}
+                    >
+                      {s.label ?? `Cuenta ${i + 1}`} · {formatBase(s.totalBase, symbol)}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setAccountChoice('new')}
+                    className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                      accountChoice === 'new' ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+                    }`}
+                  >
+                    + Nueva cuenta
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {needsNewAccount && (
               <div className="space-y-2">
                 <p className="text-sm font-semibold text-brand-950">Datos para abrir la cuenta</p>
                 <input

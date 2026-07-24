@@ -29,7 +29,7 @@ import { ComandaReceipt } from './ComandaReceipt';
 import { ProductOptionsDialog } from './ProductOptionsDialog';
 import { useAuth } from '@/context/AuthContext';
 import { hasFeature } from '@/utils/subscription';
-import { abbreviateTableBadge, CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
+import { abbreviateTableBadge, CURRENCY_SYMBOLS, formatBase, formatBsAbsolute, formatModifierLabel } from '@/utils/format';
 
 interface LiveOrderItem {
   id: string;
@@ -38,7 +38,10 @@ interface LiveOrderItem {
   variantName?: string | null;
   unitPrice: string;
   quantity: number;
-  modifiers: { name: string; priceBase: string }[];
+  lineTotal: string;
+  // Cuánto de esta línea ya se cobró (fraccionar pago por ítems). 0 si nunca se ha usado esa modalidad.
+  paidQuantity: number;
+  modifiers: { name: string; priceBase: string; quantity: number }[];
   note?: string | null;
 }
 
@@ -242,6 +245,11 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
     setPrintingId(orderId);
     setError(null);
     try {
+      const o = orders?.find((x) => x.id === orderId);
+      if (o && (o.status === 'PENDING' || o.status === 'NEEDS_CONFIRMATION')) {
+        // Si ya se aceptó justo antes (doble click), el 400 de "ya no está pendiente" no debe frenar la impresión.
+        await api.post(`/orders/${orderId}/accept`).catch(() => {});
+      }
       await api.post(`/orders/${orderId}/print-comanda`);
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo enviar la comanda a la estación de impresión.');
@@ -350,13 +358,11 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
     }
   }
 
+  /** Siempre abre la ventana con todo el equipo de delivery para elegir, aunque haya un solo
+   * repartidor — así el mesero/cajero ve y confirma explícitamente a quién le está despachando. */
   function handleDeliveryClick(order: LiveOrder) {
     if (couriers.length === 0) {
       setError('Agrega un repartidor en Ajustes → Equipo de Delivery primero.');
-      return;
-    }
-    if (couriers.length === 1) {
-      dispatch(order.id, couriers[0].id);
       return;
     }
     setCourierPickerFor(order.id);
@@ -505,7 +511,7 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
                     <span className="font-medium">{it.quantity}x</span> {it.productName}
                     {it.variantName && <span className="text-brand-950/50"> ({it.variantName})</span>}
                     {it.modifiers.length > 0 && (
-                      <span className="text-brand-950/50"> ({it.modifiers.map((m) => m.name).join(', ')})</span>
+                      <span className="text-brand-950/50"> ({it.modifiers.map(formatModifierLabel).join(', ')})</span>
                     )}
                   </li>
                 ))}
@@ -521,63 +527,55 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
                 )}
               </div>
 
-              {courierPickerFor === o.id ? (
-                <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
-                  <p className="text-xs text-brand-950/60">Elige el repartidor:</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {couriers.map((c) => (
-                      <button
-                        key={c.id}
-                        onClick={() => dispatch(o.id, c.id)}
-                        disabled={busyId === o.id}
-                        className="text-xs font-medium px-3 py-1.5 rounded-full bg-brand-950/[0.06] hover:bg-brand-950/10 disabled:opacity-50"
-                      >
-                        {c.name}
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => setCourierPickerFor(null)}
-                      className="text-xs font-medium px-3 py-1.5 rounded-full text-brand-950/50"
-                    >
-                      Cancelar
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="grid grid-cols-4 gap-1.5" onClick={(e) => e.stopPropagation()}>
+              <div
+                className={o.channel === 'DELIVERY' ? 'grid grid-cols-3 gap-1.5' : 'grid grid-cols-4 gap-1.5'}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  onClick={() => accept(o.id)}
+                  disabled={busyId === o.id || (o.status !== 'PENDING' && o.status !== 'NEEDS_CONFIRMATION')}
+                  title="Aceptar"
+                  className={`flex flex-col items-center justify-center gap-1 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white ${actionBtnClass} transition-colors disabled:opacity-40`}
+                >
+                  <Check className="h-4 w-4" /> <span className="lg:hidden">Aceptar</span>
+                </button>
+                <button
+                  onClick={() => cancel(o.id)}
+                  disabled={busyId === o.id}
+                  title="Cancelar"
+                  className={`flex flex-col items-center justify-center gap-1 rounded-xl bg-red-500 hover:bg-red-600 text-white ${actionBtnClass} transition-colors disabled:opacity-50`}
+                >
+                  <X className="h-4 w-4" /> <span className="lg:hidden">Cancelar</span>
+                </button>
+                <button
+                  onClick={() => finish(o.id)}
+                  disabled={busyId === o.id}
+                  title="Finalizar"
+                  className={`flex flex-col items-center justify-center gap-1 rounded-xl bg-brand-500 hover:bg-brand-400 text-white ${actionBtnClass} transition-colors disabled:opacity-50`}
+                >
+                  <ChefHat className="h-4 w-4" /> <span className="lg:hidden">Finalizar</span>
+                </button>
+                {o.channel !== 'DELIVERY' && (
                   <button
-                    onClick={() => accept(o.id)}
-                    disabled={busyId === o.id || (o.status !== 'PENDING' && o.status !== 'NEEDS_CONFIRMATION')}
-                    title="Aceptar"
-                    className={`flex flex-col items-center justify-center gap-1 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white ${actionBtnClass} transition-colors disabled:opacity-40`}
-                  >
-                    <Check className="h-4 w-4" /> <span className="lg:hidden">Aceptar</span>
-                  </button>
-                  <button
-                    onClick={() => cancel(o.id)}
-                    disabled={busyId === o.id}
-                    title="Cancelar"
-                    className={`flex flex-col items-center justify-center gap-1 rounded-xl bg-red-500 hover:bg-red-600 text-white ${actionBtnClass} transition-colors disabled:opacity-50`}
-                  >
-                    <X className="h-4 w-4" /> <span className="lg:hidden">Cancelar</span>
-                  </button>
-                  <button
-                    onClick={() => finish(o.id)}
-                    disabled={busyId === o.id}
-                    title="Finalizar"
-                    className={`flex flex-col items-center justify-center gap-1 rounded-xl bg-brand-500 hover:bg-brand-400 text-white ${actionBtnClass} transition-colors disabled:opacity-50`}
-                  >
-                    <ChefHat className="h-4 w-4" /> <span className="lg:hidden">Finalizar</span>
-                  </button>
-                  <button
-                    onClick={() => handleDeliveryClick(o)}
-                    disabled={busyId === o.id || o.channel !== 'DELIVERY'}
+                    disabled
                     title="Delivery"
-                    className={`flex flex-col items-center justify-center gap-1 rounded-xl bg-brand-950 hover:bg-brand-900 text-white ${actionBtnClass} transition-colors disabled:opacity-40`}
+                    className={`flex flex-col items-center justify-center gap-1 rounded-xl bg-brand-950 text-white ${actionBtnClass} opacity-40`}
                   >
                     <Truck className="h-4 w-4" /> <span className="lg:hidden">Delivery</span>
                   </button>
-                </div>
+                )}
+              </div>
+              {o.channel === 'DELIVERY' && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeliveryClick(o);
+                  }}
+                  disabled={busyId === o.id}
+                  className="mt-1.5 w-full flex items-center justify-center gap-2 rounded-xl bg-brand-950 hover:bg-brand-900 text-white py-3 text-sm font-semibold transition-colors disabled:opacity-50"
+                >
+                  <Truck className="h-5 w-5" /> Delivery
+                </button>
               )}
 
               {fullyPaid ? (
@@ -676,6 +674,35 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
           onClose={() => setPaymentDialog(null)}
           onPaid={load}
         />
+      )}
+
+      {courierPickerFor && (
+        <Dialog open onOpenChange={(open) => !open && setCourierPickerFor(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Equipo de delivery</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-1.5">
+              {couriers.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => dispatch(courierPickerFor, c.id)}
+                  disabled={busyId === courierPickerFor}
+                  className="w-full flex items-center justify-between gap-3 rounded-xl border border-brand-950/10 hover:bg-brand-950/[0.04] px-4 py-3 text-left transition-colors disabled:opacity-50"
+                >
+                  <span className="font-medium text-brand-950">{c.name}</span>
+                  {c.whatsappPhone && <span className="text-sm text-brand-950/50">{c.whatsappPhone}</span>}
+                </button>
+              ))}
+              <button
+                onClick={() => setCourierPickerFor(null)}
+                className="w-full text-center text-sm font-medium text-brand-950/50 py-2"
+              >
+                Cancelar
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {pinPromptFor && (
@@ -780,13 +807,11 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
     }
   }
 
+  /** Siempre abre la ventana con todo el equipo de delivery para elegir, aunque haya un solo
+   * repartidor — así el mesero/cajero ve y confirma explícitamente a quién le está despachando. */
   function handleDeliveryClick() {
     if (couriers.length === 0) {
       setError('Agrega un repartidor en Ajustes → Equipo de Delivery primero.');
-      return;
-    }
-    if (couriers.length === 1) {
-      dispatchCourier(couriers[0].id);
       return;
     }
     setShowCourierPicker(true);
@@ -798,6 +823,11 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
     setPrinting(true);
     setError(null);
     try {
+      if (order.status === 'PENDING' || order.status === 'NEEDS_CONFIRMATION') {
+        // Si ya se aceptó justo antes (doble click), el 400 de "ya no está pendiente" no debe frenar la impresión.
+        await api.post(`/orders/${order.id}/accept`).catch(() => {});
+        onSaved();
+      }
       await api.post(`/orders/${order.id}/print-comanda`);
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo enviar la comanda a la estación de impresión.');
@@ -906,7 +936,7 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
         productId: line.product.id,
         quantity: line.quantity,
         variantId: line.variantId,
-        modifierIds: line.selectedModifiers.map((m) => m.modifierId),
+        modifierIds: line.selectedModifiers.flatMap((m) => Array(m.quantity ?? 1).fill(m.modifierId)),
         note: line.note,
       });
       onSaved();
@@ -928,7 +958,7 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
         productId: line.product.id,
         quantity: line.quantity,
         variantId: line.variantId,
-        modifierIds: line.selectedModifiers.map((m) => m.modifierId),
+        modifierIds: line.selectedModifiers.flatMap((m) => Array(m.quantity ?? 1).fill(m.modifierId)),
         note: line.note,
       });
       onSaved();
@@ -964,8 +994,10 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
     const variant = product.variants?.find((v) => v.name === it.variantName);
     const modifierIds = (product.modifierCategories ?? [])
       .flatMap((c) => c.modifiers)
-      .filter((m) => it.modifiers.some((im) => im.name === m.name))
-      .map((m) => m.id);
+      .flatMap((m) => {
+        const match = it.modifiers.find((im) => im.name === m.name);
+        return match ? Array(match.quantity).fill(m.id) : [];
+      });
     return { variantId: variant?.id ?? null, modifierIds };
   }
 
@@ -1049,7 +1081,7 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
                         {canEdit && <span className="text-brand-500 text-xs font-normal"> · editar</span>}
                       </p>
                       {it.modifiers.length > 0 && (
-                        <p className="text-xs text-brand-950/50 truncate">{it.modifiers.map((m) => m.name).join(', ')}</p>
+                        <p className="text-xs text-brand-950/50 truncate">{it.modifiers.map(formatModifierLabel).join(', ')}</p>
                       )}
                       <p className="text-xs text-brand-950/50">{it.unitPrice} c/u</p>
                     </div>
@@ -1221,30 +1253,6 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
             )}
           </div>
 
-          {showCourierPicker && (
-            <div className="space-y-1.5">
-              <p className="text-xs text-brand-950/60">Elige el repartidor:</p>
-              <div className="flex flex-wrap gap-1.5">
-                {couriers.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => dispatchCourier(c.id)}
-                    disabled={dispatching}
-                    className="text-xs font-medium px-3 py-1.5 rounded-full bg-brand-950/[0.06] hover:bg-brand-950/10 disabled:opacity-50"
-                  >
-                    {c.name}
-                  </button>
-                ))}
-                <button
-                  onClick={() => setShowCourierPicker(false)}
-                  className="text-xs font-medium px-3 py-1.5 rounded-full text-brand-950/50"
-                >
-                  Cancelar
-                </button>
-              </div>
-            </div>
-          )}
-
           {showReciboMenu && (
             <div className="grid grid-cols-2 gap-1.5">
               <button
@@ -1346,6 +1354,35 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
           onClose={() => setPaymentMode(null)}
           onPaid={onSaved}
         />
+      )}
+
+      {showCourierPicker && (
+        <Dialog open onOpenChange={(open) => !open && setShowCourierPicker(false)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Equipo de delivery</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-1.5">
+              {couriers.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => dispatchCourier(c.id)}
+                  disabled={dispatching}
+                  className="w-full flex items-center justify-between gap-3 rounded-xl border border-brand-950/10 hover:bg-brand-950/[0.04] px-4 py-3 text-left transition-colors disabled:opacity-50"
+                >
+                  <span className="font-medium text-brand-950">{c.name}</span>
+                  {c.whatsappPhone && <span className="text-sm text-brand-950/50">{c.whatsappPhone}</span>}
+                </button>
+              ))}
+              <button
+                onClick={() => setShowCourierPicker(false)}
+                className="w-full text-center text-sm font-medium text-brand-950/50 py-2"
+              >
+                Cancelar
+              </button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </Dialog>
   );

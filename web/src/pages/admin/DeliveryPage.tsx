@@ -4,6 +4,7 @@ import type { Socket } from 'socket.io-client';
 import { Check, Pencil, X } from 'lucide-react';
 import { api, getToken } from '../../api/client';
 import type { OrderView } from '../../types';
+import { formatModifierLabel } from '../../utils/format';
 import { TextureCard, TextureCardContent } from '@/components/ui/texture-card';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -79,7 +80,7 @@ export default function DeliveryPage() {
                     <span className="font-medium">{it.quantity}x</span> {it.productName}
                     {it.variantName && <span className="text-brand-950/50"> ({it.variantName})</span>}
                     {it.modifiers.length > 0 && (
-                      <span className="text-brand-950/50"> ({it.modifiers.map((m) => m.name).join(', ')})</span>
+                      <span className="text-brand-950/50"> ({it.modifiers.map(formatModifierLabel).join(', ')})</span>
                     )}
                     {it.note && <span className="block text-xs text-brand-950/50">Nota: {it.note}</span>}
                   </li>

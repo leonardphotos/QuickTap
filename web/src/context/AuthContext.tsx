@@ -23,6 +23,8 @@ interface AuthRestaurant {
   theme?: RestaurantTheme | null;
   serviceChargeEnabled: boolean;
   ivaEnabled: boolean;
+  /** RIF fiscal del restaurante, informativo — condición para que QuickTap pueda activar el IVA. */
+  rif?: string | null;
   orderingEnabled: boolean;
   requireOrderConfirmation: boolean;
   deliveryOriginLat: number | null;

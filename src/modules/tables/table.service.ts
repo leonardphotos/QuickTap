@@ -17,16 +17,18 @@ function serializeSession(session: {
   customerIdNumber: string;
   openedAt: Date;
   pinHash: string | null;
+  label: string | null;
   orders: Array<{
     id: string;
     orderNumber: number;
     status: string;
     createdAt: Date;
+    totalBase: unknown;
     items: {
       productName: string;
       variantName: string | null;
       quantity: number;
-      modifiers: { name: string; priceBase: unknown }[];
+      modifiers: { name: string; priceBase: unknown; quantity: number }[];
       note: string | null;
     }[];
   }>;
@@ -37,6 +39,9 @@ function serializeSession(session: {
     customerIdNumber: session.customerIdNumber,
     openedAt: session.openedAt,
     pinRequired: !!session.pinHash,
+    label: session.label,
+    // Suma de todos los pedidos de la cuenta, para mostrar "Cuenta 1 — $22.50" al elegir entre varias.
+    totalBase: session.orders.reduce((acc, o) => acc + Number(o.totalBase), 0).toFixed(2),
     // "Pedido #1", "Pedido #2"... según el orden en que se hicieron dentro de la cuenta.
     orders: session.orders.map((o, i) => ({
       orderId: o.id,
@@ -48,7 +53,7 @@ function serializeSession(session: {
         name: it.productName,
         variantName: it.variantName,
         quantity: it.quantity,
-        modifiers: it.modifiers.map((m) => m.name),
+        modifiers: it.modifiers.map((m) => (m.quantity > 1 ? `${m.name} x${m.quantity}` : m.name)),
         note: it.note,
       })),
     })),
@@ -118,6 +123,7 @@ export const tableService = {
       }),
       prisma.tableSession.findMany({
         where: { restaurantId, status: 'OPEN' },
+        orderBy: { openedAt: 'asc' },
         include: {
           orders: {
             where: { channel: 'DINE_IN' },
@@ -132,17 +138,21 @@ export const tableService = {
       }),
     ]);
 
-    const sessionByTable = new Map(openSessions.map((s) => [s.tableId, s]));
+    // Una mesa puede tener varias cuentas abiertas a la vez — se agrupan todas, no solo la última.
+    const sessionByTable = new Map<string, typeof openSessions>();
+    for (const s of openSessions) {
+      sessionByTable.set(s.tableId, [...(sessionByTable.get(s.tableId) ?? []), s]);
+    }
     const reservedTableIds = new Set(todaysReservations.flatMap((r) => r.tables.map((t) => t.id)));
 
     const mapTable = (table: { id: string; number: string; serviceRequest: ServiceRequestType | null }) => {
-      const session = sessionByTable.get(table.id);
+      const sessions = sessionByTable.get(table.id) ?? [];
       return {
         id: table.id,
         number: table.number,
-        session: session ? serializeSession(session) : null,
+        sessions: sessions.map(serializeSession),
         serviceRequest: table.serviceRequest,
-        reserved: !session && reservedTableIds.has(table.id),
+        reserved: sessions.length === 0 && reservedTableIds.has(table.id),
       };
     };
 

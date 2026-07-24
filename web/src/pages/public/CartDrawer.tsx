@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { ArrowLeft, Check, Copy, Lock, MapPin } from 'lucide-react';
 import { api } from '../../api/client';
 import type { CartLine, PaymentMethod, Restaurant } from '../../types';
-import { cartLineUnitPrice, publicPriceLabel } from '../../utils/format';
+import { cartLineUnitPrice, formatModifierLabel, publicPriceLabel } from '../../utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { AddressAutocomplete, reverseGeocode } from '@/components/AddressAutocomplete';
 import {
@@ -86,6 +86,8 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
   // Mientras la mesa tenga una cuenta abierta, no volvemos a pedir nombre/cédula.
   const [sessionOpen, setSessionOpen] = useState<boolean | null>(null);
   const [sessionCustomerName, setSessionCustomerName] = useState<string | null>(null);
+  // Mesa con varias cuentas abiertas a la vez: el autopedido queda bloqueado (función solo de staff).
+  const [multipleAccounts, setMultipleAccounts] = useState(false);
   // Clave de mesa: si la cuenta ya está protegida, hace falta para pedir de nuevo.
   const [pinDecided, setPinDecided] = useState(false);
   const [pinRequired, setPinRequired] = useState(false);
@@ -106,6 +108,7 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
         setSessionCustomerName(res.data.data.customerName);
         setPinDecided(res.data.data.pinDecided);
         setPinRequired(res.data.data.pinRequired);
+        setMultipleAccounts(res.data.data.multipleAccounts);
       })
       .catch(() => setSessionOpen(false));
   }
@@ -159,11 +162,15 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
     productId: l.product.id,
     quantity: l.quantity,
     variantId: l.variantId,
-    modifierIds: l.selectedModifiers.map((m) => m.modifierId),
+    modifierIds: l.selectedModifiers.flatMap((m) => Array(m.quantity ?? 1).fill(m.modifierId)),
     note: l.note,
   }));
 
   async function submitDineIn() {
+    if (multipleAccounts) {
+      setError('Esta mesa tiene varias cuentas abiertas — pide ayuda al mesero para tu pedido.');
+      return;
+    }
     if (!sessionOpen) {
       if (!dineInName.trim()) {
         setError('Escribe tu nombre.');
@@ -431,7 +438,7 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                             </p>
                             {l.selectedModifiers.length > 0 && (
                               <p className="text-xs text-brand-950/50">
-                                {l.selectedModifiers.map((m) => m.name).join(', ')}
+                                {l.selectedModifiers.map(formatModifierLabel).join(', ')}
                               </p>
                             )}
                             {l.note && <p className="text-xs text-brand-950/50">📝 {l.note}</p>}
@@ -491,12 +498,17 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
 
                 {cart.length > 0 && (
                   <>
+                    {qrToken && multipleAccounts && (
+                      <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mt-2">
+                        Esta mesa tiene varias cuentas abiertas — pide ayuda al mesero para tu pedido.
+                      </p>
+                    )}
                     {step === 'summary' ? (
                       <TextureButton
                         variant="brand"
                         size="default"
                         onClick={() => setStep('checkout')}
-                        disabled={qrToken !== null && sessionOpen === null}
+                        disabled={(qrToken !== null && sessionOpen === null) || (qrToken !== null && multipleAccounts)}
                         className="mt-2 disabled:opacity-50"
                       >
                         {qrToken ? 'Ordenar' : 'Pagar'}

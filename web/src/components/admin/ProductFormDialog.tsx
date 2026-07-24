@@ -31,6 +31,9 @@ const emptyForm = {
   kitchenId: '',
   photoUrl: '' as string | null,
   prepTimeMinutes: '',
+  sku: '',
+  stockControlEnabled: false,
+  stockQuantity: '',
   isStar: false,
   isPromo: false,
   isHouseSpecial: false,
@@ -72,6 +75,9 @@ export function ProductFormDialog({
         kitchenId: product.kitchenId ?? '',
         photoUrl: product.photoUrl ?? null,
         prepTimeMinutes: product.prepTimeMinutes != null ? String(product.prepTimeMinutes) : '',
+        sku: product.sku ?? '',
+        stockControlEnabled: product.stockControlEnabled ?? false,
+        stockQuantity: product.stockQuantity != null ? String(product.stockQuantity) : '',
         isStar: product.isStar,
         isPromo: product.isPromo,
         isHouseSpecial: product.isHouseSpecial,
@@ -111,6 +117,9 @@ export function ProductFormDialog({
         photoUrl: form.photoUrl === null ? null : form.photoUrl || undefined,
         description: form.description || undefined,
         prepTimeMinutes: form.prepTimeMinutes ? Number(form.prepTimeMinutes) : undefined,
+        sku: form.sku.trim() || null,
+        stockControlEnabled: form.stockControlEnabled,
+        stockQuantity: form.stockControlEnabled ? Number(form.stockQuantity) || 0 : null,
         isStar: form.isStar,
         isPromo: form.isPromo,
         isHouseSpecial: form.isHouseSpecial,
@@ -238,6 +247,12 @@ export function ProductFormDialog({
               min="0"
               className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
             />
+            <input
+              value={form.sku}
+              onChange={(e) => setForm({ ...form, sku: e.target.value })}
+              placeholder="SKU (opcional)"
+              className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            />
           </div>
 
           {/* Precio(s): Simple (un solo precio) o Variantes (el cliente elige entre varias, cada una con su propio precio). */}
@@ -353,16 +368,12 @@ export function ProductFormDialog({
                 ) : (
                   <ul className="divide-y divide-brand-950/10">
                     {linkedCategories.map((c) => (
-                      <li key={c.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-                        <span className="text-brand-950 truncate">{c.name}</span>
-                        <button
-                          type="button"
-                          onClick={() => dissociateCategory(c.id)}
-                          className="text-brand-950/30 hover:text-red-500 shrink-0"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </li>
+                      <LinkedCategoryRow
+                        key={c.id}
+                        category={c}
+                        productId={product!.id}
+                        onDissociate={() => dissociateCategory(c.id)}
+                      />
                     ))}
                   </ul>
                 )}
@@ -387,7 +398,27 @@ export function ProductFormDialog({
               />
               Recomendación de la Casa
             </label>
+            <label className="flex items-center gap-1.5">
+              <input
+                type="checkbox"
+                checked={form.stockControlEnabled}
+                onChange={(e) => setForm({ ...form, stockControlEnabled: e.target.checked })}
+              />
+              Controlar stock
+            </label>
           </div>
+
+          {form.stockControlEnabled && (
+            <input
+              value={form.stockQuantity}
+              onChange={(e) => setForm({ ...form, stockQuantity: e.target.value.replace(/[^0-9]/g, '') })}
+              placeholder="Cantidad en stock"
+              type="number"
+              step="1"
+              min="0"
+              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            />
+          )}
           {error && <p className="text-sm text-red-600">{error}</p>}
           <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto disabled:opacity-50">
             {saving ? 'Guardando…' : product ? 'Guardar cambios' : 'Crear producto'}
@@ -400,6 +431,53 @@ export function ProductFormDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Fila de una categoría de modificadores ya asociada a este producto. Si la categoría permite
+ * varias opciones, deja sobreescribir su límite de selecciones solo para este producto puntual
+ * (ej. la categoría "Salsas" es máx. 4 en general, pero este producto la deja en máx. 2). */
+function LinkedCategoryRow({
+  category,
+  productId,
+  onDissociate,
+}: {
+  category: ModifierCategory;
+  productId: string;
+  onDissociate: () => void;
+}) {
+  const [maxSelections, setMaxSelectionsInput] = useState(category.maxSelections?.toString() ?? '');
+
+  useEffect(() => setMaxSelectionsInput(category.maxSelections?.toString() ?? ''), [category.id, category.maxSelections]);
+
+  async function saveOverride() {
+    const n = maxSelections.trim() === '' ? null : Number(maxSelections);
+    if (n === (category.maxSelections ?? null)) return;
+    await api.patch(`/modifier-categories/${category.id}/products/${productId}`, { maxSelectionsOverride: n });
+  }
+
+  return (
+    <li className="py-2 space-y-1.5">
+      <div className="flex items-center justify-between gap-2 text-sm">
+        <span className="text-brand-950 truncate">{category.name}</span>
+        <button type="button" onClick={onDissociate} className="text-brand-950/30 hover:text-red-500 shrink-0">
+          <X className="h-3.5 w-3.5" />
+        </button>
+      </div>
+      {category.allowMultiple && (
+        <label className="block max-w-[10rem]">
+          <span className="text-[11px] text-brand-950/40">Límite para este producto</span>
+          <input
+            value={maxSelections}
+            onChange={(e) => setMaxSelectionsInput(e.target.value.replace(/[^0-9]/g, ''))}
+            onBlur={saveOverride}
+            placeholder="Usar el de la categoría"
+            inputMode="numeric"
+            className="mt-0.5 w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1"
+          />
+        </label>
+      )}
+    </li>
   );
 }
 

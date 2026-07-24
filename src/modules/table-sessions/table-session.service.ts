@@ -3,12 +3,20 @@ import { prisma } from '../../config/prisma';
 import { badRequest, conflict, notFound, unauthorized } from '../../utils/http-error';
 
 export const tableSessionService = {
-  /** Cuenta abierta vigente de una mesa (si la tiene). */
+  /** Cuenta abierta vigente de una mesa (si la tiene). Con varias cuentas abiertas, devuelve
+   * cualquiera de ellas — usar `listOpenForTable` cuando la mesa pueda tener más de una. */
   async getOpenForTable(tableId: string) {
     return prisma.tableSession.findFirst({ where: { tableId, status: 'OPEN' } });
   },
 
-  /** Resuelto públicamente por el qrToken (sin sesión de staff). */
+  /** Todas las cuentas abiertas de una mesa (una mesa puede tener varias cuentas independientes a la vez). */
+  async listOpenForTable(tableId: string) {
+    return prisma.tableSession.findMany({ where: { tableId, status: 'OPEN' }, orderBy: { openedAt: 'asc' } });
+  },
+
+  /** Resuelto públicamente por el qrToken (sin sesión de staff). Si la mesa tiene más de una
+   * cuenta abierta, el autopedido público queda bloqueado (`multipleAccounts: true`) — elegir
+   * entre varias cuentas es una función exclusiva del staff (ver CreateOrderDialog/TableOrdersPage). */
   async getPublicStatusByQrToken(qrToken: string) {
     const table = await prisma.table.findUnique({
       where: { qrToken },
@@ -16,13 +24,18 @@ export const tableSessionService = {
     });
     if (!table || !table.isActive) throw notFound('Mesa no válida.');
 
-    const session = await this.getOpenForTable(table.id);
+    const sessions = await this.listOpenForTable(table.id);
+    if (sessions.length > 1) {
+      return { isOpen: false, customerName: null, pinDecided: false, pinRequired: false, multipleAccounts: true };
+    }
+    const session = sessions[0] ?? null;
     return {
       isOpen: !!session,
       customerName: session?.customerName ?? null,
       // Ya decidió (puso clave o dejó la cuenta abierta) vs. todavía sin decidir.
       pinDecided: !!session && (!!session.pinHash || session.pinSkipped),
       pinRequired: !!session?.pinHash,
+      multipleAccounts: false,
     };
   },
 

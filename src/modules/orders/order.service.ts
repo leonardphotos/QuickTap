@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { OrderChannel, Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
-import { badRequest, notFound } from '../../utils/http-error';
+import { badRequest, conflict, notFound } from '../../utils/http-error';
 import { baseToBs, CURRENCY_SYMBOLS, formatBs, formatMoney, round2, toDecimal } from '../../utils/money';
 import {
   buildWhatsappCheckoutUrl,
@@ -40,6 +40,8 @@ import {
 interface PricedLineModifier {
   name: string;
   priceBase: Prisma.Decimal;
+  // Cuántas veces se elige esta misma opción (ej. "Ketchup x4"), ver ModifierCategory.maxSelections.
+  quantity: number;
 }
 
 interface PricedLine {
@@ -97,26 +99,46 @@ async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<
       variantName = variant.name;
     }
 
-    // Categorías de modificadores asociadas al producto: valida obligatoriedad y uno-vs-varios,
-    // y congela nombre + precio efectivo (precio - descuento) de cada modificador elegido.
-    const chosenIds = new Set(item.modifierIds ?? []);
+    // Categorías de modificadores asociadas al producto: valida obligatoriedad y el límite de
+    // selecciones, y congela nombre + precio efectivo (precio - descuento) + cantidad de cada
+    // modificador elegido. `modifierIds` es un multiset: un mismo id repetido N veces = "xN"
+    // (ver ProductOptionsDialog.tsx / ProductDetailSheet.tsx), no un Set de ids únicos.
+    const idCounts = new Map<string, number>();
+    for (const id of item.modifierIds ?? []) {
+      idCounts.set(id, (idCounts.get(id) ?? 0) + 1);
+    }
     const modifierLines: PricedLineModifier[] = [];
     for (const link of product.modifierCategories) {
       const category = link.modifierCategory;
-      const chosen = category.modifiers.filter((m) => chosenIds.has(m.id));
-      if (category.isRequired && chosen.length === 0) {
-        throw badRequest(`Elige una opción de "${category.name}" para "${product.name}".`);
+      const chosen = category.modifiers.filter((m) => idCounts.has(m.id));
+      const totalSelected = chosen.reduce((acc, m) => acc + (idCounts.get(m.id) ?? 0), 0);
+      const effectiveMin = category.minSelections ?? (category.isRequired ? 1 : 0);
+      if (totalSelected < effectiveMin) {
+        throw badRequest(
+          effectiveMin <= 1
+            ? `Elige una opción de "${category.name}" para "${product.name}".`
+            : `Elige al menos ${effectiveMin} opciones de "${category.name}" para "${product.name}".`,
+        );
       }
-      if (!category.allowMultiple && chosen.length > 1) {
-        throw badRequest(`Solo puedes elegir una opción de "${category.name}" para "${product.name}".`);
+      const effectiveMax = link.maxSelectionsOverride ?? category.maxSelections ?? (category.allowMultiple ? Infinity : 1);
+      if (totalSelected > effectiveMax) {
+        throw badRequest(`Elige como máximo ${effectiveMax} opciones de "${category.name}" para "${product.name}".`);
       }
       for (const m of chosen) {
         if (!m.isAvailable) throw badRequest(`"${m.name}" no está disponible en este momento.`);
-        modifierLines.push({ name: m.name, priceBase: round2(m.priceBase.sub(m.discountBase ?? 0)) });
+        const chosenQty = idCounts.get(m.id) ?? 1;
+        if (m.maxQuantity != null && chosenQty > m.maxQuantity) {
+          throw badRequest(`Elige como máximo ${m.maxQuantity} de "${m.name}" en "${product.name}".`);
+        }
+        modifierLines.push({
+          name: m.name,
+          priceBase: round2(m.priceBase.sub(m.discountBase ?? 0)),
+          quantity: chosenQty,
+        });
       }
     }
 
-    const modifiersTotal = modifierLines.reduce((acc, m) => acc.add(m.priceBase), toDecimal(0));
+    const modifiersTotal = modifierLines.reduce((acc, m) => acc.add(m.priceBase.mul(m.quantity)), toDecimal(0));
     const unitPrice = round2(basePrice.add(modifiersTotal));
     const lineTotal = round2(unitPrice.mul(item.quantity));
 
@@ -145,7 +167,7 @@ function buildOrderItemCreateData(line: PricedLine) {
     lineTotal: line.lineTotal,
     note: line.note,
     kitchenName: line.kitchenName,
-    modifiers: { create: line.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase })) },
+    modifiers: { create: line.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase, quantity: m.quantity })) },
   };
 }
 
@@ -232,6 +254,7 @@ async function deductRecipeStock(restaurantId: string, items: { productId: strin
   if (recipeLines.length === 0) return;
 
   const qtyByProduct = new Map(items.map((i) => [i.productId, i.quantity]));
+  let deducted = false;
 
   for (const line of recipeLines) {
     const soldQty = qtyByProduct.get(line.productId) ?? 0;
@@ -242,6 +265,37 @@ async function deductRecipeStock(restaurantId: string, items: { productId: strin
     if (!item) continue;
     const nextQuantity = Prisma.Decimal.max(0, toDecimal(item.quantity).sub(used));
     await prisma.inventoryItem.update({ where: { id: item.id }, data: { quantity: nextQuantity } });
+    deducted = true;
+  }
+
+  // Bajó el stock de al menos un insumo por receta: recalcula el aviso de "se está agotando".
+  if (deducted) {
+    emitToKitchen(restaurantId, SocketEvents.INVENTORY_LOW_STOCK, {});
+  }
+}
+
+/**
+ * Descuenta el stock simple de cada producto vendido que tenga control de stock activo
+ * (independiente del sistema de insumos/receta). Se llama junto con `deductRecipeStock`,
+ * una sola vez, al marcar el pedido SERVED por primera vez. Nunca baja de 0.
+ */
+async function deductProductStock(restaurantId: string, items: { productId: string | null; quantity: number }[]) {
+  const productIds = items.map((i) => i.productId).filter((id): id is string => Boolean(id));
+  if (productIds.length === 0) return;
+
+  const products = await prisma.product.findMany({
+    where: { restaurantId, id: { in: productIds }, stockControlEnabled: true },
+    select: { id: true, stockQuantity: true },
+  });
+  if (products.length === 0) return;
+
+  const qtyByProduct = new Map(items.map((i) => [i.productId, i.quantity]));
+
+  for (const product of products) {
+    const soldQty = qtyByProduct.get(product.id) ?? 0;
+    if (soldQty <= 0) continue;
+    const nextQuantity = Math.max(0, (product.stockQuantity ?? 0) - soldQty);
+    await prisma.product.update({ where: { id: product.id }, data: { stockQuantity: nextQuantity } });
   }
 }
 
@@ -296,7 +350,13 @@ export const orderService = {
     const order = await prisma.$transaction(async (tx) => {
       // Mientras la mesa esté "abierta", todos sus pedidos se acumulan en la
       // misma cuenta (TableSession). Solo el primer pedido pide nombre/cédula.
-      let session = await tx.tableSession.findFirst({ where: { tableId: table.id, status: 'OPEN' } });
+      const openSessions = await tx.tableSession.findMany({ where: { tableId: table.id, status: 'OPEN' } });
+      // Con varias cuentas abiertas a la vez, el autopedido público no puede saber a cuál
+      // atribuir el pedido — eso queda para el mesero (ver CreateOrderDialog/TableOrdersPage).
+      if (openSessions.length > 1) {
+        throw conflict('Esta mesa tiene varias cuentas abiertas — pide ayuda al mesero para tu pedido.');
+      }
+      let session = openSessions[0] ?? null;
 
       // Si la cuenta ya existe (no es el primer pedido) y está protegida con
       // clave, hay que validarla antes de aceptar el pedido nuevo.
@@ -372,7 +432,7 @@ export const orderService = {
         // el monto de cada ítem en el recibo (la comanda de cocina los ignora).
         unitPrice: i.unitPrice.toString(),
         lineTotal: i.lineTotal.toString(),
-        modifiers: i.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase.toString() })),
+        modifiers: i.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase.toString(), quantity: m.quantity })),
         note: i.note,
         // Estación de cocina de este producto (snapshot congelado al crear el pedido):
         // la Estación de Impresión la usa para mandar cada comanda a la impresora
@@ -451,7 +511,18 @@ export const orderService = {
             if (!table || !table.isActive) throw notFound('Mesa no válida.');
 
             return prisma.$transaction(async (tx) => {
-              let session = await tx.tableSession.findFirst({ where: { tableId: table.id, status: 'OPEN' } });
+              let session: { id: string; customerName: string; customerIdNumber: string; customerPhone: string | null } | null = null;
+
+              if (input.sessionId) {
+                // Agregar a una cuenta específica (mesa con varias cuentas abiertas).
+                session = await tx.tableSession.findFirst({
+                  where: { id: input.sessionId, tableId: table.id, restaurantId, status: 'OPEN' },
+                });
+                if (!session) throw badRequest('Esa cuenta no existe o ya no está abierta.');
+              } else if (!input.openNewAccount) {
+                // Comportamiento de siempre: reusa la única cuenta abierta de la mesa, si la tiene.
+                session = await tx.tableSession.findFirst({ where: { tableId: table.id, status: 'OPEN' } });
+              }
 
               if (!session) {
                 if (!customerName || !customerIdNumber || !customerPhone) {
@@ -464,6 +535,7 @@ export const orderService = {
                     customerName,
                     customerIdNumber,
                     customerPhone,
+                    label: input.accountLabel,
                   },
                 });
               }
@@ -551,7 +623,7 @@ export const orderService = {
         // el monto de cada ítem en el recibo (la comanda de cocina los ignora).
         unitPrice: i.unitPrice.toString(),
         lineTotal: i.lineTotal.toString(),
-        modifiers: i.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase.toString() })),
+        modifiers: i.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase.toString(), quantity: m.quantity })),
         note: i.note,
         // Estación de cocina de este producto (snapshot congelado al crear el pedido):
         // la Estación de Impresión la usa para mandar cada comanda a la impresora
@@ -702,7 +774,7 @@ export const orderService = {
         // el monto de cada ítem en el recibo (la comanda de cocina los ignora).
         unitPrice: i.unitPrice.toString(),
         lineTotal: i.lineTotal.toString(),
-        modifiers: i.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase.toString() })),
+        modifiers: i.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase.toString(), quantity: m.quantity })),
         note: i.note,
         // Estación de cocina de este producto (snapshot congelado al crear el pedido):
         // la Estación de Impresión la usa para mandar cada comanda a la impresora
@@ -731,7 +803,7 @@ export const orderService = {
         variantName: l.variantName ?? undefined,
         quantity: l.quantity,
         unitPrice: l.unitPrice.toString(),
-        modifiers: l.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase.toString() })),
+        modifiers: l.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase.toString(), quantity: m.quantity })),
         note: l.note,
       })),
       customer: input.customer,
@@ -780,7 +852,13 @@ export const orderService = {
 
     const itemById = new Map(order.items.map((i) => [i.id, i]));
     for (const u of updates) {
-      if (!itemById.has(u.orderItemId)) throw badRequest('Uno de los productos no pertenece a este pedido.');
+      const item = itemById.get(u.orderItemId);
+      if (!item) throw badRequest('Uno de los productos no pertenece a este pedido.');
+      // No se puede reducir/quitar un producto por debajo de lo que ya se cobró (fraccionado por ítems)
+      // — la plata ya cobrada quedaría sin producto que la respalde.
+      if (u.quantity < item.paidQuantity) {
+        throw badRequest(`No se puede reducir "${item.productName}" por debajo de lo ya cobrado (${item.paidQuantity}).`);
+      }
     }
 
     const updateQty = new Map(updates.map((u) => [u.orderItemId, u.quantity]));
@@ -885,9 +963,10 @@ export const orderService = {
 
     const order = await prisma.order.update({ where: { id: orderId }, data: { status } });
 
-    // Descuenta el inventario por receta la primera vez que se marca SERVED.
+    // Descuenta el inventario por receta y el stock simple por producto, la primera vez que se marca SERVED.
     if (status === 'SERVED' && existing.status !== 'SERVED') {
       await deductRecipeStock(restaurantId, existing.items);
+      await deductProductStock(restaurantId, existing.items);
     }
 
     emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, {
@@ -1007,50 +1086,85 @@ export const orderService = {
     });
   },
 
-  /** Registra un cobro (botones "Pagar" / "Pago Fraccionado"). Si con esto se cubre el total, cierra la cuenta abierta. */
+  /** Registra un cobro (botones "Pagar" / "Pago Fraccionado"). Si con esto se cubre el total, cierra la cuenta abierta.
+   * Si `input.items` viene (fraccionar por ítems), el monto lo calcula esta función a partir de esas
+   * líneas — el `amountBase` que mande el cliente se ignora en ese caso. */
   async addPayment(restaurantId: string, orderId: string, input: RecordPaymentInput) {
-    const order = await prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { payments: true } });
-    if (!order) throw notFound('Comanda no encontrada.');
-    if (order.status === 'CANCELLED') throw badRequest('No se puede registrar un cobro en un pedido cancelado.');
+    return prisma.$transaction(async (tx) => {
+      const order = await tx.order.findFirst({
+        where: { id: orderId, restaurantId },
+        include: { payments: true, items: true },
+      });
+      if (!order) throw notFound('Comanda no encontrada.');
+      if (order.status === 'CANCELLED') throw badRequest('No se puede registrar un cobro en un pedido cancelado.');
 
-    // "Saldado" cuenta lo cobrado en efectivo/transferencia MÁS los descuentos ya
-    // otorgados (un descuento perdona esa parte de la deuda, no queda pendiente).
-    const alreadySettled = order.payments.reduce(
-      (acc, p) => acc.add(p.amountBase).add(p.discountBase ?? toDecimal(0)),
-      toDecimal(0),
-    );
-    const balance = round2(order.totalBase.sub(alreadySettled));
-    if (toDecimal(input.amountBase).gt(balance.add(0.01))) {
-      throw badRequest(`El monto excede el saldo pendiente (${balance.toFixed(2)}).`);
-    }
+      // "Saldado" cuenta lo cobrado en efectivo/transferencia MÁS los descuentos ya
+      // otorgados (un descuento perdona esa parte de la deuda, no queda pendiente).
+      const alreadySettled = order.payments.reduce(
+        (acc, p) => acc.add(p.amountBase).add(p.discountBase ?? toDecimal(0)),
+        toDecimal(0),
+      );
+      const balance = round2(order.totalBase.sub(alreadySettled));
 
-    const discountBase = input.discountPercent
-      ? round2(balance.mul(input.discountPercent).div(100))
-      : undefined;
+      let amountBase: Prisma.Decimal;
+      if (input.items?.length) {
+        const itemById = new Map(order.items.map((i) => [i.id, i]));
+        amountBase = toDecimal(0);
+        for (const picked of input.items) {
+          const item = itemById.get(picked.orderItemId);
+          if (!item) throw badRequest('Uno de los productos no pertenece a este pedido.');
+          const remaining = item.quantity - item.paidQuantity;
+          if (picked.quantity > remaining) {
+            throw badRequest(`Solo quedan ${remaining} sin cobrar de "${item.productName}".`);
+          }
+          amountBase = amountBase.add(item.unitPrice.mul(picked.quantity));
+        }
+        amountBase = round2(amountBase);
+      } else {
+        amountBase = toDecimal(input.amountBase!);
+      }
 
-    await prisma.orderPayment.create({
-      data: {
-        orderId,
-        amountBase: input.amountBase,
-        method: input.method,
-        discountPercent: input.discountPercent,
-        discountBase,
-        referenceNumber: input.referenceNumber,
-      },
+      if (amountBase.gt(balance.add(0.01))) {
+        throw badRequest(`El monto excede el saldo pendiente (${balance.toFixed(2)}).`);
+      }
+
+      const discountBase = input.discountPercent
+        ? round2(balance.mul(input.discountPercent).div(100))
+        : undefined;
+
+      await tx.orderPayment.create({
+        data: {
+          orderId,
+          amountBase,
+          method: input.method,
+          discountPercent: input.discountPercent,
+          discountBase,
+          referenceNumber: input.referenceNumber,
+        },
+      });
+
+      if (input.items?.length) {
+        for (const picked of input.items) {
+          await tx.orderItem.update({
+            where: { id: picked.orderItemId },
+            data: { paidQuantity: { increment: picked.quantity } },
+          });
+        }
+      }
+
+      // Sin margen de tolerancia: hasta el último centavo debe quedar cobrado (o condonado
+      // explícitamente vía descuento) antes de dar por saldada la cuenta.
+      const settledBase = round2(alreadySettled.add(amountBase).add(discountBase ?? toDecimal(0)));
+      const fullyPaid = settledBase.gte(order.totalBase);
+      const updated = await tx.order.update({
+        where: { id: orderId },
+        data: fullyPaid ? { awaitingPayment: false } : {},
+        include: { items: { include: { modifiers: true } }, table: { select: { number: true } }, payments: true },
+      });
+
+      emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: updated.status });
+      return updated;
     });
-
-    // Sin margen de tolerancia: hasta el último centavo debe quedar cobrado (o condonado
-    // explícitamente vía descuento) antes de dar por saldada la cuenta.
-    const settledBase = round2(alreadySettled.add(input.amountBase).add(discountBase ?? toDecimal(0)));
-    const fullyPaid = settledBase.gte(order.totalBase);
-    const updated = await prisma.order.update({
-      where: { id: orderId },
-      data: fullyPaid ? { awaitingPayment: false } : {},
-      include: { items: { include: { modifiers: true } }, table: { select: { number: true } }, payments: true },
-    });
-
-    emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: updated.status });
-    return updated;
   },
 
   /**
@@ -1177,7 +1291,7 @@ export const orderService = {
         name: i.productName,
         variantName: i.variantName,
         quantity: i.quantity,
-        modifiers: i.modifiers.map((m) => ({ name: m.name })),
+        modifiers: i.modifiers.map((m) => ({ name: m.name, quantity: m.quantity })),
         note: i.note,
         kitchenName: i.kitchenName,
       })),
@@ -1210,7 +1324,7 @@ export const orderService = {
         quantity: i.quantity,
         unitPrice: i.unitPrice.toString(),
         lineTotal: i.lineTotal.toString(),
-        modifiers: i.modifiers.map((m) => ({ name: m.name })),
+        modifiers: i.modifiers.map((m) => ({ name: m.name, quantity: m.quantity })),
         note: i.note,
         kitchenName: i.kitchenName,
       })),

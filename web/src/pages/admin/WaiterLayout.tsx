@@ -4,9 +4,11 @@ import { Boxes, ChefHat, Grid2x2, LogOut, Plus, Receipt } from 'lucide-react';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { hasFeature } from '../../utils/subscription';
+import { useLowStockItems } from '../../hooks/useLowStockItems';
 import { LiveOrdersPanel, EditOrderDialog, type LiveOrder } from '@/components/admin/LiveOrdersPanel';
 import { TableServiceAlert } from '@/components/admin/TableServiceAlert';
 import { NewOrderAlert } from '@/components/admin/NewOrderAlert';
+import { LowStockAlert } from '@/components/admin/LowStockAlert';
 import { ActiveOrdersPreview } from '@/components/admin/ActiveOrdersPreview';
 import { CreateOrderDialog } from '@/components/admin/CreateOrderDialog';
 import { PaymentDialog } from '@/components/admin/PaymentDialog';
@@ -99,6 +101,7 @@ export default function WaiterLayout() {
 
   const canSeeInventory =
     user.canAccessInventory && (hasFeature(restaurant, 'inventoryBasic') || hasFeature(restaurant, 'inventoryRecipe'));
+  const lowStockItems = useLowStockItems(user.role, user.canAccessInventory);
 
   const tabs: { id: WaiterTab; label: string; icon: typeof Grid2x2 }[] = [
     { id: 'mesas', label: 'Mesas', icon: Grid2x2 },
@@ -138,12 +141,17 @@ export default function WaiterLayout() {
               key={t.id}
               type="button"
               onClick={() => setTab(t.id)}
-              className={`flex flex-1 flex-col items-center gap-1 rounded-2xl py-2 px-2 text-xs font-medium transition-colors ${
+              className={`relative flex flex-1 flex-col items-center gap-1 rounded-2xl py-2 px-2 text-xs font-medium transition-colors ${
                 active ? 'bg-brand-500 text-white' : 'text-brand-950/50'
               }`}
             >
               <t.icon className="h-[19px] w-[19px]" />
               {t.label}
+              {t.id === 'inventario' && lowStockItems.length > 0 && (
+                <span className="absolute top-1 right-3 h-4 w-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center ring-2 ring-white">
+                  {lowStockItems.length}
+                </span>
+              )}
             </button>
           );
         })}
@@ -165,6 +173,7 @@ export default function WaiterLayout() {
 
       <TableServiceAlert />
       <NewOrderAlert onNavigate={() => setTab('comandas')} />
+      <LowStockAlert />
 
       {/* Botón flotante "Nuevo pedido": visible en cualquier pestaña, y el mesero lo puede
        * arrastrar a donde le quede más cómodo (la posición se recuerda en este dispositivo). */}

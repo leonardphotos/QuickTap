@@ -19,6 +19,12 @@ export const setPeriodEndSchema = z.object({
 
 export type SetPeriodEndInput = z.infer<typeof setPeriodEndSchema>;
 
+export const setIvaEnabledSchema = z.object({
+  ivaEnabled: z.boolean(),
+});
+
+export type SetIvaEnabledInput = z.infer<typeof setIvaEnabledSchema>;
+
 export const updateRestaurantUserSchema = z.object({
   name: z.string().min(1, 'El nombre es obligatorio.').max(120).optional(),
   email: z

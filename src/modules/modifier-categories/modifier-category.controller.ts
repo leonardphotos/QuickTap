@@ -4,8 +4,10 @@ import {
   associateProductSchema,
   createModifierCategorySchema,
   createModifierSchema,
+  reorderModifiersSchema,
   updateModifierCategorySchema,
   updateModifierSchema,
+  updateProductLinkSchema,
 } from './modifier-category.dto';
 import { modifierCategoryService } from './modifier-category.service';
 
@@ -35,6 +37,13 @@ export const modifierCategoryController = {
   removeModifier: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await modifierCategoryService.removeModifier(req.restaurantId!, req.params.modifierId) });
   }),
+  reorderModifiers: asyncHandler(async (req: Request, res: Response) => {
+    const input = reorderModifiersSchema.parse(req.body);
+    res.json({ data: await modifierCategoryService.reorderModifiers(req.restaurantId!, req.params.id, input) });
+  }),
+  listLinkedProducts: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await modifierCategoryService.listLinkedProducts(req.restaurantId!, req.params.id) });
+  }),
   associateProduct: asyncHandler(async (req: Request, res: Response) => {
     const input = associateProductSchema.parse(req.body);
     res.status(201).json({ data: await modifierCategoryService.associateProduct(req.restaurantId!, req.params.id, input) });
@@ -42,6 +51,12 @@ export const modifierCategoryController = {
   dissociateProduct: asyncHandler(async (req: Request, res: Response) => {
     res.json({
       data: await modifierCategoryService.dissociateProduct(req.restaurantId!, req.params.id, req.params.productId),
+    });
+  }),
+  updateProductLink: asyncHandler(async (req: Request, res: Response) => {
+    const input = updateProductLinkSchema.parse(req.body);
+    res.json({
+      data: await modifierCategoryService.updateProductLink(req.restaurantId!, req.params.id, req.params.productId, input),
     });
   }),
 };

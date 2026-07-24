@@ -767,7 +767,7 @@ function orderCardHtml(order){
       <span class="qty">${esc(it.quantity)}x</span>
       <span>
         ${esc(it.name)}${it.variantName ? ' · ' + esc(it.variantName) : ''}
-        ${(it.modifiers && it.modifiers.length) ? `<br><span class="item-note">${it.modifiers.map(m=>esc(m.name)).join(', ')}</span>` : ''}
+        ${(it.modifiers && it.modifiers.length) ? `<br><span class="item-note">${it.modifiers.map(m=>esc(m.quantity>1?`${m.name} x${m.quantity}`:m.name)).join(', ')}</span>` : ''}
         ${it.note ? `<br><span class="item-note">Nota: ${esc(it.note)}</span>` : ''}
       </span>
     </li>
@@ -855,7 +855,7 @@ function buildTicketHtml(order, kind, station){
       <span class="r-item-name">${esc(it.name)}${it.variantName ? ' ('+esc(it.variantName)+')' : ''}</span>
       <span class="r-bold">${esc(it.quantity)}x</span>
     </div>
-    ${(cfg.showModifiers && it.modifiers && it.modifiers.length) ? it.modifiers.map(m => `<div class="r-muted">+1 ${esc(m.name)}</div>`).join('') : ''}
+    ${(cfg.showModifiers && it.modifiers && it.modifiers.length) ? it.modifiers.map(m => `<div class="r-muted">+${esc(m.quantity||1)} ${esc(m.name)}</div>`).join('') : ''}
     ${(cfg.showNotes && it.note) ? `<div class="r-muted">Nota: ${esc(it.note)}</div>` : ''}`;
   }).join('');
 

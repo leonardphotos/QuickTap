@@ -42,7 +42,7 @@ export function CheckoutSettingsSection() {
   const [orderingEnabled, setOrderingEnabled] = useState(restaurant?.orderingEnabled ?? true);
   const [requireOrderConfirmation, setRequireOrderConfirmation] = useState(restaurant?.requireOrderConfirmation ?? false);
   const [serviceChargeEnabled, setServiceChargeEnabled] = useState(restaurant?.serviceChargeEnabled ?? false);
-  const [ivaEnabled, setIvaEnabled] = useState(restaurant?.ivaEnabled ?? false);
+  const [rif, setRif] = useState(restaurant?.rif ?? '');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -52,7 +52,7 @@ export function CheckoutSettingsSection() {
     setError(null);
     setMessage(null);
     try {
-      await api.patch('/restaurant', { orderingEnabled, requireOrderConfirmation, serviceChargeEnabled, ivaEnabled });
+      await api.patch('/restaurant', { orderingEnabled, requireOrderConfirmation, serviceChargeEnabled, rif: rif.trim() });
       await refresh();
       setMessage('Configuración guardada.');
     } catch (err: any) {
@@ -89,12 +89,36 @@ export function CheckoutSettingsSection() {
           label="Cargo por servicio (10%)"
           description="Se suma automáticamente sobre el subtotal de cada pedido."
         />
-        <Toggle
-          checked={ivaEnabled}
-          onChange={setIvaEnabled}
-          label="IVA (16%)"
-          description="Se suma automáticamente sobre el subtotal de cada pedido."
-        />
+
+        <div className="flex items-start justify-between gap-4 py-3">
+          <div>
+            <p className="text-sm font-medium text-brand-950">IVA (16%)</p>
+            <p className="text-xs text-brand-950/50 font-light mt-0.5">
+              Solo el equipo de QuickTap puede activarlo, y solo si tienes tu RIF registrado abajo. Escríbenos si
+              necesitas activarlo.
+            </p>
+          </div>
+          <span
+            className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${
+              restaurant?.ivaEnabled ? 'bg-emerald-100 text-emerald-700' : 'bg-brand-950/[0.06] text-brand-950/50'
+            }`}
+          >
+            {restaurant?.ivaEnabled ? 'Activado' : 'Inactivo'}
+          </span>
+        </div>
+
+        <label className="block py-3">
+          <p className="text-sm font-medium text-brand-950">RIF del restaurante</p>
+          <p className="text-xs text-brand-950/50 font-light mt-0.5 mb-1.5">
+            Necesario para que QuickTap pueda activarte el IVA.
+          </p>
+          <input
+            value={rif}
+            onChange={(e) => setRif(e.target.value)}
+            placeholder="Ej: J-12345678-9"
+            className="w-full max-w-xs text-sm border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+          />
+        </label>
 
         {error && <p className="text-sm text-red-600 pt-2">{error}</p>}
         {message && <p className="text-sm text-brand-500 pt-2">{message}</p>}

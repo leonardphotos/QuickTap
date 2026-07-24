@@ -6,6 +6,7 @@ import { api, getToken } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { hasFullAccess } from '../../utils/roles';
 import type { Kitchen, OrderItemView, OrderView } from '../../types';
+import { formatModifierLabel } from '../../utils/format';
 import { TextureCard, TextureCardContent } from '@/components/ui/texture-card';
 import { TextureButton } from '@/components/ui/texture-button';
 import { KitchenManageDialog } from '@/components/admin/KitchenManageDialog';
@@ -206,7 +207,7 @@ export default function KitchenPage() {
                           <span className="font-medium">{it.quantity}x</span> {it.productName}
                           {it.variantName && <span className="text-brand-950/50"> ({it.variantName})</span>}
                           {it.modifiers.length > 0 && (
-                            <span className="text-brand-950/50"> ({it.modifiers.map((m) => m.name).join(', ')})</span>
+                            <span className="text-brand-950/50"> ({it.modifiers.map(formatModifierLabel).join(', ')})</span>
                           )}
                           {it.note && <span className="block text-xs text-brand-950/50">Nota: {it.note}</span>}
                         </li>

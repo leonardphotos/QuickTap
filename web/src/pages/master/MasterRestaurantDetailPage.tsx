@@ -21,6 +21,8 @@ interface RestaurantDetail {
   slug: string;
   name: string;
   whatsappPhone: string | null;
+  rif: string | null;
+  ivaEnabled: boolean;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';
   subscriptionPlan: string | null;
   billingCycle: string | null;
@@ -85,6 +87,21 @@ export default function MasterRestaurantDetailPage() {
       load();
     } catch (err: any) {
       setMessage(err.response?.data?.error ?? 'No se pudo activar.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleIva() {
+    if (!detail) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      await masterApi.patch(`/master/restaurants/${id}/iva`, { ivaEnabled: !detail.ivaEnabled });
+      setMessage(detail.ivaEnabled ? 'IVA desactivado.' : 'IVA activado.');
+      load();
+    } catch (err: any) {
+      setMessage(err.response?.data?.error ?? 'No se pudo actualizar el IVA.');
     } finally {
       setBusy(false);
     }
@@ -190,6 +207,30 @@ export default function MasterRestaurantDetailPage() {
           <span className="text-brand-950/50">Correo: </span>
           {detail.users.find((u) => u.role === 'OWNER')?.email ?? 'No registrado'}
         </p>
+        <p className="text-sm text-brand-950/70">
+          <span className="text-brand-950/50">RIF: </span>
+          {detail.rif?.trim() || 'No registrado'}
+        </p>
+      </div>
+
+      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 flex items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold text-brand-950">IVA (16%)</p>
+          <p className="text-sm text-brand-950/60 font-light mt-1">
+            {detail.rif?.trim()
+              ? 'Este restaurante tiene RIF registrado, puedes activarle el IVA.'
+              : 'No se puede activar: este restaurante todavía no tiene RIF registrado en Ajustes.'}
+          </p>
+        </div>
+        <TextureButton
+          variant={detail.ivaEnabled ? 'destructive' : 'brand'}
+          size="sm"
+          disabled={busy || (!detail.ivaEnabled && !detail.rif?.trim())}
+          className="!w-auto shrink-0 disabled:opacity-50"
+          onClick={toggleIva}
+        >
+          {detail.ivaEnabled ? 'Desactivar IVA' : 'Activar IVA'}
+        </TextureButton>
       </div>
 
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">

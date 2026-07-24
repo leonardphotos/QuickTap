@@ -64,6 +64,7 @@ export interface Restaurant {
   requireOrderConfirmation: boolean;
   serviceChargeEnabled: boolean;
   ivaEnabled: boolean;
+  rif?: string | null;
   paymentMethodsConfig?: PaymentMethodsConfig | null;
   fullscreenImageEnabled: boolean;
   fullscreenImageUrl?: string | null;
@@ -111,6 +112,11 @@ export interface Modifier {
   costBase?: string | null;
   discountBase?: string | null;
   isAvailable?: boolean;
+  /** Tope de repetición de este modificador puntual (ej. "Ketchup máx. 2"), independiente del
+   * límite de la categoría. null/undefined = sin tope propio. */
+  maxQuantity?: number | null;
+  /** Código interno opcional (back-office). Nunca viaja en el menú público. */
+  sku?: string | null;
   priority?: number;
 }
 
@@ -119,6 +125,13 @@ export interface ModifierCategory {
   name: string;
   isRequired: boolean;
   allowMultiple: boolean;
+  /** Límite de selecciones totales cuando allowMultiple=true (permite repetir la misma opción,
+   * ej. "Ketchup x4"). null/undefined = sin límite. Ya resuelto server-side (override del
+   * producto si lo tiene, si no el de la categoría) — siempre es un único número final. */
+  maxSelections?: number | null;
+  /** Mínimo de selecciones totales cuando allowMultiple=true. null/undefined = usa el default
+   * (1 si isRequired, 0 si no). */
+  minSelections?: number | null;
   priority?: number;
   /** Cuántos productos tienen esta categoría asociada (solo en la biblioteca de Modificadores). */
   productCount?: number;
@@ -150,6 +163,13 @@ export interface Product {
   /** Tiempo aproximado de preparación, en minutos. */
   prepTimeMinutes?: number | null;
   isAvailable: boolean;
+  /** Código interno opcional (back-office). Nunca viaja en el menú público. */
+  sku?: string | null;
+  /** Control de stock simple por producto. null/false = sin control (siempre disponible). */
+  stockControlEnabled?: boolean;
+  stockQuantity?: number | null;
+  /** Calculado en el backend: stockControlEnabled && stockQuantity<=0. Distinto de isAvailable (manual). */
+  stockDepleted?: boolean;
   isStar: boolean;
   isPromo: boolean;
   isHouseSpecial: boolean;
@@ -247,6 +267,10 @@ export interface TableSession {
   customerIdNumber: string;
   openedAt: string;
   pinRequired: boolean;
+  /** Nombre de la cuenta cuando la mesa tiene varias abiertas a la vez (ej. "Cuenta 2"). Null = sin nombre propio. */
+  label: string | null;
+  /** Suma de todos los pedidos de esta cuenta. */
+  totalBase: string;
   orders: SessionOrder[];
 }
 
@@ -255,7 +279,8 @@ export type ServiceRequestType = 'WAITER_CALL' | 'BILL_REQUEST';
 export interface FloorPlanTable {
   id: string;
   number: string;
-  session: TableSession | null;
+  /** Una mesa puede tener varias cuentas abiertas a la vez (independientes entre sí). Vacío = mesa libre. */
+  sessions: TableSession[];
   serviceRequest: ServiceRequestType | null;
   /** Tiene una reserva confirmada para hoy y no está ocupada ahora mismo. */
   reserved: boolean;
@@ -273,6 +298,8 @@ export interface PublicTableSessionStatus {
   pinDecided: boolean;
   /** La cuenta está protegida: hace falta la clave para pedir de nuevo. */
   pinRequired: boolean;
+  /** La mesa tiene varias cuentas abiertas a la vez: el autopedido público queda bloqueado. */
+  multipleAccounts: boolean;
 }
 
 export type OrderStatus = 'NEEDS_CONFIRMATION' | 'PENDING' | 'KITCHEN' | 'SERVED' | 'CANCELLED';
@@ -286,7 +313,7 @@ export interface OrderItemView {
   quantity: number;
   unitPrice: string;
   lineTotal: string;
-  modifiers: { name: string; priceBase: string }[];
+  modifiers: { name: string; priceBase: string; quantity: number }[];
   note?: string | null;
   /** Cocina asignada al producto al momento del pedido (snapshot). null = sin asignar. */
   kitchenName?: string | null;
@@ -312,6 +339,8 @@ export interface SelectedModifier {
   modifierId: string;
   name: string;
   priceBase: string;
+  /** Cuántas veces se eligió esta misma opción (ej. "Ketchup x4"). Default 1. */
+  quantity: number;
 }
 
 export interface CartLine {

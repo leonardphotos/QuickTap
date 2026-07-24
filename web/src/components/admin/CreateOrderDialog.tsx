@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { Bike, Check, Clock, MapPin, Martini, ReceiptText, Search, SplitSquareHorizontal, Store, UtensilsCrossed } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, cartLineUnitPrice, formatBase, formatBs } from '@/utils/format';
-import type { CartLine, Customer, FloorPlan, Product } from '@/types';
+import { CURRENCY_SYMBOLS, cartLineUnitPrice, formatBase, formatBs, formatModifierLabel, modifierSelectionKey } from '@/utils/format';
+import type { CartLine, Customer, FloorPlan, Product, TableSession } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { AddressAutocomplete, reverseGeocode } from '@/components/AddressAutocomplete';
@@ -39,6 +39,7 @@ interface AvailableTable {
   id: string;
   number: string;
   zoneName: string | null;
+  sessions: TableSession[];
 }
 
 const CHANNEL_OPTIONS: { value: Channel; label: string; icon: typeof UtensilsCrossed }[] = [
@@ -65,6 +66,8 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [tables, setTables] = useState<AvailableTable[]>([]);
   const [tableId, setTableId] = useState('');
+  // Cuando la mesa elegida ya tiene cuenta(s) abierta(s): a cuál se agrega, o 'new' para una independiente.
+  const [accountChoice, setAccountChoice] = useState<string | 'new' | null>(null);
   const [customerAddress, setCustomerAddress] = useState('');
   const [addressCoords, setAddressCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [gettingLocation, setGettingLocation] = useState(false);
@@ -115,10 +118,12 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
     api.get('/products').then((res) => setProducts(res.data.data));
     api.get('/tables/floor-plan').then((res) => {
       const plan: FloorPlan = res.data.data;
+      // No se ocultan las mesas ocupadas: elegir una con cuenta(s) abierta(s) permite añadir a una
+      // de ellas o abrir una cuenta nueva e independiente (mesa con "varias cuentas").
       const zoned = plan.zones.flatMap((z) =>
-        z.tables.filter((t) => !t.session).map((t) => ({ id: t.id, number: t.number, zoneName: z.name })),
+        z.tables.map((t) => ({ id: t.id, number: t.number, zoneName: z.name, sessions: t.sessions })),
       );
-      const unzoned = plan.unzoned.filter((t) => !t.session).map((t) => ({ id: t.id, number: t.number, zoneName: null }));
+      const unzoned = plan.unzoned.map((t) => ({ id: t.id, number: t.number, zoneName: null, sessions: t.sessions }));
       setTables([...zoned, ...unzoned]);
     });
     api
@@ -197,8 +202,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
           l.product.id === line.product.id &&
           l.note === line.note &&
           l.variantId === line.variantId &&
-          JSON.stringify(l.selectedModifiers.map((m) => m.modifierId).sort()) ===
-            JSON.stringify(line.selectedModifiers.map((m) => m.modifierId).sort()),
+          modifierSelectionKey(l.selectedModifiers) === modifierSelectionKey(line.selectedModifiers),
       );
       if (matchIndex === -1) return [...prev, line];
       const next = [...prev];
@@ -208,6 +212,8 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   }
 
   /** Ajusta la cantidad de una línea específica por índice (necesario porque un mismo producto puede tener varias líneas con distinta variante/modificadores). */
+  const selectedTable = tables.find((t) => t.id === tableId);
+
   function adjustLineAt(index: number, delta: number) {
     setLines((prev) => {
       const next = [...prev];
@@ -225,6 +231,10 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
     }
     if (channel === 'DINE_IN' && tableMode === 'OPEN' && !tableId) {
       setError('Selecciona una mesa.');
+      return;
+    }
+    if (channel === 'DINE_IN' && tableMode === 'OPEN' && selectedTable && selectedTable.sessions.length > 0 && !accountChoice) {
+      setError('Esta mesa ya tiene cuenta(s) abierta(s): elige a cuál agregar, o abre una nueva.');
       return;
     }
     if (channel === 'DELIVERY' && !customerAddress.trim()) {
@@ -246,11 +256,14 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
       const res = await api.post('/orders/manual', {
         channel,
         tableId: channel === 'DINE_IN' ? tableId : undefined,
+        // Mesa con varias cuentas abiertas: a cuál se agrega, o abre una nueva independiente.
+        sessionId: channel === 'DINE_IN' && accountChoice && accountChoice !== 'new' ? accountChoice : undefined,
+        openNewAccount: channel === 'DINE_IN' && accountChoice === 'new' ? true : undefined,
         items: lines.map((l) => ({
           productId: l.product.id,
           quantity: l.quantity,
           variantId: l.variantId,
-          modifierIds: l.selectedModifiers.map((m) => m.modifierId),
+          modifierIds: l.selectedModifiers.flatMap((m) => Array(m.quantity ?? 1).fill(m.modifierId)),
           note: l.note,
         })),
         // Nombre/cédula/teléfono ya no se piden en "Menú": vienen del cliente elegido en "Clientes".
@@ -286,7 +299,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
           productId: l.product.id,
           quantity: l.quantity,
           variantId: l.variantId,
-          modifierIds: l.selectedModifiers.map((m) => m.modifierId),
+          modifierIds: l.selectedModifiers.flatMap((m) => Array(m.quantity ?? 1).fill(m.modifierId)),
           note: l.note,
         });
       }
@@ -374,18 +387,59 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                 )}
 
                 {channel === 'DINE_IN' && tableMode === 'OPEN' && (
-                  <select
-                    value={tableId}
-                    onChange={(e) => setTableId(e.target.value)}
-                    className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-                  >
-                    <option value="">{tables.length === 0 ? 'No hay mesas disponibles' : 'Selecciona una mesa…'}</option>
-                    {tables.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.zoneName ? `${t.zoneName} · ` : ''}Mesa {t.number}
-                      </option>
-                    ))}
-                  </select>
+                  <>
+                    <select
+                      value={tableId}
+                      onChange={(e) => {
+                        setTableId(e.target.value);
+                        setAccountChoice(null);
+                      }}
+                      className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                    >
+                      <option value="">{tables.length === 0 ? 'No hay mesas disponibles' : 'Selecciona una mesa…'}</option>
+                      {tables.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.zoneName ? `${t.zoneName} · ` : ''}Mesa {t.number}
+                          {t.sessions.length > 0 ? ` (${t.sessions.length} cuenta${t.sessions.length > 1 ? 's' : ''})` : ''}
+                        </option>
+                      ))}
+                    </select>
+
+                    {selectedTable && selectedTable.sessions.length > 0 && (
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-medium text-brand-950/50">
+                          Esta mesa ya tiene cuenta(s) abierta(s) — elige a cuál agregar, o abre una nueva:
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {selectedTable.sessions.map((s, i) => (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => setAccountChoice(s.id)}
+                              className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                                accountChoice === s.id
+                                  ? 'bg-brand-500 text-white'
+                                  : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+                              }`}
+                            >
+                              {s.label ?? `Cuenta ${i + 1}`} · {formatBase(s.totalBase, symbol)}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => setAccountChoice('new')}
+                            className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                              accountChoice === 'new'
+                                ? 'bg-brand-500 text-white'
+                                : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+                            }`}
+                          >
+                            + Nueva cuenta
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {channel !== 'DINE_IN' && (
@@ -742,7 +796,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                           {l.variantName && <span className="text-brand-950/50"> ({l.variantName})</span>}
                         </p>
                         {l.selectedModifiers.length > 0 && (
-                          <p className="text-xs text-brand-950/50">{l.selectedModifiers.map((m) => m.name).join(', ')}</p>
+                          <p className="text-xs text-brand-950/50">{l.selectedModifiers.map(formatModifierLabel).join(', ')}</p>
                         )}
                         <p className="text-xs text-brand-950/50">
                           {formatBase(unitPrice, symbol)} c/u · {formatBase(unitPrice * l.quantity, symbol)}

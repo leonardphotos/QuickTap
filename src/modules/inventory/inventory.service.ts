@@ -55,7 +55,7 @@ export const inventoryService = {
     // recalcula automáticamente (costBase = nuevo precio por unidad * cantidad de la receta).
     const priceChanged = pricePerUnitBase !== undefined && !pricePerUnitBase.equals(existing.pricePerUnitBase ?? 0);
 
-    return prisma.$transaction(async (tx) => {
+    const item = await prisma.$transaction(async (tx) => {
       const item = await tx.inventoryItem.update({
         where: { id },
         data: { ...rest, ...(pricePerUnitBase !== undefined ? { pricePerUnitBase } : {}) },
@@ -71,6 +71,13 @@ export const inventoryService = {
 
       return item;
     });
+
+    // Cambió el stock a mano (no solo precio/nombre): recalcula el aviso de "se está agotando".
+    if ('quantity' in input) {
+      emitToKitchen(restaurantId, SocketEvents.INVENTORY_LOW_STOCK, {});
+    }
+
+    return item;
   },
 
   async remove(restaurantId: string, id: string) {

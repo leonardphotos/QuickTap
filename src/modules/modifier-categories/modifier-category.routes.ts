@@ -14,10 +14,13 @@ router.patch('/:id', modifierCategoryController.update);
 router.delete('/:id', modifierCategoryController.remove);
 
 router.post('/:id/modifiers', modifierCategoryController.createModifier);
+router.patch('/:id/modifiers/reorder', modifierCategoryController.reorderModifiers);
 router.patch('/modifiers/:modifierId', modifierCategoryController.updateModifier);
 router.delete('/modifiers/:modifierId', modifierCategoryController.removeModifier);
 
+router.get('/:id/products', modifierCategoryController.listLinkedProducts);
 router.post('/:id/products', modifierCategoryController.associateProduct);
+router.patch('/:id/products/:productId', modifierCategoryController.updateProductLink);
 router.delete('/:id/products/:productId', modifierCategoryController.dissociateProduct);
 
 export default router;

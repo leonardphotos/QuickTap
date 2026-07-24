@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ArrowLeft, Check, Copy } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
+import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute, formatModifierLabel } from '@/utils/format';
 import { canApplyDiscount } from '@/utils/roles';
 import type { PaymentMethod } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -83,6 +83,9 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   const [amount, setAmount] = useState(mode === 'split' ? '' : balanceBase.toFixed(2));
   const [discountPercent, setDiscountPercent] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
+  // Submodalidad de "Pago fraccionado": por monto libre (de siempre) o eligiendo ítems puntuales.
+  const [splitBy, setSplitBy] = useState<'amount' | 'items'>('amount');
+  const [pickedQty, setPickedQty] = useState<Record<string, number>>({});
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -93,13 +96,27 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   const [sessionPayments, setSessionPayments] = useState<LiveOrderPayment[]>([]);
 
   const selectedDetails = paymentConfig?.[method];
-  const discountPct = showDiscount ? Math.min(100, Math.max(0, Number(discountPercent) || 0)) : 0;
+  const discountPct = showDiscount && splitBy === 'amount' ? Math.min(100, Math.max(0, Number(discountPercent) || 0)) : 0;
   const discountedBalance = round2(balanceBase * (1 - discountPct / 100));
   const needsReference = METHODS_REQUIRING_REFERENCE.includes(method);
 
   function round2(n: number) {
     return Math.round(n * 100) / 100;
   }
+
+  function remainingQty(item: LiveOrder['items'][number]) {
+    return Math.max(0, item.quantity - item.paidQuantity);
+  }
+
+  function stepItem(itemId: string, delta: number, max: number) {
+    setPickedQty((prev) => {
+      const next = Math.max(0, Math.min(max, (prev[itemId] ?? 0) + delta));
+      return { ...prev, [itemId]: next };
+    });
+  }
+
+  const itemsSubtotal = round2(order.items.reduce((acc, it) => acc + Number(it.unitPrice) * (pickedQty[it.id] ?? 0), 0));
+  const itemsPickedCount = Object.values(pickedQty).reduce((acc, q) => acc + q, 0);
 
   function onDiscountChange(v: string) {
     const clean = v.replace(/[^0-9.]/g, '');
@@ -120,8 +137,14 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   }
 
   async function submit() {
-    const amountBase = mode === 'split' ? Number(amount) : discountedBalance;
-    if (!amountBase || amountBase <= 0) {
+    const byItems = mode === 'split' && splitBy === 'items';
+    const amountBase = byItems ? itemsSubtotal : mode === 'split' ? Number(amount) : discountedBalance;
+    if (byItems) {
+      if (itemsPickedCount === 0) {
+        setError('Elige al menos un ítem a cobrar.');
+        return;
+      }
+    } else if (!amountBase || amountBase <= 0) {
       setError('Escribe un monto válido.');
       return;
     }
@@ -137,7 +160,12 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
     setError(null);
     try {
       const { data } = await api.post(`/orders/${order.id}/payments`, {
-        amountBase,
+        amountBase: byItems ? undefined : amountBase,
+        items: byItems
+          ? Object.entries(pickedQty)
+              .filter(([, qty]) => qty > 0)
+              .map(([orderItemId, quantity]) => ({ orderItemId, quantity }))
+          : undefined,
         method,
         discountPercent: discountPct > 0 ? discountPct : undefined,
         referenceNumber: needsReference ? referenceNumber.trim() : undefined,
@@ -228,7 +256,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     <span className="font-medium">{it.quantity}x</span> {it.productName}
                     {it.variantName && <span className="text-brand-950/50"> ({it.variantName})</span>}
                     {it.modifiers.length > 0 && (
-                      <span className="text-brand-950/50"> ({it.modifiers.map((m) => m.name).join(', ')})</span>
+                      <span className="text-brand-950/50"> ({it.modifiers.map(formatModifierLabel).join(', ')})</span>
                     )}
                   </span>
                 </li>
@@ -293,6 +321,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                       setAmount('');
                       setDiscountPercent('');
                       setReferenceNumber('');
+                      setPickedQty({});
                     }}
                   >
                     Seguir pagando fraccionado
@@ -305,6 +334,23 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
             </div>
           ) : (
             <>
+              {mode === 'split' && (
+                <div className="flex gap-1.5">
+                  {(['amount', 'items'] as const).map((s) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setSplitBy(s)}
+                      className={`flex-1 text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+                        splitBy === s ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+                      }`}
+                    >
+                      {s === 'amount' ? 'Por monto' : 'Por ítems'}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div>
                 <p className="text-xs font-medium text-brand-950/50 mb-1.5">Método de pago</p>
                 <div className="flex flex-wrap gap-1.5">
@@ -365,7 +411,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                 </div>
               )}
 
-              {showDiscount && (
+              {showDiscount && !(mode === 'split' && splitBy === 'items') && (
                 <div>
                   <p className="text-xs font-medium text-brand-950/50 mb-1.5">Descuento (%)</p>
                   <input
@@ -377,7 +423,55 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                 </div>
               )}
 
-              {mode === 'split' ? (
+              {mode === 'split' && splitBy === 'items' ? (
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-brand-950/50">Elige qué ítems cobra esta persona</p>
+                  <ul className="space-y-1.5 max-h-56 overflow-y-auto">
+                    {order.items.map((it) => {
+                      const remaining = remainingQty(it);
+                      const qty = pickedQty[it.id] ?? 0;
+                      if (remaining === 0) return null;
+                      return (
+                        <li
+                          key={it.id}
+                          className={`flex items-center justify-between gap-2 rounded-xl border px-2.5 py-2 text-sm ${
+                            qty > 0 ? 'border-brand-500 bg-brand-400/10' : 'border-brand-950/10'
+                          }`}
+                        >
+                          <span className="min-w-0 truncate">
+                            {it.productName}
+                            {it.variantName && <span className="text-brand-950/50"> ({it.variantName})</span>}
+                            <span className="text-brand-950/40"> · quedan {remaining}</span>
+                          </span>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => stepItem(it.id, -1, remaining)}
+                              disabled={qty === 0}
+                              className="w-6 h-6 rounded-full border border-brand-950/20 font-bold text-brand-950 text-xs disabled:opacity-30"
+                            >
+                              −
+                            </button>
+                            <span className="w-4 text-center font-medium">{qty}</span>
+                            <button
+                              type="button"
+                              onClick={() => stepItem(it.id, 1, remaining)}
+                              disabled={qty >= remaining}
+                              className="w-6 h-6 rounded-full border border-brand-950/20 font-bold text-brand-950 text-xs disabled:opacity-30"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <div className="flex items-center justify-between text-sm font-semibold pt-1">
+                    <span>Monto a cobrar</span>
+                    <span>{formatBase(itemsSubtotal, symbol)}</span>
+                  </div>
+                </div>
+              ) : mode === 'split' ? (
                 <div>
                   <p className="text-xs font-medium text-brand-950/50 mb-1.5">Monto a abonar</p>
                   <input

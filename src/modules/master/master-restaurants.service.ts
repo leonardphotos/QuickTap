@@ -94,6 +94,18 @@ export const masterRestaurantsService = {
     return prisma.restaurant.update({ where: { id }, data: { periodEnd } });
   },
 
+  /** Activa/desactiva el IVA (16%) de un restaurante. Solo el equipo QuickTap puede hacerlo
+   * (a diferencia de serviceChargeEnabled, que el propio restaurante controla desde Ajustes), y
+   * solo si el restaurante ya tiene su RIF registrado. */
+  async setIvaEnabled(id: string, ivaEnabled: boolean) {
+    const existing = await prisma.restaurant.findUnique({ where: { id }, select: { id: true, rif: true } });
+    if (!existing) throw notFound('Restaurante no encontrado.');
+    if (ivaEnabled && !existing.rif?.trim()) {
+      throw badRequest('Este restaurante no tiene RIF registrado. Pídele que lo agregue en Ajustes antes de activar el IVA.');
+    }
+    return prisma.restaurant.update({ where: { id }, data: { ivaEnabled } });
+  },
+
   /** Edita nombre/correo/contraseña de un usuario del restaurante (incluido el dueño). */
   async updateUser(restaurantId: string, userId: string, input: UpdateRestaurantUserInput) {
     const user = await prisma.user.findFirst({ where: { id: userId, restaurantId }, select: { id: true } });

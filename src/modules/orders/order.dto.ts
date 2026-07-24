@@ -38,6 +38,13 @@ export const manualOrderSchema = z
   .object({
     channel: z.enum(['DINE_IN', 'DELIVERY', 'PICKUP', 'BAR']).optional().default('DINE_IN'),
     tableId: z.string().min(1).optional(),
+    // Mesa con varias cuentas abiertas: a cuál de ellas se agrega este pedido.
+    sessionId: z.string().min(1).optional(),
+    // Mesa con varias cuentas abiertas: abre una cuenta NUEVA e independiente, en vez de
+    // usar/crear la única cuenta de la mesa (comportamiento de siempre cuando no se manda).
+    openNewAccount: z.boolean().optional(),
+    // Nombre opcional de la cuenta nueva (ej. "Cuenta 2"). Solo aplica junto a openNewAccount.
+    accountLabel: z.string().max(40).optional(),
     items: z.array(cartItemSchema).min(1, 'El pedido está vacío.'),
     customerName: z.string().min(1).max(120).optional(),
     customerIdNumber: z.string().min(1).max(20).optional(),
@@ -64,6 +71,13 @@ export const manualOrderSchema = z
     }
     if (data.channel === 'DELIVERY' && !data.customerAddress?.trim()) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Escribe la dirección de entrega.', path: ['customerAddress'] });
+    }
+    if (data.sessionId && data.openNewAccount) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'No se puede abrir una cuenta nueva y agregar a una existente a la vez.',
+        path: ['sessionId'],
+      });
     }
   });
 
@@ -127,16 +141,19 @@ export const deleteOrderSchema = z.object({
   pin: z.string().optional(),
 });
 
-/** Registrar un cobro (botones "Pagar" / "Pago Fraccionado" en Pedidos). */
+/** Registrar un cobro (botones "Pagar" / "Pago Fraccionado" en Pedidos). Si viene `items`, el
+ * monto lo calcula el servidor a partir de esas líneas — `amountBase` se ignora en ese caso. */
 export const recordPaymentSchema = z
   .object({
-    amountBase: z.coerce.number().positive().max(1000000),
+    amountBase: z.coerce.number().positive().max(1000000).optional(),
     method: paymentMethodSchema,
     // Descuento aplicado a este pago puntual (0-100). Opcional, solo informativo:
     // el monto real a acreditar sigue siendo `amountBase`.
     discountPercent: z.coerce.number().min(0).max(100).optional(),
     // Número de referencia (Pago Móvil/Zelle) o de ticket (Punto de venta). Obligatorio para esos métodos.
     referenceNumber: z.string().max(60).optional(),
+    // Fraccionar por ítems: qué se está cobrando en este pago puntual (cantidad por OrderItem).
+    items: z.array(z.object({ orderItemId: z.string().min(1), quantity: z.coerce.number().int().positive() })).optional(),
   })
   .superRefine((data, ctx) => {
     if (METHODS_REQUIRING_REFERENCE.includes(data.method as any) && !data.referenceNumber?.trim()) {
@@ -145,6 +162,9 @@ export const recordPaymentSchema = z
         message: data.method === 'CARD' ? 'Escribe el número de ticket.' : 'Escribe el número de referencia.',
         path: ['referenceNumber'],
       });
+    }
+    if (!data.amountBase && !data.items?.length) {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Escribe un monto o elige los ítems a cobrar.', path: ['amountBase'] });
     }
   });
 

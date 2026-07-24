@@ -87,7 +87,8 @@ export const menuService = {
         name: true,
         priority: true,
         products: {
-          where: { isAvailable: true },
+          // Agotado por stock (control activo y en 0) se trata igual que "no disponible": no se muestra.
+          where: { isAvailable: true, OR: [{ stockControlEnabled: false }, { stockQuantity: { gt: 0 } }] },
           orderBy: [{ priority: 'asc' }, { name: 'asc' }],
           select: {
             id: true,
@@ -108,16 +109,19 @@ export const menuService = {
             modifierCategories: {
               orderBy: { priority: 'asc' },
               select: {
+                maxSelectionsOverride: true,
                 modifierCategory: {
                   select: {
                     id: true,
                     name: true,
                     isRequired: true,
                     allowMultiple: true,
+                    maxSelections: true,
+                    minSelections: true,
                     modifiers: {
                       where: { isAvailable: true },
                       orderBy: [{ priority: 'asc' }, { name: 'asc' }],
-                      select: { id: true, name: true, priceBase: true, discountBase: true },
+                      select: { id: true, name: true, priceBase: true, discountBase: true, maxQuantity: true },
                     },
                   },
                 },
@@ -156,10 +160,13 @@ export const menuService = {
             name: link.modifierCategory.name,
             isRequired: link.modifierCategory.isRequired,
             allowMultiple: link.modifierCategory.allowMultiple,
+            maxSelections: link.maxSelectionsOverride ?? link.modifierCategory.maxSelections,
+            minSelections: link.modifierCategory.minSelections,
             modifiers: link.modifierCategory.modifiers.map((m) => ({
               id: m.id,
               name: m.name,
               priceBase: round2(toDecimal(m.priceBase).sub(m.discountBase ?? 0)).toFixed(2),
+              maxQuantity: m.maxQuantity,
             })),
           })),
         })),

@@ -4,8 +4,10 @@ import {
   AssociateProductInput,
   CreateModifierCategoryInput,
   CreateModifierInput,
+  ReorderModifiersInput,
   UpdateModifierCategoryInput,
   UpdateModifierInput,
+  UpdateProductLinkInput,
 } from './modifier-category.dto';
 
 /**
@@ -28,6 +30,8 @@ export const modifierCategoryService = {
       name: c.name,
       isRequired: c.isRequired,
       allowMultiple: c.allowMultiple,
+      maxSelections: c.maxSelections,
+      minSelections: c.minSelections,
       priority: c.priority,
       productCount: c._count.products,
       modifiers: c.modifiers.map((m) => ({
@@ -37,6 +41,8 @@ export const modifierCategoryService = {
         costBase: m.costBase?.toFixed(2) ?? null,
         discountBase: m.discountBase?.toFixed(2) ?? null,
         isAvailable: m.isAvailable,
+        maxQuantity: m.maxQuantity,
+        sku: m.sku,
         priority: m.priority,
       })),
     }));
@@ -75,6 +81,33 @@ export const modifierCategoryService = {
     return { deleted: true };
   },
 
+  /** Reordena los modificadores de una categoría (botones ↑/↓ en el editor): recibe la lista
+   * completa de ids en el nuevo orden y persiste esa posición en `priority`. */
+  async reorderModifiers(restaurantId: string, categoryId: string, input: ReorderModifiersInput) {
+    await this.assertCategoryBelongs(restaurantId, categoryId);
+    const modifiers = await prisma.modifier.findMany({
+      where: { id: { in: input.modifierIds }, categoryId, restaurantId },
+      select: { id: true },
+    });
+    if (modifiers.length !== input.modifierIds.length) {
+      throw badRequest('Alguno de los modificadores no pertenece a esta categoría.');
+    }
+    await prisma.$transaction(
+      input.modifierIds.map((id, index) => prisma.modifier.update({ where: { id }, data: { priority: index } })),
+    );
+    return { reordered: true };
+  },
+
+  /** Productos que hoy tienen asociada esta categoría (para el botón "Asociar/Desasociar"). */
+  async listLinkedProducts(restaurantId: string, categoryId: string) {
+    await this.assertCategoryBelongs(restaurantId, categoryId);
+    const links = await prisma.productModifierCategory.findMany({
+      where: { modifierCategoryId: categoryId },
+      include: { product: { select: { id: true, name: true } } },
+    });
+    return links.map((link) => ({ productId: link.product.id, name: link.product.name }));
+  },
+
   async associateProduct(restaurantId: string, categoryId: string, input: AssociateProductInput) {
     await this.assertCategoryBelongs(restaurantId, categoryId);
     const product = await prisma.product.findFirst({ where: { id: input.productId, restaurantId }, select: { id: true } });
@@ -94,6 +127,16 @@ export const modifierCategoryService = {
     await this.assertCategoryBelongs(restaurantId, categoryId);
     await prisma.productModifierCategory.deleteMany({ where: { productId, modifierCategoryId: categoryId } });
     return { deleted: true };
+  },
+
+  /** Sobreescribe el límite de selecciones de la categoría solo para este producto puntual. */
+  async updateProductLink(restaurantId: string, categoryId: string, productId: string, input: UpdateProductLinkInput) {
+    await this.assertCategoryBelongs(restaurantId, categoryId);
+    const link = await prisma.productModifierCategory.findFirst({
+      where: { productId, modifierCategoryId: categoryId },
+    });
+    if (!link) throw notFound('Este producto no tiene asociada esa categoría de modificadores.');
+    return prisma.productModifierCategory.update({ where: { id: link.id }, data: input });
   },
 
   async assertCategoryBelongs(restaurantId: string, id: string) {

@@ -62,9 +62,12 @@ export const updateRestaurantSchema = z.object({
   baseCurrency: z.enum(['USD', 'EUR']).optional(),
   theme: restaurantThemeSchema.optional(),
 
-  // Cargos opcionales del checkout (10% de servicio, 16% de IVA).
+  // Cargo opcional del checkout (10% de servicio). El IVA (16%) NO va aquí — solo lo activa
+  // el equipo QuickTap desde el Master Dashboard (ver master-restaurants.dto.ts), y solo si
+  // el restaurante ya tiene su RIF registrado.
   serviceChargeEnabled: z.boolean().optional(),
-  ivaEnabled: z.boolean().optional(),
+  // RIF fiscal del restaurante, informativo — condición para que QuickTap pueda activarle el IVA.
+  rif: z.string().max(30).optional(),
 
   // Si es false, el menú público queda solo para ver (sin carrito/checkout).
   orderingEnabled: z.boolean().optional(),

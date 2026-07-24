@@ -95,10 +95,16 @@ export default function ProductsPage() {
                   <p className="font-medium text-brand-950 truncate">
                     {p.name} <span className="text-brand-950/40 font-normal">· {p.category?.name}</span>
                   </p>
-                  <p className="text-brand-950/60 font-light">{formatBase(p.price, currencySymbol)}</p>
+                  <p className="text-brand-950/60 font-light">
+                    {formatBase(p.price, currencySymbol)}
+                    {p.sku && <span className="text-brand-950/40"> · SKU {p.sku}</span>}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-3 shrink-0">
+                {p.stockDepleted && p.isAvailable && (
+                  <span className="text-xs px-2 py-1 rounded-full font-medium bg-red-100 text-red-700">Agotado (stock)</span>
+                )}
                 <button
                   onClick={() => toggleAvailable(p)}
                   className={`text-xs px-2 py-1 rounded-full font-medium ${p.isAvailable ? 'bg-brand-400/15 text-brand-800' : 'bg-brand-950/10 text-brand-950/50'}`}

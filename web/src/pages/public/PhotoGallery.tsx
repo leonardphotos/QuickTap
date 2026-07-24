@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { PanInfo } from 'motion/react';
 import type { CartLine, ModifierCategory, Product, Restaurant, SelectedModifier } from '../../types';
-import { formatBase, publicPriceLabel } from '../../utils/format';
+import { formatBase, modifierSelectionKey, publicPriceLabel } from '../../utils/format';
 
 interface Props {
   products: Product[];
@@ -22,7 +22,7 @@ const PAGE_DISTANCE = 80;
 const CHIP_SPRING = { type: 'spring' as const, bounce: 0, duration: 0.3 };
 
 function sameModifiers(a: SelectedModifier[], b: SelectedModifier[]): boolean {
-  return JSON.stringify(a.map((m) => m.modifierId).sort()) === JSON.stringify(b.map((m) => m.modifierId).sort());
+  return modifierSelectionKey(a) === modifierSelectionKey(b);
 }
 
 /**
@@ -65,7 +65,9 @@ export default function PhotoGallery({
     product.pricingMode === 'VARIANTS' ? product.variants?.find((v) => v.id === selectedVariantId) : undefined;
   const basePrice = selectedVariant ? Number(selectedVariant.priceBase) : Number(product.price);
   const chosenModifiers: SelectedModifier[] = modifierCategories.flatMap((c) =>
-    c.modifiers.filter((m) => selectedModifierIds.includes(m.id)).map((m) => ({ modifierId: m.id, name: m.name, priceBase: m.priceBase })),
+    c.modifiers
+      .filter((m) => selectedModifierIds.includes(m.id))
+      .map((m) => ({ modifierId: m.id, name: m.name, priceBase: m.priceBase, quantity: 1 })),
   );
   const modifiersTotal = chosenModifiers.reduce((acc, m) => acc + Number(m.priceBase), 0);
   const unitPrice = basePrice + modifiersTotal;

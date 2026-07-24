@@ -5,7 +5,7 @@ import { io } from 'socket.io-client';
 import { BellRing, CalendarDays, Clock, Receipt, Search, Share2, ShoppingCart } from 'lucide-react';
 import { api } from '../../api/client';
 import type { CartLine, PublicMenu, Product, Restaurant, ServiceRequestType } from '../../types';
-import { cartLineUnitPrice, hexToRgba, publicPriceLabel } from '../../utils/format';
+import { cartLineUnitPrice, hexToRgba, modifierSelectionKey, publicPriceLabel } from '../../utils/format';
 import ProductGridCard from './ProductGridCard';
 import ProductDetailSheet from './ProductDetailSheet';
 import PhotoGallery from './PhotoGallery';
@@ -130,8 +130,7 @@ export default function MenuPage() {
           l.product.id === line.product.id &&
           l.note === line.note &&
           l.variantId === line.variantId &&
-          JSON.stringify(l.selectedModifiers.map((m) => m.modifierId).sort()) ===
-            JSON.stringify(line.selectedModifiers.map((m) => m.modifierId).sort()),
+          modifierSelectionKey(l.selectedModifiers) === modifierSelectionKey(line.selectedModifiers),
       );
       if (matchIndex === -1) return [...prev, line];
       const next = [...prev];
@@ -152,8 +151,7 @@ export default function MenuPage() {
           l.product.id === line.product.id &&
           l.note === line.note &&
           l.variantId === line.variantId &&
-          JSON.stringify(l.selectedModifiers.map((m) => m.modifierId).sort()) ===
-            JSON.stringify(line.selectedModifiers.map((m) => m.modifierId).sort()),
+          modifierSelectionKey(l.selectedModifiers) === modifierSelectionKey(line.selectedModifiers),
       );
       if (matchIndex === -1) return prev;
       const newQuantity = prev[matchIndex].quantity - 1;

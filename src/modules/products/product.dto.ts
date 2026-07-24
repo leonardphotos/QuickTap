@@ -20,6 +20,11 @@ export const createProductSchema = z.object({
   isAvailable: z.boolean().optional().default(true),
   // Tiempo aproximado de preparación, en minutos (informativo, opcional).
   prepTimeMinutes: z.coerce.number().int().min(0).max(600).optional(),
+  // Código interno opcional (back-office). Nunca se expone en el menú público.
+  sku: z.string().max(60).nullable().optional(),
+  // Control de stock simple por producto. stockQuantity null = sin control de stock.
+  stockControlEnabled: z.boolean().optional().default(false),
+  stockQuantity: z.coerce.number().int().min(0).nullable().optional(),
 
   // Banderas de marketing
   isStar: z.boolean().optional().default(false),
