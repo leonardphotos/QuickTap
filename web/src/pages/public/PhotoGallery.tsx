@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { PanInfo } from 'motion/react';
 import type { CartLine, ModifierCategory, Product, Restaurant, SelectedModifier } from '../../types';
-import { formatBase, modifierSelectionKey, publicPriceLabel } from '../../utils/format';
+import { formatBase, formatModifierLabel, modifierSelectionKey, publicPriceLabel } from '../../utils/format';
+import { effectiveMax, effectiveMin } from '../../utils/modifierLimits';
 
 interface Props {
   products: Product[];
@@ -45,7 +46,7 @@ export default function PhotoGallery({
   const [index, setIndex] = useState(initialIndex);
   const [closing, setClosing] = useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
-  const [selectedModifierIds, setSelectedModifierIds] = useState<string[]>([]);
+  const [selectedQty, setSelectedQty] = useState<Record<string, number>>({});
 
   const product = products[index];
 
@@ -54,7 +55,7 @@ export default function PhotoGallery({
     const firstVariant =
       product.pricingMode === 'VARIANTS' ? product.variants?.find((v) => v.isAvailable !== false) : undefined;
     setSelectedVariantId(firstVariant?.id ?? null);
-    setSelectedModifierIds([]);
+    setSelectedQty({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?.id]);
 
@@ -66,17 +67,19 @@ export default function PhotoGallery({
   const basePrice = selectedVariant ? Number(selectedVariant.priceBase) : Number(product.price);
   const chosenModifiers: SelectedModifier[] = modifierCategories.flatMap((c) =>
     c.modifiers
-      .filter((m) => selectedModifierIds.includes(m.id))
-      .map((m) => ({ modifierId: m.id, name: m.name, priceBase: m.priceBase, quantity: 1 })),
+      .filter((m) => (selectedQty[m.id] ?? 0) > 0)
+      .map((m) => ({ modifierId: m.id, name: m.name, priceBase: m.priceBase, quantity: selectedQty[m.id] })),
   );
-  const modifiersTotal = chosenModifiers.reduce((acc, m) => acc + Number(m.priceBase), 0);
+  const modifiersTotal = chosenModifiers.reduce((acc, m) => acc + Number(m.priceBase) * m.quantity, 0);
   const unitPrice = basePrice + modifiersTotal;
   const price = publicPriceLabel(unitPrice, restaurant);
 
+  function categoryTotal(category: ModifierCategory): number {
+    return category.modifiers.reduce((acc, m) => acc + (selectedQty[m.id] ?? 0), 0);
+  }
+
   const needsVariant = product.pricingMode === 'VARIANTS' && !selectedVariant;
-  const missingRequiredCategory = modifierCategories.some(
-    (c) => c.isRequired && !c.modifiers.some((m) => selectedModifierIds.includes(m.id)),
-  );
+  const missingRequiredCategory = modifierCategories.some((c) => categoryTotal(c) < effectiveMin(c));
   const canAdd = !needsVariant && !missingRequiredCategory;
 
   const currentLine: CartLine = {
@@ -93,16 +96,32 @@ export default function PhotoGallery({
       )?.quantity ?? 0
     : 0;
 
-  function toggleModifier(category: ModifierCategory, modifierId: string) {
-    setSelectedModifierIds((prev) => {
-      const inCategory = new Set(category.modifiers.map((m) => m.id));
-      if (category.allowMultiple) {
-        return prev.includes(modifierId) ? prev.filter((id) => id !== modifierId) : [...prev, modifierId];
-      }
-      const withoutCategory = prev.filter((id) => !inCategory.has(id));
-      if (prev.includes(modifierId) && !category.isRequired) return withoutCategory;
-      return [...withoutCategory, modifierId];
+  /** Categorías de una sola opción: tocar la ya elegida la deselecciona (si es opcional). */
+  function toggleSingle(category: ModifierCategory, modifierId: string) {
+    setSelectedQty((prev) => {
+      const next = { ...prev };
+      const wasSelected = (prev[modifierId] ?? 0) > 0;
+      for (const m of category.modifiers) delete next[m.id];
+      if (wasSelected && !category.isRequired) return next;
+      next[modifierId] = 1;
+      return next;
     });
+  }
+
+  /** Categorías de varias opciones: cada toque suma +1, respetando el tope total de la
+   * categoría y el propio del modificador — tocar de más simplemente no hace nada. */
+  function tapMultiply(category: ModifierCategory, modifierId: string) {
+    setSelectedQty((prev) => {
+      const current = prev[modifierId] ?? 0;
+      const modifierMax = category.modifiers.find((m) => m.id === modifierId)?.maxQuantity ?? Infinity;
+      if (categoryTotal(category) >= effectiveMax(category) || current >= modifierMax) return prev;
+      return { ...prev, [modifierId]: current + 1 };
+    });
+  }
+
+  function toggleModifier(category: ModifierCategory, modifierId: string) {
+    if (category.allowMultiple) tapMultiply(category, modifierId);
+    else toggleSingle(category, modifierId);
   }
 
   function handleDragEnd(_: PointerEvent | MouseEvent | TouchEvent, info: PanInfo) {
@@ -208,11 +227,17 @@ export default function PhotoGallery({
                     </p>
                     <div className="flex flex-wrap justify-center gap-1.5 mt-2">
                       {category.modifiers.map((m) => {
-                        const selected = selectedModifierIds.includes(m.id);
+                        const qty = selectedQty[m.id] ?? 0;
+                        const selected = qty > 0;
+                        // Solo aplica a categorías "Varios": ya no se puede sumar más este modificador
+                        // (tope propio o tope total de la categoría alcanzado) — el toque no hace nada.
+                        const atCap =
+                          category.allowMultiple &&
+                          (categoryTotal(category) >= effectiveMax(category) || qty >= (m.maxQuantity ?? Infinity));
                         return (
                           <motion.button
                             key={m.id}
-                            whileTap={{ scale: 0.94 }}
+                            whileTap={atCap ? undefined : { scale: 0.94 }}
                             transition={CHIP_SPRING}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -220,9 +245,9 @@ export default function PhotoGallery({
                             }}
                             className={`text-xs font-medium px-3.5 py-1.5 rounded-full border backdrop-blur-sm transition-colors ${
                               selected ? 'bg-white text-neutral-900 border-white' : 'bg-white/10 text-white border-white/25'
-                            }`}
+                            } ${atCap ? 'opacity-50' : ''}`}
                           >
-                            {m.name}
+                            {formatModifierLabel({ name: m.name, quantity: qty || undefined })}
                             {Number(m.priceBase) > 0 && ` +${formatBase(m.priceBase, restaurant.currencySymbol)}`}
                           </motion.button>
                         );

@@ -5,11 +5,9 @@ interface Props {
   product: Product;
   restaurant: Restaurant;
   onOpen: (product: Product) => void;
-  /** Al tocar la foto (no el resto de la tarjeta) se abre la galería a pantalla completa. */
-  onOpenGallery: (product: Product) => void;
 }
 
-export default function ProductGridCard({ product, restaurant, onOpen, onOpenGallery }: Props) {
+export default function ProductGridCard({ product, restaurant, onOpen }: Props) {
   const price = publicPriceLabel(product.price, restaurant);
 
   return (
@@ -24,10 +22,6 @@ export default function ProductGridCard({ product, restaurant, onOpen, onOpenGal
             alt={product.name}
             loading="lazy"
             decoding="async"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenGallery(product);
-            }}
             className="aspect-[4/5] w-full rounded-2xl object-cover"
           />
         ) : (

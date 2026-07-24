@@ -6,14 +6,16 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { Toast } from '@/components/ui/toast';
 import { NavMenuDrawer } from '@/components/admin/NavMenuDrawer';
 import { LowStockAlert } from '@/components/admin/LowStockAlert';
+import { NewOrderAlert } from '@/components/admin/NewOrderAlert';
 import { useCopyToast } from '../../hooks/useCopyToast';
 import { usePendingReservationsCount } from '../../hooks/usePendingReservations';
 import { useLowStockItems } from '../../hooks/useLowStockItems';
-import { RESTRICTED_ROLES, canAccessPath, defaultPathFor, isAdminCashier, isScreenRole } from '../../utils/roles';
+import { RESTRICTED_ROLES, canAccessPath, defaultPathFor, isAdminCashier, isKioskRole, isScreenRole } from '../../utils/roles';
 import { daysRemaining, graceHoursRemaining, hasFeature } from '../../utils/subscription';
 import { visibleNavLinks } from './nav-links';
 
 const WaiterLayout = lazy(() => import('./WaiterLayout'));
+const ComandaKioskPage = lazy(() => import('./ComandaKioskPage'));
 
 export default function AdminLayout() {
   const { user, restaurant, loading, logout } = useAuth();
@@ -60,10 +62,21 @@ export default function AdminLayout() {
   }
 
   // Pantalla (kiosco): sin cabecera ni navegación, solo el contenido a pantalla completa.
+  // Sí necesita el aviso de pedido nuevo — es la única superficie de este rol para enterarse.
   if (isScreenRole(user.role)) {
     return (
       <div className="min-h-screen bg-white">
         <Outlet />
+        <NewOrderAlert onNavigate={() => {}} />
+      </div>
+    );
+  }
+
+  // Comanda (kiosco de autoservicio): sin cabecera ni navegación, pantalla completa.
+  if (isKioskRole(user.role)) {
+    return (
+      <div className="min-h-screen bg-white">
+        <ComandaKioskPage />
       </div>
     );
   }

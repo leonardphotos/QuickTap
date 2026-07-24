@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 // Roles asignables desde la UI de Equipo (OWNER/STAFF no se asignan aquí).
-const assignableRoleSchema = z.enum(['ADMIN', 'CASHIER', 'WAITER', 'KITCHEN', 'SCREEN']);
+const assignableRoleSchema = z.enum(['ADMIN', 'CASHIER', 'WAITER', 'KITCHEN', 'SCREEN', 'COMANDA']);
 
 export const createStaffSchema = z.object({
   name: z.string().min(1, 'El nombre es obligatorio.').max(120),

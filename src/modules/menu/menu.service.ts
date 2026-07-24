@@ -34,6 +34,7 @@ export const menuService = {
         fullscreenImageUrl: true,
         deliveryOriginLat: true,
         deliveryOriginLng: true,
+        _count: { select: { tables: true } },
       },
     });
 
@@ -72,6 +73,7 @@ export const menuService = {
           fullscreenImageUrl: restaurant.fullscreenImageUrl,
           deliveryOriginLat: restaurant.deliveryOriginLat,
           deliveryOriginLng: restaurant.deliveryOriginLng,
+          hasTables: restaurant._count.tables > 0,
         },
         highlights: { stars: [], promos: [], houseSpecials: [] },
         categories: [],
@@ -213,6 +215,7 @@ export const menuService = {
         fullscreenImageUrl: restaurant.fullscreenImageUrl,
         deliveryOriginLat: restaurant.deliveryOriginLat,
         deliveryOriginLng: restaurant.deliveryOriginLng,
+        hasTables: restaurant._count.tables > 0,
       },
       highlights,
       categories: structuredCategories,

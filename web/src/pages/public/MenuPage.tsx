@@ -354,13 +354,7 @@ export default function MenuPage() {
             <h2 className="text-base font-semibold text-brand-950 mb-3">{cat.name}</h2>
             <div className="grid grid-cols-2 gap-3">
               {cat.products.map((p) => (
-                <ProductGridCard
-                  key={p.id}
-                  product={p}
-                  restaurant={restaurant}
-                  onOpen={setSelectedProduct}
-                  onOpenGallery={openGallery}
-                />
+                <ProductGridCard key={p.id} product={p} restaurant={restaurant} onOpen={setSelectedProduct} />
               ))}
             </div>
           </section>
@@ -478,7 +472,9 @@ export default function MenuPage() {
                 <NavIcon icon={Receipt} label="Cuenta" onClick={requestBill} disabled={requestingBill} />
               </>
             )}
-            <NavIcon icon={CalendarDays} label="Mesa" onClick={() => setReservationOpen(true)} />
+            {restaurant.hasTables && (
+              <NavIcon icon={CalendarDays} label="Mesa" onClick={() => setReservationOpen(true)} />
+            )}
             {restaurant.whatsappPhone && (
               <NavIcon
                 icon={WhatsAppIcon}
@@ -596,11 +592,11 @@ function HighlightCard({
       className="w-40 shrink-0 snap-start text-center cursor-pointer"
     >
       {product.photoUrl ? (
-        <div className="h-24 w-24 mx-auto mb-3 rounded-full overflow-hidden">
+        <div className="h-24 w-24 mx-auto mb-3 rounded-2xl overflow-hidden">
           <img src={product.photoUrl} alt={product.name} loading="lazy" decoding="async" className="h-full w-full object-cover" />
         </div>
       ) : (
-        <div className="h-24 w-24 mx-auto mb-3 rounded-full bg-gradient-to-br from-brand-400/20 to-brand-500/10 flex items-center justify-center text-3xl">
+        <div className="h-24 w-24 mx-auto mb-3 rounded-2xl bg-gradient-to-br from-brand-400/20 to-brand-500/10 flex items-center justify-center text-3xl">
           🍽️
         </div>
       )}

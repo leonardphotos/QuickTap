@@ -43,12 +43,15 @@ export function NewOrderAlert({ onNavigate }: Props) {
         const orders: LiveOrder[] = res.data.data;
         const fresh = orders.find((o) => o.id === payload.orderId);
         if (!fresh || !user) return;
+        // Quien generó el pedido nunca recibe su propio aviso (sin excepción); Pantalla
+        // siempre lo ve, sin importar quién lo creó o a quién esté asignada la mesa.
         const relevant =
-          fresh.placedByUser?.id === user.id ||
-          fresh.acceptedByUserId === user.id ||
-          (fresh.table?.assignedWaiterId
-            ? fresh.table.assignedWaiterId === user.id
-            : !fresh.placedByUser && !fresh.acceptedByUserId);
+          user.role === 'SCREEN' ||
+          (fresh.placedByUser?.id !== user.id &&
+            (fresh.acceptedByUserId === user.id ||
+              (fresh.table?.assignedWaiterId
+                ? fresh.table.assignedWaiterId === user.id
+                : !fresh.placedByUser && !fresh.acceptedByUserId)));
         if (relevant) openBanner(fresh);
       } catch {
         // Si falla el refetch, este pedido puntual simplemente no muestra aviso — sigue

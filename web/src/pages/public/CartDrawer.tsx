@@ -49,7 +49,7 @@ const PAYMENT_FIELD_LABELS: Record<string, string> = {
 };
 
 export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, onRemove, onClose, onClearAndClose }: Props) {
-  const [step, setStep] = useState<'summary' | 'checkout'>('summary');
+  const [step, setStep] = useState<'summary' | 'modeChoice' | 'checkout'>('summary');
   const [mode, setMode] = useState<'DELIVERY' | 'PICKUP'>('DELIVERY');
   const [dineInName, setDineInName] = useState('');
   const [dineInIdNumber, setDineInIdNumber] = useState('');
@@ -507,12 +507,44 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                       <TextureButton
                         variant="brand"
                         size="default"
-                        onClick={() => setStep('checkout')}
+                        onClick={() => setStep(qrToken ? 'checkout' : 'modeChoice')}
                         disabled={(qrToken !== null && sessionOpen === null) || (qrToken !== null && multipleAccounts)}
                         className="mt-2 disabled:opacity-50"
                       >
                         {qrToken ? 'Ordenar' : 'Pagar'}
                       </TextureButton>
+                    ) : step === 'modeChoice' ? (
+                      <div className="space-y-2 mt-2">
+                        <button
+                          onClick={() => setStep('summary')}
+                          className="flex items-center gap-1 text-xs text-brand-950/50 hover:text-brand-950 mb-1"
+                        >
+                          <ArrowLeft className="h-3 w-3" /> Volver al resumen
+                        </button>
+                        <p className="text-sm font-semibold text-brand-950">¿Cómo quieres tu pedido?</p>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            onClick={() => {
+                              setMode('DELIVERY');
+                              setStep('checkout');
+                            }}
+                            className="flex flex-col items-center gap-1.5 rounded-xl border border-brand-950/15 bg-white py-5 hover:border-brand-500 hover:bg-brand-950/[0.03] transition-colors"
+                          >
+                            <span className="text-3xl">🛵</span>
+                            <span className="text-sm font-medium text-brand-950">Delivery</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              setMode('PICKUP');
+                              setStep('checkout');
+                            }}
+                            className="flex flex-col items-center gap-1.5 rounded-xl border border-brand-950/15 bg-white py-5 hover:border-brand-500 hover:bg-brand-950/[0.03] transition-colors"
+                          >
+                            <span className="text-3xl">🏬</span>
+                            <span className="text-sm font-medium text-brand-950">Pick-up</span>
+                          </button>
+                        </div>
+                      </div>
                     ) : (
                       <div className="space-y-2 mt-2">
                         <button

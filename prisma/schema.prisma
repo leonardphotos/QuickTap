@@ -32,6 +32,7 @@ enum UserRole {
   WAITER // Mesero (solo Cocina + Órdenes de Mesa)
   KITCHEN // Cocina (solo Cocina + Órdenes de Mesa)
   SCREEN // Pantalla (vista horizontal de Mesas + Cocina, para un monitor/TV)
+  COMANDA // Kiosco de autoservicio (tablet en modo tótem, el cliente pide sin mesero)
 }
 
 enum TableSessionStatus {

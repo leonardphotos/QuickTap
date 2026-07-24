@@ -23,6 +23,7 @@ const InventoryPage = lazy(() => import('./pages/admin/InventoryPage'));
 const ExpensesPage = lazy(() => import('./pages/admin/ExpensesPage'));
 const SucursalesPage = lazy(() => import('./pages/admin/SucursalesPage'));
 const ReservationsPage = lazy(() => import('./pages/admin/ReservationsPage'));
+const ComandaKioskPage = lazy(() => import('./pages/admin/ComandaKioskPage'));
 const WelcomePage = lazy(() => import('./pages/admin/WelcomePage'));
 const MasterLoginPage = lazy(() => import('./pages/master/MasterLoginPage'));
 const MasterLayout = lazy(() => import('./pages/master/MasterLayout'));
@@ -80,6 +81,9 @@ export default function App() {
               <Route path="sucursales" element={<SucursalesPage />} />
               <Route path="reservations" element={<ReservationsPage />} />
               <Route path="screen" element={<ScreenPage />} />
+              {/* AdminLayout intercepta el rol Comanda antes del Outlet y renderiza el kiosco
+                  a pantalla completa — esta ruta solo existe para que /admin/comanda matchee. */}
+              <Route path="comanda" element={<ComandaKioskPage />} />
             </Route>
 
             {/* Dashboard maestro (equipo de QuickTap, ve todos los restaurantes) */}

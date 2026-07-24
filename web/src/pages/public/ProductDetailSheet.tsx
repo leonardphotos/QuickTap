@@ -3,6 +3,7 @@ import type { MouseEvent } from 'react';
 import { Check, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import type { CartLine, ModifierCategory, Product, Restaurant, SelectedModifier } from '../../types';
 import { formatBase, publicPriceLabel } from '../../utils/format';
+import { effectiveMax, effectiveMin } from '../../utils/modifierLimits';
 import {
   FamilyDrawerRoot,
   FamilyDrawerPortal,
@@ -22,16 +23,6 @@ interface Props {
   /** Al tocar la foto grande de arriba se abre la galería a pantalla completa. */
   onOpenGallery: (product: Product) => void;
   orderingEnabled: boolean;
-}
-
-function effectiveMax(category: ModifierCategory): number {
-  if (category.maxSelections != null) return category.maxSelections;
-  return category.allowMultiple ? Infinity : 1;
-}
-
-function effectiveMin(category: ModifierCategory): number {
-  if (category.minSelections != null) return category.minSelections;
-  return category.isRequired ? 1 : 0;
 }
 
 function categoryHint(category: ModifierCategory): string {

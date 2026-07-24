@@ -1,6 +1,6 @@
 export type Currency = 'USD' | 'EUR';
 
-export type UserRole = 'OWNER' | 'STAFF' | 'ADMIN' | 'CASHIER' | 'WAITER' | 'KITCHEN' | 'SCREEN';
+export type UserRole = 'OWNER' | 'STAFF' | 'ADMIN' | 'CASHIER' | 'WAITER' | 'KITCHEN' | 'SCREEN' | 'COMANDA';
 
 export interface ExchangeRateInfo {
   rateBs: string;
@@ -70,6 +70,8 @@ export interface Restaurant {
   fullscreenImageUrl?: string | null;
   deliveryOriginLat?: number | null;
   deliveryOriginLng?: number | null;
+  /** Solo en el menú público: si el restaurante tiene al menos una mesa creada. */
+  hasTables?: boolean;
 }
 
 export interface Category {
