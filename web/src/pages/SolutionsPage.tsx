@@ -68,7 +68,7 @@ function FloorMock() {
     { n: 1, state: 'bg-emerald-100 text-emerald-700', label: 'Libre' },
     { n: 2, state: 'bg-amber-100 text-amber-700', label: 'Ocupada' },
     { n: 3, state: 'bg-rose-100 text-rose-700', label: 'Por cobrar' },
-    { n: 4, state: 'bg-amber-100 text-amber-700', label: 'Ocupada' },
+    { n: 4, state: 'bg-fuchsia-100 text-fuchsia-700', label: 'Reservada' },
   ];
   return (
     <div className="grid grid-cols-2 gap-3">
