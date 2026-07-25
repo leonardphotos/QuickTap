@@ -53,31 +53,31 @@ export default function LandingPage() {
         <section className="relative h-screen overflow-hidden bg-white">
           <GradientWave />
 
-          {/* Logo centrado en toda la sección */}
-          <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-            <img src="/logo/quicktap-white.png" alt="QuickTap" className="w-48 sm:w-64 h-auto mix-blend-difference" />
+          {/* Logo centrado en toda la sección, un poco más arriba y más pequeño */}
+          <div className="absolute inset-0 z-10 flex items-center justify-center pb-24 pointer-events-none">
+            <img src="/logo/quicktap-white.png" alt="QuickTap" className="w-36 sm:w-52 h-auto mix-blend-difference" />
           </div>
 
           <div className="relative z-10 h-screen flex flex-col items-start justify-end px-6 sm:px-12 pb-16 sm:pb-20 text-left">
             {/* Texto blanco + mix-blend-difference: invierte solo (negro sobre blanco, blanco sobre azul) siguiendo el fondo animado */}
-            <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-white mix-blend-difference">
+            <h1 className="text-3xl sm:text-5xl font-bold tracking-tight text-white mix-blend-difference">
               Todo a un toque.
             </h1>
-            <p className="mt-3 text-base sm:text-lg text-white max-w-md font-light mix-blend-difference">
+            <p className="mt-3 text-sm sm:text-base text-white max-w-md font-light mix-blend-difference">
               Menú digital, comandas en tiempo real y delivery por WhatsApp para tu restaurante.
             </p>
 
             <div className="mt-8 flex flex-col sm:flex-row items-start gap-4 sm:gap-8">
               <Link
                 to="/soluciones"
-                className="group flex items-center gap-1.5 text-base font-medium text-white mix-blend-difference transition-opacity hover:opacity-70"
+                className="group flex items-center gap-1.5 text-sm font-medium text-white mix-blend-difference transition-opacity hover:opacity-70"
               >
                 Conoce sobre QuickTap
                 <ArrowRight className="h-4 w-4 transition-transform duration-200 ease-out-strong group-hover:translate-x-1" />
               </Link>
               <Link
                 to="/planes"
-                className="text-base font-medium text-white mix-blend-difference transition-opacity opacity-70 hover:opacity-100"
+                className="text-sm font-medium text-white mix-blend-difference transition-opacity opacity-70 hover:opacity-100"
               >
                 Ver planes
               </Link>
