@@ -414,18 +414,10 @@ export default function SolutionsPage() {
             QuickTap conecta tu menú, tus comandas, tu cobro, tu delivery y tu inventario en un solo sistema — para que
             dejes de operar tu restaurante desde cinco herramientas distintas.
           </p>
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link to="/admin/register" className="w-full sm:w-auto">
-              <TextureButton variant="brand" size="lg" className="sm:!w-auto">
-                Regístrate y comienza gratis hoy
-              </TextureButton>
-            </Link>
-            <button
-              onClick={() => setDemoOpen(true)}
-              className="w-full sm:w-auto rounded-full border border-brand-950/15 text-brand-950 font-medium px-6 py-2.5 transition-colors hover:bg-brand-950/5 active:scale-[0.97]"
-            >
+          <div className="mt-8 flex items-center justify-center">
+            <TextureButton variant="brand" size="lg" className="sm:!w-auto" onClick={() => setDemoOpen(true)}>
               Ver restaurante de demostración
-            </button>
+            </TextureButton>
           </div>
         </div>
       </section>
