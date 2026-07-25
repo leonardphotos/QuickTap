@@ -156,17 +156,12 @@ export default function LandingPage() {
                 Crea tu menú digital, genera los QR de tus mesas y recibe pedidos en cocina en tiempo real o directo
                 por WhatsApp. Sin instalar nada.
               </p>
-              <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3">
-                <Link to="/admin/register" className="w-full sm:w-auto">
-                  <TextureButton variant="brand" size="lg" className="sm:!w-auto">
-                    Regístrate y comienza gratis hoy
-                  </TextureButton>
-                </Link>
-                <a href="#precios" className="w-full sm:w-auto">
-                  <button className="w-full sm:w-auto rounded-full border border-white/20 text-white font-medium px-6 py-2.5 transition-[background-color,transform] duration-200 ease-out-strong hover:bg-white/10 active:scale-[0.97]">
-                    Ver precios y planes
+              <div className="mt-12 flex items-center justify-center">
+                <Link to="/soluciones" className="w-full sm:w-auto">
+                  <button className="w-full sm:w-auto rounded-full border border-white/20 text-white font-medium px-8 py-3 transition-[background-color,transform] duration-200 ease-out-strong hover:bg-white/10 active:scale-[0.97]">
+                    Más de nosotros
                   </button>
-                </a>
+                </Link>
               </div>
             </motion.div>
           </section>

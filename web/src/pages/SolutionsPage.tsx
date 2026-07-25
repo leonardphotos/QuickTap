@@ -405,8 +405,8 @@ export default function SolutionsPage() {
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="relative bg-white pt-32 pb-20 px-4">
+      {/* Hero: pantalla completa */}
+      <section className="relative bg-white min-h-screen flex items-center px-4 pt-24 pb-12">
         <div className="relative z-10 max-w-3xl mx-auto text-center">
           <p className="text-xs font-medium text-brand-950/40 tracking-wide">Todo lo que hace QuickTap</p>
           <h1 className="mt-4 text-3xl sm:text-5xl font-bold text-brand-950">Del QR de la mesa a la caja del mes. En un toque.</h1>
