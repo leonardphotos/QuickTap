@@ -389,7 +389,7 @@ export default function SolutionsPage() {
             <img src="/logo/icono-blanco.png" alt="QuickTap" className="h-7 w-7" />
           </Link>
           <nav className="flex items-center gap-1 sm:gap-2">
-            <Link to="/#precios" className="hidden sm:inline text-sm text-white/70 hover:text-white px-2 py-1.5">
+            <Link to="/planes" className="hidden sm:inline text-sm text-white/70 hover:text-white px-2 py-1.5">
               Precios
             </Link>
             <Link to="/admin/login" className="text-sm text-white/70 hover:text-white px-2 py-1.5">
@@ -507,7 +507,7 @@ export default function SolutionsPage() {
               Regístrate y comienza gratis hoy
             </TextureButton>
           </Link>
-          <Link to="/#precios" className="w-full sm:w-auto">
+          <Link to="/planes" className="w-full sm:w-auto">
             <button className="w-full sm:w-auto rounded-full border border-brand-950/15 text-brand-950 font-medium px-6 py-2.5 transition-colors hover:bg-brand-950/5 active:scale-[0.97]">
               Ver precios y planes
             </button>
