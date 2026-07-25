@@ -171,7 +171,7 @@ export const orderController = {
 
   /** POST /api/v1/orders/:id/accept — el mesero acepta un pedido en NEEDS_CONFIRMATION y lo manda a cocina. */
   accept: asyncHandler(async (req: Request, res: Response) => {
-    const order = await orderService.acceptOrder(req.restaurantId!, req.params.id, req.auth?.userId);
+    const order = await orderService.acceptOrder(req.restaurantId!, req.params.id, req.auth?.userId, req.auth?.role);
     res.json({ data: order });
   }),
 

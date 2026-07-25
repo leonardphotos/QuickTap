@@ -21,7 +21,8 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function TableOrdersPage() {
-  const { restaurant } = useAuth();
+  const { restaurant, user } = useAuth();
+  const canAcceptOrders = user?.role !== 'KITCHEN';
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [plan, setPlan] = useState<FloorPlan | null>(null);
   const [selected, setSelected] = useState<FloorPlanTable | null>(null);
@@ -337,7 +338,7 @@ export default function TableOrdersPage() {
             ))}
           </div>
         )}
-        {editingOrder.status === 'NEEDS_CONFIRMATION' && (
+        {editingOrder.status === 'NEEDS_CONFIRMATION' && canAcceptOrders && (
           <button
             onClick={() => acceptOrder(editingOrder.id)}
             disabled={busy}
@@ -480,7 +481,7 @@ export default function TableOrdersPage() {
                           · {STATUS_LABEL[o.status] ?? o.status}
                         </span>
                       </p>
-                      {o.status === 'NEEDS_CONFIRMATION' && (
+                      {o.status === 'NEEDS_CONFIRMATION' && canAcceptOrders && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();

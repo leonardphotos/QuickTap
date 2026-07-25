@@ -4,7 +4,7 @@ import type { Socket } from 'socket.io-client';
 import { Check, ChefHat } from 'lucide-react';
 import { api, getToken } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
-import { hasFullAccess } from '../../utils/roles';
+import { hasFullAccess, isAdminCashier } from '../../utils/roles';
 import type { Kitchen, OrderItemView, OrderView } from '../../types';
 import { formatModifierLabel } from '../../utils/format';
 import { TextureCard, TextureCardContent } from '@/components/ui/texture-card';
@@ -215,12 +215,19 @@ export default function KitchenPage() {
                     </ul>
 
                     {ticket.order.status === 'PENDING' ? (
-                      <button
-                        onClick={() => acceptOrder(ticket.order.id)}
-                        className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium py-2 transition-colors"
-                      >
-                        <Check className="h-4 w-4" /> Aceptar pedido
-                      </button>
+                      // PENDING acá siempre es delivery/pickup recién llegado del cliente: solo
+                      // Caja/Admin/Dueño lo puede aceptar (implica coordinar cobro/despacho).
+                      // Cocina/Mesero solo ven que está esperando, sin poder tocarlo.
+                      isAdminCashier(user?.role) ? (
+                        <button
+                          onClick={() => acceptOrder(ticket.order.id)}
+                          className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium py-2 transition-colors"
+                        >
+                          <Check className="h-4 w-4" /> Aceptar pedido
+                        </button>
+                      ) : (
+                        <p className="text-center text-xs text-brand-950/40 py-2">Esperando que Caja lo acepte…</p>
+                      )
                     ) : (
                       <button
                         onClick={() => markReady(ticket.order.id, lane.key === UNASSIGNED_KEY ? null : lane.key)}

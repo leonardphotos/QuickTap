@@ -1,7 +1,8 @@
 import bcrypt from 'bcryptjs';
 import { OrderChannel, Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
-import { badRequest, conflict, notFound } from '../../utils/http-error';
+import { badRequest, conflict, forbidden, notFound } from '../../utils/http-error';
+import { ADMIN_CASHIER_ROLES } from '../../utils/roles';
 import { baseToBs, CURRENCY_SYMBOLS, formatBs, formatMoney, round2, toDecimal } from '../../utils/money';
 import {
   buildWhatsappCheckoutUrl,
@@ -386,9 +387,9 @@ export const orderService = {
           restaurantId,
           orderNumber,
           channel: 'DINE_IN',
-          // Si el restaurante exige confirmación, el mesero debe aceptarla antes
-          // de que llegue a cocina; si no, entra directo (comportamiento de siempre).
-          status: table.restaurant.requireOrderConfirmation ? 'NEEDS_CONFIRMATION' : 'KITCHEN',
+          // Todo pedido que llega solo desde el cliente (menú público/QR de mesa) espera
+          // a que Mesero/Caja/Admin/Dueño lo acepte antes de que llegue a cocina.
+          status: 'NEEDS_CONFIRMATION',
           tableId: table.id,
           tableSessionId: session.id,
           customerName: session.customerName,
@@ -471,6 +472,10 @@ export const orderService = {
     // para cobrar en el momento, así que el pedido espera confirmación de pago antes de
     // llegar a cocina (ver `addPayment`, que lo pasa a KITCHEN al saldarse por completo).
     const isKioskOrder = placedByRole === 'COMANDA';
+    // Un pedido que el propio staff carga a mano (Mesero/Cajero/Admin/Dueño) ya fue
+    // verificado por quien lo tomó — entra directo a cocina, sin esperar que alguien
+    // más lo acepte (a diferencia de los pedidos que llegan solos desde el cliente).
+    const isStaffPlaced = !!placedByUserId && !isKioskOrder;
     await assertRestaurantOpen(restaurantId);
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
@@ -560,9 +565,9 @@ export const orderService = {
                   restaurantId,
                   orderNumber,
                   channel: 'DINE_IN',
-                  // Igual que un pedido del cliente: queda pendiente hasta que alguien lo acepte.
-                  // Un pedido de kiosco (Comanda) en cambio espera confirmación de pago primero.
-                  status: isKioskOrder ? 'NEEDS_PAYMENT' : 'PENDING',
+                  // Cargado por staff: entra directo a cocina. Un pedido de kiosco (Comanda)
+                  // en cambio espera confirmación de pago primero.
+                  status: isKioskOrder ? 'NEEDS_PAYMENT' : isStaffPlaced ? 'KITCHEN' : 'PENDING',
                   tableId: table.id,
                   tableSessionId: session.id,
                   customerName: session.customerName,
@@ -597,9 +602,9 @@ export const orderService = {
                 restaurantId,
                 orderNumber,
                 channel: input.channel,
-                // Igual que el checkout público de delivery/pickup: queda pendiente hasta aceptarlo.
-                // Un pedido de kiosco (Comanda) en cambio espera confirmación de pago primero.
-                status: isKioskOrder ? 'NEEDS_PAYMENT' : 'PENDING',
+                // Cargado por staff: entra directo a cocina. Un pedido de kiosco (Comanda)
+                // en cambio espera confirmación de pago primero.
+                status: isKioskOrder ? 'NEEDS_PAYMENT' : isStaffPlaced ? 'KITCHEN' : 'PENDING',
                 customerName,
                 customerPhone,
                 customerAddress: input.channel === 'DELIVERY' ? customerAddress : undefined,
@@ -1157,12 +1162,27 @@ export const orderService = {
     return prisma.order.findUnique({ where: { id: orderId }, include: { items: { include: { modifiers: true } }, table: { select: { number: true } } } });
   },
 
-  /** El mesero acepta un pedido de mesa en NEEDS_CONFIRMATION: recién ahí llega a cocina. */
-  async acceptOrder(restaurantId: string, orderId: string, acceptedByUserId?: string) {
+  /**
+   * Acepta un pedido que llegó solo (sin staff detrás) en NEEDS_CONFIRMATION/PENDING:
+   * recién ahí llega a cocina. Cocina nunca puede aceptar — solo cocina lo que ya está
+   * aceptado. Delivery/Pickup, además, solo lo puede aceptar Caja/Admin/Dueño (nunca
+   * Mesero), porque implica coordinar cobro/despacho antes de mandarlo a cocina.
+   */
+  async acceptOrder(restaurantId: string, orderId: string, acceptedByUserId?: string, acceptedByRole?: string) {
     const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });
     if (!existing) throw notFound('Comanda no encontrada.');
     if (existing.status !== 'NEEDS_CONFIRMATION' && existing.status !== 'PENDING') {
       throw badRequest('Este pedido ya fue aceptado o no está pendiente.');
+    }
+    if (acceptedByRole === 'KITCHEN') {
+      throw forbidden('Cocina no puede aceptar pedidos.');
+    }
+    if (
+      (existing.channel === 'DELIVERY' || existing.channel === 'PICKUP') &&
+      acceptedByRole &&
+      !(ADMIN_CASHIER_ROLES as readonly string[]).includes(acceptedByRole)
+    ) {
+      throw forbidden('Solo Caja, Administrador o Dueño pueden aceptar pedidos de delivery/pickup.');
     }
 
     // Registra quién aceptó el pedido del cliente (mesa/QR): junto con

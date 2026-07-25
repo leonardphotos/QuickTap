@@ -29,6 +29,7 @@ import { PaymentDialog } from './PaymentDialog';
 import { ComandaReceipt } from './ComandaReceipt';
 import { ProductOptionsDialog } from './ProductOptionsDialog';
 import { useAuth } from '@/context/AuthContext';
+import { isAdminCashier } from '@/utils/roles';
 import { hasFeature } from '@/utils/subscription';
 import { abbreviateTableBadge, CURRENCY_SYMBOLS, formatBase, formatBsAbsolute, formatModifierLabel } from '@/utils/format';
 
@@ -172,6 +173,14 @@ interface LiveOrdersPanelProps {
   /** El dashboard de Mesero ya tiene su propio botón flotante "Crear pedido" (fijo abajo a la
    * izquierda, visible en todas sus pestañas) — se oculta este para no duplicarlo en Comandas. */
   hideCreateButton?: boolean;
+}
+
+// Cocina nunca acepta pedidos; Delivery/Pickup solo lo acepta Caja/Admin/Dueño
+// (implica coordinar cobro/despacho antes de mandarlo a cocina).
+function canAcceptOrder(role: string | undefined, channel: LiveOrder['channel']): boolean {
+  if (role === 'KITCHEN') return false;
+  if (channel === 'DELIVERY' || channel === 'PICKUP') return isAdminCashier(role as any);
+  return true;
 }
 
 /** Panel "Pedidos": todos los pedidos activos con Aceptar/Cancelar/Finalizar/Delivery. Va en el Dashboard. */
@@ -537,7 +546,11 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
               >
                 <button
                   onClick={() => accept(o.id)}
-                  disabled={busyId === o.id || (o.status !== 'PENDING' && o.status !== 'NEEDS_CONFIRMATION')}
+                  disabled={
+                    busyId === o.id ||
+                    (o.status !== 'PENDING' && o.status !== 'NEEDS_CONFIRMATION') ||
+                    !canAcceptOrder(user?.role, o.channel)
+                  }
                   title="Aceptar"
                   className={`flex flex-col items-center justify-center gap-1 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white ${actionBtnClass} transition-colors disabled:opacity-40`}
                 >

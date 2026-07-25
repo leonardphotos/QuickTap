@@ -255,7 +255,12 @@ export default function AdminLayout() {
 
       <Toast message={toastMessage} />
       <LowStockAlert />
-      {isAdminCashier(user.role) && <OrderReadyToast />}
+      {/* "Pedido Listo" es solo para Caja — Admin/Dueño no cobran ni despachan a diario, y
+          verlo aquí solo distrae. Mesero tampoco lo ve (no está montado en WaiterLayout). */}
+      {user.role === 'CASHIER' && <OrderReadyToast />}
+      {/* Pedido nuevo que espera aceptación (mesa del cliente, o delivery/pickup): Caja/Admin/
+          Dueño lo ven aquí para poder aceptarlo aunque estén con otro diálogo abierto. */}
+      {isAdminCashier(user.role) && <NewOrderAlert onNavigate={() => navigate('/admin')} />}
     </div>
   );
 }

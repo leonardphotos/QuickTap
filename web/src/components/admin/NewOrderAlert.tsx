@@ -5,6 +5,7 @@ import type { Socket } from 'socket.io-client';
 import { Bike, Grid2x2, Martini, ShoppingBag } from 'lucide-react';
 import { api, getToken } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
+import { isAdminCashier } from '@/utils/roles';
 import { TextureButton } from '@/components/ui/texture-button';
 import type { LiveOrder } from './LiveOrdersPanel';
 
@@ -43,15 +44,27 @@ export function NewOrderAlert({ onNavigate }: Props) {
         const orders: LiveOrder[] = res.data.data;
         const fresh = orders.find((o) => o.id === payload.orderId);
         if (!fresh || !user) return;
-        // Quien generó el pedido nunca recibe su propio aviso (sin excepción); Pantalla
-        // siempre lo ve, sin importar quién lo creó o a quién esté asignada la mesa.
+        // Cocina nunca acepta pedidos — este aviso no le sirve de nada.
+        if (user.role === 'KITCHEN') return;
+        // Solo tiene sentido avisar mientras el pedido de verdad espera que alguien lo
+        // acepte: los que carga el propio staff (mesero/cajero/admin) ya entran directo
+        // a cocina, así que nunca llegan aquí en ese estado.
+        const needsAccept = fresh.status === 'PENDING' || fresh.status === 'NEEDS_CONFIRMATION';
+        if (!needsAccept) return;
+        // Delivery/Pickup solo lo acepta Caja/Admin/Dueño (implica coordinar cobro/despacho);
+        // Mesa/Barra las puede aceptar también el Mesero asignado. Quien generó el pedido
+        // nunca recibe su propio aviso; Pantalla siempre lo ve.
+        const isDeliveryOrPickup = fresh.channel === 'DELIVERY' || fresh.channel === 'PICKUP';
         const relevant =
           user.role === 'SCREEN' ||
           (fresh.placedByUser?.id !== user.id &&
-            (fresh.acceptedByUserId === user.id ||
-              (fresh.table?.assignedWaiterId
-                ? fresh.table.assignedWaiterId === user.id
-                : !fresh.placedByUser && !fresh.acceptedByUserId)));
+            (isDeliveryOrPickup
+              ? isAdminCashier(user.role)
+              : isAdminCashier(user.role) ||
+                fresh.acceptedByUserId === user.id ||
+                (fresh.table?.assignedWaiterId
+                  ? fresh.table.assignedWaiterId === user.id
+                  : !fresh.placedByUser && !fresh.acceptedByUserId)));
         if (relevant) openBanner(fresh);
       } catch {
         // Si falla el refetch, este pedido puntual simplemente no muestra aviso — sigue
