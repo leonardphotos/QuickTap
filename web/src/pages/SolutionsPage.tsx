@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   QrCode,
   ChefHat,
@@ -10,6 +10,7 @@ import {
   BarChart3,
   Building2,
   ChevronDown,
+  ChevronRight,
   Check,
   Wallet,
   Bell,
@@ -19,8 +20,37 @@ import {
   Printer,
   Banknote,
   UserCog,
+  Crown,
+  ShieldCheck,
+  Wallet as WalletIcon,
+  Grid2x2,
+  Monitor,
+  ShoppingBag,
+  Hash,
 } from 'lucide-react';
 import { TextureButton } from '@/components/ui/texture-button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useAuth } from '@/context/AuthContext';
+
+/** Un rol del restaurante de demostración: entra directo con la cuenta de ese rol. */
+interface DemoRole {
+  icon: typeof Crown;
+  role: string;
+  email: string;
+  label: string;
+  description: string;
+}
+
+const DEMO_ROLES: DemoRole[] = [
+  { icon: Crown, role: 'OWNER', email: 'demo@quicktap.club', label: 'Dueño', description: 'Ve todo el negocio: caja, reportes, sucursales.' },
+  { icon: ShieldCheck, role: 'ADMIN', email: 'admin.demo@quicktap.club', label: 'Administrador', description: 'Administración, inventario, equipo, catálogo.' },
+  { icon: WalletIcon, role: 'CASHIER', email: 'cajero.demo@quicktap.club', label: 'Cajero', description: 'Cobros, caja del día, pedidos de delivery.' },
+  { icon: Grid2x2, role: 'WAITER', email: 'mesero.demo@quicktap.club', label: 'Mesero', description: 'Toma pedidos y cobra en las mesas asignadas.' },
+  { icon: ChefHat, role: 'KITCHEN', email: 'cocina.demo@quicktap.club', label: 'Cocina', description: 'Cola de comandas en vivo, por estación.' },
+  { icon: Monitor, role: 'SCREEN', email: 'pantalla.demo@quicktap.club', label: 'Pantalla', description: 'Vista de TV: mesas + cocina en horizontal.' },
+  { icon: ShoppingBag, role: 'COMANDA', email: 'comanda.demo@quicktap.club', label: 'Autoservicio', description: 'Kiosco: el cliente pide y paga solo.' },
+  { icon: Hash, role: 'NUMERO', email: 'numero.demo@quicktap.club', label: 'Número', description: 'Pantalla de "pedido listo" junto al mostrador.' },
+];
 
 /** Una de las 8 "vitrinas" grandes (headline + bullets + mini-mockup). */
 interface Showcase {
@@ -330,6 +360,25 @@ const FAQ = [
 
 export default function SolutionsPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [demoOpen, setDemoOpen] = useState(false);
+  const [enteringRole, setEnteringRole] = useState<string | null>(null);
+  const [demoError, setDemoError] = useState<string | null>(null);
+  const { login } = useAuth();
+  const navigate = useNavigate();
+
+  async function enterDemoAs(demoRole: DemoRole) {
+    setEnteringRole(demoRole.role);
+    setDemoError(null);
+    try {
+      await login(demoRole.email, 'Demo1234', 'demo');
+      setDemoOpen(false);
+      navigate('/admin');
+    } catch {
+      setDemoError('No se pudo entrar a la demostración. Intenta de nuevo.');
+    } finally {
+      setEnteringRole(null);
+    }
+  }
 
   return (
     <div className="text-brand-950">
@@ -357,20 +406,11 @@ export default function SolutionsPage() {
       </header>
 
       {/* Hero */}
-      <section className="relative overflow-hidden bg-brand-950 pt-32 pb-20 px-4">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 overflow-hidden"
-        >
-          <div
-            className="absolute left-1/2 top-0 w-[140%] aspect-square -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl opacity-60"
-            style={{ background: 'radial-gradient(circle, #0597f2 0%, #7c3aed 38%, #fb923c 62%, transparent 75%)' }}
-          />
-        </div>
+      <section className="relative bg-white pt-32 pb-20 px-4">
         <div className="relative z-10 max-w-3xl mx-auto text-center">
-          <p className="text-xs font-medium text-white/50 tracking-wide">Todo lo que hace QuickTap</p>
-          <h1 className="mt-4 text-3xl sm:text-5xl font-bold text-white">Del QR de la mesa a la caja del mes. En un toque.</h1>
-          <p className="mt-5 text-base text-white/60 max-w-xl mx-auto font-light">
+          <p className="text-xs font-medium text-brand-950/40 tracking-wide">Todo lo que hace QuickTap</p>
+          <h1 className="mt-4 text-3xl sm:text-5xl font-bold text-brand-950">Del QR de la mesa a la caja del mes. En un toque.</h1>
+          <p className="mt-5 text-base text-brand-950/60 max-w-xl mx-auto font-light">
             QuickTap conecta tu menú, tus comandas, tu cobro, tu delivery y tu inventario en un solo sistema — para que
             dejes de operar tu restaurante desde cinco herramientas distintas.
           </p>
@@ -380,11 +420,12 @@ export default function SolutionsPage() {
                 Regístrate y comienza gratis hoy
               </TextureButton>
             </Link>
-            <a href="/r/demo" className="w-full sm:w-auto">
-              <button className="w-full sm:w-auto rounded-full border border-white/20 text-white font-medium px-6 py-2.5 transition-colors hover:bg-white/10 active:scale-[0.97]">
-                Ver restaurante de demostración
-              </button>
-            </a>
+            <button
+              onClick={() => setDemoOpen(true)}
+              className="w-full sm:w-auto rounded-full border border-brand-950/15 text-brand-950 font-medium px-6 py-2.5 transition-colors hover:bg-brand-950/5 active:scale-[0.97]"
+            >
+              Ver restaurante de demostración
+            </button>
           </div>
         </div>
       </section>
@@ -463,9 +504,9 @@ export default function SolutionsPage() {
       </section>
 
       {/* CTA final */}
-      <section className="bg-brand-950 py-20 px-4 text-center">
-        <h2 className="text-2xl sm:text-4xl font-bold text-white">Prueba QuickTap gratis hoy</h2>
-        <p className="mt-3 text-white/60 font-light max-w-md mx-auto">
+      <section className="bg-white py-20 px-4 text-center border-t border-brand-950/[0.06]">
+        <h2 className="text-2xl sm:text-4xl font-bold text-brand-950">Prueba QuickTap gratis hoy</h2>
+        <p className="mt-3 text-brand-950/60 font-light max-w-md mx-auto">
           Crea tu cuenta, arma tu menú y genera el primer QR en minutos.
         </p>
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -475,7 +516,7 @@ export default function SolutionsPage() {
             </TextureButton>
           </Link>
           <Link to="/#precios" className="w-full sm:w-auto">
-            <button className="w-full sm:w-auto rounded-full border border-white/20 text-white font-medium px-6 py-2.5 transition-colors hover:bg-white/10 active:scale-[0.97]">
+            <button className="w-full sm:w-auto rounded-full border border-brand-950/15 text-brand-950 font-medium px-6 py-2.5 transition-colors hover:bg-brand-950/5 active:scale-[0.97]">
               Ver precios y planes
             </button>
           </Link>
@@ -503,6 +544,42 @@ export default function SolutionsPage() {
           </div>
         </div>
       </footer>
+
+      {/* Selector de rol para entrar al restaurante de demostración */}
+      <Dialog open={demoOpen} onOpenChange={setDemoOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>¿Con qué rol quieres entrar?</DialogTitle>
+            <p className="text-sm text-brand-950/50 font-light">
+              Cada rol ve una parte distinta de QuickTap — entra con el que quieras probar.
+            </p>
+          </DialogHeader>
+          {demoError && <p className="text-sm text-red-600">{demoError}</p>}
+          <div className="grid sm:grid-cols-2 gap-2.5">
+            {DEMO_ROLES.map((r) => (
+              <button
+                key={r.role}
+                onClick={() => enterDemoAs(r)}
+                disabled={enteringRole !== null}
+                className="flex items-start gap-3 rounded-2xl border border-brand-950/[0.08] p-4 text-left transition-colors hover:bg-brand-950/[0.03] disabled:opacity-50"
+              >
+                <div className="w-9 h-9 rounded-lg bg-brand-500/10 text-brand-500 flex items-center justify-center shrink-0">
+                  <r.icon className="h-4.5 w-4.5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-brand-950">{r.label}</p>
+                  <p className="text-xs text-brand-950/50 font-light mt-0.5">{r.description}</p>
+                </div>
+                {enteringRole === r.role ? (
+                  <span className="text-xs text-brand-950/40 shrink-0 self-center">Entrando…</span>
+                ) : (
+                  <ChevronRight className="h-4 w-4 text-brand-950/30 shrink-0 self-center" />
+                )}
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
