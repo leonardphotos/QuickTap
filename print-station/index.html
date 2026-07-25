@@ -742,7 +742,21 @@ function handlePrintRequest(payload){
   if(payload.type === 'recibo'){
     const order = { ...payload, _receivedAt: new Date().toISOString(), _printed: false };
     printReceiptOnly(order);
+    return;
   }
+  if(payload.type === 'orden-numero'){
+    printOrderNumberTicket(payload);
+  }
+}
+
+/** Pedido de kiosco (rol Comanda) recién creado: ticket simple con el número grande
+ * y el método de pago elegido, para que el cliente lo lleve a caja y cancele — la
+ * comanda real (con los productos) se imprime aparte cuando caja confirma el pago. */
+async function printOrderNumberTicket(payload){
+  const receiptEl = $('receipt');
+  applyReceiptStyle(receiptEl);
+  receiptEl.innerHTML = buildOrderNumberTicketHtml(payload);
+  await sendTicket('CAJA', receiptEl);
 }
 
 /** "¿Desea imprimir la cuenta?" al saldar un pedido: solo la cuenta, a la impresora de Caja — no las comandas de cocina. */
@@ -758,7 +772,11 @@ function handleIncomingOrder(payload){
   state.orders.unshift(order);
   if(state.orders.length > 40) state.orders.length = 40;
   renderQueue();
-  if(state.autoPrint){
+  // Pedido de kiosco (rol Comanda) recién creado: espera a que caja confirme el pago
+  // antes de imprimirse en cocina — solo se imprimió ya el ticket "Número de orden"
+  // (print:request tipo 'orden-numero'). La comanda real llega en un order:new/updated
+  // posterior, ya con status KITCHEN, cuando addPayment lo libera.
+  if(state.autoPrint && order.status !== 'NEEDS_PAYMENT'){
     setTimeout(() => printOrder(order), 250);
   }
 }
@@ -955,6 +973,37 @@ function buildTicketHtml(order, kind, station){
       <div class="r-line-sm"></div>
       <div class="r-center r-muted">Impreso con QuickTap</div>
     ` : ''}
+  `;
+}
+
+const PAYMENT_METHOD_LABEL = {
+  MOBILE_PAYMENT: 'Pago Móvil',
+  ZELLE: 'Zelle',
+  CASH: 'Efectivo Bs',
+  CASH_USD: 'Efectivo $',
+  CARD: 'Punto de Venta',
+  BINANCE: 'Binance',
+  PAYPAL: 'PayPal',
+  TRANSFER: 'Transferencia',
+};
+
+/** Ticket "Número de orden": pedido de kiosco (rol Comanda) recién creado, todavía sin
+ * cobrar — solo el número grande, el método de pago elegido y el aviso de que el pedido
+ * no está cancelado aún, para que el cliente lo lleve a caja. Sin productos ni precios:
+ * la comanda real se imprime aparte cuando caja confirma el cobro. */
+function buildOrderNumberTicketHtml(payload){
+  const bizName = state.restaurant?.name || 'QuickTap';
+  const paymentLabel = PAYMENT_METHOD_LABEL[payload.paymentMethod] || 'Sin especificar';
+  return `
+    <div class="r-center r-bold r-title">${esc(bizName)}</div>
+    <div class="r-line-sm"></div>
+    <div class="r-center r-muted">Tu número de pedido</div>
+    <div class="r-center r-bold" style="font-size:2.4em;line-height:1.3;">#${esc(payload.orderNumber ?? '—')}</div>
+    <div class="r-line-sm"></div>
+    <div class="r-row"><span>Método de pago:</span><span>${esc(paymentLabel)}</span></div>
+    <div class="r-line"></div>
+    <div class="r-center r-bold">PEDIDO NO CANCELADO</div>
+    <div class="r-center r-muted">Pasa a caja con este número para cancelar y que tu pedido comience a prepararse.</div>
   `;
 }
 

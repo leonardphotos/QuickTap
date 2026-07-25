@@ -33,6 +33,7 @@ enum UserRole {
   KITCHEN // Cocina (solo Cocina + Órdenes de Mesa)
   SCREEN // Pantalla (vista horizontal de Mesas + Cocina, para un monitor/TV)
   COMANDA // Kiosco de autoservicio (tablet en modo tótem, el cliente pide sin mesero)
+  NUMERO // Pantalla que solo muestra avisos de "listo" de Autoservicio/Pickup (mostrador)
 }
 
 enum TableSessionStatus {
@@ -80,6 +81,7 @@ enum ServiceRequestType {
 
 enum OrderStatus {
   NEEDS_CONFIRMATION // En mesa, esperando que el mesero acepte el pedido (solo si el restaurante lo exige)
+  NEEDS_PAYMENT // Pedido de kiosco (rol Comanda): espera que caja confirme el cobro antes de ir a cocina
   PENDING // Pendiente (recién creada)
   KITCHEN // En Cocina (enviada a la ticketera)
   SERVED // Servido / Entregado

@@ -466,7 +466,11 @@ export const orderService = {
    *  autoservicio del cliente, no aplica a que el staff cargue un pedido.
    * -------------------------------------------------------------------------
    */
-  async createManualOrder(restaurantId: string, input: ManualOrderInput, placedByUserId?: string) {
+  async createManualOrder(restaurantId: string, input: ManualOrderInput, placedByUserId?: string, placedByRole?: string) {
+    // Pedido generado por el kiosco de autoservicio (rol Comanda): no hay cajero presente
+    // para cobrar en el momento, así que el pedido espera confirmación de pago antes de
+    // llegar a cocina (ver `addPayment`, que lo pasa a KITCHEN al saldarse por completo).
+    const isKioskOrder = placedByRole === 'COMANDA';
     await assertRestaurantOpen(restaurantId);
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
@@ -488,9 +492,13 @@ export const orderService = {
     const resolvedCustomer = input.customerId
       ? await prisma.customer.findFirst({ where: { id: input.customerId, restaurantId } })
       : null;
-    const customerName = input.customerName || resolvedCustomer?.name;
-    const customerPhone = input.customerPhone || resolvedCustomer?.phone;
-    const customerIdNumber = input.customerIdNumber || resolvedCustomer?.idNumber || undefined;
+    // El kiosco no captura estos datos del cliente — mismos valores genéricos que ya
+    // se usan para Barra/Pickup cargados desde Comanda, para no bloquear la apertura
+    // de la cuenta de mesa cuando "Comer Aquí" abre una mesa nueva.
+    const customerName = input.customerName || resolvedCustomer?.name || (isKioskOrder ? 'Autoservicio (kiosco)' : undefined);
+    const customerPhone = input.customerPhone || resolvedCustomer?.phone || (isKioskOrder ? '0000000000' : undefined);
+    const customerIdNumber =
+      input.customerIdNumber || resolvedCustomer?.idNumber || (isKioskOrder ? 'AUTOSERVICIO' : undefined);
     const customerAddress = input.customerAddress || resolvedCustomer?.address || undefined;
 
     const currency = restaurant.baseCurrency;
@@ -553,7 +561,8 @@ export const orderService = {
                   orderNumber,
                   channel: 'DINE_IN',
                   // Igual que un pedido del cliente: queda pendiente hasta que alguien lo acepte.
-                  status: 'PENDING',
+                  // Un pedido de kiosco (Comanda) en cambio espera confirmación de pago primero.
+                  status: isKioskOrder ? 'NEEDS_PAYMENT' : 'PENDING',
                   tableId: table.id,
                   tableSessionId: session.id,
                   customerName: session.customerName,
@@ -569,6 +578,7 @@ export const orderService = {
                   exchangeRate: rate.rateBs,
                   totalBs,
                   awaitingPayment: input.paymentIntent === 'DEBT',
+                  paymentMethod: input.paymentMethod,
                   items: { create: itemsCreate },
                 },
                 include: {
@@ -588,13 +598,15 @@ export const orderService = {
                 orderNumber,
                 channel: input.channel,
                 // Igual que el checkout público de delivery/pickup: queda pendiente hasta aceptarlo.
-                status: 'PENDING',
+                // Un pedido de kiosco (Comanda) en cambio espera confirmación de pago primero.
+                status: isKioskOrder ? 'NEEDS_PAYMENT' : 'PENDING',
                 customerName,
                 customerPhone,
                 customerAddress: input.channel === 'DELIVERY' ? customerAddress : undefined,
                 customerLat: input.channel === 'DELIVERY' ? input.customerLat : undefined,
                 customerLng: input.channel === 'DELIVERY' ? input.customerLng : undefined,
                 awaitingPayment: input.paymentIntent === 'DEBT',
+                paymentMethod: input.paymentMethod,
                 customerNote: input.customerNote,
                 placedByUserId,
                 currency,
@@ -622,10 +634,24 @@ export const orderService = {
       address: order.customerAddress,
     });
 
+    // Un pedido de kiosco recién creado (NEEDS_PAYMENT) no debe imprimirse en cocina
+    // todavía — solo el ticket de "Número de orden" para que el cliente vaya a pagar.
+    // La comanda real se dispara desde `addPayment` cuando caja lo salda por completo.
+    if (isKioskOrder) {
+      emitToKitchen(restaurantId, SocketEvents.PRINT_REQUEST, {
+        type: 'orden-numero',
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        channel: order.channel,
+        paymentMethod: order.paymentMethod,
+      });
+    }
+
     emitToKitchen(restaurantId, SocketEvents.ORDER_NEW, {
       orderId: order.id,
       orderNumber: order.orderNumber,
       channel: order.channel,
+      status: order.status,
       tableId: order.tableId,
       table: order.table ? { number: order.table.number, zoneName: order.table.zone?.name ?? null } : null,
       placedByUser: order.placedByUser?.name ?? null,
@@ -1061,7 +1087,10 @@ export const orderService = {
 
   /** Cambia el estado de una comanda y notifica a la cocina. */
   async updateStatus(restaurantId: string, orderId: string, status: 'PENDING' | 'KITCHEN' | 'SERVED' | 'CANCELLED') {
-    const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { items: { include: { modifiers: true } } } });
+    const existing = await prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      include: { items: { include: { modifiers: true } }, placedByUser: { select: { role: true } } },
+    });
     if (!existing) throw notFound('Comanda no encontrada.');
 
     const order = await prisma.order.update({ where: { id: orderId }, data: { status } });
@@ -1082,6 +1111,17 @@ export const orderService = {
       emitToTable(order.tableId, SocketEvents.ORDER_READY, {
         orderId: order.id,
         orderNumber: order.orderNumber,
+      });
+    }
+
+    // Avisa a Caja (para despachar delivery) y al rol Numero (Autoservicio/Pickup)
+    // que este pedido ya está listo — un pedido, un aviso, sin importar el canal.
+    if (order.status === 'SERVED' && existing.status !== 'SERVED') {
+      emitToKitchen(restaurantId, SocketEvents.ORDER_READY_STAFF, {
+        orderId: order.id,
+        orderNumber: order.orderNumber,
+        channel: order.channel,
+        placedByRole: existing.placedByUser?.role ?? null,
       });
     }
 
@@ -1259,13 +1299,22 @@ export const orderService = {
       // explícitamente vía descuento) antes de dar por saldada la cuenta.
       const settledBase = round2(alreadySettled.add(amountBase).add(discountBase ?? toDecimal(0)));
       const fullyPaid = settledBase.gte(order.totalBase);
+      // Pedido de kiosco (Comanda): esperaba el pago para entrar a cocina — ya se saldó,
+      // así que pasa directo a KITCHEN (nunca por "Aceptar", cocina solo verá "Listo").
+      const releaseToKitchen = fullyPaid && order.status === 'NEEDS_PAYMENT';
       const updated = await tx.order.update({
         where: { id: orderId },
-        data: fullyPaid ? { awaitingPayment: false } : {},
+        data: fullyPaid ? { awaitingPayment: false, ...(releaseToKitchen ? { status: 'KITCHEN' } : {}) } : {},
         include: { items: { include: { modifiers: true } }, table: { select: { number: true } }, payments: true },
       });
 
       emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: updated.status });
+      return { order: updated, releaseToKitchen };
+    }).then(async ({ order: updated, releaseToKitchen }) => {
+      // La comanda real (con ítems) recién se imprime ahora que el pedido está pagado —
+      // fuera de la transacción para no bloquear el cobro si la Estación de Impresión
+      // (un simple evento de socket) tarda o falla.
+      if (releaseToKitchen) await this.printComanda(restaurantId, orderId);
       return updated;
     });
   },

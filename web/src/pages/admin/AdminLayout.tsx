@@ -7,15 +7,17 @@ import { Toast } from '@/components/ui/toast';
 import { NavMenuDrawer } from '@/components/admin/NavMenuDrawer';
 import { LowStockAlert } from '@/components/admin/LowStockAlert';
 import { NewOrderAlert } from '@/components/admin/NewOrderAlert';
+import { OrderReadyToast } from '@/components/admin/OrderReadyToast';
 import { useCopyToast } from '../../hooks/useCopyToast';
 import { usePendingReservationsCount } from '../../hooks/usePendingReservations';
 import { useLowStockItems } from '../../hooks/useLowStockItems';
-import { RESTRICTED_ROLES, canAccessPath, defaultPathFor, isAdminCashier, isKioskRole, isScreenRole } from '../../utils/roles';
+import { RESTRICTED_ROLES, canAccessPath, defaultPathFor, isAdminCashier, isKioskRole, isNumeroRole, isScreenRole } from '../../utils/roles';
 import { daysRemaining, graceHoursRemaining, hasFeature } from '../../utils/subscription';
 import { visibleNavLinks } from './nav-links';
 
 const WaiterLayout = lazy(() => import('./WaiterLayout'));
 const ComandaKioskPage = lazy(() => import('./ComandaKioskPage'));
+const NumeroPage = lazy(() => import('./NumeroPage'));
 
 export default function AdminLayout() {
   const { user, restaurant, loading, logout } = useAuth();
@@ -77,6 +79,15 @@ export default function AdminLayout() {
     return (
       <div className="min-h-screen bg-white">
         <ComandaKioskPage />
+      </div>
+    );
+  }
+
+  // Numero: pantalla de solo lectura junto al mostrador, sin cabecera ni navegación.
+  if (isNumeroRole(user.role)) {
+    return (
+      <div className="min-h-screen bg-white">
+        <NumeroPage />
       </div>
     );
   }
@@ -244,6 +255,7 @@ export default function AdminLayout() {
 
       <Toast message={toastMessage} />
       <LowStockAlert />
+      {isAdminCashier(user.role) && <OrderReadyToast />}
     </div>
   );
 }

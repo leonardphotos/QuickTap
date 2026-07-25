@@ -12,10 +12,13 @@ export const RESTRICTED_ROLES: UserRole[] = ['WAITER', 'KITCHEN'];
 export const SCREEN_ROLES: UserRole[] = ['SCREEN'];
 // Comanda: tablet en modo kiosco de autoservicio, el propio cliente hace su pedido.
 export const KIOSK_ROLES: UserRole[] = ['COMANDA'];
+// Numero: pantalla de solo lectura junto al mostrador, solo avisos de "listo"
+// de Autoservicio (Comanda) y Pickup.
+export const NUMERO_ROLES: UserRole[] = ['NUMERO'];
 export const TEAM_MANAGER_ROLES: UserRole[] = ['OWNER', 'ADMIN'];
 // Quién puede condonar/descontar saldo al cobrar (campo "Descuento %" en Pagar/Pago fraccionado).
 export const DISCOUNT_ROLES: UserRole[] = ['OWNER', 'ADMIN'];
-export const ASSIGNABLE_TEAM_ROLES: UserRole[] = ['ADMIN', 'CASHIER', 'WAITER', 'KITCHEN', 'SCREEN', 'COMANDA'];
+export const ASSIGNABLE_TEAM_ROLES: UserRole[] = ['ADMIN', 'CASHIER', 'WAITER', 'KITCHEN', 'SCREEN', 'COMANDA', 'NUMERO'];
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   OWNER: 'Dueño',
@@ -26,6 +29,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   KITCHEN: 'Cocina',
   SCREEN: 'Pantalla',
   COMANDA: 'Comanda',
+  NUMERO: 'Numero',
 };
 
 // Rutas visibles según el rol. "*" habilita todas las rutas del admin.
@@ -62,6 +66,11 @@ export function isKioskRole(role?: UserRole | null): boolean {
   return KIOSK_ROLES.includes(role);
 }
 
+export function isNumeroRole(role?: UserRole | null): boolean {
+  if (!role) return false;
+  return NUMERO_ROLES.includes(role);
+}
+
 export function canManageTeam(role?: UserRole | null): boolean {
   if (!role) return false;
   return TEAM_MANAGER_ROLES.includes(role);
@@ -73,12 +82,14 @@ export function canApplyDiscount(role?: UserRole | null): boolean {
 }
 
 const KIOSK_PATH = '/admin/comanda';
+const NUMERO_PATH = '/admin/numero';
 
 export function canAccessPath(role: UserRole | null | undefined, pathname: string, canAccessInventory?: boolean): boolean {
   if (!isAdminCashier(role) && ADMIN_CASHIER_ONLY_PATHS.some((p) => pathname.startsWith(p))) return false;
   if (hasFullAccess(role)) return true;
   if (isScreenRole(role)) return pathname.startsWith(SCREEN_PATH);
   if (isKioskRole(role)) return pathname.startsWith(KIOSK_PATH);
+  if (isNumeroRole(role)) return pathname.startsWith(NUMERO_PATH);
   if (canAccessInventory && pathname.startsWith('/admin/inventory')) return true;
   // El Dashboard ("/admin" exacto) también es visible para Mesero/Cocina: ahí ven
   // sus propios pedidos (Mesero) o todos (Cocina) — no confundir con "/admin/*"
@@ -91,5 +102,6 @@ export function canAccessPath(role: UserRole | null | undefined, pathname: strin
 export function defaultPathFor(role?: UserRole | null): string {
   if (isScreenRole(role)) return SCREEN_PATH;
   if (isKioskRole(role)) return KIOSK_PATH;
+  if (isNumeroRole(role)) return NUMERO_PATH;
   return '/admin/kitchen';
 }

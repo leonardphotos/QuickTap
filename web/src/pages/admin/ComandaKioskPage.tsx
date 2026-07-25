@@ -4,10 +4,10 @@ import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { ProductOptionsDialog } from '@/components/admin/ProductOptionsDialog';
-import { CURRENCY_SYMBOLS, cartLineUnitPrice, formatBase, formatModifierLabel, modifierSelectionKey } from '@/utils/format';
-import type { CartLine, PaymentMethod, Product } from '@/types';
+import { CURRENCY_SYMBOLS, cartLineUnitPrice, formatModifierLabel, modifierSelectionKey, publicPriceLabel } from '@/utils/format';
+import type { CartLine, FloorPlan, PaymentMethod, Product } from '@/types';
 
-type Channel = 'BAR' | 'PICKUP';
+type Channel = 'DINE_IN' | 'PICKUP';
 
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   MOBILE_PAYMENT: 'Pago Móvil',
@@ -22,16 +22,40 @@ const PAYMENT_LABELS: Record<PaymentMethod, string> = {
 
 const DEFAULT_PAYMENT_OPTIONS: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD'];
 
-type Step = 'mode' | 'menu' | 'cart' | 'payment' | 'confirmation';
+type Step = 'mode' | 'table' | 'menu' | 'cart' | 'payment' | 'confirmation';
+
+/** Precio en Bs (principal) y $ (secundario) — mismo patrón de dos líneas que ya usa
+ * CartDrawer.tsx en el checkout público. */
+function PriceTag({
+  amountBase,
+  restaurant,
+  className,
+}: {
+  amountBase: number;
+  restaurant: Parameters<typeof publicPriceLabel>[1];
+  className?: string;
+}) {
+  const price = publicPriceLabel(amountBase, restaurant);
+  return (
+    <span className={className}>
+      {price.primary}
+      {price.secondary && <span className="text-brand-950/40 font-normal"> · {price.secondary}</span>}
+    </span>
+  );
+}
 
 /** Kiosco de autoservicio (tablet, rol Comanda): el cliente pide sin mesero, estilo
  * tótem KFC. Reutiliza ProductOptionsDialog (mismo picker de variantes/modificadores
- * que ya usa CreateOrderDialog) y POST /orders/manual (canal Barra = "Comer Aquí",
- * Pickup = "Para Llevar"). */
+ * que ya usa CreateOrderDialog) y POST /orders/manual — "Comer Aquí" abre una mesa
+ * (DINE_IN + tableId elegido), "Para Llevar" es Pickup. El pedido queda esperando que
+ * caja confirme el pago (estado NEEDS_PAYMENT, gateado en el backend por el rol
+ * Comanda) antes de llegar a cocina. */
 export default function ComandaKioskPage() {
   const { restaurant } = useAuth();
   const [step, setStep] = useState<Step>('mode');
-  const [channel, setChannel] = useState<Channel>('BAR');
+  const [channel, setChannel] = useState<Channel>('DINE_IN');
+  const [floorPlan, setFloorPlan] = useState<FloorPlan | null>(null);
+  const [tableId, setTableId] = useState<string | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [optionsProduct, setOptionsProduct] = useState<Product | null>(null);
@@ -45,7 +69,25 @@ export default function ComandaKioskPage() {
     api.get('/products').then((res) => setProducts(res.data.data));
   }, []);
 
-  const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
+  // Colores del restaurante (los mismos que ya usa el menú público): se inyectan como
+  // variables CSS en <html>, así las clases brand-500/brand-950/etc del kiosco las
+  // resuelven automáticamente sin necesidad de renombrar ninguna clase.
+  const theme = restaurant?.theme;
+  useEffect(() => {
+    const root = document.documentElement;
+    const vars: [string, string | undefined][] = [
+      ['--color-brand-950', theme?.text],
+      ['--color-brand-500', theme?.primary],
+      ['--color-brand-400', theme?.accent],
+      ['--qt-button-text', theme?.buttonText],
+    ];
+    for (const [key, value] of vars) {
+      if (value) root.style.setProperty(key, value);
+    }
+    return () => {
+      for (const [key] of vars) root.style.removeProperty(key);
+    };
+  }, [theme?.text, theme?.primary, theme?.accent, theme?.buttonText]);
 
   const categoryNames = useMemo(() => {
     const names = new Set(products.map((p) => p.category?.name ?? 'Sin categoría'));
@@ -55,6 +97,18 @@ export default function ComandaKioskPage() {
   const visibleProducts = products.filter(
     (p) => p.isAvailable && !p.stockDepleted && (!categoryFilter || (p.category?.name ?? 'Sin categoría') === categoryFilter),
   );
+
+  const freeTables = useMemo(() => {
+    if (!floorPlan) return [];
+    const all = [...floorPlan.zones.flatMap((z) => z.tables), ...floorPlan.unzoned];
+    return all.filter((t) => t.sessions.length === 0 && !t.reserved);
+  }, [floorPlan]);
+
+  function goToTableStep() {
+    setChannel('DINE_IN');
+    setStep('table');
+    api.get('/tables/floor-plan').then((res) => setFloorPlan(res.data.data));
+  }
 
   function addPickedLine(line: CartLine) {
     setLines((prev) => {
@@ -91,7 +145,9 @@ export default function ComandaKioskPage() {
 
   function resetAll() {
     setStep('mode');
-    setChannel('BAR');
+    setChannel('DINE_IN');
+    setTableId(null);
+    setFloorPlan(null);
     setCategoryFilter(null);
     setLines([]);
     setError(null);
@@ -105,8 +161,7 @@ export default function ComandaKioskPage() {
     try {
       const res = await api.post('/orders/manual', {
         channel,
-        customerName: 'Autoservicio (kiosco)',
-        customerNote: `Pago elegido en kiosco: ${PAYMENT_LABELS[payment]}`,
+        tableId: channel === 'DINE_IN' ? tableId ?? undefined : undefined,
         items: lines.map((l) => ({
           productId: l.product.id,
           quantity: l.quantity,
@@ -114,18 +169,21 @@ export default function ComandaKioskPage() {
           modifierIds: l.selectedModifiers.flatMap((m) => Array(m.quantity ?? 1).fill(m.modifierId)),
           note: l.note,
         })),
-        // El kiosco no cobra en el momento (sin pasarela) — caja concilia el pago
-        // después contra el método que el cliente eligió (ver customerNote).
-        paymentIntent: 'DEBT',
+        paymentMethod: payment,
       });
       setOrderNumber(res.data.data.orderNumber);
       setStep('confirmation');
     } catch (e: any) {
-      setError(e.response?.data?.error ?? 'No se pudo enviar el pedido a cocina.');
+      setError(e.response?.data?.error ?? 'No se pudo enviar el pedido.');
     } finally {
       setSending(false);
     }
   }
+
+  // AdminLayout ya garantiza que `restaurant` existe antes de montar este componente
+  // (ver la rama `!user || !restaurant` en AdminLayout.tsx) — este guard es solo para TS,
+  // y va después de todos los hooks para no violar las reglas de hooks.
+  if (!restaurant) return null;
 
   if (step === 'confirmation') {
     return (
@@ -135,7 +193,7 @@ export default function ComandaKioskPage() {
         </div>
         <p className="text-sm text-brand-950/50 font-light mb-1">Tu número de pedido</p>
         <p className="text-7xl font-bold text-brand-950 mb-6">#{orderNumber}</p>
-        <p className="text-brand-950/60 font-light mb-10">Ya lo están preparando en cocina.</p>
+        <p className="text-brand-950/60 font-light mb-10">Pasa a caja a cancelar con este número para que tu pedido comience a prepararse.</p>
         <TextureButton variant="brand" size="default" className="!w-auto px-10 !h-14 !text-base" onClick={resetAll}>
           Nuevo pedido
         </TextureButton>
@@ -152,10 +210,7 @@ export default function ComandaKioskPage() {
         </div>
         <div className="grid grid-cols-2 gap-6 w-full max-w-lg">
           <button
-            onClick={() => {
-              setChannel('BAR');
-              setStep('menu');
-            }}
+            onClick={goToTableStep}
             className="flex flex-col items-center gap-3 rounded-3xl border border-brand-950/10 bg-white py-12 shadow-sm hover:border-brand-500 hover:shadow-md transition-all"
           >
             <UtensilsCrossed className="h-10 w-10 text-brand-500" />
@@ -164,6 +219,7 @@ export default function ComandaKioskPage() {
           <button
             onClick={() => {
               setChannel('PICKUP');
+              setTableId(null);
               setStep('menu');
             }}
             className="flex flex-col items-center gap-3 rounded-3xl border border-brand-950/10 bg-white py-12 shadow-sm hover:border-brand-500 hover:shadow-md transition-all"
@@ -176,20 +232,55 @@ export default function ComandaKioskPage() {
     );
   }
 
+  if (step === 'table') {
+    return (
+      <div className="min-h-screen flex flex-col px-6 py-8">
+        <button onClick={() => setStep('mode')} className="flex items-center gap-1 text-sm text-brand-950/50 mb-6">
+          <ArrowLeft className="h-4 w-4" /> Volver
+        </button>
+        <h1 className="text-2xl font-semibold text-brand-950 mb-1 text-center">Elige tu mesa</h1>
+        <p className="text-brand-950/50 font-light mb-8 text-center">Toca una mesa libre para sentarte ahí</p>
+        {floorPlan === null ? (
+          <p className="text-brand-950/40 font-light text-center py-16">Cargando mesas…</p>
+        ) : freeTables.length === 0 ? (
+          <p className="text-brand-950/40 font-light text-center py-16">No hay mesas libres en este momento.</p>
+        ) : (
+          <div className="grid grid-cols-4 sm:grid-cols-6 gap-4 max-w-3xl mx-auto w-full">
+            {freeTables.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => {
+                  setTableId(t.id);
+                  setStep('menu');
+                }}
+                className="aspect-square rounded-2xl bg-white border border-brand-950/10 shadow-sm hover:border-brand-500 hover:shadow-md transition-all flex items-center justify-center text-xl font-semibold text-brand-950"
+              >
+                {t.number}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (step === 'menu') {
     return (
       <div className="min-h-screen flex flex-col">
         <div className="sticky top-0 z-10 bg-white/90 backdrop-blur-md border-b border-brand-950/[0.06] px-4 py-3">
           <div className="flex items-center justify-between gap-3 mb-3">
-            <button onClick={() => setStep('mode')} className="flex items-center gap-1 text-sm text-brand-950/50">
-              <ArrowLeft className="h-4 w-4" /> {channel === 'BAR' ? 'Comer Aquí' : 'Para Llevar'}
+            <button
+              onClick={() => setStep(channel === 'DINE_IN' ? 'table' : 'mode')}
+              className="flex items-center gap-1 text-sm text-brand-950/50"
+            >
+              <ArrowLeft className="h-4 w-4" /> {channel === 'DINE_IN' ? 'Comer Aquí' : 'Para Llevar'}
             </button>
             <button
               onClick={() => setStep('cart')}
-              className="relative flex items-center gap-2 rounded-full bg-brand-500 text-white px-4 py-2 text-sm font-semibold"
+              className="relative flex items-center gap-2 rounded-full bg-brand-500 text-[color:var(--qt-button-text,white)] px-4 py-2 text-sm font-semibold"
             >
               <ShoppingCart className="h-4 w-4" />
-              {lines.reduce((n, l) => n + l.quantity, 0)} · {formatBase(totalBase, symbol)}
+              {lines.reduce((n, l) => n + l.quantity, 0)} · {publicPriceLabel(totalBase, restaurant).primary}
             </button>
           </div>
           <div className="flex gap-2 overflow-x-auto pb-1">
@@ -230,7 +321,9 @@ export default function ComandaKioskPage() {
                 </div>
               )}
               <p className="text-sm font-semibold text-brand-950 truncate">{p.name}</p>
-              <p className="text-sm text-brand-500 font-semibold">{formatBase(p.price, symbol)}</p>
+              <p className="text-sm text-brand-500 font-semibold">
+                <PriceTag amountBase={Number(p.price)} restaurant={restaurant} />
+              </p>
             </button>
           ))}
         </div>
@@ -238,7 +331,7 @@ export default function ComandaKioskPage() {
         {optionsProduct && (
           <ProductOptionsDialog
             product={optionsProduct}
-            currencySymbol={symbol}
+            currencySymbol={restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$'}
             onClose={() => setOptionsProduct(null)}
             onAdd={addPickedLine}
           />
@@ -270,7 +363,9 @@ export default function ComandaKioskPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-sm font-medium">{formatBase(cartLineUnitPrice(l) * l.quantity, symbol)}</span>
+                  <span className="text-sm font-medium">
+                    <PriceTag amountBase={cartLineUnitPrice(l) * l.quantity} restaurant={restaurant} />
+                  </span>
                   <button onClick={() => removeLine(i)} className="text-red-500 text-xs">
                     Quitar
                   </button>
@@ -281,7 +376,7 @@ export default function ComandaKioskPage() {
         )}
         <div className="flex justify-between text-lg font-semibold mt-3 pt-3 border-t border-brand-950/10">
           <span>Total</span>
-          <span>{formatBase(totalBase, symbol)}</span>
+          <PriceTag amountBase={totalBase} restaurant={restaurant} />
         </div>
         <TextureButton
           variant="brand"
@@ -303,14 +398,16 @@ export default function ComandaKioskPage() {
         <ArrowLeft className="h-4 w-4" /> Volver al carrito
       </button>
       <h2 className="text-lg font-semibold text-brand-950 mb-1">¿Cómo vas a pagar?</h2>
-      <p className="text-sm text-brand-950/50 font-light mb-4">Total: {formatBase(totalBase, symbol)}</p>
+      <p className="text-sm text-brand-950/50 font-light mb-4">
+        Total: <PriceTag amountBase={totalBase} restaurant={restaurant} />
+      </p>
       <div className="grid grid-cols-2 gap-3">
         {paymentOptions.map((o) => (
           <button
             key={o}
             onClick={() => setPayment(o)}
             className={`rounded-2xl border py-5 text-sm font-semibold transition-colors ${
-              payment === o ? 'bg-brand-500 text-white border-brand-500' : 'bg-white text-brand-950 border-brand-950/10'
+              payment === o ? 'bg-brand-500 text-[color:var(--qt-button-text,white)] border-brand-500' : 'bg-white text-brand-950 border-brand-950/10'
             }`}
           >
             {PAYMENT_LABELS[o]}

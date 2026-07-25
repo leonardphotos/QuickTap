@@ -59,6 +59,10 @@ export const manualOrderSchema = z
     // Cómo se piensa cobrar este pedido nuevo (wizard → paso Pago). 'DEBT' marca awaitingPayment
     // de una vez; 'FULL'/'SPLIT' solo le indican al frontend qué diálogo de pago abrir después.
     paymentIntent: z.enum(['FULL', 'SPLIT', 'DEBT']).optional(),
+    // Método que el cliente eligió pagar (kiosco Comanda: sin cajero presente que lo capture
+    // como referencia — solo se guarda la intención, para el ticket "Número de orden" y para
+    // precargar el método al cobrar en caja).
+    paymentMethod: z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER']).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.channel === 'DINE_IN' && !data.tableId) {

@@ -19,6 +19,10 @@ export const SCREEN_ROLES = ['SCREEN'] as const;
 // Comanda: tablet en modo kiosco de autoservicio, el propio cliente hace su pedido.
 export const KIOSK_ROLES = ['COMANDA'] as const;
 
+// Numero: pantalla de solo lectura junto al mostrador, solo avisos de "listo"
+// de Autoservicio (Comanda) y Pickup — para llamar al cliente por su número.
+export const NUMERO_ROLES = ['NUMERO'] as const;
+
 // Roles que pueden administrar la sección "Equipo" (crear/editar/eliminar personal).
 export const TEAM_MANAGER_ROLES = ['OWNER', 'ADMIN'] as const;
 
@@ -27,4 +31,4 @@ export const TEAM_MANAGER_ROLES = ['OWNER', 'ADMIN'] as const;
 export const DISCOUNT_ROLES = ['OWNER', 'ADMIN'] as const;
 
 // Roles asignables desde la UI de Equipo (OWNER/STAFF no se asignan ahí).
-export const ASSIGNABLE_TEAM_ROLES = ['ADMIN', 'CASHIER', 'WAITER', 'KITCHEN', 'SCREEN', 'COMANDA'] as const;
+export const ASSIGNABLE_TEAM_ROLES = ['ADMIN', 'CASHIER', 'WAITER', 'KITCHEN', 'SCREEN', 'COMANDA', 'NUMERO'] as const;

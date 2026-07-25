@@ -47,7 +47,7 @@ export const orderController = {
   /** POST /api/v1/orders/manual — el staff (ej. Mesero) carga un pedido a mano (protegido). */
   createManual: asyncHandler(async (req: Request, res: Response) => {
     const input = manualOrderSchema.parse(req.body);
-    const order = await orderService.createManualOrder(req.restaurantId!, input, req.auth?.userId);
+    const order = await orderService.createManualOrder(req.restaurantId!, input, req.auth?.userId, req.auth?.role);
     res.status(201).json({ data: order });
   }),
 

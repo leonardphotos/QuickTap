@@ -7,6 +7,8 @@ import { env } from '../../config/env';
 import { badRequest, conflict, unauthorized } from '../../utils/http-error';
 import { isLockedAsync, trialPeriodEnd } from '../../utils/subscription';
 import { sendMail } from '../../utils/mailer';
+import { CURRENCY_SYMBOLS } from '../../utils/money';
+import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { ForgotPasswordInput, LoginInput, RegisterInput, ResetPasswordInput } from './auth.dto';
 
 const RESET_CODE_TTL_MINUTES = 15;
@@ -102,8 +104,18 @@ type RestaurantRow = {
   deleteOrderPinHash: string | null;
 };
 
-/** Forma que el frontend consume: agrega `locked`, calculado en vivo (nunca persistido; ver isLockedAsync). */
+/** Forma que el frontend consume: agrega `locked`, calculado en vivo (nunca persistido; ver isLockedAsync),
+ * y `currencySymbol`/`exchangeRate` (usados por el kiosco Comanda para mostrar precios en Bs y $, igual
+ * que ya hace el menú público). */
 async function serializeRestaurant(restaurant: RestaurantRow) {
+  let exchangeRate: { rateBs: string; fetchedAt: Date } | null = null;
+  try {
+    const rate = await exchangeRateService.getRate(restaurant.baseCurrency);
+    exchangeRate = { rateBs: rate.rateBs.toString(), fetchedAt: rate.fetchedAt };
+  } catch {
+    exchangeRate = null;
+  }
+
   return {
     id: restaurant.id,
     slug: restaurant.slug,
@@ -113,6 +125,8 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
     whatsappPhone: restaurant.whatsappPhone,
     whatsappOrderMessageTemplate: restaurant.whatsappOrderMessageTemplate,
     baseCurrency: restaurant.baseCurrency,
+    currencySymbol: CURRENCY_SYMBOLS[restaurant.baseCurrency],
+    exchangeRate,
     theme: restaurant.theme,
     serviceChargeEnabled: restaurant.serviceChargeEnabled,
     ivaEnabled: restaurant.ivaEnabled,

@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { api, clearToken, getToken, setStoredSlug, setToken } from '../api/client';
-import type { Currency, PaymentMethodsConfig, RestaurantTheme, UserRole } from '../types';
+import type { Currency, ExchangeRateInfo, PaymentMethodsConfig, RestaurantTheme, UserRole } from '../types';
 
 interface AuthUser {
   id: string;
@@ -20,6 +20,8 @@ interface AuthRestaurant {
   whatsappPhone?: string | null;
   whatsappOrderMessageTemplate?: string | null;
   baseCurrency: Currency;
+  currencySymbol: string;
+  exchangeRate: ExchangeRateInfo | null;
   theme?: RestaurantTheme | null;
   serviceChargeEnabled: boolean;
   ivaEnabled: boolean;

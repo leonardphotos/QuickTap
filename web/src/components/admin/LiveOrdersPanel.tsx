@@ -23,6 +23,7 @@ import type { CartLine, DeliveryCourier, Product } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { AddressAutocomplete } from '@/components/AddressAutocomplete';
+import { CourierPickerDialog } from '@/components/admin/CourierPickerDialog';
 import { CreateOrderDialog } from './CreateOrderDialog';
 import { PaymentDialog } from './PaymentDialog';
 import { ComandaReceipt } from './ComandaReceipt';
@@ -144,6 +145,7 @@ const CHANNEL_LABELS: Record<LiveOrder['channel'], string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   NEEDS_CONFIRMATION: 'Por confirmar',
+  NEEDS_PAYMENT: 'Por cobrar',
   PENDING: 'Pendiente',
   KITCHEN: 'En cocina',
 };
@@ -151,6 +153,8 @@ const STATUS_LABELS: Record<string, string> = {
 /** Badge/chip de estado del pedido en la tarjeta — mismos tokens de color en toda la app. */
 const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
   NEEDS_CONFIRMATION: { label: 'Nueva', bg: '#fbedd6', fg: '#8a5106' },
+  // Pedido de kiosco (rol Comanda): espera que caja lo cobre antes de ir a cocina.
+  NEEDS_PAYMENT: { label: 'Por cobrar · Autoservicio', bg: '#fbedd6', fg: '#8a5106' },
   PENDING: { label: 'En cocina', bg: '#e6f2fe', fg: 'var(--color-brand-900)' },
   KITCHEN: { label: 'En cocina', bg: '#e6f2fe', fg: 'var(--color-brand-900)' },
   SERVED: { label: 'Servido', bg: '#e3f5ec', fg: '#0f6e46' },
@@ -677,32 +681,13 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
       )}
 
       {courierPickerFor && (
-        <Dialog open onOpenChange={(open) => !open && setCourierPickerFor(null)}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Equipo de delivery</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-1.5">
-              {couriers.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => dispatch(courierPickerFor, c.id)}
-                  disabled={busyId === courierPickerFor}
-                  className="w-full flex items-center justify-between gap-3 rounded-xl border border-brand-950/10 hover:bg-brand-950/[0.04] px-4 py-3 text-left transition-colors disabled:opacity-50"
-                >
-                  <span className="font-medium text-brand-950">{c.name}</span>
-                  {c.whatsappPhone && <span className="text-sm text-brand-950/50">{c.whatsappPhone}</span>}
-                </button>
-              ))}
-              <button
-                onClick={() => setCourierPickerFor(null)}
-                className="w-full text-center text-sm font-medium text-brand-950/50 py-2"
-              >
-                Cancelar
-              </button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <CourierPickerDialog
+          open
+          couriers={couriers}
+          busy={busyId === courierPickerFor}
+          onPick={(courierId) => dispatch(courierPickerFor, courierId)}
+          onClose={() => setCourierPickerFor(null)}
+        />
       )}
 
       {pinPromptFor && (
@@ -1481,32 +1466,13 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
       )}
 
       {showCourierPicker && (
-        <Dialog open onOpenChange={(open) => !open && setShowCourierPicker(false)}>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Equipo de delivery</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-1.5">
-              {couriers.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => dispatchCourier(c.id)}
-                  disabled={dispatching}
-                  className="w-full flex items-center justify-between gap-3 rounded-xl border border-brand-950/10 hover:bg-brand-950/[0.04] px-4 py-3 text-left transition-colors disabled:opacity-50"
-                >
-                  <span className="font-medium text-brand-950">{c.name}</span>
-                  {c.whatsappPhone && <span className="text-sm text-brand-950/50">{c.whatsappPhone}</span>}
-                </button>
-              ))}
-              <button
-                onClick={() => setShowCourierPicker(false)}
-                className="w-full text-center text-sm font-medium text-brand-950/50 py-2"
-              >
-                Cancelar
-              </button>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <CourierPickerDialog
+          open
+          couriers={couriers}
+          busy={dispatching}
+          onPick={dispatchCourier}
+          onClose={() => setShowCourierPicker(false)}
+        />
       )}
     </Dialog>
   );

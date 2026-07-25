@@ -33,6 +33,7 @@ export const SocketEvents = {
   ORDER_NEW: 'order:new', // comanda nueva -> imprimir
   ORDER_UPDATED: 'order:updated', // cambio de estado
   ORDER_READY: 'order:ready', // aviso público para el cliente de la mesa
+  ORDER_READY_STAFF: 'order:ready-staff', // aviso al staff (Caja/Numero) de que un pedido quedó listo
   TABLE_SERVICE_REQUEST: 'table:service-request', // comensal llama al mesero / pide la cuenta
   TABLE_SERVICE_ACK: 'table:service-ack', // el mesero atendió la solicitud
   PRINT_REQUEST: 'print:request', // impresión bajo demanda (reimprimir comanda, lista de insumos) -> estación de impresión

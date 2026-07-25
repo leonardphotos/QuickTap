@@ -1,6 +1,6 @@
 export type Currency = 'USD' | 'EUR';
 
-export type UserRole = 'OWNER' | 'STAFF' | 'ADMIN' | 'CASHIER' | 'WAITER' | 'KITCHEN' | 'SCREEN' | 'COMANDA';
+export type UserRole = 'OWNER' | 'STAFF' | 'ADMIN' | 'CASHIER' | 'WAITER' | 'KITCHEN' | 'SCREEN' | 'COMANDA' | 'NUMERO';
 
 export interface ExchangeRateInfo {
   rateBs: string;
@@ -304,7 +304,7 @@ export interface PublicTableSessionStatus {
   multipleAccounts: boolean;
 }
 
-export type OrderStatus = 'NEEDS_CONFIRMATION' | 'PENDING' | 'KITCHEN' | 'SERVED' | 'CANCELLED';
+export type OrderStatus = 'NEEDS_CONFIRMATION' | 'NEEDS_PAYMENT' | 'PENDING' | 'KITCHEN' | 'SERVED' | 'CANCELLED';
 export type OrderChannel = 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR';
 export type PaymentMethod = PaymentMethodKey;
 
