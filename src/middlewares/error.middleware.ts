@@ -36,6 +36,15 @@ export function errorMiddleware(err: unknown, _req: Request, res: Response, _nex
     });
   }
 
+  // Registro no encontrado al actualizar/borrar (ej: el restaurante del token ya no
+  // existe). En el entorno demo esto pasa cuando el restaurante se reseteó mientras
+  // la sesión seguía activa (ver demo-reset.service.ts) — se responde 401 en vez de
+  // 500 para que el frontend limpie el token y mande a loguearse de nuevo, en vez de
+  // mostrar "Error interno del servidor" ante lo que en realidad es una sesión vencida.
+  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+    return res.status(401).json({ error: 'Tu sesión ya no es válida. Inicia sesión de nuevo.' });
+  }
+
   const message = err instanceof Error ? err.message : 'Error interno del servidor';
   // Siempre queda en los logs del servidor (pm2), aunque en prod el cliente
   // solo reciba un mensaje genérico.

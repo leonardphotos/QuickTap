@@ -77,13 +77,19 @@ export async function resetAndSeedDemoRestaurant(prisma: PrismaClient): Promise<
   });
 
   // --- Usuarios: uno por rol, todos con la misma contraseña de demo ---
-  const usersToCreate: { email: string; name: string; role: 'OWNER' | 'ADMIN' | 'CASHIER' | 'WAITER' | 'KITCHEN' | 'SCREEN' }[] = [
+  const usersToCreate: {
+    email: string;
+    name: string;
+    role: 'OWNER' | 'ADMIN' | 'CASHIER' | 'WAITER' | 'KITCHEN' | 'SCREEN' | 'COMANDA' | 'NUMERO';
+  }[] = [
     { email: 'demo@quicktap.club', name: 'Dueño Demo', role: 'OWNER' },
     { email: 'admin.demo@quicktap.club', name: 'Admin Demo', role: 'ADMIN' },
     { email: 'cajero.demo@quicktap.club', name: 'Cajero Demo', role: 'CASHIER' },
     { email: 'mesero.demo@quicktap.club', name: 'Mesero Demo', role: 'WAITER' },
     { email: 'cocina.demo@quicktap.club', name: 'Cocina Demo', role: 'KITCHEN' },
     { email: 'pantalla.demo@quicktap.club', name: 'Pantalla Demo', role: 'SCREEN' },
+    { email: 'comanda.demo@quicktap.club', name: 'Comanda Demo', role: 'COMANDA' },
+    { email: 'numero.demo@quicktap.club', name: 'Numero Demo', role: 'NUMERO' },
   ];
   const usersByRole: Record<string, string> = {};
   for (const u of usersToCreate) {
