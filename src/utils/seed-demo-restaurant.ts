@@ -60,6 +60,11 @@ export async function resetAndSeedDemoRestaurant(prisma: PrismaClient): Promise<
         accent: '#FFC72C',
         text: '#1a1a1a',
         buttonText: '#ffffff',
+        bioColor: '#ffffff',
+        // Foto de portada del banner del menú público (horizontal, mostrador de hamburguesería).
+        coverImageUrl: 'https://images.unsplash.com/photo-1552566626-52f8b828add9?auto=format&fit=crop&w=1600&q=80',
+        bannerStyle: 'gradient',
+        bannerBlurEnabled: false,
       },
       serviceChargeEnabled: true,
       ivaEnabled: true,

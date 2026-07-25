@@ -25,6 +25,12 @@ export interface RestaurantTheme {
   bannerColor?: string;
   /** Foto de portada del banner; si está presente, el degradado hacia blanco se aplica sobre la imagen. */
   coverImageUrl?: string;
+  /** Color del texto de la biografía (descripción) en el banner. Sin definir = blanco semitransparente. */
+  bioColor?: string;
+  /** Difumina la foto de portada del banner (no aplica si no hay foto). Default: apagado. */
+  bannerBlurEnabled?: boolean;
+  /** "gradient" (de siempre) o "solid" (color/foto sin desvanecer hacia blanco). Default: "gradient". */
+  bannerStyle?: 'gradient' | 'solid';
   socialLinks?: RestaurantSocialLinks;
 }
 

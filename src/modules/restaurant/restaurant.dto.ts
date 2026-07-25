@@ -22,6 +22,13 @@ export const restaurantThemeSchema = z.object({
   // Foto de portada del banner; si está presente reemplaza el color sólido pero
   // conserva el mismo degradado hacia blanco por encima de la imagen.
   coverImageUrl: z.string().min(1).optional(),
+  // Color del texto de la biografía (descripción) en el banner. Sin definir =
+  // blanco semitransparente (el valor de siempre).
+  bioColor: hexColor.optional(),
+  // Difumina la foto de portada del banner (no aplica si no hay foto). Default: apagado.
+  bannerBlurEnabled: z.boolean().optional(),
+  // "gradient" (de siempre, se desvanece hacia blanco) o "solid" (color/foto sin desvanecer).
+  bannerStyle: z.enum(['gradient', 'solid']).optional(),
   socialLinks: restaurantSocialLinksSchema.optional(),
 });
 

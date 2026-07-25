@@ -233,16 +233,26 @@ export default function MenuPage() {
       <div className="pointer-events-none absolute inset-x-0 top-0 h-80 overflow-hidden">
         {theme?.coverImageUrl ? (
           <>
-            <img src={theme.coverImageUrl} alt="" className="h-full w-full object-cover" />
-            <div
-              className="absolute inset-0"
-              style={{ backgroundImage: `linear-gradient(to bottom, ${hexToRgba(theme?.bannerColor || '#0597F2', 0.35)}, #ffffff)` }}
+            <img
+              src={theme.coverImageUrl}
+              alt=""
+              className={`h-full w-full object-cover ${theme?.bannerBlurEnabled ? 'blur-md scale-110' : ''}`}
             />
+            {theme?.bannerStyle !== 'solid' && (
+              <div
+                className="absolute inset-0"
+                style={{ backgroundImage: `linear-gradient(to bottom, ${hexToRgba(theme?.bannerColor || '#0597F2', 0.35)}, #ffffff)` }}
+              />
+            )}
           </>
         ) : (
           <div
             className="h-full w-full"
-            style={{ backgroundImage: `linear-gradient(to bottom, ${theme?.bannerColor || '#0597F2'}, #ffffff)` }}
+            style={
+              theme?.bannerStyle === 'solid'
+                ? { backgroundColor: theme?.bannerColor || '#0597F2' }
+                : { backgroundImage: `linear-gradient(to bottom, ${theme?.bannerColor || '#0597F2'}, #ffffff)` }
+            }
           />
         )}
       </div>
@@ -255,7 +265,9 @@ export default function MenuPage() {
         />
         <h1 className="text-base font-semibold text-white drop-shadow-sm leading-tight mt-2">{restaurant.name}</h1>
         {restaurant.description && (
-          <p className="text-xs text-white/80 font-light max-w-xs">{restaurant.description}</p>
+          <p className="text-xs font-light max-w-xs" style={{ color: theme?.bioColor || 'rgba(255,255,255,0.8)' }}>
+            {restaurant.description}
+          </p>
         )}
         {qrToken && (
           <span className="text-[10px] bg-white/20 text-white px-2 py-0.5 rounded-full font-medium mt-1">

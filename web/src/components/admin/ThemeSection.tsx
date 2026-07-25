@@ -29,8 +29,16 @@ export function ThemeSection() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  function set(key: keyof Omit<RestaurantTheme, 'socialLinks'>, value: string) {
+  function set(key: keyof Omit<RestaurantTheme, 'socialLinks' | 'bannerBlurEnabled'>, value: string) {
     setTheme((t) => ({ ...t, [key]: value }));
+  }
+
+  function toggleBannerBlur() {
+    setTheme((t) => ({ ...t, bannerBlurEnabled: !t.bannerBlurEnabled }));
+  }
+
+  function toggleBannerStyle() {
+    setTheme((t) => ({ ...t, bannerStyle: t.bannerStyle === 'solid' ? 'gradient' : 'solid' }));
   }
 
   function setCoverImage(url: string | null) {
@@ -101,6 +109,12 @@ export function ThemeSection() {
             defaultValue={THEME_DEFAULTS.bannerColor}
             onChange={(v) => set('bannerColor', v)}
           />
+          <ColorPickerField
+            label="Color de la biografía"
+            value={theme.bioColor ?? ''}
+            defaultValue="#FFFFFF"
+            onChange={(v) => set('bioColor', v)}
+          />
         </div>
 
         <div className="pt-2 border-t border-brand-950/[0.06] space-y-3">
@@ -122,6 +136,30 @@ export function ThemeSection() {
             maxSizeMB={1}
             helpText="Recorta la imagen al tamaño de la portada (horizontal, 2:1)."
           />
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={toggleBannerBlur}
+              className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+                theme.bannerBlurEnabled
+                  ? 'bg-brand-500 text-white border-brand-500'
+                  : 'bg-white text-brand-950/60 border-brand-950/15'
+              }`}
+            >
+              Desenfoque del banner: {theme.bannerBlurEnabled ? 'Activado' : 'Desactivado'}
+            </button>
+            <button
+              type="button"
+              onClick={toggleBannerStyle}
+              className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+                theme.bannerStyle === 'solid'
+                  ? 'bg-brand-500 text-white border-brand-500'
+                  : 'bg-white text-brand-950/60 border-brand-950/15'
+              }`}
+            >
+              Banner: {theme.bannerStyle === 'solid' ? 'Color sólido' : 'Degradado'}
+            </button>
+          </div>
         </div>
 
         <div className="pt-2 border-t border-brand-950/[0.06] space-y-3">
