@@ -14,7 +14,7 @@ import {
 import { emitToKitchen, emitToTable, SocketEvents } from '../../sockets';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { resolveDateFilter } from '../../utils/date-range';
-import { startOfTodayCaracas, startOfWeekCaracas } from '../../utils/timezone';
+import { hourCaracas, startOfTodayCaracas, startOfWeekCaracas } from '../../utils/timezone';
 import { assertRestaurantOpen } from '../../utils/business-hours';
 import { haversineDistanceKm, isPointInPolygon, LatLng } from '../../utils/geo';
 import { tableSessionService } from '../table-sessions/table-session.service';
@@ -1536,7 +1536,7 @@ export const orderService = {
     const [orders, movements, latePayments] = await Promise.all([
       prisma.order.findMany({
         where: { restaurantId, createdAt: { gte: startOfTodayCaracas() }, status: { not: 'CANCELLED' } },
-        select: { channel: true, totalBase: true, totalBs: true, currency: true },
+        select: { channel: true, totalBase: true, totalBs: true, currency: true, tipBase: true, createdAt: true },
       }),
       prisma.movement.findMany({
         where: { restaurantId, createdAt: { gte: startOfTodayCaracas() } },
@@ -1558,6 +1558,23 @@ export const orderService = {
     const totalBs = round2(orders.reduce((acc, o) => acc.add(o.totalBs), toDecimal(0)));
     const byChannel: Record<OrderChannel, number> = { DINE_IN: 0, DELIVERY: 0, PICKUP: 0, BAR: 0 };
     for (const o of orders) byChannel[o.channel]++;
+
+    const tipBase = round2(orders.reduce((acc, o) => acc.add(o.tipBase), toDecimal(0)));
+    const avgTicketBase = orders.length > 0 ? round2(totalBase.div(orders.length)) : round2(toDecimal(0));
+
+    // Ventas por hora (hora de Caracas): solo se devuelven las horas con al menos un pedido,
+    // ordenadas cronológicamente — el rango de operación varía por restaurante.
+    const byHourMap = new Map<number, { totalBase: Prisma.Decimal; ordersCount: number }>();
+    for (const o of orders) {
+      const hour = hourCaracas(o.createdAt);
+      const bucket = byHourMap.get(hour) ?? { totalBase: toDecimal(0), ordersCount: 0 };
+      bucket.totalBase = bucket.totalBase.add(o.totalBase);
+      bucket.ordersCount++;
+      byHourMap.set(hour, bucket);
+    }
+    const byHour = Array.from(byHourMap.entries())
+      .sort(([a], [b]) => a - b)
+      .map(([hour, b]) => ({ hour, totalBase: round2(b.totalBase).toFixed(2), ordersCount: b.ordersCount }));
 
     // Ingresos = ventas del día + ingresos manuales (propinas sueltas, etc.).
     // Egresos = gastos del día (módulo de Gastos). Balance = ingresos - egresos.
@@ -1583,6 +1600,11 @@ export const orderService = {
       egresosBs: baseToBs(egresosBase, rate.rateBs).toFixed(2),
       balanceBase: balanceBase.toFixed(2),
       balanceBs: baseToBs(balanceBase, rate.rateBs).toFixed(2),
+      tipBase: tipBase.toFixed(2),
+      tipBs: baseToBs(tipBase, rate.rateBs).toFixed(2),
+      avgTicketBase: avgTicketBase.toFixed(2),
+      avgTicketBs: baseToBs(avgTicketBase, rate.rateBs).toFixed(2),
+      byHour,
     };
   },
 

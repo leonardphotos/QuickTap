@@ -420,8 +420,8 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
 
   return (
     <div className="w-full mb-8 max-w-md mx-auto lg:max-w-none lg:mx-0">
-      <div className="grid grid-cols-3 items-center mb-3 gap-2">
-        <div className="flex items-center gap-2.5 justify-self-start">
+      <div className="flex items-center justify-between mb-3 gap-2">
+        <div className="flex items-center gap-2.5">
           <h2 className="text-lg font-semibold text-brand-950">Pedidos</h2>
           {(roleFiltered?.length ?? 0) > 0 && (
             <span className="text-sm bg-brand-500 text-white rounded-full h-7 min-w-7 px-2 flex items-center justify-center font-bold">
@@ -429,20 +429,16 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
             </span>
           )}
         </div>
-        {hideCreateButton ? (
-          <div />
-        ) : (
+        {!hideCreateButton && (
           <TextureButton
             variant="brand"
-            size="icon"
-            className="!w-14 !h-14 justify-self-center"
+            size="default"
+            className="!w-auto flex items-center gap-1.5 shrink-0"
             onClick={() => setCreateOrderOpen(true)}
-            aria-label="Crear pedido"
           >
-            <Plus className="h-7 w-7" strokeWidth={2.5} />
+            <Plus className="h-4 w-4" strokeWidth={2.5} /> Crear pedido
           </TextureButton>
         )}
-        <div className="justify-self-end" />
       </div>
 
       <div className="flex gap-1.5 mb-3 overflow-x-auto -mx-0.5 px-0.5 pb-0.5">

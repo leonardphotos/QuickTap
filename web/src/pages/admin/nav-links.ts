@@ -5,7 +5,9 @@ import {
   CalendarDays,
   ChefHat,
   CircleDollarSign,
+  ClipboardList,
   Grid2x2,
+  LayoutDashboard,
   QrCode,
   Receipt,
   Settings,
@@ -21,8 +23,20 @@ export interface AdminNavLink {
   icon: typeof ChefHat;
 }
 
-// Todas las pestañas del panel. Mesero/Cocina solo ven las dos primeras.
+export const PLAN_LABELS: Record<string, string> = {
+  DELIVERY: 'Solo Delivery',
+  STARTER: 'Plan Inicial',
+  PRO: 'Plan Pro',
+  PREMIUM: 'Plan Premium',
+  CUSTOM: 'Plan Personalizado',
+  SUCURSALES: 'Plan Sucursales',
+  DELIVERY_SUCURSALES: 'Delivery Sucursales',
+};
+
+// Todas las pestañas del panel. Mesero/Cocina solo ven Comandas, Cocina y Órdenes de Mesa.
 export const ADMIN_NAV_LINKS: AdminNavLink[] = [
+  { to: '/admin', label: 'Resumen', icon: LayoutDashboard },
+  { to: '/admin/comandas', label: 'Comandas', icon: ClipboardList },
   { to: '/admin/kitchen', label: 'Cocina', icon: ChefHat },
   { to: '/admin/table-orders', label: 'Órdenes de Mesa', icon: Grid2x2 },
   { to: '/admin/delivery', label: 'Delivery', icon: Bike },
@@ -46,7 +60,7 @@ export const SUCURSALES_NAV_LINK: AdminNavLink = { to: '/admin/sucursales', labe
 // Reservas hechas desde el botón "Mesa" del menú público: solo dueño/admin/cajero, que son quienes las aceptan.
 export const RESERVATIONS_NAV_LINK: AdminNavLink = { to: '/admin/reservations', label: 'Reservas', icon: CalendarDays };
 
-const RESTRICTED_VISIBLE = new Set(['/admin/kitchen', '/admin/table-orders']);
+const RESTRICTED_VISIBLE = new Set(['/admin/comandas', '/admin/kitchen', '/admin/table-orders']);
 // Plan Solo Delivery: sin mesas, así que estas pestañas no aportan nada.
 const DELIVERY_HIDDEN = new Set(['/admin/tables', '/admin/table-orders']);
 // STAFF (Personal) conserva acceso total al resto del panel, pero no a Productos/Mesas.
@@ -100,12 +114,15 @@ export function visibleNavLinks(
   return links;
 }
 
-// Secciones para la cuadrícula del Dashboard (todo menos Ajustes, que vive
-// arriba en el icono de configuración).
+// Secciones para la cuadrícula del Dashboard (todo menos Ajustes, que vive arriba en el
+// ícono de configuración, y Resumen/Comandas, que ya son el contenido de esta misma
+// pantalla en celular — un acceso rápido a sí misma sería redundante).
 export function dashboardSectionLinks(
   role: UserRole | null | undefined,
   restaurant?: NavRestaurant | null,
   canAccessInventory?: boolean,
 ): AdminNavLink[] {
-  return visibleNavLinks(role, restaurant, canAccessInventory).filter((l) => l.to !== '/admin/settings');
+  return visibleNavLinks(role, restaurant, canAccessInventory).filter(
+    (l) => l.to !== '/admin/settings' && l.to !== '/admin' && l.to !== '/admin/comandas',
+  );
 }

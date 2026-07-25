@@ -26,6 +26,11 @@ export function nowPartsCaracas(): { dayOfWeek: number; hhmm: string } {
   return { dayOfWeek, hhmm: `${hh}:${mm}` };
 }
 
+/** Hora del día (0-23) de un instante dado, en hora de Caracas. */
+export function hourCaracas(date: Date): number {
+  return new Date(date.getTime() - CARACAS_OFFSET_MS).getUTCHours();
+}
+
 /** Instante UTC que corresponde a la medianoche del lunes de "esta semana" en hora de Caracas. */
 export function startOfWeekCaracas(): Date {
   const shifted = new Date(Date.now() - CARACAS_OFFSET_MS);

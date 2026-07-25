@@ -1,10 +1,11 @@
 import { lazy, useState } from 'react';
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Boxes, CalendarDays, Home, Menu, PackageX, Share2, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, Boxes, CalendarDays, Home, Menu, Share2, TriangleAlert } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Toast } from '@/components/ui/toast';
 import { NavMenuDrawer } from '@/components/admin/NavMenuDrawer';
+import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { LowStockAlert } from '@/components/admin/LowStockAlert';
 import { NewOrderAlert } from '@/components/admin/NewOrderAlert';
 import { OrderReadyToast } from '@/components/admin/OrderReadyToast';
@@ -123,75 +124,23 @@ export default function AdminLayout() {
         </Link>
       )}
 
-      {/* Barra superior: solo en pantallas anchas (tablet horizontal / escritorio) — en
-          celular la navegación sigue siendo el dock flotante de abajo, más cómodo con el pulgar. */}
-      <div className="hidden lg:block sticky top-0 z-30 backdrop-blur-md bg-white/80 border-b border-brand-950/[0.06]">
-        <div className="max-w-7xl mx-auto px-8 h-16 flex items-center justify-between gap-6">
-          <Link to="/admin" className="flex items-center gap-2.5 min-w-0 shrink-0">
-            <img
-              src={restaurant.logoUrl || '/logo/icono.png'}
-              alt=""
-              className="h-8 w-8 rounded-full object-cover shrink-0"
-            />
-            <span className="text-sm font-semibold text-brand-950 truncate max-w-40">{restaurant.name}</span>
-          </Link>
+      {/* Menú lateral: solo en pantallas anchas (tablet horizontal / escritorio) — en
+          celular la navegación sigue siendo el dock flotante de abajo, más cómodo con el pulgar.
+          Insumos por agotarse, compartir y abrir el menú (Ajustes/Cerrar sesión) viven ahí dentro,
+          junto al perfil — no hace falta una barra de utilidades aparte arriba del contenido. */}
+      <AdminSidebar
+        navLinks={navLinks}
+        pendingReservations={pendingReservations}
+        lowStockItems={isAdminCashier(user.role) ? lowStockItems : []}
+        onShare={() => copy(`${window.location.origin}/r/${restaurant.slug}`, 'Enlace copiado')}
+        onOpenMenu={() => setMenuOpen(true)}
+      />
 
-          <nav className="flex items-center gap-1 rounded-full bg-brand-950/[0.04] p-1 overflow-x-auto">
-            {navLinks.map((l) => {
-              const active = pathname === l.to;
-              const showAlert = l.to === '/admin/reservations' && pendingReservations > 0;
-              return (
-                <Link
-                  key={l.to}
-                  to={l.to}
-                  className={`relative flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium whitespace-nowrap transition-colors ${
-                    active ? 'bg-brand-500 text-white shadow-[0_6px_16px_-6px_rgba(5,108,242,0.5)]' : 'text-brand-950/60 hover:bg-brand-950/[0.06]'
-                  }`}
-                >
-                  <l.icon className="h-4 w-4" /> {l.label}
-                  {showAlert && (
-                    <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center ring-2 ring-white">
-                      {pendingReservations}
-                    </span>
-                  )}
-                </Link>
-              );
-            })}
-          </nav>
-
-          <div className="flex items-center gap-1.5 shrink-0">
-            {isAdminCashier(user.role) && lowStockItems.length > 0 && (
-              <Link
-                to="/admin/inventory"
-                className="relative flex items-center justify-center h-9 w-9 rounded-full bg-red-500/10"
-                aria-label="Insumos por agotarse"
-                title={`Insumos por agotarse: ${lowStockItems.map((i) => i.name).join(', ')}`}
-              >
-                <PackageX className="h-4 w-4 text-red-600" />
-                <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center ring-2 ring-white">
-                  {lowStockItems.length}
-                </span>
-              </Link>
-            )}
-            <TextureButton
-              variant="icon"
-              size="icon"
-              className="!h-9 !w-9"
-              aria-label="Compartir enlace del menú"
-              onClick={() => copy(`${window.location.origin}/r/${restaurant.slug}`, 'Enlace copiado')}
-            >
-              <Share2 className="h-4 w-4 text-brand-950/70" />
-            </TextureButton>
-            <TextureButton variant="icon" size="icon" className="!h-9 !w-9" aria-label="Abrir menú" onClick={() => setMenuOpen(true)}>
-              <Menu className="h-4 w-4 text-brand-950/70" />
-            </TextureButton>
-          </div>
-        </div>
+      <div className="lg:pl-[264px]">
+        <main className="max-w-5xl lg:max-w-7xl mx-auto px-6 lg:px-8 pt-10 lg:pt-8 pb-28 lg:pb-12">
+          <Outlet />
+        </main>
       </div>
-
-      <main className="max-w-5xl lg:max-w-7xl mx-auto px-6 lg:px-8 pt-10 lg:pt-8 pb-28 lg:pb-12">
-        <Outlet />
-      </main>
 
       {/* Dock flotante: navegación en celular/tablet vertical (la barra superior la reemplaza en pantallas anchas). */}
       <div className="lg:hidden fixed bottom-5 inset-x-0 z-30 flex justify-center pointer-events-none">

@@ -2,14 +2,18 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Menu, ExternalLink } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { isAdminCashier } from '../../utils/roles';
-import { daysRemaining, graceHoursRemaining } from '../../utils/subscription';
+import { canManageTeam, isAdminCashier } from '../../utils/roles';
+import { allowsBranches, daysRemaining, graceHoursRemaining, hasFeature } from '../../utils/subscription';
 import { hasSeenOnboardingTutorial, OnboardingTutorial } from '@/components/admin/OnboardingTutorial';
 import { DailySalesSummary } from '@/components/admin/DailySalesSummary';
+import { SalesDashboard } from '@/components/admin/SalesDashboard';
+import { TodayOrdersList } from '@/components/admin/TodayOrdersList';
+import { TopProductsCard } from '@/components/admin/TopProductsCard';
+import { InventoryByBranchCard } from '@/components/admin/InventoryByBranchCard';
 import { LiveOrdersPanel } from '@/components/admin/LiveOrdersPanel';
 import { NavMenuDrawer } from '@/components/admin/NavMenuDrawer';
 import { TextureButton } from '@/components/ui/texture-button';
-import { dashboardSectionLinks } from './nav-links';
+import { dashboardSectionLinks, PLAN_LABELS } from './nav-links';
 
 // Colores rotativos para los íconos de "Accesos rápidos" — solo distinguen
 // visualmente una sección de otra, no tienen significado propio (a diferencia
@@ -24,16 +28,6 @@ const SHORTCUT_COLORS = [
   'bg-teal-100 text-teal-700',
   'bg-orange-100 text-orange-700',
 ];
-
-const PLAN_LABELS: Record<string, string> = {
-  DELIVERY: 'Solo Delivery',
-  STARTER: 'Plan Inicial',
-  PRO: 'Plan Pro',
-  PREMIUM: 'Plan Premium',
-  CUSTOM: 'Plan Personalizado',
-  SUCURSALES: 'Plan Sucursales',
-  DELIVERY_SUCURSALES: 'Delivery Sucursales',
-};
 
 export default function DashboardPage() {
   const { user, restaurant } = useAuth();
@@ -103,6 +97,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {isAdminCashier(user?.role) && <SalesDashboard />}
+
       <div className="flex flex-col items-center text-center lg:flex-row lg:items-start lg:text-left lg:gap-8">
         <div className="lg:w-72 lg:shrink-0 lg:sticky lg:top-24 flex flex-col items-center lg:items-stretch">
           <a href={`/r/${restaurant.slug}`} target="_blank" rel="noopener noreferrer" className="mb-4 lg:self-start">
@@ -133,7 +129,22 @@ export default function DashboardPage() {
           )}
         </div>
         <div className="w-full lg:flex-1 lg:min-w-0">
-          <LiveOrdersPanel />
+          {/* Celular: los pedidos accionables (aceptar, cambiar estado) siguen aquí mismo —
+              en escritorio esa cola en vivo vive aparte en Comandas, y este espacio pasa a
+              ser el resto de "Resumen": pedidos de hoy de solo lectura, productos más
+              vendidos e inventario por sucursal. */}
+          <div className="lg:hidden">
+            <LiveOrdersPanel />
+          </div>
+          {isAdminCashier(user?.role) && (
+            <div className="hidden lg:flex lg:flex-col lg:gap-5">
+              {hasFeature(restaurant, 'administration') && <TodayOrdersList />}
+              {hasFeature(restaurant, 'administration') && <TopProductsCard />}
+              {canManageTeam(user?.role) && allowsBranches(restaurant.subscriptionPlan) && !restaurant.parentRestaurantId && (
+                <InventoryByBranchCard />
+              )}
+            </div>
+          )}
         </div>
       </div>
 

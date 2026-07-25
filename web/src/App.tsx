@@ -12,6 +12,7 @@ const RegisterPage = lazy(() => import('./pages/admin/RegisterPage'));
 const ForgotPasswordPage = lazy(() => import('./pages/admin/ForgotPasswordPage'));
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
 const DashboardPage = lazy(() => import('./pages/admin/DashboardPage'));
+const ComandasPage = lazy(() => import('./pages/admin/ComandasPage'));
 const KitchenPage = lazy(() => import('./pages/admin/KitchenPage'));
 const DeliveryPage = lazy(() => import('./pages/admin/DeliveryPage'));
 const ProductsPage = lazy(() => import('./pages/admin/ProductsPage'));
@@ -74,6 +75,7 @@ export default function App() {
             <Route path="/admin/welcome" element={<WelcomePage />} />
             <Route path="/admin" element={<AdminLayout />}>
               <Route index element={<DashboardPage />} />
+              <Route path="comandas" element={<ComandasPage />} />
               <Route path="kitchen" element={<KitchenPage />} />
               <Route path="delivery" element={<DeliveryPage />} />
               <Route path="products" element={<ProductsPage />} />

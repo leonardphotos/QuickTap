@@ -91,10 +91,11 @@ export function canAccessPath(role: UserRole | null | undefined, pathname: strin
   if (isKioskRole(role)) return pathname.startsWith(KIOSK_PATH);
   if (isNumeroRole(role)) return pathname.startsWith(NUMERO_PATH);
   if (canAccessInventory && pathname.startsWith('/admin/inventory')) return true;
-  // El Dashboard ("/admin" exacto) también es visible para Mesero/Cocina: ahí ven
-  // sus propios pedidos (Mesero) o todos (Cocina) — no confundir con "/admin/*"
-  // en general, que sigue vedado para estos roles.
-  if (pathname === '/admin') return true;
+  // Comandas también es visible para Mesero/Cocina: ahí ven sus propios pedidos
+  // (Mesero) o todos (Cocina) — Resumen ("/admin" exacto) queda vedado porque
+  // trae montos de venta y datos financieros, no confundir con "/admin/*" en
+  // general, que sigue vedado para estos roles salvo lo listado abajo.
+  if (pathname === '/admin/comandas') return true;
   return RESTRICTED_PATHS.some((p) => pathname.startsWith(p));
 }
 
