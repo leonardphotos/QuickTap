@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
 import { IntroLoader } from '@/components/landing/IntroLoader';
+import { BeamsBackground } from '@/components/ui/beams-background';
 
 /** Espejo en JS de --ease-out-strong (index.css): arranca rápido, se siente intencional. */
 const EASE_OUT: [number, number, number, number] = [0.23, 1, 0.32, 1];
@@ -22,7 +23,7 @@ export default function LandingPage() {
         initial={{ opacity: 0 }}
         animate={{ opacity: showIntro ? 0 : 1 }}
         transition={{ duration: 0.5, ease: EASE_OUT }}
-        className="h-screen overflow-hidden bg-white text-brand-950"
+        className="h-screen overflow-hidden text-white"
       >
         {/* Nav flotante, estilo "cult-seo": pastilla oscura translúcida sobre el hero */}
         <header className="fixed top-4 inset-x-0 z-30 px-4">
@@ -48,28 +49,29 @@ export default function LandingPage() {
           </div>
         </header>
 
-        {/* Tarjeta única a pantalla completa (estilo Apple: foto de fondo en blanco por ahora, sin scroll) */}
-        <section className="relative h-screen flex flex-col items-center justify-center px-4 text-center bg-white">
-          <p className="text-xs font-medium text-brand-950/40 tracking-wide">QuickTap</p>
-          <h1 className="mt-4 text-4xl sm:text-5xl font-bold text-brand-950">Todo a un toque.</h1>
-          <p className="mt-3 text-base text-brand-950/60 max-w-md mx-auto font-light">
-            Menú digital, comandas en tiempo real y delivery por WhatsApp para tu restaurante.
-          </p>
+        {/* Tarjeta única a pantalla completa, fondo de rayos animado, contenido abajo a la izquierda */}
+        <BeamsBackground className="h-screen min-h-0">
+          <div className="h-screen flex flex-col items-start justify-end px-6 sm:px-12 pb-16 sm:pb-20 text-left">
+            <p className="text-xs font-medium text-white/40 tracking-wide">QuickTap</p>
+            <h1 className="mt-4 text-4xl sm:text-6xl font-bold tracking-tight">Todo a un toque.</h1>
+            <p className="mt-3 text-base sm:text-lg text-white/60 max-w-md font-light">
+              Menú digital, comandas en tiempo real y delivery por WhatsApp para tu restaurante.
+            </p>
 
-          <div className="mt-10 w-full max-w-xs flex flex-col gap-3">
-            <Link to="/soluciones" className="w-full">
-              <button className="w-full flex items-center justify-center gap-2 rounded-full bg-brand-950 text-white font-medium px-6 py-3 transition-transform duration-200 ease-out-strong hover:opacity-90 active:scale-[0.97]">
+            <div className="mt-8 flex flex-col sm:flex-row items-start gap-4 sm:gap-8">
+              <Link
+                to="/soluciones"
+                className="group flex items-center gap-1.5 text-base font-medium text-white transition-colors hover:text-white/70"
+              >
                 Conoce sobre QuickTap
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </Link>
-            <Link to="/planes" className="w-full">
-              <button className="w-full rounded-full border border-brand-950/15 text-brand-950 font-medium px-6 py-3 transition-colors hover:bg-brand-950/5 active:scale-[0.97]">
+                <ArrowRight className="h-4 w-4 transition-transform duration-200 ease-out-strong group-hover:translate-x-1" />
+              </Link>
+              <Link to="/planes" className="text-base font-medium text-white/60 transition-colors hover:text-white">
                 Ver planes
-              </button>
-            </Link>
+              </Link>
+            </div>
           </div>
-        </section>
+        </BeamsBackground>
       </motion.div>
     </>
   );
