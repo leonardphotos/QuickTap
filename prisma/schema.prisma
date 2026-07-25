@@ -311,6 +311,12 @@ model Restaurant {
   // solo se actualiza cuando isDemo=true. El barrido periódico (ver server.ts)
   // resetea el demo cuando esto queda viejo (pestaña cerrada/abandonada).
   demoLastActivityAt DateTime?
+  // Se activa cuando alguien ingresa el código de administrador correcto
+  // (Ajustes → Modo administrador). Mientras esté en true, el restaurante
+  // demo queda exento del reset automático (ni el barrido de inactividad ni
+  // el logout lo reinician) — así el equipo QuickTap puede dejar cambios
+  // permanentes (ej. configurar sucursales) sin que se borren.
+  demoAdminUnlocked Boolean @default(false)
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())

@@ -120,3 +120,10 @@ export const setDeleteOrderPinSchema = z.object({
   pin: z.string().regex(/^\d{6}$/, 'El código debe tener 6 dígitos.'),
 });
 export type SetDeleteOrderPinInput = z.infer<typeof setDeleteOrderPinSchema>;
+
+// Entorno Demo Efímero → Ajustes → "Modo administrador": código fijo de 4 dígitos
+// que exime al restaurante demo del reset automático (ver demo-reset.service.ts).
+export const demoAdminUnlockSchema = z.object({
+  pin: z.string().regex(/^\d{4}$/, 'El código debe tener 4 dígitos.'),
+});
+export type DemoAdminUnlockInput = z.infer<typeof demoAdminUnlockSchema>;

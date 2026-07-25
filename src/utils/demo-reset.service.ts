@@ -13,7 +13,7 @@ let resetInFlight: Promise<void> | null = null;
 export const demoResetService = {
   async reset(): Promise<void> {
     if (resetInFlight) return resetInFlight;
-    resetInFlight = resetAndSeedDemoRestaurant(prisma).finally(() => {
+    resetInFlight = doReset().finally(() => {
       resetInFlight = null;
     });
     return resetInFlight;
@@ -26,9 +26,26 @@ export const demoResetService = {
       where: {
         isDemo: true,
         slug: DEMO_SLUG,
+        demoAdminUnlocked: false,
         OR: [{ demoLastActivityAt: null }, { demoLastActivityAt: { lt: cutoff } }],
       },
       select: { id: true },
     });
   },
 };
+
+/**
+ * Si alguien desbloqueó el "Modo administrador" (código de 4 dígitos, ver
+ * restaurant.service.ts `unlockDemoAdmin`), el restaurante demo queda exento
+ * del reset — se resuelve acá, en el único lugar que de verdad borra/recrea,
+ * para que tanto el logout como el barrido de inactividad respeten el flag
+ * sin duplicar el chequeo en cada llamador.
+ */
+async function doReset(): Promise<void> {
+  const existing = await prisma.restaurant.findUnique({
+    where: { slug: DEMO_SLUG },
+    select: { demoAdminUnlocked: true },
+  });
+  if (existing?.demoAdminUnlocked) return;
+  await resetAndSeedDemoRestaurant(prisma);
+}

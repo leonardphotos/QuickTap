@@ -25,6 +25,8 @@ interface AuthRestaurant {
   theme?: RestaurantTheme | null;
   /** Entorno Demo Efímero: cuenta de demostración, se resetea sola al cerrar sesión. */
   isDemo: boolean;
+  /** Modo administrador activado (código de 4 dígitos en Ajustes): exime del reset automático. */
+  demoAdminUnlocked: boolean;
   serviceChargeEnabled: boolean;
   ivaEnabled: boolean;
   /** RIF fiscal del restaurante, informativo — condición para que QuickTap pueda activar el IVA. */

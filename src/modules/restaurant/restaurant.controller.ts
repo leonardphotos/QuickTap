@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest } from '../../utils/http-error';
-import { setDeleteOrderPinSchema, updateRestaurantSchema, updateScheduleSchema } from './restaurant.dto';
+import { demoAdminUnlockSchema, setDeleteOrderPinSchema, updateRestaurantSchema, updateScheduleSchema } from './restaurant.dto';
 import { restaurantService } from './restaurant.service';
 
 export const restaurantController = {
@@ -29,6 +29,11 @@ export const restaurantController = {
   setDeleteOrderPin: asyncHandler(async (req: Request, res: Response) => {
     const { pin } = setDeleteOrderPinSchema.parse(req.body);
     res.json({ data: await restaurantService.setDeleteOrderPin(req.restaurantId!, pin) });
+  }),
+
+  demoAdminUnlock: asyncHandler(async (req: Request, res: Response) => {
+    const { pin } = demoAdminUnlockSchema.parse(req.body);
+    res.json({ data: await restaurantService.unlockDemoAdmin(req.restaurantId!, pin) });
   }),
 
   uploadLogo: asyncHandler(async (req: Request, res: Response) => {

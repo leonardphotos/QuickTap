@@ -67,6 +67,7 @@ const RESTAURANT_SELECT = {
   pendingWelcomePlan: true,
   deleteOrderPinHash: true,
   isDemo: true,
+  demoAdminUnlocked: true,
 } as const;
 
 type RestaurantRow = {
@@ -105,6 +106,7 @@ type RestaurantRow = {
   pendingWelcomePlan: string | null;
   deleteOrderPinHash: string | null;
   isDemo: boolean;
+  demoAdminUnlocked: boolean;
 };
 
 /** Forma que el frontend consume: agrega `locked`, calculado en vivo (nunca persistido; ver isLockedAsync),
@@ -132,6 +134,7 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
     exchangeRate,
     theme: restaurant.theme,
     isDemo: restaurant.isDemo,
+    demoAdminUnlocked: restaurant.demoAdminUnlocked,
     serviceChargeEnabled: restaurant.serviceChargeEnabled,
     ivaEnabled: restaurant.ivaEnabled,
     rif: restaurant.rif,

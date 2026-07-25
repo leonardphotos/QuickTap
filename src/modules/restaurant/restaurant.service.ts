@@ -1,5 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { prisma } from '../../config/prisma';
+import { badRequest } from '../../utils/http-error';
+import { DEMO_ADMIN_PIN } from '../../utils/seed-demo-restaurant';
 import { UpdateRestaurantInput, UpdateScheduleInput } from './restaurant.dto';
 
 export const restaurantService = {
@@ -59,5 +61,21 @@ export const restaurantService = {
     const deleteOrderPinHash = await bcrypt.hash(pin, 10);
     await prisma.restaurant.update({ where: { id: restaurantId }, data: { deleteOrderPinHash } });
     return { done: true };
+  },
+
+  /**
+   * Entorno Demo Efímero → "Modo administrador": código fijo que exime al
+   * restaurante demo del reset automático (ver demo-reset.service.ts), para
+   * dejar cambios permanentes (ej. configurar sucursales) sin que se borren.
+   */
+  async unlockDemoAdmin(restaurantId: string, pin: string) {
+    const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { isDemo: true } });
+    if (!restaurant?.isDemo) throw badRequest('Esta opción solo aplica al entorno demo.');
+    if (pin !== DEMO_ADMIN_PIN) throw badRequest('Código incorrecto.');
+    await prisma.restaurant.update({
+      where: { id: restaurantId },
+      data: { demoAdminUnlocked: true, demoLastActivityAt: new Date() },
+    });
+    return { demoAdminUnlocked: true };
   },
 };

@@ -14,6 +14,8 @@ router.patch('/', mutate, restaurantController.update);
 router.patch('/welcome-seen', restaurantController.markWelcomeSeen);
 // Código para eliminar comandas (Ajustes): solo Dueño/Admin lo crean o cambian.
 router.patch('/delete-order-pin', requireRole(...TEAM_MANAGER_ROLES), restaurantController.setDeleteOrderPin);
+// Entorno Demo Efímero: código de administrador que exime del reset automático.
+router.post('/demo-admin-unlock', requireRole(...TEAM_MANAGER_ROLES), restaurantController.demoAdminUnlock);
 router.get('/schedule', restaurantController.getSchedule);
 router.put('/schedule', mutate, restaurantController.updateSchedule);
 router.post('/upload-logo', mutate, uploadLogo, optimizeImage(900, 900), restaurantController.uploadLogo);
