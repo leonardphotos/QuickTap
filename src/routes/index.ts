@@ -30,6 +30,7 @@ import {
 } from '../modules/platform-settings/platform-settings.routes';
 import masterRestaurantsRoutes from '../modules/master/master-restaurants.routes';
 import masterAdminsRoutes from '../modules/master/master-admins.routes';
+import masterOlaclickImportRoutes from '../modules/master/master-olaclick-import.routes';
 import inventoryRoutes from '../modules/inventory/inventory.routes';
 import movementRoutes from '../modules/movements/movement.routes';
 import cashSessionRoutes from '../modules/cash-sessions/cash-session.routes';
@@ -112,5 +113,7 @@ router.use('/master/summary', masterSummaryRoutes);
 router.use('/master/server-status', masterServerStatusRoutes);
 router.use('/master/restaurants', masterRestaurantsRoutes);
 router.use('/master/admins', masterAdminsRoutes);
+// Migración interna OlaClick → QuickTap (ver src/modules/master/master-olaclick-import.*).
+router.use('/master/olaclick-import', masterOlaclickImportRoutes);
 
 export default router;

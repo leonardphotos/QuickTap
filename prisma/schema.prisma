@@ -231,6 +231,15 @@ model Restaurant {
   // vive dentro de paymentMethodsConfig, que es el RIF de una cuenta de cobro puntual.
   rif                  String?
 
+  // --- Migración desde OlaClick (herramienta interna, panel master) ---
+  // La API Key de OlaClick del restaurante viaja cifrada (AES-256-GCM, ver
+  // master-olaclick-import.crypto.ts) y solo la usa el equipo QuickTap desde
+  // /master/*, NUNCA expuesta al propio restaurante ni a rutas públicas.
+  // Ver src/modules/master/master-olaclick-import.* y CLAUDE.md.
+  olaclickApiKeyEncrypted String?
+  olaclickLastSyncAt      DateTime?
+  olaclickLastSyncSummary Json?
+
   // --- Control de pedidos ---
   // Si es false, el menú público queda solo para ver: sin carrito ni checkout
   // (ni en mesa ni por delivery/pickup).
@@ -443,9 +452,17 @@ model Category {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Origen externo (ej: importada desde OlaClick vía el módulo de migración
+  // del panel master — ver src/modules/master/master-olaclick-import.*).
+  // Null en categorías creadas normalmente a mano. externalSourceId es el id
+  // original en el sistema de origen, usado para no duplicar en re-sync.
+  externalSource   String?
+  externalSourceId String?
+
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   products   Product[]
 
+  @@unique([restaurantId, externalSource, externalSourceId])
   @@index([restaurantId, priority])
   @@map("categories")
 }
@@ -517,6 +534,14 @@ model Product {
   // su propio precio (ej. "Ensalada César" / "Ensalada Mixta").
   pricingMode String @default("SIMPLE")
 
+  // Origen externo (ver Category.externalSource más arriba). importedImageUrl
+  // guarda la foto tal cual venía del sistema de origen como referencia — el
+  // campo real usado por la app sigue siendo `photoUrl`, que queda null hasta
+  // que alguien la confirme/reemplace (ver master-olaclick-import.service.ts).
+  externalSource   String?
+  externalSourceId String?
+  importedImageUrl String?
+
   restaurant         Restaurant                @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   category           Category                  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   kitchen            Kitchen?                  @relation(fields: [kitchenId], references: [id], onDelete: SetNull)
@@ -525,6 +550,7 @@ model Product {
   modifierCategories ProductModifierCategory[]
   variants           ProductVariant[]
 
+  @@unique([restaurantId, externalSource, externalSourceId])
   @@index([restaurantId, categoryId])
   @@index([restaurantId, isAvailable])
   @@index([restaurantId, kitchenId])

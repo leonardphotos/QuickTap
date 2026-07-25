@@ -233,6 +233,24 @@ export default function MasterRestaurantDetailPage() {
         </TextureButton>
       </div>
 
+      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 flex items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold text-brand-950">Migración desde OlaClick</p>
+          <p className="text-sm text-brand-950/60 font-light mt-1">
+            Herramienta interna de onboarding — trae el menú del restaurante
+            desde su cuenta de OlaClick. El restaurante no ve esta pantalla.
+          </p>
+        </div>
+        <TextureButton
+          variant="brand"
+          size="sm"
+          className="!w-auto shrink-0"
+          onClick={() => navigate(`/master/restaurants/${id}/olaclick-import`)}
+        >
+          Migrar menú
+        </TextureButton>
+      </div>
+
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
         <Stat label="Usuarios" value={detail.users.length} />
         <Stat label="Mesas" value={detail._count.tables} />
