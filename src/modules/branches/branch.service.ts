@@ -306,25 +306,28 @@ export const branchService = {
     });
   },
 
-  /** Insumos bajo el mínimo (quantity < minQuantity) en cada sede. */
+  /** Inventario completo (con bandera de bajo stock) de cada sede. */
   async getInventoryByBranch(restaurantId: string) {
     const { ids, names, mainId } = await this.resolveScope(restaurantId);
-    const items = await prisma.inventoryItem.findMany({ where: { restaurantId: { in: ids } } });
+    const items = await prisma.inventoryItem.findMany({ where: { restaurantId: { in: ids } }, orderBy: { name: 'asc' } });
 
-    return ids.map((id) => ({
-      branchId: id,
-      name: names.get(id) ?? id,
-      isMain: id === mainId,
-      lowStockItems: items
-        .filter((item) => item.restaurantId === id && item.quantity.lt(item.minQuantity))
-        .map((item) => ({
+    return ids.map((id) => {
+      const own = items.filter((item) => item.restaurantId === id);
+      return {
+        branchId: id,
+        name: names.get(id) ?? id,
+        isMain: id === mainId,
+        items: own.map((item) => ({
           id: item.id,
           name: item.name,
           unit: item.unit,
-          quantity: item.quantity.toFixed(2),
-          minQuantity: item.minQuantity.toFixed(2),
+          quantity: item.quantity.toFixed(3),
+          minQuantity: item.minQuantity.toFixed(3),
+          pricePerUnitBase: item.pricePerUnitBase?.toFixed(4) ?? null,
+          low: item.quantity.lt(item.minQuantity),
         })),
-    }));
+      };
+    });
   },
 
   /** Top 5 productos más vendidos en cada sede. */

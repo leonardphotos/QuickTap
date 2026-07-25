@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowRight, Building2, Plus, TriangleAlert } from 'lucide-react';
+import { ArrowRight, Building2, ChevronDown, Plus, TriangleAlert } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
@@ -205,10 +205,34 @@ function SalesByBranchTab({ symbol }: { symbol: string }) {
   );
 }
 
+interface BranchInventoryItem {
+  id: string;
+  name: string;
+  unit: string;
+  quantity: string;
+  minQuantity: string;
+  pricePerUnitBase: string | null;
+  low: boolean;
+}
+
+const SUB_UNIT_LABELS: Record<string, string> = { kg: 'kg', lt: 'L', ml: 'ml', unidad: 'unidad' };
+
+/** Formatea una cantidad en la unidad base (kg/lt) a la sub-unidad más legible (g/ml) cuando es chica. */
+function formatExactQuantity(quantity: string, unit: string): string {
+  const n = Number(quantity);
+  if (unit === 'kg') {
+    return n < 1 ? `${Math.round(n * 1000)} g` : `${n.toFixed(n % 1 === 0 ? 0 : 2)} kg`;
+  }
+  if (unit === 'lt') {
+    return n < 1 ? `${Math.round(n * 1000)} ml` : `${n.toFixed(n % 1 === 0 ? 0 : 2)} L`;
+  }
+  if (unit === 'ml') return `${n.toFixed(n % 1 === 0 ? 0 : 2)} ml`;
+  return `${n.toFixed(n % 1 === 0 ? 0 : 2)} ${SUB_UNIT_LABELS[unit] ?? unit}`;
+}
+
 function InventoryByBranchTab() {
-  const [rows, setRows] = useState<
-    { branchId: string; name: string; isMain: boolean; lowStockItems: { id: string; name: string; unit: string; quantity: string; minQuantity: string }[] }[]
-  >([]);
+  const [rows, setRows] = useState<{ branchId: string; name: string; isMain: boolean; items: BranchInventoryItem[] }[]>([]);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   useEffect(() => {
     api
@@ -219,29 +243,65 @@ function InventoryByBranchTab() {
 
   return (
     <div className="space-y-4">
-      {rows.map((r) => (
-        <div key={r.branchId} className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-4">
-          <p className="text-sm font-medium text-brand-950 mb-2">
-            {r.name} {r.isMain && <span className="text-xs text-brand-950/40 font-normal">(sede principal)</span>}
-          </p>
-          {r.lowStockItems.length === 0 ? (
-            <p className="text-xs text-brand-950/50">Sin insumos bajo el mínimo.</p>
-          ) : (
-            <div className="space-y-1.5">
-              {r.lowStockItems.map((item) => (
-                <div key={item.id} className="flex items-center justify-between gap-2 text-sm">
-                  <span className="flex items-center gap-1.5 text-amber-700">
-                    <TriangleAlert className="h-3.5 w-3.5 shrink-0" /> {item.name}
+      {rows.map((r) => {
+        const lowCount = r.items.filter((i) => i.low).length;
+        const isOpen = expanded === r.branchId;
+        return (
+          <div key={r.branchId} className="rounded-2xl border border-brand-950/10 bg-white shadow-sm overflow-hidden">
+            <button
+              onClick={() => setExpanded(isOpen ? null : r.branchId)}
+              className="w-full flex items-center justify-between gap-2 p-4 text-left hover:bg-brand-950/[0.02]"
+            >
+              <p className="text-sm font-medium text-brand-950">
+                {r.name} {r.isMain && <span className="text-xs text-brand-950/40 font-normal">(sede principal)</span>}
+              </p>
+              <div className="flex items-center gap-2 shrink-0">
+                {lowCount > 0 && (
+                  <span className="flex items-center gap-1 text-xs font-medium text-amber-700">
+                    <TriangleAlert className="h-3.5 w-3.5" /> {lowCount} bajo mínimo
                   </span>
-                  <span className="text-brand-950/60">
-                    {item.quantity} / {item.minQuantity} {item.unit}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      ))}
+                )}
+                <ChevronDown className={`h-4 w-4 text-brand-950/40 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+              </div>
+            </button>
+
+            {r.items.length === 0 ? (
+              <p className="px-4 pb-4 text-xs text-brand-950/50">Sin insumos cargados.</p>
+            ) : (
+              <div className="px-4 pb-4 space-y-3">
+                {r.items.map((item) => {
+                  const qty = Number(item.quantity);
+                  const minQty = Number(item.minQuantity);
+                  const ratio = minQty > 0 ? Math.min(1, qty / (minQty * 2)) : 1;
+                  const barColor = item.low ? 'bg-red-500' : ratio < 0.75 ? 'bg-amber-500' : 'bg-emerald-500';
+                  return (
+                    <div key={item.id}>
+                      <div className="flex items-center justify-between gap-2 text-sm">
+                        <span className={`flex items-center gap-1.5 ${item.low ? 'text-amber-700' : 'text-brand-950'}`}>
+                          {item.low && <TriangleAlert className="h-3.5 w-3.5 shrink-0" />}
+                          {item.name}
+                        </span>
+                        {isOpen ? (
+                          <span className="text-brand-950/60 text-xs">
+                            {formatExactQuantity(item.quantity, item.unit)} · mín. {formatExactQuantity(item.minQuantity, item.unit)}
+                          </span>
+                        ) : (
+                          <span className="text-brand-950/60 text-xs">
+                            {item.quantity} / {item.minQuantity} {item.unit}
+                          </span>
+                        )}
+                      </div>
+                      <div className="h-1.5 w-full rounded-full bg-brand-950/[0.08] overflow-hidden mt-1">
+                        <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${ratio * 100}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }
