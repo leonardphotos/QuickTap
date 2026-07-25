@@ -15,6 +15,7 @@ router.post('/switch-to-parent', branchController.switchToParent);
 
 router.get('/reports/summary', branchController.consolidatedSummary);
 router.get('/reports/sales', branchController.salesByBranch);
+router.get('/reports/sales/:branchId', branchController.branchSalesDetail);
 router.get('/reports/inventory', branchController.inventoryByBranch);
 router.get('/reports/top-products', branchController.topProductsByBranch);
 router.get('/reports/employees', branchController.employeesByBranch);

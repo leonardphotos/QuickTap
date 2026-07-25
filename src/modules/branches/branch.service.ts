@@ -330,27 +330,56 @@ export const branchService = {
     });
   },
 
-  /** Top 5 productos más vendidos en cada sede. */
+  /** Top 5 productos más vendidos en cada sede, con unidades, ingresos y utilidad (ingresos - costo). */
   async getTopProductsByBranch(restaurantId: string, range: ReportRange, date?: string) {
     const { ids, names, mainId } = await this.resolveScope(restaurantId);
     const items = await prisma.orderItem.findMany({
       where: {
         order: { restaurantId: { in: ids }, status: { not: 'CANCELLED' }, createdAt: resolveDateFilter({ range, date }) },
       },
-      select: { productName: true, variantName: true, quantity: true, lineTotal: true, order: { select: { restaurantId: true } } },
+      select: {
+        productId: true,
+        productName: true,
+        variantName: true,
+        quantity: true,
+        lineTotal: true,
+        order: { select: { restaurantId: true } },
+      },
     });
 
+    const productIds = Array.from(new Set(items.map((i) => i.productId).filter((id): id is string => !!id)));
+    const [products, recipeSums] = await Promise.all([
+      prisma.product.findMany({
+        where: { id: { in: productIds } },
+        select: { id: true, costBase: true, costSource: true },
+      }),
+      prisma.recipeIngredient.groupBy({ by: ['productId'], where: { productId: { in: productIds } }, _sum: { costBase: true } }),
+    ]);
+    const recipeCostByProduct = new Map(recipeSums.map((r) => [r.productId, toDecimal(r._sum.costBase ?? 0)]));
+    const costByProduct = new Map(
+      products.map((p) => [
+        p.id,
+        p.costSource === 'RECIPE' ? (recipeCostByProduct.get(p.id) ?? toDecimal(0)) : toDecimal(p.costBase ?? 0),
+      ]),
+    );
+
     return ids.map((id) => {
-      const byProduct = new Map<string, { name: string; quantity: number; revenueBase: Prisma.Decimal }>();
+      const byProduct = new Map<
+        string,
+        { name: string; quantity: number; revenueBase: Prisma.Decimal; costBase: Prisma.Decimal }
+      >();
       for (const item of items) {
         if (item.order.restaurantId !== id) continue;
         const name = item.variantName ? `${item.productName} (${item.variantName})` : item.productName;
+        const unitCost = item.productId ? costByProduct.get(item.productId) ?? toDecimal(0) : toDecimal(0);
+        const lineCost = unitCost.mul(item.quantity);
         const entry = byProduct.get(name);
         if (entry) {
           entry.quantity += item.quantity;
           entry.revenueBase = entry.revenueBase.add(item.lineTotal);
+          entry.costBase = entry.costBase.add(lineCost);
         } else {
-          byProduct.set(name, { name, quantity: item.quantity, revenueBase: toDecimal(item.lineTotal) });
+          byProduct.set(name, { name, quantity: item.quantity, revenueBase: toDecimal(item.lineTotal), costBase: lineCost });
         }
       }
 
@@ -359,11 +388,87 @@ export const branchService = {
         name: names.get(id) ?? id,
         isMain: id === mainId,
         topProducts: Array.from(byProduct.values())
-          .map((p) => ({ name: p.name, quantity: p.quantity, revenueBase: round2(p.revenueBase).toFixed(2) }))
+          .map((p) => ({
+            name: p.name,
+            quantity: p.quantity,
+            revenueBase: round2(p.revenueBase).toFixed(2),
+            profitBase: round2(p.revenueBase.sub(p.costBase)).toFixed(2),
+          }))
           .sort((a, b) => b.quantity - a.quantity)
           .slice(0, 5),
       };
     });
+  },
+
+  /**
+   * Detalle de ventas de UNA sede (comandas completas con items+pagos) + el
+   * desglose de montos por método de pago — drill-down al presionar una fila
+   * en "Ventas por sucursal", mismo patrón que getSalesStatsUserOrders.
+   */
+  async getBranchSalesDetail(restaurantId: string, branchId: string, range: ReportRange, date?: string) {
+    const { ids, names } = await this.resolveScope(restaurantId);
+    if (!ids.includes(branchId)) throw notFound('Esa sede no pertenece a tu cuenta.');
+
+    const orders = await prisma.order.findMany({
+      where: { restaurantId: branchId, status: { not: 'CANCELLED' }, createdAt: resolveDateFilter({ range, date }) },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        orderNumber: true,
+        channel: true,
+        status: true,
+        paymentMethod: true,
+        totalBase: true,
+        totalBs: true,
+        currency: true,
+        customerName: true,
+        createdAt: true,
+        table: { select: { number: true } },
+        items: { select: { productName: true, variantName: true, quantity: true, unitPrice: true, lineTotal: true } },
+        payments: { select: { method: true, referenceNumber: true, amountBase: true, discountBase: true, createdAt: true } },
+      },
+    });
+
+    const paymentTotals = new Map<string, Prisma.Decimal>();
+    for (const o of orders) {
+      for (const p of o.payments) {
+        paymentTotals.set(p.method, (paymentTotals.get(p.method) ?? toDecimal(0)).add(p.amountBase));
+      }
+    }
+
+    return {
+      branchId,
+      name: names.get(branchId) ?? branchId,
+      orders: orders.map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        channel: o.channel,
+        status: o.status,
+        paymentMethod: o.paymentMethod,
+        totalBase: o.totalBase.toFixed(2),
+        totalBs: o.totalBs.toFixed(2),
+        currency: o.currency,
+        customerName: o.customerName,
+        table: o.table?.number ?? null,
+        createdAt: o.createdAt,
+        items: o.items.map((i) => ({
+          productName: i.variantName ? `${i.productName} (${i.variantName})` : i.productName,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice.toFixed(2),
+          lineTotal: i.lineTotal.toFixed(2),
+        })),
+        payments: o.payments.map((p) => ({
+          method: p.method,
+          referenceNumber: p.referenceNumber,
+          amountBase: p.amountBase.toFixed(2),
+          discountBase: p.discountBase?.toFixed(2) ?? null,
+          createdAt: p.createdAt,
+        })),
+      })),
+      paymentTotals: Array.from(paymentTotals.entries())
+        .map(([method, amountBase]) => ({ method, amountBase: round2(amountBase).toFixed(2) }))
+        .sort((a, b) => Number(b.amountBase) - Number(a.amountBase)),
+    };
   },
 
   /** Equipo de cada sede (sin el OWNER, igual que team.service.ts). */

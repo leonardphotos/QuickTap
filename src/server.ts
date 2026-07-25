@@ -5,6 +5,7 @@ import { initSockets } from './sockets';
 import { prisma } from './config/prisma';
 import { exchangeRateService } from './modules/exchange-rate/exchange-rate.service';
 import { demoResetService } from './utils/demo-reset.service';
+import { demoSimulatorService } from './utils/demo-simulator.service';
 
 async function bootstrap() {
   const app = createApp();
@@ -35,6 +36,12 @@ async function bootstrap() {
     }
   }, DEMO_SWEEP_INTERVAL_MS);
 
+  // Entorno Demo Efímero: "movimiento en vivo" — un pedido nuevo (o el avance
+  // de uno existente) cada 20s, y consumo de inventario cada 6s, para que el
+  // restaurante demo se sienta activo aunque nadie lo esté operando.
+  const demoOrderSimInterval = setInterval(() => demoSimulatorService.tickOrder().catch(() => undefined), 20 * 1000);
+  const demoInventorySimInterval = setInterval(() => demoSimulatorService.tickInventory().catch(() => undefined), 6 * 1000);
+
   // Solo localhost: Nginx (misma máquina) es el único que debe llegar a este
   // puerto — así queda fuera de alcance directo de internet aunque el
   // firewall se desconfigure alguna vez.
@@ -49,6 +56,8 @@ async function bootstrap() {
     console.log(`\n${signal} recibido. Cerrando...`);
     clearInterval(refreshInterval);
     clearInterval(demoSweepInterval);
+    clearInterval(demoOrderSimInterval);
+    clearInterval(demoInventorySimInterval);
     server.close();
     await prisma.$disconnect();
     process.exit(0);

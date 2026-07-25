@@ -31,6 +31,11 @@ export const branchController = {
     res.json({ data: await branchService.getSalesByBranch(req.restaurantId!, range, date) });
   }),
 
+  branchSalesDetail: asyncHandler(async (req: Request, res: Response) => {
+    const { range, date } = branchReportQuerySchema.parse(req.query);
+    res.json({ data: await branchService.getBranchSalesDetail(req.restaurantId!, req.params.branchId, range, date) });
+  }),
+
   inventoryByBranch: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await branchService.getInventoryByBranch(req.restaurantId!) });
   }),

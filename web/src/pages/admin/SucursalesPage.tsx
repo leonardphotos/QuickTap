@@ -2,12 +2,15 @@ import { useEffect, useState } from 'react';
 import { ArrowRight, Building2, ChevronDown, Plus, TriangleAlert } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
+import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { PAYMENT_LABELS } from '@/components/admin/PaymentDialog';
+import type { OrderChannel, PaymentMethod } from '@/types';
 
 type Range = 'day' | 'week' | 'month' | 'year' | 'all';
 const RANGE_LABELS: Record<Range, string> = { day: 'Hoy', week: 'Semana', month: 'Mes', year: 'Año', all: 'Todo' };
+const CHANNEL_ROW_LABELS: Record<OrderChannel, string> = { DINE_IN: 'Mesa', DELIVERY: 'Delivery', PICKUP: 'Pickup', BAR: 'Barra' };
 
 const TABS = [
   { id: 'summary', label: 'Resumen' },
@@ -106,7 +109,7 @@ export default function SucursalesPage() {
       {tab === 'summary' && <SummaryTab />}
       {tab === 'sales' && <SalesByBranchTab symbol={restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$'} />}
       {tab === 'inventory' && <InventoryByBranchTab />}
-      {tab === 'products' && <TopProductsTab />}
+      {tab === 'products' && <TopProductsTab symbol={restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$'} />}
       {tab === 'employees' && <EmployeesTab />}
 
       {showAddDialog && (
@@ -174,9 +177,48 @@ function SummaryTab() {
   );
 }
 
+interface BranchSaleItem {
+  productName: string;
+  quantity: number;
+  unitPrice: string;
+  lineTotal: string;
+}
+
+interface BranchSalePayment {
+  method: string;
+  referenceNumber: string | null;
+  amountBase: string;
+  discountBase: string | null;
+  createdAt: string;
+}
+
+interface BranchSale {
+  id: string;
+  orderNumber: number;
+  channel: OrderChannel;
+  status: string;
+  paymentMethod: string | null;
+  totalBase: string;
+  totalBs: string;
+  currency: string;
+  customerName: string | null;
+  table: string | null;
+  createdAt: string;
+  items: BranchSaleItem[];
+  payments: BranchSalePayment[];
+}
+
+interface BranchSalesDetail {
+  branchId: string;
+  name: string;
+  orders: BranchSale[];
+  paymentTotals: { method: string; amountBase: string }[];
+}
+
 function SalesByBranchTab({ symbol }: { symbol: string }) {
   const [range, setRange] = useState<Range>('month');
   const [rows, setRows] = useState<{ branchId: string; name: string; isMain: boolean; ordersCount: number; totalBase: string }[]>([]);
+  const [selectedBranch, setSelectedBranch] = useState<{ id: string; isMain: boolean } | null>(null);
 
   useEffect(() => {
     api
@@ -190,7 +232,11 @@ function SalesByBranchTab({ symbol }: { symbol: string }) {
       <RangePicker range={range} onChange={setRange} />
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
         {rows.map((r) => (
-          <div key={r.branchId} className="flex items-center justify-between p-4">
+          <button
+            key={r.branchId}
+            onClick={() => setSelectedBranch({ id: r.branchId, isMain: r.isMain })}
+            className="w-full flex items-center justify-between p-4 text-left hover:bg-brand-950/[0.02]"
+          >
             <div>
               <p className="text-sm font-medium text-brand-950">
                 {r.name} {r.isMain && <span className="text-xs text-brand-950/40 font-normal">(sede principal)</span>}
@@ -198,10 +244,154 @@ function SalesByBranchTab({ symbol }: { symbol: string }) {
               <p className="text-xs text-brand-950/50">{r.ordersCount} pedidos</p>
             </div>
             <p className="text-sm font-semibold text-brand-950">{formatBase(r.totalBase, symbol)}</p>
-          </div>
+          </button>
         ))}
       </div>
+
+      {selectedBranch && (
+        <BranchSalesDialog
+          branchId={selectedBranch.id}
+          range={range}
+          symbol={symbol}
+          onClose={() => setSelectedBranch(null)}
+        />
+      )}
     </div>
+  );
+}
+
+/** Drill-down al presionar una sucursal en "Ventas por sucursal": historial completo + montos por método de pago. */
+function BranchSalesDialog({
+  branchId,
+  range,
+  symbol,
+  onClose,
+}: {
+  branchId: string;
+  range: Range;
+  symbol: string;
+  onClose: () => void;
+}) {
+  const [detail, setDetail] = useState<BranchSalesDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedSale, setSelectedSale] = useState<BranchSale | null>(null);
+
+  useEffect(() => {
+    setLoading(true);
+    api
+      .get(`/branches/reports/sales/${branchId}`, { params: { range } })
+      .then((res) => setDetail(res.data.data))
+      .finally(() => setLoading(false));
+  }, [branchId, range]);
+
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{detail ? detail.name : 'Ventas de la sucursal'}</DialogTitle>
+        </DialogHeader>
+
+        <div className="max-h-[60vh] overflow-y-auto space-y-1">
+          {loading && <p className="text-sm text-brand-950/40 font-light py-2">Cargando ventas…</p>}
+          {!loading && detail?.orders.length === 0 && (
+            <p className="text-sm text-brand-950/40 font-light py-2">Sin ventas en este período.</p>
+          )}
+          {!loading &&
+            detail?.orders.map((sale) => (
+              <button
+                key={sale.id}
+                onClick={() => setSelectedSale(sale)}
+                className="w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-brand-950/[0.04]"
+              >
+                <div className="min-w-0">
+                  <p className="font-medium text-brand-950">
+                    #{sale.orderNumber} · {sale.table ? `Mesa ${sale.table}` : CHANNEL_ROW_LABELS[sale.channel]}
+                  </p>
+                  <p className="text-xs text-brand-950/40">
+                    {new Date(sale.createdAt).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })}
+                  </p>
+                </div>
+                <p className="font-semibold text-brand-950 shrink-0">{formatBase(sale.totalBase, symbol)}</p>
+              </button>
+            ))}
+        </div>
+
+        {!loading && detail && detail.paymentTotals.length > 0 && (
+          <div className="pt-3 border-t border-brand-950/10">
+            <p className="text-xs font-medium text-brand-950/60 mb-1.5">Montos por método de pago</p>
+            <div className="rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
+              {detail.paymentTotals.map((p) => (
+                <div key={p.method} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                  <p className="text-brand-950/80">{PAYMENT_LABELS[p.method as PaymentMethod] ?? p.method}</p>
+                  <p className="font-medium text-brand-950">{formatBase(p.amountBase, symbol)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </DialogContent>
+
+      {selectedSale && <BranchSaleDetailDialog sale={selectedSale} symbol={symbol} onClose={() => setSelectedSale(null)} />}
+    </Dialog>
+  );
+}
+
+/** Detalle completo de una venta dentro del drill-down de una sucursal. */
+function BranchSaleDetailDialog({ sale, symbol, onClose }: { sale: BranchSale; symbol: string; onClose: () => void }) {
+  return (
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>
+            Pedido #{sale.orderNumber} · {sale.table ? `Mesa ${sale.table}` : CHANNEL_ROW_LABELS[sale.channel]}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <p className="text-xs text-brand-950/50 font-light">
+            {new Date(sale.createdAt).toLocaleString('es-VE', { dateStyle: 'medium', timeStyle: 'short' })}
+            {sale.customerName && ` · ${sale.customerName}`}
+          </p>
+
+          <div>
+            <p className="text-xs font-medium text-brand-950/60 mb-1.5">Comanda</p>
+            <div className="rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
+              {sale.items.map((item, i) => (
+                <div key={i} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                  <p className="text-brand-950/80">
+                    {item.quantity}× {item.productName}
+                  </p>
+                  <p className="font-medium text-brand-950 shrink-0">{formatBase(item.lineTotal, symbol)}</p>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center justify-between gap-2 px-1 pt-2 text-sm font-semibold text-brand-950">
+              <p>Total</p>
+              <p>
+                {formatBase(sale.totalBase, symbol)} · {formatBsAbsolute(sale.totalBs)}
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <p className="text-xs font-medium text-brand-950/60 mb-1.5">Pago{sale.payments.length === 1 ? '' : 's'}</p>
+            {sale.payments.length === 0 ? (
+              <p className="text-xs text-brand-950/40 font-light">
+                Sin pago registrado{sale.paymentMethod ? ` (método: ${PAYMENT_LABELS[sale.paymentMethod as PaymentMethod] ?? sale.paymentMethod})` : ''}.
+              </p>
+            ) : (
+              <div className="rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
+                {sale.payments.map((p, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                    <p className="font-medium text-brand-950">{PAYMENT_LABELS[p.method as PaymentMethod] ?? p.method}</p>
+                    <p className="text-brand-950/60">{formatBase(p.amountBase, symbol)}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -256,11 +446,14 @@ function InventoryByBranchTab() {
               </div>
             </button>
 
-            {r.items.length === 0 ? (
-              <p className="px-4 pb-4 text-xs text-brand-950/50">Sin insumos cargados.</p>
-            ) : (
+            {isOpen && (() => {
+              const visibleItems = lowCount > 0 ? r.items.filter((i) => i.low) : r.items;
+              if (visibleItems.length === 0) {
+                return <p className="px-4 pb-4 text-xs text-brand-950/50">Sin insumos cargados.</p>;
+              }
+              return (
               <div className="px-4 pb-4 space-y-3">
-                {r.items.map((item) => {
+                {visibleItems.map((item) => {
                   const qty = Number(item.quantity);
                   const minQty = Number(item.minQuantity);
                   const ratio = minQty > 0 ? Math.min(1, qty / (minQty * 2)) : 1;
@@ -283,7 +476,8 @@ function InventoryByBranchTab() {
                   );
                 })}
               </div>
-            )}
+              );
+            })()}
           </div>
         );
       })}
@@ -291,10 +485,15 @@ function InventoryByBranchTab() {
   );
 }
 
-function TopProductsTab() {
+function TopProductsTab({ symbol }: { symbol: string }) {
   const [range, setRange] = useState<Range>('month');
   const [rows, setRows] = useState<
-    { branchId: string; name: string; isMain: boolean; topProducts: { name: string; quantity: number; revenueBase: string }[] }[]
+    {
+      branchId: string;
+      name: string;
+      isMain: boolean;
+      topProducts: { name: string; quantity: number; revenueBase: string; profitBase: string }[];
+    }[]
   >([]);
 
   useEffect(() => {
@@ -318,8 +517,11 @@ function TopProductsTab() {
             <div className="space-y-1.5">
               {r.topProducts.map((p) => (
                 <div key={p.name} className="flex items-center justify-between gap-2 text-sm text-brand-950/70">
-                  <span>{p.name}</span>
-                  <span className="text-brand-950/50">{p.quantity} und.</span>
+                  <span className="truncate">{p.name}</span>
+                  <span className="text-right shrink-0">
+                    <span className="text-brand-950/50">{p.quantity} und.</span>
+                    <span className="text-emerald-600 font-medium ml-2">+{formatBase(p.profitBase, symbol)}</span>
+                  </span>
                 </div>
               ))}
             </div>

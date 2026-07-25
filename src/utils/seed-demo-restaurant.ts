@@ -739,6 +739,9 @@ async function seedBranch(
     { email: `cajero.${branch.emailPrefix}.demo@quicktap.club`, name: `Cajero ${branch.name}`, role: 'CASHIER' },
     { email: `mesero.${branch.emailPrefix}.demo@quicktap.club`, name: `Mesero ${branch.name}`, role: 'WAITER' },
     { email: `cocina.${branch.emailPrefix}.demo@quicktap.club`, name: `Cocina ${branch.name}`, role: 'KITCHEN' },
+    { email: `pantalla.${branch.emailPrefix}.demo@quicktap.club`, name: `Pantalla ${branch.name}`, role: 'SCREEN' },
+    { email: `comanda.${branch.emailPrefix}.demo@quicktap.club`, name: `Comanda ${branch.name}`, role: 'COMANDA' },
+    { email: `numero.${branch.emailPrefix}.demo@quicktap.club`, name: `Numero ${branch.name}`, role: 'NUMERO' },
   ]);
 
   const { products } = await seedCatalog(prisma, restaurant.id);
