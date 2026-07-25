@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { motion } from 'motion/react';
 import {
   QrCode,
   ChefHat,
@@ -363,8 +364,47 @@ export default function SolutionsPage() {
   const [demoOpen, setDemoOpen] = useState(false);
   const [enteringRole, setEnteringRole] = useState<string | null>(null);
   const [demoError, setDemoError] = useState<string | null>(null);
+  const [showScrollHint, setShowScrollHint] = useState(true);
+  const scrollCancelledRef = useRef(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  // Auto-scroll lento al entrar para invitar a ver todo el contenido — se detiene
+  // apenas la persona interactúa (scroll, touch, tecla o click) y no vuelve a arrancar.
+  useEffect(() => {
+    function cancelAutoScroll() {
+      if (scrollCancelledRef.current) return;
+      scrollCancelledRef.current = true;
+      setShowScrollHint(false);
+    }
+    window.addEventListener('wheel', cancelAutoScroll, { passive: true });
+    window.addEventListener('touchstart', cancelAutoScroll, { passive: true });
+    window.addEventListener('keydown', cancelAutoScroll);
+    window.addEventListener('click', cancelAutoScroll);
+
+    let rafId: number;
+    const startTimeout = setTimeout(() => {
+      function step() {
+        if (scrollCancelledRef.current) return;
+        window.scrollBy(0, 0.6);
+        if (window.scrollY + window.innerHeight < document.body.scrollHeight - 2) {
+          rafId = requestAnimationFrame(step);
+        } else {
+          setShowScrollHint(false);
+        }
+      }
+      rafId = requestAnimationFrame(step);
+    }, 1600);
+
+    return () => {
+      clearTimeout(startTimeout);
+      cancelAnimationFrame(rafId);
+      window.removeEventListener('wheel', cancelAutoScroll);
+      window.removeEventListener('touchstart', cancelAutoScroll);
+      window.removeEventListener('keydown', cancelAutoScroll);
+      window.removeEventListener('click', cancelAutoScroll);
+    };
+  }, []);
 
   async function enterDemoAs(demoRole: DemoRole) {
     setEnteringRole(demoRole.role);
@@ -419,6 +459,17 @@ export default function SolutionsPage() {
               Ver restaurante de demostración
             </TextureButton>
           </div>
+        </div>
+
+        {/* Flecha que invita a hacer scroll — se desvanece apenas la persona interactúa */}
+        <div
+          className={`absolute bottom-6 inset-x-0 flex justify-center transition-opacity duration-700 ${
+            showScrollHint ? 'opacity-100' : 'opacity-0 pointer-events-none'
+          }`}
+        >
+          <motion.div animate={{ y: [0, 8, 0] }} transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}>
+            <ChevronDown className="h-7 w-7 text-brand-950/30" />
+          </motion.div>
         </div>
       </section>
 
