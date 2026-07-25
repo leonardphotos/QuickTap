@@ -307,6 +307,10 @@ model Restaurant {
   // Cuenta de demostración (sembrada con `npm run seed:demo`): sus pedidos y
   // su facturación se excluyen del reporte financiero del Dashboard maestro.
   isDemo Boolean @default(false)
+  // Última actividad (request autenticado) de un usuario en la cuenta demo —
+  // solo se actualiza cuando isDemo=true. El barrido periódico (ver server.ts)
+  // resetea el demo cuando esto queda viejo (pestaña cerrada/abandonada).
+  demoLastActivityAt DateTime?
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())

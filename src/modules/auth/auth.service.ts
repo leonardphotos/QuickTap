@@ -9,6 +9,7 @@ import { isLockedAsync, trialPeriodEnd } from '../../utils/subscription';
 import { sendMail } from '../../utils/mailer';
 import { CURRENCY_SYMBOLS } from '../../utils/money';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
+import { demoResetService } from '../../utils/demo-reset.service';
 import { ForgotPasswordInput, LoginInput, RegisterInput, ResetPasswordInput } from './auth.dto';
 
 const RESET_CODE_TTL_MINUTES = 15;
@@ -65,6 +66,7 @@ const RESTAURANT_SELECT = {
   parentRestaurantId: true,
   pendingWelcomePlan: true,
   deleteOrderPinHash: true,
+  isDemo: true,
 } as const;
 
 type RestaurantRow = {
@@ -102,6 +104,7 @@ type RestaurantRow = {
   parentRestaurantId: string | null;
   pendingWelcomePlan: string | null;
   deleteOrderPinHash: string | null;
+  isDemo: boolean;
 };
 
 /** Forma que el frontend consume: agrega `locked`, calculado en vivo (nunca persistido; ver isLockedAsync),
@@ -128,6 +131,7 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
     currencySymbol: CURRENCY_SYMBOLS[restaurant.baseCurrency],
     exchangeRate,
     theme: restaurant.theme,
+    isDemo: restaurant.isDemo,
     serviceChargeEnabled: restaurant.serviceChargeEnabled,
     ivaEnabled: restaurant.ivaEnabled,
     rif: restaurant.rif,
@@ -235,6 +239,33 @@ export const authService = {
     throw unauthorized('Credenciales inválidas.');
   },
 
+  /**
+   * Entorno Demo Efímero: si la sesión que cierra es la cuenta demo, resetea
+   * el restaurante de inmediato (borra y vuelve a sembrar) en vez de esperar
+   * al barrido de inactividad. Acepta el token por header Bearer (logout
+   * normal) o en el body (navigator.sendBeacon del cierre de pestaña, que no
+   * puede mandar headers) — siempre responde silenciosamente ante cualquier
+   * problema: un logout nunca debe fallar de forma visible para el usuario.
+   */
+  async logout(token: string | undefined) {
+    if (!token) return;
+    let payload: { restaurantId?: string };
+    try {
+      payload = jwt.verify(token, env.jwtSecret) as { restaurantId?: string };
+    } catch {
+      return;
+    }
+    if (!payload.restaurantId) return;
+
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: payload.restaurantId },
+      select: { isDemo: true },
+    });
+    if (restaurant?.isDemo) {
+      await demoResetService.reset();
+    }
+  },
+
   async buildSession(
     user: { id: string; name: string; email: string; role: string; canAccessInventory: boolean },
     restaurant: RestaurantRow,
@@ -277,7 +308,13 @@ export const authService = {
    */
   async forgotPassword(input: ForgotPasswordInput) {
     const candidates = await prisma.user.findMany({
-      where: { email: { equals: input.email, mode: 'insensitive' }, isActive: true, restaurant: { isActive: true } },
+      where: {
+        email: { equals: input.email, mode: 'insensitive' },
+        isActive: true,
+        // Entorno Demo Efímero: nunca se emite un código para una cuenta del
+        // restaurante demo — mismo "no revela nada" que el caso de abajo.
+        restaurant: { isActive: true, isDemo: false },
+      },
     });
     if (candidates.length === 0) return;
 

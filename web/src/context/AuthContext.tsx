@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { api, clearToken, getToken, setStoredSlug, setToken } from '../api/client';
 import type { Currency, ExchangeRateInfo, PaymentMethodsConfig, RestaurantTheme, UserRole } from '../types';
@@ -23,6 +23,8 @@ interface AuthRestaurant {
   currencySymbol: string;
   exchangeRate: ExchangeRateInfo | null;
   theme?: RestaurantTheme | null;
+  /** Entorno Demo Efímero: cuenta de demostración, se resetea sola al cerrar sesión. */
+  isDemo: boolean;
   serviceChargeEnabled: boolean;
   ivaEnabled: boolean;
   /** RIF fiscal del restaurante, informativo — condición para que QuickTap pueda activar el IVA. */
@@ -110,6 +112,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Entorno Demo Efímero, capa 1 (best-effort): al cerrar la pestaña/navegador
+  // no hay tiempo para un logout() normal (async), así que se manda un
+  // "beacon" — una petición que el navegador garantiza intentar aunque la
+  // página ya se esté descargando. No es 100% garantizado (por eso existe el
+  // barrido de inactividad en el backend como red de seguridad), pero cubre
+  // la gran mayoría de los cierres normales de pestaña/navegador.
+  const isDemoRef = useRef(false);
+  isDemoRef.current = restaurant?.isDemo ?? false;
+  useEffect(() => {
+    function sendLogoutBeacon() {
+      if (!isDemoRef.current) return;
+      const token = getToken();
+      if (!token) return;
+      const body = new Blob([JSON.stringify({ token })], { type: 'application/json' });
+      navigator.sendBeacon('/api/v1/auth/logout', body);
+    }
+    window.addEventListener('pagehide', sendLogoutBeacon);
+    return () => window.removeEventListener('pagehide', sendLogoutBeacon);
+  }, []);
+
   async function login(email: string, password: string, slug?: string) {
     const { data } = await api.post('/auth/login', { email, password, slug });
     setToken(data.data.token);
@@ -135,6 +157,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function logout() {
+    // Entorno Demo Efímero: si esta era la cuenta demo, este POST dispara el
+    // reset inmediato en el backend (ver auth.service.ts logout()) — best
+    // effort, no bloquea el logout si falla.
+    api.post('/auth/logout').catch(() => undefined);
     clearToken();
     setUser(null);
     setRestaurant(null);

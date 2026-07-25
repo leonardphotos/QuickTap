@@ -20,8 +20,11 @@ export const masterRestaurantsService = {
     // Las sucursales son otra fila de Restaurant (ver src/modules/branches/):
     // no son cuentas propias que le pagan a QuickTap, así que se excluyen
     // de este listado para no inflar/duplicar el conteo de restaurantes.
+    // La cuenta demo (isDemo, ver seed-demo-restaurant.ts) tampoco: sus
+    // pedidos/actividad no deben reflejarse bajo ninguna circunstancia en el
+    // Dashboard maestro.
     const restaurants = await prisma.restaurant.findMany({
-      where: { parentRestaurantId: null },
+      where: { parentRestaurantId: null, isDemo: false },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,

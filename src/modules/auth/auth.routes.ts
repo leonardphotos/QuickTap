@@ -11,5 +11,8 @@ router.post('/login', authRateLimit, authController.login);
 router.post('/forgot-password', passwordResetRateLimit, authController.forgotPassword);
 router.post('/reset-password', passwordResetRateLimit, authController.resetPassword);
 router.get('/me', authGuard, authController.me);
+// Sin authGuard a propósito: navigator.sendBeacon (cierre de pestaña) no puede mandar
+// headers, así que el token viaja en el body — auth.controller.logout lo valida a mano.
+router.post('/logout', authController.logout);
 
 export default router;

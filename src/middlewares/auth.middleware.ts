@@ -77,10 +77,19 @@ export function requireRole(...roles: string[]) {
  */
 function blockIfLocked(req: Request, _res: Response, next: NextFunction) {
   prisma.restaurant
-    .findUnique({ where: { id: req.restaurantId }, select: { periodEnd: true, suspended: true, parentRestaurantId: true } })
+    .findUnique({
+      where: { id: req.restaurantId },
+      select: { periodEnd: true, suspended: true, parentRestaurantId: true, isDemo: true },
+    })
     .then(async (restaurant) => {
       if (restaurant && (await isLockedAsync(restaurant))) {
         throw new HttpError(403, 'Esta cuenta está bloqueada por falta de pago.', { code: 'ACCOUNT_LOCKED' });
+      }
+      // Entorno Demo Efímero: cada request autenticado cuenta como "sigue en uso" —
+      // fire-and-forget, no bloquea la respuesta. El barrido de inactividad
+      // (server.ts) resetea el demo cuando esto queda viejo (pestaña cerrada).
+      if (restaurant?.isDemo) {
+        prisma.restaurant.update({ where: { id: req.restaurantId }, data: { demoLastActivityAt: new Date() } }).catch(() => undefined);
       }
       next();
     })
@@ -127,6 +136,32 @@ export function requireInventoryAccess(req: Request, _res: Response, next: NextF
       next();
     })
     .catch(next);
+}
+
+/**
+ * Entorno Demo Efímero: bloquea por completo una ruta cuando el restaurante
+ * es la cuenta demo (ej. "Eliminar" en Equipo) — cualquier otro cambio se
+ * deshace solo al resetearse, así que no hace falta bloquearlo también.
+ */
+export function blockIfDemo(req: Request, _res: Response, next: NextFunction) {
+  prisma.restaurant
+    .findUnique({ where: { id: req.restaurantId }, select: { isDemo: true } })
+    .then((restaurant) => {
+      if (restaurant?.isDemo) {
+        throw forbidden('No disponible en el entorno demo.');
+      }
+      next();
+    })
+    .catch(next);
+}
+
+/** Igual que `blockIfDemo`, pero solo si el body trae `role` — deja pasar el resto de un PATCH sin tocar. */
+export function blockIfDemoRoleChange(req: Request, res: Response, next: NextFunction) {
+  if (req.body?.role === undefined) {
+    next();
+    return;
+  }
+  blockIfDemo(req, res, next);
 }
 
 /**

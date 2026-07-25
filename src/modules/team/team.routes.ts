@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
+import { blockIfDemo, blockIfDemoRoleChange, requireRole, tenantGuard } from '../../middlewares/auth.middleware';
 import { TEAM_MANAGER_ROLES } from '../../utils/roles';
 import { teamController } from './team.controller';
 
@@ -10,8 +10,8 @@ router.use(requireRole(...TEAM_MANAGER_ROLES));
 
 router.get('/', teamController.list);
 router.post('/', teamController.create);
-router.patch('/:id', teamController.update);
+router.patch('/:id', blockIfDemoRoleChange, teamController.update);
 router.patch('/:id/tables', teamController.assignTables);
-router.delete('/:id', teamController.remove);
+router.delete('/:id', blockIfDemo, teamController.remove);
 
 export default router;

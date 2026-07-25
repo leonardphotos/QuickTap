@@ -4,6 +4,7 @@ import { env } from './config/env';
 import { initSockets } from './sockets';
 import { prisma } from './config/prisma';
 import { exchangeRateService } from './modules/exchange-rate/exchange-rate.service';
+import { demoResetService } from './utils/demo-reset.service';
 
 async function bootstrap() {
   const app = createApp();
@@ -20,6 +21,20 @@ async function bootstrap() {
     env.exchangeRate.ttlHours * 60 * 60 * 1000,
   );
 
+  // Entorno Demo Efímero: barrido de inactividad, red de seguridad del logout
+  // explícito — cubre cierres de pestaña forzados/crash que nunca llegan a
+  // avisarle al backend. 5 minutos sin actividad = se resetea el demo.
+  const DEMO_SWEEP_INTERVAL_MS = 2 * 60 * 1000;
+  const DEMO_INACTIVITY_TIMEOUT_MS = 5 * 60 * 1000;
+  const demoSweepInterval = setInterval(async () => {
+    try {
+      const stale = await demoResetService.findStaleDemoRestaurants(DEMO_INACTIVITY_TIMEOUT_MS);
+      if (stale.length > 0) await demoResetService.reset();
+    } catch {
+      // Se reintenta en el próximo barrido.
+    }
+  }, DEMO_SWEEP_INTERVAL_MS);
+
   // Solo localhost: Nginx (misma máquina) es el único que debe llegar a este
   // puerto — así queda fuera de alcance directo de internet aunque el
   // firewall se desconfigure alguna vez.
@@ -33,6 +48,7 @@ async function bootstrap() {
 
     console.log(`\n${signal} recibido. Cerrando...`);
     clearInterval(refreshInterval);
+    clearInterval(demoSweepInterval);
     server.close();
     await prisma.$disconnect();
     process.exit(0);

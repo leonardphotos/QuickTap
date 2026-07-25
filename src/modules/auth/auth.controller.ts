@@ -33,4 +33,12 @@ export const authController = {
     await authService.resetPassword(input);
     res.json({ data: { message: 'Contraseña actualizada.' } });
   }),
+
+  /** Header Bearer normal, o `{ token }` en el body — navigator.sendBeacon (cierre de pestaña) no puede mandar headers. */
+  logout: asyncHandler(async (req: Request, res: Response) => {
+    const header = req.headers.authorization;
+    const token = header?.startsWith('Bearer ') ? header.slice('Bearer '.length) : req.body?.token;
+    await authService.logout(token);
+    res.json({ data: { ok: true } });
+  }),
 };

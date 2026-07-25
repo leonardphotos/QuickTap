@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { api } from '@/api/client';
+import { useAuth } from '@/context/AuthContext';
 import type { StaffMember, UserRole } from '@/types';
 import { ASSIGNABLE_TEAM_ROLES, ROLE_LABELS } from '@/utils/roles';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -13,6 +14,8 @@ const emptyForm = { name: '', email: '', password: '', role: 'WAITER' as UserRol
 const INVENTORY_ELIGIBLE_ROLES: UserRole[] = ['WAITER', 'KITCHEN'];
 
 export function TeamSection() {
+  const { restaurant } = useAuth();
+  const isDemo = restaurant?.isDemo ?? false;
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
@@ -143,17 +146,23 @@ export function TeamSection() {
             editingId === s.id && editDraft ? (
               <li key={s.id} className="space-y-2 px-3 py-3 text-sm">
                 <p className="font-medium text-brand-950">{s.name}</p>
-                <select
-                  value={editDraft.role}
-                  onChange={(e) => setEditDraft({ ...editDraft, role: e.target.value as UserRole })}
-                  className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
-                >
-                  {ASSIGNABLE_TEAM_ROLES.map((r) => (
-                    <option key={r} value={r}>
-                      {ROLE_LABELS[r]}
-                    </option>
-                  ))}
-                </select>
+                {isDemo ? (
+                  <p className="text-xs text-brand-950/50 font-light">
+                    El rol no se puede cambiar en el entorno demo ({ROLE_LABELS[editDraft.role]}).
+                  </p>
+                ) : (
+                  <select
+                    value={editDraft.role}
+                    onChange={(e) => setEditDraft({ ...editDraft, role: e.target.value as UserRole })}
+                    className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+                  >
+                    {ASSIGNABLE_TEAM_ROLES.map((r) => (
+                      <option key={r} value={r}>
+                        {ROLE_LABELS[r]}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 {INVENTORY_ELIGIBLE_ROLES.includes(editDraft.role) && (
                   <label className="flex items-center gap-2 text-xs text-brand-950/70">
                     <input
@@ -219,9 +228,11 @@ export function TeamSection() {
                   <button onClick={() => startEdit(s)} className="text-brand-500 hover:text-brand-400 text-xs">
                     Editar
                   </button>
-                  <button onClick={() => remove(s.id)} className="text-red-500 hover:text-red-600 text-xs">
-                    Eliminar
-                  </button>
+                  {!isDemo && (
+                    <button onClick={() => remove(s.id)} className="text-red-500 hover:text-red-600 text-xs">
+                      Eliminar
+                    </button>
+                  )}
                 </div>
               </li>
             ),
