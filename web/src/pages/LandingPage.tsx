@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { AnimatePresence, motion, useScroll, useSpring, useTransform } from 'motion/react';
 import { Banknote, SmartphoneNfc, MessageCircle, ChefHat, CircleDollarSign, Boxes, Clock, Printer } from 'lucide-react';
 import { TextureButton } from '@/components/ui/texture-button';
+import { GradientBackground } from '@/components/ui/gradient-background';
 import { PricingSection } from '@/components/landing/PricingSection';
 import { IntroLoader } from '@/components/landing/IntroLoader';
 
@@ -121,23 +122,8 @@ export default function LandingPage() {
         <div ref={scrollRef} className="h-screen overflow-y-scroll snap-y snap-mandatory scroll-smooth">
           {/* Hero: pantalla completa, fondo oscuro con resplandor radial (estilo cleanmyseo.com) y parallax */}
           <section ref={heroRef} className="relative h-screen snap-start overflow-hidden bg-brand-950">
-            <motion.div
-              aria-hidden
-              style={{ y: glowY }}
-              className="pointer-events-none absolute inset-0 overflow-hidden"
-            >
-              <div
-                className="absolute left-1/2 top-full w-[160%] aspect-square -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl opacity-80"
-                style={{
-                  background: 'radial-gradient(circle, #0597f2 0%, #7c3aed 38%, #fb923c 62%, transparent 75%)',
-                }}
-              />
-              <div
-                className="absolute left-1/2 top-full w-[90%] aspect-square -translate-x-1/2 -translate-y-[35%] rounded-full blur-2xl opacity-60"
-                style={{
-                  background: 'radial-gradient(circle, #38bdf8 0%, #056cf2 45%, transparent 70%)',
-                }}
-              />
+            <motion.div aria-hidden style={{ y: glowY }} className="absolute inset-0 overflow-hidden">
+              <GradientBackground className="!min-h-0 h-full w-full" />
             </motion.div>
 
             <motion.div
