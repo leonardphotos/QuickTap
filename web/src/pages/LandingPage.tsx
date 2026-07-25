@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowRight } from 'lucide-react';
 import { IntroLoader } from '@/components/landing/IntroLoader';
-import { BeamsBackground } from '@/components/ui/beams-background';
+import { GradientWave } from '@/components/ui/gradient-wave';
 
 /** Espejo en JS de --ease-out-strong (index.css): arranca rápido, se siente intencional. */
 const EASE_OUT: [number, number, number, number] = [0.23, 1, 0.32, 1];
@@ -23,7 +23,7 @@ export default function LandingPage() {
         initial={{ opacity: 0 }}
         animate={{ opacity: showIntro ? 0 : 1 }}
         transition={{ duration: 0.5, ease: EASE_OUT }}
-        className="h-screen overflow-hidden text-white"
+        className="h-screen overflow-hidden text-brand-950"
       >
         {/* Nav flotante, estilo "cult-seo": pastilla oscura translúcida sobre el hero */}
         <header className="fixed top-4 inset-x-0 z-30 px-4">
@@ -49,29 +49,33 @@ export default function LandingPage() {
           </div>
         </header>
 
-        {/* Tarjeta única a pantalla completa, fondo de rayos animado, contenido abajo a la izquierda */}
-        <BeamsBackground className="h-screen min-h-0">
-          <div className="h-screen flex flex-col items-start justify-end px-6 sm:px-12 pb-16 sm:pb-20 text-left">
-            <p className="text-xs font-medium text-white/40 tracking-wide">QuickTap</p>
-            <h1 className="mt-4 text-4xl sm:text-6xl font-bold tracking-tight">Todo a un toque.</h1>
-            <p className="mt-3 text-base sm:text-lg text-white/60 max-w-md font-light">
+        {/* Tarjeta única a pantalla completa, fondo de onda animada, contenido abajo a la izquierda */}
+        <section className="relative h-screen overflow-hidden bg-white">
+          <GradientWave />
+          <div className="relative z-10 h-screen flex flex-col items-start justify-end px-6 sm:px-12 pb-16 sm:pb-20 text-left">
+            <p className="text-xs font-medium text-brand-950/50 tracking-wide">QuickTap</p>
+            <h1 className="mt-4 text-4xl sm:text-6xl font-bold tracking-tight text-brand-950">Todo a un toque.</h1>
+            <p className="mt-3 text-base sm:text-lg text-brand-950/70 max-w-md font-light">
               Menú digital, comandas en tiempo real y delivery por WhatsApp para tu restaurante.
             </p>
 
             <div className="mt-8 flex flex-col sm:flex-row items-start gap-4 sm:gap-8">
               <Link
                 to="/soluciones"
-                className="group flex items-center gap-1.5 text-base font-medium text-white transition-colors hover:text-white/70"
+                className="group flex items-center gap-1.5 text-base font-medium text-brand-950 transition-colors hover:text-brand-950/70"
               >
                 Conoce sobre QuickTap
                 <ArrowRight className="h-4 w-4 transition-transform duration-200 ease-out-strong group-hover:translate-x-1" />
               </Link>
-              <Link to="/planes" className="text-base font-medium text-white/60 transition-colors hover:text-white">
+              <Link
+                to="/planes"
+                className="text-base font-medium text-brand-950/60 transition-colors hover:text-brand-950"
+              >
                 Ver planes
               </Link>
             </div>
           </div>
-        </BeamsBackground>
+        </section>
       </motion.div>
     </>
   );
