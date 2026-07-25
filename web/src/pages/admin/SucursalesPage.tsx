@@ -215,19 +215,10 @@ interface BranchInventoryItem {
   low: boolean;
 }
 
-const SUB_UNIT_LABELS: Record<string, string> = { kg: 'kg', lt: 'L', ml: 'ml', unidad: 'unidad' };
-
-/** Formatea una cantidad en la unidad base (kg/lt) a la sub-unidad más legible (g/ml) cuando es chica. */
+/** Cantidad exacta en la unidad base del insumo (kg/lt/ml/unidad), sin convertir a sub-unidades. */
 function formatExactQuantity(quantity: string, unit: string): string {
   const n = Number(quantity);
-  if (unit === 'kg') {
-    return n < 1 ? `${Math.round(n * 1000)} g` : `${n.toFixed(n % 1 === 0 ? 0 : 2)} kg`;
-  }
-  if (unit === 'lt') {
-    return n < 1 ? `${Math.round(n * 1000)} ml` : `${n.toFixed(n % 1 === 0 ? 0 : 2)} L`;
-  }
-  if (unit === 'ml') return `${n.toFixed(n % 1 === 0 ? 0 : 2)} ml`;
-  return `${n.toFixed(n % 1 === 0 ? 0 : 2)} ${SUB_UNIT_LABELS[unit] ?? unit}`;
+  return `${n.toFixed(n % 1 === 0 ? 0 : 2)} ${unit}`;
 }
 
 function InventoryByBranchTab() {
@@ -281,15 +272,9 @@ function InventoryByBranchTab() {
                           {item.low && <TriangleAlert className="h-3.5 w-3.5 shrink-0" />}
                           {item.name}
                         </span>
-                        {isOpen ? (
-                          <span className="text-brand-950/60 text-xs">
-                            {formatExactQuantity(item.quantity, item.unit)} · mín. {formatExactQuantity(item.minQuantity, item.unit)}
-                          </span>
-                        ) : (
-                          <span className="text-brand-950/60 text-xs">
-                            {item.quantity} / {item.minQuantity} {item.unit}
-                          </span>
-                        )}
+                        <span className="text-brand-950/60 text-xs">
+                          {formatExactQuantity(item.quantity, item.unit)} · mín. {formatExactQuantity(item.minQuantity, item.unit)}
+                        </span>
                       </div>
                       <div className="h-1.5 w-full rounded-full bg-brand-950/[0.08] overflow-hidden mt-1">
                         <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${ratio * 100}%` }} />

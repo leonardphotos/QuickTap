@@ -312,16 +312,23 @@ async function seedCouriers(prisma: PrismaClient, restaurantId: string, couriers
   return couriers;
 }
 
-/** Insumos de inventario, para que el módulo de Inventario del demo no quede vacío. */
+/**
+ * Insumos de inventario, para que el módulo de Inventario del demo no quede vacío.
+ * La cantidad se varía con un multiplicador aleatorio sobre el mínimo (0.3x-2.5x) en vez
+ * de usar siempre el mismo valor "lleno" — así cada sede muestra un stock distinto y
+ * realista, con algún insumo ocasionalmente por debajo del mínimo.
+ */
 async function seedInventory(prisma: PrismaClient, restaurantId: string) {
   const items: { id: string; name: string }[] = [];
   for (const i of INVENTORY_ITEMS_DATA) {
+    const factor = randomInt(30, 250) / 100;
+    const quantity = Math.max(0, Math.round(i.minQuantity * factor * 10) / 10);
     const item = await prisma.inventoryItem.create({
       data: {
         restaurantId,
         name: i.name,
         unit: i.unit,
-        quantity: i.quantity,
+        quantity,
         minQuantity: i.minQuantity,
         pricePerUnitBase: i.pricePerUnitBase,
       },
