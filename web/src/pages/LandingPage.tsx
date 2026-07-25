@@ -52,24 +52,32 @@ export default function LandingPage() {
         {/* Tarjeta única a pantalla completa, fondo de onda animada, contenido abajo a la izquierda */}
         <section className="relative h-screen overflow-hidden bg-white">
           <GradientWave />
+
+          {/* Logo centrado en toda la sección */}
+          <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+            <img src="/logo/quicktap-white.png" alt="QuickTap" className="w-48 sm:w-64 h-auto mix-blend-difference" />
+          </div>
+
           <div className="relative z-10 h-screen flex flex-col items-start justify-end px-6 sm:px-12 pb-16 sm:pb-20 text-left">
-            <p className="text-xs font-medium text-brand-950/50 tracking-wide">QuickTap</p>
-            <h1 className="mt-4 text-4xl sm:text-6xl font-bold tracking-tight text-brand-950">Todo a un toque.</h1>
-            <p className="mt-3 text-base sm:text-lg text-brand-950/70 max-w-md font-light">
+            {/* Texto blanco + mix-blend-difference: invierte solo (negro sobre blanco, blanco sobre azul) siguiendo el fondo animado */}
+            <h1 className="text-4xl sm:text-6xl font-bold tracking-tight text-white mix-blend-difference">
+              Todo a un toque.
+            </h1>
+            <p className="mt-3 text-base sm:text-lg text-white max-w-md font-light mix-blend-difference">
               Menú digital, comandas en tiempo real y delivery por WhatsApp para tu restaurante.
             </p>
 
             <div className="mt-8 flex flex-col sm:flex-row items-start gap-4 sm:gap-8">
               <Link
                 to="/soluciones"
-                className="group flex items-center gap-1.5 text-base font-medium text-brand-950 transition-colors hover:text-brand-950/70"
+                className="group flex items-center gap-1.5 text-base font-medium text-white mix-blend-difference transition-opacity hover:opacity-70"
               >
                 Conoce sobre QuickTap
                 <ArrowRight className="h-4 w-4 transition-transform duration-200 ease-out-strong group-hover:translate-x-1" />
               </Link>
               <Link
                 to="/planes"
-                className="text-base font-medium text-brand-950/60 transition-colors hover:text-brand-950"
+                className="text-base font-medium text-white mix-blend-difference transition-opacity opacity-70 hover:opacity-100"
               >
                 Ver planes
               </Link>
