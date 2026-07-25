@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import { MasterAuthProvider } from './context/MasterAuthContext';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
+const SolutionsPage = lazy(() => import('./pages/SolutionsPage'));
 const MenuPage = lazy(() => import('./pages/public/MenuPage'));
 const LoginPage = lazy(() => import('./pages/admin/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/admin/RegisterPage'));
@@ -58,6 +59,7 @@ export default function App() {
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<LandingPage />} />
+            <Route path="/soluciones" element={<SolutionsPage />} />
 
             {/* Menú público (QR de mesa o link general para delivery/pickup) */}
             <Route path="/r/:slug" element={<MenuPage />} />

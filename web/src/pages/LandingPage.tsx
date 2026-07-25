@@ -98,6 +98,9 @@ export default function LandingPage() {
           <div className="max-w-2xl mx-auto flex items-center justify-between gap-3 rounded-full bg-brand-950/80 backdrop-blur-md border border-white/10 shadow-lg shadow-brand-950/30 px-4 py-2">
             <img src="/logo/icono-blanco.png" alt="QuickTap" className="h-7 w-7" />
             <nav className="flex items-center gap-1 sm:gap-2">
+              <Link to="/soluciones" className="hidden sm:inline text-sm text-white/70 hover:text-white px-2 py-1.5">
+                Todo lo que hace
+              </Link>
               <a href="#precios" className="hidden sm:inline text-sm text-white/70 hover:text-white px-2 py-1.5">
                 Precios
               </a>
@@ -204,6 +207,9 @@ export default function LandingPage() {
                 </p>
               </div>
               <div className="flex items-center gap-3">
+                <Link to="/soluciones" className="text-sm text-brand-950/70 hover:text-brand-950">
+                  Todo lo que hace
+                </Link>
                 <Link to="/admin/login" className="text-sm text-brand-950/70 hover:text-brand-950">
                   Iniciar sesión
                 </Link>
