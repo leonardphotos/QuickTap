@@ -315,7 +315,7 @@ model Restaurant {
 
   // Cuenta de demostración (sembrada con `npm run seed:demo`): sus pedidos y
   // su facturación se excluyen del reporte financiero del Dashboard maestro.
-  isDemo Boolean @default(false)
+  isDemo             Boolean   @default(false)
   // Última actividad (request autenticado) de un usuario en la cuenta demo —
   // solo se actualiza cuando isDemo=true. El barrido periódico (ver server.ts)
   // resetea el demo cuando esto queda viejo (pestaña cerrada/abandonada).
@@ -325,35 +325,36 @@ model Restaurant {
   // demo queda exento del reset automático (ni el barrido de inactividad ni
   // el logout lo reinician) — así el equipo QuickTap puede dejar cambios
   // permanentes (ej. configurar sucursales) sin que se borren.
-  demoAdminUnlocked Boolean @default(false)
+  demoAdminUnlocked  Boolean   @default(false)
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users             User[]
-  categories        Category[]
-  kitchens          Kitchen[]
-  products          Product[]
-  tables            Table[]
-  orders            Order[]
-  zones             Zone[]
-  tableSessions     TableSession[]
-  planRequests      PlanRequest[]
-  qrNfcRequests     QrNfcRequest[]
-  inventoryItems    InventoryItem[]
-  recipeIngredients RecipeIngredient[]
-  deliveryCouriers  DeliveryCourier[]
-  deliveryZones     DeliveryZone[]
-  movements         Movement[]
-  cashSessions      CashSession[]
-  suppliers         Supplier[]
-  customers         Customer[]
-  modifierCategories ModifierCategory[]
-  modifiers          Modifier[]
-  productVariants    ProductVariant[]
-  schedules          RestaurantSchedule[]
-  reservations       Reservation[]
+  users               User[]
+  categories          Category[]
+  kitchens            Kitchen[]
+  products            Product[]
+  tables              Table[]
+  orders              Order[]
+  zones               Zone[]
+  tableSessions       TableSession[]
+  planRequests        PlanRequest[]
+  qrNfcRequests       QrNfcRequest[]
+  inventoryItems      InventoryItem[]
+  inventoryCategories InventoryCategory[]
+  recipeIngredients   RecipeIngredient[]
+  deliveryCouriers    DeliveryCourier[]
+  deliveryZones       DeliveryZone[]
+  movements           Movement[]
+  cashSessions        CashSession[]
+  suppliers           Supplier[]
+  customers           Customer[]
+  modifierCategories  ModifierCategory[]
+  modifiers           Modifier[]
+  productVariants     ProductVariant[]
+  schedules           RestaurantSchedule[]
+  reservations        Reservation[]
 
   @@index([parentRestaurantId])
   @@map("restaurants")
@@ -369,8 +370,8 @@ model RestaurantSchedule {
   dayOfWeek    Int
   isClosed     Boolean @default(false)
   // Hora local del restaurante (America/Caracas), formato "HH:mm". Null si isClosed.
-  openTime  String?
-  closeTime String?
+  openTime     String?
+  closeTime    String?
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
@@ -487,7 +488,7 @@ model Kitchen {
 }
 
 model Product {
-  id           String @id @default(cuid())
+  id           String  @id @default(cuid())
   restaurantId String
   categoryId   String
   // Estación de cocina donde se prepara (opcional). Null = sin asignar.
@@ -516,7 +517,7 @@ model Product {
   // Control de stock simple por producto (independiente del sistema de insumos/receta).
   // stockQuantity null = sin control de stock; en 0 el producto se muestra agotado en el menú público.
   stockControlEnabled Boolean @default(false)
-  stockQuantity        Int?
+  stockQuantity       Int?
 
   // --- Banderas de marketing ---
   isStar         Boolean @default(false) // Producto Estrella
@@ -569,7 +570,7 @@ model ModifierCategory {
   name String
 
   // Obligatorio = el cliente debe elegir algo de esta categoría antes de agregar al carrito.
-  isRequired Boolean @default(false)
+  isRequired    Boolean @default(false)
   // false = el cliente elige un solo modificador (radio); true = puede elegir varios (checkboxes).
   allowMultiple Boolean @default(false)
   // Límite de selecciones totales cuando allowMultiple=true (permite repetir la misma opción,
@@ -599,19 +600,19 @@ model Modifier {
   restaurantId String
   categoryId   String
 
-  name String
+  name         String
   // Precio adicional al elegir este modificador, en la moneda base del restaurante.
-  priceBase Decimal @default(0) @db.Decimal(12, 2)
+  priceBase    Decimal  @default(0) @db.Decimal(12, 2)
   // Costo (para margen de utilidad) y descuento, igual que en Producto — opcionales.
   costBase     Decimal? @db.Decimal(12, 2)
   discountBase Decimal? @db.Decimal(12, 2)
   // Visible/oculto en el menú público (el ícono de ojo de la referencia).
-  isAvailable Boolean @default(true)
+  isAvailable  Boolean  @default(true)
   // Tope de repetición de este modificador puntual (ej. "Ketchup máx. 2"), independiente del
   // límite de la categoría. null = sin tope propio (solo limita el máximo de la categoría).
-  maxQuantity Int?
+  maxQuantity  Int?
   // Código interno opcional (back-office). Nunca se expone en el menú público.
-  sku String?
+  sku          String?
 
   priority Int @default(0)
 
@@ -627,10 +628,10 @@ model Modifier {
 
 // Asocia una categoría de modificadores reutilizable a un producto puntual ("Asociar/Desasociar").
 model ProductModifierCategory {
-  id                 String @id @default(cuid())
-  productId          String
-  modifierCategoryId String
-  priority           Int    @default(0)
+  id                    String @id @default(cuid())
+  productId             String
+  modifierCategoryId    String
+  priority              Int    @default(0)
   // Sobreescribe ModifierCategory.maxSelections solo para este producto. null = usa el de la categoría.
   maxSelectionsOverride Int?
 
@@ -652,8 +653,8 @@ model ProductVariant {
   restaurantId String
   productId    String
 
-  name      String
-  priceBase Decimal @db.Decimal(12, 2)
+  name             String
+  priceBase        Decimal  @db.Decimal(12, 2)
   // Cargo adicional de empaque para esta variante (delivery/pickup), opcional.
   packagingFeeBase Decimal? @db.Decimal(12, 2)
   costBase         Decimal? @db.Decimal(12, 2)
@@ -904,17 +905,17 @@ model Order {
 // de Pedidos. Un pedido puede tener varios (pago fraccionado en distintos
 // métodos); lo pagado se compara contra totalBase para saber el saldo.
 model OrderPayment {
-  id         String        @id @default(cuid())
-  orderId    String
-  amountBase Decimal       @db.Decimal(12, 2)
-  method     PaymentMethod
+  id              String        @id @default(cuid())
+  orderId         String
+  amountBase      Decimal       @db.Decimal(12, 2)
+  method          PaymentMethod
   // Descuento aplicado a este pago puntual (no al pedido completo, porque
   // pagos fraccionados distintos pueden llevar descuentos distintos).
-  discountPercent Decimal? @db.Decimal(5, 2)
-  discountBase    Decimal? @db.Decimal(12, 2)
+  discountPercent Decimal?      @db.Decimal(5, 2)
+  discountBase    Decimal?      @db.Decimal(12, 2)
   // Número de referencia/comprobante (Pago Móvil, Zelle) o de ticket (Punto de venta).
   referenceNumber String?
-  createdAt  DateTime      @default(now())
+  createdAt       DateTime      @default(now())
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
@@ -939,18 +940,18 @@ model Movement {
   paymentMethod  PaymentMethod?
 
   // --- Módulo de Gastos (todos opcionales; no afectan ingresos/propinas) ---
-  category           ExpenseCategory?
-  supplierId         String?
+  category          ExpenseCategory?
+  supplierId        String?
   // Insumo reabastecido por este gasto (ej: compra de agua) y cantidad recibida:
   // al crear el movimiento, se suma automáticamente a InventoryItem.quantity.
-  inventoryItemId    String?
-  inventoryQuantity  Decimal?         @db.Decimal(12, 2)
+  inventoryItemId   String?
+  inventoryQuantity Decimal?         @db.Decimal(12, 2)
   // Gasto tomado a crédito con el proveedor: cuenta pendiente por pagar
   // (al revés de Order.awaitingPayment, que es lo que el cliente le debe
   // al restaurante). El balance del período lo resta igual, ya esté pagado
   // o no — esto solo lleva el seguimiento de si ya se le pagó al proveedor.
-  isCredit           Boolean          @default(false)
-  creditPaidAt        DateTime?
+  isCredit          Boolean          @default(false)
+  creditPaidAt      DateTime?
 
   restaurant    Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   createdByUser User?          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -989,10 +990,10 @@ model Customer {
   id           String @id @default(cuid())
   restaurantId String
 
-  name    String
-  phone   String
+  name     String
+  phone    String
   idNumber String?
-  address String?
+  address  String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1064,8 +1065,8 @@ model OrderItem {
   // El pedido completo pasa a SERVED solo cuando todos sus ítems tienen esto.
   kitchenReadyAt DateTime?
 
-  order     Order              @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product   Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
+  order     Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product   Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
   modifiers OrderItemModifier[]
 
   @@index([orderId])
@@ -1239,15 +1240,34 @@ model PlatformAdmin {
 //  avisar cuándo hay que reabastecer. No descuenta automáticamente por venta:
 //  el equipo ajusta la cantidad manualmente.
 // ----------------------------------------------------------------------------
-model InventoryItem {
+model InventoryCategory {
   id           String @id @default(cuid())
   restaurantId String
 
-  name        String
+  name     String
+  priority Int    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items      InventoryItem[]
+
+  @@index([restaurantId, priority])
+  @@map("inventory_categories")
+}
+
+model InventoryItem {
+  id           String  @id @default(cuid())
+  restaurantId String
+  categoryId   String?
+
+  name             String
+  photoUrl         String?
   // Unidad restringida desde el formulario: "kg" | "lt" | "unidad".
-  unit        String
-  quantity    Decimal @default(0) @db.Decimal(12, 2)
-  minQuantity Decimal @default(0) @db.Decimal(12, 2)
+  unit             String
+  quantity         Decimal  @default(0) @db.Decimal(12, 2)
+  minQuantity      Decimal  @default(0) @db.Decimal(12, 2)
   // Costo por 1 unidad (kg/lt/unidad), en la moneda base del restaurante.
   // Se recalcula al cargar un precio + cantidad desde el formulario de
   // insumos, y alimenta el cálculo automático del costo de receta.
@@ -1257,10 +1277,12 @@ model InventoryItem {
   updatedAt DateTime @updatedAt
 
   restaurant  Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category    InventoryCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   recipeLines RecipeIngredient[]
   movements   Movement[]
 
   @@index([restaurantId])
+  @@index([restaurantId, categoryId])
   @@map("inventory_items")
 }
 

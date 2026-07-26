@@ -73,6 +73,7 @@ function makeImageUpload(subdir: string, fieldName: string) {
 }
 
 export const uploadProductPhoto = makeImageUpload('products', 'photo');
+export const uploadInventoryPhoto = makeImageUpload('inventory', 'photo');
 export const uploadLogo = makeImageUpload('logos', 'photo');
 // Imagen de "Modo Cartelera" (pantalla completa del menú público). Estas
 // imágenes suelen ser piezas verticales grandes; `optimizeImage` de abajo

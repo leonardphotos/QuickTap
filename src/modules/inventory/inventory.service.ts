@@ -5,6 +5,7 @@ import { bsToBase, round2, toDecimal } from '../../utils/money';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { emitToKitchen, SocketEvents } from '../../sockets';
 import { CreateInventoryItemInput, UpdateInventoryItemInput } from './inventory.dto';
+import { inventoryCategoryService } from './inventory-category.service';
 
 /**
  * Calcula el costo por unidad (kg/lt/unidad) a partir del costo de la
@@ -32,11 +33,13 @@ export const inventoryService = {
   async list(restaurantId: string) {
     return prisma.inventoryItem.findMany({
       where: { restaurantId },
+      include: { category: { select: { id: true, name: true } } },
       orderBy: { name: 'asc' },
     });
   },
 
   async create(restaurantId: string, input: CreateInventoryItemInput) {
+    if (input.categoryId) await inventoryCategoryService.assertBelongs(restaurantId, input.categoryId);
     const { price, priceCurrency, ...rest } = input;
     const pricePerUnitBase = await resolvePricePerUnit(restaurantId, price, priceCurrency, input.quantity);
     return prisma.inventoryItem.create({
@@ -47,6 +50,7 @@ export const inventoryService = {
   async update(restaurantId: string, id: string, input: UpdateInventoryItemInput) {
     const existing = await prisma.inventoryItem.findFirst({ where: { id, restaurantId } });
     if (!existing) throw notFound('Insumo no encontrado.');
+    if (input.categoryId) await inventoryCategoryService.assertBelongs(restaurantId, input.categoryId);
     const { price, priceCurrency, ...rest } = input;
     const quantityForPricing = input.quantity ?? Number(existing.quantity);
     const pricePerUnitBase = await resolvePricePerUnit(restaurantId, price, priceCurrency, quantityForPricing);

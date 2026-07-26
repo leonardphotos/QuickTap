@@ -1,9 +1,14 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
+import { badRequest } from '../../utils/http-error';
 import { createInventoryItemSchema, updateInventoryItemSchema } from './inventory.dto';
 import { inventoryService } from './inventory.service';
 
 export const inventoryController = {
+  uploadPhoto: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw badRequest('No se recibió ningún archivo.');
+    res.status(201).json({ data: { url: `/uploads/inventory/${req.file.filename}` } });
+  }),
   list: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await inventoryService.list(req.restaurantId!) });
   }),

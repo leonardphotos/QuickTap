@@ -2,7 +2,9 @@ import { Router } from 'express';
 import { requireFeature, requireInventoryAccess, tenantGuard } from '../../middlewares/auth.middleware';
 import { requireRole } from '../../middlewares/auth.middleware';
 import { FULL_ACCESS_ROLES } from '../../utils/roles';
+import { uploadInventoryPhoto, optimizeImage } from '../../middlewares/upload.middleware';
 import { inventoryController } from './inventory.controller';
+import { inventoryCategoryController } from './inventory-category.controller';
 import { recipeController } from './recipe.controller';
 
 /**
@@ -16,6 +18,21 @@ const router = Router();
 router.use(tenantGuard);
 
 const mutate = requireRole(...FULL_ACCESS_ROLES);
+
+// Categorías de insumos / stock de productos.
+router.get('/categories', requireFeature('inventoryBasic'), requireInventoryAccess, inventoryCategoryController.list);
+router.post('/categories', requireFeature('inventoryBasic'), mutate, inventoryCategoryController.create);
+router.patch('/categories/:id', requireFeature('inventoryBasic'), mutate, inventoryCategoryController.update);
+router.delete('/categories/:id', requireFeature('inventoryBasic'), mutate, inventoryCategoryController.remove);
+
+router.post(
+  '/upload-photo',
+  requireFeature('inventoryBasic'),
+  mutate,
+  uploadInventoryPhoto,
+  optimizeImage(700, 700),
+  inventoryController.uploadPhoto,
+);
 
 // Insumos "normales": stock directo por insumo.
 router.get('/', requireFeature('inventoryBasic'), requireInventoryAccess, inventoryController.list);

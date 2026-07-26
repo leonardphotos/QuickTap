@@ -8,6 +8,13 @@ import { CURRENCY_SYMBOLS } from '@/utils/format';
 import type { Product } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
+
+interface InventoryCategory {
+  id: string;
+  name: string;
+  priority: number;
+}
 
 interface InventoryItem {
   id: string;
@@ -16,6 +23,9 @@ interface InventoryItem {
   quantity: string;
   minQuantity: string;
   pricePerUnitBase: string | null;
+  photoUrl?: string | null;
+  categoryId?: string | null;
+  category?: { id: string; name: string } | null;
 }
 
 const UNIT_LABELS: Record<string, string> = { kg: 'Kg', lt: 'Lt', ml: 'Ml', unidad: 'Unidad' };
@@ -41,6 +51,8 @@ const emptyForm = {
   minQuantity: '',
   price: '',
   priceCurrency: 'BASE' as 'BASE' | 'BS',
+  photoUrl: null as string | null,
+  categoryId: '',
 };
 
 /** Inventario: insumos con stock directo ("normal", Pro+), o por receta vinculada al producto (solo Premium). */
@@ -54,12 +66,18 @@ export default function InventoryPage() {
   ] as const;
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('insumos');
   const [items, setItems] = useState<InventoryItem[] | null>(null);
+  const [categories, setCategories] = useState<InventoryCategory[]>([]);
 
   function loadItems() {
     api.get('/inventory').then((res) => setItems(res.data.data));
   }
 
+  function loadCategories() {
+    api.get('/inventory/categories').then((res) => setCategories(res.data.data));
+  }
+
   useEffect(loadItems, []);
+  useEffect(loadCategories, []);
 
   return (
     <div className="space-y-8 max-w-3xl">
@@ -88,7 +106,9 @@ export default function InventoryPage() {
         ))}
       </div>
 
-      {tab === 'insumos' && <InsumosTab items={items} onChanged={loadItems} />}
+      {tab === 'insumos' && (
+        <InsumosTab items={items} categories={categories} onChanged={loadItems} onCategoriesChanged={loadCategories} />
+      )}
       {tab === 'recetas' && canRecipes && <RecetasTab insumos={items ?? []} />}
       {tab === 'stock' && <StockTab />}
     </div>
@@ -120,48 +140,75 @@ function StockTab() {
 
   if (!products) return <p className="text-brand-950/50 font-light">Cargando…</p>;
 
+  // Agrupa por la categoría del menú del producto (Category, no InventoryCategory) — ya
+  // existe en cada Product, no hace falta un concepto nuevo para esta pestaña.
+  const groups = new Map<string, Product[]>();
+  for (const p of products) {
+    const key = p.category?.name ?? 'Sin categoría';
+    const list = groups.get(key) ?? [];
+    list.push(p);
+    groups.set(key, list);
+  }
+
   return (
-    <div className="space-y-2">
+    <div className="space-y-5">
       <p className="text-sm text-brand-950/60 font-light">
         Activa el control de stock por producto: al llegar a 0 se marca como agotado en el menú público.
       </p>
-      <ul className="divide-y divide-brand-950/10 rounded-2xl border border-brand-950/10 bg-white">
-        {products.map((p) => (
-          <li key={p.id} className="flex items-center justify-between gap-3 px-4 py-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-brand-950 truncate">{p.name}</p>
-              <label className="flex items-center gap-1.5 text-xs text-brand-950/60 mt-0.5">
-                <input
-                  type="checkbox"
-                  checked={p.stockControlEnabled ?? false}
-                  onChange={(e) => patchProduct(p.id, { stockControlEnabled: e.target.checked, stockQuantity: e.target.checked ? p.stockQuantity ?? 0 : null })}
-                />
-                Controlar stock
-              </label>
-            </div>
-            {p.stockControlEnabled && (
-              <div className="flex items-center gap-2 shrink-0">
-                <input
-                  type="number"
-                  min="0"
-                  step="1"
-                  defaultValue={p.stockQuantity ?? 0}
-                  disabled={savingId === p.id}
-                  onBlur={(e) => patchProduct(p.id, { stockControlEnabled: true, stockQuantity: Number(e.target.value) || 0 })}
-                  className="w-20 border border-brand-950/15 rounded-lg px-2 py-1 text-sm text-right"
-                />
-                <span
-                  className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
-                    (p.stockQuantity ?? 0) <= 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
-                  }`}
-                >
-                  {(p.stockQuantity ?? 0) <= 0 ? 'Agotado' : 'En stock'}
-                </span>
-              </div>
-            )}
-          </li>
-        ))}
-      </ul>
+      {[...groups.entries()].map(([categoryName, group]) => (
+        <div key={categoryName} className="space-y-2">
+          <h3 className="text-xs font-semibold text-brand-950/50 uppercase tracking-wide px-1">{categoryName}</h3>
+          <ul className="divide-y divide-brand-950/10 rounded-2xl border border-brand-950/10 bg-white">
+            {group.map((p) => (
+              <li key={p.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  {p.photoUrl ? (
+                    <img src={p.photoUrl} alt="" className="h-9 w-9 rounded-lg object-cover shrink-0" />
+                  ) : (
+                    <div className="h-9 w-9 rounded-lg bg-brand-950/[0.06] shrink-0" />
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-brand-950 truncate">{p.name}</p>
+                    <label className="flex items-center gap-1.5 text-xs text-brand-950/60 mt-0.5">
+                      <input
+                        type="checkbox"
+                        checked={p.stockControlEnabled ?? false}
+                        onChange={(e) =>
+                          patchProduct(p.id, {
+                            stockControlEnabled: e.target.checked,
+                            stockQuantity: e.target.checked ? p.stockQuantity ?? 0 : null,
+                          })
+                        }
+                      />
+                      Controlar stock
+                    </label>
+                  </div>
+                </div>
+                {p.stockControlEnabled && (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      defaultValue={p.stockQuantity ?? 0}
+                      disabled={savingId === p.id}
+                      onBlur={(e) => patchProduct(p.id, { stockControlEnabled: true, stockQuantity: Number(e.target.value) || 0 })}
+                      className="w-20 border border-brand-950/15 rounded-lg px-2 py-1 text-sm text-right"
+                    />
+                    <span
+                      className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
+                        (p.stockQuantity ?? 0) <= 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+                      }`}
+                    >
+                      {(p.stockQuantity ?? 0) <= 0 ? 'Agotado' : 'En stock'}
+                    </span>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </div>
   );
 }
@@ -170,7 +217,17 @@ function StockTab() {
 //  Insumos (normal): stock directo, tal cual estaba antes.
 // -----------------------------------------------------------------------------
 
-function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onChanged: () => void }) {
+function InsumosTab({
+  items,
+  categories,
+  onChanged,
+  onCategoriesChanged,
+}: {
+  items: InventoryItem[] | null;
+  categories: InventoryCategory[];
+  onChanged: () => void;
+  onCategoriesChanged: () => void;
+}) {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [form, setForm] = useState(emptyForm);
@@ -179,6 +236,17 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
   const [error, setError] = useState<string | null>(null);
   const [printingList, setPrintingList] = useState(false);
   const [printSent, setPrintSent] = useState(false);
+  const [addingCategory, setAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+
+  async function addCategory() {
+    if (!newCategoryName.trim()) return;
+    const res = await api.post('/inventory/categories', { name: newCategoryName.trim() });
+    onCategoriesChanged();
+    setForm((f) => ({ ...f, categoryId: res.data.data.id }));
+    setNewCategoryName('');
+    setAddingCategory(false);
+  }
 
   async function printInsumosList() {
     setPrintingList(true);
@@ -203,6 +271,8 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
       minQuantity: item.minQuantity,
       price: '',
       priceCurrency: 'BASE',
+      photoUrl: item.photoUrl ?? null,
+      categoryId: item.categoryId ?? '',
     });
   }
 
@@ -227,6 +297,8 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
         minQuantity: (Number(form.minQuantity) || 0) * toBase,
         price: form.price ? Number(form.price) : undefined,
         priceCurrency: form.priceCurrency,
+        photoUrl: form.photoUrl,
+        categoryId: form.categoryId || null,
       };
       if (editingId) {
         await api.patch(`/inventory/${editingId}`, payload);
@@ -252,14 +324,66 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
   return (
     <div className="space-y-8">
       <form onSubmit={onSubmit} className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-4">
-        <div className="grid sm:grid-cols-4 gap-3">
-          <input
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            placeholder="Insumo (ej: Queso)"
-            required
-            className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm sm:col-span-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+        <div className="flex items-start gap-4">
+          <PhotoUploadField
+            value={form.photoUrl}
+            onChange={(url) => setForm({ ...form, photoUrl: url })}
+            uploadUrl="/inventory/upload-photo"
+            label="Foto"
+            className="shrink-0"
           />
+          <div className="flex-1 space-y-3">
+            <div className="grid sm:grid-cols-2 gap-3">
+              <input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="Insumo (ej: Queso)"
+                required
+                className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              />
+              {addingCategory ? (
+                <div className="flex gap-1.5">
+                  <input
+                    value={newCategoryName}
+                    onChange={(e) => setNewCategoryName(e.target.value)}
+                    placeholder="Nueva categoría"
+                    autoFocus
+                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addCategory())}
+                    className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  />
+                  <button type="button" onClick={addCategory} className="text-xs font-medium text-brand-500 shrink-0">
+                    Crear
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAddingCategory(false)}
+                    className="text-xs text-brand-950/40 shrink-0"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ) : (
+                <select
+                  value={form.categoryId}
+                  onChange={(e) => {
+                    if (e.target.value === '__new__') setAddingCategory(true);
+                    else setForm({ ...form, categoryId: e.target.value });
+                  }}
+                  className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                >
+                  <option value="">Sin categoría</option>
+                  {categories.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                  <option value="__new__">+ Nueva categoría…</option>
+                </select>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="grid sm:grid-cols-4 gap-3">
           <select
             value={form.unit}
             onChange={(e) => {
@@ -376,54 +500,91 @@ function InsumosTab({ items, onChanged }: { items: InventoryItem[] | null; onCha
         </div>
       </div>
 
-      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
-        {items?.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin insumos todavía.</p>}
-        {items?.map((item) => {
-          const qty = Number(item.quantity);
-          const minQty = Number(item.minQuantity);
-          const low = qty < minQty;
-          // Barra: se llena hasta el doble del mínimo ("stock sano"); se acorta y cambia de
-          // color mientras se acerca al punto de aviso, para que se note antes de llegar a cero.
-          const ratio = minQty > 0 ? Math.min(1, qty / (minQty * 2)) : 1;
-          const barColor = low ? 'bg-red-500' : ratio < 0.75 ? 'bg-amber-500' : 'bg-emerald-500';
-          return (
-            <div key={item.id} className="flex items-center justify-between gap-3 px-5 py-4">
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-brand-950 flex items-center gap-1.5">
-                  {item.name}
-                  {low && (
-                    <span title="Por debajo del stock mínimo">
-                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-                    </span>
+      {items?.length === 0 && (
+        <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5">
+          <p className="text-sm text-brand-950/40 font-light">Sin insumos todavía.</p>
+        </div>
+      )}
+
+      {groupByCategory(items ?? [], categories).map(([groupName, groupItems]) => (
+        <div key={groupName} className="space-y-2">
+          <h3 className="text-xs font-semibold text-brand-950/50 uppercase tracking-wide px-1">{groupName}</h3>
+          <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
+            {groupItems.map((item) => {
+              const qty = Number(item.quantity);
+              const minQty = Number(item.minQuantity);
+              const low = qty < minQty;
+              // Barra: se llena hasta el doble del mínimo ("stock sano"); se acorta y cambia de
+              // color mientras se acerca al punto de aviso, para que se note antes de llegar a cero.
+              const ratio = minQty > 0 ? Math.min(1, qty / (minQty * 2)) : 1;
+              const barColor = low ? 'bg-red-500' : ratio < 0.75 ? 'bg-amber-500' : 'bg-emerald-500';
+              return (
+                <div key={item.id} className="flex items-center justify-between gap-3 px-5 py-4">
+                  {item.photoUrl ? (
+                    <img src={item.photoUrl} alt="" className="h-10 w-10 rounded-lg object-cover shrink-0" />
+                  ) : (
+                    <div className="h-10 w-10 rounded-lg bg-brand-950/[0.06] shrink-0" />
                   )}
-                </p>
-                <p className={`text-xs font-light mt-0.5 ${low ? 'text-amber-600' : 'text-brand-950/40'}`}>
-                  {item.quantity} {item.unit} · mínimo {item.minQuantity} {item.unit}
-                  {item.pricePerUnitBase && ` · ${symbol}${item.pricePerUnitBase}/${item.unit}`}
-                </p>
-                {minQty > 0 && (
-                  <div className="h-1.5 w-full max-w-48 rounded-full bg-brand-950/[0.08] overflow-hidden mt-1.5">
-                    <div
-                      className={`h-full rounded-full transition-all ${barColor}`}
-                      style={{ width: `${ratio * 100}%` }}
-                    />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-brand-950 flex items-center gap-1.5">
+                      {item.name}
+                      {low && (
+                        <span title="Por debajo del stock mínimo">
+                          <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                        </span>
+                      )}
+                    </p>
+                    <p className={`text-xs font-light mt-0.5 ${low ? 'text-amber-600' : 'text-brand-950/40'}`}>
+                      {item.quantity} {item.unit} · mínimo {item.minQuantity} {item.unit}
+                      {item.pricePerUnitBase && ` · ${symbol}${item.pricePerUnitBase}/${item.unit}`}
+                    </p>
+                    {minQty > 0 && (
+                      <div className="h-1.5 w-full max-w-48 rounded-full bg-brand-950/[0.08] overflow-hidden mt-1.5">
+                        <div
+                          className={`h-full rounded-full transition-all ${barColor}`}
+                          style={{ width: `${ratio * 100}%` }}
+                        />
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <button onClick={() => startEdit(item)} className="text-xs font-medium text-brand-500 hover:underline">
-                  Editar
-                </button>
-                <button onClick={() => remove(item)} className="text-xs text-red-600 hover:text-red-700">
-                  Eliminar
-                </button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <button onClick={() => startEdit(item)} className="text-xs font-medium text-brand-500 hover:underline">
+                      Editar
+                    </button>
+                    <button onClick={() => remove(item)} className="text-xs text-red-600 hover:text-red-700">
+                      Eliminar
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
     </div>
   );
+}
+
+/** Agrupa insumos por categoría (en el orden de las categorías), dejando "Sin categoría" al final. */
+function groupByCategory(items: InventoryItem[], categories: InventoryCategory[]): [string, InventoryItem[]][] {
+  const byCategoryId = new Map<string, InventoryItem[]>();
+  const uncategorized: InventoryItem[] = [];
+  for (const item of items) {
+    if (item.categoryId) {
+      const list = byCategoryId.get(item.categoryId) ?? [];
+      list.push(item);
+      byCategoryId.set(item.categoryId, list);
+    } else {
+      uncategorized.push(item);
+    }
+  }
+  const groups: [string, InventoryItem[]][] = [];
+  for (const c of categories) {
+    const list = byCategoryId.get(c.id);
+    if (list?.length) groups.push([c.name, list]);
+  }
+  if (uncategorized.length) groups.push(['Sin categoría', uncategorized]);
+  return groups;
 }
 
 // -----------------------------------------------------------------------------

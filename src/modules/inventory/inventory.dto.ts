@@ -9,6 +9,8 @@ export const createInventoryItemSchema = z.object({
   // El service divide por `quantity` para obtener el costo por unidad.
   price: z.coerce.number().nonnegative().optional(),
   priceCurrency: z.enum(['BASE', 'BS']).optional().default('BASE'),
+  photoUrl: z.string().min(1).nullable().optional(),
+  categoryId: z.string().min(1).nullable().optional(),
 });
 
 export const updateInventoryItemSchema = createInventoryItemSchema.partial();
