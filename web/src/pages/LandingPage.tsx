@@ -53,6 +53,9 @@ export default function LandingPage() {
         <section className="relative h-screen overflow-hidden bg-white">
           <GradientWave />
 
+          {/* Degradado negro hacia abajo: sube el contraste del texto blanco sin tapar el fondo animado */}
+          <div className="absolute inset-x-0 bottom-0 h-1/2 z-[5] bg-gradient-to-t from-black/80 via-black/30 to-transparent pointer-events-none" />
+
           {/* Logo centrado en toda la sección, un poco más arriba y más pequeño */}
           <div className="absolute inset-0 z-10 flex items-center justify-center pb-24 pointer-events-none">
             <img src="/logo/quicktap-white.png" alt="QuickTap" className="w-36 sm:w-52 h-auto mix-blend-difference" />
