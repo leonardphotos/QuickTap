@@ -33,7 +33,7 @@ pip install --upgrade pip
 ## 3. Instalar las dependencias exactas
 
 ```bash
-pip install fastapi==0.115.6 "uvicorn[standard]==0.34.0" python-multipart==0.0.20 pillow==11.1.0 rembg==2.0.61
+pip install fastapi==0.115.6 "uvicorn[standard]==0.34.0" python-multipart==0.0.20 pillow==11.1.0 rembg==2.0.61 onnxruntime
 ```
 
 (o, si ya subiste `requirements.txt` a `~/ai-photo-service/`: `pip install -r requirements.txt`)
