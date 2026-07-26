@@ -6,6 +6,7 @@ import { prisma } from './config/prisma';
 import { exchangeRateService } from './modules/exchange-rate/exchange-rate.service';
 import { demoResetService } from './utils/demo-reset.service';
 import { demoSimulatorService } from './utils/demo-simulator.service';
+import { masterServerStatusService } from './modules/master/master-server-status.service';
 
 async function bootstrap() {
   const app = createApp();
@@ -42,6 +43,11 @@ async function bootstrap() {
   const demoOrderSimInterval = setInterval(() => demoSimulatorService.tickOrder().catch(() => undefined), 20 * 1000);
   const demoInventorySimInterval = setInterval(() => demoSimulatorService.tickInventory().catch(() => undefined), 6 * 1000);
 
+  // Dashboard maestro: muestrea RAM/CPU/swap/disco cada minuto para la barra
+  // de capacidad del VPS — el promedio sostenido (no el instante) es lo que
+  // decide "¿actualizo el plan?" (ver master-server-status.service.ts).
+  masterServerStatusService.startSampling();
+
   // Solo localhost: Nginx (misma máquina) es el único que debe llegar a este
   // puerto — así queda fuera de alcance directo de internet aunque el
   // firewall se desconfigure alguna vez.
@@ -58,6 +64,7 @@ async function bootstrap() {
     clearInterval(demoSweepInterval);
     clearInterval(demoOrderSimInterval);
     clearInterval(demoInventorySimInterval);
+    masterServerStatusService.stopSampling();
     server.close();
     await prisma.$disconnect();
     process.exit(0);

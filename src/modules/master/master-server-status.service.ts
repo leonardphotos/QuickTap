@@ -21,6 +21,14 @@ import { getIO } from '../../sockets';
  *  estudio de capacidad (26 jul 2026): carga sostenida >0.8 por núcleo, RAM
  *  sostenida >85%, swap en uso fuera de picos puntuales, disco >90%. Es una
  *  guía, no una alarma exacta — ver el estudio para la metodología completa.
+ *
+ *  Excepción a "no hay caché en memoria": `vpsCapacity.sustained` SÍ mantiene
+ *  un buffer en memoria (`samples`, últimos 30 min) — a propósito. Un solo
+ *  snapshot instantáneo (`vpsCapacity.instant`) reacciona igual de fuerte a
+ *  un deploy de 2 minutos que a presión real sostenida durante una hora pico,
+ *  así que no sirve por sí solo para decidir "¿actualizo el VPS?". `sustained`
+ *  promedia el buffer y es el número que debe guiar esa decisión; `instant`
+ *  se muestra aparte solo para contexto ("esto es lo que pasa ahora mismo").
  */
 
 function bytesToMb(bytes: number): number {
@@ -100,6 +108,69 @@ function computeVpsCapacity(input: {
   };
 }
 
+interface RawMetrics {
+  loadAvg1m: number;
+  cpuCores: number;
+  ramUsedPercent: number;
+  swapUsedPercent: number;
+  diskUsedPercent: number | null;
+}
+
+function readRawMetrics(): RawMetrics {
+  const freeMb = bytesToMb(os.freemem());
+  const totalMb = bytesToMb(os.totalmem());
+  return {
+    loadAvg1m: Math.round(os.loadavg()[0] * 100) / 100,
+    cpuCores: os.cpus().length,
+    ramUsedPercent: Math.round((1 - freeMb / totalMb) * 100),
+    swapUsedPercent: readSwap()?.usedPercent ?? 0,
+    diskUsedPercent: readDiskUsedPercent(),
+  };
+}
+
+const SAMPLE_WINDOW_MS = 30 * 60 * 1000;
+const SAMPLE_INTERVAL_MS = 60 * 1000;
+
+const samples: Array<{ at: number } & RawMetrics> = [];
+let samplingTimer: ReturnType<typeof setInterval> | null = null;
+
+function recordSample(): void {
+  const cutoff = Date.now() - SAMPLE_WINDOW_MS;
+  while (samples.length && samples[0].at < cutoff) samples.shift();
+  samples.push({ at: Date.now(), ...readRawMetrics() });
+}
+
+function averageOf(values: number[]): number {
+  return values.reduce((sum, v) => sum + v, 0) / values.length;
+}
+
+/** Promedio de los últimos 30 min de muestras — el número que debe guiar "¿actualizo el VPS?". */
+function sustainedCapacity() {
+  if (samples.length === 0) return null;
+  const diskSamples = samples.map((s) => s.diskUsedPercent).filter((v): v is number => v != null);
+  const avg = computeVpsCapacity({
+    loadAvg1m: averageOf(samples.map((s) => s.loadAvg1m)),
+    cpuCores: samples[samples.length - 1].cpuCores,
+    ramUsedPercent: averageOf(samples.map((s) => s.ramUsedPercent)),
+    swapUsedPercent: averageOf(samples.map((s) => s.swapUsedPercent)),
+    diskUsedPercent: diskSamples.length ? averageOf(diskSamples) : null,
+  });
+  const oldestSampleAt = samples[0].at;
+  return { ...avg, windowMinutes: Math.round((Date.now() - oldestSampleAt) / 60000), sampleCount: samples.length };
+}
+
+/** Arranca el muestreo periódico (llamar una vez desde server.ts al iniciar). */
+function startSampling(): void {
+  if (samplingTimer) return;
+  recordSample();
+  samplingTimer = setInterval(recordSample, SAMPLE_INTERVAL_MS);
+}
+
+function stopSampling(): void {
+  if (samplingTimer) clearInterval(samplingTimer);
+  samplingTimer = null;
+}
+
 async function measureDbLatencyMs(): Promise<number | null> {
   const start = Date.now();
   try {
@@ -119,37 +190,37 @@ function socketsConnected(): number {
 }
 
 export const masterServerStatusService = {
+  startSampling,
+  stopSampling,
+
   async get() {
     const [dbLatencyMs, exchangeRate] = await Promise.all([measureDbLatencyMs(), exchangeRateService.getSummary()]);
     const mem = process.memoryUsage();
     const freeMb = bytesToMb(os.freemem());
     const totalMb = bytesToMb(os.totalmem());
-    const usedPercent = Math.round((1 - freeMb / totalMb) * 100);
-    const loadAvg1m = Math.round(os.loadavg()[0] * 100) / 100;
-    const cpuCores = os.cpus().length;
+    const raw = readRawMetrics();
     const swap = readSwap();
-    const diskUsedPercent = readDiskUsedPercent();
 
-    const vpsCapacity = computeVpsCapacity({
-      loadAvg1m,
-      cpuCores,
-      ramUsedPercent: usedPercent,
-      swapUsedPercent: swap?.usedPercent ?? 0,
-      diskUsedPercent,
-    });
+    const instant = computeVpsCapacity(raw);
+    const sustained = sustainedCapacity();
 
     return {
       uptimeSeconds: Math.round(process.uptime()),
       memory: { rssMb: bytesToMb(mem.rss), heapUsedMb: bytesToMb(mem.heapUsed) },
-      system: { freeMb, totalMb, usedPercent },
-      loadAvg1m,
-      cpuCores,
+      system: { freeMb, totalMb, usedPercent: raw.ramUsedPercent },
+      loadAvg1m: raw.loadAvg1m,
+      cpuCores: raw.cpuCores,
       swap,
-      diskUsedPercent,
+      diskUsedPercent: raw.diskUsedPercent,
       dbLatencyMs,
       socketsConnected: socketsConnected(),
       exchangeRate,
-      vpsCapacity,
+      vpsCapacity: {
+        instant,
+        // Mientras se llena el buffer (arranque reciente del proceso), usa el
+        // instantáneo como mejor estimado disponible en vez de dejarlo vacío.
+        sustained: sustained ?? { ...instant, windowMinutes: 0, sampleCount: 0 },
+      },
     };
   },
 
