@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import imageCompression from 'browser-image-compression';
-import { ImagePlus, Loader2, X } from 'lucide-react';
+import { ImagePlus, Loader2, Sparkles, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { cn } from '@/lib/utils';
 import { ImageCropDialog } from './ImageCropDialog';
@@ -23,6 +23,8 @@ interface Props {
   defaultPreview?: string;
   /** Si viene, antes de comprimir/subir se abre un recorte (ancho/alto) a esta proporción, ej. 2 = 2:1. */
   cropAspect?: number;
+  /** Muestra los botones "Mejorar con IA" / "Fondo blanco con IA" (requiere el microservicio local, ver ai-photo-service/). */
+  aiEnabled?: boolean;
 }
 
 /**
@@ -42,9 +44,11 @@ export function PhotoUploadField({
   helpText,
   defaultPreview,
   cropAspect,
+  aiEnabled = false,
 }: Props) {
   const [preview, setPreview] = useState<string | null>(value ?? null);
   const [uploading, setUploading] = useState(false);
+  const [aiProcessing, setAiProcessing] = useState<'enhance' | 'white-background' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -82,6 +86,26 @@ export function PhotoUploadField({
       return;
     }
     uploadBlob(file, file.name);
+  }
+
+  async function runAi(kind: 'enhance' | 'white-background') {
+    if (!preview || aiProcessing) return;
+    setError(null);
+    setAiProcessing(kind);
+    try {
+      const sourceBlob = await fetch(preview).then((r) => r.blob());
+      const form = new FormData();
+      form.append('photo', sourceBlob, 'photo.jpg');
+      const { data } = await api.post(`/ai-photo/${kind}`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setPreview(data.data.url);
+      onChange(data.data.url);
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo procesar la foto con IA.');
+    } finally {
+      setAiProcessing(null);
+    }
   }
 
   const isCircle = shape === 'circle';
@@ -129,12 +153,34 @@ export function PhotoUploadField({
             )}
           </div>
         )}
-        {uploading && (
+        {(uploading || aiProcessing) && (
           <div className="absolute inset-0 flex items-center justify-center bg-white/70">
             <Loader2 className="h-5 w-5 animate-spin text-brand-500" />
           </div>
         )}
       </div>
+      {aiEnabled && preview && (
+        <div className="flex gap-2">
+          <button
+            type="button"
+            disabled={!!aiProcessing || uploading}
+            onClick={() => runAi('enhance')}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-brand-950/15 bg-brand-950/[0.02] px-2 py-1.5 text-xs font-medium text-brand-950/70 hover:border-brand-500/50 hover:text-brand-700 disabled:opacity-50"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {aiProcessing === 'enhance' ? 'Mejorando…' : 'Mejorar con IA'}
+          </button>
+          <button
+            type="button"
+            disabled={!!aiProcessing || uploading}
+            onClick={() => runAi('white-background')}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-brand-950/15 bg-brand-950/[0.02] px-2 py-1.5 text-xs font-medium text-brand-950/70 hover:border-brand-500/50 hover:text-brand-700 disabled:opacity-50"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {aiProcessing === 'white-background' ? 'Procesando…' : 'Fondo blanco con IA'}
+          </button>
+        </div>
+      )}
       <input
         ref={inputRef}
         type="file"

@@ -29,26 +29,54 @@ JPEG_QUALITY = 85
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024  # 15MB
 
 
+def _read_upload(raw: bytes) -> Image.Image:
+    try:
+        source = Image.open(io.BytesIO(raw))
+        source = ImageOps.exif_transpose(source)  # respeta la orientación de la cámara
+        return source.convert("RGB")
+    except Exception:
+        raise HTTPException(400, "No se pudo leer la imagen.")
+
+
+def _validate_upload(file: UploadFile, raw: bytes) -> None:
+    if file.content_type not in ("image/jpeg", "image/png", "image/webp"):
+        raise HTTPException(400, "Formato no soportado. Usa JPG, PNG o WEBP.")
+    if len(raw) > MAX_UPLOAD_BYTES:
+        raise HTTPException(400, "La imagen supera el límite de 15MB.")
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
 
-@app.post("/process-image")
-async def process_image(file: UploadFile = File(...)):
-    if file.content_type not in ("image/jpeg", "image/png", "image/webp"):
-        raise HTTPException(400, "Formato no soportado. Usa JPG, PNG o WEBP.")
-
+@app.post("/enhance-image")
+async def enhance_image(file: UploadFile = File(...)):
+    """Botón "Mejorar foto con IA": ajusta contraste, brillo y nitidez sin
+    tocar el fondo -- para fotos que ya están bien encuadradas pero se ven
+    apagadas o borrosas (foto tomada con el celular en la cocina, etc.)."""
     raw = await file.read()
-    if len(raw) > MAX_UPLOAD_BYTES:
-        raise HTTPException(400, "La imagen supera el límite de 15MB.")
+    _validate_upload(file, raw)
+    source = _read_upload(raw)
 
-    try:
-        source = Image.open(io.BytesIO(raw))
-        source = ImageOps.exif_transpose(source)  # respeta la orientación de la cámara
-        source = source.convert("RGB")
-    except Exception:
-        raise HTTPException(400, "No se pudo leer la imagen.")
+    result = ImageEnhance.Contrast(source).enhance(1.15)
+    result = ImageEnhance.Brightness(result).enhance(1.04)
+    result = ImageEnhance.Color(result).enhance(1.08)
+    result = ImageEnhance.Sharpness(result).enhance(1.3)
+
+    out = io.BytesIO()
+    result.save(out, format="JPEG", quality=JPEG_QUALITY, optimize=True)
+    out.seek(0)
+    return Response(content=out.getvalue(), media_type="image/jpeg")
+
+
+@app.post("/white-background")
+async def white_background(file: UploadFile = File(...)):
+    """Botón "Fondo blanco con IA": quita el fondo original y compone el
+    producto sobre blanco puro con una sombra suave -- efecto foto-producto."""
+    raw = await file.read()
+    _validate_upload(file, raw)
+    source = _read_upload(raw)
 
     # 1) Mejora leve de contraste ANTES de quitar el fondo -- ayuda a rembg
     #    a distinguir mejor los bordes del producto.

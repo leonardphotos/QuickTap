@@ -43,6 +43,7 @@ import modifierCategoryRoutes from '../modules/modifier-categories/modifier-cate
 import { publicReservationRoutes, tenantReservationRoutes } from '../modules/reservations/reservation.routes';
 import { publicRamblayRoutes } from '../modules/ramblay/ramblay.routes';
 import branchRoutes from '../modules/branches/branch.routes';
+import aiPhotoRoutes from '../modules/ai-photo/ai-photo.routes';
 
 /**
  * Enrutador raíz de la API v1.
@@ -88,6 +89,7 @@ router.use('/delivery-couriers', deliveryCourierRoutes);
 router.use('/delivery-zones', deliveryZoneRoutes);
 router.use('/reservations', tenantReservationRoutes);
 router.use('/branches', branchRoutes);
+router.use('/ai-photo', aiPhotoRoutes);
 
 // --- Público ---
 router.use('/public', menuRoutes);

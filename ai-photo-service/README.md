@@ -60,15 +60,21 @@ La **primera vez que proceses una imagen**, `rembg` descarga su modelo
 y necesita conexión a internet saliente desde el VPS. Las siguientes
 llamadas son instantáneas porque el modelo queda cacheado en disco.
 
+El servicio expone dos endpoints (uno por cada botón del panel de admin):
+
+- `POST /enhance-image` -- "Mejorar foto con IA": contraste/brillo/nitidez, sin tocar el fondo.
+- `POST /white-background` -- "Fondo blanco con IA": quita el fondo y compone sobre blanco puro con sombra.
+
 Probar desde otra terminal (en el propio VPS, ya que quedó en `127.0.0.1`,
 no expuesto a internet):
 
 ```bash
-curl -X POST http://127.0.0.1:8100/process-image -F "file=@/ruta/a/una/foto.jpg" -o resultado.jpg
+curl -X POST http://127.0.0.1:8100/enhance-image -F "file=@/ruta/a/una/foto.jpg" -o mejorada.jpg
+curl -X POST http://127.0.0.1:8100/white-background -F "file=@/ruta/a/una/foto.jpg" -o fondo-blanco.jpg
 ```
 
-Si `resultado.jpg` abre y se ve con fondo blanco + sombra, funciona. `Ctrl+C`
-para bajarlo y pasar al paso 6.
+Si ambos archivos abren correctamente (uno solo con mejor contraste, el otro
+con fondo blanco + sombra), funciona. `Ctrl+C` para bajarlo y pasar al paso 6.
 
 **Nota de recursos:** `rembg` + `onnxruntime` en CPU usan bastante RAM
 durante el procesamiento (pico de ~300-500MB por request). Si el VPS ya
@@ -111,11 +117,9 @@ WantedBy=multi-user.target
 Reemplaza `TU_USUARIO` por el usuario real del VPS (no uses `root`).
 `--host 127.0.0.1` es intencional: el servicio queda **solo accesible
 desde el propio VPS**, no expuesto a internet. El backend de Node le
-pega internamente (`http://127.0.0.1:8100/process-image`) y listo -- no
-hace falta abrir puerto en el firewall ni agregarlo a Nginx, a menos que
-quieras llamarlo directo desde el navegador del panel (en ese caso, sí
-habría que proxyearlo por Nginx bajo un path tipo `/ai-photo/` con su
-propio `location` block, igual que ya hace con `/api/`).
+pega internamente (`http://127.0.0.1:8100/enhance-image` y
+`http://127.0.0.1:8100/white-background`, ver sección 7) y listo -- no
+hace falta abrir puerto en el firewall ni agregarlo a Nginx.
 
 Activarlo:
 
@@ -138,14 +142,30 @@ Reiniciarlo tras cambios en `main.py`:
 sudo systemctl restart quicktap-ai-photo
 ```
 
-## 7. Integrarlo con el backend de QuickTap (opcional, siguiente paso)
+## 7. Integración con el backend de QuickTap (ya implementada)
 
-Una vez confirmado que el servicio responde, el backend de Node puede
-llamarlo desde el mismo endpoint de subida de fotos (`inventory.controller.ts` /
-`product.controller.ts`) con un `fetch`/`axios` a
-`http://127.0.0.1:8100/process-image` antes de guardar el archivo final
-en `uploads/`, en vez de (o además de) `optimizeImage()` (sharp). Esto no
-está implementado todavía -- es un cambio de código en el repo, aparte de
-este microservicio, y conviene decidir primero si quieres que sea
-automático en cada subida o un botón opcional ("Mejorar foto con IA") en
-el formulario.
+El backend de Node expone dos endpoints propios que actúan de proxy hacia
+este microservicio (ver `src/modules/ai-photo/`):
+
+- `POST /api/v1/ai-photo/enhance`
+- `POST /api/v1/ai-photo/white-background`
+
+Ambos reciben el campo `photo` (multipart/form-data, igual que
+`/products/upload-photo`), reenvían el archivo a este microservicio,
+guardan la imagen procesada en `uploads/ai-photo/` y devuelven
+`{ data: { url } }` -- el mismo shape que ya usa `PhotoUploadField` en el
+frontend. El formulario de Productos ya tiene los dos botones ("Mejorar
+foto con IA" / "Fondo blanco con IA") conectados a estos endpoints.
+
+Para que el backend encuentre este servicio, define en el `.env` del
+backend (raíz del repo, no en `web/`):
+
+```bash
+AI_PHOTO_SERVICE_URL=http://127.0.0.1:8100
+```
+
+Si la variable no está definida, o el microservicio no responde (no está
+instalado o systemd lo tiene caído), el backend devuelve un error claro
+("Servicio de IA no disponible") en vez de romper la subida de fotos
+normal -- los dos botones de IA son un extra, la subida manual de fotos
+sigue funcionando igual sin este servicio.

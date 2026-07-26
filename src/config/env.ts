@@ -52,6 +52,12 @@ export const env = {
     fromName: process.env.MAIL_FROM_NAME ?? 'QuickTap.club',
   },
 
+  // --- Microservicio local de IA para fotos de producto (ver ai-photo-service/) ---
+  // FastAPI + rembg, corre aparte (no depende de Node). Si no está instalado
+  // o está caído, aiPhotoService.ts devuelve un error claro en vez de tumbar
+  // la subida de fotos normal (los botones de IA son un extra, no un requisito).
+  aiPhotoServiceUrl: process.env.AI_PHOTO_SERVICE_URL ?? 'http://127.0.0.1:8100',
+
   // --- Pasarela de pago Ramblay (C2P / Binance Pay) ---
   // Sin API key configurada, ramblayClient.createPayment() falla con un error
   // claro en vez de tumbar el arranque del servidor (igual que mail.resendApiKey).

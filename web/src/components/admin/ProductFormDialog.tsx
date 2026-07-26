@@ -188,7 +188,7 @@ export function ProductFormDialog({
               ✅ Producto creado. Ahora puedes agregar modificadores o variantes abajo.
             </p>
           )}
-          <PhotoUploadField value={form.photoUrl} onChange={(url) => setForm({ ...form, photoUrl: url })} />
+          <PhotoUploadField value={form.photoUrl} onChange={(url) => setForm({ ...form, photoUrl: url })} aiEnabled />
 
           <div className="grid sm:grid-cols-2 gap-3">
             <input

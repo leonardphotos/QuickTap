@@ -91,6 +91,23 @@ export const uploadFullscreenImage = makeUpload(
 export const uploadCoverImage = makeImageUpload('covers', 'photo');
 
 /**
+ * Subida en memoria (sin tocar disco) para el proxy hacia el microservicio
+ * de IA (`ai-photo.service.ts`): necesita el buffer del archivo para
+ * reenviarlo tal cual, no un path de un archivo ya guardado.
+ */
+export const uploadPhotoToMemory = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!ALLOWED_MIME.has(file.mimetype)) {
+      cb(badRequest('Formato de imagen no soportado (usa JPG, PNG o WEBP).'));
+      return;
+    }
+    cb(null, true);
+  },
+}).single('photo');
+
+/**
  * Redimensiona/recomprime la imagen recién subida (en el mismo archivo, sin
  * cambiar de nombre ni extensión). El cliente ya comprime antes de subir,
  * pero esto es la garantía real: sin importar lo que llegue, nunca se sirve
