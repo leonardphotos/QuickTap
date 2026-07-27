@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
-import { BrowserMultiFormatReader } from '@zxing/browser';
-import type { IScannerControls } from '@zxing/browser';
+import { useEffect, useState } from 'react';
 import { Minus, Plus, ScanLine, X } from 'lucide-react';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import type { ShopVariant } from '@/data/shopRubros';
 import { productStatus, productStock, type ShopProduct } from './shopSession';
+import { useBarcodeCamera } from './useBarcodeCamera';
 
 interface Props {
   open: boolean;
@@ -27,69 +26,36 @@ function bestVariant(product: ShopProduct): ShopVariant {
  * escaneando. La cámara se libera siempre al cerrar el diálogo (evita dejarla prendida en segundo plano).
  */
 export default function ShopBarcodeScanDialog({ open, onOpenChange, products, money, onAdd }: Props) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const readerRef = useRef<BrowserMultiFormatReader | null>(null);
-  const controlsRef = useRef<IScannerControls | null>(null);
-
   const [matched, setMatched] = useState<ShopProduct | null>(null);
   const [notFoundCode, setNotFoundCode] = useState<string | null>(null);
   const [qtyInput, setQtyInput] = useState('1');
-  const [cameraError, setCameraError] = useState<string | null>(null);
   const [justAdded, setJustAdded] = useState<string | null>(null);
 
   const variant = matched ? bestVariant(matched) : null;
   const isWeight = !!variant?.soldByWeight;
 
-  function stopCamera() {
-    controlsRef.current?.stop();
-    controlsRef.current = null;
-  }
+  const { videoRef, cameraError } = useBarcodeCamera(open, (code) => {
+    setMatched((prevMatched) => {
+      // Ya hay un match mostrándose — ignora nuevas lecturas hasta que el cajero decida
+      // (Añadir o descartar), si no el mismo código sigue disparando en cada frame.
+      if (prevMatched) return prevMatched;
+      const found = products.find((p) => p.sku.toLowerCase() === code.toLowerCase());
+      if (found) {
+        setNotFoundCode(null);
+        setQtyInput('1');
+        return found;
+      }
+      setNotFoundCode(code);
+      return null;
+    });
+  });
 
   useEffect(() => {
-    if (!open) {
-      stopCamera();
-      return;
-    }
+    if (!open) return;
     setMatched(null);
     setNotFoundCode(null);
-    setCameraError(null);
     setJustAdded(null);
     setQtyInput('1');
-
-    if (!readerRef.current) readerRef.current = new BrowserMultiFormatReader();
-    let cancelled = false;
-
-    readerRef.current
-      .decodeFromConstraints({ video: { facingMode: 'environment' } }, videoRef.current ?? undefined, (result) => {
-        if (cancelled || !result) return;
-        const code = result.getText().trim();
-        setMatched((prevMatched) => {
-          // Ya hay un match mostrándose — ignora nuevas lecturas hasta que el cajero decida
-          // (Añadir o descartar), si no el mismo código sigue disparando en cada frame.
-          if (prevMatched) return prevMatched;
-          const found = products.find((p) => p.sku.toLowerCase() === code.toLowerCase());
-          if (found) {
-            setNotFoundCode(null);
-            setQtyInput('1');
-            return found;
-          }
-          setNotFoundCode(code);
-          return null;
-        });
-      })
-      .then((controls) => {
-        if (cancelled) controls.stop();
-        else controlsRef.current = controls;
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setCameraError(err instanceof Error ? err.message : 'No se pudo acceder a la cámara.');
-      });
-
-    return () => {
-      cancelled = true;
-      stopCamera();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
   function resumeScanning() {
@@ -115,7 +81,7 @@ export default function ShopBarcodeScanDialog({ open, onOpenChange, products, mo
         </DialogHeader>
 
         <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-black">
-          <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
+          <video ref={videoRef} className="w-full h-full object-cover" muted autoPlay playsInline />
           {!matched && !cameraError && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="w-2/3 aspect-[3/1] border-2 border-white/70 rounded-lg" />

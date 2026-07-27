@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import type { ShopProductSeed, ShopRubro, ShopVariant } from '@/data/shopRubros';
 import { shopMoneyFormatters } from './shopFormat';
 import { productStatus, productStock, type ShopProduct, type ShopSession } from './shopSession';
+import ShopSkuScanDialog from './ShopSkuScanDialog';
 
 interface Props {
   session: ShopSession;
@@ -73,6 +74,11 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   const [scanOpen, setScanOpen] = useState(false);
   const [scanCode, setScanCode] = useState('');
   const scanInputRef = useRef<HTMLInputElement>(null);
+  // Cámara del celular para leer el código de barras (misma que en Venta) — cameraScanFor
+  // distingue si el código detectado va al diálogo de "Escanear" del toolbar (busca en el
+  // catálogo) o directo al campo SKU del formulario de Nuevo/Editar producto que ya está abierto.
+  const [cameraScanOpen, setCameraScanOpen] = useState(false);
+  const [cameraScanFor, setCameraScanFor] = useState<'toolbar' | 'form'>('toolbar');
 
   function openScanDialog() {
     setScanCode('');
@@ -80,22 +86,37 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     requestAnimationFrame(() => scanInputRef.current?.focus());
   }
 
-  /** Botón "Escanear" del toolbar: busca el código contra el catálogo — si ya existe un producto
-   * con ese SKU abre su edición (para sumar stock/corregir datos), si no abre Nuevo producto con
-   * el código ya cargado como SKU, listo para completar el resto. */
-  function submitScan() {
-    const code = scanCode.trim();
-    if (!code) return;
-    const match = products.find((p) => p.sku.toLowerCase() === code.toLowerCase());
+  /** Busca el código contra el catálogo — si ya existe un producto con ese SKU abre su edición
+   * (para sumar stock/corregir datos), si no abre Nuevo producto con el código ya cargado como
+   * SKU, listo para completar el resto. Usado tanto por el input de texto (lector USB/Bluetooth
+   * o tipeo manual) como por la cámara. */
+  function resolveScannedCode(code: string) {
+    const trimmed = code.trim();
+    if (!trimmed) return;
+    const match = products.find((p) => p.sku.toLowerCase() === trimmed.toLowerCase());
     setScanOpen(false);
     if (match) openEditProductDialog(match);
-    else openNewProductDialog(code);
+    else openNewProductDialog(trimmed);
+  }
+
+  function submitScan() {
+    resolveScannedCode(scanCode);
   }
 
   function handleScanKeyDown(e: KeyboardEvent<HTMLInputElement>) {
     if (e.key !== 'Enter') return;
     e.preventDefault();
     submitScan();
+  }
+
+  function openCameraScan(target: 'toolbar' | 'form') {
+    setCameraScanFor(target);
+    setCameraScanOpen(true);
+  }
+
+  function handleCameraScan(code: string) {
+    if (cameraScanFor === 'form') setNpSku(code);
+    else resolveScannedCode(code);
   }
 
   const [recountOpen, setRecountOpen] = useState(false);
@@ -540,16 +561,31 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
           <p className="text-[12px] text-brand-950/40">
             Si el código ya pertenece a un producto se abre para editarlo (sumar stock, corregir precio, etc.); si no existe, se abre Nuevo producto con el código ya cargado.
           </p>
-          <DialogFooter>
-            <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setScanOpen(false)}>
-              Cancelar
+          <DialogFooter className="sm:justify-between">
+            <TextureButton
+              variant="minimal"
+              size="default"
+              className="!w-auto"
+              onClick={() => {
+                setScanOpen(false);
+                openCameraScan('toolbar');
+              }}
+            >
+              <ScanLine className="h-4 w-4" /> Usar cámara
             </TextureButton>
-            <TextureButton variant="brand" size="default" className="!w-auto" disabled={!scanCode.trim()} onClick={submitScan}>
-              Buscar
-            </TextureButton>
+            <div className="flex gap-2">
+              <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setScanOpen(false)}>
+                Cancelar
+              </TextureButton>
+              <TextureButton variant="brand" size="default" className="!w-auto" disabled={!scanCode.trim()} onClick={submitScan}>
+                Buscar
+              </TextureButton>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ShopSkuScanDialog open={cameraScanOpen} onOpenChange={setCameraScanOpen} onScan={handleCameraScan} />
 
       {/* ---------- Registrar compra ---------- */}
       <Dialog open={purchaseOpen} onOpenChange={setPurchaseOpen}>
@@ -727,14 +763,24 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
             <label className="block text-sm">
               <span className="text-brand-950/70 flex items-center justify-between gap-2">
                 SKU / código de barras
-                <button
-                  type="button"
-                  onClick={() => npSkuInputRef.current?.focus()}
-                  title="Enfoca el campo — listo para leer un lector de código de barras USB/Bluetooth"
-                  className="text-[11px] font-semibold text-brand-500 hover:text-brand-600 flex items-center gap-1"
-                >
-                  <ScanLine className="h-3 w-3" /> Escanear
-                </button>
+                <span className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openCameraScan('form')}
+                    title="Leer el código con la cámara del celular"
+                    className="text-[11px] font-semibold text-brand-500 hover:text-brand-600 flex items-center gap-1"
+                  >
+                    <ScanLine className="h-3 w-3" /> Usar cámara
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => npSkuInputRef.current?.focus()}
+                    title="Enfoca el campo — listo para leer un lector de código de barras USB/Bluetooth"
+                    className="text-[11px] font-semibold text-brand-950/40 hover:text-brand-950/70"
+                  >
+                    Lector USB
+                  </button>
+                </span>
               </span>
               <input
                 ref={npSkuInputRef}
