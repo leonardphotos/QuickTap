@@ -13,10 +13,7 @@ const OPTIONS: {
   disabled?: boolean;
 }[] = [
   { id: 'restaurant', label: 'Restaurantes', description: 'Mesas, comandas, cocina y delivery.', icon: Utensils },
-  // Deshabilitado: el panel de Shop (ShopLayout y compañía) todavía guarda todo en memoria del
-  // navegador, no en Postgres — un negocio real perdería su catálogo/ventas al refrescar. Se
-  // habilita cuando ese panel tenga persistencia real (ver comentario en shopSession.ts).
-  { id: 'shop', label: 'Locales Comerciales', description: 'Próximamente.', icon: Store, disabled: true },
+  { id: 'shop', label: 'Locales Comerciales', description: 'Punto de venta, inventario y variantes por producto.', icon: Store },
   { id: 'warehouse', label: 'Almacenes', description: 'Próximamente.', icon: Warehouse, disabled: true },
 ];
 

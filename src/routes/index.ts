@@ -44,6 +44,7 @@ import { publicReservationRoutes, tenantReservationRoutes } from '../modules/res
 import { publicRamblayRoutes } from '../modules/ramblay/ramblay.routes';
 import branchRoutes from '../modules/branches/branch.routes';
 import aiPhotoRoutes from '../modules/ai-photo/ai-photo.routes';
+import shopRoutes from '../modules/shop/shop.routes';
 
 /**
  * Enrutador raíz de la API v1.
@@ -90,6 +91,7 @@ router.use('/delivery-zones', deliveryZoneRoutes);
 router.use('/reservations', tenantReservationRoutes);
 router.use('/branches', branchRoutes);
 router.use('/ai-photo', aiPhotoRoutes);
+router.use('/shop', shopRoutes);
 
 // --- Público ---
 router.use('/public', menuRoutes);

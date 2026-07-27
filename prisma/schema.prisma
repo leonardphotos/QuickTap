@@ -371,6 +371,16 @@ model Restaurant {
   schedules           RestaurantSchedule[]
   reservations        Reservation[]
 
+  // --- QuickTap Shop (businessType = SHOP): catálogo/ventas/caja propios, sin relación con
+  // Product/Order (esos son del vertical restaurante) — ver web/src/pages/admin/shop/. ---
+  shopProducts          ShopProduct[]
+  shopSales             ShopSale[]
+  shopPurchases         ShopPurchase[]
+  shopStockAdjustments  ShopStockAdjustment[]
+  shopCashSessions      ShopCashSession[]
+  shopCategories        ShopCategory[]
+  shopSubcategories     ShopSubcategory[]
+
   @@index([parentRestaurantId])
   @@map("restaurants")
 }
@@ -1369,4 +1379,193 @@ model DeliveryZone {
 
   @@index([restaurantId])
   @@map("delivery_zones")
+}
+
+// ----------------------------------------------------------------------------
+// QuickTap Shop (businessType = SHOP): catálogo, ventas y caja de un local comercial —
+// completamente aparte de Product/Order/CashSession (esos son del vertical restaurante).
+// Ver web/src/pages/admin/shop/shopSession.ts para la contraparte de frontend.
+// ----------------------------------------------------------------------------
+
+model ShopProduct {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  name        String
+  category    String
+  subcategory String
+  sku         String
+  location    String
+  price       Float
+  cost        Float
+  minStock    Float
+
+  // Precio mayorista: se aplica en Venta cuando la cantidad del carrito llega a wholesaleMinQty.
+  wholesalePrice  Float?
+  wholesaleMinQty Float?
+  // Precio promocional: si está seteado, gana siempre sobre price y wholesalePrice.
+  promoPrice      Float?
+  // Fecha de vencimiento (ISO yyyy-mm-dd), texto libre igual que en el frontend.
+  expiryDate      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  variants   ShopProductVariant[]
+
+  @@index([restaurantId])
+  @@map("shop_products")
+}
+
+// Una fila por combinación de variante (ej: Talla M / Color Azul) con su propio stock.
+model ShopProductVariant {
+  id        String @id @default(cuid())
+  productId String
+
+  v1           String
+  v2           String
+  stock        Float
+  // Se vende por peso (Kg): en el carrito la cantidad es decimal, no unidades enteras.
+  soldByWeight Boolean @default(false)
+
+  product ShopProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@map("shop_product_variants")
+}
+
+// Venta del POS de Shop — cada línea se snapshotea completa en ShopSaleItem (independiente de
+// ediciones posteriores al producto), mismo criterio que Order/OrderItem del vertical restaurante.
+model ShopSale {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  total         Float
+  time          DateTime @default(now())
+  customerName  String?
+  customerPhone String?
+  returned      Boolean  @default(false)
+  paymentMethod String?
+  // { reference?, hasProof? } — comprobante de Pago Móvil.
+  paymentMeta   Json?
+  // 'FULL' | 'INSTALLMENT' | null — venta fiada (se paga todo después, o se abonó algo ahora).
+  creditTerms   String?
+  amountPaidNow Float?
+
+  restaurant Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items      ShopSaleItem[]
+
+  @@index([restaurantId])
+  @@map("shop_sales")
+}
+
+model ShopSaleItem {
+  id     String @id @default(cuid())
+  saleId String
+
+  // Informativo, sin relación FK — el resto de los campos ya snapshotea todo lo necesario
+  // para mostrar/devolver la venta aunque el producto original cambie o se borre.
+  productId    String?
+  v1           String
+  v2           String
+  name         String
+  category     String?
+  qty          Float
+  price        Float
+  cost         Float
+  soldByWeight Boolean @default(false)
+
+  sale ShopSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+  @@map("shop_sale_items")
+}
+
+// Compra a proveedor que repone stock (suma unidades, a diferencia de un ajuste de inventario).
+model ShopPurchase {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  supplier    String
+  productId   String?
+  productName String
+  v1          String
+  v2          String
+  qty         Float
+  cost        Float
+  time        DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+  @@map("shop_purchases")
+}
+
+// Corrección manual de stock (recuento físico/auditoría): fija el stock a la cantidad contada
+// en vez de sumarle unidades, a diferencia de ShopPurchase.
+model ShopStockAdjustment {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  productId   String?
+  productName String
+  v1          String
+  v2          String
+  before      Float
+  after       Float
+  diff        Float
+  reason      String
+  time        DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+  @@map("shop_stock_adjustments")
+}
+
+// Apertura/cierre de caja del POS de Shop — closedAt null = caja abierta actualmente (a lo sumo
+// una por restaurante). Al cerrar se congela el arqueo, igual que CashSession.closingSummary.
+model ShopCashSession {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  openedAt   DateTime  @default(now())
+  closedAt   DateTime?
+  opening    Float
+  salesCount Int?
+  totalSales Float?
+  expected   Float?
+  counted    Float?
+  diff       Float?
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+  @@map("shop_cash_sessions")
+}
+
+// Categorías/subcategorías del catálogo — el dueño las va creando desde Inventario, no están
+// atadas a un rubro en particular (cualquier Local Comercial organiza el suyo desde cero).
+model ShopCategory {
+  id           String @id @default(cuid())
+  restaurantId String
+  name         String
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, name])
+  @@map("shop_categories")
+}
+
+model ShopSubcategory {
+  id           String @id @default(cuid())
+  restaurantId String
+  category     String
+  name         String
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, category, name])
+  @@map("shop_subcategories")
 }

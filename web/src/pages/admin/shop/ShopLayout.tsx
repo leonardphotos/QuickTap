@@ -50,6 +50,14 @@ export default function ShopLayout() {
     );
   }
 
+  if (session.loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#fafafa]">
+        <p className="text-sm text-brand-950/40 font-light">Cargando…</p>
+      </div>
+    );
+  }
+
   const canSeeMoney = user.role === 'OWNER' || user.role === 'ADMIN';
 
   return (

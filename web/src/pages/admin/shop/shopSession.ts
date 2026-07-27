@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ShopProductSeed, ShopVariant } from '@/data/shopRubros';
+import { shopApi, toShopProduct } from './shopApi';
 
 /**
- * Estado en memoria de una sesión de QuickTap Shop: catálogo, carrito, ventas, compras y caja.
- * Alcance de esta iteración (ver plan aprobado): todo vive en React state, seedeado una vez
- * desde el catálogo de ejemplo del rubro elegido al registrarse — nada de esto se persiste en
- * Postgres todavía (se resetea al recargar la página). El diseño del modelo real de inventario
- * multi-variante es un paso aparte, a validar primero con esta UI funcionando.
+ * Estado de una sesión de QuickTap Shop: catálogo, carrito, ventas, compras y caja. El carrito
+ * vive solo en memoria (una venta en curso no necesita sobrevivir un refresh); todo lo demás se
+ * hidrata una vez desde el backend al montar (GET /shop/state) y cada mutación se aplica local
+ * de inmediato (misma UX de siempre, sin esperar la red) y se persiste en paralelo vía shopApi —
+ * ver src/modules/shop/ en el backend. Si la persistencia falla, la sesión sigue funcionando con
+ * el estado local (se pierde en el próximo refresh, pero no bloquea al cajero a mitad de venta).
  */
 
 export type ShopProduct = ShopProductSeed;
@@ -197,11 +199,115 @@ export function useShopSession(initialCategories: string[] = []) {
   // Subcategorías ya usadas, agrupadas por categoría — solo para sugerir/organizar (el campo de
   // subcategoría sigue siendo texto libre en el formulario de producto).
   const [subcategories, setSubcategories] = useState<Record<string, string[]>>({});
+  // true hasta que se resuelve la carga inicial desde el backend — ShopLayout muestra un loader
+  // en vez de renderizar con un catálogo vacío que luego "salta" al llegar los datos reales.
+  const [loading, setLoading] = useState(true);
+
+  // Productos recién creados (id temporal local) cuyo POST al backend todavía no resolvió — las
+  // mutaciones que referencian ese producto (comprar, ajustar stock) esperan este id real antes
+  // de llamar a la API, para no mandar un productId que Postgres todavía no conoce.
+  const pendingProductIds = useRef<Map<string, Promise<string>>>(new Map());
+  async function resolveServerProductId(id: string): Promise<string> {
+    return (await pendingProductIds.current.get(id)) ?? id;
+  }
+
+  useEffect(() => {
+    let cancelled = false;
+    shopApi
+      .getState()
+      .then((state) => {
+        if (cancelled) return;
+        setProducts(state.products.map(toShopProduct));
+        setSales(
+          state.sales.map((s) => ({
+            id: s.id,
+            items: s.items.map((it) => ({
+              productId: it.productId ?? '',
+              v1: it.v1,
+              v2: it.v2,
+              name: it.name,
+              category: it.category,
+              qty: it.qty,
+              price: it.price,
+              cost: it.cost,
+              soldByWeight: it.soldByWeight,
+            })),
+            total: s.total,
+            time: new Date(s.time),
+            customerName: s.customerName,
+            customerPhone: s.customerPhone,
+            returned: s.returned,
+            paymentMethod: s.paymentMethod,
+            paymentMeta: s.paymentMeta,
+            creditTerms: s.creditTerms,
+            amountPaidNow: s.amountPaidNow,
+          })),
+        );
+        setPurchases(
+          state.purchases.map((p) => ({
+            id: p.id,
+            supplier: p.supplier,
+            productName: p.productName,
+            v1: p.v1,
+            v2: p.v2,
+            qty: p.qty,
+            cost: p.cost,
+            time: new Date(p.time),
+          })),
+        );
+        setAdjustments(
+          state.adjustments.map((a) => ({
+            id: a.id,
+            productId: a.productId ?? '',
+            productName: a.productName,
+            v1: a.v1,
+            v2: a.v2,
+            before: a.before,
+            after: a.after,
+            diff: a.diff,
+            reason: a.reason,
+            time: new Date(a.time),
+          })),
+        );
+        setCategories((prev) => {
+          const merged = [...state.categories];
+          for (const c of prev) if (!merged.includes(c)) merged.push(c);
+          return merged;
+        });
+        setSubcategories(state.subcategories);
+        setTill(state.till ? { opening: state.till.opening, openedAt: new Date(state.till.openedAt) } : null);
+        setClosedTills(
+          state.closedTills.map((t) => ({
+            id: t.id,
+            openedAt: new Date(t.openedAt),
+            closedAt: new Date(t.closedAt as string),
+            opening: t.opening,
+            salesCount: t.salesCount ?? 0,
+            totalSales: t.totalSales ?? 0,
+            expected: t.expected ?? 0,
+            counted: t.counted ?? 0,
+            diff: t.diff ?? 0,
+          })),
+        );
+      })
+      .catch((err) => {
+        console.error('No se pudo cargar el estado de QuickTap Shop desde el servidor', err);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Carga única al montar — ShopLayout crea un solo useShopSession por sesión de panel.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function addCategory(name: string) {
     const trimmed = name.trim();
     if (!trimmed) return;
     setCategories((prev) => (prev.includes(trimmed) ? prev : [...prev, trimmed]));
+    shopApi.addCategory(trimmed).catch((err) => console.error('No se pudo guardar la categoría', err));
   }
 
   function addSubcategory(category: string, name: string) {
@@ -212,6 +318,7 @@ export function useShopSession(initialCategories: string[] = []) {
       if (existing.includes(trimmed)) return prev;
       return { ...prev, [category]: [...existing, trimmed] };
     });
+    shopApi.addSubcategory(category, trimmed).catch((err) => console.error('No se pudo guardar la subcategoría', err));
   }
 
   function addToCart(product: ShopProduct, variant: ShopVariant, qty = 1) {
@@ -270,6 +377,7 @@ export function useShopSession(initialCategories: string[] = []) {
 
   function openTill(opening: number) {
     setTill({ opening, openedAt: new Date() });
+    shopApi.openTill(opening).catch((err) => console.error('No se pudo abrir la caja en el servidor', err));
   }
 
   /** Cierra la caja y congela el arqueo en closedTills — antes el resumen se perdía apenas se
@@ -294,6 +402,7 @@ export function useShopSession(initialCategories: string[] = []) {
       ...prev,
     ]);
     setTill(null);
+    shopApi.closeTill(counted).catch((err) => console.error('No se pudo cerrar la caja en el servidor', err));
   }
 
   function checkout(
@@ -346,6 +455,20 @@ export function useShopSession(initialCategories: string[] = []) {
     }));
     setSales((prev) => [sale, ...prev]);
     setCart([]);
+
+    shopApi
+      .recordSale({
+        items: saleItems.map((it) => ({ ...it, productId: it.productId || undefined })),
+        total,
+        customerName: sale.customerName,
+        customerPhone: sale.customerPhone,
+        paymentMethod: sale.paymentMethod,
+        paymentMeta: sale.paymentMeta,
+        creditTerms: sale.creditTerms,
+        amountPaidNow: sale.amountPaidNow,
+      })
+      .catch((err) => console.error('No se pudo guardar la venta en el servidor', err));
+
     return sale;
   }
 
@@ -364,6 +487,7 @@ export function useShopSession(initialCategories: string[] = []) {
       };
     }));
     setSales((prev) => prev.map((s) => (s.id === saleId ? { ...s, returned: true } : s)));
+    shopApi.returnSale(saleId).catch((err) => console.error('No se pudo registrar la devolución en el servidor', err));
   }
 
   function registerPurchase(supplier: string, productId: string, variantIndex: number, qty: number, cost: number) {
@@ -378,6 +502,14 @@ export function useShopSession(initialCategories: string[] = []) {
       { id: `pu${Date.now()}`, supplier, productName: product.name, v1: variant.v1, v2: variant.v2, qty, cost, time: new Date() },
       ...prev,
     ]);
+    (async () => {
+      try {
+        const realProductId = await resolveServerProductId(productId);
+        await shopApi.recordPurchase({ supplier, productId: realProductId, v1: variant.v1, v2: variant.v2, qty, cost });
+      } catch (err) {
+        console.error('No se pudo guardar la compra en el servidor', err);
+      }
+    })();
   }
 
   /** Corrige el stock de una variante a la cantidad realmente contada (recuento físico /
@@ -407,13 +539,36 @@ export function useShopSession(initialCategories: string[] = []) {
       },
       ...prev,
     ]);
+    (async () => {
+      try {
+        const realProductId = await resolveServerProductId(productId);
+        await shopApi.recordAdjustment({ productId: realProductId, v1: variant.v1, v2: variant.v2, counted, reason: reason.trim() || 'Recuento físico' });
+      } catch (err) {
+        console.error('No se pudo guardar el ajuste de stock en el servidor', err);
+      }
+    })();
   }
 
   function addProduct(input: NewProductInput): ShopProduct {
-    const product: ShopProduct = { id: `np${Date.now()}`, ...input };
+    const tempId = `np${Date.now()}`;
+    const product: ShopProduct = { id: tempId, ...input };
     setProducts((prev) => [...prev, product]);
     addCategory(input.category);
     if (input.subcategory) addSubcategory(input.category, input.subcategory);
+
+    const created = shopApi
+      .createProduct(input)
+      .then((raw) => {
+        const serverProduct = toShopProduct(raw);
+        setProducts((prev) => prev.map((p) => (p.id === tempId ? serverProduct : p)));
+        return raw.id;
+      })
+      .catch((err) => {
+        console.error('No se pudo guardar el producto en el servidor', err);
+        return tempId;
+      });
+    pendingProductIds.current.set(tempId, created);
+
     return product;
   }
 
@@ -423,9 +578,19 @@ export function useShopSession(initialCategories: string[] = []) {
     setProducts((prev) => prev.map((p) => (p.id === id ? { ...p, ...input } : p)));
     addCategory(input.category);
     if (input.subcategory) addSubcategory(input.category, input.subcategory);
+
+    (async () => {
+      try {
+        const realId = await resolveServerProductId(id);
+        await shopApi.updateProduct(realId, input);
+      } catch (err) {
+        console.error('No se pudo actualizar el producto en el servidor', err);
+      }
+    })();
   }
 
   return {
+    loading,
     products,
     sales,
     purchases,
