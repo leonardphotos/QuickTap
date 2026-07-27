@@ -45,8 +45,20 @@ export default function ShopSkuScanDialog({ open, onOpenChange, onScan }: Props)
           <DialogTitle>Escanear código de barras</DialogTitle>
         </DialogHeader>
 
-        <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-black">
-          <video ref={videoRef} className="w-full h-full object-cover" muted autoPlay playsInline />
+        {/* Ver ShopBarcodeScanDialog.tsx: translateZ(0) fuerza una capa de composición GPU propia,
+            remedio para el bug de WebKit que deja el <video> en negro dentro de un Dialog con transform. */}
+        <div
+          className="relative w-full aspect-square rounded-2xl overflow-hidden bg-black"
+          style={{ transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
+        >
+          <video
+            ref={videoRef}
+            className="w-full h-full object-cover"
+            style={{ transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
+            muted
+            autoPlay
+            playsInline
+          />
           {!detected && !cameraError && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="w-2/3 aspect-[3/1] border-2 border-white/70 rounded-lg" />

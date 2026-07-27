@@ -80,8 +80,23 @@ export default function ShopBarcodeScanDialog({ open, onOpenChange, products, mo
           <DialogTitle>Escanear producto</DialogTitle>
         </DialogHeader>
 
-        <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-black">
-          <video ref={videoRef} className="w-full h-full object-cover" muted autoPlay playsInline />
+        <div
+          className="relative w-full aspect-square rounded-2xl overflow-hidden bg-black"
+          // Safari/WebKit a veces renderiza el <video> en negro (aunque el stream esté vivo — el
+          // punto verde de cámara activa lo confirma) cuando queda anidado dentro de un ancestro
+          // con `transform` (el Dialog se centra con translate) y este contenedor recorta con
+          // overflow-hidden + bordes redondeados. Forzar una capa de composición GPU propia con
+          // translateZ(0) — tanto aquí como en el <video> — es el remedio para ese bug de WebKit.
+          style={{ transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
+        >
+          <video
+            ref={videoRef}
+            className="w-full h-full object-cover"
+            style={{ transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
+            muted
+            autoPlay
+            playsInline
+          />
           {!matched && !cameraError && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="w-2/3 aspect-[3/1] border-2 border-white/70 rounded-lg" />
