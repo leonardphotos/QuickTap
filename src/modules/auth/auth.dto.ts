@@ -22,6 +22,10 @@ export const registerSchema = z.object({
   ownerName: z.string().min(1).max(120),
   email: emailSchema,
   password: z.string().min(6).max(100),
+  // Vertical elegido en /empezar. RESTAURANT por defecto (flujo de siempre);
+  // SHOP solo llega desde el registro de "Locales Comerciales", con shopRubro seteado.
+  businessType: z.enum(['RESTAURANT', 'SHOP']).optional().default('RESTAURANT'),
+  shopRubro: z.string().min(1).max(60).optional(),
 });
 
 export const loginSchema = z.object({

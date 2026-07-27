@@ -100,6 +100,14 @@ enum Currency {
   EUR
 }
 
+// Vertical de negocio del tenant. RESTAURANT es el producto original (mesas/comandas/cocina);
+// SHOP es el vertical de retail (POS por SKU/variantes, inventario, sin mesas ni cocina) —
+// ver AdminLayout, que renderiza un panel completamente distinto según este campo.
+enum BusinessType {
+  RESTAURANT
+  SHOP
+}
+
 enum PaymentMethod {
   MOBILE_PAYMENT // Pago Móvil
   ZELLE
@@ -201,6 +209,13 @@ model Restaurant {
   name        String
   description String?
   logoUrl     String?
+
+  // --- Vertical de negocio (elegido al registrarse, no editable desde el panel) ---
+  businessType BusinessType @default(RESTAURANT)
+  // Rubro de retail elegido en el registro (ej: "zapateria", "panaderia") cuando
+  // businessType = SHOP. Indexa el catálogo de ejemplo en web/src/data/shopRubros.ts.
+  // Null para restaurantes.
+  shopRubro    String?
 
   // --- Configuración de moneda ---
   // Moneda en la que el restaurante coloca sus precios ($ o €).

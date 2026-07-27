@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
 import { FULL_ACCESS_ROLES, TEAM_MANAGER_ROLES } from '../../utils/roles';
-import { optimizeImage, uploadCoverImage, uploadFullscreenImage, uploadLogo } from '../../middlewares/upload.middleware';
+import { optimizeImage, uploadCoverImage, uploadFullscreenImage, uploadLogo, uploadPaymentQr } from '../../middlewares/upload.middleware';
 import { restaurantController } from './restaurant.controller';
 
 /** Base: /api/v1/restaurant (el tenant activo, resuelto por JWT). */
@@ -19,6 +19,7 @@ router.post('/demo-admin-unlock', requireRole(...TEAM_MANAGER_ROLES), restaurant
 router.get('/schedule', restaurantController.getSchedule);
 router.put('/schedule', mutate, restaurantController.updateSchedule);
 router.post('/upload-logo', mutate, uploadLogo, optimizeImage(900, 900), restaurantController.uploadLogo);
+router.post('/upload-payment-qr', mutate, uploadPaymentQr, optimizeImage(900, 900), restaurantController.uploadPaymentQr);
 router.post(
   '/upload-cover-image',
   mutate,

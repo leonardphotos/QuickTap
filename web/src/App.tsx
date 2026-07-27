@@ -7,6 +7,8 @@ const LandingPage = lazy(() => import('./pages/LandingPage'));
 const PlansPage = lazy(() => import('./pages/PlansPage'));
 const MenuPage = lazy(() => import('./pages/public/MenuPage'));
 const LoginPage = lazy(() => import('./pages/admin/LoginPage'));
+const StartRegisterPage = lazy(() => import('./pages/admin/StartRegisterPage'));
+const ShopRubroPage = lazy(() => import('./pages/admin/ShopRubroPage'));
 const RegisterPage = lazy(() => import('./pages/admin/RegisterPage'));
 const ForgotPasswordPage = lazy(() => import('./pages/admin/ForgotPasswordPage'));
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
@@ -69,6 +71,10 @@ export default function App() {
 
             {/* Panel del restaurante */}
             <Route path="/admin/login" element={<LoginPage />} />
+            {/* Primer paso del registro: elige el rubro/vertical antes de cualquier dato. */}
+            <Route path="/empezar" element={<StartRegisterPage />} />
+            {/* Solo para "Locales Comerciales": elegir uno de los 23 rubros de retail. */}
+            <Route path="/admin/register/rubro" element={<ShopRubroPage />} />
             <Route path="/admin/register" element={<RegisterPage />} />
             <Route path="/admin/forgot-password" element={<ForgotPasswordPage />} />
             {/* Pantalla única post-pago, sin el chrome de AdminLayout (ver Restaurant.pendingWelcomePlan). */}

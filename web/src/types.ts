@@ -47,6 +47,8 @@ export interface PaymentMethodFields {
   id?: string;
   cuenta?: string;
   rif?: string;
+  /** Solo Pago Móvil: QR (banco/Suiche 7B) que se muestra al cliente al cobrar. */
+  qrImageUrl?: string;
 }
 
 export type PaymentMethodsConfig = Partial<Record<PaymentMethodKey, PaymentMethodFields>>;

@@ -37,6 +37,8 @@ const RESTAURANT_SELECT = {
   name: true,
   description: true,
   logoUrl: true,
+  businessType: true,
+  shopRubro: true,
   whatsappPhone: true,
   whatsappOrderMessageTemplate: true,
   baseCurrency: true,
@@ -76,6 +78,8 @@ type RestaurantRow = {
   name: string;
   description: string | null;
   logoUrl: string | null;
+  businessType: 'RESTAURANT' | 'SHOP';
+  shopRubro: string | null;
   whatsappPhone: string | null;
   whatsappOrderMessageTemplate: string | null;
   baseCurrency: 'USD' | 'EUR';
@@ -127,6 +131,8 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
     name: restaurant.name,
     description: restaurant.description,
     logoUrl: restaurant.logoUrl,
+    businessType: restaurant.businessType,
+    shopRubro: restaurant.shopRubro,
     whatsappPhone: restaurant.whatsappPhone,
     whatsappOrderMessageTemplate: restaurant.whatsappOrderMessageTemplate,
     baseCurrency: restaurant.baseCurrency,
@@ -176,6 +182,8 @@ export const authService = {
       data: {
         slug: input.slug,
         name: input.restaurantName,
+        businessType: input.businessType,
+        shopRubro: input.businessType === 'SHOP' ? input.shopRubro : undefined,
         whatsappPhone: input.whatsappPhone,
         baseCurrency: input.baseCurrency,
         periodEnd: trialPeriodEnd(),

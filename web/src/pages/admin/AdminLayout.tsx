@@ -19,6 +19,7 @@ import { visibleNavLinks } from './nav-links';
 const WaiterLayout = lazy(() => import('./WaiterLayout'));
 const ComandaKioskPage = lazy(() => import('./ComandaKioskPage'));
 const NumeroPage = lazy(() => import('./NumeroPage'));
+const ShopLayout = lazy(() => import('./shop/ShopLayout'));
 
 export default function AdminLayout() {
   const { user, restaurant, loading, logout } = useAuth();
@@ -58,6 +59,14 @@ export default function AdminLayout() {
   // se muestra la bienvenida una sola vez antes de dejar entrar al panel.
   if (restaurant.pendingWelcomePlan) {
     return <Navigate to="/admin/welcome" replace />;
+  }
+
+  // Local comercial (retail): panel completamente distinto al de restaurante — ver
+  // web/src/pages/admin/shop/ShopLayout.tsx. No pasa por canAccessPath/defaultPathFor (esas
+  // asumen rutas de restaurante) ni por el resto de esta función; ShopLayout resuelve su
+  // propia navegación interna (Panel administrativo / Venta / Inventario).
+  if (restaurant.businessType === 'SHOP') {
+    return <ShopLayout />;
   }
 
   if (!canAccessPath(user.role, pathname, user.canAccessInventory)) {

@@ -21,7 +21,7 @@ export function PricingSection() {
   // para que el panel la retome automáticamente después de crear la cuenta.
   function choosePlan(plan: Exclude<PlanId, 'TRIAL' | 'STARTER' | 'PREMIUM' | 'CUSTOM'>) {
     const params = new URLSearchParams({ plan, cycle: billingCycle });
-    navigate(`/admin/register?${params.toString()}`);
+    navigate(`/empezar?${params.toString()}`);
   }
 
   return (

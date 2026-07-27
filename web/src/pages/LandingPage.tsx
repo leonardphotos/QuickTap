@@ -455,7 +455,7 @@ export default function LandingPage() {
                 Iniciar sesión
               </Link>
               <Link
-                to="/admin/register"
+                to="/empezar"
                 className="text-sm font-medium bg-white text-brand-950 rounded-full px-3 py-1.5 hover:bg-white/90"
               >
                 Regístrate
@@ -589,7 +589,7 @@ export default function LandingPage() {
               Crea tu cuenta, arma tu menú y genera el primer QR en minutos.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Link to="/admin/register" className="w-full sm:w-auto">
+              <Link to="/empezar" className="w-full sm:w-auto">
                 <TextureButton variant="brand" size="lg" className="sm:!w-auto">
                   Regístrate y comienza gratis hoy
                 </TextureButton>
@@ -616,7 +616,7 @@ export default function LandingPage() {
               <Link to="/admin/login" className="text-sm text-brand-950/70 hover:text-brand-950">
                 Iniciar sesión
               </Link>
-              <Link to="/admin/register">
+              <Link to="/empezar">
                 <TextureButton variant="primary" size="sm" className="!w-auto">
                   Regístrate y comienza gratis hoy
                 </TextureButton>

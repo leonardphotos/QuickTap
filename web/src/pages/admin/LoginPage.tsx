@@ -41,7 +41,7 @@ export default function LoginPage() {
       footer={
         <p className="text-sm text-brand-950/60 font-light">
           ¿No tienes cuenta?{' '}
-          <Link to="/admin/register" className="text-brand-500 font-medium">
+          <Link to="/empezar" className="text-brand-500 font-medium">
             Regístrate
           </Link>
         </p>

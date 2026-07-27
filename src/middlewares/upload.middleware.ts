@@ -75,6 +75,8 @@ function makeImageUpload(subdir: string, fieldName: string) {
 export const uploadProductPhoto = makeImageUpload('products', 'photo');
 export const uploadInventoryPhoto = makeImageUpload('inventory', 'photo');
 export const uploadLogo = makeImageUpload('logos', 'photo');
+// QR de Pago Móvil (banco/Suiche 7B) que se muestra al cliente en pantalla al cobrar.
+export const uploadPaymentQr = makeImageUpload('payment-qr', 'photo');
 // Imagen de "Modo Cartelera" (pantalla completa del menú público). Estas
 // imágenes suelen ser piezas verticales grandes; `optimizeImage` de abajo
 // se encarga de bajarlas a un tamaño razonable para celular.

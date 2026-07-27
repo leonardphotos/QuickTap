@@ -7,11 +7,17 @@ import AuthLayout from './AuthLayout';
 import type { Currency } from '../../types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { COUNTRY_DIAL_CODES } from '@/data/dialCodes';
+import { getShopRubro } from '@/data/shopRubros';
 
 export default function RegisterPage() {
   const { register } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  // Presencia de estos dos params = viene del flujo "Locales Comerciales" (ver StartRegisterPage
+  // -> ShopRubroPage). Sin ellos, el registro se comporta exactamente igual que siempre.
+  const isShop = searchParams.get('businessType') === 'shop';
+  const shopRubroId = searchParams.get('rubro');
+  const shopRubro = isShop ? getShopRubro(shopRubroId) : undefined;
   const [restaurantName, setRestaurantName] = useState('');
   const [slug, setSlug] = useState('');
   const [countryCode, setCountryCode] = useState('VE');
@@ -42,6 +48,8 @@ export default function RegisterPage() {
         ownerName,
         email,
         password,
+        businessType: isShop ? 'SHOP' : 'RESTAURANT',
+        shopRubro: isShop ? (shopRubroId ?? undefined) : undefined,
       });
       // Si venía de "Elegir plan" en la landing, lo mandamos directo a pagar ese plan.
       const plan = searchParams.get('plan');
@@ -55,7 +63,7 @@ export default function RegisterPage() {
 
   return (
     <AuthLayout
-      title="Registra tu local"
+      title={isShop ? 'Registra tu local comercial' : 'Registra tu local'}
       footer={
         <p className="text-sm text-brand-950/60 font-light">
           ¿Ya tienes cuenta?{' '}
@@ -65,8 +73,25 @@ export default function RegisterPage() {
         </p>
       }
     >
+      {isShop && (
+        <div className="mb-5 flex items-center justify-between gap-3 rounded-xl bg-brand-500/10 px-4 py-3">
+          <span className="text-sm font-medium text-brand-950">
+            {shopRubro ? `${shopRubro.emoji} ${shopRubro.label}` : 'Rubro no seleccionado'}
+          </span>
+          <Link
+            to={`/admin/register/rubro?${searchParams.toString()}`}
+            className="shrink-0 text-xs font-semibold text-brand-500 hover:underline"
+          >
+            Cambiar
+          </Link>
+        </div>
+      )}
       <form onSubmit={onSubmit} className="space-y-4">
-        <Field label="Nombre del restaurante" value={restaurantName} onChange={setRestaurantName} />
+        <Field
+          label={isShop ? 'Nombre del negocio' : 'Nombre del restaurante'}
+          value={restaurantName}
+          onChange={setRestaurantName}
+        />
         <Field
           label="Slug (URL pública)"
           value={slug}

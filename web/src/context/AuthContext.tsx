@@ -3,7 +3,7 @@ import type { ReactNode } from 'react';
 import { api, clearToken, getToken, setStoredSlug, setToken } from '../api/client';
 import type { Currency, ExchangeRateInfo, PaymentMethodsConfig, RestaurantTheme, UserRole } from '../types';
 
-interface AuthUser {
+export interface AuthUser {
   id: string;
   name: string;
   email: string;
@@ -11,12 +11,17 @@ interface AuthUser {
   canAccessInventory: boolean;
 }
 
-interface AuthRestaurant {
+export interface AuthRestaurant {
   id: string;
   slug: string;
   name: string;
   description?: string | null;
   logoUrl?: string | null;
+  /** Vertical de negocio elegido al registrarse (ver /empezar). SHOP renderiza un panel
+   * completamente distinto (ver AdminLayout -> ShopLayout), no editable desde Ajustes. */
+  businessType: 'RESTAURANT' | 'SHOP';
+  /** Rubro de retail (indexa web/src/data/shopRubros.ts) cuando businessType = SHOP. */
+  shopRubro?: string | null;
   whatsappPhone?: string | null;
   whatsappOrderMessageTemplate?: string | null;
   baseCurrency: Currency;
@@ -75,6 +80,8 @@ interface AuthState {
     password: string;
     whatsappPhone?: string;
     baseCurrency?: Currency;
+    businessType?: 'RESTAURANT' | 'SHOP';
+    shopRubro?: string;
   }) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
@@ -150,6 +157,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string;
     whatsappPhone?: string;
     baseCurrency?: Currency;
+    businessType?: 'RESTAURANT' | 'SHOP';
+    shopRubro?: string;
   }) {
     const { data } = await api.post('/auth/register', input);
     setToken(data.data.token);

@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import type { PaymentMethodFields, PaymentMethodKey, PaymentMethodsConfig } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
+import { PhotoUploadField } from './PhotoUploadField';
 
 interface MethodDef {
   key: PaymentMethodKey;
@@ -54,8 +55,14 @@ const METHODS: MethodDef[] = [
   { key: 'CARD', label: 'Punto de Venta', fields: [] },
 ];
 
+interface Props {
+  /** Reemplaza el copy por defecto (pensado para el checkout de delivery/pickup del restaurante)
+   * cuando este componente se reutiliza en un contexto distinto, ej. QuickTap Shop. */
+  descriptionOverride?: string;
+}
+
 /** Métodos de pago que el restaurante ofrece a sus clientes en el checkout de delivery/pickup. */
-export function PaymentMethodsSection() {
+export function PaymentMethodsSection({ descriptionOverride }: Props = {}) {
   const { restaurant, refresh } = useAuth();
   const [config, setConfig] = useState<PaymentMethodsConfig>(restaurant?.paymentMethodsConfig ?? {});
   const [saving, setSaving] = useState(false);
@@ -90,8 +97,8 @@ export function PaymentMethodsSection() {
       <TextureCardHeader className="px-6">
         <TextureCardTitle className="pl-0">Métodos de pago</TextureCardTitle>
         <p className="text-sm text-brand-950/60 font-light">
-          Elige qué métodos ofreces a tus clientes en el checkout de delivery/pickup, y sus datos para que sepan a
-          dónde pagar.
+          {descriptionOverride ??
+            'Elige qué métodos ofreces a tus clientes en el checkout de delivery/pickup, y sus datos para que sepan a dónde pagar.'}
         </p>
       </TextureCardHeader>
       <TextureCardContent className="space-y-4">
@@ -126,6 +133,19 @@ export function PaymentMethodsSection() {
                         className="border border-brand-950/15 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
                       />
                     ))}
+                  </div>
+                )}
+
+                {enabled && m.key === 'MOBILE_PAYMENT' && (
+                  <div className="mt-3 max-w-[180px]">
+                    <PhotoUploadField
+                      value={config.MOBILE_PAYMENT?.qrImageUrl ?? null}
+                      onChange={(url) => setField('MOBILE_PAYMENT', 'qrImageUrl', url ?? '')}
+                      label="QR de Pago Móvil (banco / Suiche 7B)"
+                      uploadUrl="/restaurant/upload-payment-qr"
+                      shape="square"
+                      helpText="Se muestra a tus clientes al cobrar por Pago Móvil"
+                    />
                   </div>
                 )}
               </div>
