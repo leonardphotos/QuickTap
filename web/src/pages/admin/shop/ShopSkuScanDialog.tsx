@@ -9,6 +9,9 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   /** Se llama una sola vez por código detectado, tras confirmar — el diálogo se cierra solo. */
   onScan: (code: string) => void;
+  /** Si se pasa, muestra un link "Escribir código a mano" — para lectores USB/Bluetooth o cuando
+   * no hay cámara disponible. Cierra este diálogo y le pasa el control a quien lo abrió. */
+  onManualEntry?: () => void;
 }
 
 /**
@@ -17,7 +20,7 @@ interface Props {
  * abrió el diálogo decida qué hacer (cargarlo como SKU nuevo, buscarlo entre los productos, etc.).
  * Usa ScannerModal (sin backdrop-filter) en vez del <Dialog> compartido — ver ese archivo.
  */
-export default function ShopSkuScanDialog({ open, onOpenChange, onScan }: Props) {
+export default function ShopSkuScanDialog({ open, onOpenChange, onScan, onManualEntry }: Props) {
   const [detected, setDetected] = useState<string | null>(null);
 
   const handleDecode = useCallback((code: string) => {
@@ -83,6 +86,16 @@ export default function ShopSkuScanDialog({ open, onOpenChange, onScan }: Props)
         <p className="text-[13px] text-brand-950/40 text-center flex items-center justify-center gap-1.5">
           <ScanLine className="h-3.5 w-3.5" /> Apunta la cámara al código de barras
         </p>
+      )}
+
+      {onManualEntry && (
+        <button
+          type="button"
+          onClick={onManualEntry}
+          className="text-[12px] font-semibold text-brand-500 hover:text-brand-600 text-center"
+        >
+          Escribir código a mano / usar lector USB
+        </button>
       )}
     </ScannerModal>
   );
