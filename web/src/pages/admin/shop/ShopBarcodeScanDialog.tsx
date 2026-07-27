@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Minus, Plus, ScanLine, X } from 'lucide-react';
 import { TextureButton } from '@/components/ui/texture-button';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import ScannerModal from './ScannerModal';
 import type { ShopVariant } from '@/data/shopRubros';
 import { productStatus, productStock, type ShopProduct } from './shopSession';
 import { useBarcodeCamera } from './useBarcodeCamera';
@@ -23,7 +23,8 @@ function bestVariant(product: ShopProduct): ShopVariant {
  * iOS Safari y Android Chrome vía getUserMedia, no depende de la BarcodeDetector API nativa que
  * no existe en Safari). Al detectar un código lo busca contra el catálogo: si matchea, muestra el
  * producto con cantidad editable y un botón "Añadir"; si no, avisa que no se encontró y sigue
- * escaneando. La cámara se libera siempre al cerrar el diálogo (evita dejarla prendida en segundo plano).
+ * escaneando. La cámara se libera siempre al cerrar el diálogo (evita dejarla prendida en segundo
+ * plano). Usa ScannerModal (sin backdrop-filter) en vez del <Dialog> compartido — ver ese archivo.
  */
 export default function ShopBarcodeScanDialog({ open, onOpenChange, products, money, onAdd }: Props) {
   const [matched, setMatched] = useState<ShopProduct | null>(null);
@@ -74,114 +75,96 @@ export default function ShopBarcodeScanDialog({ open, onOpenChange, products, mo
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Escanear producto</DialogTitle>
-        </DialogHeader>
-
-        <div
-          className="relative w-full aspect-square rounded-2xl overflow-hidden bg-black"
-          // Safari/WebKit a veces renderiza el <video> en negro (aunque el stream esté vivo — el
-          // punto verde de cámara activa lo confirma) cuando queda anidado dentro de un ancestro
-          // con `transform` (el Dialog se centra con translate) y este contenedor recorta con
-          // overflow-hidden + bordes redondeados. Forzar una capa de composición GPU propia con
-          // translateZ(0) — tanto aquí como en el <video> — es el remedio para ese bug de WebKit.
-          style={{ transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
-        >
-          <video
-            ref={videoRef}
-            className="w-full h-full object-cover"
-            style={{ transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)' }}
-            muted
-            autoPlay
-            playsInline
-          />
-          {!matched && !cameraError && (
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              <div className="w-2/3 aspect-[3/1] border-2 border-white/70 rounded-lg" />
-            </div>
-          )}
-          {cameraError && (
-            <div className="absolute inset-0 flex items-center justify-center p-4 bg-black/80">
-              <p className="text-sm text-white text-center">{cameraError} Revisa los permisos de cámara del navegador.</p>
-            </div>
-          )}
-        </div>
-
-        {justAdded && (
-          <p className="text-[13px] font-semibold text-emerald-600 text-center">✓ Agregado: {justAdded}</p>
+    <ScannerModal
+      open={open}
+      onClose={() => onOpenChange(false)}
+      title="Escanear producto"
+      footer={
+        <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => onOpenChange(false)}>
+          Cerrar
+        </TextureButton>
+      }
+    >
+      <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-black">
+        <video ref={videoRef} className="w-full h-full object-cover" muted autoPlay playsInline />
+        {!matched && !cameraError && (
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="w-2/3 aspect-[3/1] border-2 border-white/70 rounded-lg" />
+          </div>
         )}
+        {cameraError && (
+          <div className="absolute inset-0 flex items-center justify-center p-4 bg-black/80">
+            <p className="text-sm text-white text-center">{cameraError} Revisa los permisos de cámara del navegador.</p>
+          </div>
+        )}
+      </div>
 
-        {matched && variant ? (
-          <div className="rounded-xl border border-brand-950/10 p-3.5 flex flex-col gap-3">
-            <div className="flex items-center justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-[14px] font-semibold text-brand-950 truncate">{matched.name}</p>
-                <p className="text-xs text-brand-950/40">
-                  {money(matched.price)}{isWeight ? ' / Kg' : ''} · {STATUS_LABEL[productStatus(matched)]} · {productStock(matched)}{isWeight ? ' Kg' : ''} en stock
-                </p>
+      {justAdded && (
+        <p className="text-[13px] font-semibold text-emerald-600 text-center">✓ Agregado: {justAdded}</p>
+      )}
+
+      {matched && variant ? (
+        <div className="rounded-xl border border-brand-950/10 p-3.5 flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-[14px] font-semibold text-brand-950 truncate">{matched.name}</p>
+              <p className="text-xs text-brand-950/40">
+                {money(matched.price)}{isWeight ? ' / Kg' : ''} · {STATUS_LABEL[productStatus(matched)]} · {productStock(matched)}{isWeight ? ' Kg' : ''} en stock
+              </p>
+            </div>
+            <button type="button" onClick={resumeScanning} className="shrink-0 text-brand-950/30 hover:text-red-500">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-brand-950/70">Cantidad{isWeight ? ' (Kg)' : ''}</span>
+            {isWeight ? (
+              <input
+                type="number"
+                step="0.001"
+                min="0"
+                value={qtyInput}
+                onChange={(e) => setQtyInput(e.target.value)}
+                autoFocus
+                className="flex-1 border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+              />
+            ) : (
+              <div className="flex items-center border border-brand-950/15 rounded-lg overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setQtyInput((q) => String(Math.max(1, (Number(q) || 1) - 1)))}
+                  className="h-9 w-9 flex items-center justify-center hover:bg-brand-950/5"
+                >
+                  <Minus className="h-3.5 w-3.5" />
+                </button>
+                <span className="w-10 text-center text-sm font-semibold">{qtyInput}</span>
+                <button
+                  type="button"
+                  onClick={() => setQtyInput((q) => String((Number(q) || 0) + 1))}
+                  className="h-9 w-9 flex items-center justify-center hover:bg-brand-950/5"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
               </div>
-              <button type="button" onClick={resumeScanning} className="shrink-0 text-brand-950/30 hover:text-red-500">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-brand-950/70">Cantidad{isWeight ? ' (Kg)' : ''}</span>
-              {isWeight ? (
-                <input
-                  type="number"
-                  step="0.001"
-                  min="0"
-                  value={qtyInput}
-                  onChange={(e) => setQtyInput(e.target.value)}
-                  autoFocus
-                  className="flex-1 border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
-                />
-              ) : (
-                <div className="flex items-center border border-brand-950/15 rounded-lg overflow-hidden">
-                  <button
-                    type="button"
-                    onClick={() => setQtyInput((q) => String(Math.max(1, (Number(q) || 1) - 1)))}
-                    className="h-9 w-9 flex items-center justify-center hover:bg-brand-950/5"
-                  >
-                    <Minus className="h-3.5 w-3.5" />
-                  </button>
-                  <span className="w-10 text-center text-sm font-semibold">{qtyInput}</span>
-                  <button
-                    type="button"
-                    onClick={() => setQtyInput((q) => String((Number(q) || 0) + 1))}
-                    className="h-9 w-9 flex items-center justify-center hover:bg-brand-950/5"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
-            </div>
-            <TextureButton variant="brand" size="default" className="w-full justify-center" disabled={!(Number(qtyInput) > 0)} onClick={confirmAdd}>
-              Añadir
-            </TextureButton>
+            )}
           </div>
-        ) : notFoundCode ? (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 flex items-center justify-between gap-2">
-            <p className="text-[13px] text-amber-700">Sin coincidencias para el código <span className="font-semibold">{notFoundCode}</span>.</p>
-            <TextureButton variant="minimal" size="sm" className="!w-auto shrink-0" onClick={resumeScanning}>
-              Reintentar
-            </TextureButton>
-          </div>
-        ) : (
-          <p className="text-[13px] text-brand-950/40 text-center flex items-center justify-center gap-1.5">
-            <ScanLine className="h-3.5 w-3.5" /> Apunta la cámara al código de barras del producto
-          </p>
-        )}
-
-        <DialogFooter>
-          <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => onOpenChange(false)}>
-            Cerrar
+          <TextureButton variant="brand" size="default" className="w-full justify-center" disabled={!(Number(qtyInput) > 0)} onClick={confirmAdd}>
+            Añadir
           </TextureButton>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        </div>
+      ) : notFoundCode ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3.5 flex items-center justify-between gap-2">
+          <p className="text-[13px] text-amber-700">Sin coincidencias para el código <span className="font-semibold">{notFoundCode}</span>.</p>
+          <TextureButton variant="minimal" size="sm" className="!w-auto shrink-0" onClick={resumeScanning}>
+            Reintentar
+          </TextureButton>
+        </div>
+      ) : (
+        <p className="text-[13px] text-brand-950/40 text-center flex items-center justify-center gap-1.5">
+          <ScanLine className="h-3.5 w-3.5" /> Apunta la cámara al código de barras del producto
+        </p>
+      )}
+    </ScannerModal>
   );
 }
 
