@@ -4,7 +4,6 @@ import { AuthProvider } from './context/AuthContext';
 import { MasterAuthProvider } from './context/MasterAuthContext';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
-const SolutionsPage = lazy(() => import('./pages/SolutionsPage'));
 const PlansPage = lazy(() => import('./pages/PlansPage'));
 const MenuPage = lazy(() => import('./pages/public/MenuPage'));
 const LoginPage = lazy(() => import('./pages/admin/LoginPage'));
@@ -61,7 +60,8 @@ export default function App() {
         <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<LandingPage />} />
-            <Route path="/soluciones" element={<SolutionsPage />} />
+            {/* La página de soluciones se fusionó con la Landing (ahora vive debajo del hero). */}
+            <Route path="/soluciones" element={<Navigate to="/" replace />} />
             <Route path="/planes" element={<PlansPage />} />
 
             {/* Menú público (QR de mesa o link general para delivery/pickup) */}

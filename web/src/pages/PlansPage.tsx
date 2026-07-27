@@ -12,7 +12,7 @@ export default function PlansPage() {
             <img src="/logo/icono-blanco.png" alt="QuickTap" className="h-7 w-7" />
           </Link>
           <nav className="flex items-center gap-1 sm:gap-2">
-            <Link to="/soluciones" className="hidden sm:inline text-sm text-white/70 hover:text-white px-2 py-1.5">
+            <Link to="/" className="hidden sm:inline text-sm text-white/70 hover:text-white px-2 py-1.5">
               Todo lo que hace
             </Link>
             <Link to="/admin/login" className="text-sm text-white/70 hover:text-white px-2 py-1.5">
@@ -42,7 +42,7 @@ export default function PlansPage() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Link to="/soluciones" className="text-sm text-brand-950/70 hover:text-brand-950">
+            <Link to="/" className="text-sm text-brand-950/70 hover:text-brand-950">
               Todo lo que hace
             </Link>
             <Link to="/admin/login" className="text-sm text-brand-950/70 hover:text-brand-950">
