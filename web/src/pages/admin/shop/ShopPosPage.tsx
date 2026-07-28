@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react';
-import type { KeyboardEvent } from 'react';
-import { Camera, CheckCircle2, ClipboardList, Minus, Plus, Printer, ScanLine, Search, X } from 'lucide-react';
+import type { ChangeEvent, KeyboardEvent } from 'react';
+import { Camera, CheckCircle2, ClipboardList, Loader2, Minus, Plus, Printer, ScanLine, Search, X } from 'lucide-react';
+import { api } from '@/api/client';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -94,7 +95,9 @@ export default function ShopPosPage({ session, restaurant, onPaymentSuccess }: P
   const [paymethodOpen, setPaymethodOpen] = useState(false);
   const [pagoMovilOpen, setPagoMovilOpen] = useState(false);
   const [pmReference, setPmReference] = useState('');
-  const [pmFileName, setPmFileName] = useState<string | null>(null);
+  const [pmProofUrl, setPmProofUrl] = useState<string | null>(null);
+  const [pmUploadingProof, setPmUploadingProof] = useState(false);
+  const [pmProofError, setPmProofError] = useState<string | null>(null);
   const pmFileInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [scanCameraOpen, setScanCameraOpen] = useState(false);
@@ -236,7 +239,8 @@ export default function ShopPosPage({ session, restaurant, onPaymentSuccess }: P
     }
     if (method === 'Pago Móvil') {
       setPmReference('');
-      setPmFileName(null);
+      setPmProofUrl(null);
+      setPmProofError(null);
       setPagoMovilOpen(true);
       return;
     }
@@ -248,9 +252,27 @@ export default function ShopPosPage({ session, restaurant, onPaymentSuccess }: P
     setSaleMode({ kind: 'direct' });
   }
 
+  async function handleProofFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setPmUploadingProof(true);
+    setPmProofError(null);
+    try {
+      const form = new FormData();
+      form.append('photo', file);
+      const { data } = await api.post('/shop/upload-payment-proof', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setPmProofUrl(data.data.url);
+    } catch {
+      setPmProofError('No se pudo subir el comprobante. Intenta de nuevo.');
+    } finally {
+      setPmUploadingProof(false);
+    }
+  }
+
   function confirmPagoMovil() {
     if (!pmReference.trim()) return;
-    const meta: PaymentMeta = { reference: pmReference.trim(), hasProof: !!pmFileName };
+    const meta: PaymentMeta = { reference: pmReference.trim(), hasProof: !!pmProofUrl, proofImageUrl: pmProofUrl ?? undefined };
     // Fiado fraccionado por Pago Móvil: se cobra el abono ahora y se cierra con el ticket
     // (que ya deja claro cuánto quedó pendiente) — la animación "Pago Registrado" es solo
     // para el cobro directo de todo el total.
@@ -680,18 +702,24 @@ export default function ShopPosPage({ session, restaurant, onPaymentSuccess }: P
               className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
             />
           </label>
-          <TextureButton variant="minimal" size="default" className="w-full justify-center" onClick={() => pmFileInputRef.current?.click()}>
-            <Camera className="h-4 w-4" /> Adjuntar comprobante
+          <TextureButton
+            variant="minimal"
+            size="default"
+            className="w-full justify-center"
+            disabled={pmUploadingProof}
+            onClick={() => pmFileInputRef.current?.click()}
+          >
+            {pmUploadingProof ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+            {pmUploadingProof ? 'Subiendo…' : 'Adjuntar comprobante'}
           </TextureButton>
-          <input
-            ref={pmFileInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={(e) => setPmFileName(e.target.files?.[0]?.name ?? null)}
-          />
-          {pmFileName && <p className="text-[12px] font-semibold text-emerald-600">✓ Comprobante adjunto: {pmFileName}</p>}
+          <input ref={pmFileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleProofFileChange} />
+          {pmProofUrl && (
+            <div className="flex items-center gap-2.5 justify-center">
+              <img src={pmProofUrl} alt="Comprobante" className="h-12 w-12 rounded-lg object-cover border border-brand-950/10" />
+              <p className="text-[12px] font-semibold text-emerald-600">✓ Comprobante adjunto</p>
+            </div>
+          )}
+          {pmProofError && <p className="text-[12px] font-semibold text-red-600">{pmProofError}</p>}
           <DialogFooter>
             <TextureButton variant="minimal" size="default" className="!w-auto" onClick={closePagoMovil}>
               Cancelar

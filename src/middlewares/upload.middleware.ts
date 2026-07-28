@@ -77,6 +77,10 @@ export const uploadInventoryPhoto = makeImageUpload('inventory', 'photo');
 export const uploadLogo = makeImageUpload('logos', 'photo');
 // QR de Pago Móvil (banco/Suiche 7B) que se muestra al cliente en pantalla al cobrar.
 export const uploadPaymentQr = makeImageUpload('payment-qr', 'photo');
+// QuickTap Shop: foto del producto en Inventario y comprobante de pago capturado en Venta
+// (screenshot de la transferencia/Pago Móvil que sube el cajero al cobrar).
+export const uploadShopProductPhoto = makeImageUpload('shop-products', 'photo');
+export const uploadShopPaymentProof = makeImageUpload('shop-payment-proofs', 'photo');
 // Imagen de "Modo Cartelera" (pantalla completa del menú público). Estas
 // imágenes suelen ser piezas verticales grandes; `optimizeImage` de abajo
 // se encarga de bajarlas a un tamaño razonable para celular.

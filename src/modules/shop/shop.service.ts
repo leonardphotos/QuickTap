@@ -56,6 +56,7 @@ export const shopService = {
         wholesaleMinQty: input.wholesaleMinQty,
         promoPrice: input.promoPrice,
         expiryDate: input.expiryDate,
+        photoUrl: input.photoUrl,
         variants: { createMany: { data: input.variants } },
       },
       include: { variants: true },

@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
+import { badRequest } from '../../utils/http-error';
 import {
   createShopProductSchema,
   updateShopProductSchema,
@@ -67,5 +68,15 @@ export const shopController = {
     const input = addShopSubcategorySchema.parse(req.body);
     await shopService.addSubcategory(req.restaurantId!, req.params.category, input.name);
     res.status(201).json({ data: { category: req.params.category, name: input.name } });
+  }),
+
+  uploadProductPhoto: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw badRequest('No se recibió ningún archivo.');
+    res.status(201).json({ data: { url: `/uploads/shop-products/${req.file.filename}` } });
+  }),
+
+  uploadPaymentProof: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw badRequest('No se recibió ningún archivo.');
+    res.status(201).json({ data: { url: `/uploads/shop-payment-proofs/${req.file.filename}` } });
   }),
 };

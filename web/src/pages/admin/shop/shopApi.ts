@@ -26,6 +26,7 @@ export interface RawShopProduct {
   wholesaleMinQty: number | null;
   promoPrice: number | null;
   expiryDate: string | null;
+  photoUrl: string | null;
   variants: RawShopVariant[];
 }
 
@@ -182,5 +183,6 @@ export function toShopProduct(p: RawShopProduct) {
     wholesaleMinQty: p.wholesaleMinQty ?? undefined,
     promoPrice: p.promoPrice ?? undefined,
     expiryDate: p.expiryDate ?? undefined,
+    photoUrl: p.photoUrl ?? undefined,
   };
 }

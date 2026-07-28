@@ -56,6 +56,9 @@ export interface SaleItem {
 export interface PaymentMeta {
   reference?: string;
   hasProof?: boolean;
+  /** URL del comprobante subido (screenshot de la transferencia/Pago Móvil) — se muestra en el
+   * detalle de la venta (Panel administrativo → Ventas recientes). */
+  proofImageUrl?: string;
 }
 
 export type CreditTerms = 'FULL' | 'INSTALLMENT';
@@ -180,6 +183,7 @@ export interface NewProductInput {
   wholesaleMinQty?: number;
   promoPrice?: number;
   expiryDate?: string;
+  photoUrl?: string;
 }
 
 // Una cuenta nueva arranca sin nada: el dueño carga su propio catálogo desde cero (Inventario

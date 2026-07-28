@@ -35,6 +35,8 @@ export interface ShopProductSeed {
   promoPrice?: number;
   /** Fecha de vencimiento (ISO yyyy-mm-dd), opcional — para alertar productos por vencer. */
   expiryDate?: string;
+  /** Foto del producto — obligatoria al crear uno nuevo desde Inventario. */
+  photoUrl?: string;
 }
 
 export interface ShopRubro {

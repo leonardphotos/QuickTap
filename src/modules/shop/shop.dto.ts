@@ -21,6 +21,7 @@ export const createShopProductSchema = z.object({
   wholesaleMinQty: z.coerce.number().min(0).optional(),
   promoPrice: z.coerce.number().min(0).optional(),
   expiryDate: z.string().max(10).optional(),
+  photoUrl: z.string().min(1).optional(),
 });
 
 export const updateShopProductSchema = createShopProductSchema.partial();
@@ -43,7 +44,10 @@ export const createShopSaleSchema = z.object({
   customerName: z.string().nullable().optional(),
   customerPhone: z.string().nullable().optional(),
   paymentMethod: z.string().nullable().optional(),
-  paymentMeta: z.object({ reference: z.string().optional(), hasProof: z.boolean().optional() }).nullable().optional(),
+  paymentMeta: z
+    .object({ reference: z.string().optional(), hasProof: z.boolean().optional(), proofImageUrl: z.string().optional() })
+    .nullable()
+    .optional(),
   creditTerms: z.enum(['FULL', 'INSTALLMENT']).nullable().optional(),
   amountPaidNow: z.coerce.number().nullable().optional(),
 });

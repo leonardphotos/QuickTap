@@ -4,6 +4,7 @@ import { ChevronDown, ClipboardList, FolderPlus, Package, Pencil, Plus, ScanLine
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
 import type { ShopProductSeed, ShopRubro, ShopVariant } from '@/data/shopRubros';
 import { shopMoneyFormatters } from './shopFormat';
 import { productStatus, productStock, type ShopProduct, type ShopSession } from './shopSession';
@@ -56,6 +57,8 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   const [npWholesaleMinQty, setNpWholesaleMinQty] = useState('');
   const [npPromoPrice, setNpPromoPrice] = useState('');
   const [npExpiryDate, setNpExpiryDate] = useState('');
+  const [npPhotoUrl, setNpPhotoUrl] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const npSkuInputRef = useRef<HTMLInputElement>(null);
   const npNameInputRef = useRef<HTMLInputElement>(null);
 
@@ -246,6 +249,8 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     setNpWholesaleMinQty('');
     setNpPromoPrice('');
     setNpExpiryDate('');
+    setNpPhotoUrl(null);
+    setSaveError(null);
     setNewOpen(true);
     // El diálogo recién se monta en este mismo tick — hay que esperar al siguiente frame para
     // que el input del SKU (o el de Nombre, si el SKU ya viene de un escaneo) exista en el DOM
@@ -274,6 +279,8 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     setNpWholesaleMinQty(p.wholesaleMinQty != null ? String(p.wholesaleMinQty) : '');
     setNpPromoPrice(p.promoPrice != null ? String(p.promoPrice) : '');
     setNpExpiryDate(p.expiryDate ?? '');
+    setNpPhotoUrl(p.photoUrl ?? null);
+    setSaveError(null);
     setNewOpen(true);
   }
 
@@ -298,6 +305,8 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     setNpWholesaleMinQty('');
     setNpPromoPrice('');
     setNpExpiryDate('');
+    setNpPhotoUrl(seed.photoUrl ?? null);
+    setSaveError(null);
     setNewOpen(true);
   }
 
@@ -312,9 +321,19 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     setNpStock('');
   }
 
+  /** Antes esto fallaba en silencio: si faltaba algo (más comúnmente, no haber tocado el botón +
+   * para agregar la variante) el clic en "Guardar producto" simplemente no hacía nada, sin avisar
+   * qué faltaba. Ahora cada condición deja un mensaje concreto arriba del botón. */
   function saveNewProduct() {
     const price = Number(npPrice) || 0;
-    if (!npName.trim() || !npSku.trim() || !price || npVariants.length === 0) return;
+    if (!npName.trim()) return setSaveError('Falta el nombre del producto.');
+    if (!npSku.trim()) return setSaveError('Falta el SKU / código de barras.');
+    if (!price) return setSaveError('El precio de venta debe ser mayor a 0.');
+    if (npVariants.length === 0) {
+      return setSaveError('Agrega al menos una variante: completa los campos de arriba y toca el botón + junto al stock.');
+    }
+    if (!editingProductId && !npPhotoUrl) return setSaveError('Agrega una foto del producto.');
+    setSaveError(null);
     const input = {
       name: npName.trim(),
       category: npCategory,
@@ -329,6 +348,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
       wholesaleMinQty: npWholesaleMinQty !== '' ? Number(npWholesaleMinQty) || 0 : undefined,
       promoPrice: npPromoPrice !== '' ? Number(npPromoPrice) || 0 : undefined,
       expiryDate: npExpiryDate || undefined,
+      photoUrl: npPhotoUrl ?? undefined,
     };
     if (editingProductId) updateProduct(editingProductId, input);
     else addProduct(input);
@@ -739,6 +759,15 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
             <DialogTitle>{editingProductId ? 'Editar producto' : 'Nuevo producto'}</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2">
+              <PhotoUploadField
+                value={npPhotoUrl}
+                onChange={setNpPhotoUrl}
+                label={editingProductId ? 'Foto del producto' : 'Foto del producto (obligatoria)'}
+                uploadUrl="/shop/products/upload-photo"
+                shape="square"
+              />
+            </div>
             <label className="block text-sm sm:col-span-2">
               <span className="text-brand-950/70">Nombre</span>
               <input
@@ -901,6 +930,10 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
               Si activas el precio mayorista, se aplica solo en Venta cuando la cantidad de esa línea del carrito llega al mínimo. El precio promocional siempre gana sobre los demás.
             </p>
           </div>
+
+          {saveError && (
+            <p className="text-[13px] font-medium text-red-600 bg-red-50 rounded-lg px-3 py-2">{saveError}</p>
+          )}
 
           <DialogFooter>
             <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setNewOpen(false)}>

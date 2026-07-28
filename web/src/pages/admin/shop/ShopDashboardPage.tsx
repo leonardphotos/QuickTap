@@ -1,5 +1,9 @@
+import { useState } from 'react';
 import type { AuthRestaurant } from '@/context/AuthContext';
-import { CalendarClock, ShieldAlert } from 'lucide-react';
+import { CalendarClock, Plus, ShieldAlert, X } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { TextureButton } from '@/components/ui/texture-button';
+import { ExpenseFormDialog } from '@/components/admin/ExpenseFormDialog';
 import { shopMoneyFormatters } from './shopFormat';
 import {
   daysUntilExpiry,
@@ -9,6 +13,7 @@ import {
   productStatus,
   productStock,
   saleProfit,
+  type Sale,
   type ShopSession,
 } from './shopSession';
 
@@ -44,6 +49,8 @@ const STATUS_CLASS: Record<string, string> = {
 export default function ShopDashboardPage({ session, restaurant, canSeeMoney }: Props) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
   const { products, sales, purchases, returnSale } = session;
+  const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [showExpenseDialog, setShowExpenseDialog] = useState(false);
 
   const active = sales.filter((s) => !s.returned);
   const todaySales = active.filter((s) => isToday(s.time));
@@ -192,13 +199,28 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney }: 
       </div>
 
       <div className="rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-5">
-        <h3 className="text-[15px] font-bold text-brand-950 mb-3.5">Ventas recientes</h3>
+        <div className="flex items-center justify-between gap-3 mb-3.5">
+          <h3 className="text-[15px] font-bold text-brand-950">Ventas recientes</h3>
+          <TextureButton
+            variant="secondary"
+            size="sm"
+            className="!w-auto flex items-center gap-1.5 !text-amber-600"
+            onClick={() => setShowExpenseDialog(true)}
+          >
+            <Plus className="h-3.5 w-3.5" /> Añadir egreso
+          </TextureButton>
+        </div>
         {recentSales.length === 0 ? (
           <p className="text-sm text-brand-950/40 text-center py-6">Sin ventas todavía.</p>
         ) : (
           <div className="flex flex-col">
             {recentSales.map((s) => (
-              <div key={s.id} className={`flex items-center justify-between gap-3 py-2.5 border-b border-brand-950/[0.05] last:border-b-0 ${s.returned ? 'opacity-50' : ''}`}>
+              <button
+                type="button"
+                key={s.id}
+                onClick={() => setSelectedSale(s)}
+                className={`flex items-center justify-between gap-3 py-2.5 border-b border-brand-950/[0.05] last:border-b-0 w-full text-left hover:bg-brand-950/[0.02] transition-colors ${s.returned ? 'opacity-50' : ''}`}
+              >
                 <div className="min-w-0">
                   <p className={`text-sm font-medium text-brand-950 truncate ${s.returned ? 'line-through' : ''}`}>
                     {s.items.map((it) => `${it.qty}x ${it.name}`).join(', ')}
@@ -212,21 +234,8 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney }: 
                     {s.returned ? ' · Devuelta' : ''}
                   </p>
                 </div>
-                <div className="flex items-center gap-2.5 shrink-0">
-                  <span className="text-sm font-bold text-brand-500">{money(s.total)}</span>
-                  {!s.returned && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (window.confirm('¿Registrar la devolución de esta venta? Se repondrá el stock.')) returnSale(s.id);
-                      }}
-                      className="text-[11.5px] font-semibold text-brand-950/60 border border-brand-950/15 rounded-full px-2.5 py-1 hover:bg-brand-950/5"
-                    >
-                      Devolver
-                    </button>
-                  )}
-                </div>
-              </div>
+                <span className="text-sm font-bold text-brand-500 shrink-0">{money(s.total)}</span>
+              </button>
             ))}
           </div>
         )}
@@ -254,6 +263,110 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney }: 
           </div>
         )}
       </div>
+
+      <Dialog open={!!selectedSale} onOpenChange={(o) => !o && setSelectedSale(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Detalle de la venta</DialogTitle>
+          </DialogHeader>
+          {selectedSale && (
+            <div className="space-y-3.5">
+              <div className="rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
+                {selectedSale.items.map((it, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2 px-3.5 py-2 text-sm">
+                    <span className="text-brand-950/80">
+                      {it.qty}x {it.name}
+                      {it.v1 ? ` (${it.v1}${it.v2 ? ' · ' + it.v2 : ''})` : ''}
+                    </span>
+                    <span className="font-semibold text-brand-950">{money(it.price * it.qty)}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-brand-950/50">Total</span>
+                <span className="text-base font-bold text-brand-500">{money(selectedSale.total)}</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-brand-950/50 text-xs">Fecha</p>
+                  <p className="font-medium text-brand-950">
+                    {selectedSale.time.toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: 'numeric' })} ·{' '}
+                    {selectedSale.time.toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit' })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-brand-950/50 text-xs">Método de pago</p>
+                  <p className="font-medium text-brand-950">{selectedSale.paymentMethod ?? '—'}</p>
+                </div>
+                {selectedSale.customerName && (
+                  <div>
+                    <p className="text-brand-950/50 text-xs">Cliente</p>
+                    <p className="font-medium text-brand-950">{selectedSale.customerName}</p>
+                  </div>
+                )}
+                {selectedSale.customerPhone && (
+                  <div>
+                    <p className="text-brand-950/50 text-xs">Teléfono</p>
+                    <p className="font-medium text-brand-950">{selectedSale.customerPhone}</p>
+                  </div>
+                )}
+                {selectedSale.creditTerms && (
+                  <div>
+                    <p className="text-brand-950/50 text-xs">Fiado</p>
+                    <p className="font-medium text-brand-950">
+                      {selectedSale.creditTerms === 'FULL' ? 'Pago completo pendiente' : `Abonó ${money(selectedSale.amountPaidNow ?? 0)}`}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {selectedSale.paymentMeta?.reference && (
+                <div>
+                  <p className="text-brand-950/50 text-xs">Número de referencia</p>
+                  <p className="font-semibold text-brand-950">{selectedSale.paymentMeta.reference}</p>
+                </div>
+              )}
+
+              {selectedSale.paymentMeta?.proofImageUrl ? (
+                <div>
+                  <p className="text-brand-950/50 text-xs mb-1.5">Comprobante de pago</p>
+                  <img
+                    src={selectedSale.paymentMeta.proofImageUrl}
+                    alt="Comprobante de pago"
+                    className="w-full max-w-[280px] rounded-xl border border-brand-950/10 object-contain"
+                  />
+                </div>
+              ) : (
+                selectedSale.paymentMeta?.hasProof && (
+                  <p className="text-[12px] text-brand-950/40">Se adjuntó un comprobante, pero no quedó guardada la imagen.</p>
+                )
+              )}
+
+              {!selectedSale.returned && (
+                <TextureButton
+                  variant="minimal"
+                  size="sm"
+                  className="!w-auto"
+                  onClick={() => {
+                    if (window.confirm('¿Registrar la devolución de esta venta? Se repondrá el stock.')) {
+                      returnSale(selectedSale.id);
+                      setSelectedSale(null);
+                    }
+                  }}
+                >
+                  <X className="h-3.5 w-3.5" /> Devolver esta venta
+                </TextureButton>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {showExpenseDialog && (
+        <ExpenseFormDialog onClose={() => setShowExpenseDialog(false)} onCreated={() => setShowExpenseDialog(false)} />
+      )}
     </div>
   );
 }

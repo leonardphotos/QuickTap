@@ -1399,6 +1399,8 @@ model ShopProduct {
   price       Float
   cost        Float
   minStock    Float
+  // Foto del producto — obligatoria al crear uno nuevo desde el panel (ver ShopInventoryPage.tsx).
+  photoUrl    String?
 
   // Precio mayorista: se aplica en Venta cuando la cantidad del carrito llega a wholesaleMinQty.
   wholesalePrice  Float?
