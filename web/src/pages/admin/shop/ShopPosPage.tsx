@@ -244,7 +244,12 @@ export default function ShopPosPage({ session, restaurant, onPaymentSuccess }: P
       setPagoMovilOpen(true);
       return;
     }
-    setTicketSale(finalizeSale(method, null));
+    const sale = finalizeSale(method, null);
+    setSuccessOpen(true);
+    setTimeout(() => {
+      setSuccessOpen(false);
+      setTicketSale(sale);
+    }, 1200);
   }
 
   function closePagoMovil() {
