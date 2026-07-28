@@ -52,6 +52,10 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   const [npV1, setNpV1] = useState('');
   const [npV2, setNpV2] = useState('');
   const [npStock, setNpStock] = useState('');
+  /** Stock de un producto básico (sin talla/color) — se usa solo mientras npVariants está
+   * vacío. Al guardar, si no se agregó ninguna variante explícita, esto se convierte en una
+   * única variante interna "Único" para reusar el mismo modelo de stock por variante. */
+  const [npBasicStock, setNpBasicStock] = useState('');
   const [npSoldByWeight, setNpSoldByWeight] = useState(false);
   const [npWholesalePrice, setNpWholesalePrice] = useState('');
   const [npWholesaleMinQty, setNpWholesaleMinQty] = useState('');
@@ -244,6 +248,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     setNpV1('');
     setNpV2('');
     setNpStock('');
+    setNpBasicStock('');
     setNpSoldByWeight(false);
     setNpWholesalePrice('');
     setNpWholesaleMinQty('');
@@ -270,7 +275,14 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     setNpPrice(String(p.price));
     setNpCost(String(p.cost));
     setNpMinStock(String(p.minStock));
-    setNpVariants(p.variants.map((v) => ({ ...v })));
+    const isBasic = p.variants.length === 1 && p.variants[0].v1 === 'Único' && !p.variants[0].v2;
+    if (isBasic) {
+      setNpVariants([]);
+      setNpBasicStock(String(p.variants[0].stock));
+    } else {
+      setNpVariants(p.variants.map((v) => ({ ...v })));
+      setNpBasicStock('');
+    }
     setNpSoldByWeight(p.variants.some((v) => v.soldByWeight));
     setNpV1('');
     setNpV2('');
@@ -297,6 +309,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     setNpCost(String(seed.cost));
     setNpMinStock(String(seed.minStock));
     setNpVariants(seed.variants.map((v) => ({ ...v })));
+    setNpBasicStock('');
     setNpSoldByWeight(seed.variants.some((v) => v.soldByWeight));
     setNpV1('');
     setNpV2('');
@@ -329,11 +342,13 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     if (!npName.trim()) return setSaveError('Falta el nombre del producto.');
     if (!npSku.trim()) return setSaveError('Falta el SKU / código de barras.');
     if (!price) return setSaveError('El precio de venta debe ser mayor a 0.');
-    if (npVariants.length === 0) {
-      return setSaveError('Agrega al menos una variante: completa los campos de arriba y toca el botón + junto al stock.');
+    if (npVariants.length === 0 && npBasicStock.trim() === '') {
+      return setSaveError('Ingresa el stock del producto, o agrega al menos una variante (talla/color) si aplica.');
     }
     if (!editingProductId && !npPhotoUrl) return setSaveError('Agrega una foto del producto.');
     setSaveError(null);
+    const variants: ShopVariant[] =
+      npVariants.length > 0 ? npVariants : [{ v1: 'Único', v2: '', stock: Number(npBasicStock) || 0, soldByWeight: npSoldByWeight }];
     const input = {
       name: npName.trim(),
       category: npCategory,
@@ -343,7 +358,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
       price,
       cost: Number(npCost) || 0,
       minStock: Number(npMinStock) || 0,
-      variants: npVariants,
+      variants,
       wholesalePrice: npWholesalePrice !== '' ? Number(npWholesalePrice) || 0 : undefined,
       wholesaleMinQty: npWholesaleMinQty !== '' ? Number(npWholesaleMinQty) || 0 : undefined,
       promoPrice: npPromoPrice !== '' ? Number(npPromoPrice) || 0 : undefined,
@@ -525,11 +540,16 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                       {expanded && (
                         <tr className="bg-brand-950/[0.02]">
                           <td colSpan={7} className="py-2.5 pl-12 pr-3">
-                            {p.variants.map((v, i) => (
-                              <div key={i} className="text-[12.5px] text-brand-950/60 py-0.5">
-                                {p.sku}-{v.v1}{v.v2 ? `-${v.v2}` : ''} · {rubro.dim1} {v.v1}{v.v2 ? ` · ${rubro.dim2} ${v.v2}` : ''} · Stock {v.stock}{v.soldByWeight ? ' Kg' : ''}
-                              </div>
-                            ))}
+                            {p.variants.map((v, i) => {
+                              const isBasicVariant = v.v1 === 'Único' && !v.v2;
+                              return (
+                                <div key={i} className="text-[12.5px] text-brand-950/60 py-0.5">
+                                  {isBasicVariant
+                                    ? `${p.sku} · Stock ${v.stock}${v.soldByWeight ? ' Kg' : ''}`
+                                    : `${p.sku}-${v.v1}${v.v2 ? `-${v.v2}` : ''} · ${rubro.dim1} ${v.v1}${v.v2 ? ` · ${rubro.dim2} ${v.v2}` : ''} · Stock ${v.stock}${v.soldByWeight ? ' Kg' : ''}`}
+                                </div>
+                              );
+                            })}
                             <div className="mt-2.5 pt-2.5 border-t border-brand-950/[0.06]">
                               <p className="text-[11px] font-bold uppercase text-brand-950/40 mb-1.5">Historial de movimientos</p>
                               {productMovements(p).length === 0 ? (
@@ -856,13 +876,32 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
           </div>
 
           <div className="border-t border-brand-950/[0.06] pt-3.5">
-            <p className="text-sm font-bold text-brand-950 mb-2.5">
-              Variantes ({rubro.dim1}{rubro.dim2 ? ` × ${rubro.dim2}` : ''})
+            <p className="text-sm font-bold text-brand-950 mb-1">Stock y variantes</p>
+            <p className="text-xs text-brand-950/50 mb-3">
+              Si es un producto básico (no maneja talla/color), ingresa su stock directamente. Si maneja variantes, agrégalas abajo en vez de llenar el stock básico.
             </p>
             <label className="flex items-center gap-2 mb-3 text-sm cursor-pointer">
               <input type="checkbox" checked={npSoldByWeight} onChange={(e) => setNpSoldByWeight(e.target.checked)} />
               <span className="text-brand-950/70">Se vende por peso (Kg) — para verduras, carnes u otros productos a granel</span>
             </label>
+
+            {npVariants.length === 0 && (
+              <label className="block text-xs mb-3.5 max-w-[160px]">
+                <span className="text-brand-950/60">Stock{npSoldByWeight ? ' (Kg)' : ''} — producto sin variantes</span>
+                <input
+                  type="number"
+                  step={npSoldByWeight ? '0.001' : '1'}
+                  value={npBasicStock}
+                  onChange={(e) => setNpBasicStock(e.target.value)}
+                  placeholder={npSoldByWeight ? '10.000' : '10'}
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+                />
+              </label>
+            )}
+
+            <p className="text-[11px] font-bold uppercase text-brand-950/40 mb-2">
+              Variantes ({rubro.dim1}{rubro.dim2 ? ` × ${rubro.dim2}` : ''}) — opcional
+            </p>
             <div className="flex items-end gap-2 mb-3">
               <label className="block text-xs flex-1">
                 <span className="text-brand-950/60">{rubro.dim1}</span>
@@ -890,7 +929,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
               </button>
             </div>
             {npVariants.length === 0 ? (
-              <p className="text-xs text-brand-950/40">Agrega al menos una variante.</p>
+              <p className="text-xs text-brand-950/40">Sin variantes — se usará el stock básico de arriba.</p>
             ) : (
               <div className="flex flex-col gap-1.5">
                 {npVariants.map((v, i) => (
