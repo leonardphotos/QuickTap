@@ -373,7 +373,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-brand-950">Inventario</h1>
+        <h1 className="text-xl font-bold text-brand-950">{rubro.id === 'agencia_publicidad' ? 'Servicios' : 'Inventario'}</h1>
         <div className="flex gap-2 flex-wrap">
           <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => openCameraScan('toolbar')}>
             <ScanLine className="h-4 w-4" /> Escanear

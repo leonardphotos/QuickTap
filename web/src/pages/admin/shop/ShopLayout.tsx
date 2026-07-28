@@ -13,11 +13,13 @@ import ShopSettingsPage from './ShopSettingsPage';
 
 type ShopScreen = 'admin' | 'venta' | 'inventario' | 'clientes' | 'ajustes';
 
-const TABS: { id: ShopScreen; label: string }[] = [
-  { id: 'admin', label: 'Panel administrativo' },
-  { id: 'inventario', label: 'Inventario' },
-  { id: 'clientes', label: 'Clientes' },
-];
+function getTabs(rubroId: string | undefined): { id: ShopScreen; label: string }[] {
+  return [
+    { id: 'admin', label: 'Panel administrativo' },
+    { id: 'inventario', label: rubroId === 'agencia_publicidad' ? 'Servicios' : 'Inventario' },
+    { id: 'clientes', label: 'Clientes' },
+  ];
+}
 
 /**
  * Panel de QuickTap Shop: reemplaza por completo la cabecera/navegación de restaurante
@@ -31,6 +33,7 @@ export default function ShopLayout() {
   const [screen, setScreen] = useState<ShopScreen>('admin');
   const rubro = getShopRubro(restaurant?.shopRubro);
   const session = useShopSession(rubro?.categories ?? []);
+  const tabs = getTabs(rubro?.id);
 
   if (!user || !restaurant) return null;
 
@@ -82,7 +85,7 @@ export default function ShopLayout() {
 
           <div className="flex items-center gap-2 flex-wrap">
             <nav className="flex items-center gap-1 bg-brand-950/[0.05] p-1 rounded-full">
-              {TABS.map((t) => (
+              {tabs.map((t) => (
                 <button
                   key={t.id}
                   type="button"
