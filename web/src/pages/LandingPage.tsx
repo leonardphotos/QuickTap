@@ -276,13 +276,16 @@ function BranchesMock() {
   );
 }
 
-/** Mini mockup: QR de Pago Móvil + monto en Bs + tasa del día, todo en una sola pantalla. */
+/** Mini mockup: QR de Pago Móvil real (el que sube el negocio) + monto en Bs + tasa del día,
+ * todo en una sola pantalla — igual a como se ve en la pantalla de cobro de QuickTap Shop. */
 function ShopQrPaymentMock() {
   return (
     <div className="flex items-center gap-4">
-      <div className="shrink-0 rounded-xl border border-brand-950/10 bg-white p-2.5">
-        <QrCode className="h-14 w-14 text-brand-950" />
-      </div>
+      <img
+        src="/images/qr-pago-movil-ejemplo.png"
+        alt="Ejemplo de QR de Pago Móvil subido por el negocio"
+        className="h-24 w-24 shrink-0 rounded-xl border border-brand-950/10 object-contain bg-white p-1"
+      />
       <div className="min-w-0">
         <p className="text-[10px] text-brand-950/40">Monto a cancelar</p>
         <p className="text-lg font-bold text-emerald-600 leading-tight">Bs 61.133,30</p>
