@@ -276,6 +276,22 @@ function BranchesMock() {
   );
 }
 
+/** Mini mockup: QR de Pago Móvil + monto en Bs + tasa del día, todo en una sola pantalla. */
+function ShopQrPaymentMock() {
+  return (
+    <div className="flex items-center gap-4">
+      <div className="shrink-0 rounded-xl border border-brand-950/10 bg-white p-2.5">
+        <QrCode className="h-14 w-14 text-brand-950" />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[10px] text-brand-950/40">Monto a cancelar</p>
+        <p className="text-lg font-bold text-emerald-600 leading-tight">Bs 61.133,30</p>
+        <p className="text-[10px] text-brand-950/50">$82.30 × Bs742.81 (tasa del día)</p>
+      </div>
+    </div>
+  );
+}
+
 /** Mini mockup: barra de stock con alerta, catálogo de tienda en vez de insumos de cocina. */
 function ShopInventoryMock() {
   const items = [
@@ -475,6 +491,19 @@ const FAQ = [
 ];
 
 const SHOP_SHOWCASES: Showcase[] = [
+  {
+    icon: QrCode,
+    eyebrow: 'Punto Pago',
+    title: 'Sube tu QR una sola vez, cobra Pago Móvil sin salir de QuickTap',
+    description:
+      'Sube la imagen de tu QR de Pago Móvil (el de tu banco, Suiche 7B o el que ya uses) una sola vez desde Ajustes. Desde ese momento, cada vez que cobras, QuickTap te muestra ese QR junto con el monto exacto en bolívares y la tasa BCV del día — todo en una sola pantalla, sin cambiar de app ni sacar la calculadora.',
+    bullets: [
+      'El QR se sube una sola vez; QuickTap lo reutiliza en cada cobro por Pago Móvil',
+      'El monto en bolívares y la tasa del día se calculan solos, en la misma pantalla del QR',
+      'El cliente escanea y paga, tú confirmas con el número de referencia — sin apps de terceros ni cambiar de pantalla',
+    ],
+    mock: <ShopQrPaymentMock />,
+  },
   {
     icon: ShoppingBag,
     eyebrow: 'Inventario',
