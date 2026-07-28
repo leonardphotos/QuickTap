@@ -346,40 +346,41 @@ model Restaurant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users               User[]
-  categories          Category[]
-  kitchens            Kitchen[]
-  products            Product[]
-  tables              Table[]
-  orders              Order[]
-  zones               Zone[]
-  tableSessions       TableSession[]
-  planRequests        PlanRequest[]
-  qrNfcRequests       QrNfcRequest[]
-  inventoryItems      InventoryItem[]
-  inventoryCategories InventoryCategory[]
-  recipeIngredients   RecipeIngredient[]
-  deliveryCouriers    DeliveryCourier[]
-  deliveryZones       DeliveryZone[]
-  movements           Movement[]
-  cashSessions        CashSession[]
-  suppliers           Supplier[]
-  customers           Customer[]
-  modifierCategories  ModifierCategory[]
-  modifiers           Modifier[]
-  productVariants     ProductVariant[]
-  schedules           RestaurantSchedule[]
-  reservations        Reservation[]
+  users                 User[]
+  categories            Category[]
+  kitchens              Kitchen[]
+  products              Product[]
+  tables                Table[]
+  orders                Order[]
+  zones                 Zone[]
+  tableSessions         TableSession[]
+  planRequests          PlanRequest[]
+  qrNfcRequests         QrNfcRequest[]
+  inventoryItems        InventoryItem[]
+  inventoryCategories   InventoryCategory[]
+  recipeIngredients     RecipeIngredient[]
+  deliveryCouriers      DeliveryCourier[]
+  deliveryZones         DeliveryZone[]
+  movements             Movement[]
+  cashSessions          CashSession[]
+  suppliers             Supplier[]
+  customers             Customer[]
+  modifierCategories    ModifierCategory[]
+  modifiers             Modifier[]
+  productVariants       ProductVariant[]
+  schedules             RestaurantSchedule[]
+  reservations          Reservation[]
+  fiscalInvoicingConfig FiscalInvoicingConfig?
 
   // --- QuickTap Shop (businessType = SHOP): catálogo/ventas/caja propios, sin relación con
   // Product/Order (esos son del vertical restaurante) — ver web/src/pages/admin/shop/. ---
-  shopProducts          ShopProduct[]
-  shopSales             ShopSale[]
-  shopPurchases         ShopPurchase[]
-  shopStockAdjustments  ShopStockAdjustment[]
-  shopCashSessions      ShopCashSession[]
-  shopCategories        ShopCategory[]
-  shopSubcategories     ShopSubcategory[]
+  shopProducts         ShopProduct[]
+  shopSales            ShopSale[]
+  shopPurchases        ShopPurchase[]
+  shopStockAdjustments ShopStockAdjustment[]
+  shopCashSessions     ShopCashSession[]
+  shopCategories       ShopCategory[]
+  shopSubcategories    ShopSubcategory[]
 
   @@index([parentRestaurantId])
   @@map("restaurants")
@@ -918,6 +919,7 @@ model Order {
   deliveryCourier DeliveryCourier? @relation(fields: [deliveryCourierId], references: [id], onDelete: SetNull)
   items           OrderItem[]
   payments        OrderPayment[]
+  fiscalInvoice   FiscalInvoice?
 
   @@unique([restaurantId, orderNumber])
   @@index([restaurantId, status])
@@ -946,6 +948,73 @@ model OrderPayment {
 
   @@index([orderId])
   @@map("order_payments")
+}
+
+// Configuración de facturación fiscal (SENIAT) vía Corporación Unidigital
+// (docs.unidigital.global). Solo la crea/edita el equipo QuickTap desde el
+// Dashboard maestro (ver master-restaurants.service.ts), igual que ivaEnabled —
+// nunca autoservicio del restaurante. Cuando enabled=true, cada Order saldado
+// por completo (ver order.service.ts -> addPayment) genera automáticamente
+// una Factura a través de esta config (ver fiscal-invoicing.service.ts).
+model FiscalInvoicingConfig {
+  id           String @id @default(cuid())
+  restaurantId String @unique
+
+  enabled     Boolean @default(false)
+  // "QA" (sandbox) o "PRODUCTION" — decide la URL base del cliente HTTP.
+  environment String  @default("QA")
+
+  username          String
+  // Cifrado (AES-256-GCM, ver fiscal-invoicing.crypto.ts) — nunca texto plano.
+  passwordEncrypted String
+
+  // GUID de la Serie 0, cacheado tras el primer login exitoso contra /user/login.
+  serieStrongId            String?
+  // Correlativo interno por tipo de documento (ej: {"FA": 1042, "NC": 12}) — la
+  // numeración de "Number" es responsabilidad de QuickTap, no de Unidigital.
+  nextDocumentNumberByType Json    @default("{}")
+
+  // JWT cacheado entre requests (dura 8h) para no loguearse en cada factura.
+  accessToken    String?
+  tokenExpiresAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@map("fiscal_invoicing_configs")
+}
+
+// Historial de documentos fiscales emitidos (o intentados) por Order, vía
+// Unidigital. status pasa PENDING (enviado, esperando N° de control, que
+// tarda 1-5 min) -> ISSUED (con controlNumber) -> FAILED / VOIDED.
+model FiscalInvoice {
+  id           String @id @default(cuid())
+  orderId      String @unique
+  restaurantId String
+
+  documentType   String // "FA" | "NC" | "ND"
+  documentNumber Int
+
+  // GUID que devuelve Unidigital al crear el documento — clave para
+  // reconsultar/anular más adelante.
+  unidigitalStrongId String?
+  controlNumber      Int?
+
+  status       String // "PENDING" | "ISSUED" | "FAILED" | "VOIDED"
+  errorMessage String?
+
+  rawRequestJson  Json?
+  rawResponseJson Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, status])
+  @@map("fiscal_invoices")
 }
 
 // Movimiento manual de caja (botón "Añadir movimiento" en Administración →

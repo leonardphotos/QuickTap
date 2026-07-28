@@ -30,6 +30,7 @@ export const masterRestaurantsService = {
         id: true,
         slug: true,
         name: true,
+        businessType: true,
         isActive: true,
         subscriptionStatus: true,
         subscriptionPlan: true,
@@ -50,6 +51,7 @@ export const masterRestaurantsService = {
       include: {
         users: { select: { id: true, name: true, email: true, role: true, isActive: true, createdAt: true } },
         _count: { select: { products: true, tables: true, orders: true } },
+        fiscalInvoicingConfig: { select: { enabled: true, environment: true, username: true, updatedAt: true } },
       },
     });
     if (!restaurant) throw notFound('Restaurante no encontrado.');

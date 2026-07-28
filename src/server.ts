@@ -7,6 +7,7 @@ import { exchangeRateService } from './modules/exchange-rate/exchange-rate.servi
 import { demoResetService } from './utils/demo-reset.service';
 import { demoSimulatorService } from './utils/demo-simulator.service';
 import { masterServerStatusService } from './modules/master/master-server-status.service';
+import { fiscalInvoicingService } from './modules/fiscal-invoicing/fiscal-invoicing.service';
 
 async function bootstrap() {
   const app = createApp();
@@ -43,6 +44,14 @@ async function bootstrap() {
   const demoOrderSimInterval = setInterval(() => demoSimulatorService.tickOrder().catch(() => undefined), 20 * 1000);
   const demoInventorySimInterval = setInterval(() => demoSimulatorService.tickInventory().catch(() => undefined), 6 * 1000);
 
+  // Facturación fiscal (SENIAT vía Unidigital): los números de control tardan
+  // 1-5 min en asignarse, así que se consultan aparte en vez de esperarlos en
+  // el momento del cobro (ver fiscal-invoicing.service.ts -> issueForOrder).
+  const fiscalInvoicingPollInterval = setInterval(
+    () => fiscalInvoicingService.pollControlNumbers().catch(() => undefined),
+    2 * 60 * 1000,
+  );
+
   // Dashboard maestro: muestrea RAM/CPU/swap/disco cada minuto para la barra
   // de capacidad del VPS — el promedio sostenido (no el instante) es lo que
   // decide "¿actualizo el plan?" (ver master-server-status.service.ts).
@@ -64,6 +73,7 @@ async function bootstrap() {
     clearInterval(demoSweepInterval);
     clearInterval(demoOrderSimInterval);
     clearInterval(demoInventorySimInterval);
+    clearInterval(fiscalInvoicingPollInterval);
     masterServerStatusService.stopSampling();
     server.close();
     await prisma.$disconnect();

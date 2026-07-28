@@ -23,6 +23,7 @@ interface RestaurantDetail {
   whatsappPhone: string | null;
   rif: string | null;
   ivaEnabled: boolean;
+  fiscalInvoicingConfig: { enabled: boolean; environment: string; username: string; updatedAt: string } | null;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';
   subscriptionPlan: string | null;
   billingCycle: string | null;
@@ -67,12 +68,19 @@ export default function MasterRestaurantDetailPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<RestaurantUser | null>(null);
+  const [fiscalEnvironment, setFiscalEnvironment] = useState<'QA' | 'PRODUCTION'>('QA');
+  const [fiscalUsername, setFiscalUsername] = useState('');
+  const [fiscalPassword, setFiscalPassword] = useState('');
 
   function load() {
     masterApi.get(`/master/restaurants/${id}`).then((res) => {
       const data: RestaurantDetail = res.data.data;
       setDetail(data);
       setExactPeriodEnd(data.periodEnd.slice(0, 10));
+      if (data.fiscalInvoicingConfig) {
+        setFiscalEnvironment(data.fiscalInvoicingConfig.environment as 'QA' | 'PRODUCTION');
+        setFiscalUsername(data.fiscalInvoicingConfig.username);
+      }
     });
   }
 
@@ -102,6 +110,27 @@ export default function MasterRestaurantDetailPage() {
       load();
     } catch (err: any) {
       setMessage(err.response?.data?.error ?? 'No se pudo actualizar el IVA.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveFiscalInvoicing(enabled: boolean) {
+    if (!detail) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      await masterApi.patch(`/master/restaurants/${id}/fiscal-invoicing`, {
+        enabled,
+        environment: fiscalEnvironment,
+        ...(fiscalUsername.trim() ? { username: fiscalUsername.trim() } : {}),
+        ...(fiscalPassword.trim() ? { password: fiscalPassword.trim() } : {}),
+      });
+      setMessage(enabled ? 'Facturación fiscal activada.' : 'Facturación fiscal desactivada.');
+      setFiscalPassword('');
+      load();
+    } catch (err: any) {
+      setMessage(err.response?.data?.error ?? 'No se pudo actualizar la facturación fiscal.');
     } finally {
       setBusy(false);
     }
@@ -231,6 +260,80 @@ export default function MasterRestaurantDetailPage() {
         >
           {detail.ivaEnabled ? 'Desactivar IVA' : 'Activar IVA'}
         </TextureButton>
+      </div>
+
+      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-4">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="font-semibold text-brand-950">Facturación fiscal (SENIAT — Unidigital)</p>
+            <p className="text-sm text-brand-950/60 font-light mt-1">
+              {detail.rif?.trim()
+                ? 'Cada pedido saldado por completo generará automáticamente una Factura fiscal vía Unidigital.'
+                : 'No se puede activar: este restaurante todavía no tiene RIF registrado en Ajustes.'}
+            </p>
+          </div>
+          {detail.fiscalInvoicingConfig?.enabled && (
+            <span className="shrink-0 rounded-full bg-emerald-500/10 text-emerald-600 text-xs font-semibold px-2.5 py-1">
+              Activo
+            </span>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-sm">
+            <span className="block text-brand-950/70 mb-1">Usuario Unidigital</span>
+            <input
+              type="text"
+              value={fiscalUsername}
+              onChange={(e) => setFiscalUsername(e.target.value)}
+              placeholder="usuario@empresa.com"
+              className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm w-56"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="block text-brand-950/70 mb-1">Contraseña</span>
+            <PasswordInput
+              value={fiscalPassword}
+              onChange={(e) => setFiscalPassword(e.target.value)}
+              placeholder={detail.fiscalInvoicingConfig ? 'Dejar en blanco para no cambiarla' : ''}
+              className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm w-56"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="block text-brand-950/70 mb-1">Ambiente</span>
+            <select
+              value={fiscalEnvironment}
+              onChange={(e) => setFiscalEnvironment(e.target.value as 'QA' | 'PRODUCTION')}
+              className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+            >
+              <option value="QA">Pruebas (QA)</option>
+              <option value="PRODUCTION">Producción</option>
+            </select>
+          </label>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <TextureButton
+            variant="brand"
+            size="sm"
+            disabled={busy || !detail.rif?.trim()}
+            className="!w-auto disabled:opacity-50"
+            onClick={() => saveFiscalInvoicing(true)}
+          >
+            Guardar y activar
+          </TextureButton>
+          {detail.fiscalInvoicingConfig?.enabled && (
+            <TextureButton
+              variant="destructive"
+              size="sm"
+              disabled={busy}
+              className="!w-auto"
+              onClick={() => saveFiscalInvoicing(false)}
+            >
+              Desactivar
+            </TextureButton>
+          )}
+        </div>
       </div>
 
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 flex items-start justify-between gap-3">

@@ -45,6 +45,7 @@ import { publicRamblayRoutes } from '../modules/ramblay/ramblay.routes';
 import branchRoutes from '../modules/branches/branch.routes';
 import aiPhotoRoutes from '../modules/ai-photo/ai-photo.routes';
 import shopRoutes from '../modules/shop/shop.routes';
+import { tenantFiscalInvoicingRoutes, masterFiscalInvoicingRoutes } from '../modules/fiscal-invoicing/fiscal-invoicing.routes';
 
 /**
  * Enrutador raíz de la API v1.
@@ -92,6 +93,7 @@ router.use('/reservations', tenantReservationRoutes);
 router.use('/branches', branchRoutes);
 router.use('/ai-photo', aiPhotoRoutes);
 router.use('/shop', shopRoutes);
+router.use('/fiscal-invoicing', tenantFiscalInvoicingRoutes);
 
 // --- Público ---
 router.use('/public', menuRoutes);
@@ -116,6 +118,7 @@ router.use('/master/qr-nfc-requests', masterQrNfcRequestRoutes);
 router.use('/master/summary', masterSummaryRoutes);
 router.use('/master/server-status', masterServerStatusRoutes);
 router.use('/master/restaurants', masterRestaurantsRoutes);
+router.use('/master/restaurants', masterFiscalInvoicingRoutes);
 router.use('/master/admins', masterAdminsRoutes);
 // Migración interna OlaClick → QuickTap (ver src/modules/master/master-olaclick-import.*).
 router.use('/master/olaclick-import', masterOlaclickImportRoutes);

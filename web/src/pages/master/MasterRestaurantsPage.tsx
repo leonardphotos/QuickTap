@@ -6,6 +6,7 @@ interface MasterRestaurant {
   id: string;
   slug: string;
   name: string;
+  businessType: 'RESTAURANT' | 'SHOP';
   isActive: boolean;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';
   subscriptionPlan: string | null;
@@ -19,6 +20,7 @@ interface MasterRestaurant {
 
 export default function MasterRestaurantsPage() {
   const [restaurants, setRestaurants] = useState<MasterRestaurant[] | null>(null);
+  const [vertical, setVertical] = useState<'RESTAURANT' | 'SHOP'>('RESTAURANT');
 
   useEffect(() => {
     masterApi.get('/master/restaurants').then((res) => setRestaurants(res.data.data));
@@ -26,14 +28,42 @@ export default function MasterRestaurantsPage() {
 
   if (!restaurants) return <p className="text-brand-950/50 font-light">Cargando…</p>;
 
+  const filtered = restaurants.filter((r) => r.businessType === vertical);
+
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Restaurantes</h1>
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Locales</h1>
+        <div className="inline-flex items-center gap-1 rounded-full border border-brand-950/10 bg-brand-950/[0.03] p-1 mt-4">
+          <button
+            type="button"
+            onClick={() => setVertical('RESTAURANT')}
+            className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
+              vertical === 'RESTAURANT' ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950/80'
+            }`}
+          >
+            Restaurantes ({restaurants.filter((r) => r.businessType === 'RESTAURANT').length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setVertical('SHOP')}
+            className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
+              vertical === 'SHOP' ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950/80'
+            }`}
+          >
+            Locales Comerciales ({restaurants.filter((r) => r.businessType === 'SHOP').length})
+          </button>
+        </div>
+      </div>
 
-      {restaurants.length === 0 && <p className="text-sm text-brand-950/40 font-light">Todavía no hay restaurantes.</p>}
+      {filtered.length === 0 && (
+        <p className="text-sm text-brand-950/40 font-light">
+          {vertical === 'RESTAURANT' ? 'Todavía no hay restaurantes.' : 'Todavía no hay locales comerciales.'}
+        </p>
+      )}
 
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
-        {restaurants.map((r) => (
+        {filtered.map((r) => (
           <Link
             key={r.id}
             to={`/master/restaurants/${r.id}`}

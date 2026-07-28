@@ -18,6 +18,7 @@ import { hourCaracas, startOfTodayCaracas, startOfWeekCaracas } from '../../util
 import { assertRestaurantOpen } from '../../utils/business-hours';
 import { haversineDistanceKm, isPointInPolygon, LatLng } from '../../utils/geo';
 import { tableSessionService } from '../table-sessions/table-session.service';
+import { fiscalInvoicingService } from '../fiscal-invoicing/fiscal-invoicing.service';
 import { customerService } from '../customers/customer.service';
 import {
   AddOrderItemInput,
@@ -1329,12 +1330,17 @@ export const orderService = {
       });
 
       emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: updated.status });
-      return { order: updated, releaseToKitchen };
-    }).then(async ({ order: updated, releaseToKitchen }) => {
+      return { order: updated, releaseToKitchen, fullyPaid };
+    }).then(async ({ order: updated, releaseToKitchen, fullyPaid }) => {
       // La comanda real (con ítems) recién se imprime ahora que el pedido está pagado —
       // fuera de la transacción para no bloquear el cobro si la Estación de Impresión
       // (un simple evento de socket) tarda o falla.
       if (releaseToKitchen) await this.printComanda(restaurantId, orderId);
+      // Facturación fiscal (SENIAT, vía Unidigital): dispara después de confirmar el
+      // pago, nunca dentro de la transacción — issueForOrder() nunca lanza (ver
+      // fiscal-invoicing.service.ts), pero el .catch es una segunda red de seguridad
+      // para que un fallo de red jamás afecte la respuesta de este cobro.
+      if (fullyPaid) fiscalInvoicingService.issueForOrder(restaurantId, orderId).catch(() => undefined);
       return updated;
     });
   },
