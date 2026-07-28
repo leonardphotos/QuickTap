@@ -31,6 +31,9 @@ export interface CartLine {
   /** Copiado de la variante al agregar — la cantidad de esta línea es un peso en Kg (decimal),
    * no unidades enteras (ver ShopPosPage: pide el peso en un diálogo en vez de sumar de a 1). */
   soldByWeight?: boolean;
+  /** Solo en líneas "servicio no registrado" (ver addAdhocLine, exclusivo rubro Agencia de
+   * Publicidad): costo escrito a mano, porque no hay un ShopProduct real del que derivarlo. */
+  cost?: number;
 }
 
 /** Precio unitario que realmente aplica a una línea del carrito: la promoción siempre gana (si
@@ -350,6 +353,26 @@ export function useShopSession(initialCategories: string[] = []) {
     });
   }
 
+  /** Línea de carrito para un servicio no registrado en el catálogo (exclusivo del rubro Agencia
+   * de Publicidad — ver ShopPosPage): no hay ShopProduct/ShopVariant detrás, así que name/price/cost
+   * se escriben a mano en el momento de la venta en vez de venir de un producto existente. */
+  function addAdhocLine(name: string, price: number, cost: number) {
+    setCart((prev) => [
+      ...prev,
+      {
+        key: `adhoc-${Date.now()}`,
+        productId: '',
+        name,
+        price,
+        cost,
+        v1: 'Servicio',
+        v2: '',
+        qty: 1,
+        disc: 0,
+      },
+    ]);
+  }
+
   function updateCartQty(key: string, delta: number) {
     setCart((prev) => prev.flatMap((c) => {
       if (c.key !== key) return [c];
@@ -426,7 +449,7 @@ export function useShopSession(initialCategories: string[] = []) {
         category: product ? product.category : null,
         qty: c.qty,
         price: effectivePrice(c) * (1 - (c.disc || 0) / 100),
-        cost: product ? product.cost : 0,
+        cost: c.cost ?? (product ? product.cost : 0),
         soldByWeight: c.soldByWeight,
       };
     });
@@ -607,6 +630,7 @@ export function useShopSession(initialCategories: string[] = []) {
     addCategory,
     addSubcategory,
     addToCart,
+    addAdhocLine,
     updateCartQty,
     setCartQty,
     removeFromCart,

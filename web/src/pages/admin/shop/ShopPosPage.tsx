@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
-import { Camera, CheckCircle2, ClipboardList, Loader2, Minus, Plus, Printer, ScanLine, Search, ShoppingCart, X } from 'lucide-react';
+import { Camera, CheckCircle2, ClipboardList, Loader2, MessageCircle, Minus, Plus, Printer, ScanLine, Search, ShoppingCart, Wrench, X } from 'lucide-react';
 import { api } from '@/api/client';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import type { ShopVariant } from '@/data/shopRubros';
+import type { ShopRubro, ShopVariant } from '@/data/shopRubros';
 import { shopMoneyFormatters } from './shopFormat';
 import { effectivePrice, lineTotal, productStatus, productStock, type PaymentMeta, type Sale, type ShopProduct, type ShopSession } from './shopSession';
 import ShopBarcodeScanDialog from './ShopBarcodeScanDialog';
@@ -14,8 +14,42 @@ import { playCashSound } from './shopSounds';
 interface Props {
   session: ShopSession;
   restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate' | 'name' | 'paymentMethodsConfig'>;
+  rubro: ShopRubro;
   /** Se llama cuando termina la animación de "Pago Registrado" (solo en Pago Móvil directo) — vuelve al Panel administrativo. */
   onPaymentSuccess: () => void;
+}
+
+/** Métodos de pago cuyo monto se cobra naturalmente en dólares — el recibo de WhatsApp muestra
+ * el $ como monto principal para estos, y Bs para el resto (Pago Móvil, Transferencia, etc.). */
+const USD_PAYMENT_LABELS = new Set(['Efectivo $', 'Zelle', 'Binance', 'PayPal']);
+
+/** Normaliza un teléfono venezolano a formato internacional para wa.me: acepta que el cajero lo
+ * haya escrito con o sin el código de país, con o sin el 0 inicial típico (04xx-xxx-xxxx). */
+function waPhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('58')) return digits;
+  return `58${digits.replace(/^0+/, '')}`;
+}
+
+/** Texto del recibo para el enlace de WhatsApp: ítems, total en el monto principal según el
+ * método de pago (USD_PAYMENT_LABELS) y el equivalente en la otra moneda como referencia. */
+function buildReceiptMessage(sale: Sale, restaurantName: string, money: (n: number) => string, moneyBs: (n: number) => string | null): string {
+  const primaryIsUsd = sale.paymentMethod ? USD_PAYMENT_LABELS.has(sale.paymentMethod) : false;
+  const bs = moneyBs(sale.total);
+  const primary = primaryIsUsd || !bs ? money(sale.total) : bs;
+  const secondary = primaryIsUsd || !bs ? bs : money(sale.total);
+  const lines = sale.items.map((it) => `• ${it.soldByWeight ? `${it.qty} Kg` : `${it.qty}x`} ${it.name} — ${money(it.price * it.qty)}`);
+  return [
+    `🧾 *${restaurantName}*`,
+    `Ticket #${sale.id.slice(-6)}${sale.paymentMethod ? ` · ${sale.paymentMethod}` : ''}`,
+    '',
+    ...lines,
+    '',
+    `*Total: ${primary}*${secondary ? ` (${secondary})` : ''}`,
+    '',
+    '¡Gracias por tu compra!',
+  ].join('\n');
 }
 
 /** Venta normal, o fiada (pago completo más adelante / abono ahora y el resto pendiente). */
@@ -71,9 +105,14 @@ const PAYMENT_METHOD_META: { key: keyof NonNullable<AuthRestaurant['paymentMetho
   { key: 'CARD', label: 'Punto de Venta' },
 ];
 
-export default function ShopPosPage({ session, restaurant, onPaymentSuccess }: Props) {
+export default function ShopPosPage({ session, restaurant, rubro, onPaymentSuccess }: Props) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
-  const { products, cart, till, closedTills, categories, addToCart, updateCartQty, setCartQty, removeFromCart, setCartLineDiscount, openTill, closeTill, checkout } = session;
+  const { products, cart, till, closedTills, categories, addToCart, addAdhocLine, updateCartQty, setCartQty, removeFromCart, setCartLineDiscount, openTill, closeTill, checkout } = session;
+
+  const [adhocOpen, setAdhocOpen] = useState(false);
+  const [adhocName, setAdhocName] = useState('');
+  const [adhocCost, setAdhocCost] = useState('');
+  const [adhocPrice, setAdhocPrice] = useState('');
 
   const [category, setCategory] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -187,6 +226,29 @@ export default function ShopPosPage({ session, restaurant, onPaymentSuccess }: P
   function confirmCloseTill() {
     closeTill(counted);
     setTillDialogOpen(false);
+  }
+
+  function openAdhocDialog() {
+    setAdhocName('');
+    setAdhocCost('');
+    setAdhocPrice('');
+    setAdhocOpen(true);
+  }
+
+  function confirmAdhoc() {
+    const name = adhocName.trim();
+    const price = Number(adhocPrice);
+    const cost = Number(adhocCost) || 0;
+    if (!name || !(price > 0)) return;
+    addAdhocLine(name, price, cost);
+    setAdhocOpen(false);
+  }
+
+  function sendReceiptWhatsapp(sale: Sale) {
+    const message = buildReceiptMessage(sale, restaurant.name, money, moneyBs);
+    const phone = sale.customerPhone ? waPhone(sale.customerPhone) : '';
+    const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+    window.open(url, '_blank');
   }
 
   function startCheckout() {
@@ -345,6 +407,17 @@ export default function ShopPosPage({ session, restaurant, onPaymentSuccess }: P
             >
               <ScanLine className="h-4 w-4" /> Escanear
             </TextureButton>
+            {rubro.id === 'agencia_publicidad' && (
+              <TextureButton
+                variant="minimal"
+                size="default"
+                className="!w-auto"
+                title="Cobrar un servicio que no está en el catálogo"
+                onClick={openAdhocDialog}
+              >
+                <Wrench className="h-4 w-4" /> Servicio no registrado
+              </TextureButton>
+            )}
           </div>
 
           <div className="flex gap-2 flex-wrap">
@@ -875,6 +948,67 @@ export default function ShopPosPage({ session, restaurant, onPaymentSuccess }: P
         onAdd={(product, variant, qty) => addToCart(product, variant, qty)}
       />
 
+      {/* ---------- Servicio no registrado (exclusivo Agencia de Publicidad) ---------- */}
+      <Dialog open={adhocOpen} onOpenChange={setAdhocOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Servicio no registrado</DialogTitle>
+          </DialogHeader>
+          <div className="flex flex-col gap-3">
+            <div>
+              <label className="text-xs font-semibold text-brand-950/60 mb-1 block">Nombre del servicio</label>
+              <input
+                autoFocus
+                value={adhocName}
+                onChange={(e) => setAdhocName(e.target.value)}
+                placeholder="Ej: Diseño de flyer para evento"
+                className="w-full border border-brand-950/15 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              />
+            </div>
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className="text-xs font-semibold text-brand-950/60 mb-1 block">Costo</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={adhocCost}
+                  onChange={(e) => setAdhocCost(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full border border-brand-950/15 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs font-semibold text-brand-950/60 mb-1 block">Precio de venta</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={adhocPrice}
+                  onChange={(e) => setAdhocPrice(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full border border-brand-950/15 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setAdhocOpen(false)}>
+              Cancelar
+            </TextureButton>
+            <TextureButton
+              variant="brand"
+              size="default"
+              className="!w-auto"
+              disabled={!adhocName.trim() || !(Number(adhocPrice) > 0)}
+              onClick={confirmAdhoc}
+            >
+              Añadir al carrito
+            </TextureButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* ---------- Ticket ---------- */}
       <Dialog open={!!ticketSale} onOpenChange={(o) => !o && setTicketSale(null)}>
         <DialogContent>
@@ -931,6 +1065,9 @@ export default function ShopPosPage({ session, restaurant, onPaymentSuccess }: P
                 </TextureButton>
                 <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => window.print()}>
                   <Printer className="h-4 w-4" /> Imprimir
+                </TextureButton>
+                <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => sendReceiptWhatsapp(ticketSale)}>
+                  <MessageCircle className="h-4 w-4" /> Enviar por WhatsApp
                 </TextureButton>
                 <TextureButton variant="brand" size="default" className="!w-auto" onClick={() => setTicketSale(null)}>
                   Nueva venta
