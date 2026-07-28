@@ -276,23 +276,25 @@ function BranchesMock() {
   );
 }
 
-/** Mini mockup: QR de Pago Móvil real (el que sube el negocio) + monto en Bs + tasa del día,
- * todo en una sola pantalla — igual a como se ve en la pantalla de cobro de QuickTap Shop. */
-function ShopQrPaymentMock() {
+/** Marco de celular simple (CSS puro) para mostrar una captura real de la app dentro de una
+ * vitrina, en vez de un mockup abstracto — más creíble para una captura de pantalla real. */
+function PhoneMockup({ src, alt }: { src: string; alt: string }) {
   return (
-    <div className="flex items-center gap-4">
-      <img
-        src="/images/qr-pago-movil-ejemplo.png"
-        alt="Ejemplo de QR de Pago Móvil subido por el negocio"
-        className="h-24 w-24 shrink-0 rounded-xl border border-brand-950/10 object-contain bg-white p-1"
-      />
-      <div className="min-w-0">
-        <p className="text-[10px] text-brand-950/40">Monto a cancelar</p>
-        <p className="text-lg font-bold text-emerald-600 leading-tight">Bs 61.133,30</p>
-        <p className="text-[10px] text-brand-950/50">$82.30 × Bs742.81 (tasa del día)</p>
+    <div className="relative mx-auto w-[190px] rounded-[1.75rem] border-[5px] border-brand-950 bg-brand-950 shadow-[0_24px_50px_-20px_rgba(0,27,67,0.5)]">
+      <div className="absolute top-0 inset-x-0 z-10 flex justify-center pt-1">
+        <div className="h-3.5 w-16 rounded-full bg-brand-950" />
+      </div>
+      <div className="overflow-hidden rounded-[1.35rem] aspect-[9/19.5] bg-white">
+        <img src={src} alt={alt} className="h-full w-full object-cover object-top" />
       </div>
     </div>
   );
+}
+
+/** Captura real de la pantalla de cobro por Pago Móvil de QuickTap Shop — con el QR que subió el
+ * negocio, el monto en Bs y la tasa del día, todo en una sola pantalla. */
+function ShopQrPaymentMock() {
+  return <PhoneMockup src="/images/punto-pago-captura.jpg" alt="Pantalla de cobro por Pago Móvil de QuickTap Shop, con QR, monto en Bs y tasa del día" />;
 }
 
 /** Mini mockup: barra de stock con alerta, catálogo de tienda en vez de insumos de cocina. */
