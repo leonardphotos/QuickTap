@@ -28,7 +28,10 @@ import {
   Grid2x2,
   Monitor,
   ShoppingBag,
+  ShoppingCart,
   Hash,
+  ScanLine,
+  CreditCard,
 } from 'lucide-react';
 import { IntroLoader } from '@/components/landing/IntroLoader';
 import { GradientWave } from '@/components/ui/gradient-wave';
@@ -83,6 +86,9 @@ interface DemoRole {
   description: string;
 }
 
+const RESTAURANT_DEMO_PASSWORD = 'Demo1234';
+const RESTAURANT_DEMO_SLUG = 'demo';
+
 const DEMO_ROLES: DemoRole[] = [
   { icon: Crown, role: 'OWNER', email: 'demo@quicktap.club', label: 'Dueño', description: 'Ve todo el negocio: caja, reportes, sucursales.' },
   { icon: ShieldCheck, role: 'ADMIN', email: 'admin.demo@quicktap.club', label: 'Administrador', description: 'Administración, inventario, equipo, catálogo.' },
@@ -92,6 +98,17 @@ const DEMO_ROLES: DemoRole[] = [
   { icon: Monitor, role: 'SCREEN', email: 'pantalla.demo@quicktap.club', label: 'Pantalla', description: 'Vista de TV: mesas + cocina en horizontal.' },
   { icon: ShoppingBag, role: 'COMANDA', email: 'comanda.demo@quicktap.club', label: 'Autoservicio', description: 'Kiosco: el cliente pide y paga solo.' },
   { icon: Hash, role: 'NUMERO', email: 'numero.demo@quicktap.club', label: 'Número', description: 'Pantalla de "pedido listo" junto al mostrador.' },
+];
+
+/** Local de demostración de QuickTap Shop ("Urbana Store") — mismo mecanismo que el restaurante
+ * de arriba, pero con los 3 roles que existen del lado de Shop. */
+const SHOP_DEMO_PASSWORD = 'UrbanaDemo2026';
+const SHOP_DEMO_SLUG = 'urbana-store';
+
+const SHOP_DEMO_ROLES: DemoRole[] = [
+  { icon: Crown, role: 'OWNER', email: 'duena@urbanastore.club', label: 'Dueña', description: 'Ve todo el negocio: ventas, inventario, ingresos por método de pago.' },
+  { icon: ShieldCheck, role: 'ADMIN', email: 'admin@urbanastore.club', label: 'Administrador', description: 'Inventario, productos, equipo y catálogo.' },
+  { icon: WalletIcon, role: 'CASHIER', email: 'caja@urbanastore.club', label: 'Cajera', description: 'Cobra en el punto de venta y abre/cierra caja.' },
 ];
 
 /** Una de las 8 "vitrinas" grandes (headline + bullets + mini-mockup). */
@@ -259,6 +276,63 @@ function BranchesMock() {
   );
 }
 
+/** Mini mockup: barra de stock con alerta, catálogo de tienda en vez de insumos de cocina. */
+function ShopInventoryMock() {
+  const items = [
+    { name: 'Camiseta Básica Blanca', pct: 62, low: false },
+    { name: 'Jean Slim Fit Negro', pct: 12, low: true },
+    { name: 'Zapatilla Runner Blanca', pct: 40, low: false },
+  ];
+  return (
+    <div className="space-y-2.5">
+      {items.map((i) => (
+        <div key={i.name}>
+          <div className="flex items-center justify-between text-[11px] mb-1">
+            <span className="text-brand-950/70">{i.name}</span>
+            {i.low && <span className="text-amber-600 font-medium">Bajo</span>}
+          </div>
+          <div className="h-1.5 rounded-full bg-brand-950/[0.08] overflow-hidden">
+            <div
+              className={`h-full rounded-full ${i.low ? 'bg-amber-500' : 'bg-emerald-500'}`}
+              style={{ width: `${i.pct}%` }}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Mini mockup: carrito flotante de Venta (Shop) con cantidad de items y total en $/Bs. */
+function ShopCartMock() {
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between rounded-xl border border-brand-950/10 px-3 py-2">
+        <span className="text-xs text-brand-950/70">2x Camiseta Básica Blanca</span>
+        <span className="text-xs font-semibold text-brand-950">$25.00</span>
+      </div>
+      <div className="flex items-center gap-2 rounded-full bg-brand-500 text-white px-4 py-2.5 w-fit shadow-lg shadow-brand-500/30">
+        <ShoppingCart className="h-4 w-4" />
+        <span className="text-xs font-bold">3 items · $61.00 · Bs 45.320</span>
+      </div>
+    </div>
+  );
+}
+
+/** Mini mockup: chips de métodos de pago aceptados en Venta (Shop). */
+function ShopPaymentMock() {
+  const methods = ['Efectivo Bs', 'Efectivo $', 'Pago Móvil', 'Zelle', 'Binance'];
+  return (
+    <div className="flex flex-wrap gap-2">
+      {methods.map((m) => (
+        <span key={m} className="rounded-full bg-brand-950/[0.04] px-3 py-1.5 text-[11px] font-medium text-brand-950/70">
+          {m}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 const SHOWCASES: Showcase[] = [
   {
     icon: QrCode,
@@ -400,14 +474,127 @@ const FAQ = [
   },
 ];
 
+const SHOP_SHOWCASES: Showcase[] = [
+  {
+    icon: ShoppingBag,
+    eyebrow: 'Inventario',
+    title: 'Cada producto con su foto, variantes y stock',
+    description:
+      'Registra tu catálogo con foto obligatoria, variantes de talla y color (o un stock básico si el producto no las necesita), y deja que QuickTap te avise antes de que algo se agote o venza.',
+    bullets: [
+      'Foto obligatoria al crear un producto — el catálogo se ve como una tienda real, no una lista',
+      'Variantes (talla × color) o stock básico si el producto no maneja variantes',
+      'Alertas de stock bajo y productos próximos a vencer, en vivo',
+    ],
+    mock: <ShopInventoryMock />,
+  },
+  {
+    icon: ScanLine,
+    eyebrow: 'Punto de venta',
+    title: 'Cobra en segundos, con o sin lector de código de barras',
+    description:
+      'Escanea con la cámara del celular o un lector USB/Bluetooth, y un carrito flotante te muestra la cantidad de productos y el total en $ y en bolívares mientras sigues recorriendo el catálogo.',
+    bullets: [
+      'Escaneo con cámara o lector físico — el producto entra solo al carrito',
+      'Carrito flotante con el total en $ y Bs, siempre a la vista en el celular',
+      'Precio mayorista y promocional automáticos según la cantidad',
+    ],
+    mock: <ShopCartMock />,
+  },
+  {
+    icon: CreditCard,
+    eyebrow: 'Métodos de pago',
+    title: 'Acepta como te paguen: Bs, $, Pago Móvil, Zelle, Binance',
+    description:
+      'Cada venta se registra en la moneda real del pago — bolívares para Pago Móvil o efectivo en Bs, dólares para efectivo, Zelle o Binance — y puedes dejar cuentas fiadas, completas o con abono.',
+    bullets: [
+      'Ventas fiadas: pago completo pendiente o abono parcial ahora',
+      'Caja: apertura, cierre y arqueo, con historial de informes',
+      'Animación y sonido de confirmación en cada pago registrado',
+    ],
+    mock: <ShopPaymentMock />,
+  },
+  {
+    icon: BarChart3,
+    eyebrow: 'Panel administrativo',
+    title: 'Ingresos por método de pago, margen y alertas, todo junto',
+    description:
+      'Ve cuánto entró por cada método de pago, el margen de utilidad de cada producto y los productos más vendidos del día, sin salir del panel.',
+    bullets: [
+      'Ingresos por método de pago — hoy y últimos 30 días',
+      'Margen de utilidad automático por producto',
+      'Egresos e ingresos manuales, con categoría',
+    ],
+    mock: <ReportsMock />,
+  },
+];
+
+const SHOP_SUPPORTING = [
+  { icon: Wallet, title: 'Ventas fiadas', text: 'Pago completo pendiente o abono parcial — el saldo queda siempre a la vista.' },
+  { icon: Bell, title: 'Alertas en vivo', text: 'Stock bajo y productos por vencer avisan al instante, sin recargar.' },
+  { icon: Tag, title: 'Precio mayorista y promo', text: 'Se aplican solos según la cantidad en el carrito — no hay que cambiar precios a mano.' },
+  { icon: Banknote, title: 'Tasa BCV automática', text: 'Cada producto muestra su precio en $ y en bolívares, actualizado varias veces al día.' },
+  { icon: UserCog, title: 'Roles del equipo', text: 'Dueño, Administrador y Cajero — cada quien entra con su cuenta y ve solo lo que le corresponde.' },
+  { icon: Users, title: 'Directorio de clientes', text: 'Historial de compras por cliente, para fidelizar y dar seguimiento.' },
+  { icon: CalendarDays, title: 'Vencimientos', text: 'Alerta antes de que un producto perecedero caduque.' },
+  { icon: ScanLine, title: 'Escaneo flexible', text: 'Cámara del celular o lector USB/Bluetooth — lo que ya tengas en el mostrador.' },
+];
+
+const SHOP_FAQ = [
+  {
+    q: '¿Qué tipo de negocios pueden usar QuickTap Shop?',
+    a: 'Cualquier tienda con inventario por unidades: ropa, calzado, ferretería, farmacia y más — eliges el rubro al registrarte.',
+  },
+  {
+    q: '¿Necesito un lector de código de barras?',
+    a: 'No. La cámara del celular escanea igual; el lector USB/Bluetooth es opcional para ir más rápido en el mostrador.',
+  },
+  {
+    q: '¿Cómo registro una venta fiada?',
+    a: 'Eliges "Fiado" al cobrar: pago completo pendiente o un abono ahora, y el resto queda registrado como deuda con el cliente.',
+  },
+  {
+    q: '¿Puedo ver cuánto entró en efectivo vs. Pago Móvil?',
+    a: '"Ingresos por método de pago" desglosa cada venta según cómo se cobró, en la moneda correspondiente — hoy y en los últimos 30 días.',
+  },
+  {
+    q: '¿Puedo probarlo antes de pagar?',
+    a: 'Sí — hay un local de demostración ("Urbana Store") abierto para explorar todo el sistema en vivo, y un período de prueba gratis al crear tu cuenta.',
+  },
+];
+
 export default function LandingPage() {
   const [showIntro, setShowIntro] = useState(true);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [demoOpen, setDemoOpen] = useState(false);
   const [enteringRole, setEnteringRole] = useState<string | null>(null);
   const [demoError, setDemoError] = useState<string | null>(null);
+  const [vertical, setVertical] = useState<'restaurant' | 'shop'>('restaurant');
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  // Contenido de toda la página desde acá para abajo depende del toggle Restaurantes / Locales
+  // Comerciales — mismo componente, dos catálogos de contenido en paralelo.
+  const isShop = vertical === 'shop';
+  const activeShowcases = isShop ? SHOP_SHOWCASES : SHOWCASES;
+  const activeSupporting = isShop ? SHOP_SUPPORTING : SUPPORTING;
+  const activeFaq = isShop ? SHOP_FAQ : FAQ;
+  const activeDemoRoles = isShop ? SHOP_DEMO_ROLES : DEMO_ROLES;
+  const heroContent = isShop
+    ? {
+        eyebrow: 'QuickTap Shop',
+        title: 'Del inventario al cierre de caja. En un toque.',
+        description:
+          'QuickTap Shop conecta tu catálogo, tu punto de venta, tus métodos de pago y tu inventario en un solo sistema — para tiendas de ropa, calzado, ferretería, farmacia y más.',
+        cta: 'Ver local de demostración',
+      }
+    : {
+        eyebrow: 'Todo lo que hace QuickTap',
+        title: 'Del QR de la mesa a la caja del mes. En un toque.',
+        description:
+          'QuickTap conecta tu menú, tus comandas, tu cobro, tu delivery y tu inventario en un solo sistema — para que dejes de operar tu restaurante desde cinco herramientas distintas.',
+        cta: 'Ver restaurante de demostración',
+      };
 
   // Parallax del hero: el logo se retira más rápido que el scroll de la página,
   // creando sensación de profundidad al pasar a la primera sección de contenido.
@@ -424,7 +611,9 @@ export default function LandingPage() {
     setEnteringRole(demoRole.role);
     setDemoError(null);
     try {
-      await login(demoRole.email, 'Demo1234', 'demo');
+      const password = isShop ? SHOP_DEMO_PASSWORD : RESTAURANT_DEMO_PASSWORD;
+      const slug = isShop ? SHOP_DEMO_SLUG : RESTAURANT_DEMO_SLUG;
+      await login(demoRole.email, password, slug);
       setDemoOpen(false);
       navigate('/admin');
     } catch {
@@ -487,15 +676,34 @@ export default function LandingPage() {
         {/* Hero secundario: presentación general (antes en /soluciones) */}
         <section className="relative bg-white min-h-screen flex items-center px-4 pt-24 pb-12">
           <Reveal className="relative z-10 max-w-3xl mx-auto text-center">
-            <p className="text-xs font-medium text-brand-950/40 tracking-wide">Todo lo que hace QuickTap</p>
-            <h1 className="mt-4 text-3xl sm:text-5xl font-bold text-brand-950">Del QR de la mesa a la caja del mes. En un toque.</h1>
-            <p className="mt-5 text-base text-brand-950/60 max-w-xl mx-auto font-light">
-              QuickTap conecta tu menú, tus comandas, tu cobro, tu delivery y tu inventario en un solo sistema — para que
-              dejes de operar tu restaurante desde cinco herramientas distintas.
-            </p>
+            {/* Toggle Restaurantes / Locales Comerciales: todo el contenido de acá para abajo
+                (vitrinas, features, FAQ y el demo) cambia según cuál esté activo. */}
+            <div className="inline-flex items-center gap-1 rounded-full border border-brand-950/10 bg-brand-950/[0.03] p-1 mb-6">
+              <button
+                type="button"
+                onClick={() => setVertical('restaurant')}
+                className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
+                  !isShop ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950/80'
+                }`}
+              >
+                Restaurantes
+              </button>
+              <button
+                type="button"
+                onClick={() => setVertical('shop')}
+                className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
+                  isShop ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950/80'
+                }`}
+              >
+                Locales Comerciales
+              </button>
+            </div>
+            <p className="text-xs font-medium text-brand-950/40 tracking-wide">{heroContent.eyebrow}</p>
+            <h1 className="mt-4 text-3xl sm:text-5xl font-bold text-brand-950">{heroContent.title}</h1>
+            <p className="mt-5 text-base text-brand-950/60 max-w-xl mx-auto font-light">{heroContent.description}</p>
             <div className="mt-8 flex items-center justify-center">
               <TextureButton variant="brand" size="lg" className="sm:!w-auto" onClick={() => setDemoOpen(true)}>
-                Ver restaurante de demostración
+                {heroContent.cta}
               </TextureButton>
             </div>
           </Reveal>
@@ -504,7 +712,7 @@ export default function LandingPage() {
         {/* Vitrinas grandes: alternando texto izq/der con el mockup, cada mockup con parallax propio */}
         <section className="bg-white py-16 sm:py-24 px-4 overflow-hidden">
           <div className="max-w-5xl mx-auto space-y-20 sm:space-y-28">
-            {SHOWCASES.map((s, i) => (
+            {activeShowcases.map((s, i) => (
               <div
                 key={s.title}
                 className={`grid md:grid-cols-2 gap-10 items-center ${i % 2 === 1 ? 'md:[&>*:first-child]:order-2' : ''}`}
@@ -542,7 +750,7 @@ export default function LandingPage() {
               <h2 className="text-2xl sm:text-3xl font-bold text-brand-950 text-center mb-10">Y también incluye</h2>
             </Reveal>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {SUPPORTING.map((f, i) => (
+              {activeSupporting.map((f, i) => (
                 <Reveal key={f.title} delay={(i % 4) * 0.06} className="rounded-2xl border border-brand-950/[0.06] bg-white p-5">
                   <div className="w-10 h-10 rounded-lg bg-brand-500/10 text-brand-500 flex items-center justify-center mb-3">
                     <f.icon className="h-5 w-5" />
@@ -562,7 +770,7 @@ export default function LandingPage() {
               <h2 className="text-2xl sm:text-3xl font-bold text-brand-950 text-center mb-10">Preguntas frecuentes</h2>
             </Reveal>
             <div className="space-y-2">
-              {FAQ.map((item, i) => {
+              {activeFaq.map((item, i) => {
                 const open = openFaq === i;
                 return (
                   <Reveal key={item.q} delay={(i % 5) * 0.05} className="rounded-2xl border border-brand-950/[0.06] overflow-hidden">
@@ -636,7 +844,7 @@ export default function LandingPage() {
             </DialogHeader>
             {demoError && <p className="text-sm text-red-600">{demoError}</p>}
             <div className="grid sm:grid-cols-2 gap-2.5">
-              {DEMO_ROLES.map((r) => (
+              {activeDemoRoles.map((r) => (
                 <button
                   key={r.role}
                   onClick={() => enterDemoAs(r)}
