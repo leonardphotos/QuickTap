@@ -13,6 +13,7 @@
     "prisma:seed": "ts-node prisma/seed.ts",
     "seed:platform-admin": "ts-node src/scripts/seed-platform-admin.ts",
     "seed:demo": "ts-node prisma/seed-demo.ts",
+    "seed:shop-demo": "ts-node prisma/seed-shop-demo.ts",
     "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit"
   },
