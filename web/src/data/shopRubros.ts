@@ -454,6 +454,27 @@ const RUBRO_DEFS: ShopRubroDef[] = [
       ['Mancuernas 5kg (par)', 'Fitness', 'Pesas', 'MAN-5KG', 'Estante 2', 20.00, 13.00, 3, [['5kg', 'Negro', 5], ['10kg', 'Negro', 2]]],
     ],
   },
+  {
+    id: 'agencia_publicidad', label: 'Agencias de Publicidad', emoji: '📢',
+    storeName: 'Agencia Creativa Impacto · Oficina Central',
+    // Los "productos" de este rubro son servicios, no mercancía física: dim1 indica la
+    // modalidad de contratación en vez de talla/color, y no hay dim2 (los servicios no
+    // tienen una segunda variante como color). El "stock" alto es intencional — un
+    // servicio no se agota, así que se evita que dispare alertas de stock bajo/agotado.
+    dim1: 'Modalidad', dim1Example: 'Por proyecto', dim2: null,
+    suppliers: ['Freelancers de Diseño', 'Estudio de Fotografía y Video Externo'],
+    categories: ['Diseño Gráfico', 'Redes Sociales', 'Pauta Digital (Ads)', 'Producción de Video y Foto', 'Branding'],
+    products: [
+      ['Diseño de Logo', 'Diseño Gráfico', 'Identidad Visual', 'DIS-LOG', 'Equipo Creativo', 150.00, 40.00, 999, [['Por proyecto', '', 999]]],
+      ['Manual de Marca', 'Branding', 'Identidad Visual', 'MAN-MAR', 'Equipo Creativo', 280.00, 90.00, 999, [['Por proyecto', '', 999]]],
+      ['Gestión de RRSS (mensual)', 'Redes Sociales', 'Community Management', 'GES-RRS', 'Equipo Creativo', 300.00, 80.00, 999, [['Mensual', '', 999]]],
+      ['Diseño de Post para RRSS', 'Redes Sociales', 'Contenido', 'DIS-POS', 'Equipo Creativo', 25.00, 8.00, 999, [['Por pieza', '', 999]]],
+      ['Pauta en Meta Ads (gestión)', 'Pauta Digital (Ads)', 'Meta Ads', 'PAU-MET', 'Equipo Digital', 200.00, 50.00, 999, [['Mensual', '', 999]]],
+      ['Pauta en Google Ads (gestión)', 'Pauta Digital (Ads)', 'Google Ads', 'PAU-GOO', 'Equipo Digital', 220.00, 55.00, 999, [['Mensual', '', 999]]],
+      ['Video Promocional 30s', 'Producción de Video y Foto', 'Video', 'VID-30S', 'Estudio Externo', 250.00, 90.00, 999, [['Por proyecto', '', 999]]],
+      ['Sesión de Fotografía de Producto', 'Producción de Video y Foto', 'Fotografía', 'FOT-PRO', 'Estudio Externo', 120.00, 45.00, 999, [['Por sesión', '', 999]]],
+    ],
+  },
 ];
 
 export const SHOP_RUBROS: ShopRubro[] = RUBRO_DEFS.map((def) => ({
