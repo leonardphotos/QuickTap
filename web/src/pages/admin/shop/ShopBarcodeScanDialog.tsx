@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Minus, Plus, ScanLine, X } from 'lucide-react';
 import { TextureButton } from '@/components/ui/texture-button';
 import ScannerModal from './ScannerModal';
 import type { ShopVariant } from '@/data/shopRubros';
 import { productStatus, productStock, type ShopProduct } from './shopSession';
 import { useBarcodeCamera } from './useBarcodeCamera';
+import { playScannerSound } from './shopSounds';
 
 interface Props {
   open: boolean;
@@ -35,7 +36,16 @@ export default function ShopBarcodeScanDialog({ open, onOpenChange, products, mo
   const variant = matched ? bestVariant(matched) : null;
   const isWeight = !!variant?.soldByWeight;
 
+  // Dedup del beep: sin este ref, mientras el código no matchea ningún producto la cámara sigue
+  // reintentando en cada frame (a diferencia de cuando sí matchea, que se congela en `matched`) —
+  // sin esto el beep sonaría en bucle mientras el código siga en cuadro.
+  const lastBeepCodeRef = useRef<string | null>(null);
+
   const { videoRef, cameraError } = useBarcodeCamera(open, (code) => {
+    if (lastBeepCodeRef.current !== code) {
+      lastBeepCodeRef.current = code;
+      playScannerSound();
+    }
     setMatched((prevMatched) => {
       // Ya hay un match mostrándose — ignora nuevas lecturas hasta que el cajero decida
       // (Añadir o descartar), si no el mismo código sigue disparando en cada frame.
@@ -57,6 +67,7 @@ export default function ShopBarcodeScanDialog({ open, onOpenChange, products, mo
     setNotFoundCode(null);
     setJustAdded(null);
     setQtyInput('1');
+    lastBeepCodeRef.current = null;
   }, [open]);
 
   function resumeScanning() {

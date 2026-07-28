@@ -8,6 +8,7 @@ import type { ShopVariant } from '@/data/shopRubros';
 import { shopMoneyFormatters } from './shopFormat';
 import { effectivePrice, lineTotal, productStatus, productStock, type PaymentMeta, type Sale, type ShopProduct, type ShopSession } from './shopSession';
 import ShopBarcodeScanDialog from './ShopBarcodeScanDialog';
+import { playCashSound } from './shopSounds';
 
 interface Props {
   session: ShopSession;
@@ -215,6 +216,9 @@ export default function ShopPosPage({ session, restaurant, onPaymentSuccess }: P
         : null;
     const credit = saleMode.kind === 'fiado' ? { terms: saleMode.terms, amountPaidNow: saleMode.amountPaidNow } : null;
     const sale = checkout(method, meta, customer, discount, credit);
+    // Fiado a pago completo no cobra nada hoy (queda todo pendiente) — el sonido de caja es
+    // para cuando efectivamente entra dinero: venta directa o el abono de un fiado fraccionado.
+    if (credit?.terms !== 'FULL') playCashSound();
     setCustName('');
     setCustPhone('');
     setDiscount(0);

@@ -3,6 +3,7 @@ import { ScanLine } from 'lucide-react';
 import { TextureButton } from '@/components/ui/texture-button';
 import ScannerModal from './ScannerModal';
 import { useBarcodeCamera } from './useBarcodeCamera';
+import { playScannerSound } from './shopSounds';
 
 interface Props {
   open: boolean;
@@ -24,7 +25,11 @@ export default function ShopSkuScanDialog({ open, onOpenChange, onScan, onManual
   const [detected, setDetected] = useState<string | null>(null);
 
   const handleDecode = useCallback((code: string) => {
-    setDetected((prev) => prev ?? code);
+    setDetected((prev) => {
+      if (prev) return prev;
+      playScannerSound();
+      return code;
+    });
   }, []);
   const { videoRef, cameraError } = useBarcodeCamera(open, handleDecode);
 
