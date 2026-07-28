@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
-import { Camera, CheckCircle2, ClipboardList, Loader2, Minus, Plus, Printer, ScanLine, Search, X } from 'lucide-react';
+import { Camera, CheckCircle2, ClipboardList, Loader2, Minus, Plus, Printer, ScanLine, Search, ShoppingCart, X } from 'lucide-react';
 import { api } from '@/api/client';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -100,6 +100,7 @@ export default function ShopPosPage({ session, restaurant, onPaymentSuccess }: P
   const [pmProofError, setPmProofError] = useState<string | null>(null);
   const pmFileInputRef = useRef<HTMLInputElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const cartPanelRef = useRef<HTMLDivElement>(null);
   const [scanCameraOpen, setScanCameraOpen] = useState(false);
 
   const [fiadoOpen, setFiadoOpen] = useState(false);
@@ -118,6 +119,14 @@ export default function ShopPosPage({ session, restaurant, onPaymentSuccess }: P
   const paymentMethodOptions = enabledPaymentMethods.length > 0 ? enabledPaymentMethods : [PAYMENT_METHOD_META[0]];
   // Monto a cobrar en la pantalla de Pago Móvil: el total normal, o el abono elegido si es fiado fraccionado.
   const pmTargetAmount = saleMode.kind === 'fiado' ? saleMode.amountPaidNow : total;
+  const cartItemCount = cart.reduce((a, c) => a + c.qty, 0);
+
+  /** Carrito flotante (solo celular, oculto en escritorio donde el panel ya está siempre visible):
+   * lleva directo al panel de carrito, que en pantallas angostas queda debajo de toda la grilla
+   * de productos. */
+  function scrollToCart() {
+    cartPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   const filtered = products.filter(
     (p) =>
@@ -407,11 +416,11 @@ export default function ShopPosPage({ session, restaurant, onPaymentSuccess }: P
           )}
         </div>
 
-        <div className="w-full lg:w-[360px] shrink-0 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-5 flex flex-col gap-4">
+        <div ref={cartPanelRef} className="w-full lg:w-[360px] shrink-0 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-5 flex flex-col gap-4">
           <div className="flex items-center justify-between">
             <h3 className="text-[15px] font-bold text-brand-950">Carrito</h3>
             <span className="text-[11px] font-bold bg-brand-500/10 text-brand-500 px-2.5 py-1 rounded-full">
-              {cart.reduce((a, c) => a + c.qty, 0)} items
+              {cartItemCount} items
             </span>
           </div>
 
@@ -538,6 +547,29 @@ export default function ShopPosPage({ session, restaurant, onPaymentSuccess }: P
           </div>
         </div>
       </div>
+
+      {/* Carrito flotante: solo en celular (< lg, donde el panel de carrito queda debajo de toda
+          la grilla de productos) y solo si hay algo en el carrito — toca para saltar directo ahí. */}
+      {cartItemCount > 0 && (
+        <div className="lg:hidden fixed bottom-5 inset-x-0 z-30 flex justify-center pointer-events-none px-4">
+          <button
+            type="button"
+            onClick={scrollToCart}
+            className="pointer-events-auto flex items-center gap-3 rounded-full bg-brand-500 text-white shadow-lg shadow-brand-500/30 pl-4 pr-5 py-3 max-w-full"
+          >
+            <span className="relative shrink-0">
+              <ShoppingCart className="h-5 w-5" />
+              <span className="absolute -top-2 -right-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-white px-1 text-[11px] font-bold text-brand-500">
+                {cartItemCount}
+              </span>
+            </span>
+            <span className="text-sm font-bold truncate">
+              {money(total)}
+              {moneyBs(total) && <span className="font-medium opacity-80"> · {moneyBs(total)}</span>}
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* ---------- Abrir/cerrar caja ---------- */}
       <Dialog open={tillDialogOpen} onOpenChange={setTillDialogOpen}>

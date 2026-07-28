@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { AuthRestaurant } from '@/context/AuthContext';
-import { CalendarClock, Plus, ShieldAlert, X } from 'lucide-react';
+import { CalendarClock, Landmark, Plus, ShieldAlert, X } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { ExpenseFormDialog } from '@/components/admin/ExpenseFormDialog';
@@ -46,11 +46,37 @@ const STATUS_CLASS: Record<string, string> = {
   danger: 'bg-red-100 text-red-700',
 };
 
+/** Métodos que el cliente paga en bolívares (Pago Móvil, Punto de Venta, Efectivo Bs) — el resto
+ * (Efectivo $, Zelle, Binance, etc.) se cobra en dólares. Determina en qué moneda se muestra el
+ * monto de una venta en vez de mostrar siempre $ con Bs como referencia. */
+const BS_PAYMENT_METHODS = new Set(['Pago Móvil', 'Punto de Venta', 'Efectivo Bs']);
+
+function groupIncomeByMethod(sales: Sale[]): { method: string; count: number; total: number }[] {
+  const byMethod: Record<string, { count: number; total: number }> = {};
+  sales.forEach((s) => {
+    const key = s.paymentMethod ?? 'Sin especificar';
+    if (!byMethod[key]) byMethod[key] = { count: 0, total: 0 };
+    byMethod[key].count += 1;
+    byMethod[key].total += s.total;
+  });
+  return Object.entries(byMethod)
+    .map(([method, v]) => ({ method, ...v }))
+    .sort((a, b) => b.total - a.total);
+}
+
 export default function ShopDashboardPage({ session, restaurant, canSeeMoney }: Props) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
   const { products, sales, purchases, returnSale } = session;
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [showExpenseDialog, setShowExpenseDialog] = useState(false);
+  const [showIncomeByMethod, setShowIncomeByMethod] = useState(false);
+
+  /** Bs para Pago Móvil/Punto/Efectivo Bs, $ para el resto (Efectivo $, Zelle, Binance, etc.) —
+   * en vez de mostrar siempre el total en $ con Bs de referencia. */
+  function saleAmount(s: Sale): string {
+    if (s.paymentMethod && BS_PAYMENT_METHODS.has(s.paymentMethod)) return moneyBs(s.total) ?? money(s.total);
+    return money(s.total);
+  }
 
   const active = sales.filter((s) => !s.returned);
   const todaySales = active.filter((s) => isToday(s.time));
@@ -73,6 +99,9 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney }: 
 
   const recentSales = [...sales].sort((a, b) => b.time.getTime() - a.time.getTime()).slice(0, 8);
   const recentPurchases = [...purchases].sort((a, b) => b.time.getTime() - a.time.getTime()).slice(0, 6);
+
+  const incomeByMethodToday = groupIncomeByMethod(todaySales);
+  const incomeByMethodMonth = groupIncomeByMethod(monthSales);
 
   const byMargin = canSeeMoney
     ? [...products]
@@ -201,14 +230,24 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney }: 
       <div className="rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-5">
         <div className="flex items-center justify-between gap-3 mb-3.5">
           <h3 className="text-[15px] font-bold text-brand-950">Ventas recientes</h3>
-          <TextureButton
-            variant="secondary"
-            size="sm"
-            className="!w-auto flex items-center gap-1.5 !text-amber-600"
-            onClick={() => setShowExpenseDialog(true)}
-          >
-            <Plus className="h-3.5 w-3.5" /> Añadir egreso
-          </TextureButton>
+          <div className="flex gap-2">
+            <TextureButton
+              variant="secondary"
+              size="sm"
+              className="!w-auto flex items-center gap-1.5"
+              onClick={() => setShowIncomeByMethod(true)}
+            >
+              <Landmark className="h-3.5 w-3.5" /> Ingresos por método
+            </TextureButton>
+            <TextureButton
+              variant="secondary"
+              size="sm"
+              className="!w-auto flex items-center gap-1.5 !text-amber-600"
+              onClick={() => setShowExpenseDialog(true)}
+            >
+              <Plus className="h-3.5 w-3.5" /> Añadir egreso
+            </TextureButton>
+          </div>
         </div>
         {recentSales.length === 0 ? (
           <p className="text-sm text-brand-950/40 text-center py-6">Sin ventas todavía.</p>
@@ -234,7 +273,7 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney }: 
                     {s.returned ? ' · Devuelta' : ''}
                   </p>
                 </div>
-                <span className="text-sm font-bold text-brand-500 shrink-0">{money(s.total)}</span>
+                <span className="text-sm font-bold text-brand-500 shrink-0">{saleAmount(s)}</span>
               </button>
             ))}
           </div>
@@ -285,7 +324,7 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney }: 
 
               <div className="flex items-center justify-between text-sm">
                 <span className="text-brand-950/50">Total</span>
-                <span className="text-base font-bold text-brand-500">{money(selectedSale.total)}</span>
+                <span className="text-base font-bold text-brand-500">{saleAmount(selectedSale)}</span>
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-sm">
@@ -367,6 +406,56 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney }: 
       {showExpenseDialog && (
         <ExpenseFormDialog onClose={() => setShowExpenseDialog(false)} onCreated={() => setShowExpenseDialog(false)} />
       )}
+
+      <Dialog open={showIncomeByMethod} onOpenChange={setShowIncomeByMethod}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Ingresos por método de pago</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5">
+            <div>
+              <p className="text-[11px] font-bold uppercase text-brand-950/40 mb-2">Hoy</p>
+              {incomeByMethodToday.length === 0 ? (
+                <p className="text-sm text-brand-950/40 text-center py-4">Sin ventas todavía hoy.</p>
+              ) : (
+                <div className="rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
+                  {incomeByMethodToday.map((row) => (
+                    <div key={row.method} className="flex items-center justify-between gap-3 px-3.5 py-2.5 text-sm">
+                      <div>
+                        <p className="font-medium text-brand-950">{row.method}</p>
+                        <p className="text-[11px] text-brand-950/40">{row.count} venta{row.count !== 1 ? 's' : ''}</p>
+                      </div>
+                      <span className="font-bold text-brand-500">
+                        {BS_PAYMENT_METHODS.has(row.method) ? moneyBs(row.total) ?? money(row.total) : money(row.total)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div>
+              <p className="text-[11px] font-bold uppercase text-brand-950/40 mb-2">Últimos 30 días</p>
+              {incomeByMethodMonth.length === 0 ? (
+                <p className="text-sm text-brand-950/40 text-center py-4">Sin ventas en este período.</p>
+              ) : (
+                <div className="rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
+                  {incomeByMethodMonth.map((row) => (
+                    <div key={row.method} className="flex items-center justify-between gap-3 px-3.5 py-2.5 text-sm">
+                      <div>
+                        <p className="font-medium text-brand-950">{row.method}</p>
+                        <p className="text-[11px] text-brand-950/40">{row.count} venta{row.count !== 1 ? 's' : ''}</p>
+                      </div>
+                      <span className="font-bold text-brand-950">
+                        {BS_PAYMENT_METHODS.has(row.method) ? moneyBs(row.total) ?? money(row.total) : money(row.total)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
