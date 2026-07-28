@@ -278,20 +278,16 @@ export default function ShopPosPage({ session, restaurant, onPaymentSuccess }: P
   function confirmPagoMovil() {
     if (!pmReference.trim()) return;
     const meta: PaymentMeta = { reference: pmReference.trim(), hasProof: !!pmProofUrl, proofImageUrl: pmProofUrl ?? undefined };
-    // Fiado fraccionado por Pago Móvil: se cobra el abono ahora y se cierra con el ticket
-    // (que ya deja claro cuánto quedó pendiente) — la animación "Pago Registrado" es solo
-    // para el cobro directo de todo el total.
-    if (saleMode.kind === 'fiado') {
-      setTicketSale(finalizeSale('Pago Móvil', meta));
-      setPagoMovilOpen(false);
-      return;
-    }
-    finalizeSale('Pago Móvil', meta);
+    const isFiadoInstallment = saleMode.kind === 'fiado';
+    const sale = finalizeSale('Pago Móvil', meta);
     setPagoMovilOpen(false);
     setSuccessOpen(true);
     setTimeout(() => {
       setSuccessOpen(false);
-      onPaymentSuccess();
+      // Fiado fraccionado: se cobró el abono, se muestra el ticket (deja claro cuánto quedó
+      // pendiente). Venta directa: no hace falta ticket, se vuelve al Panel administrativo.
+      if (isFiadoInstallment) setTicketSale(sale);
+      else onPaymentSuccess();
     }, 1600);
   }
 
