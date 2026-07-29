@@ -18,6 +18,10 @@ const KEYPAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9'];
  * La única salida sin el PIN correcto es "Cerrar sesión" (logout real), nunca un botón que
  * simplemente cierre esta pantalla.
  */
+/** Duración de la animación de desenfoque, en ms — usada tanto para entrar (montar) como para
+ * salir (justo antes de desbloquear), así que ambos extremos usan el mismo número. */
+const BLUR_TRANSITION_MS = 320;
+
 export function LockScreen({ mode, onUnlock }: Props) {
   const { user, verifyLockPin, setLockPin, logout } = useAuth();
   const [step, setStep] = useState<'first' | 'confirm'>('first');
@@ -27,11 +31,27 @@ export function LockScreen({ mode, onUnlock }: Props) {
   const [shake, setShake] = useState(false);
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(new Date());
+  // Arranca desenfocado/invisible y pasa a nítido un instante después de montar (transición de
+  // entrada); se vuelve a poner en false justo antes de desbloquear (transición de salida) para
+  // que sea la misma animación en ambos sentidos.
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setVisible(true));
+    return () => cancelAnimationFrame(raf);
+  }, []);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 15000);
     return () => clearInterval(t);
   }, []);
+
+  /** Reproduce la animación de desenfoque en reversa antes de avisarle al padre que ya se
+   * desbloqueó — así el teclado se difumina y desaparece en vez de cortar en seco. */
+  function closeAndUnlock() {
+    setVisible(false);
+    setTimeout(onUnlock, BLUR_TRANSITION_MS);
+  }
 
   // Reinicia el flujo si el modo cambia bajo nosotros (ej: se completó el setup y todavía
   // queda visible un instante mientras el padre re-renderiza con mode='unlock').
@@ -59,13 +79,13 @@ export function LockScreen({ mode, onUnlock }: Props) {
           return;
         }
         await setLockPin(pin);
-        onUnlock();
+        closeAndUnlock();
         return;
       }
 
       const valid = await verifyLockPin(pin);
       if (valid) {
-        onUnlock();
+        closeAndUnlock();
       } else {
         triggerError('PIN incorrecto');
       }
@@ -110,8 +130,8 @@ export function LockScreen({ mode, onUnlock }: Props) {
       : user?.name;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-between bg-gradient-to-b from-[#232336] via-[#0f0f1a] to-black text-white py-10 px-6 select-none">
-      <div className="flex flex-col items-center gap-1 mt-6 sm:mt-10">
+    <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-between bg-black/55 backdrop-blur-2xl text-white py-10 px-6 select-none">
+      <div className="flex flex-col items-center gap-3 mt-6 sm:mt-10">
         <p className="text-6xl sm:text-7xl font-semibold tracking-tight tabular-nums">
           {now.toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit' })}
         </p>
@@ -120,7 +140,12 @@ export function LockScreen({ mode, onUnlock }: Props) {
         </p>
       </div>
 
-      <div className="flex flex-col items-center gap-7">
+      <div
+        className={`flex flex-col items-center gap-7 transition-all ease-out ${
+          visible ? 'opacity-100 blur-none' : 'opacity-0 blur-md'
+        }`}
+        style={{ transitionDuration: `${BLUR_TRANSITION_MS}ms` }}
+      >
         <div className="text-center px-6">
           <p className="text-[15px] font-semibold">{title}</p>
           {subtitle && <p className="text-sm text-white/50 mt-1">{subtitle}</p>}
