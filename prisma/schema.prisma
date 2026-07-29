@@ -238,6 +238,10 @@ model Restaurant {
   theme Json?
 
   // --- Cargos opcionales del checkout (aplican sobre el subtotal) ---
+  // Interruptor del botón en Inventario: cuando está apagado, los modificadores
+  // NO descuentan insumos aunque tengan el vínculo configurado. Permite dejar
+  // la configuración armada y activarla cuando el inventario esté cuadrado.
+  modifierInventoryLinkEnabled Boolean @default(false)
   serviceChargeEnabled Boolean @default(false) // 10% de servicio
   // 16% de IVA. Solo lo activa el equipo QuickTap desde el Master Dashboard (no autoservicio
   // del restaurante), y solo si ya tiene `rif` registrado — ver master-restaurants.service.ts.
@@ -659,6 +663,13 @@ model Modifier {
   // Código interno opcional (back-office). Nunca se expone en el menú público.
   sku          String?
 
+  // Vínculo con inventario: si este modificador consume un insumo, al vender se
+  // descuenta solo. `inventoryQuantity` va SIEMPRE en la unidad base del insumo
+  // (kg/lt/unidad) — el formulario deja cargarlo en gr/ml y lo convierte antes
+  // de guardar, igual que hace RecipeIngredient.
+  inventoryItemId   String?
+  inventoryQuantity Decimal? @db.Decimal(12, 4)
+
   priority Int @default(0)
 
   createdAt DateTime @default(now())
@@ -666,8 +677,12 @@ model Modifier {
 
   restaurant Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   category   ModifierCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  // SetNull: si se borra el insumo, el modificador sigue vivo (solo deja de
+  // descontar) — borrar un insumo no puede tumbar el menú.
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
 
   @@index([restaurantId, categoryId])
+  @@index([inventoryItemId])
   @@map("modifiers")
 }
 
@@ -1190,6 +1205,12 @@ model OrderItem {
 model OrderItemModifier {
   id          String  @id @default(cuid())
   orderItemId String
+  // Referencia al Modifier del catálogo. Se guarda SOLO para poder resolver el
+  // insumo vinculado al descontar stock; el resto del renglón sigue siendo
+  // snapshot (name/priceBase no cambian si luego editan el modificador). Es
+  // nullable a propósito: los pedidos anteriores a este campo no lo tienen, y
+  // un modificador borrado no debe romper el histórico.
+  modifierId  String?
   name        String
   priceBase   Decimal @db.Decimal(12, 2)
   // Cuántas veces se eligió esta misma opción (ej. "Ketchup x4"). Snapshot, igual que name/priceBase.
@@ -1420,6 +1441,7 @@ model InventoryItem {
   restaurant  Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   category    InventoryCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   recipeLines RecipeIngredient[]
+  modifiers   Modifier[]
   movements   Movement[]
 
   @@index([restaurantId])

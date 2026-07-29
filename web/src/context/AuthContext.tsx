@@ -35,6 +35,8 @@ export interface AuthRestaurant {
   /** Modo administrador activado (código de 4 dígitos en Ajustes): exime del reset automático. */
   demoAdminUnlocked: boolean;
   serviceChargeEnabled: boolean;
+  /** Interruptor del vínculo modificador -> insumo (botón en Inventario). */
+  modifierInventoryLinkEnabled: boolean;
   ivaEnabled: boolean;
   /** RIF fiscal del restaurante, informativo — condición para que QuickTap pueda activar el IVA. */
   rif?: string | null;

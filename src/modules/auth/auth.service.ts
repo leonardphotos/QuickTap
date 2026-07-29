@@ -44,6 +44,7 @@ const RESTAURANT_SELECT = {
   baseCurrency: true,
   theme: true,
   serviceChargeEnabled: true,
+  modifierInventoryLinkEnabled: true,
   ivaEnabled: true,
   rif: true,
   orderingEnabled: true,
@@ -86,6 +87,7 @@ type RestaurantRow = {
   baseCurrency: 'USD' | 'EUR';
   theme: unknown;
   serviceChargeEnabled: boolean;
+  modifierInventoryLinkEnabled: boolean;
   ivaEnabled: boolean;
   rif: string | null;
   orderingEnabled: boolean;
@@ -144,6 +146,7 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
     isDemo: restaurant.isDemo,
     demoAdminUnlocked: restaurant.demoAdminUnlocked,
     serviceChargeEnabled: restaurant.serviceChargeEnabled,
+    modifierInventoryLinkEnabled: restaurant.modifierInventoryLinkEnabled,
     ivaEnabled: restaurant.ivaEnabled,
     rif: restaurant.rif,
     orderingEnabled: restaurant.orderingEnabled,

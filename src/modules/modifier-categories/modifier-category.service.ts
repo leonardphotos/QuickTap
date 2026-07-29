@@ -21,7 +21,12 @@ export const modifierCategoryService = {
       where: { restaurantId },
       orderBy: [{ priority: 'asc' }, { name: 'asc' }],
       include: {
-        modifiers: { orderBy: [{ priority: 'asc' }, { name: 'asc' }] },
+        modifiers: {
+          orderBy: [{ priority: 'asc' }, { name: 'asc' }],
+          // Nombre y unidad del insumo vinculado, para que el editor muestre
+          // "30 gr de Queso" sin tener que cruzar listas en el frontend.
+          include: { inventoryItem: { select: { id: true, name: true, unit: true } } },
+        },
         _count: { select: { products: true } },
       },
     });
@@ -44,6 +49,12 @@ export const modifierCategoryService = {
         maxQuantity: m.maxQuantity,
         sku: m.sku,
         priority: m.priority,
+        inventoryItemId: m.inventoryItemId,
+        // En la unidad base del insumo (kg/lt/unidad). El editor la muestra en
+        // gr/ml cuando conviene, usando `inventoryItemUnit`.
+        inventoryQuantity: m.inventoryQuantity?.toString() ?? null,
+        inventoryItemName: m.inventoryItem?.name ?? null,
+        inventoryItemUnit: m.inventoryItem?.unit ?? null,
       })),
     }));
   },
@@ -65,13 +76,41 @@ export const modifierCategoryService = {
 
   async createModifier(restaurantId: string, categoryId: string, input: CreateModifierInput) {
     await this.assertCategoryBelongs(restaurantId, categoryId);
+    await this.assertInventoryLinkValid(restaurantId, input);
     return prisma.modifier.create({ data: { restaurantId, categoryId, ...input } });
   },
 
   async updateModifier(restaurantId: string, modifierId: string, input: UpdateModifierInput) {
     const existing = await prisma.modifier.findFirst({ where: { id: modifierId, restaurantId } });
     if (!existing) throw notFound('Modificador no encontrado.');
+    await this.assertInventoryLinkValid(restaurantId, input);
     return prisma.modifier.update({ where: { id: modifierId }, data: input });
+  },
+
+  /**
+   * El insumo vinculado tiene que ser de ESTE restaurante (aislamiento
+   * multi-tenant: nadie puede apuntar al inventario de otro), y el vínculo solo
+   * tiene sentido completo — insumo sin cantidad no descontaría nada, y una
+   * cantidad sin insumo no sabe de dónde descontar.
+   */
+  async assertInventoryLinkValid(
+    restaurantId: string,
+    input: { inventoryItemId?: string | null; inventoryQuantity?: number | null },
+  ) {
+    if (input.inventoryItemId == null && input.inventoryQuantity == null) return;
+
+    if (input.inventoryItemId) {
+      const item = await prisma.inventoryItem.findFirst({
+        where: { id: input.inventoryItemId, restaurantId },
+        select: { id: true },
+      });
+      if (!item) throw notFound('El insumo seleccionado no existe en este restaurante.');
+      if (input.inventoryQuantity == null || input.inventoryQuantity <= 0) {
+        throw badRequest('Indica cuánto del insumo consume este modificador.');
+      }
+    } else if (input.inventoryQuantity != null) {
+      throw badRequest('Elige el insumo que consume este modificador.');
+    }
   },
 
   async removeModifier(restaurantId: string, modifierId: string) {

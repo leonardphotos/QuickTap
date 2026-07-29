@@ -15,6 +15,14 @@ import {
 } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
+import { formatBaseQuantity, subUnitsFor, UNIT_LABELS } from '@/utils/inventoryUnits';
+
+/** Insumo tal como lo necesita el selector de vínculo de un modificador. */
+interface InsumoOption {
+  id: string;
+  name: string;
+  unit: string;
+}
 import { CURRENCY_SYMBOLS } from '@/utils/format';
 import type { ModifierCategory, Modifier } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -178,6 +186,10 @@ function CategoryEditor({
   const [maxSelections, setMaxSelectionsInput] = useState(category.maxSelections?.toString() ?? '');
   const [minSelections, setMinSelectionsInput] = useState(category.minSelections?.toString() ?? '');
   const [unlimitedMax, setUnlimitedMax] = useState(category.maxSelections == null);
+  // Insumos para el selector de vínculo de cada modificador. Se cargan una vez
+  // por editor abierto y se comparten entre todas las filas.
+  const [insumos, setInsumos] = useState<InsumoOption[]>([]);
+  const linkEnabled = !!restaurant?.modifierInventoryLinkEnabled;
   const [allProducts, setAllProducts] = useState<{ id: string; name: string }[] | null>(null);
   const [linkedProducts, setLinkedProducts] = useState<LinkedProduct[] | null>(null);
 
@@ -189,6 +201,15 @@ function CategoryEditor({
     setAllProducts(null);
     setLinkedProducts(null);
   }, [category.id]);
+
+  // Los insumos solo hacen falta si el vínculo con inventario está activo.
+  useEffect(() => {
+    if (!linkEnabled) return;
+    api
+      .get('/inventory')
+      .then((res) => setInsumos(res.data.data))
+      .catch(() => setInsumos([]));
+  }, [linkEnabled]);
 
   async function saveName() {
     if (name.trim() && name !== category.name) {
@@ -425,6 +446,8 @@ function CategoryEditor({
                 onMoveUp={() => moveModifier(index, -1)}
                 onMoveDown={() => moveModifier(index, 1)}
                 onChanged={onChanged}
+                insumos={insumos}
+                linkEnabled={linkEnabled}
               />
             ))}
           </div>
@@ -450,6 +473,8 @@ function ModifierRow({
   onMoveUp,
   onMoveDown,
   onChanged,
+  insumos,
+  linkEnabled,
 }: {
   modifier: Modifier;
   categoryId: string;
@@ -460,6 +485,8 @@ function ModifierRow({
   onMoveUp: () => void;
   onMoveDown: () => void;
   onChanged: () => void;
+  insumos: InsumoOption[];
+  linkEnabled: boolean;
 }) {
   const [name, setName] = useState(modifier.name);
   const [price, setPrice] = useState(modifier.priceBase);
@@ -471,6 +498,14 @@ function ModifierRow({
   const [discount, setDiscount] = useState(modifier.discountBase ?? '');
   const [sku, setSku] = useState(modifier.sku ?? '');
 
+  // --- Vínculo con inventario ---
+  const [showInsumo, setShowInsumo] = useState(!!modifier.inventoryItemId);
+  const [insumoId, setInsumoId] = useState(modifier.inventoryItemId ?? '');
+  const linkedInsumo = insumos.find((i) => i.id === insumoId);
+  const insumoSubUnits = subUnitsFor(linkedInsumo?.unit ?? modifier.inventoryItemUnit);
+  const [subUnit, setSubUnit] = useState(insumoSubUnits[0]?.value ?? '');
+  const [insumoQty, setInsumoQty] = useState('');
+
   useEffect(() => {
     setName(modifier.name);
     setPrice(modifier.priceBase);
@@ -478,7 +513,36 @@ function ModifierRow({
     setCost(modifier.costBase ?? '');
     setDiscount(modifier.discountBase ?? '');
     setSku(modifier.sku ?? '');
+    setShowInsumo(!!modifier.inventoryItemId);
+    setInsumoId(modifier.inventoryItemId ?? '');
+    // La cantidad guardada está en unidad base; se muestra en la sub-unidad más
+    // legible (0.03 kg -> 30 en Gr) para que el usuario vea lo que escribió.
+    const options = subUnitsFor(modifier.inventoryItemUnit);
+    const base = Number(modifier.inventoryQuantity ?? 0);
+    const small = options.find((o) => o.toBase < 1);
+    if (base > 0 && small && base < 1) {
+      setSubUnit(small.value);
+      setInsumoQty(String(Number((base / small.toBase).toFixed(2))));
+    } else {
+      setSubUnit(options[0]?.value ?? '');
+      setInsumoQty(base > 0 ? String(Number(base.toFixed(3))) : '');
+    }
   }, [modifier]);
+
+  /** Guarda el vínculo convirtiendo la cantidad a la unidad base del insumo. */
+  async function saveInsumoLink() {
+    const factor = insumoSubUnits.find((u) => u.value === subUnit)?.toBase ?? 1;
+    const baseQuantity = Number(insumoQty) * factor;
+    if (!insumoId || !(baseQuantity > 0)) return;
+    await save({ inventoryItemId: insumoId, inventoryQuantity: baseQuantity });
+  }
+
+  async function clearInsumo() {
+    setShowInsumo(false);
+    setInsumoId('');
+    setInsumoQty('');
+    if (modifier.inventoryItemId) await save({ inventoryItemId: null, inventoryQuantity: null });
+  }
 
   async function save(patch: Record<string, unknown>) {
     await api.patch(`/modifier-categories/modifiers/${modifier.id}`, patch);
@@ -639,6 +703,97 @@ function ModifierRow({
             <OutlinedField label="SKU" className="col-span-2">
               <input value={sku} onChange={(e) => setSku(e.target.value)} onBlur={saveSku} className={outlinedFieldInputClass} />
             </OutlinedField>
+          )}
+        </div>
+      )}
+
+      {/* Vínculo con inventario: solo aparece si el restaurante lo activó desde
+          Inventario. Sin insumos cargados no tiene sentido ofrecerlo. */}
+      {linkEnabled && (
+        <div className="pl-[26px] pt-1">
+          {!showInsumo ? (
+            <button
+              type="button"
+              onClick={() => setShowInsumo(true)}
+              className="flex items-center gap-1 text-xs font-medium text-brand-500 bg-brand-500/10 rounded-full px-2.5 py-1"
+            >
+              <Plus className="h-3 w-3" /> Descontar de inventario
+            </button>
+          ) : (
+            <div className="rounded-xl border border-brand-950/10 bg-brand-950/[0.02] p-2.5 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium text-brand-950/70">¿Este modificador sale del inventario?</p>
+                <button
+                  type="button"
+                  onClick={clearInsumo}
+                  className="text-xs font-medium text-red-500 hover:text-red-600 shrink-0"
+                >
+                  Quitar
+                </button>
+              </div>
+              {insumos.length === 0 ? (
+                <p className="text-xs text-brand-950/40 font-light">
+                  Todavía no tienes insumos cargados. Agrégalos en Inventario → Insumos.
+                </p>
+              ) : (
+                <>
+                  <OutlinedField label="Insumo">
+                    <select
+                      value={insumoId}
+                      onChange={(e) => {
+                        const next = e.target.value;
+                        setInsumoId(next);
+                        // Al cambiar de insumo, la sub-unidad por defecto es la
+                        // de ese insumo (kg -> Kg, lt -> Lt, unidad -> Unidad).
+                        const item = insumos.find((i) => i.id === next);
+                        setSubUnit(subUnitsFor(item?.unit)[0]?.value ?? '');
+                      }}
+                      className={outlinedFieldInputClass}
+                    >
+                      <option value="">Elegir insumo…</option>
+                      {insumos.map((i) => (
+                        <option key={i.id} value={i.id}>
+                          {i.name} ({UNIT_LABELS[i.unit] ?? i.unit})
+                        </option>
+                      ))}
+                    </select>
+                  </OutlinedField>
+                  <div className="flex gap-1.5">
+                    <OutlinedField label="Cuánto usa" className="flex-1">
+                      <input
+                        value={insumoQty}
+                        onChange={(e) => setInsumoQty(e.target.value.replace(/[^0-9.]/g, ''))}
+                        placeholder="30"
+                        className={outlinedFieldInputClass}
+                      />
+                    </OutlinedField>
+                    <OutlinedField label="Unidad" className="w-28 shrink-0">
+                      <select value={subUnit} onChange={(e) => setSubUnit(e.target.value)} className={outlinedFieldInputClass}>
+                        {insumoSubUnits.map((u) => (
+                          <option key={u.value} value={u.value}>
+                            {u.label}
+                          </option>
+                        ))}
+                      </select>
+                    </OutlinedField>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={saveInsumoLink}
+                    disabled={!insumoId || !insumoQty}
+                    className="w-full rounded-lg bg-brand-500 text-white text-xs font-semibold py-2 disabled:opacity-40"
+                  >
+                    Guardar vínculo
+                  </button>
+                  {modifier.inventoryItemName && (
+                    <p className="text-xs text-emerald-600">
+                      Descontando {formatBaseQuantity(Number(modifier.inventoryQuantity ?? 0), modifier.inventoryItemUnit)}{' '}
+                      de {modifier.inventoryItemName} por cada unidad vendida.
+                    </p>
+                  )}
+                </>
+              )}
+            </div>
           )}
         </div>
       )}

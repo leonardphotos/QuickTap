@@ -238,6 +238,26 @@ function InsumosTab({
   const [printSent, setPrintSent] = useState(false);
   const [addingCategory, setAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+  // Interruptor del vínculo modificador -> insumo.
+  const { refresh } = useAuth();
+  const linkEnabled = !!restaurant?.modifierInventoryLinkEnabled;
+  const [savingLink, setSavingLink] = useState(false);
+  const [linkError, setLinkError] = useState<string | null>(null);
+
+  async function toggleModifierLink() {
+    setSavingLink(true);
+    setLinkError(null);
+    try {
+      await api.patch('/restaurant', { modifierInventoryLinkEnabled: !linkEnabled });
+      // Recarga /auth/me para que el nuevo valor llegue a todas las pantallas
+      // (el editor de modificadores lo lee del mismo contexto).
+      await refresh();
+    } catch {
+      setLinkError('No se pudo cambiar el ajuste. Intenta de nuevo.');
+    } finally {
+      setSavingLink(false);
+    }
+  }
 
   async function addCategory() {
     if (!newCategoryName.trim()) return;
@@ -323,6 +343,36 @@ function InsumosTab({
 
   return (
     <div className="space-y-8">
+      {/* Interruptor del vínculo modificador -> insumo. Se deja arriba de todo
+          porque cambia el comportamiento de TODA la venta: con esto apagado, los
+          modificadores no tocan el stock aunque tengan el insumo configurado. */}
+      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5 flex items-start justify-between gap-4">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-brand-950">Descontar insumos por modificador</p>
+          <p className="text-xs text-brand-950/50 font-light mt-0.5">
+            Cuando está activo, cada modificador que tenga un insumo vinculado (ej. "Extra queso" → 30 gr de Queso)
+            descuenta del inventario al servirse el pedido. Apagado, la configuración se conserva pero no toca el stock.
+          </p>
+          {linkError && <p className="text-xs text-red-600 mt-1">{linkError}</p>}
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={linkEnabled}
+          onClick={toggleModifierLink}
+          disabled={savingLink}
+          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
+            linkEnabled ? 'bg-brand-500' : 'bg-brand-950/20'
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+              linkEnabled ? 'left-[22px]' : 'left-0.5'
+            }`}
+          />
+        </button>
+      </div>
+
       <form onSubmit={onSubmit} className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-4">
         <div className="flex items-start gap-4">
           <PhotoUploadField

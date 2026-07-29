@@ -41,6 +41,9 @@ import {
  */
 
 interface PricedLineModifier {
+  // Id del Modifier del catálogo: se guarda en el snapshot solo para poder
+  // resolver el insumo vinculado al descontar stock (ver deductModifierStock).
+  modifierId: string;
   name: string;
   priceBase: Prisma.Decimal;
   // Cuántas veces se elige esta misma opción (ej. "Ketchup x4"), ver ModifierCategory.maxSelections.
@@ -134,6 +137,7 @@ async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<
           throw badRequest(`Elige como máximo ${m.maxQuantity} de "${m.name}" en "${product.name}".`);
         }
         modifierLines.push({
+          modifierId: m.id,
           name: m.name,
           priceBase: round2(m.priceBase.sub(m.discountBase ?? 0)),
           quantity: chosenQty,
@@ -170,7 +174,14 @@ function buildOrderItemCreateData(line: PricedLine) {
     lineTotal: line.lineTotal,
     note: line.note,
     kitchenName: line.kitchenName,
-    modifiers: { create: line.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase, quantity: m.quantity })) },
+    modifiers: {
+      create: line.modifiers.map((m) => ({
+        modifierId: m.modifierId,
+        name: m.name,
+        priceBase: m.priceBase,
+        quantity: m.quantity,
+      })),
+    },
   };
 }
 
@@ -272,6 +283,73 @@ async function deductRecipeStock(restaurantId: string, items: { productId: strin
   }
 
   // Bajó el stock de al menos un insumo por receta: recalcula el aviso de "se está agotando".
+  if (deducted) {
+    emitToKitchen(restaurantId, SocketEvents.INVENTORY_LOW_STOCK, {});
+  }
+}
+
+/**
+ * Descuenta del inventario los insumos vinculados a los MODIFICADORES elegidos
+ * (ej. "Extra queso" consume 30 gr del insumo Queso). Se llama junto con las
+ * otras dos deducciones, una sola vez al marcar SERVED.
+ *
+ * Dos condiciones para que descuente:
+ *  - El restaurante tiene el vínculo activado (botón en Inventario). Apagado,
+ *    la configuración queda guardada pero no toca el stock.
+ *  - El modificador tiene insumo y cantidad configurados.
+ *
+ * El consumo escala por las dos cantidades: cuántas veces se eligió el
+ * modificador en la línea (ej. "Ketchup x3") POR cuántas unidades del producto
+ * se vendieron. Nunca baja de 0.
+ */
+async function deductModifierStock(
+  restaurantId: string,
+  items: { quantity: number; modifiers: { modifierId: string | null; quantity: number }[] }[],
+) {
+  const restaurant = await prisma.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { modifierInventoryLinkEnabled: true },
+  });
+  if (!restaurant?.modifierInventoryLinkEnabled) return;
+
+  // Consumo total por insumo, acumulando todas las líneas del pedido.
+  const usedByInventoryItem = new Map<string, Prisma.Decimal>();
+
+  const modifierIds = [
+    ...new Set(items.flatMap((i) => i.modifiers.map((m) => m.modifierId).filter((id): id is string => Boolean(id)))),
+  ];
+  if (modifierIds.length === 0) return;
+
+  const modifiers = await prisma.modifier.findMany({
+    where: { id: { in: modifierIds }, restaurantId, inventoryItemId: { not: null } },
+    select: { id: true, inventoryItemId: true, inventoryQuantity: true },
+  });
+  if (modifiers.length === 0) return;
+  const byModifierId = new Map(modifiers.map((m) => [m.id, m]));
+
+  for (const item of items) {
+    for (const chosen of item.modifiers) {
+      if (!chosen.modifierId) continue;
+      const link = byModifierId.get(chosen.modifierId);
+      if (!link?.inventoryItemId || !link.inventoryQuantity) continue;
+
+      // (consumo por unidad) x (veces elegido) x (unidades del producto vendidas)
+      const used = toDecimal(link.inventoryQuantity).mul(chosen.quantity).mul(item.quantity);
+      const prev = usedByInventoryItem.get(link.inventoryItemId) ?? toDecimal(0);
+      usedByInventoryItem.set(link.inventoryItemId, prev.add(used));
+    }
+  }
+  if (usedByInventoryItem.size === 0) return;
+
+  let deducted = false;
+  for (const [inventoryItemId, used] of usedByInventoryItem) {
+    const inventoryItem = await prisma.inventoryItem.findFirst({ where: { id: inventoryItemId, restaurantId } });
+    if (!inventoryItem) continue;
+    const nextQuantity = Prisma.Decimal.max(0, toDecimal(inventoryItem.quantity).sub(used));
+    await prisma.inventoryItem.update({ where: { id: inventoryItem.id }, data: { quantity: nextQuantity } });
+    deducted = true;
+  }
+
   if (deducted) {
     emitToKitchen(restaurantId, SocketEvents.INVENTORY_LOW_STOCK, {});
   }
@@ -1105,6 +1183,7 @@ export const orderService = {
     if (status === 'SERVED' && existing.status !== 'SERVED') {
       await deductRecipeStock(restaurantId, existing.items);
       await deductProductStock(restaurantId, existing.items);
+      await deductModifierStock(restaurantId, existing.items);
     }
 
     emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, {

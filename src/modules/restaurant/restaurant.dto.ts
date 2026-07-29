@@ -76,6 +76,8 @@ export const updateRestaurantSchema = z.object({
   // el equipo QuickTap desde el Master Dashboard (ver master-restaurants.dto.ts), y solo si
   // el restaurante ya tiene su RIF registrado.
   serviceChargeEnabled: z.boolean().optional(),
+  // Interruptor del vínculo modificador -> insumo (botón en Inventario).
+  modifierInventoryLinkEnabled: z.boolean().optional(),
   // RIF fiscal del restaurante, informativo — condición para que QuickTap pueda activarle el IVA.
   rif: z.string().max(30).optional(),
 

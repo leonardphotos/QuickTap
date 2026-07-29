@@ -32,6 +32,12 @@ export const createModifierSchema = z.object({
   // Código interno opcional (back-office). Nunca se expone en el menú público.
   sku: z.string().max(60).nullable().optional(),
   priority: z.coerce.number().int().optional().default(0),
+  // Vínculo con inventario: insumo que consume este modificador al venderse.
+  // `inventoryQuantity` llega YA convertida a la unidad base del insumo
+  // (kg/lt/unidad) — el formulario permite cargarla en gr/ml y la convierte.
+  // null en cualquiera de las dos = sin vínculo (no descuenta nada).
+  inventoryItemId: z.string().min(1).nullable().optional(),
+  inventoryQuantity: z.coerce.number().positive().nullable().optional(),
 });
 
 export const updateModifierSchema = createModifierSchema.partial();

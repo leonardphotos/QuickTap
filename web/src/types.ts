@@ -71,6 +71,8 @@ export interface Restaurant {
   closedReason?: string | null;
   requireOrderConfirmation: boolean;
   serviceChargeEnabled: boolean;
+  /** Interruptor del vínculo modificador -> insumo (botón en Inventario). */
+  modifierInventoryLinkEnabled: boolean;
   ivaEnabled: boolean;
   rif?: string | null;
   paymentMethodsConfig?: PaymentMethodsConfig | null;
@@ -128,6 +130,13 @@ export interface Modifier {
   /** Código interno opcional (back-office). Nunca viaja en el menú público. */
   sku?: string | null;
   priority?: number;
+  /** Insumo que consume este modificador al venderse (null = sin vínculo). */
+  inventoryItemId?: string | null;
+  /** Consumo en la unidad BASE del insumo (kg/lt/unidad), como string decimal. */
+  inventoryQuantity?: string | null;
+  /** Denormalizados por el backend para pintar "30 gr de Queso" sin cruzar listas. */
+  inventoryItemName?: string | null;
+  inventoryItemUnit?: string | null;
 }
 
 export interface ModifierCategory {
