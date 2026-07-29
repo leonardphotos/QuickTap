@@ -15,8 +15,6 @@ interface Props {
   session: ShopSession;
   restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate' | 'name' | 'paymentMethodsConfig'>;
   rubro: ShopRubro;
-  /** Se llama cuando termina la animación de "Pago Registrado" (solo en Pago Móvil directo) — vuelve al Panel administrativo. */
-  onPaymentSuccess: () => void;
 }
 
 /** Métodos de pago cuyo monto se cobra naturalmente en dólares — el recibo de WhatsApp muestra
@@ -105,7 +103,7 @@ const PAYMENT_METHOD_META: { key: keyof NonNullable<AuthRestaurant['paymentMetho
   { key: 'CARD', label: 'Punto de Venta' },
 ];
 
-export default function ShopPosPage({ session, restaurant, rubro, onPaymentSuccess }: Props) {
+export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
   const { products, cart, till, closedTills, categories, addToCart, addAdhocLine, updateCartQty, setCartQty, removeFromCart, setCartLineDiscount, openTill, closeTill, checkout } = session;
 
@@ -349,16 +347,15 @@ export default function ShopPosPage({ session, restaurant, rubro, onPaymentSucce
   function confirmPagoMovil() {
     if (!pmReference.trim()) return;
     const meta: PaymentMeta = { reference: pmReference.trim(), hasProof: !!pmProofUrl, proofImageUrl: pmProofUrl ?? undefined };
-    const isFiadoInstallment = saleMode.kind === 'fiado';
     const sale = finalizeSale('Pago Móvil', meta);
     setPagoMovilOpen(false);
     setSuccessOpen(true);
     setTimeout(() => {
       setSuccessOpen(false);
-      // Fiado fraccionado: se cobró el abono, se muestra el ticket (deja claro cuánto quedó
-      // pendiente). Venta directa: no hace falta ticket, se vuelve al Panel administrativo.
-      if (isFiadoInstallment) setTicketSale(sale);
-      else onPaymentSuccess();
+      // Mismo comportamiento que el resto de métodos de pago (ver choosePaymethod): siempre se
+      // muestra el ticket, tanto para venta directa como fiada — es ahí donde está el botón de
+      // Enviar por WhatsApp, así que saltarlo dejaba sin recibo justo a las ventas por Pago Móvil.
+      setTicketSale(sale);
     }, 1600);
   }
 

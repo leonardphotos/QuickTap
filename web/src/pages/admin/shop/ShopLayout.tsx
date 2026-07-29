@@ -122,7 +122,7 @@ export default function ShopLayout() {
       <main className="max-w-7xl mx-auto px-5 sm:px-6 py-6 pb-28 lg:pb-6">
         {screen === 'admin' && <ShopDashboardPage session={session} restaurant={restaurant} canSeeMoney={canSeeMoney} />}
         {screen === 'venta' && (
-          <ShopPosPage session={session} restaurant={restaurant} rubro={rubro} onPaymentSuccess={() => setScreen('admin')} />
+          <ShopPosPage session={session} restaurant={restaurant} rubro={rubro} />
         )}
         {screen === 'inventario' && <ShopInventoryPage session={session} rubro={rubro} restaurant={restaurant} />}
         {screen === 'clientes' && <ShopCustomersPage session={session} restaurant={restaurant} />}
