@@ -21,6 +21,7 @@ import { PrintStationSection } from '@/components/admin/PrintStationSection';
 import { DeleteOrderPinSection } from '@/components/admin/DeleteOrderPinSection';
 import { LockScreenSettingsSection } from '@/components/admin/LockScreenSettingsSection';
 import { DemoAdminUnlockSection } from '@/components/admin/DemoAdminUnlockSection';
+import { SalesHistoryExportSection } from '@/components/admin/SalesHistoryExportSection';
 
 interface RateInfo {
   currency: Currency;
@@ -190,6 +191,12 @@ export default function SettingsPage() {
       {canManageTeam(user?.role) && (
         <div className="break-inside-avoid lg:mb-8">
           <DemoAdminUnlockSection />
+        </div>
+      )}
+
+      {canManageTeam(user?.role) && (
+        <div className="break-inside-avoid lg:mb-8">
+          <SalesHistoryExportSection />
         </div>
       )}
 

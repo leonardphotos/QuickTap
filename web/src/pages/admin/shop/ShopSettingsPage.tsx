@@ -10,6 +10,7 @@ import { PaymentMethodsSection } from '@/components/admin/PaymentMethodsSection'
 import { ScheduleSection } from '@/components/admin/ScheduleSection';
 import { ShopTeamSection } from './ShopTeamSection';
 import { LockScreenSettingsSection } from '@/components/admin/LockScreenSettingsSection';
+import { SalesHistoryExportSection } from '@/components/admin/SalesHistoryExportSection';
 
 interface Props {
   onBack: () => void;
@@ -93,6 +94,7 @@ export default function ShopSettingsPage({ onBack }: Props) {
       <PaymentMethodsSection descriptionOverride="Elige qué métodos aceptas al cobrar en Venta, y sus datos para que tus clientes sepan a dónde pagar." />
       <ScheduleSection />
       {canManageTeam && <ShopTeamSection />}
+      {canManageTeam && <SalesHistoryExportSection />}
       <LockScreenSettingsSection />
 
       <TextureCard>

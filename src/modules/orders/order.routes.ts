@@ -19,6 +19,10 @@ router.get('/delivery', orderController.deliveryQueue);
 router.get('/live', orderController.liveOrders);
 router.get('/summary/today', adminOnly, orderController.todaySummary);
 router.get('/history', adminOnly, requireFeature('administration'), orderController.history);
+// Respaldo completo de cobros en Excel (botón "Descargar historial de ventas" en Ajustes).
+// Sin requireFeature: es la copia de seguridad de sus propios datos, la tienen todos los
+// planes y los dos verticales (restaurante y local).
+router.get('/export/sales-history', requireRole('OWNER', 'ADMIN'), orderController.exportSalesHistory);
 router.get('/waiters', adminOnly, requireFeature('administration'), orderController.waiters);
 router.get('/reports/products', adminOnly, requireFeature('administration'), orderController.productReport);
 router.get('/reports/couriers', adminOnly, requireFeature('administration'), orderController.courierReport);

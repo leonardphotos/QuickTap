@@ -21,6 +21,7 @@ import {
   updateStatusSchema,
 } from './order.dto';
 import { orderService } from './order.service';
+import { salesExportService } from './sales-export.service';
 
 export const orderController = {
   /** POST /api/v1/public/checkout/dine-in — comensal en mesa (público). */
@@ -140,6 +141,18 @@ export const orderController = {
     const query = orderHistoryQuerySchema.parse(req.query);
     const result = await orderService.getOrderHistory(req.restaurantId!, query);
     res.json({ data: result });
+  }),
+
+  /**
+   * GET /api/v1/orders/export/sales-history — descarga el Excel con todo el
+   * historial de cobros del negocio (respaldo completo, botón en Ajustes).
+   */
+  exportSalesHistory: asyncHandler(async (req: Request, res: Response) => {
+    const { workbook, filename } = await salesExportService.buildSalesHistoryWorkbook(req.restaurantId!);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+    await workbook.xlsx.write(res);
+    res.end();
   }),
 
   /** GET /api/v1/orders/waiters — personal que ha cargado pedidos, para el filtro "Mesero" (solo plan Premium). */
