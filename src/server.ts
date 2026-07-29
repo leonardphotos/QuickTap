@@ -52,6 +52,14 @@ async function bootstrap() {
     2 * 60 * 1000,
   );
 
+  // Cola de contingencia: reintenta las facturas que no se pudieron emitir por
+  // caídas de internet o del API de la imprenta. Es lo que permite que el
+  // negocio siga cobrando con la conexión caída sin perder ninguna factura.
+  const fiscalInvoicingRetryInterval = setInterval(
+    () => fiscalInvoicingService.retryPendingIssues().catch(() => undefined),
+    60 * 1000,
+  );
+
   // Dashboard maestro: muestrea RAM/CPU/swap/disco cada minuto para la barra
   // de capacidad del VPS — el promedio sostenido (no el instante) es lo que
   // decide "¿actualizo el plan?" (ver master-server-status.service.ts).
@@ -74,6 +82,7 @@ async function bootstrap() {
     clearInterval(demoOrderSimInterval);
     clearInterval(demoInventorySimInterval);
     clearInterval(fiscalInvoicingPollInterval);
+    clearInterval(fiscalInvoicingRetryInterval);
     masterServerStatusService.stopSampling();
     server.close();
     await prisma.$disconnect();

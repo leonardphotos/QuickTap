@@ -19,6 +19,7 @@ import { assertRestaurantOpen } from '../../utils/business-hours';
 import { haversineDistanceKm, isPointInPolygon, LatLng } from '../../utils/geo';
 import { tableSessionService } from '../table-sessions/table-session.service';
 import { fiscalInvoicingService } from '../fiscal-invoicing/fiscal-invoicing.service';
+import { writeFiscalAudit } from '../fiscal-invoicing/fiscal-invoicing.audit';
 import { customerService } from '../customers/customer.service';
 import {
   AddOrderItemInput,
@@ -1307,6 +1308,23 @@ export const orderService = {
     }
     const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });
     if (!existing) throw notFound('Comanda no encontrada.');
+
+    // Inalterabilidad fiscal: un pedido con documento fiscal emitido NO se puede
+    // eliminar. La corrección va por Nota de Crédito, nunca por borrado — y el
+    // intento queda registrado en la pista de auditoría.
+    if (await fiscalInvoicingService.hasLiveFiscalDocument(orderId)) {
+      await writeFiscalAudit({
+        restaurantId,
+        orderId,
+        event: 'DELETE_BLOCKED',
+        actor: { actorType: 'USER', actorId: undefined, actorName: role },
+        detail: { orderNumber: existing.orderNumber },
+      });
+      throw conflict(
+        'Este pedido ya tiene una factura fiscal emitida y no se puede eliminar. Para reversarlo hay que emitir una nota de crédito.',
+      );
+    }
+
     await prisma.order.delete({ where: { id: orderId } });
     emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: 'DELETED' });
     return { deleted: true };

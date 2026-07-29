@@ -953,7 +953,8 @@ model Order {
   deliveryCourier DeliveryCourier? @relation(fields: [deliveryCourierId], references: [id], onDelete: SetNull)
   items           OrderItem[]
   payments        OrderPayment[]
-  fiscalInvoice   FiscalInvoice?
+  // Plural: la factura (FA) y su eventual nota de crédito/débito (NC/ND).
+  fiscalInvoices  FiscalInvoice[]
 
   @@unique([restaurantId, orderNumber])
   @@index([restaurantId, status])
@@ -1012,6 +1013,13 @@ model FiscalInvoicingConfig {
   accessToken    String?
   tokenExpiresAt DateTime?
 
+  // IGTF (Impuesto a las Grandes Transacciones Financieras): aplica sobre pagos
+  // en divisa/cripto. La alícuota vigente y a quién aplica la define el contador
+  // del restaurante — por eso es configurable y arranca DESACTIVADO, para no
+  // inventar un impuesto que no corresponda.
+  igtfEnabled Boolean @default(false)
+  igtfRate    Decimal @default(0) @db.Decimal(5, 4)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1024,8 +1032,11 @@ model FiscalInvoicingConfig {
 // Unidigital. status pasa PENDING (enviado, esperando N° de control, que
 // tarda 1-5 min) -> ISSUED (con controlNumber) -> FAILED / VOIDED.
 model FiscalInvoice {
-  id           String @id @default(cuid())
-  orderId      String @unique
+  id String @id @default(cuid())
+  // NO es único por pedido: un mismo pedido puede tener su factura (FA) y
+  // después una nota de crédito (NC) o de débito (ND) que la corrige. La
+  // unicidad real es por (pedido, tipo de documento) — ver @@unique abajo.
+  orderId      String
   restaurantId String
 
   documentType   String // "FA" | "NC" | "ND"
@@ -1039,16 +1050,67 @@ model FiscalInvoice {
   status       String // "PENDING" | "ISSUED" | "FAILED" | "VOIDED"
   errorMessage String?
 
+  // Contingencia (Providencia 102, art. sobre continuidad operativa): un fallo
+  // de red o del API de la imprenta no puede perder la factura. Se reintenta
+  // con backoff hasta MAX_ISSUE_ATTEMPTS antes de quedar en revisión manual.
+  attempts    Int       @default(0)
+  nextRetryAt DateTime?
+
+  // Anulación: nunca se borra la fila, se marca. La corrección fiscal real va
+  // por NC/ND, que apunta aquí con replacesInvoiceId.
+  voidedAt          DateTime?
+  voidReason        String?
+  replacesInvoiceId String?
+  replaces          FiscalInvoice?  @relation("FiscalInvoiceCorrection", fields: [replacesInvoiceId], references: [id], onDelete: Restrict)
+  correctedBy       FiscalInvoice[] @relation("FiscalInvoiceCorrection")
+
   rawRequestJson  Json?
   rawResponseJson Json?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  // Restrict, NO Cascade: borrar un pedido no puede arrastrarse el documento
+  // fiscal. Un documento emitido es inalterable e imborrable — si el pedido se
+  // quiere "deshacer" hay que emitir una NC, no eliminar el registro.
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
+  @@unique([orderId, documentType])
   @@index([restaurantId, status])
+  // Cola de contingencia: barrido de pendientes por reintentar.
+  @@index([status, nextRetryAt])
   @@map("fiscal_invoices")
+}
+
+// Pista de auditoría fiscal (Providencia 102: registro automático e inalterable
+// de quién hizo qué sobre un documento fiscal, y cuándo). Solo se inserta —
+// nunca se actualiza ni se borra desde el código de la aplicación.
+model FiscalAuditLog {
+  id           String @id @default(cuid())
+  restaurantId String
+  // Puede ser null cuando el evento es previo a existir la factura (ej.
+  // ISSUE_ATTEMPT que falló antes de poder crear la fila).
+  invoiceId String?
+  orderId   String?
+
+  // "ISSUE_ATTEMPT" | "ISSUED" | "ISSUE_FAILED" | "CONTROL_NUMBER_ASSIGNED"
+  // | "VOID_REQUESTED" | "VOIDED" | "CREDIT_NOTE_ISSUED" | "MODIFY_BLOCKED"
+  // | "DELETE_BLOCKED" | "CONFIG_CHANGED"
+  event String
+
+  // Quién: usuario del restaurante, admin de plataforma, o el sistema (jobs).
+  actorType String // "USER" | "PLATFORM_ADMIN" | "SYSTEM"
+  actorId   String?
+  actorName String?
+
+  // Detalle libre del evento (montos, código de error, payload relevante).
+  detail Json?
+
+  createdAt DateTime @default(now())
+
+  @@index([restaurantId, createdAt])
+  @@index([invoiceId])
+  @@map("fiscal_audit_logs")
 }
 
 // Movimiento manual de caja (botón "Añadir movimiento" en Administración →
