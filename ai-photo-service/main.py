@@ -1,32 +1,63 @@
 """
 QuickTap AI Photo Service
-Microservicio local (FastAPI + rembg) para convertir una foto de producto
-"casera" en una foto-producto profesional: quita el fondo, la coloca sobre
-blanco puro (#FFFFFF) con una sombra suave, y devuelve un JPG optimizado.
+Microservicio local en el VPS que recibe una foto de producto y usa Gemini
+(gemini-2.5-flash-image) para convertirla en una foto-producto profesional
+de catálogo -- ya sea mejorando/decorando el fondo original, o
+reemplazándolo por un fondo blanco de estudio.
 
 No forma parte del backend principal de QuickTap ni comparte proceso con
-él -- corre como su propio servicio (ver systemd al final de este archivo
-en forma de comentario, y las instrucciones de despliegue en README.md).
+él -- corre como su propio servicio (ver systemd al final de README.md).
+A diferencia de la versión anterior (Pillow + rembg, 100% local), esta
+versión llama a la API de Gemini: necesita `GEMINI_API_KEY` y conexión a
+internet saliente desde el VPS.
 """
 
 import io
+import os
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import Response
-from PIL import Image, ImageEnhance, ImageFilter, ImageOps
-from rembg import remove
+from google import genai
+from google.genai import types
+from PIL import Image, ImageOps
 
 app = FastAPI(title="QuickTap AI Photo Service")
 
-# Lienzo final (cuadrado, suficiente para el menú y para zoom en la ficha
-# de producto sin perder nitidez).
-CANVAS_SIZE = 1200
-# Margen entre el producto recortado y el borde del lienzo.
-PADDING_RATIO = 0.08
-CONTRAST_FACTOR = 1.12
-JPEG_QUALITY = 85
-
+GEMINI_MODEL = "gemini-2.5-flash-image"
+JPEG_QUALITY = 90
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024  # 15MB
+
+# Prompts fijos por botón -- la instrucción "manteniendo/sin cambiar el
+# producto" es la parte crítica en ambos: sin ella, el modelo tiende a
+# regenerar detalles del producto en vez de solo ajustar la escena.
+ENHANCE_PROMPT = (
+    "Mejora esta fotografía de producto para que aparezca con un fondo adecuado "
+    "dependiendo del producto: decora, cambia el fondo y añade elementos para que "
+    "la fotografía de producto sea lo más perfecta posible, manteniendo las "
+    "dimensiones, el tamaño y la estética del producto original. No alteres la "
+    "forma, el color, el texto ni ningún detalle real del producto."
+)
+
+WHITE_BACKGROUND_PROMPT = (
+    "Elimina el fondo de esta fotografía de producto y colócalo sobre fondo "
+    "blanco con un ligero reflejo, para que sea lo más similar a una fotografía "
+    "profesional con luces de estudio. El resultado debe verse como una "
+    "fotografía de catálogo de marca. Mejora o corrige la posición del producto "
+    "para que sea lo más cercano a una fotografía de catálogo profesional. No "
+    "alteres la forma, el color, el texto ni ningún detalle real del producto."
+)
+
+_client: genai.Client | None = None
+
+
+def _get_client() -> genai.Client:
+    global _client
+    if _client is None:
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise HTTPException(503, "GEMINI_API_KEY no está configurada en el servicio de IA.")
+        _client = genai.Client(api_key=api_key)
+    return _client
 
 
 def _read_upload(raw: bytes) -> Image.Image:
@@ -45,84 +76,63 @@ def _validate_upload(file: UploadFile, raw: bytes) -> None:
         raise HTTPException(400, "La imagen supera el límite de 15MB.")
 
 
+def _run_gemini(image: Image.Image, prompt: str) -> bytes:
+    """Envía la imagen + el prompt a Gemini y devuelve los bytes de la
+    imagen resultante (PNG/JPEG, según lo que entregue el modelo)."""
+    client = _get_client()
+
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+
+    try:
+        response = client.models.generate_content(
+            model=GEMINI_MODEL,
+            contents=[
+                types.Part.from_bytes(data=buf.getvalue(), mime_type="image/png"),
+                prompt,
+            ],
+        )
+    except Exception as exc:
+        raise HTTPException(502, f"Gemini no pudo procesar la imagen: {exc}")
+
+    candidates = response.candidates or []
+    for candidate in candidates:
+        for part in candidate.content.parts or []:
+            if part.inline_data is not None and part.inline_data.data:
+                return part.inline_data.data
+
+    raise HTTPException(502, "Gemini no devolvió ninguna imagen. Intenta con otra foto.")
+
+
+def _to_jpeg(raw: bytes) -> bytes:
+    img = Image.open(io.BytesIO(raw)).convert("RGB")
+    out = io.BytesIO()
+    img.save(out, format="JPEG", quality=JPEG_QUALITY, optimize=True)
+    return out.getvalue()
+
+
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"status": "ok", "gemini_configured": bool(os.environ.get("GEMINI_API_KEY"))}
 
 
 @app.post("/enhance-image")
 async def enhance_image(file: UploadFile = File(...)):
-    """Botón "Mejorar foto con IA": ajusta contraste, brillo y nitidez sin
-    tocar el fondo -- para fotos que ya están bien encuadradas pero se ven
-    apagadas o borrosas (foto tomada con el celular en la cocina, etc.)."""
+    """Botón "Mejorar foto con IA": decora/ajusta el fondo y la escena para
+    que la foto luzca como una foto de producto profesional."""
     raw = await file.read()
     _validate_upload(file, raw)
     source = _read_upload(raw)
-
-    result = ImageEnhance.Contrast(source).enhance(1.15)
-    result = ImageEnhance.Brightness(result).enhance(1.04)
-    result = ImageEnhance.Color(result).enhance(1.08)
-    result = ImageEnhance.Sharpness(result).enhance(1.3)
-
-    out = io.BytesIO()
-    result.save(out, format="JPEG", quality=JPEG_QUALITY, optimize=True)
-    out.seek(0)
-    return Response(content=out.getvalue(), media_type="image/jpeg")
+    result = _run_gemini(source, ENHANCE_PROMPT)
+    return Response(content=_to_jpeg(result), media_type="image/jpeg")
 
 
 @app.post("/white-background")
 async def white_background(file: UploadFile = File(...)):
     """Botón "Fondo blanco con IA": quita el fondo original y compone el
-    producto sobre blanco puro con una sombra suave -- efecto foto-producto."""
+    producto sobre blanco de estudio, estilo foto de catálogo."""
     raw = await file.read()
     _validate_upload(file, raw)
     source = _read_upload(raw)
-
-    # 1) Mejora leve de contraste ANTES de quitar el fondo -- ayuda a rembg
-    #    a distinguir mejor los bordes del producto.
-    enhanced = ImageEnhance.Contrast(source).enhance(CONTRAST_FACTOR)
-
-    # 2) Quitar el fondo (rembg devuelve RGBA con el producto recortado).
-    buf = io.BytesIO()
-    enhanced.save(buf, format="PNG")
-    try:
-        cutout = remove(buf.getvalue())
-    except Exception:
-        raise HTTPException(500, "Falló la remoción de fondo.")
-    cutout = Image.open(io.BytesIO(cutout)).convert("RGBA")
-
-    # 3) Recortar al bounding box del producto (sin aire transparente de sobra).
-    bbox = cutout.getbbox()
-    if bbox:
-        cutout = cutout.crop(bbox)
-
-    # 4) Escalar el producto para que quepa en el lienzo dejando el margen.
-    target = int(CANVAS_SIZE * (1 - PADDING_RATIO * 2))
-    scale = min(target / cutout.width, target / cutout.height)
-    new_size = (max(1, int(cutout.width * scale)), max(1, int(cutout.height * scale)))
-    cutout = cutout.resize(new_size, Image.LANCZOS)
-
-    # 5) Construir la sombra: la silueta del producto (canal alfa), difuminada,
-    #    tintada de gris y desplazada un poco hacia abajo -- efecto foto-producto.
-    shadow_alpha = cutout.split()[3].filter(ImageFilter.GaussianBlur(new_size[0] * 0.02 + 6))
-    shadow_layer = Image.new("RGBA", cutout.size, (0, 0, 0, 0))
-    shadow_layer.putalpha(shadow_alpha.point(lambda a: int(a * 0.35)))
-
-    canvas = Image.new("RGB", (CANVAS_SIZE, CANVAS_SIZE), "#FFFFFF")
-    paste_x = (CANVAS_SIZE - new_size[0]) // 2
-    paste_y = (CANVAS_SIZE - new_size[1]) // 2
-
-    shadow_offset_y = int(new_size[1] * 0.04) + 10
-    shadow_squash = Image.new("RGBA", (CANVAS_SIZE, CANVAS_SIZE), (0, 0, 0, 0))
-    shadow_squash.paste(shadow_layer, (paste_x, paste_y + shadow_offset_y), shadow_layer)
-    canvas.paste(shadow_squash, (0, 0), shadow_squash)
-
-    # 6) Pegar el producto encima de la sombra.
-    canvas.paste(cutout, (paste_x, paste_y), cutout)
-
-    # 7) Exportar como JPG optimizado y liviano.
-    out = io.BytesIO()
-    canvas.save(out, format="JPEG", quality=JPEG_QUALITY, optimize=True)
-    out.seek(0)
-
-    return Response(content=out.getvalue(), media_type="image/jpeg")
+    result = _run_gemini(source, WHITE_BACKGROUND_PROMPT)
+    return Response(content=_to_jpeg(result), media_type="image/jpeg")

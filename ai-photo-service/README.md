@@ -1,13 +1,16 @@
 # QuickTap AI Photo Service
 
-Microservicio local en el VPS que recibe una foto de producto, le mejora
-levemente el contraste, le quita el fondo con `rembg` (IA open-source,
-corre 100% local -- no llama a ninguna API externa) y la devuelve como
-foto-producto profesional: fondo blanco puro + sombra suave, en JPG
-optimizado.
+Microservicio local en el VPS que recibe una foto de producto y usa
+**Gemini** (`gemini-2.5-flash-image`) para convertirla en una foto-producto
+profesional de catálogo: el botón "Mejorar foto" decora/ajusta el fondo y
+la escena, y el botón "Fondo blanco" la recompone sobre fondo blanco de
+estudio con reflejo, estilo foto de catálogo de marca.
 
-No usa GPU, no depende de torch (rembg usa `onnxruntime` en CPU), y es
-independiente del backend de Node -- corre en su propio proceso/puerto.
+A diferencia de una implementación 100% local, esto llama a la API de
+Gemini: necesita conexión a internet saliente desde el VPS y una
+`GEMINI_API_KEY` (con cuota/billing habilitado en Google AI Studio /
+Google Cloud). Sigue corriendo como su propio proceso/puerto,
+independiente del backend de Node.
 
 ## 1. Preparar el servidor (por SSH, una sola vez)
 
@@ -33,12 +36,12 @@ pip install --upgrade pip
 ## 3. Instalar las dependencias exactas
 
 ```bash
-pip install fastapi==0.115.6 "uvicorn[standard]==0.34.0" python-multipart==0.0.20 pillow==11.1.0 rembg==2.0.61 onnxruntime
+pip install fastapi==0.115.6 "uvicorn[standard]==0.34.0" python-multipart==0.0.20 pillow==11.1.0 google-genai==1.2.0
 ```
 
 (o, si ya subiste `requirements.txt` a `~/ai-photo-service/`: `pip install -r requirements.txt`)
 
-## 4. Subir `main.py`
+## 4. Subir `main.py` y obtener la API key de Gemini
 
 Copia el archivo `main.py` de esta carpeta a `~/ai-photo-service/main.py`
 en el VPS (por `scp`, `rsync`, o pegándolo directo con `nano`/`vim`).
@@ -47,23 +50,27 @@ en el VPS (por `scp`, `rsync`, o pegándolo directo con `nano`/`vim`).
 scp ai-photo-service/main.py ai-photo-service/requirements.txt tu_usuario@tu_vps:~/ai-photo-service/
 ```
 
+Genera una API key en [Google AI Studio](https://aistudio.google.com/apikey)
+y expórtala como variable de entorno antes de levantar el servicio (ver
+paso 5 y la sección de systemd en el paso 6):
+
+```bash
+export GEMINI_API_KEY="tu-api-key-aqui"
+```
+
 ## 5. Probar en primer plano antes de ponerlo en systemd
 
 ```bash
 cd ~/ai-photo-service
 source venv/bin/activate
+export GEMINI_API_KEY="tu-api-key-aqui"
 uvicorn main:app --host 127.0.0.1 --port 8100
 ```
 
-La **primera vez que proceses una imagen**, `rembg` descarga su modelo
-(`u2net`, ~176MB) a `~/.u2net/` -- va a tardar un poco esa primera llamada
-y necesita conexión a internet saliente desde el VPS. Las siguientes
-llamadas son instantáneas porque el modelo queda cacheado en disco.
-
 El servicio expone dos endpoints (uno por cada botón del panel de admin):
 
-- `POST /enhance-image` -- "Mejorar foto con IA": contraste/brillo/nitidez, sin tocar el fondo.
-- `POST /white-background` -- "Fondo blanco con IA": quita el fondo y compone sobre blanco puro con sombra.
+- `POST /enhance-image` -- "Mejorar foto con IA": decora/ajusta el fondo y la escena para que luzca como foto de producto profesional.
+- `POST /white-background` -- "Fondo blanco con IA": quita el fondo y compone sobre blanco de estudio con reflejo, estilo foto de catálogo.
 
 Probar desde otra terminal (en el propio VPS, ya que quedó en `127.0.0.1`,
 no expuesto a internet):
@@ -73,16 +80,13 @@ curl -X POST http://127.0.0.1:8100/enhance-image -F "file=@/ruta/a/una/foto.jpg"
 curl -X POST http://127.0.0.1:8100/white-background -F "file=@/ruta/a/una/foto.jpg" -o fondo-blanco.jpg
 ```
 
-Si ambos archivos abren correctamente (uno solo con mejor contraste, el otro
-con fondo blanco + sombra), funciona. `Ctrl+C` para bajarlo y pasar al paso 6.
+Si ambos archivos abren correctamente, funciona. `Ctrl+C` para bajarlo y
+pasar al paso 6.
 
-**Nota de recursos:** `rembg` + `onnxruntime` en CPU usan bastante RAM
-durante el procesamiento (pico de ~300-500MB por request). Si el VPS ya
-está ajustado en memoria (corriendo Postgres + Node + Nginx), corrobora
-con `free -h` que hay margen antes de meterlo en producción -- si anda
-justo, conviene poner un límite de memoria en el `systemd` (ver abajo,
-`MemoryMax`) para que si se pasa, se reinicie solo en vez de tumbar el
-resto del servidor.
+**Nota de costo:** cada llamada a `gemini-2.5-flash-image` consume cuota
+de la API (revisa el pricing vigente en Google AI Studio antes de
+habilitarlo en producción). A diferencia de la versión anterior con
+`rembg`, esto ya no es gratis ni ilimitado.
 
 ## 6. Dejarlo corriendo permanentemente con systemd (recomendado sobre PM2)
 
@@ -98,13 +102,14 @@ Contenido:
 
 ```ini
 [Unit]
-Description=QuickTap AI Photo Service (rembg)
+Description=QuickTap AI Photo Service (Gemini)
 After=network.target
 
 [Service]
 Type=simple
 User=TU_USUARIO
 WorkingDirectory=/home/TU_USUARIO/ai-photo-service
+Environment=GEMINI_API_KEY=tu-api-key-aqui
 ExecStart=/home/TU_USUARIO/ai-photo-service/venv/bin/uvicorn main:app --host 127.0.0.1 --port 8100
 Restart=always
 RestartSec=5
@@ -114,10 +119,11 @@ MemoryMax=768M
 WantedBy=multi-user.target
 ```
 
-Reemplaza `TU_USUARIO` por el usuario real del VPS (no uses `root`).
-`--host 127.0.0.1` es intencional: el servicio queda **solo accesible
-desde el propio VPS**, no expuesto a internet. El backend de Node le
-pega internamente (`http://127.0.0.1:8100/enhance-image` y
+Reemplaza `TU_USUARIO` por el usuario real del VPS (no uses `root`) y
+`tu-api-key-aqui` por la API key real -- no la subas al repo. `--host
+127.0.0.1` es intencional: el servicio queda **solo accesible desde el
+propio VPS**, no expuesto a internet. El backend de Node le pega
+internamente (`http://127.0.0.1:8100/enhance-image` y
 `http://127.0.0.1:8100/white-background`, ver sección 7) y listo -- no
 hace falta abrir puerto en el firewall ni agregarlo a Nginx.
 
@@ -136,7 +142,7 @@ Ver logs en vivo:
 sudo journalctl -u quicktap-ai-photo -f
 ```
 
-Reiniciarlo tras cambios en `main.py`:
+Reiniciarlo tras cambios en `main.py` o en la API key:
 
 ```bash
 sudo systemctl restart quicktap-ai-photo
@@ -154,8 +160,9 @@ Ambos reciben el campo `photo` (multipart/form-data, igual que
 `/products/upload-photo`), reenvían el archivo a este microservicio,
 guardan la imagen procesada en `uploads/ai-photo/` y devuelven
 `{ data: { url } }` -- el mismo shape que ya usa `PhotoUploadField` en el
-frontend. El formulario de Productos ya tiene los dos botones ("Mejorar
-foto con IA" / "Fondo blanco con IA") conectados a estos endpoints.
+frontend. El formulario de Productos de Restaurantes y el de Locales
+(Shop) tienen los dos botones ("Mejorar foto con IA" / "Fondo blanco con
+IA") conectados a estos endpoints.
 
 Para que el backend encuentre este servicio, define en el `.env` del
 backend (raíz del repo, no en `web/`):
@@ -164,8 +171,13 @@ backend (raíz del repo, no en `web/`):
 AI_PHOTO_SERVICE_URL=http://127.0.0.1:8100
 ```
 
+(La `GEMINI_API_KEY` vive únicamente en el `.env`/systemd de este
+microservicio Python, no en el backend de Node -- el backend nunca habla
+con Gemini directamente.)
+
 Si la variable no está definida, o el microservicio no responde (no está
-instalado o systemd lo tiene caído), el backend devuelve un error claro
-("Servicio de IA no disponible") en vez de romper la subida de fotos
-normal -- los dos botones de IA son un extra, la subida manual de fotos
-sigue funcionando igual sin este servicio.
+instalado, no tiene `GEMINI_API_KEY` configurada, o systemd lo tiene
+caído), el backend devuelve un error claro ("Servicio de IA no
+disponible") en vez de romper la subida de fotos normal -- los dos
+botones de IA son un extra, la subida manual de fotos sigue funcionando
+igual sin este servicio.

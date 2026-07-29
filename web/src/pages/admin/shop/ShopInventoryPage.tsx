@@ -786,6 +786,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                 label={editingProductId ? 'Foto del producto' : 'Foto del producto (obligatoria)'}
                 uploadUrl="/shop/products/upload-photo"
                 shape="square"
+                aiEnabled
               />
             </div>
             <label className="block text-sm sm:col-span-2">
