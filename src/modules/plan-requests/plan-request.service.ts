@@ -1,7 +1,7 @@
 import { BillingCycle, PlanRequestKind, PlanRequestStatus, SubscriptionPlan } from '@prisma/client';
 import { env } from '../../config/env';
 import { prisma } from '../../config/prisma';
-import { badRequest, notFound } from '../../utils/http-error';
+import { badRequest, forbidden, notFound } from '../../utils/http-error';
 import { nextPeriodEnd } from '../../utils/subscription';
 import { buildWhatsappUrl } from '../../utils/whatsapp';
 import { promoCodeService } from '../promo-codes/promo-code.service';
@@ -9,10 +9,16 @@ import { platformSettingsService } from '../platform-settings/platform-settings.
 import { ramblayClient } from '../ramblay/ramblay.client';
 import {
   ActivateRestaurantInput,
+  AddPlanRequestPaymentInput,
+  CreateInstallmentPlanRequestInput,
   CreatePlanRequestInput,
   CreateRamblayCheckoutInput,
   UpdatePlanRequestInput,
 } from './plan-request.dto';
+
+/** Referencia fija en el registro padre de un "pago fraccionado" — el método/número real de
+ * cada abono vive en PlanRequestPayment, no acá (ver createInstallment/addPayment abajo). */
+const INSTALLMENT_PLACEHOLDER_REFERENCE = 'Pago fraccionado';
 
 const PLAN_LABELS: Record<SubscriptionPlan, string> = {
   TRIAL: 'Prueba Gratuita',
@@ -192,6 +198,79 @@ export const planRequestService = {
   },
 
   /**
+   * "Pago fraccionado" (solo pago manual, ya autenticado): registra la intención de pago sin
+   * pedir todavía un método/referencia — esos se van agregando abono por abono con addPayment().
+   * priceUsd queda fijo desde este momento (igual que en create()), así el código promocional no
+   * se re-evalúa ni se re-consume en cada abono.
+   */
+  async createInstallment(input: CreateInstallmentPlanRequestInput, opts: { kind: PlanRequestKind; restaurantId?: string }) {
+    const { manualPaymentEnabled } = await platformSettingsService.getPaymentTogglesOrDefault();
+    if (!manualPaymentEnabled) {
+      throw badRequest('El pago manual está deshabilitado por ahora. Intenta con Ramblay o contáctanos.');
+    }
+
+    const { priceUsd, promo } = await resolvePrice(input.plan, input.billingCycle, input.promoCode);
+
+    return prisma.planRequest.create({
+      data: {
+        kind: opts.kind,
+        restaurantId: opts.restaurantId,
+        plan: input.plan as SubscriptionPlan,
+        billingCycle: input.billingCycle,
+        customTables: null,
+        customUsers: null,
+        customOrders: null,
+        customAdministration: false,
+        customInventoryBasic: false,
+        customInventoryRecipe: false,
+        customAccountsPayable: false,
+        promoCode: promo?.code,
+        discountPercent: promo?.discountPercent,
+        priceUsd,
+        paymentMethod: 'PAGO_MOVIL',
+        paymentReference: INSTALLMENT_PLACEHOLDER_REFERENCE,
+        contactName: input.contactName,
+        contactEmail: input.contactEmail,
+        contactPhone: input.contactPhone,
+        restaurantName: input.restaurantName,
+      },
+      include: { payments: true },
+    });
+  },
+
+  /** El restaurante retoma su "pago fraccionado" pendiente (si tiene uno) al volver a la
+   * pantalla de facturación, en vez de crear uno nuevo cada vez. */
+  async getPendingInstallment(restaurantId: string) {
+    return prisma.planRequest.findFirst({
+      where: { restaurantId, status: 'PENDING', paymentReference: INSTALLMENT_PLACEHOLDER_REFERENCE },
+      orderBy: { createdAt: 'desc' },
+      include: { payments: { orderBy: { createdAt: 'asc' } } },
+    });
+  },
+
+  /**
+   * Registra un abono del pago fraccionado: su propio monto, método y comprobante. Se puede
+   * llamar varias veces hasta cubrir priceUsd — "Activar cuenta" sigue siendo una decisión manual
+   * del equipo QuickTap (approve() no cambia), que revisa la suma de abonos antes de aprobar.
+   */
+  async addPayment(planRequestId: string, restaurantId: string, input: AddPlanRequestPaymentInput, proofImageUrl: string) {
+    const request = await prisma.planRequest.findUnique({ where: { id: planRequestId } });
+    if (!request) throw notFound('Solicitud no encontrada.');
+    if (request.restaurantId !== restaurantId) throw forbidden('Esta solicitud no pertenece a tu restaurante.');
+    if (request.status !== 'PENDING') throw badRequest('Esta solicitud ya fue procesada, no se pueden agregar más abonos.');
+
+    return prisma.planRequestPayment.create({
+      data: {
+        planRequestId,
+        amountUsd: input.amountUsd,
+        paymentMethod: input.paymentMethod,
+        paymentReference: input.paymentReference,
+        proofImageUrl,
+      },
+    });
+  },
+
+  /**
    * Crea la solicitud de plan y, de una vez, la sesión de pago en Ramblay
    * (C2P / Binance Pay): el restaurante no escribe ningún número de
    * referencia, paga en el checkout de Ramblay y el webhook activa el plan
@@ -259,7 +338,10 @@ export const planRequestService = {
     return prisma.planRequest.findMany({
       where: { kind, ...(status ? { status } : {}) },
       orderBy: { createdAt: 'desc' },
-      include: { restaurant: { select: { id: true, name: true, slug: true } } },
+      include: {
+        restaurant: { select: { id: true, name: true, slug: true } },
+        payments: { orderBy: { createdAt: 'asc' } },
+      },
     });
   },
 

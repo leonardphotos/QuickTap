@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { Bitcoin, Copy, CreditCard, Landmark, Loader2, Tag, Wallet, X } from 'lucide-react';
+import { Bitcoin, Copy, CreditCard, Landmark, Loader2, Paperclip, Tag, Wallet, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { formatBs } from '@/utils/format';
 import {
@@ -29,6 +29,21 @@ export interface SelectedPlan {
     inventoryRecipe?: boolean;
     accountsPayable?: boolean;
   };
+}
+
+interface InstallmentPayment {
+  id: string;
+  amountUsd: string;
+  paymentMethod: SubscriptionPaymentMethod;
+  paymentReference: string;
+  proofImageUrl: string;
+  createdAt: string;
+}
+
+interface InstallmentRequest {
+  id: string;
+  priceUsd: string;
+  payments: InstallmentPayment[];
 }
 
 const PAYMENT_METHODS: SubscriptionPaymentMethod[] = ['PAGO_MOVIL', 'BINANCE', 'BANK_TRANSFER'];
@@ -78,6 +93,16 @@ export function PaymentForm({
   const [contactPhone, setContactPhone] = useState('');
   const [restaurantName, setRestaurantName] = useState('');
   const [paymentReference, setPaymentReference] = useState('');
+  // "Pago único" (de siempre) vs "Pago fraccionado": solo tiene sentido para el restaurante ya
+  // autenticado pagando su mensualidad (authToken presente) — la inscripción pública sigue el
+  // flujo de siempre, un solo comprobante.
+  const [payMode, setPayMode] = useState<'single' | 'installment'>('single');
+  const [installment, setInstallment] = useState<InstallmentRequest | null>(null);
+  const [startingInstallment, setStartingInstallment] = useState(false);
+  const [installmentAmount, setInstallmentAmount] = useState('');
+  const [installmentProof, setInstallmentProof] = useState<File | null>(null);
+  const [addingPayment, setAddingPayment] = useState(false);
+  const [installmentError, setInstallmentError] = useState<string | null>(null);
   const [promoInput, setPromoInput] = useState('');
   const [promo, setPromo] = useState<{ code: string; discountPercent: number } | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
@@ -97,6 +122,91 @@ export function PaymentForm({
       })
       .catch(() => setMethods({}));
   }, []);
+
+  const authHeaders = authToken ? { headers: { Authorization: `Bearer ${authToken}` } } : undefined;
+
+  // Retoma el pago fraccionado pendiente (si el restaurante ya había empezado uno) en vez de
+  // obligarlo a empezar de cero cada vez que vuelve a esta pantalla.
+  useEffect(() => {
+    if (!authToken) return;
+    api
+      .get(`${submitUrl}/installment/pending`, authHeaders)
+      .then((res) => {
+        if (res.data.data) setInstallment(res.data.data);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authToken]);
+
+  async function startInstallment() {
+    if (!contactName.trim() || !contactEmail.trim()) {
+      setInstallmentError('Escribe tu nombre y correo para continuar.');
+      return;
+    }
+    setStartingInstallment(true);
+    setInstallmentError(null);
+    try {
+      const { data } = await api.post(
+        `${submitUrl}/installment`,
+        {
+          plan: selected.plan,
+          billingCycle: selected.billingCycle,
+          ...(promo ? { promoCode: promo.code } : {}),
+          contactName,
+          contactEmail,
+          ...(contactPhone ? { contactPhone } : {}),
+        },
+        authHeaders,
+      );
+      setInstallment(data.data);
+      setInstallmentAmount('');
+    } catch (err: any) {
+      setInstallmentError(err.response?.data?.error ?? 'No se pudo iniciar el pago fraccionado.');
+    } finally {
+      setStartingInstallment(false);
+    }
+  }
+
+  async function addInstallmentPayment() {
+    if (!installment) return;
+    const amount = Number(installmentAmount);
+    if (!amount || amount <= 0) {
+      setInstallmentError('Escribe el monto que vas a abonar.');
+      return;
+    }
+    if (!paymentReference.trim()) {
+      setInstallmentError('Escribe el número de referencia de este abono.');
+      return;
+    }
+    if (!installmentProof) {
+      setInstallmentError('Sube el comprobante de este abono.');
+      return;
+    }
+    setAddingPayment(true);
+    setInstallmentError(null);
+    try {
+      const form = new FormData();
+      form.append('amountUsd', String(amount));
+      form.append('paymentMethod', method);
+      form.append('paymentReference', paymentReference.trim());
+      form.append('photo', installmentProof);
+      await api.post(`${submitUrl}/${installment.id}/payments`, form, {
+        headers: { ...(authHeaders?.headers ?? {}), 'Content-Type': 'multipart/form-data' },
+      });
+      const { data } = await api.get(`${submitUrl}/installment/pending`, authHeaders);
+      setInstallment(data.data);
+      setInstallmentAmount('');
+      setPaymentReference('');
+      setInstallmentProof(null);
+    } catch (err: any) {
+      setInstallmentError(err.response?.data?.error ?? 'No se pudo registrar el abono.');
+    } finally {
+      setAddingPayment(false);
+    }
+  }
+
+  const installmentPaidUsd = installment ? installment.payments.reduce((a, p) => a + Number(p.amountUsd), 0) : 0;
+  const installmentRemainingUsd = installment ? Math.max(0, Number(installment.priceUsd) - installmentPaidUsd) : 0;
 
   const finalPriceUsd = promo
     ? Math.round(selected.priceUsd * (1 - promo.discountPercent / 100) * 100) / 100
@@ -119,6 +229,9 @@ export function PaymentForm({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    // El "pago fraccionado" no usa este submit — cada abono se envía con su propio botón
+    // (addInstallmentPayment) para no mezclar su validación con la del pago único.
+    if (payWith === 'manual' && authToken && payMode === 'installment') return;
     if (payWith === 'ramblay') {
       await payWithRamblay();
       return;
@@ -347,33 +460,160 @@ export function PaymentForm({
               {!authToken && <Field label="Nombre del restaurante" value={restaurantName} onChange={setRestaurantName} />}
             </div>
 
-            <Field
-              label="Número de referencia del pago"
-              value={paymentReference}
-              onChange={setPaymentReference}
-              placeholder="Ej: 004215778901"
-              required
-            />
+            {authToken && (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPayMode('single')}
+                  className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                    payMode === 'single' ? 'bg-brand-950 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+                  }`}
+                >
+                  Pago único
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPayMode('installment')}
+                  className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                    payMode === 'installment' ? 'bg-brand-950 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+                  }`}
+                >
+                  Pago fraccionado
+                </button>
+              </div>
+            )}
+
+            {payMode === 'single' || !authToken ? (
+              <Field
+                label="Número de referencia del pago"
+                value={paymentReference}
+                onChange={setPaymentReference}
+                placeholder="Ej: 004215778901"
+                required
+              />
+            ) : !installment ? (
+              <div className="rounded-xl bg-brand-950/[0.03] p-4 space-y-3">
+                <p className="text-sm text-brand-950/60 font-light">
+                  Abona el monto que puedas ahora y sigue completando el resto con más abonos, cada uno con su propio
+                  comprobante, hasta cubrir el total.
+                </p>
+                {installmentError && <p className="text-sm text-red-600">{installmentError}</p>}
+                <TextureButton
+                  type="button"
+                  variant="brand"
+                  size="sm"
+                  disabled={startingInstallment}
+                  className="!w-auto disabled:opacity-50"
+                  onClick={startInstallment}
+                >
+                  {startingInstallment ? 'Iniciando…' : 'Iniciar pago fraccionado'}
+                </TextureButton>
+              </div>
+            ) : (
+              <div className="rounded-xl bg-brand-950/[0.03] p-4 space-y-4">
+                <div>
+                  <div className="flex items-center justify-between text-sm mb-1.5">
+                    <span className="text-brand-950/70">
+                      Pagado: <span className="font-semibold text-brand-950">${installmentPaidUsd.toFixed(2)}</span> de $
+                      {Number(installment.priceUsd).toFixed(2)}
+                    </span>
+                    {installmentRemainingUsd > 0 && (
+                      <span className="text-brand-950/50">Faltan ${installmentRemainingUsd.toFixed(2)}</span>
+                    )}
+                  </div>
+                  <div className="h-2 rounded-full bg-brand-950/10 overflow-hidden">
+                    <div
+                      className="h-full bg-brand-500 transition-all"
+                      style={{
+                        width: `${Math.min(100, (installmentPaidUsd / Number(installment.priceUsd)) * 100)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {installment.payments.length > 0 && (
+                  <div className="rounded-lg border border-brand-950/10 divide-y divide-brand-950/[0.06]">
+                    {installment.payments.map((p, i) => (
+                      <div key={p.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                        <span className="text-brand-950/70">
+                          Abono {i + 1} · {PAYMENT_METHOD_LABEL[p.paymentMethod]} · Ref. {p.paymentReference}
+                        </span>
+                        <span className="font-semibold text-brand-950 shrink-0">${Number(p.amountUsd).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {installmentRemainingUsd > 0 ? (
+                  <div className="space-y-3 pt-1 border-t border-brand-950/[0.06]">
+                    <p className="text-sm font-medium text-brand-950/70">Registrar un abono</p>
+                    <div className="grid sm:grid-cols-2 gap-3">
+                      <Field
+                        label="Monto a abonar (USD)"
+                        type="number"
+                        value={installmentAmount}
+                        onChange={setInstallmentAmount}
+                        placeholder={installmentRemainingUsd.toFixed(2)}
+                      />
+                      <Field
+                        label="Número de referencia"
+                        value={paymentReference}
+                        onChange={setPaymentReference}
+                        placeholder="Ej: 004215778901"
+                      />
+                    </div>
+                    <label className="flex items-center gap-2 text-sm text-brand-950/70 cursor-pointer">
+                      <Paperclip className="h-4 w-4 shrink-0 text-brand-950/40" />
+                      <span className="truncate">{installmentProof ? installmentProof.name : 'Subir comprobante de este abono'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => setInstallmentProof(e.target.files?.[0] ?? null)}
+                      />
+                    </label>
+                    {installmentError && <p className="text-sm text-red-600">{installmentError}</p>}
+                    <TextureButton
+                      type="button"
+                      variant="brand"
+                      size="sm"
+                      disabled={addingPayment}
+                      className="!w-auto disabled:opacity-50 flex items-center gap-2"
+                      onClick={addInstallmentPayment}
+                    >
+                      {addingPayment && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                      {addingPayment ? 'Guardando…' : 'Agregar abono'}
+                    </TextureButton>
+                  </div>
+                ) : (
+                  <p className="text-sm text-emerald-600 font-medium pt-1 border-t border-brand-950/[0.06]">
+                    ¡Cubriste el total! En cuanto lo confirmemos, activaremos tu cuenta.
+                  </p>
+                )}
+              </div>
+            )}
           </>
         )}
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
-        <TextureButton
-          variant="brand"
-          size="default"
-          disabled={submitting}
-          className="!w-auto disabled:opacity-50 flex items-center gap-2"
-        >
-          {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-          {submitting
-            ? payWith === 'ramblay'
-              ? 'Abriendo Ramblay…'
-              : 'Enviando…'
-            : payWith === 'ramblay'
-              ? 'Pagar con Ramblay'
-              : 'Pagar'}
-        </TextureButton>
+        {!(payWith === 'manual' && authToken && payMode === 'installment') && (
+          <TextureButton
+            variant="brand"
+            size="default"
+            disabled={submitting}
+            className="!w-auto disabled:opacity-50 flex items-center gap-2"
+          >
+            {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
+            {submitting
+              ? payWith === 'ramblay'
+                ? 'Abriendo Ramblay…'
+                : 'Enviando…'
+              : payWith === 'ramblay'
+                ? 'Pagar con Ramblay'
+                : 'Pagar'}
+          </TextureButton>
+        )}
       </form>
       <Toast message={toastMessage} />
     </div>

@@ -1,7 +1,10 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
+import { badRequest } from '../../utils/http-error';
 import {
+  addPlanRequestPaymentSchema,
   approvePlanRequestSchema,
+  createInstallmentPlanRequestSchema,
   createPlanRequestSchema,
   createRamblayCheckoutSchema,
   rejectPlanRequestSchema,
@@ -25,6 +28,30 @@ export const planRequestController = {
       restaurantId: req.restaurantId!,
     });
     res.status(201).json({ data: request });
+  }),
+
+  /** POST /api/v1/plan-requests/installment — inicia un "pago fraccionado" (sin método/referencia todavía). */
+  createInstallment: asyncHandler(async (req: Request, res: Response) => {
+    const input = createInstallmentPlanRequestSchema.parse(req.body);
+    const request = await planRequestService.createInstallment(input, {
+      kind: 'RENEWAL',
+      restaurantId: req.restaurantId!,
+    });
+    res.status(201).json({ data: request });
+  }),
+
+  /** GET /api/v1/plan-requests/installment/pending — retoma el pago fraccionado pendiente, si hay uno. */
+  getPendingInstallment: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await planRequestService.getPendingInstallment(req.restaurantId!) });
+  }),
+
+  /** POST /api/v1/plan-requests/:id/payments — registra un abono (monto + método + comprobante). */
+  addPayment: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw badRequest('Sube el comprobante de este abono.');
+    const input = addPlanRequestPaymentSchema.parse(req.body);
+    const proofImageUrl = `/uploads/plan-payment-proofs/${req.file.filename}`;
+    const payment = await planRequestService.addPayment(req.params.id, req.restaurantId!, input, proofImageUrl);
+    res.status(201).json({ data: payment });
   }),
 
   /** POST /api/v1/public/plan-requests/ramblay-checkout — inscripción pagando con Ramblay (C2P/Binance Pay), sin comprobante manual. */

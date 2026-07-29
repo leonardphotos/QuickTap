@@ -81,6 +81,8 @@ export const uploadPaymentQr = makeImageUpload('payment-qr', 'photo');
 // (screenshot de la transferencia/Pago Móvil que sube el cajero al cobrar).
 export const uploadShopProductPhoto = makeImageUpload('shop-products', 'photo');
 export const uploadShopPaymentProof = makeImageUpload('shop-payment-proofs', 'photo');
+// Comprobante de cada abono del "pago fraccionado" de mensualidad/inscripción (ver plan-requests/).
+export const uploadPlanPaymentProof = makeImageUpload('plan-payment-proofs', 'photo');
 // Imagen de "Modo Cartelera" (pantalla completa del menú público). Estas
 // imágenes suelen ser piezas verticales grandes; `optimizeImage` de abajo
 // se encarga de bajarlas a un tamaño razonable para celular.

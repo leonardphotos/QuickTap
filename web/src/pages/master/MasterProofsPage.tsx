@@ -27,6 +27,14 @@ interface PlanRequestRow {
   restaurantName: string | null;
   createdAt: string;
   restaurant: { id: string; name: string; slug: string } | null;
+  payments: {
+    id: string;
+    amountUsd: string;
+    paymentMethod: string;
+    paymentReference: string;
+    proofImageUrl: string;
+    createdAt: string;
+  }[];
 }
 
 interface RestaurantOption {
@@ -220,18 +228,30 @@ export default function MasterProofsPage() {
       <div className="space-y-4">
         {requests?.map((req) => (
           <div key={req.id} className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5 flex flex-col sm:flex-row gap-4">
-            <div className="shrink-0 h-24 w-24 rounded-xl bg-brand-950/[0.06] flex flex-col items-center justify-center gap-1 px-2 text-center">
-              <p className="text-[10px] uppercase tracking-wide text-brand-950/40 font-medium">N.° referencia</p>
-              <p className="text-sm font-semibold text-brand-950 break-all leading-tight">{req.paymentReference}</p>
-              <button
-                type="button"
-                onClick={() => copy(req.paymentReference, 'Referencia copiada')}
-                aria-label="Copiar número de referencia"
-                className="text-brand-950/40 hover:text-brand-500 transition-colors"
-              >
-                <Copy className="h-3.5 w-3.5" />
-              </button>
-            </div>
+            {req.payments.length > 0 ? (
+              <div className="shrink-0 h-24 w-24 rounded-xl bg-amber-100 flex flex-col items-center justify-center gap-1 px-2 text-center">
+                <p className="text-[10px] uppercase tracking-wide text-amber-700/70 font-medium">Fraccionado</p>
+                <p className="text-sm font-bold text-amber-700">
+                  <MaskedAmount value={`$${req.payments.reduce((a, p) => a + Number(p.amountUsd), 0).toFixed(2)}`} />
+                </p>
+                <p className="text-[10px] text-amber-700/70">
+                  de <MaskedAmount value={`$${req.priceUsd}`} />
+                </p>
+              </div>
+            ) : (
+              <div className="shrink-0 h-24 w-24 rounded-xl bg-brand-950/[0.06] flex flex-col items-center justify-center gap-1 px-2 text-center">
+                <p className="text-[10px] uppercase tracking-wide text-brand-950/40 font-medium">N.° referencia</p>
+                <p className="text-sm font-semibold text-brand-950 break-all leading-tight">{req.paymentReference}</p>
+                <button
+                  type="button"
+                  onClick={() => copy(req.paymentReference, 'Referencia copiada')}
+                  aria-label="Copiar número de referencia"
+                  className="text-brand-950/40 hover:text-brand-500 transition-colors"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
 
             <div className="flex-1 min-w-0">
               <p className="font-medium text-brand-950">
@@ -248,8 +268,37 @@ export default function MasterProofsPage() {
                   <>Restaurante propuesto: {req.restaurantName ?? '(sin indicar)'}</>
                 )}
                 {' · '}
-                {req.paymentMethod} · {new Date(req.createdAt).toLocaleString('es-VE')}
+                {req.payments.length === 0 && `${req.paymentMethod} · `}
+                {new Date(req.createdAt).toLocaleString('es-VE')}
               </p>
+
+              {req.payments.length > 0 && (
+                <div className="mt-2 rounded-xl border border-brand-950/[0.06] divide-y divide-brand-950/[0.06]">
+                  {req.payments.map((p, i) => (
+                    <div key={p.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                      <div className="min-w-0">
+                        <p className="text-brand-950/80">
+                          Abono {i + 1} · {p.paymentMethod} · Ref. {p.paymentReference}
+                        </p>
+                        <p className="text-xs text-brand-950/40">{new Date(p.createdAt).toLocaleString('es-VE')}</p>
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="font-semibold text-brand-950">
+                          <MaskedAmount value={`$${Number(p.amountUsd).toFixed(2)}`} />
+                        </span>
+                        <a
+                          href={p.proofImageUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs font-medium text-brand-500 hover:underline"
+                        >
+                          Ver comprobante
+                        </a>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {req.status === 'PENDING' && (
                 <div className="mt-3 flex flex-wrap items-center gap-2">

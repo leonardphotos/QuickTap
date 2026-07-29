@@ -42,6 +42,29 @@ export const createRamblayCheckoutSchema = createPlanRequestSchema.omit({
 
 export type CreateRamblayCheckoutInput = z.infer<typeof createRamblayCheckoutSchema>;
 
+/**
+ * Igual que createPlanRequestSchema, pero sin paymentMethod/paymentReference:
+ * "pago fraccionado" — el restaurante todavía no sabe con qué método/referencia
+ * va a pagar el primer abono, eso lo escribe por cada abono en
+ * addPlanRequestPaymentSchema (POST /plan-requests/:id/payments).
+ */
+export const createInstallmentPlanRequestSchema = createPlanRequestSchema.omit({
+  paymentMethod: true,
+  paymentReference: true,
+});
+
+export type CreateInstallmentPlanRequestInput = z.infer<typeof createInstallmentPlanRequestSchema>;
+
+/** Un abono del pago fraccionado: monto a abonar, método usado y su número de
+ * referencia. El comprobante (imagen) llega aparte, como archivo multipart. */
+export const addPlanRequestPaymentSchema = z.object({
+  amountUsd: z.coerce.number().positive('El monto debe ser mayor a 0.').max(100000),
+  paymentMethod: z.enum(['PAGO_MOVIL', 'BINANCE', 'BANK_TRANSFER']),
+  paymentReference: z.string().min(1, 'Escribe el número de referencia del pago.').max(100),
+});
+
+export type AddPlanRequestPaymentInput = z.infer<typeof addPlanRequestPaymentSchema>;
+
 export const approvePlanRequestSchema = z.object({
   // Solo necesario para solicitudes SIGNUP que aún no estén vinculadas a un restaurante.
   restaurantId: z.string().min(1).optional(),

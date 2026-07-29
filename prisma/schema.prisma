@@ -1259,11 +1259,34 @@ model PlanRequest {
 
   createdAt DateTime @default(now())
 
-  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+  restaurant Restaurant?           @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+  // Abonos del "pago fraccionado" (solo pago manual): cada uno con su propio
+  // monto/método/comprobante, hasta cubrir priceUsd — ver plan-request.service.ts.
+  // Vacío para una solicitud de pago único de siempre.
+  payments   PlanRequestPayment[]
 
   @@index([restaurantId])
   @@index([kind, status])
   @@map("plan_requests")
+}
+
+// Un abono individual de un "pago fraccionado" hacia una PlanRequest (pago
+// manual de mensualidad/inscripción). El restaurante puede registrar varios
+// hasta cubrir PlanRequest.priceUsd; el equipo QuickTap los revisa todos
+// (con su comprobante) antes de "Activar cuenta" desde el Dashboard maestro.
+model PlanRequestPayment {
+  id               String                    @id @default(cuid())
+  planRequestId    String
+  amountUsd        Decimal                   @db.Decimal(10, 2)
+  paymentMethod    SubscriptionPaymentMethod
+  paymentReference String
+  proofImageUrl    String
+  createdAt        DateTime                  @default(now())
+
+  planRequest PlanRequest @relation(fields: [planRequestId], references: [id], onDelete: Cascade)
+
+  @@index([planRequestId])
+  @@map("plan_request_payments")
 }
 
 // Solicitud de cotización de QR NFC (hardware físico). Siempre viene de un
