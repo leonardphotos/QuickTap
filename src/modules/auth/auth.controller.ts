@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
-import { forgotPasswordSchema, loginSchema, registerSchema, resetPasswordSchema } from './auth.dto';
+import { forgotPasswordSchema, loginSchema, registerSchema, resetPasswordSchema, setLockPinSchema, verifyLockPinSchema } from './auth.dto';
 import { authService } from './auth.service';
 
 export const authController = {
@@ -40,5 +40,15 @@ export const authController = {
     const token = header?.startsWith('Bearer ') ? header.slice('Bearer '.length) : req.body?.token;
     await authService.logout(token);
     res.json({ data: { ok: true } });
+  }),
+
+  setLockPin: asyncHandler(async (req: Request, res: Response) => {
+    const { pin } = setLockPinSchema.parse(req.body);
+    res.json({ data: await authService.setLockPin(req.auth!.userId, pin) });
+  }),
+
+  verifyLockPin: asyncHandler(async (req: Request, res: Response) => {
+    const { pin } = verifyLockPinSchema.parse(req.body);
+    res.json({ data: await authService.verifyLockPin(req.auth!.userId, pin) });
   }),
 };

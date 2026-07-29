@@ -9,6 +9,7 @@ import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection'
 import { PaymentMethodsSection } from '@/components/admin/PaymentMethodsSection';
 import { ScheduleSection } from '@/components/admin/ScheduleSection';
 import { ShopTeamSection } from './ShopTeamSection';
+import { LockScreenSettingsSection } from '@/components/admin/LockScreenSettingsSection';
 
 interface Props {
   onBack: () => void;
@@ -92,6 +93,7 @@ export default function ShopSettingsPage({ onBack }: Props) {
       <PaymentMethodsSection descriptionOverride="Elige qué métodos aceptas al cobrar en Venta, y sus datos para que tus clientes sepan a dónde pagar." />
       <ScheduleSection />
       {canManageTeam && <ShopTeamSection />}
+      <LockScreenSettingsSection />
 
       <TextureCard>
         <TextureCardContent className="flex items-center justify-between gap-4 py-5">

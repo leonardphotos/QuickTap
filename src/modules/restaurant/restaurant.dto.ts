@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { LOCK_SCREEN_ROLES } from '../../utils/roles';
 
 const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'Color inválido (usa formato hex, ej: #FFFFFF).');
 
@@ -129,3 +130,12 @@ export const demoAdminUnlockSchema = z.object({
   pin: z.string().regex(/^\d{4}$/, 'El código debe tener 4 dígitos.'),
 });
 export type DemoAdminUnlockInput = z.infer<typeof demoAdminUnlockSchema>;
+
+// Ajustes → Pantalla de bloqueo: minutos de inactividad antes de re-pedir el PIN, por rol.
+// Solo Dueño/Admin lo editan. Las claves son un subconjunto de LOCK_SCREEN_ROLES —
+// un rol omitido simplemente conserva el valor por defecto (ver DEFAULT_LOCK_SCREEN_MINUTES).
+export const updateLockScreenIntervalsSchema = z.record(
+  z.enum(LOCK_SCREEN_ROLES),
+  z.union([z.literal(1), z.literal(5), z.literal(10)]),
+);
+export type UpdateLockScreenIntervalsInput = z.infer<typeof updateLockScreenIntervalsSchema>;

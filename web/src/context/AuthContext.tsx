@@ -9,6 +9,8 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   canAccessInventory: boolean;
+  /** true si ya configuró su PIN de 4 dígitos de la Pantalla de bloqueo (obligatorio). */
+  hasLockPin: boolean;
 }
 
 export interface AuthRestaurant {
@@ -65,6 +67,9 @@ export interface AuthRestaurant {
   pendingWelcomePlan?: string | null;
   /** true si Dueño/Admin ya crearon el código de 6 dígitos para eliminar comandas (Ajustes). */
   hasDeleteOrderPin: boolean;
+  /** Pantalla de bloqueo → minutos de inactividad por rol (Ajustes, solo Dueño/Admin). Un rol
+   * ausente usa DEFAULT_LOCK_SCREEN_MINUTES (ver web/src/utils/roles.ts). */
+  lockScreenIntervals: Record<string, number>;
 }
 
 interface AuthState {
@@ -89,6 +94,10 @@ interface AuthState {
   switchToBranch: (branchId: string) => Promise<void>;
   /** Inverso: de una sucursal, vuelve a la sesión de la sede principal. Recarga la app. */
   switchToParent: () => Promise<void>;
+  /** Pantalla de bloqueo: crea/cambia el PIN de 4 dígitos del usuario actual. */
+  setLockPin: (pin: string) => Promise<void>;
+  /** Pantalla de bloqueo: valida el PIN del usuario actual contra el que tiene guardado. */
+  verifyLockPin: (pin: string) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -192,9 +201,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.href = '/admin';
   }
 
+  async function setLockPin(pin: string) {
+    await api.patch('/auth/lock-pin', { pin });
+    await refresh();
+  }
+
+  async function verifyLockPin(pin: string) {
+    const { data } = await api.post('/auth/verify-lock-pin', { pin });
+    return !!data.data.valid;
+  }
+
   return (
     <AuthContext.Provider
-      value={{ user, restaurant, loading, login, register, logout, refresh, switchToBranch, switchToParent }}
+      value={{ user, restaurant, loading, login, register, logout, refresh, switchToBranch, switchToParent, setLockPin, verifyLockPin }}
     >
       {children}
     </AuthContext.Provider>

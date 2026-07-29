@@ -2,7 +2,7 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '../../config/prisma';
 import { badRequest } from '../../utils/http-error';
 import { DEMO_ADMIN_PIN } from '../../utils/seed-demo-restaurant';
-import { UpdateRestaurantInput, UpdateScheduleInput } from './restaurant.dto';
+import { UpdateLockScreenIntervalsInput, UpdateRestaurantInput, UpdateScheduleInput } from './restaurant.dto';
 
 export const restaurantService = {
   async update(restaurantId: string, input: UpdateRestaurantInput) {
@@ -60,6 +60,12 @@ export const restaurantService = {
   async setDeleteOrderPin(restaurantId: string, pin: string) {
     const deleteOrderPinHash = await bcrypt.hash(pin, 10);
     await prisma.restaurant.update({ where: { id: restaurantId }, data: { deleteOrderPinHash } });
+    return { done: true };
+  },
+
+  /** Ajustes → Pantalla de bloqueo: minutos de inactividad por rol (solo Dueño/Admin). */
+  async updateLockScreenIntervals(restaurantId: string, intervals: UpdateLockScreenIntervalsInput) {
+    await prisma.restaurant.update({ where: { id: restaurantId }, data: { lockScreenIntervals: intervals } });
     return { done: true };
   },
 

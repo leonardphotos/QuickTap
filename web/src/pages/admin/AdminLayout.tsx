@@ -9,9 +9,11 @@ import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { LowStockAlert } from '@/components/admin/LowStockAlert';
 import { NewOrderAlert } from '@/components/admin/NewOrderAlert';
 import { OrderReadyToast } from '@/components/admin/OrderReadyToast';
+import { LockScreen } from '@/components/admin/LockScreen';
 import { useCopyToast } from '../../hooks/useCopyToast';
 import { usePendingReservationsCount } from '../../hooks/usePendingReservations';
 import { useLowStockItems } from '../../hooks/useLowStockItems';
+import { useLockScreen } from '../../hooks/useLockScreen';
 import { RESTRICTED_ROLES, canAccessPath, defaultPathFor, isAdminCashier, isKioskRole, isNumeroRole, isScreenRole } from '../../utils/roles';
 import { daysRemaining, graceHoursRemaining, hasFeature } from '../../utils/subscription';
 import { visibleNavLinks } from './nav-links';
@@ -29,9 +31,18 @@ export default function AdminLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const pendingReservations = usePendingReservationsCount(user?.role);
   const lowStockItems = useLowStockItems(user?.role, user?.canAccessInventory);
+  const lockScreen = useLockScreen();
 
   if (loading) return <div className="p-10 text-center text-brand-950/50 font-light">Cargando…</div>;
   if (!user || !restaurant) return <Navigate to="/admin/login" replace />;
+
+  // Pantalla de bloqueo: cubre TODO lo que cuelga de AdminLayout (Shop, Waiter, Screen,
+  // Kiosco, Numero, panel normal — ver ramas debajo), porque se resuelve antes que cualquiera
+  // de ellas. Va antes que "cuenta bloqueada" porque no depende de la suscripción: es una
+  // verificación de identidad del dispositivo, no del estado de pago del restaurante.
+  if (lockScreen.visible) {
+    return <LockScreen mode={lockScreen.mode} onUnlock={lockScreen.unlock} />;
+  }
 
   // Cuenta bloqueada por falta de pago: nada de panel hasta que el Dashboard
   // maestro la reactive (ver src/utils/subscription.ts en el backend).

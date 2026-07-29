@@ -19,6 +19,10 @@ export const TEAM_MANAGER_ROLES: UserRole[] = ['OWNER', 'ADMIN'];
 // Quién puede condonar/descontar saldo al cobrar (campo "Descuento %" en Pagar/Pago fraccionado).
 export const DISCOUNT_ROLES: UserRole[] = ['OWNER', 'ADMIN'];
 export const ASSIGNABLE_TEAM_ROLES: UserRole[] = ['ADMIN', 'CASHIER', 'WAITER', 'KITCHEN', 'SCREEN', 'COMANDA', 'NUMERO'];
+// Roles a los que aplica la Pantalla de bloqueo — se excluyen SCREEN/COMANDA/NUMERO
+// (dispositivos compartidos: TV de cocina, kiosco de autoservicio, ticker de "listo").
+export const LOCK_SCREEN_ROLES: UserRole[] = ['OWNER', 'ADMIN', 'CASHIER', 'STAFF', 'WAITER', 'KITCHEN'];
+export const DEFAULT_LOCK_SCREEN_MINUTES = 5;
 
 export const ROLE_LABELS: Record<UserRole, string> = {
   OWNER: 'Dueño',
@@ -79,6 +83,11 @@ export function canManageTeam(role?: UserRole | null): boolean {
 export function canApplyDiscount(role?: UserRole | null): boolean {
   if (!role) return false;
   return DISCOUNT_ROLES.includes(role);
+}
+
+export function needsLockScreen(role?: UserRole | null): boolean {
+  if (!role) return false;
+  return LOCK_SCREEN_ROLES.includes(role);
 }
 
 const KIOSK_PATH = '/admin/comanda';

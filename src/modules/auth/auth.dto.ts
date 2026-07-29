@@ -51,6 +51,16 @@ export const resetPasswordSchema = z.object({
   newPassword: z.string().min(6).max(100),
 });
 
+// Pantalla de bloqueo: PIN personal de 4 dígitos (cada usuario configura el suyo).
+export const setLockPinSchema = z.object({
+  pin: z.string().regex(/^\d{4}$/, 'El PIN debe tener 4 dígitos.'),
+});
+export const verifyLockPinSchema = z.object({
+  pin: z.string().regex(/^\d{4}$/, 'El PIN debe tener 4 dígitos.'),
+});
+export type SetLockPinInput = z.infer<typeof setLockPinSchema>;
+export type VerifyLockPinInput = z.infer<typeof verifyLockPinSchema>;
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;

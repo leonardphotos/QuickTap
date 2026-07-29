@@ -68,6 +68,7 @@ const RESTAURANT_SELECT = {
   parentRestaurantId: true,
   pendingWelcomePlan: true,
   deleteOrderPinHash: true,
+  lockScreenIntervals: true,
   isDemo: true,
   demoAdminUnlocked: true,
 } as const;
@@ -109,6 +110,7 @@ type RestaurantRow = {
   parentRestaurantId: string | null;
   pendingWelcomePlan: string | null;
   deleteOrderPinHash: string | null;
+  lockScreenIntervals: unknown;
   isDemo: boolean;
   demoAdminUnlocked: boolean;
 };
@@ -166,6 +168,7 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
     parentRestaurantId: restaurant.parentRestaurantId,
     pendingWelcomePlan: restaurant.pendingWelcomePlan,
     hasDeleteOrderPin: !!restaurant.deleteOrderPinHash,
+    lockScreenIntervals: (restaurant.lockScreenIntervals as Record<string, number>) ?? {},
     locked: await isLockedAsync(restaurant),
   };
 }
@@ -211,6 +214,7 @@ export const authService = {
         email: owner.email,
         role: owner.role,
         canAccessInventory: owner.canAccessInventory,
+        hasLockPin: !!owner.lockPinHash,
       },
     };
   },
@@ -278,7 +282,7 @@ export const authService = {
   },
 
   async buildSession(
-    user: { id: string; name: string; email: string; role: string; canAccessInventory: boolean },
+    user: { id: string; name: string; email: string; role: string; canAccessInventory: boolean; lockPinHash: string | null },
     restaurant: RestaurantRow,
   ) {
     const token = signToken({ userId: user.id, restaurantId: restaurant.id, role: user.role });
@@ -291,6 +295,7 @@ export const authService = {
         email: user.email,
         role: user.role,
         canAccessInventory: user.canAccessInventory,
+        hasLockPin: !!user.lockPinHash,
       },
     };
   },
@@ -298,7 +303,7 @@ export const authService = {
   async me(restaurantId: string, userId: string) {
     const user = await prisma.user.findFirst({
       where: { id: userId, restaurantId },
-      select: { id: true, name: true, email: true, role: true, canAccessInventory: true },
+      select: { id: true, name: true, email: true, role: true, canAccessInventory: true, lockPinHash: true },
     });
     if (!user) throw unauthorized();
 
@@ -307,7 +312,32 @@ export const authService = {
       select: RESTAURANT_SELECT,
     });
 
-    return { user, restaurant: restaurant ? await serializeRestaurant(restaurant) : null };
+    return {
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        canAccessInventory: user.canAccessInventory,
+        hasLockPin: !!user.lockPinHash,
+      },
+      restaurant: restaurant ? await serializeRestaurant(restaurant) : null,
+    };
+  },
+
+  /** Ajustes → Pantalla de bloqueo: cada usuario crea/cambia su propio PIN de 4 dígitos. */
+  async setLockPin(userId: string, pin: string) {
+    const lockPinHash = await bcrypt.hash(pin, 10);
+    await prisma.user.update({ where: { id: userId }, data: { lockPinHash } });
+    return { done: true };
+  },
+
+  /** Re-solicitud periódica de la Pantalla de bloqueo: nunca lanza por PIN incorrecto, solo informa. */
+  async verifyLockPin(userId: string, pin: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { lockPinHash: true } });
+    if (!user?.lockPinHash) return { valid: false };
+    const valid = await bcrypt.compare(pin, user.lockPinHash);
+    return { valid };
   },
 
   /**

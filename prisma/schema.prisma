@@ -289,6 +289,14 @@ model Restaurant {
   // Ajustes. Null = todavía no se ha configurado (el Mesero no puede eliminar).
   deleteOrderPinHash String?
 
+  // --- Pantalla de bloqueo ---
+  // Minutos de inactividad antes de re-solicitar el PIN, por rol (ej:
+  // { "OWNER": 5, "CASHIER": 1, "WAITER": 10 }). Solo Dueño/Admin lo editan
+  // desde Ajustes. Un rol sin entrada acá usa DEFAULT_LOCK_SCREEN_MINUTES.
+  // La función está siempre activa (no hay forma de desactivarla) — este
+  // mapa solo controla la frecuencia, nunca si se pide o no.
+  lockScreenIntervals Json @default("{}")
+
   // --- Suscripción QuickTap ---
   // Arranca en TRIALING con periodEnd = registro + 15 días. Al aprobar un
   // PlanRequest (o activación manual desde el Dashboard maestro) pasa a
@@ -448,6 +456,11 @@ model User {
   // individualmente desde Ajustes → Equipo. Los roles de acceso total
   // (OWNER/ADMIN/CASHIER/STAFF) siempre pueden entrar, sin importar esto.
   canAccessInventory Boolean @default(false)
+
+  // PIN de 4 dígitos (hasheado) de la Pantalla de bloqueo — personal, cada usuario
+  // configura el suyo la primera vez que entra al panel (obligatorio, no se puede
+  // omitir). Null = todavía no lo configuró; se le exige antes de poder usar el panel.
+  lockPinHash String?
 
   restaurant         Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   placedOrders       Order[]       @relation("OrderPlacedBy")

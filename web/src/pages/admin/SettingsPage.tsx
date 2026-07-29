@@ -19,6 +19,7 @@ import { DeliveryPricingSection } from '@/components/admin/DeliveryPricingSectio
 import { PaymentMethodsSection } from '@/components/admin/PaymentMethodsSection';
 import { PrintStationSection } from '@/components/admin/PrintStationSection';
 import { DeleteOrderPinSection } from '@/components/admin/DeleteOrderPinSection';
+import { LockScreenSettingsSection } from '@/components/admin/LockScreenSettingsSection';
 import { DemoAdminUnlockSection } from '@/components/admin/DemoAdminUnlockSection';
 
 interface RateInfo {
@@ -181,6 +182,10 @@ export default function SettingsPage() {
           <DeleteOrderPinSection />
         </div>
       )}
+
+      <div className="break-inside-avoid lg:mb-8">
+        <LockScreenSettingsSection />
+      </div>
 
       {canManageTeam(user?.role) && (
         <div className="break-inside-avoid lg:mb-8">
