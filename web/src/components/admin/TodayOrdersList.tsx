@@ -24,7 +24,10 @@ export function TodayOrdersList() {
   const [orders, setOrders] = useState<OrderRow[] | null>(null);
 
   function load() {
-    api.get('/orders/history', { params: { range: 'day', pageSize: 8 } }).then((res) => setOrders(res.data.data.orders));
+    api.get('/orders/history', { params: { range: 'day', pageSize: 100 } }).then((res) => {
+      const rows: OrderRow[] = res.data.data.orders;
+      setOrders([...rows].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()));
+    });
   }
 
   useEffect(() => {
@@ -52,7 +55,7 @@ export function TodayOrdersList() {
       {orders.length === 0 ? (
         <p className="text-sm text-brand-950/40 font-light">Sin pedidos todavía hoy.</p>
       ) : (
-        <div className="divide-y divide-brand-950/[0.06]">
+        <div className="divide-y divide-brand-950/[0.06] max-h-[420px] overflow-y-auto">
           {orders.map((o) => (
             <div key={o.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
               <div className="min-w-0">

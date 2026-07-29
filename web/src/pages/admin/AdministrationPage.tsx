@@ -693,6 +693,14 @@ interface HistoryOrderItem {
   lineTotal: string;
 }
 
+interface HistoryOrderPayment {
+  method: string;
+  referenceNumber: string | null;
+  amountBase: string;
+  discountBase: string | null;
+  createdAt: string;
+}
+
 interface HistoryOrder {
   id: string;
   orderNumber: number;
@@ -712,6 +720,7 @@ interface HistoryOrder {
   table: string | null;
   createdAt: string;
   items: HistoryOrderItem[];
+  payments: HistoryOrderPayment[];
 }
 
 interface HistoryResult {
@@ -805,10 +814,22 @@ function OrderDetailRow({
               <span>{formatBsAbsolute(order.totalBs)}</span>
             </div>
           </div>
-          <p className="text-xs text-brand-950/40">
-            {order.paymentMethod ? PAYMENT_METHOD_LABELS[order.paymentMethod] ?? order.paymentMethod : 'Sin método de pago registrado'}
-            {order.placedByName && ` · Mesero: ${order.placedByName}`}
-          </p>
+          {order.payments.length > 0 ? (
+            <div className="pt-1 space-y-1">
+              {order.payments.map((p, i) => (
+                <p key={i} className="text-xs text-brand-950/50">
+                  {ALL_PAYMENT_LABELS[p.method as AnyPaymentMethod] ?? p.method}
+                  {p.referenceNumber && ` · Ref: ${p.referenceNumber}`}
+                  {order.payments.length > 1 && ` · ${formatBase(p.amountBase, symbol)}`}
+                </p>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-brand-950/40">
+              {order.paymentMethod ? PAYMENT_METHOD_LABELS[order.paymentMethod] ?? order.paymentMethod : 'Sin método de pago registrado'}
+            </p>
+          )}
+          {order.placedByName && <p className="text-xs text-brand-950/40">Mesero: {order.placedByName}</p>}
         </div>
       )}
     </div>

@@ -1673,6 +1673,10 @@ export const orderService = {
           table: { select: { number: true } },
           placedByUser: { select: { name: true } },
           items: { select: { productId: true, productName: true, quantity: true, unitPrice: true, lineTotal: true } },
+          payments: {
+            select: { method: true, referenceNumber: true, amountBase: true, discountBase: true, createdAt: true },
+            orderBy: { createdAt: 'asc' },
+          },
         },
       }),
       prisma.order.aggregate({ where, _sum: { totalBase: true, totalBs: true, tipBase: true } }),
@@ -1709,6 +1713,13 @@ export const orderService = {
           quantity: i.quantity,
           unitPrice: i.unitPrice.toFixed(2),
           lineTotal: i.lineTotal.toFixed(2),
+        })),
+        payments: o.payments.map((p) => ({
+          method: p.method,
+          referenceNumber: p.referenceNumber,
+          amountBase: p.amountBase.toFixed(2),
+          discountBase: p.discountBase?.toFixed(2) ?? null,
+          createdAt: p.createdAt,
         })),
       })),
     };
