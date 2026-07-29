@@ -38,6 +38,8 @@ export interface PlatformPaymentMethods {
   /** Interruptores globales de la pasarela: si alguno está apagado, PaymentForm oculta esa opción. */
   ramblayEnabled?: boolean;
   manualPaymentEnabled?: boolean;
+  /** Botones "Mejorar con IA" / "Fondo blanco con IA" en Restaurantes y Locales (ai-photo-service). */
+  aiPhotoEnabled?: boolean;
 }
 
 export interface PaymentMethodLine {

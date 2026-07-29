@@ -101,21 +101,28 @@ export const platformSettingsService = {
       ...((row?.paymentMethods as object) ?? {}),
       ramblayEnabled: row?.ramblayEnabled ?? true,
       manualPaymentEnabled: row?.manualPaymentEnabled ?? true,
+      aiPhotoEnabled: row?.aiPhotoEnabled ?? true,
     };
   },
 
   async updatePaymentMethods(input: UpdatePaymentMethodsInput) {
-    const { ramblayEnabled, manualPaymentEnabled, ...methods } = input;
+    const { ramblayEnabled, manualPaymentEnabled, aiPhotoEnabled, ...methods } = input;
     const row = await prisma.platformSettings.upsert({
       where: { id: SINGLETON_ID },
-      create: { id: SINGLETON_ID, paymentMethods: methods, ramblayEnabled, manualPaymentEnabled },
+      create: { id: SINGLETON_ID, paymentMethods: methods, ramblayEnabled, manualPaymentEnabled, aiPhotoEnabled },
       update: {
         paymentMethods: methods,
         ...(ramblayEnabled !== undefined ? { ramblayEnabled } : {}),
         ...(manualPaymentEnabled !== undefined ? { manualPaymentEnabled } : {}),
+        ...(aiPhotoEnabled !== undefined ? { aiPhotoEnabled } : {}),
       },
     });
-    return { ...((row.paymentMethods as object) ?? {}), ramblayEnabled: row.ramblayEnabled, manualPaymentEnabled: row.manualPaymentEnabled };
+    return {
+      ...((row.paymentMethods as object) ?? {}),
+      ramblayEnabled: row.ramblayEnabled,
+      manualPaymentEnabled: row.manualPaymentEnabled,
+      aiPhotoEnabled: row.aiPhotoEnabled,
+    };
   },
 
   /** Único punto de verdad para saber si un método de pago está habilitado a nivel plataforma. */
@@ -125,6 +132,16 @@ export const platformSettingsService = {
       select: { ramblayEnabled: true, manualPaymentEnabled: true },
     });
     return { ramblayEnabled: row?.ramblayEnabled ?? true, manualPaymentEnabled: row?.manualPaymentEnabled ?? true };
+  },
+
+  /** Único punto de verdad para saber si los botones de IA de fotos (ai-photo-service)
+   * están habilitados a nivel plataforma — ver ai-photo.service.ts. */
+  async getAiPhotoEnabledOrDefault(): Promise<boolean> {
+    const row = await prisma.platformSettings.findUnique({
+      where: { id: SINGLETON_ID },
+      select: { aiPhotoEnabled: true },
+    });
+    return row?.aiPhotoEnabled ?? true;
   },
 
   /** Precios/descripción de los 4 planes: defaults fusionados con lo editado desde el master. */

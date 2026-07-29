@@ -52,6 +52,17 @@ export default function MasterPaymentMethodsPage() {
         </div>
       </Section>
 
+      <Section title="IA de fotos">
+        <div className="col-span-full">
+          <Toggle
+            checked={methods.aiPhotoEnabled ?? true}
+            onChange={(v) => setMethods({ ...methods, aiPhotoEnabled: v })}
+            label="Mejora de fotos con IA"
+            description="Botones 'Mejorar con IA' / 'Fondo blanco con IA' en Restaurantes y Locales (Gemini, facturado a QuickTap). Si lo apagas, ambos botones quedan desactivados en todas las cuentas hasta que lo reactives."
+          />
+        </div>
+      </Section>
+
       <Section title="Pago Móvil">
         <Field
           label="Banco"

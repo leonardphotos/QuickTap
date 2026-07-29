@@ -25,6 +25,7 @@ export const updatePaymentMethodsSchema = z.object({
   bankTransfer: bankTransferSchema.optional(),
   ramblayEnabled: z.boolean().optional(),
   manualPaymentEnabled: z.boolean().optional(),
+  aiPhotoEnabled: z.boolean().optional(),
 });
 
 export type UpdatePaymentMethodsInput = z.infer<typeof updatePaymentMethodsSchema>;

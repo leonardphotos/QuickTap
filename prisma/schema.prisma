@@ -1312,6 +1312,11 @@ model PlatformSettings {
   // Si se apagan ambos, PaymentForm no deja pagar hasta que se reactive uno.
   ramblayEnabled       Boolean  @default(true)
   manualPaymentEnabled Boolean  @default(true)
+  // Interruptor global de los botones "Mejorar con IA" / "Fondo blanco con IA"
+  // (ai-photo-service, facturado con una sola API key de Gemini pagada por
+  // QuickTap, no por restaurante) — apagarlo bloquea ambos botones en todos
+  // los restaurantes y locales a la vez.
+  aiPhotoEnabled       Boolean  @default(true)
   // Precios/descripción editables por plan desde el Dashboard maestro. Parcial
   // (solo los planes que el master haya tocado); se fusiona con los valores
   // por defecto en platform-settings.service.ts al leer.

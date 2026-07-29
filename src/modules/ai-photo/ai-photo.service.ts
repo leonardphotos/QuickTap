@@ -3,14 +3,21 @@ import path from 'path';
 import { env } from '../../config/env';
 import { UPLOADS_DIR } from '../../middlewares/upload.middleware';
 import { HttpError } from '../../utils/http-error';
+import { platformSettingsService } from '../platform-settings/platform-settings.service';
 
 const AI_DIR = path.join(UPLOADS_DIR, 'ai-photo');
 fs.mkdirSync(AI_DIR, { recursive: true });
 
 const SERVICE_DOWN_MESSAGE =
   'El servicio de IA para fotos no está disponible ahora mismo. Puedes seguir subiendo la foto manualmente.';
+const DISABLED_MESSAGE =
+  'La mejora de fotos con IA está desactivada temporalmente por el equipo de QuickTap. Puedes seguir subiendo la foto manualmente.';
 
 async function callAiService(endpoint: 'enhance-image' | 'white-background', file: Express.Multer.File) {
+  if (!(await platformSettingsService.getAiPhotoEnabledOrDefault())) {
+    throw new HttpError(403, DISABLED_MESSAGE);
+  }
+
   const form = new FormData();
   form.append('file', new Blob([file.buffer], { type: file.mimetype }), file.originalname);
 
