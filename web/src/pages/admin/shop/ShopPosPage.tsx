@@ -621,7 +621,7 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
       {/* Carrito flotante: solo en celular (< lg, donde el panel de carrito queda debajo de toda
           la grilla de productos) y solo si hay algo en el carrito — toca para saltar directo ahí. */}
       {cartItemCount > 0 && (
-        <div className="lg:hidden fixed bottom-5 inset-x-0 z-30 flex justify-center pointer-events-none px-4">
+        <div className="lg:hidden fixed bottom-[104px] inset-x-0 z-30 flex justify-center pointer-events-none px-4">
           <button
             type="button"
             onClick={scrollToCart}

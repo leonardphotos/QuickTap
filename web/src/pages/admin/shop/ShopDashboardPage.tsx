@@ -1,6 +1,21 @@
 import { useState } from 'react';
 import type { AuthRestaurant } from '@/context/AuthContext';
-import { CalendarClock, Landmark, Plus, ShieldAlert, X } from 'lucide-react';
+import {
+  CalendarClock,
+  Landmark,
+  Plus,
+  ShieldAlert,
+  X,
+  DollarSign,
+  TrendingUp,
+  Percent,
+  Receipt as ReceiptIcon,
+  Ticket,
+  CalendarRange,
+  PackageX,
+  Clock,
+  type LucideIcon,
+} from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { ExpenseFormDialog } from '@/components/admin/ExpenseFormDialog';
@@ -21,6 +36,7 @@ interface Props {
   session: ShopSession;
   restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate'>;
   canSeeMoney: boolean;
+  userName: string;
 }
 
 function marginClass(pct: number): string {
@@ -29,14 +45,45 @@ function marginClass(pct: number): string {
   return 'text-emerald-600';
 }
 
-function Metric({ label, value, sub }: { label: string; value: string; sub?: string | null }) {
+const METRIC_COLORS: Record<string, string> = {
+  brand: 'bg-brand-500/10 text-brand-600',
+  emerald: 'bg-emerald-100 text-emerald-700',
+  violet: 'bg-violet-100 text-violet-700',
+  sky: 'bg-sky-100 text-sky-700',
+  amber: 'bg-amber-100 text-amber-700',
+  rose: 'bg-rose-100 text-rose-700',
+};
+
+function Metric({
+  label,
+  value,
+  sub,
+  icon: Icon,
+  color = 'brand',
+}: {
+  label: string;
+  value: string;
+  sub?: string | null;
+  icon: LucideIcon;
+  color?: keyof typeof METRIC_COLORS;
+}) {
   return (
-    <div className="rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-5">
-      <p className="text-sm font-medium text-brand-950/50">{label}</p>
-      <p className="text-[24px] font-bold text-brand-950 tracking-tight mt-1.5">{value}</p>
-      {sub && <p className="text-xs font-medium text-brand-950/40 mt-1">{sub}</p>}
+    <div className="rounded-3xl border border-brand-950/[0.06] bg-white shadow-sm p-4">
+      <span className={`h-9 w-9 rounded-xl flex items-center justify-center ${METRIC_COLORS[color]}`}>
+        <Icon className="h-4.5 w-4.5" />
+      </span>
+      <p className="text-[13px] font-medium text-brand-950/45 mt-3">{label}</p>
+      <p className="text-[21px] font-bold text-brand-950 tracking-tight mt-0.5 truncate">{value}</p>
+      {sub && <p className="text-[11px] font-medium text-brand-950/35 mt-0.5">{sub}</p>}
     </div>
   );
+}
+
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Buenos días';
+  if (h < 19) return 'Buenas tardes';
+  return 'Buenas noches';
 }
 
 const STATUS_LABEL: Record<string, string> = { ok: 'Disponible', warn: 'Stock bajo', danger: 'Agotado' };
@@ -64,7 +111,7 @@ function groupIncomeByMethod(sales: Sale[]): { method: string; count: number; to
     .sort((a, b) => b.total - a.total);
 }
 
-export default function ShopDashboardPage({ session, restaurant, canSeeMoney }: Props) {
+export default function ShopDashboardPage({ session, restaurant, canSeeMoney, userName }: Props) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
   const { products, sales, purchases, returnSale } = session;
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
@@ -115,16 +162,27 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney }: 
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <Metric label="Ventas de hoy" value={money(ventasHoy)} sub={moneyBs(ventasHoy)} />
-        {canSeeMoney && <Metric label="Utilidad de hoy" value={money(utilidadHoy)} sub={moneyBs(utilidadHoy)} />}
-        {canSeeMoney && <Metric label="Margen de hoy" value={`${margenHoy.toFixed(1)}%`} />}
-        <Metric label="Ventas registradas hoy" value={String(todaySales.length)} />
-        <Metric label="Ticket promedio" value={money(ticketProm)} sub={moneyBs(ticketProm)} />
-        <Metric label="Ventas (últimos 30 días)" value={money(ventasMes)} sub={moneyBs(ventasMes)} />
-        {canSeeMoney && <Metric label="Utilidad (últimos 30 días)" value={money(utilidadMes)} sub={moneyBs(utilidadMes)} />}
-        <Metric label="Alertas de stock" value={String(alertProducts.length)} />
-        <Metric label="Próximos a vencer" value={String(expiringProducts.length)} />
+      <div>
+        <h1 className="text-[20px] font-bold text-brand-950 tracking-tight">{greeting()}, {userName.split(' ')[0]}</h1>
+        <p className="text-[13px] text-brand-950/45 mt-0.5">
+          {new Date().toLocaleDateString('es-VE', { weekday: 'long', day: 'numeric', month: 'long' })}
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+        <Metric label="Ventas de hoy" value={money(ventasHoy)} sub={moneyBs(ventasHoy)} icon={DollarSign} color="brand" />
+        {canSeeMoney && (
+          <Metric label="Utilidad de hoy" value={money(utilidadHoy)} sub={moneyBs(utilidadHoy)} icon={TrendingUp} color="emerald" />
+        )}
+        {canSeeMoney && <Metric label="Margen de hoy" value={`${margenHoy.toFixed(1)}%`} icon={Percent} color="violet" />}
+        <Metric label="Ventas registradas hoy" value={String(todaySales.length)} icon={ReceiptIcon} color="sky" />
+        <Metric label="Ticket promedio" value={money(ticketProm)} sub={moneyBs(ticketProm)} icon={Ticket} color="brand" />
+        <Metric label="Ventas (últimos 30 días)" value={money(ventasMes)} sub={moneyBs(ventasMes)} icon={CalendarRange} color="sky" />
+        {canSeeMoney && (
+          <Metric label="Utilidad (últimos 30 días)" value={money(utilidadMes)} sub={moneyBs(utilidadMes)} icon={TrendingUp} color="emerald" />
+        )}
+        <Metric label="Alertas de stock" value={String(alertProducts.length)} icon={PackageX} color="amber" />
+        <Metric label="Próximos a vencer" value={String(expiringProducts.length)} icon={Clock} color="rose" />
       </div>
 
       <div className="flex flex-col lg:flex-row gap-5 items-start">
