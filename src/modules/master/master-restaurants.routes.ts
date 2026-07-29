@@ -13,6 +13,8 @@ router.patch('/:id/suspend', masterRestaurantsController.setSuspended);
 router.patch('/:id/extend', masterRestaurantsController.extendDays);
 router.patch('/:id/period-end', masterRestaurantsController.setPeriodEnd);
 router.patch('/:id/iva', masterRestaurantsController.setIvaEnabled);
+router.post('/:id/branches', masterRestaurantsController.createBranch);
+router.patch('/:id/custom-price', masterRestaurantsController.setCustomMonthlyPrice);
 router.patch('/:id/users/:userId', masterRestaurantsController.updateUser);
 router.delete('/:id', masterRestaurantsController.remove);
 

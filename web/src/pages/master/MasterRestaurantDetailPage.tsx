@@ -16,6 +16,14 @@ interface RestaurantUser {
   isActive: boolean;
 }
 
+interface RestaurantBranch {
+  id: string;
+  name: string;
+  slug: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
 interface RestaurantDetail {
   id: string;
   slug: string;
@@ -23,6 +31,9 @@ interface RestaurantDetail {
   whatsappPhone: string | null;
   rif: string | null;
   ivaEnabled: boolean;
+  parentRestaurantId: string | null;
+  customMonthlyPriceUsd: string | null;
+  branches: RestaurantBranch[];
   fiscalInvoicingConfig: { enabled: boolean; environment: string; username: string; updatedAt: string } | null;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';
   subscriptionPlan: string | null;
@@ -53,6 +64,7 @@ const PLAN_OPTION_LABELS: Record<(typeof PLAN_OPTIONS)[number], string> = {
   DELIVERY_SUCURSALES: 'DELIVERY_SUCURSALES — Delivery Sucursales',
 };
 const CYCLE_OPTIONS = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL'] as const;
+const BRANCH_PLAN_OPTIONS = ['SUCURSALES', 'DELIVERY_SUCURSALES'] as const;
 
 export default function MasterRestaurantDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -68,6 +80,8 @@ export default function MasterRestaurantDetailPage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [editingUser, setEditingUser] = useState<RestaurantUser | null>(null);
+  const [showAddBranchDialog, setShowAddBranchDialog] = useState(false);
+  const [customPriceInput, setCustomPriceInput] = useState('');
   const [fiscalEnvironment, setFiscalEnvironment] = useState<'QA' | 'PRODUCTION'>('QA');
   const [fiscalUsername, setFiscalUsername] = useState('');
   const [fiscalPassword, setFiscalPassword] = useState('');
@@ -81,6 +95,7 @@ export default function MasterRestaurantDetailPage() {
         setFiscalEnvironment(data.fiscalInvoicingConfig.environment as 'QA' | 'PRODUCTION');
         setFiscalUsername(data.fiscalInvoicingConfig.username);
       }
+      setCustomPriceInput(data.customMonthlyPriceUsd ?? '');
     });
   }
 
@@ -195,6 +210,50 @@ export default function MasterRestaurantDetailPage() {
       load();
     } catch (err: any) {
       setMessage(err.response?.data?.error ?? 'No se pudo actualizar el usuario.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveCustomPrice() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const trimmed = customPriceInput.trim();
+      await masterApi.patch(`/master/restaurants/${id}/custom-price`, {
+        customMonthlyPriceUsd: trimmed ? Number(trimmed) : null,
+      });
+      setMessage(trimmed ? 'Precio mensual guardado.' : 'Precio mensual borrado.');
+      load();
+    } catch (err: any) {
+      setMessage(err.response?.data?.error ?? 'No se pudo guardar el precio.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createBranch(input: {
+    name: string;
+    whatsappPhone: string;
+    plan: (typeof BRANCH_PLAN_OPTIONS)[number];
+    billingCycle: (typeof CYCLE_OPTIONS)[number];
+    copyCatalog: boolean;
+  }) {
+    setBusy(true);
+    setMessage(null);
+    try {
+      await masterApi.post(`/master/restaurants/${id}/branches`, {
+        name: input.name,
+        ...(input.whatsappPhone.trim() ? { whatsappPhone: input.whatsappPhone.trim() } : {}),
+        plan: input.plan,
+        billingCycle: input.billingCycle,
+        copyCatalog: input.copyCatalog,
+      });
+      setMessage('Sucursal creada.');
+      setShowAddBranchDialog(false);
+      load();
+    } catch (err: any) {
+      setMessage(err.response?.data?.error ?? 'No se pudo crear la sucursal.');
     } finally {
       setBusy(false);
     }
@@ -478,6 +537,82 @@ export default function MasterRestaurantDetailPage() {
         {message && <p className="text-sm text-brand-950/70">{message}</p>}
       </div>
 
+      {!detail.parentRestaurantId && (
+        <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-5">
+          <div>
+            <p className="font-semibold text-brand-950">Sucursales</p>
+            <p className="text-sm text-brand-950/60 font-light mt-1">
+              Precio mensual acordado con este restaurante y, si todavía no tiene ninguna, la
+              primera sucursal — sin pasar por el autoservicio del restaurante.
+            </p>
+          </div>
+
+          <div>
+            <p className="text-sm font-medium text-brand-950/70 mb-2">Precio mensual acordado</p>
+            <p className="text-xs text-brand-950/40 font-light mb-2">
+              Solo de referencia interna del equipo QuickTap — no afecta el reporte de "Ingresos de QuickTap".
+            </p>
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="text-sm">
+                <span className="block text-brand-950/70 mb-1">USD / mes</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={customPriceInput}
+                  onChange={(e) => setCustomPriceInput(e.target.value)}
+                  placeholder="Sin definir"
+                  className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm w-40"
+                />
+              </label>
+              <TextureButton variant="minimal" size="default" disabled={busy} className="!w-auto" onClick={saveCustomPrice}>
+                {busy ? 'Guardando…' : 'Guardar precio'}
+              </TextureButton>
+            </div>
+          </div>
+
+          <div className="pt-1 border-t border-brand-950/[0.06]" />
+
+          {detail.branches.length === 0 ? (
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-sm text-brand-950/60 font-light">
+                Este restaurante todavía no tiene sucursales. Si su plan actual no incluye
+                sucursales, se activará automáticamente en el plan elegido al crearla.
+              </p>
+              <TextureButton
+                variant="brand"
+                size="sm"
+                className="!w-auto shrink-0"
+                onClick={() => setShowAddBranchDialog(true)}
+              >
+                Agregar sucursal
+              </TextureButton>
+            </div>
+          ) : (
+            <div>
+              <p className="text-sm font-medium text-brand-950/70 mb-2">
+                Sucursales ({detail.branches.length})
+              </p>
+              <ul className="space-y-1.5 text-sm">
+                {detail.branches.map((b) => (
+                  <li key={b.id} className="flex items-center justify-between">
+                    <span className="text-brand-950/80">{b.name}</span>
+                    <span className="text-brand-950/40 font-light">/{b.slug}</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-brand-950/40 font-light mt-2">
+                Sucursales adicionales las agrega el propio restaurante desde su panel.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {showAddBranchDialog && (
+        <AddBranchDialog busy={busy} onClose={() => setShowAddBranchDialog(false)} onCreate={createBranch} />
+      )}
+
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
         <p className="font-semibold text-brand-950 mb-3">Equipo</p>
         <ul className="space-y-2 text-sm">
@@ -627,6 +762,103 @@ function EditUserDialog({
             onClick={() => onSave({ name, email, password })}
           >
             {busy ? 'Guardando…' : 'Guardar cambios'}
+          </TextureButton>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AddBranchDialog({
+  busy,
+  onClose,
+  onCreate,
+}: {
+  busy: boolean;
+  onClose: () => void;
+  onCreate: (input: {
+    name: string;
+    whatsappPhone: string;
+    plan: (typeof BRANCH_PLAN_OPTIONS)[number];
+    billingCycle: (typeof CYCLE_OPTIONS)[number];
+    copyCatalog: boolean;
+  }) => void;
+}) {
+  const [name, setName] = useState('');
+  const [whatsappPhone, setWhatsappPhone] = useState('');
+  const [plan, setPlan] = useState<(typeof BRANCH_PLAN_OPTIONS)[number]>('SUCURSALES');
+  const [billingCycle, setBillingCycle] = useState<(typeof CYCLE_OPTIONS)[number]>('MONTHLY');
+  const [copyCatalog, setCopyCatalog] = useState(false);
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Agregar sucursal</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <label className="block text-sm">
+            <span className="block text-brand-950/70 mb-1">Nombre de la sucursal</span>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+              autoFocus
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="block text-brand-950/70 mb-1">WhatsApp (opcional)</span>
+            <input
+              value={whatsappPhone}
+              onChange={(e) => setWhatsappPhone(e.target.value)}
+              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+            />
+          </label>
+          <div className="flex gap-3">
+            <label className="text-sm flex-1">
+              <span className="block text-brand-950/70 mb-1">Plan</span>
+              <select
+                value={plan}
+                onChange={(e) => setPlan(e.target.value as (typeof BRANCH_PLAN_OPTIONS)[number])}
+                className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+              >
+                {BRANCH_PLAN_OPTIONS.map((p) => (
+                  <option key={p} value={p}>
+                    {PLAN_OPTION_LABELS[p]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm flex-1">
+              <span className="block text-brand-950/70 mb-1">Ciclo</span>
+              <select
+                value={billingCycle}
+                onChange={(e) => setBillingCycle(e.target.value as (typeof CYCLE_OPTIONS)[number])}
+                className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+              >
+                {CYCLE_OPTIONS.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <p className="text-xs text-brand-950/40 font-light">
+            Solo se aplica si el restaurante todavía no está en un plan con sucursales.
+          </p>
+          <label className="flex items-center gap-2 text-sm text-brand-950/70">
+            <input type="checkbox" checked={copyCatalog} onChange={(e) => setCopyCatalog(e.target.checked)} />
+            Copiar catálogo (categorías/productos) de la sede principal
+          </label>
+          <TextureButton
+            variant="brand"
+            size="default"
+            disabled={busy || !name.trim()}
+            className="disabled:opacity-50"
+            onClick={() => onCreate({ name: name.trim(), whatsappPhone, plan, billingCycle, copyCatalog })}
+          >
+            {busy ? 'Creando…' : 'Crear sucursal'}
           </TextureButton>
         </div>
       </DialogContent>

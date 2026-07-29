@@ -3,7 +3,9 @@ import { asyncHandler } from '../../middlewares/error.middleware';
 import { activateRestaurantSchema } from '../plan-requests/plan-request.dto';
 import { planRequestService } from '../plan-requests/plan-request.service';
 import {
+  createBranchForRestaurantSchema,
   extendDaysSchema,
+  setCustomMonthlyPriceSchema,
   setIvaEnabledSchema,
   setPeriodEndSchema,
   setSuspendedSchema,
@@ -42,6 +44,16 @@ export const masterRestaurantsController = {
   setIvaEnabled: asyncHandler(async (req: Request, res: Response) => {
     const { ivaEnabled } = setIvaEnabledSchema.parse(req.body);
     res.json({ data: await masterRestaurantsService.setIvaEnabled(req.params.id, ivaEnabled) });
+  }),
+  /** Crea la primera sucursal de un restaurante desde el Dashboard maestro. */
+  createBranch: asyncHandler(async (req: Request, res: Response) => {
+    const input = createBranchForRestaurantSchema.parse(req.body);
+    res.status(201).json({ data: await masterRestaurantsService.createBranch(req.params.id, input) });
+  }),
+  /** Fija/borra el precio mensual acordado manualmente (referencia interna, no oficial). */
+  setCustomMonthlyPrice: asyncHandler(async (req: Request, res: Response) => {
+    const { customMonthlyPriceUsd } = setCustomMonthlyPriceSchema.parse(req.body);
+    res.json({ data: await masterRestaurantsService.setCustomMonthlyPrice(req.params.id, customMonthlyPriceUsd) });
   }),
   /** Edita nombre/correo/contraseña de un usuario del restaurante. */
   updateUser: asyncHandler(async (req: Request, res: Response) => {

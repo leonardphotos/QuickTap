@@ -1,8 +1,10 @@
 import bcrypt from 'bcryptjs';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
-import { daysRemaining, isLocked } from '../../utils/subscription';
-import { UpdateRestaurantUserInput } from './master-restaurants.dto';
+import { allowsBranches, daysRemaining, isLocked } from '../../utils/subscription';
+import { branchService } from '../branches/branch.service';
+import { planRequestService } from '../plan-requests/plan-request.service';
+import { CreateBranchForRestaurantInput, UpdateRestaurantUserInput } from './master-restaurants.dto';
 
 const USER_SELECT = { id: true, name: true, email: true, role: true, isActive: true, createdAt: true } as const;
 
@@ -52,6 +54,7 @@ export const masterRestaurantsService = {
         users: { select: { id: true, name: true, email: true, role: true, isActive: true, createdAt: true } },
         _count: { select: { products: true, tables: true, orders: true } },
         fiscalInvoicingConfig: { select: { enabled: true, environment: true, username: true, updatedAt: true } },
+        branches: { select: { id: true, name: true, slug: true, isActive: true, createdAt: true }, orderBy: { createdAt: 'asc' } },
       },
     });
     if (!restaurant) throw notFound('Restaurante no encontrado.');
@@ -109,6 +112,51 @@ export const masterRestaurantsService = {
       throw badRequest('Este restaurante no tiene RIF registrado. Pídele que lo agregue en Ajustes antes de activar el IVA.');
     }
     return prisma.restaurant.update({ where: { id }, data: { ivaEnabled } });
+  },
+
+  /**
+   * Crea la primera sucursal de un restaurante desde el Dashboard maestro (sin pasar por el
+   * autoservicio del propio restaurante en /admin/sucursales). Si el restaurante todavía no
+   * está en un plan que permita sucursales, lo activa automáticamente en el plan elegido antes
+   * de crear la sucursal — reutiliza planRequestService.activateRestaurant, el mismo camino que
+   * usa el botón "Activar / Extender" de la sección Suscripción. Solo permite crear la primera:
+   * si ya tiene alguna, el propio restaurante debe agregar las siguientes desde su panel.
+   */
+  async createBranch(id: string, input: CreateBranchForRestaurantInput) {
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id },
+      select: { id: true, parentRestaurantId: true, subscriptionPlan: true },
+    });
+    if (!restaurant) throw notFound('Restaurante no encontrado.');
+    if (restaurant.parentRestaurantId) throw badRequest('Una sucursal no puede tener sus propias sucursales.');
+
+    const branchCount = await prisma.restaurant.count({ where: { parentRestaurantId: id } });
+    if (branchCount > 0) {
+      throw badRequest('Este restaurante ya tiene sucursales — la sucursal siguiente debe agregarla el propio restaurante desde su panel.');
+    }
+
+    if (!allowsBranches(restaurant.subscriptionPlan)) {
+      await planRequestService.activateRestaurant(id, { plan: input.plan, billingCycle: input.billingCycle });
+    }
+
+    const owner = await prisma.user.findFirst({ where: { restaurantId: id, role: 'OWNER' }, select: { id: true } });
+    if (!owner) throw badRequest('Este restaurante no tiene un usuario Dueño para clonar en la sucursal.');
+
+    return branchService.create(id, owner.id, {
+      name: input.name,
+      whatsappPhone: input.whatsappPhone,
+      baseCurrency: input.baseCurrency,
+      copyCatalog: input.copyCatalog,
+    });
+  },
+
+  /** Precio mensual acordado manualmente (referencia interna del equipo QuickTap, ej. tarifa
+   * negociada al habilitar sucursales fuera de la tabla de precios compartida). No alimenta
+   * automáticamente "Ingresos de QuickTap". Pasar null para borrarlo. */
+  async setCustomMonthlyPrice(id: string, customMonthlyPriceUsd: number | null) {
+    const existing = await prisma.restaurant.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) throw notFound('Restaurante no encontrado.');
+    return prisma.restaurant.update({ where: { id }, data: { customMonthlyPriceUsd } });
   },
 
   /** Edita nombre/correo/contraseña de un usuario del restaurante (incluido el dueño). */

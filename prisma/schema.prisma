@@ -246,6 +246,12 @@ model Restaurant {
   // vive dentro de paymentMethodsConfig, que es el RIF de una cuenta de cobro puntual.
   rif                  String?
 
+  // Precio mensual acordado manualmente por el equipo QuickTap (ej. tarifa negociada al
+  // habilitar sucursales fuera del tabla de precios compartida) — ver master-restaurants.service.ts.
+  // Puramente informativo/de referencia para el equipo QuickTap: no alimenta automáticamente
+  // "Ingresos de QuickTap" (eso sigue viniendo de PlanRequest.priceUsd).
+  customMonthlyPriceUsd Decimal? @db.Decimal(10, 2)
+
   // --- Migración desde OlaClick (herramienta interna, panel master) ---
   // La API Key de OlaClick del restaurante viaja cifrada (AES-256-GCM, ver
   // master-olaclick-import.crypto.ts) y solo la usa el equipo QuickTap desde
