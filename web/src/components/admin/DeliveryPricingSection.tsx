@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
+import { Crosshair, Maximize2, Minimize2, X } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
@@ -177,12 +178,35 @@ export function DeliveryPricingSection() {
   );
 }
 
+/**
+ * Pin del local: marcador en forma de gota. Antes era un `circleMarker` de 7px que
+ * se confundía con los vértices del polígono que se está dibujando.
+ */
+const ORIGIN_ICON = L.divIcon({
+  className: '',
+  html: `<svg width="26" height="36" viewBox="0 0 26 36" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))">
+    <path d="M13 0C5.82 0 0 5.82 0 13c0 9.75 13 23 13 23s13-13.25 13-23C26 5.82 20.18 0 13 0z" fill="#056cf2"/>
+    <circle cx="13" cy="13" r="5" fill="#ffffff"/>
+  </svg>`,
+  iconSize: [26, 36],
+  iconAnchor: [13, 36],
+  tooltipAnchor: [0, -30],
+});
+
+/**
+ * Editor de zonas de envío. Todas las herramientas van flotando encima del mapa
+ * (no en filas arriba/abajo) y hay modo pantalla completa, porque dibujar un
+ * polígono sobre un mapa de 320px de alto es incómodo. Tocar una zona ya guardada
+ * la selecciona y abre su modificador de precio ahí mismo.
+ */
 function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; originLng: number | null }) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const drawLayerRef = useRef<L.LayerGroup | null>(null);
   const zonesLayerRef = useRef<L.LayerGroup | null>(null);
+  const originMarkerRef = useRef<L.Marker | null>(null);
   const draftPointsRef = useRef<[number, number][]>([]);
+  const drawingRef = useRef(false);
 
   const [zones, setZones] = useState<DeliveryZone[]>([]);
   const [drawing, setDrawing] = useState(false);
@@ -191,9 +215,12 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
   const [zoneName, setZoneName] = useState('');
   const [zonePrice, setZonePrice] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [editingZoneId, setEditingZoneId] = useState<string | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const [editingPrice, setEditingPrice] = useState('');
   const [savingPrice, setSavingPrice] = useState(false);
+
+  const selectedZone = zones.find((z) => z.id === selectedZoneId) ?? null;
 
   function loadZones() {
     api.get('/delivery-zones').then((res) => setZones(res.data.data));
@@ -201,27 +228,30 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
 
   useEffect(loadZones, []);
 
+  useEffect(() => {
+    drawingRef.current = drawing;
+  }, [drawing]);
+
   // Inicializa el mapa una sola vez.
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
     const center: [number, number] = originLat != null && originLng != null ? [originLat, originLng] : DEFAULT_CENTER;
-    const map = L.map(mapContainerRef.current).setView(center, 13);
+    const map = L.map(mapContainerRef.current, { zoomControl: false }).setView(center, 13);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap',
       maxZoom: 19,
     }).addTo(map);
 
-    drawLayerRef.current = L.layerGroup().addTo(map);
     zonesLayerRef.current = L.layerGroup().addTo(map);
-
-    if (originLat != null && originLng != null) {
-      L.circleMarker([originLat, originLng], { radius: 7, color: '#056cf2', fillOpacity: 1 })
-        .addTo(map)
-        .bindTooltip('Tu local');
-    }
+    drawLayerRef.current = L.layerGroup().addTo(map);
 
     map.on('click', (e: L.LeafletMouseEvent) => {
-      if (!drawingRef.current) return;
+      // Fuera del modo dibujo, un clic en el mapa vacío deselecciona la zona activa.
+      if (!drawingRef.current) {
+        setSelectedZoneId(null);
+        return;
+      }
       draftPointsRef.current = [...draftPointsRef.current, [e.latlng.lat, e.latlng.lng]];
       renderDraft();
       setDraftCount(draftPointsRef.current.length);
@@ -236,10 +266,41 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const drawingRef = useRef(false);
+  // El pin del local se mantiene sincronizado: la ubicación se puede cambiar en
+  // esta misma pantalla (buscador de dirección / "usar mi ubicación") sin recargar.
   useEffect(() => {
-    drawingRef.current = drawing;
-  }, [drawing]);
+    const map = mapRef.current;
+    if (!map) return;
+    originMarkerRef.current?.remove();
+    originMarkerRef.current = null;
+    if (originLat == null || originLng == null) return;
+    originMarkerRef.current = L.marker([originLat, originLng], { icon: ORIGIN_ICON, interactive: false })
+      .addTo(map)
+      .bindTooltip('Tu local', { direction: 'top' });
+  }, [originLat, originLng]);
+
+  // Leaflet mide el contenedor al crearse: al entrar/salir de pantalla completa
+  // hay que pedirle que vuelva a medir o el mapa queda recortado.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const id = window.setTimeout(() => map.invalidateSize(), 80);
+    return () => window.clearTimeout(id);
+  }, [fullscreen]);
+
+  useEffect(() => {
+    if (!fullscreen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setFullscreen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [fullscreen]);
 
   function renderDraft() {
     if (!drawLayerRef.current) return;
@@ -256,22 +317,38 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
     }
   }
 
-  // Redibuja las zonas guardadas cuando cambian.
+  // Redibuja las zonas guardadas cuando cambian o cuando cambia cuál está seleccionada.
   useEffect(() => {
-    if (!zonesLayerRef.current) return;
-    zonesLayerRef.current.clearLayers();
+    const layer = zonesLayerRef.current;
+    if (!layer) return;
+    layer.clearLayers();
     for (const zone of zones) {
       const latlngs = zone.polygon.map((p) => [p.lat, p.lng] as [number, number]);
-      L.polygon(latlngs, { color: '#056cf2', fillOpacity: 0.1 })
-        .addTo(zonesLayerRef.current)
-        .bindTooltip(`${zone.name} · $${zone.price}`);
+      const isSelected = zone.id === selectedZoneId;
+      const polygon = L.polygon(latlngs, {
+        color: isSelected ? '#f59e0b' : '#056cf2',
+        weight: isSelected ? 3 : 2,
+        fillOpacity: isSelected ? 0.3 : 0.1,
+      }).addTo(layer);
+      polygon.bindTooltip(`${zone.name} · $${zone.price}`);
+      polygon.on('click', (e: L.LeafletMouseEvent) => {
+        // Mientras se dibuja, el clic sobre una zona existente debe seguir
+        // agregando un punto al nuevo polígono (no robar el evento).
+        if (drawingRef.current) return;
+        L.DomEvent.stopPropagation(e);
+        setSelectedZoneId(zone.id);
+        setEditingPrice(String(zone.price));
+        setError(null);
+      });
     }
-  }, [zones]);
+  }, [zones, selectedZoneId]);
 
   function startDrawing() {
     draftPointsRef.current = [];
     drawLayerRef.current?.clearLayers();
     setDraftCount(0);
+    setSelectedZoneId(null);
+    setError(null);
     setDrawing(true);
   }
 
@@ -283,13 +360,25 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
     setPendingSave(null);
   }
 
+  function undoLastPoint() {
+    draftPointsRef.current = draftPointsRef.current.slice(0, -1);
+    renderDraft();
+    setDraftCount(draftPointsRef.current.length);
+  }
+
   function finishDrawing() {
     if (draftPointsRef.current.length < 3) {
       setError('Marca al menos 3 puntos en el mapa para formar la zona.');
       return;
     }
+    setError(null);
     setPendingSave(draftPointsRef.current);
     setDrawing(false);
+  }
+
+  function centerOnOrigin() {
+    if (originLat == null || originLng == null || !mapRef.current) return;
+    mapRef.current.setView([originLat, originLng], 14);
   }
 
   async function saveZone() {
@@ -317,24 +406,12 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
     }
   }
 
-  async function removeZone(id: string) {
-    if (!confirm('¿Eliminar esta zona de envío?')) return;
-    await api.delete(`/delivery-zones/${id}`);
-    loadZones();
-  }
-
-  function startEditPrice(zone: DeliveryZone) {
-    setEditingZoneId(zone.id);
-    setEditingPrice(String(zone.price));
-  }
-
-  async function saveEditedPrice(id: string) {
-    if (!editingPrice) return;
+  async function saveSelectedPrice() {
+    if (!selectedZone || !editingPrice) return;
     setSavingPrice(true);
     setError(null);
     try {
-      await api.patch(`/delivery-zones/${id}`, { price: Number(editingPrice) });
-      setEditingZoneId(null);
+      await api.patch(`/delivery-zones/${selectedZone.id}`, { price: Number(editingPrice) });
       loadZones();
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No se pudo actualizar el precio.');
@@ -343,103 +420,193 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
     }
   }
 
+  async function removeZone(id: string) {
+    if (!confirm('¿Eliminar esta zona de envío?')) return;
+    await api.delete(`/delivery-zones/${id}`);
+    if (selectedZoneId === id) setSelectedZoneId(null);
+    loadZones();
+  }
+
+  function selectFromList(zone: DeliveryZone) {
+    setSelectedZoneId(zone.id);
+    setEditingPrice(String(zone.price));
+    setError(null);
+    const latlngs = zone.polygon.map((p) => [p.lat, p.lng] as [number, number]);
+    if (latlngs.length > 0) mapRef.current?.fitBounds(L.latLngBounds(latlngs), { padding: [40, 40] });
+  }
+
+  const zoneList = (
+    <div className="divide-y divide-brand-950/[0.06]">
+      {zones.length === 0 && <p className="text-sm text-brand-950/40 font-light py-2">Sin zonas dibujadas todavía.</p>}
+      {zones.map((z) => (
+        <button
+          key={z.id}
+          type="button"
+          onClick={() => selectFromList(z)}
+          className={`flex w-full items-center justify-between gap-3 py-2 text-left transition-colors ${
+            z.id === selectedZoneId ? 'text-amber-600' : 'text-brand-950 hover:text-brand-500'
+          }`}
+        >
+          <span className="text-sm truncate">{z.name}</span>
+          <span className="text-sm text-brand-950/50 shrink-0">${z.price}</span>
+        </button>
+      ))}
+    </div>
+  );
+
+  // En pantalla completa las herramientas flotan siempre (es la única forma de
+  // llegar a ellas); en la vista normal la lista flota solo en pantallas anchas,
+  // donde hay espacio de sobra al lado del mapa.
+  const floatingListClass = fullscreen ? 'block' : 'hidden lg:block';
+
   return (
-    <div className="space-y-3 pt-3 border-t border-brand-950/[0.06]">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <p className="text-sm font-medium text-brand-950">Zonas de envío</p>
-        {!drawing && !pendingSave && (
-          <TextureButton variant="brand" size="sm" className="!w-auto" onClick={startDrawing}>
-            + Dibujar zona
-          </TextureButton>
-        )}
-        {drawing && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-brand-950/60">{draftCount} punto(s) · haz clic en el mapa</span>
-            <TextureButton variant="brand" size="sm" className="!w-auto" onClick={finishDrawing}>
-              Finalizar zona
-            </TextureButton>
-            <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={cancelDrawing}>
-              Cancelar
-            </TextureButton>
-          </div>
-        )}
-      </div>
+    <div className={fullscreen ? 'fixed inset-0 z-[80] bg-white p-3 sm:p-4' : 'space-y-3 pt-3 border-t border-brand-950/[0.06]'}>
+      <div
+        className={`relative w-full overflow-hidden rounded-xl border border-brand-950/10 ${
+          fullscreen ? 'h-full' : 'h-96'
+        }`}
+      >
+        <div ref={mapContainerRef} className="absolute inset-0" />
 
-      <div ref={mapContainerRef} className="h-80 w-full rounded-xl overflow-hidden border border-brand-950/10" />
-
-      {pendingSave && (
-        <div className="rounded-xl bg-brand-950/[0.04] p-3 space-y-2">
-          <p className="text-sm text-brand-950">Nombre y precio de la zona que acabas de dibujar:</p>
-          <div className="grid sm:grid-cols-2 gap-2">
-            <input
-              value={zoneName}
-              onChange={(e) => setZoneName(e.target.value)}
-              placeholder="Ej: Zona Norte"
-              className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
-            />
-            <input
-              value={zonePrice}
-              onChange={(e) => setZonePrice(e.target.value.replace(/[^0-9.]/g, ''))}
-              placeholder="Precio de envío"
-              className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
-            />
-          </div>
-          <div className="flex gap-2">
-            <TextureButton variant="brand" size="sm" className="!w-auto" onClick={saveZone}>
-              Guardar zona
-            </TextureButton>
-            <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={cancelDrawing}>
-              Cancelar
-            </TextureButton>
-          </div>
-        </div>
-      )}
-
-      {error && <p className="text-sm text-red-600">{error}</p>}
-
-      <div className="divide-y divide-brand-950/[0.06]">
-        {zones.length === 0 && <p className="text-sm text-brand-950/40 font-light py-2">Sin zonas dibujadas todavía.</p>}
-        {zones.map((z) =>
-          editingZoneId === z.id ? (
-            <div key={z.id} className="flex items-center gap-2 py-2">
-              <p className="text-sm text-brand-950 shrink-0">{z.name}</p>
-              <input
-                value={editingPrice}
-                onChange={(e) => setEditingPrice(e.target.value.replace(/[^0-9.]/g, ''))}
-                autoFocus
-                className="w-24 border border-brand-950/15 rounded-lg px-2 py-1 text-sm"
-              />
+        {/* Capa de herramientas flotantes: transparente al puntero salvo en los paneles. */}
+        <div className="pointer-events-none absolute inset-0 z-[1000] p-3">
+          {/* Barra superior derecha: dibujar / pantalla completa. */}
+          <div className="pointer-events-auto absolute top-3 right-3 flex flex-wrap items-center justify-end gap-2">
+            {!drawing && !pendingSave && (
+              <TextureButton variant="brand" size="sm" className="!w-auto shadow-lg" onClick={startDrawing}>
+                + Dibujar zona
+              </TextureButton>
+            )}
+            {drawing && (
+              <>
+                <span className="rounded-full bg-white/95 px-3 py-1.5 text-xs font-medium text-brand-950 shadow-lg backdrop-blur">
+                  {draftCount} punto(s) · toca el mapa
+                </span>
+                {draftCount > 0 && (
+                  <TextureButton variant="minimal" size="sm" className="!w-auto shadow-lg" onClick={undoLastPoint}>
+                    Deshacer
+                  </TextureButton>
+                )}
+                <TextureButton variant="brand" size="sm" className="!w-auto shadow-lg" onClick={finishDrawing}>
+                  Finalizar zona
+                </TextureButton>
+                <TextureButton variant="minimal" size="sm" className="!w-auto shadow-lg" onClick={cancelDrawing}>
+                  Cancelar
+                </TextureButton>
+              </>
+            )}
+            {originLat != null && originLng != null && (
               <button
-                onClick={() => saveEditedPrice(z.id)}
-                disabled={savingPrice}
-                className="text-xs text-brand-500 font-medium hover:text-brand-400 disabled:opacity-50 shrink-0"
+                type="button"
+                onClick={centerOnOrigin}
+                title="Centrar en tu local"
+                aria-label="Centrar en tu local"
+                className="flex h-9 w-9 items-center justify-center rounded-full bg-white/95 text-brand-950/70 shadow-lg backdrop-blur hover:text-brand-500"
               >
-                Guardar
+                <Crosshair className="h-4 w-4" />
               </button>
-              <button
-                onClick={() => setEditingZoneId(null)}
-                className="text-xs text-brand-950/50 hover:text-brand-950 shrink-0"
-              >
-                Cancelar
-              </button>
-            </div>
-          ) : (
-            <div key={z.id} className="flex items-center justify-between gap-3 py-2">
-              <p className="text-sm text-brand-950">
-                {z.name} <span className="text-brand-950/50">· ${z.price}</span>
-              </p>
-              <div className="flex items-center gap-3 shrink-0">
-                <button onClick={() => startEditPrice(z)} className="text-xs text-brand-500 hover:text-brand-400">
-                  Editar precio
+            )}
+            <button
+              type="button"
+              onClick={() => setFullscreen((v) => !v)}
+              title={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+              aria-label={fullscreen ? 'Salir de pantalla completa' : 'Pantalla completa'}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-white/95 text-brand-950/70 shadow-lg backdrop-blur hover:text-brand-500"
+            >
+              {fullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+            </button>
+          </div>
+
+          {/* Lista de zonas flotante. */}
+          <div
+            className={`pointer-events-auto absolute top-3 left-3 w-56 max-h-[45%] overflow-y-auto rounded-2xl border border-brand-950/10 bg-white/95 p-3 shadow-lg backdrop-blur ${floatingListClass}`}
+          >
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-brand-950/50">Zonas de envío</p>
+            {zoneList}
+          </div>
+
+          {/* Modificador de precio de la zona seleccionada. */}
+          {selectedZone && !drawing && !pendingSave && (
+            <div className="pointer-events-auto absolute bottom-3 left-1/2 w-[min(24rem,calc(100%-1.5rem))] -translate-x-1/2 rounded-2xl border border-brand-950/10 bg-white/95 p-3 shadow-lg backdrop-blur">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <p className="truncate text-sm font-semibold text-brand-950">{selectedZone.name}</p>
+                <button
+                  type="button"
+                  onClick={() => setSelectedZoneId(null)}
+                  aria-label="Cerrar"
+                  className="shrink-0 rounded-full p-1 text-brand-950/40 hover:bg-brand-950/5 hover:text-brand-950"
+                >
+                  <X className="h-4 w-4" />
                 </button>
-                <button onClick={() => removeZone(z.id)} className="text-xs text-red-600 hover:text-red-700">
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-brand-950/60">Precio de envío</span>
+                <input
+                  value={editingPrice}
+                  onChange={(e) => setEditingPrice(e.target.value.replace(/[^0-9.]/g, ''))}
+                  inputMode="decimal"
+                  className="w-24 rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                />
+                <TextureButton
+                  variant="brand"
+                  size="sm"
+                  disabled={savingPrice}
+                  className="!w-auto disabled:opacity-50"
+                  onClick={saveSelectedPrice}
+                >
+                  {savingPrice ? 'Guardando…' : 'Guardar'}
+                </TextureButton>
+                <button
+                  type="button"
+                  onClick={() => removeZone(selectedZone.id)}
+                  className="ml-auto shrink-0 text-xs text-red-600 hover:text-red-700"
+                >
                   Eliminar
                 </button>
               </div>
             </div>
-          ),
-        )}
+          )}
+
+          {/* Nombre + precio de la zona recién dibujada. */}
+          {pendingSave && (
+            <div className="pointer-events-auto absolute bottom-3 left-1/2 w-[min(26rem,calc(100%-1.5rem))] -translate-x-1/2 space-y-2 rounded-2xl border border-brand-950/10 bg-white/95 p-3 shadow-lg backdrop-blur">
+              <p className="text-sm text-brand-950">Nombre y precio de la zona que acabas de dibujar:</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <input
+                  value={zoneName}
+                  onChange={(e) => setZoneName(e.target.value)}
+                  placeholder="Ej: Zona Norte"
+                  className="rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                />
+                <input
+                  value={zonePrice}
+                  onChange={(e) => setZonePrice(e.target.value.replace(/[^0-9.]/g, ''))}
+                  placeholder="Precio de envío"
+                  inputMode="decimal"
+                  className="rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                />
+              </div>
+              <div className="flex gap-2">
+                <TextureButton variant="brand" size="sm" className="!w-auto" onClick={saveZone}>
+                  Guardar zona
+                </TextureButton>
+                <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={cancelDrawing}>
+                  Cancelar
+                </TextureButton>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div className="pointer-events-auto absolute bottom-3 left-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700 shadow-lg">
+              {error}
+            </div>
+          )}
+        </div>
       </div>
+
+      {/* En celular (y fuera de pantalla completa) la lista va debajo del mapa. */}
+      {!fullscreen && <div className="lg:hidden">{zoneList}</div>}
     </div>
   );
 }
