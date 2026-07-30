@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { ListPlus, Pencil, Plus, Tag } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ListPlus, Pencil, Plus, Search, Tag, X } from 'lucide-react';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import type { Category, Kitchen, Product } from '../../types';
@@ -9,6 +9,14 @@ import { TextureCard } from '@/components/ui/texture-card';
 import { ProductFormDialog } from '@/components/admin/ProductFormDialog';
 import { CategoryDialog } from '@/components/admin/CategoryDialog';
 import { ModifierCategoriesDialog } from '@/components/admin/ModifierCategoriesDialog';
+
+/** Minúsculas y sin acentos, para que el buscador no dependa de cómo se tipeó. */
+function normalize(value: string | null | undefined): string {
+  return (value ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
 
 export default function ProductsPage() {
   const { restaurant } = useAuth();
@@ -20,6 +28,7 @@ export default function ProductsPage() {
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [modifiersDialogOpen, setModifiersDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [query, setQuery] = useState('');
 
   function load() {
     api.get('/products').then((res) => setProducts(res.data.data));
@@ -44,6 +53,16 @@ export default function ProductsPage() {
     setEditingProduct(null);
     setProductDialogOpen(true);
   }
+
+  // El filtro corre en memoria porque GET /products ya trae el catálogo completo
+  // (sin paginar); ignora acentos para que "cesar" encuentre "César".
+  const filtered = useMemo(() => {
+    const q = normalize(query);
+    if (!q) return products;
+    return products.filter((p) =>
+      [p.name, p.category?.name, p.sku].some((field) => normalize(field).includes(q)),
+    );
+  }, [products, query]);
 
   function openEdit(p: Product) {
     setEditingProduct(p);
@@ -81,9 +100,39 @@ export default function ProductsPage() {
         </TextureButton>
       </div>
 
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-950/35" />
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Buscar por nombre, categoría o SKU…"
+          aria-label="Buscar productos"
+          className="w-full rounded-xl border border-brand-950/15 bg-white py-2.5 pl-10 pr-10 text-sm text-brand-950 placeholder:text-brand-950/35 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+        />
+        {query && (
+          <button
+            type="button"
+            onClick={() => setQuery('')}
+            aria-label="Limpiar búsqueda"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-brand-950/40 hover:bg-brand-950/5 hover:text-brand-950/70"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
+      {query && (
+        <p className="-mt-5 text-xs font-light text-brand-950/50">
+          {filtered.length === 0
+            ? 'Ningún producto coincide.'
+            : `${filtered.length} de ${products.length} producto${products.length === 1 ? '' : 's'}`}
+        </p>
+      )}
+
       <TextureCard>
         <ul className="divide-y divide-brand-950/10">
-          {products.map((p) => (
+          {filtered.map((p) => (
             <li key={p.id} className="flex items-center justify-between px-4 py-3 text-sm gap-3">
               <div className="flex items-center gap-3 min-w-0">
                 {p.photoUrl ? (
@@ -120,8 +169,10 @@ export default function ProductsPage() {
               </div>
             </li>
           ))}
-          {products.length === 0 && (
-            <li className="px-4 py-6 text-center text-brand-950/40 text-sm font-light">Sin productos aún.</li>
+          {filtered.length === 0 && (
+            <li className="px-4 py-6 text-center text-brand-950/40 text-sm font-light">
+              {query ? `Sin resultados para "${query}".` : 'Sin productos aún.'}
+            </li>
           )}
         </ul>
       </TextureCard>
