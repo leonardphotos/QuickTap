@@ -15,17 +15,45 @@ function toPriceDecimal(amount: number | undefined | null): number | null {
   return Math.round(amount * 100) / 100;
 }
 
+/**
+ * OlaClick modela un producto de precio único como una sola variante llamada
+ * "Default". Cualquier otra combinación (2+ variantes, o una sola con nombre
+ * propio) es un producto con variantes reales y se importa como tal.
+ */
+function realVariants(product: OlaclickProduct) {
+  const variants = product.variants ?? [];
+  const isSingleDefault = variants.length <= 1 && (variants[0]?.name ?? 'Default') === 'Default';
+  return isSingleDefault ? [] : variants;
+}
+
+/** Precio que se muestra en la tarjeta del producto: el más barato de sus variantes. */
+function basePrice(product: OlaclickProduct) {
+  const variants = product.variants ?? [];
+  const chosen = variants.find((v) => v.name === 'Default') ?? variants[0];
+  const cheapest = variants.reduce<number | null>(
+    (min, v) => (typeof v.price === 'number' && (min === null || v.price < min) ? v.price : min),
+    null,
+  );
+  return toPriceDecimal(realVariants(product).length > 0 ? cheapest : chosen?.price);
+}
+
 function mapProductPreview(product: OlaclickProduct) {
-  const variant = product.variants.find((v) => v.name === 'Default') ?? product.variants[0];
+  const variants = product.variants ?? [];
+  const chosen = variants.find((v) => v.name === 'Default') ?? variants[0];
   return {
     externalSourceId: product.id,
     name: product.name,
     description: product.description ?? '',
     isAvailable: product.available ?? true,
-    price: toPriceDecimal(variant?.price),
-    currency: variant?.currency ?? null,
+    price: basePrice(product),
+    currency: chosen?.currency ?? null,
     importedImageUrl: product.image_url ?? null,
     hasPhoto: Boolean(product.image_url),
+    variants: realVariants(product).map((v) => ({
+      externalSourceId: v.id,
+      name: v.name,
+      price: toPriceDecimal(v.price),
+    })),
   };
 }
 
@@ -87,6 +115,10 @@ export const masterOlaclickImportService = {
         totalProducts,
         productsWithImportedPhoto: productsWithPhoto,
         productsMissingPhoto: totalProducts - productsWithPhoto,
+        productsWithVariants: categories.reduce(
+          (sum, c) => sum + c.products.filter((p) => p.variants.length > 0).length,
+          0,
+        ),
         sourceCurrencies,
         baseCurrency: restaurant.baseCurrency,
         currencyMismatch: sourceCurrencies.some((c) => c !== restaurant.baseCurrency),
@@ -124,6 +156,7 @@ export const masterOlaclickImportService = {
 
     let savedCategories = 0;
     let savedProducts = 0;
+    let savedVariants = 0;
     let productsMissingPhoto = 0;
 
     for (const [index, cat] of rawCategories.entries()) {
@@ -152,12 +185,12 @@ export const masterOlaclickImportService = {
       for (const prod of cat.products ?? []) {
         if (excluded.has(prod.id)) continue;
 
-        const variant = prod.variants.find((v) => v.name === 'Default') ?? prod.variants[0];
-        const price = toPriceDecimal(variant?.price) ?? 0;
+        const price = basePrice(prod) ?? 0;
         const photo = prod.image_url ?? null;
+        const variants = realVariants(prod);
         if (!photo) productsMissingPhoto++;
 
-        await prisma.product.upsert({
+        const saved = await prisma.product.upsert({
           where: {
             restaurantId_externalSource_externalSourceId: {
               restaurantId,
@@ -173,6 +206,7 @@ export const masterOlaclickImportService = {
             name: prod.name,
             description: prod.description ?? null,
             price,
+            pricingMode: variants.length > 0 ? 'VARIANTS' : 'SIMPLE',
             isAvailable: prod.available ?? true,
             importedImageUrl: photo,
             // La foto importada se usa de una: `importedImageUrl` sola no la
@@ -185,6 +219,7 @@ export const masterOlaclickImportService = {
             name: prod.name,
             description: prod.description ?? null,
             price,
+            pricingMode: variants.length > 0 ? 'VARIANTS' : 'SIMPLE',
             isAvailable: prod.available ?? true,
             importedImageUrl: photo,
             // En re-sincronizaciones NO se pisa una foto que alguien ya subió a
@@ -193,12 +228,42 @@ export const masterOlaclickImportService = {
           },
         });
         savedProducts++;
+
+        for (const [vIndex, v] of variants.entries()) {
+          await prisma.productVariant.upsert({
+            where: { productId_externalSourceId: { productId: saved.id, externalSourceId: v.id } },
+            create: {
+              restaurantId,
+              productId: saved.id,
+              externalSourceId: v.id,
+              name: v.name,
+              priceBase: toPriceDecimal(v.price) ?? 0,
+              priority: vIndex,
+            },
+            update: {
+              name: v.name,
+              priceBase: toPriceDecimal(v.price) ?? 0,
+              priority: vIndex,
+            },
+          });
+          savedVariants++;
+        }
+
+        // Variantes que ya no existen en OlaClick: se borran solo las importadas
+        // (externalSourceId no nulo). Una variante creada a mano nunca se toca.
+        await prisma.productVariant.deleteMany({
+          where: {
+            productId: saved.id,
+            externalSourceId: { not: null, notIn: variants.map((v) => v.id) },
+          },
+        });
       }
     }
 
     const summary = {
       totalCategories: savedCategories,
       totalProducts: savedProducts,
+      totalVariants: savedVariants,
       productsMissingPhoto,
     };
 

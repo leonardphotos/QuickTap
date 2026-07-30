@@ -732,9 +732,15 @@ model ProductVariant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Id de la variante en el sistema de origen (ver Product.externalSource). Sirve
+  // para re-sincronizar sin duplicar: una variante creada a mano lo deja en null,
+  // y por eso la importación nunca la borra.
+  externalSourceId String?
+
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
 
+  @@unique([productId, externalSourceId])
   @@index([restaurantId, productId])
   @@map("product_variants")
 }

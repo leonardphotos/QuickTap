@@ -10,6 +10,7 @@ interface PreviewProduct {
   currency: string | null;
   importedImageUrl: string | null;
   hasPhoto: boolean;
+  variants: { externalSourceId: string; name: string; price: number | null }[];
 }
 
 interface PreviewCategory {
@@ -25,6 +26,7 @@ interface PreviewResponse {
     totalProducts: number;
     productsWithImportedPhoto: number;
     productsMissingPhoto: number;
+    productsWithVariants: number;
     sourceCurrencies: string[];
     baseCurrency: string;
     currencyMismatch: boolean;
@@ -161,6 +163,8 @@ export default function MasterOlaClickImportPage() {
             <strong className="text-right">{preview.summary.productsWithImportedPhoto}</strong>
             <span>Sin foto (habrá que subirla):</span>
             <strong className="text-right">{preview.summary.productsMissingPhoto}</strong>
+            <span>Con variantes:</span>
+            <strong className="text-right">{preview.summary.productsWithVariants}</strong>
             <span>Moneda en OlaClick:</span>
             <strong className="text-right">{preview.summary.sourceCurrencies.join(' / ') || '—'}</strong>
           </div>
@@ -183,7 +187,8 @@ export default function MasterOlaClickImportPage() {
                   {cat.products.map((prod) => {
                     const isExcluded = excluded.has(prod.externalSourceId);
                     return (
-                      <label key={prod.externalSourceId} className={`flex items-center gap-3 text-sm ${isExcluded ? 'opacity-50' : ''}`}>
+                      <div key={prod.externalSourceId} className={isExcluded ? 'opacity-50' : ''}>
+                      <label className="flex items-center gap-3 text-sm">
                         <input
                           type="checkbox"
                           checked={!isExcluded}
@@ -201,6 +206,17 @@ export default function MasterOlaClickImportPage() {
                           {prod.price === null ? 'sin precio' : `${prod.currency ?? ''} ${prod.price.toFixed(2)}`.trim()}
                         </span>
                       </label>
+                      {prod.variants.length > 0 && (
+                        <ul className="ml-11 mt-1 space-y-0.5">
+                          {prod.variants.map((v) => (
+                            <li key={v.externalSourceId} className="flex justify-between text-xs text-brand-950/55">
+                              <span>{v.name}</span>
+                              <span>{v.price === null ? '—' : v.price.toFixed(2)}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      </div>
                     );
                   })}
                 </div>
