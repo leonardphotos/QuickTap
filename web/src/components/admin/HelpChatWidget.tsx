@@ -1,14 +1,14 @@
 import { useMemo, useRef, useState, useEffect } from 'react';
 import type { FormEvent } from 'react';
-import { MessageCircleQuestionMark, Send, X } from 'lucide-react';
+import { ChevronLeft, MessageCircleQuestionMark, Send, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { HELP_FAQ } from '@/data/help-faq';
+import { HELP_FAQ, HELP_CATEGORY_LABELS, type HelpFaqCategory } from '@/data/help-faq';
 
 type ChatMessage = { from: 'bot' | 'user'; text: string };
 
 const WELCOME: ChatMessage = {
   from: 'bot',
-  text: 'Hola, soy el asistente de QuickTap. Elige una pregunta de la lista o escribe la tuya.',
+  text: 'Hola, soy el asistente de QuickTap. Elige un tema para ver sus preguntas, o escribe la tuya directamente.',
 };
 
 const NOT_FOUND_TEXT =
@@ -33,12 +33,21 @@ export function HelpChatWidget() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<ChatMessage[]>([WELCOME]);
+  // null = mostrando el menú de temas. Elegido un tema, solo se ofrecen sus preguntas —
+  // así el chat no descarga las ~20 preguntas de la base entera de una sola vez.
+  const [activeCategory, setActiveCategory] = useState<HelpFaqCategory | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const availableFaq = useMemo(
     () => HELP_FAQ.filter((f) => !user?.role || f.roles.includes(user.role)),
     [user?.role],
   );
+
+  // Solo se listan temas que tienen al menos una pregunta visible para este rol.
+  const availableCategories = useMemo(() => {
+    const present = new Set(availableFaq.map((f) => f.category));
+    return (Object.keys(HELP_CATEGORY_LABELS) as HelpFaqCategory[]).filter((c) => present.has(c));
+  }, [availableFaq]);
 
   useEffect(() => {
     if (open) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -66,7 +75,9 @@ export function HelpChatWidget() {
   // Solo se ofrecen como chips las preguntas que todavía no se hicieron en esta sesión,
   // para que la lista se vaya despejando a medida que el usuario aprende.
   const askedQuestions = new Set(messages.filter((m) => m.from === 'user').map((m) => normalize(m.text)));
-  const suggestions = availableFaq.filter((f) => !askedQuestions.has(normalize(f.question)));
+  const questionsInCategory = activeCategory
+    ? availableFaq.filter((f) => f.category === activeCategory && !askedQuestions.has(normalize(f.question)))
+    : [];
 
   return (
     <>
@@ -115,18 +126,44 @@ export function HelpChatWidget() {
                 </div>
               ))}
 
-              {suggestions.length > 0 && (
+              {activeCategory === null ? (
                 <div className="flex flex-wrap gap-1.5 pt-1">
-                  {suggestions.map((f) => (
+                  {availableCategories.map((c) => (
                     <button
-                      key={f.id}
+                      key={c}
                       type="button"
-                      onClick={() => ask(f.question)}
+                      onClick={() => setActiveCategory(c)}
                       className="rounded-full border border-brand-950/10 bg-white px-3 py-1.5 text-xs font-medium text-brand-950/70 hover:bg-brand-950/5"
                     >
-                      {f.question}
+                      {HELP_CATEGORY_LABELS[c]}
                     </button>
                   ))}
+                </div>
+              ) : (
+                <div className="space-y-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setActiveCategory(null)}
+                    className="flex items-center gap-1 text-xs font-medium text-brand-500 hover:text-brand-600"
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" /> Todos los temas
+                  </button>
+                  {questionsInCategory.length > 0 ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {questionsInCategory.map((f) => (
+                        <button
+                          key={f.id}
+                          type="button"
+                          onClick={() => ask(f.question)}
+                          className="rounded-full border border-brand-950/10 bg-white px-3 py-1.5 text-xs font-medium text-brand-950/70 hover:bg-brand-950/5"
+                        >
+                          {f.question}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs font-light text-brand-950/40">Ya viste todas las preguntas de este tema.</p>
+                  )}
                 </div>
               )}
             </div>

@@ -1,7 +1,21 @@
 import type { UserRole } from '../types';
 
+export type HelpFaqCategory = 'productos' | 'delivery' | 'equipo' | 'mesas' | 'cobros' | 'ajustes' | 'inventario';
+
+export const HELP_CATEGORY_LABELS: Record<HelpFaqCategory, string> = {
+  productos: 'Productos y menú',
+  delivery: 'Delivery',
+  equipo: 'Equipo y empleados',
+  mesas: 'Mesas, pedidos y reservas',
+  cobros: 'Cobros y caja',
+  ajustes: 'Ajustes',
+  inventario: 'Inventario',
+};
+
 export interface HelpFaqEntry {
   id: string;
+  /** Agrupa la pregunta en el menú de temas — así el chat no muestra las ~20 preguntas de una vez. */
+  category: HelpFaqCategory;
   question: string;
   /** Términos extra que deben encontrar esta respuesta aunque no aparezcan en `question`. */
   keywords: string[];
@@ -17,6 +31,7 @@ export interface HelpFaqEntry {
 export const HELP_FAQ: HelpFaqEntry[] = [
   {
     id: 'delivery-price',
+    category: 'delivery',
     question: '¿Cómo pongo el precio del delivery?',
     keywords: ['delivery', 'envio', 'envío', 'costo de envio', 'tarifa', 'flete', 'zona', 'zonas', 'distancia', 'km'],
     roles: ['OWNER', 'ADMIN'],
@@ -25,6 +40,7 @@ export const HELP_FAQ: HelpFaqEntry[] = [
   },
   {
     id: 'create-employee',
+    category: 'equipo',
     question: '¿Cómo creo el perfil de un empleado?',
     keywords: ['empleado', 'trabajador', 'usuario', 'cuenta', 'equipo', 'agregar mesero', 'agregar cajero', 'nuevo usuario', 'personal', 'staff'],
     roles: ['OWNER', 'ADMIN'],
@@ -33,6 +49,7 @@ export const HELP_FAQ: HelpFaqEntry[] = [
   },
   {
     id: 'change-employee-role',
+    category: 'equipo',
     question: '¿Cómo cambio el rol o borro a un empleado?',
     keywords: ['cambiar rol', 'editar empleado', 'eliminar empleado', 'borrar usuario', 'quitar acceso', 'contraseña empleado'],
     roles: ['OWNER', 'ADMIN'],
@@ -41,6 +58,7 @@ export const HELP_FAQ: HelpFaqEntry[] = [
   },
   {
     id: 'add-product',
+    category: 'productos',
     question: '¿Cómo agrego un producto nuevo?',
     keywords: ['producto', 'plato', 'crear producto', 'nuevo plato', 'menu', 'menú', 'catalogo', 'catálogo'],
     roles: ['OWNER', 'ADMIN', 'CASHIER'],
@@ -49,6 +67,7 @@ export const HELP_FAQ: HelpFaqEntry[] = [
   },
   {
     id: 'add-category',
+    category: 'productos',
     question: '¿Cómo creo una categoría de productos?',
     keywords: ['categoria', 'categoría', 'seccion del menu', 'sección del menú', 'organizar productos'],
     roles: ['OWNER', 'ADMIN', 'CASHIER'],
@@ -57,6 +76,7 @@ export const HELP_FAQ: HelpFaqEntry[] = [
   },
   {
     id: 'product-out-of-stock',
+    category: 'productos',
     question: '¿Cómo marco un producto como agotado?',
     keywords: ['agotado', 'sin stock', 'pausar producto', 'ocultar producto', 'disponible'],
     roles: ['OWNER', 'ADMIN', 'CASHIER'],
@@ -65,6 +85,7 @@ export const HELP_FAQ: HelpFaqEntry[] = [
   },
   {
     id: 'create-table-qr',
+    category: 'mesas',
     question: '¿Cómo creo una mesa y su código QR?',
     keywords: ['mesa', 'qr', 'codigo qr', 'código qr', 'zona', 'imprimir qr'],
     roles: ['OWNER', 'ADMIN', 'CASHIER'],
@@ -73,6 +94,7 @@ export const HELP_FAQ: HelpFaqEntry[] = [
   },
   {
     id: 'open-close-cash-session',
+    category: 'cobros',
     question: '¿Cómo abro y cierro caja?',
     keywords: ['caja', 'abrir caja', 'cerrar caja', 'turno', 'arqueo', 'cuadre'],
     roles: ['OWNER', 'ADMIN', 'CASHIER'],
@@ -81,6 +103,7 @@ export const HELP_FAQ: HelpFaqEntry[] = [
   },
   {
     id: 'add-expense',
+    category: 'cobros',
     question: '¿Cómo registro un gasto?',
     keywords: ['gasto', 'egreso', 'compra', 'pago a proveedor', 'salida de dinero'],
     roles: ['OWNER', 'ADMIN', 'CASHIER'],
@@ -89,6 +112,7 @@ export const HELP_FAQ: HelpFaqEntry[] = [
   },
   {
     id: 'take-table-order',
+    category: 'mesas',
     question: '¿Cómo tomo un pedido en una mesa?',
     keywords: ['tomar pedido', 'nuevo pedido', 'pedido en mesa', 'agregar productos a mesa', 'anadir producto'],
     roles: ['OWNER', 'ADMIN', 'CASHIER', 'WAITER'],
@@ -97,6 +121,7 @@ export const HELP_FAQ: HelpFaqEntry[] = [
   },
   {
     id: 'print-comanda',
+    category: 'cobros',
     question: '¿Cómo imprimo la comanda o el recibo?',
     keywords: ['imprimir', 'comanda', 'ticket', 'recibo', 'factura', 'impresora'],
     roles: ['OWNER', 'ADMIN', 'CASHIER', 'WAITER'],
@@ -105,6 +130,7 @@ export const HELP_FAQ: HelpFaqEntry[] = [
   },
   {
     id: 'charge-order',
+    category: 'cobros',
     question: '¿Cómo cobro un pedido?',
     keywords: ['cobrar', 'pago', 'pagar', 'metodo de pago', 'método de pago', 'dividir cuenta', 'fraccionado'],
     roles: ['OWNER', 'ADMIN', 'CASHIER', 'WAITER'],
@@ -113,6 +139,7 @@ export const HELP_FAQ: HelpFaqEntry[] = [
   },
   {
     id: 'lock-screen',
+    category: 'ajustes',
     question: '¿Cómo funciona la clave de pantalla?',
     keywords: ['pin', 'clave', 'bloqueo', 'pantalla de bloqueo', 'desactivar clave'],
     roles: ['OWNER', 'ADMIN', 'CASHIER', 'WAITER'],
@@ -121,6 +148,7 @@ export const HELP_FAQ: HelpFaqEntry[] = [
   },
   {
     id: 'whatsapp-order-message',
+    category: 'ajustes',
     question: '¿Cómo cambio el mensaje que se envía por WhatsApp?',
     keywords: ['whatsapp', 'mensaje', 'plantilla', 'enviar pedido'],
     roles: ['OWNER', 'ADMIN'],
@@ -129,6 +157,7 @@ export const HELP_FAQ: HelpFaqEntry[] = [
   },
   {
     id: 'accept-order',
+    category: 'mesas',
     question: '¿Por qué un pedido queda esperando y no pasa a cocina?',
     keywords: ['pedido pendiente', 'aceptar pedido', 'no pasa a cocina', 'confirmar pedido'],
     roles: ['OWNER', 'ADMIN', 'CASHIER', 'WAITER'],
@@ -137,6 +166,7 @@ export const HELP_FAQ: HelpFaqEntry[] = [
   },
   {
     id: 'inventory-low-stock',
+    category: 'inventario',
     question: '¿Cómo configuro el aviso de que se está agotando un insumo?',
     keywords: ['inventario', 'insumo', 'stock minimo', 'stock mínimo', 'agotandose', 'agotándose'],
     roles: ['OWNER', 'ADMIN', 'CASHIER'],
@@ -145,6 +175,7 @@ export const HELP_FAQ: HelpFaqEntry[] = [
   },
   {
     id: 'change-plan',
+    category: 'ajustes',
     question: '¿Cómo cambio o pago mi plan?',
     keywords: ['plan', 'suscripcion', 'suscripción', 'pagar', 'facturacion', 'facturación', 'precio quicktap'],
     roles: ['OWNER', 'ADMIN'],
@@ -153,6 +184,7 @@ export const HELP_FAQ: HelpFaqEntry[] = [
   },
   {
     id: 'reservations',
+    category: 'mesas',
     question: '¿Cómo administro las reservas?',
     keywords: ['reserva', 'reservas', 'aceptar reserva', 'horario', 'agenda'],
     roles: ['OWNER', 'ADMIN', 'CASHIER'],
@@ -161,6 +193,7 @@ export const HELP_FAQ: HelpFaqEntry[] = [
   },
   {
     id: 'move-order-another-table',
+    category: 'mesas',
     question: '¿Cómo cambio un pedido de una mesa a otra?',
     keywords: ['rodar mesa', 'mover mesa', 'cambiar de mesa', 'trasladar pedido'],
     roles: ['OWNER', 'ADMIN', 'CASHIER', 'WAITER'],
