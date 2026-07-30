@@ -29,6 +29,7 @@ export default function ProductsPage() {
   const [modifiersDialogOpen, setModifiersDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [query, setQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
   function load() {
     api.get('/products').then((res) => setProducts(res.data.data));
@@ -58,11 +59,19 @@ export default function ProductsPage() {
   // (sin paginar); ignora acentos para que "cesar" encuentre "César".
   const filtered = useMemo(() => {
     const q = normalize(query);
-    if (!q) return products;
-    return products.filter((p) =>
-      [p.name, p.category?.name, p.sku].some((field) => normalize(field).includes(q)),
-    );
-  }, [products, query]);
+    return products.filter((p) => {
+      if (categoryFilter && p.categoryId !== categoryFilter) return false;
+      if (!q) return true;
+      return [p.name, p.category?.name, p.sku].some((field) => normalize(field).includes(q));
+    });
+  }, [products, query, categoryFilter]);
+
+  // Solo categorías que tienen al menos un producto, en el mismo orden que ya
+  // usa el catálogo — no tiene sentido ofrecer un chip que siempre vacía la lista.
+  const categoriesWithProducts = useMemo(() => {
+    const idsWithProducts = new Set(products.map((p) => p.categoryId));
+    return categories.filter((c) => idsWithProducts.has(c.id));
+  }, [products, categories]);
 
   function openEdit(p: Product) {
     setEditingProduct(p);
@@ -122,7 +131,37 @@ export default function ProductsPage() {
         )}
       </div>
 
-      {query && (
+      {categoriesWithProducts.length > 1 && (
+        <div className="-mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setCategoryFilter(null)}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+              categoryFilter === null
+                ? 'bg-brand-500 text-white'
+                : 'bg-brand-950/5 text-brand-950/60 hover:bg-brand-950/10'
+            }`}
+          >
+            Todas
+          </button>
+          {categoriesWithProducts.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => setCategoryFilter(categoryFilter === c.id ? null : c.id)}
+              className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                categoryFilter === c.id
+                  ? 'bg-brand-500 text-white'
+                  : 'bg-brand-950/5 text-brand-950/60 hover:bg-brand-950/10'
+              }`}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {(query || categoryFilter) && (
         <p className="-mt-5 text-xs font-light text-brand-950/50">
           {filtered.length === 0
             ? 'Ningún producto coincide.'
@@ -171,7 +210,7 @@ export default function ProductsPage() {
           ))}
           {filtered.length === 0 && (
             <li className="px-4 py-6 text-center text-brand-950/40 text-sm font-light">
-              {query ? `Sin resultados para "${query}".` : 'Sin productos aún.'}
+              {query || categoryFilter ? `Sin resultados${query ? ` para "${query}"` : ''}.` : 'Sin productos aún.'}
             </li>
           )}
         </ul>
