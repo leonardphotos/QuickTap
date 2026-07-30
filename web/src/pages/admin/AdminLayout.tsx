@@ -10,6 +10,7 @@ import { LowStockAlert } from '@/components/admin/LowStockAlert';
 import { NewOrderAlert } from '@/components/admin/NewOrderAlert';
 import { OrderReadyToast } from '@/components/admin/OrderReadyToast';
 import { LockScreen } from '@/components/admin/LockScreen';
+import { HelpChatWidget } from '@/components/admin/HelpChatWidget';
 import { useCopyToast } from '../../hooks/useCopyToast';
 import { usePendingReservationsCount } from '../../hooks/usePendingReservations';
 import { useLowStockItems } from '../../hooks/useLowStockItems';
@@ -221,6 +222,8 @@ export default function AdminLayout() {
       </div>
 
       <NavMenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
+
+      <HelpChatWidget />
 
       <Toast message={toastMessage} />
       <LowStockAlert />

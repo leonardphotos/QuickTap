@@ -9,6 +9,7 @@ import { LiveOrdersPanel, EditOrderDialog, type LiveOrder } from '@/components/a
 import { TableServiceAlert } from '@/components/admin/TableServiceAlert';
 import { NewOrderAlert } from '@/components/admin/NewOrderAlert';
 import { LowStockAlert } from '@/components/admin/LowStockAlert';
+import { HelpChatWidget } from '@/components/admin/HelpChatWidget';
 import { ActiveOrdersPreview } from '@/components/admin/ActiveOrdersPreview';
 import { CreateOrderDialog } from '@/components/admin/CreateOrderDialog';
 import { PaymentDialog } from '@/components/admin/PaymentDialog';
@@ -174,6 +175,7 @@ export default function WaiterLayout() {
       <TableServiceAlert />
       <NewOrderAlert onNavigate={() => setTab('comandas')} />
       <LowStockAlert />
+      <HelpChatWidget />
 
       {/* Botón flotante "Nuevo pedido": visible en cualquier pestaña, y el mesero lo puede
        * arrastrar a donde le quede más cómodo (la posición se recuerda en este dispositivo). */}
