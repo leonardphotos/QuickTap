@@ -141,3 +141,8 @@ export const updateLockScreenIntervalsSchema = z.record(
   z.union([z.literal(1), z.literal(5), z.literal(10)]),
 );
 export type UpdateLockScreenIntervalsInput = z.infer<typeof updateLockScreenIntervalsSchema>;
+
+// Ajustes → Pantalla de bloqueo: interruptor general. Va en su propio endpoint (y no en
+// updateRestaurantSchema) porque `PATCH /restaurant` lo puede llamar un CASHIER, y apagar
+// el bloqueo es un control de seguridad que solo debe estar en manos de Dueño/Admin.
+export const setLockScreenEnabledSchema = z.object({ enabled: z.boolean() });

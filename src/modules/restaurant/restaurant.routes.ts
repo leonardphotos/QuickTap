@@ -16,6 +16,8 @@ router.patch('/welcome-seen', restaurantController.markWelcomeSeen);
 router.patch('/delete-order-pin', requireRole(...TEAM_MANAGER_ROLES), restaurantController.setDeleteOrderPin);
 // Ajustes → Pantalla de bloqueo: minutos por rol, solo Dueño/Admin.
 router.patch('/lock-screen-intervals', requireRole(...TEAM_MANAGER_ROLES), restaurantController.updateLockScreenIntervals);
+// Ajustes → Pantalla de bloqueo: interruptor general, solo Dueño/Admin.
+router.patch('/lock-screen-enabled', requireRole(...TEAM_MANAGER_ROLES), restaurantController.setLockScreenEnabled);
 // Entorno Demo Efímero: código de administrador que exime del reset automático.
 router.post('/demo-admin-unlock', requireRole(...TEAM_MANAGER_ROLES), restaurantController.demoAdminUnlock);
 router.get('/schedule', restaurantController.getSchedule);

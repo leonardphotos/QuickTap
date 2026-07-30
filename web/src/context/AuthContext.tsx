@@ -37,6 +37,7 @@ export interface AuthRestaurant {
   serviceChargeEnabled: boolean;
   /** Interruptor del vínculo modificador -> insumo (botón en Inventario). */
   modifierInventoryLinkEnabled: boolean;
+  lockScreenEnabled: boolean;
   ivaEnabled: boolean;
   /** RIF fiscal del restaurante, informativo — condición para que QuickTap pueda activar el IVA. */
   rif?: string | null;

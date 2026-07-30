@@ -13,7 +13,10 @@ export type LockScreenMode = 'setup' | 'unlock';
  */
 export function useLockScreen() {
   const { user, restaurant } = useAuth();
-  const applies = needsLockScreen(user?.role);
+  // El interruptor de Ajustes manda sobre el rol: apagado, nadie ve el teclado de PIN
+  // ni se le exige crear uno. `restaurant` llega en el mismo /auth/me que `user`, así
+  // que no hay ventana en la que el rol aplique pero el interruptor todavía no se sepa.
+  const applies = needsLockScreen(user?.role) && !!restaurant?.lockScreenEnabled;
   const storageKey = user ? `quicktap_lock_activity_${user.id}` : null;
   const minutes = (user && restaurant?.lockScreenIntervals[user.role]) || DEFAULT_LOCK_SCREEN_MINUTES;
 

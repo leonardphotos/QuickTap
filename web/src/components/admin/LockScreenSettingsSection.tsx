@@ -26,6 +26,20 @@ export function LockScreenSettingsSection() {
   const [savingIntervals, setSavingIntervals] = useState(false);
   const [intervalsMessage, setIntervalsMessage] = useState<string | null>(null);
 
+  const [savingToggle, setSavingToggle] = useState(false);
+  const lockEnabled = !!restaurant?.lockScreenEnabled;
+  const isManager = canManageTeam(user?.role);
+
+  async function toggleLockScreen() {
+    setSavingToggle(true);
+    try {
+      await api.patch('/restaurant/lock-screen-enabled', { enabled: !lockEnabled });
+      await refresh();
+    } finally {
+      setSavingToggle(false);
+    }
+  }
+
   async function savePin() {
     setPinError(null);
     setPinMessage(null);
@@ -72,12 +86,55 @@ export function LockScreenSettingsSection() {
       <TextureCardHeader className="px-6">
         <TextureCardTitle className="pl-0">Pantalla de bloqueo</TextureCardTitle>
         <p className="text-sm text-brand-950/60 font-light">
-          Por seguridad, el panel se bloquea periódicamente y pide un PIN de 4 dígitos para
+          Por seguridad, el panel puede bloquearse por inactividad y pedir un PIN de 4 dígitos para
           seguir — cerrar el navegador no cierra la sesión, solo el botón "Cerrar sesión" lo hace.
+          Recomendado dejarlo activado si el equipo comparte tablets o computadoras.
         </p>
       </TextureCardHeader>
       <TextureCardContent className="space-y-6">
-        <div className="space-y-2.5">
+        {isManager && (
+          <div className="flex items-center justify-between gap-4 rounded-xl border border-brand-950/10 bg-brand-50/40 px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-brand-950">
+                Clave de pantalla{' '}
+                <span className={lockEnabled ? 'text-emerald-600 font-medium' : 'text-brand-950/40 font-medium'}>
+                  · {lockEnabled ? 'activada' : 'desactivada'}
+                </span>
+              </p>
+              <p className="text-xs text-brand-950/50 font-light mt-0.5">
+                {lockEnabled
+                  ? 'El panel se bloquea por inactividad y pide el PIN para seguir.'
+                  : 'Nadie del equipo verá el teclado de PIN. Los PIN ya creados se conservan.'}
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={lockEnabled}
+              aria-label="Activar o desactivar la clave de pantalla"
+              disabled={savingToggle}
+              onClick={toggleLockScreen}
+              className={`shrink-0 relative h-7 w-12 rounded-full transition-colors disabled:opacity-50 ${
+                lockEnabled ? 'bg-brand-500' : 'bg-brand-950/20'
+              }`}
+            >
+              <span
+                className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${
+                  lockEnabled ? 'left-6' : 'left-1'
+                }`}
+              />
+            </button>
+          </div>
+        )}
+
+        {!lockEnabled && !isManager && (
+          <p className="text-sm text-brand-950/60 font-light">
+            La clave de pantalla está desactivada para este restaurante. Solo el Dueño o un
+            Administrador puede volver a activarla.
+          </p>
+        )}
+
+        <div className={`space-y-2.5 ${lockEnabled ? '' : 'opacity-50'}`}>
           <p className="text-sm font-semibold text-brand-950">
             Tu PIN{' '}
             {user?.hasLockPin ? (
@@ -109,11 +166,12 @@ export function LockScreenSettingsSection() {
           </TextureButton>
         </div>
 
-        {canManageTeam(user?.role) && (
-          <div className="space-y-2.5 pt-1 border-t border-brand-950/[0.06]">
+        {isManager && (
+          <div className={`space-y-2.5 pt-1 border-t border-brand-950/[0.06] ${lockEnabled ? '' : 'opacity-50'}`}>
             <p className="text-sm font-semibold text-brand-950 pt-4">Minutos de inactividad por rol</p>
             <p className="text-xs text-brand-950/50 font-light -mt-1.5">
-              Cada rol vuelve a pedir el PIN después de este tiempo sin actividad. No se puede desactivar.
+              Cada rol vuelve a pedir el PIN después de este tiempo sin actividad.
+              {!lockEnabled && ' Sin efecto mientras la clave de pantalla esté desactivada.'}
             </p>
             <div className="space-y-2">
               {LOCK_SCREEN_ROLES.map((role) => (

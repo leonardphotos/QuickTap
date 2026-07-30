@@ -242,6 +242,12 @@ model Restaurant {
   // NO descuentan insumos aunque tengan el vínculo configurado. Permite dejar
   // la configuración armada y activarla cuando el inventario esté cuadrado.
   modifierInventoryLinkEnabled Boolean @default(false)
+
+  // Interruptor de la clave de pantalla (Ajustes → Pantalla de bloqueo). Apagado,
+  // nadie del equipo vuelve a ver el teclado de PIN y tampoco se le exige crearlo;
+  // los PIN ya configurados se conservan para cuando se vuelva a activar.
+  // Arranca en `true` porque el bloqueo ya existía antes de este interruptor.
+  lockScreenEnabled Boolean @default(true)
   serviceChargeEnabled Boolean @default(false) // 10% de servicio
   // 16% de IVA. Solo lo activa el equipo QuickTap desde el Master Dashboard (no autoservicio
   // del restaurante), y solo si ya tiene `rif` registrado — ver master-restaurants.service.ts.

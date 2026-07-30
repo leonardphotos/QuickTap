@@ -5,6 +5,7 @@ import {
   demoAdminUnlockSchema,
   setDeleteOrderPinSchema,
   updateLockScreenIntervalsSchema,
+  setLockScreenEnabledSchema,
   updateRestaurantSchema,
   updateScheduleSchema,
 } from './restaurant.dto';
@@ -40,6 +41,11 @@ export const restaurantController = {
   updateLockScreenIntervals: asyncHandler(async (req: Request, res: Response) => {
     const input = updateLockScreenIntervalsSchema.parse(req.body);
     res.json({ data: await restaurantService.updateLockScreenIntervals(req.restaurantId!, input) });
+  }),
+
+  setLockScreenEnabled: asyncHandler(async (req: Request, res: Response) => {
+    const { enabled } = setLockScreenEnabledSchema.parse(req.body);
+    res.json({ data: await restaurantService.setLockScreenEnabled(req.restaurantId!, enabled) });
   }),
 
   demoAdminUnlock: asyncHandler(async (req: Request, res: Response) => {

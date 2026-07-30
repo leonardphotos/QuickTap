@@ -70,6 +70,16 @@ export const restaurantService = {
   },
 
   /**
+   * Ajustes → Pantalla de bloqueo: interruptor general (solo Dueño/Admin).
+   * Apagarlo no borra ningún PIN — los `lockPinHash` ya guardados se conservan,
+   * así volver a activarlo no obliga al equipo a crear su clave de nuevo.
+   */
+  async setLockScreenEnabled(restaurantId: string, enabled: boolean) {
+    await prisma.restaurant.update({ where: { id: restaurantId }, data: { lockScreenEnabled: enabled } });
+    return { lockScreenEnabled: enabled };
+  },
+
+  /**
    * Entorno Demo Efímero → "Modo administrador": código fijo que exime al
    * restaurante demo del reset automático (ver demo-reset.service.ts), para
    * dejar cambios permanentes (ej. configurar sucursales) sin que se borren.
