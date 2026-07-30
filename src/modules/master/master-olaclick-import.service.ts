@@ -108,8 +108,24 @@ export const masterOlaclickImportService = {
       new Set(categories.flatMap((c) => c.products.map((p) => p.currency).filter(Boolean))),
     ) as string[];
 
+    // Diagnóstico: el JSON crudo de un producto, tal cual lo devolvió OlaClick.
+    // Existe porque el mapeo solo cubre lo que ya vimos de la API (categorías,
+    // productos, variantes) y la documentación pública es una SPA que no se puede
+    // leer. Antes que asumir nombres de campo — el error que importó todos los
+    // precios divididos entre 100 — esto deja ver qué más viene realmente en la
+    // respuesta, p. ej. si los modificadores se exponen y bajo qué clave.
+    const rawSample = rawCategories.flatMap((c) => c.products ?? [])[0] ?? null;
+    const diagnostics = {
+      productKeys: rawSample ? Object.keys(rawSample).sort() : [],
+      looksLikeModifiers: rawSample
+        ? Object.keys(rawSample).filter((k) => /modif|option|addon|extra|group|topping/i.test(k))
+        : [],
+      rawSampleProduct: rawSample,
+    };
+
     return {
       categories,
+      diagnostics,
       summary: {
         totalCategories: categories.length,
         totalProducts,

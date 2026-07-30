@@ -21,6 +21,12 @@ interface PreviewCategory {
 
 interface PreviewResponse {
   categories: PreviewCategory[];
+  /** JSON crudo de un producto, para ver qué expone OlaClick de verdad. */
+  diagnostics: {
+    productKeys: string[];
+    looksLikeModifiers: string[];
+    rawSampleProduct: unknown;
+  };
   summary: {
     totalCategories: number;
     totalProducts: number;
@@ -223,6 +229,35 @@ export default function MasterOlaClickImportPage() {
               </div>
             ))}
           </div>
+
+          <details className="rounded-lg border border-brand-950/10 bg-brand-950/[0.03] p-3 text-sm">
+            <summary className="cursor-pointer font-medium text-brand-950">
+              Diagnóstico — qué campos expone OlaClick
+            </summary>
+            <div className="mt-3 space-y-2">
+              <p className="text-xs text-brand-950/60">
+                Campos que trae cada producto:{' '}
+                <code className="break-all">{preview.diagnostics.productKeys.join(', ') || '—'}</code>
+              </p>
+              <p className="text-xs">
+                {preview.diagnostics.looksLikeModifiers.length > 0 ? (
+                  <span className="text-brand-500">
+                    Posibles modificadores en:{' '}
+                    <code>{preview.diagnostics.looksLikeModifiers.join(', ')}</code> — mándale esto a
+                    quien esté implementando la importación de modificadores.
+                  </span>
+                ) : (
+                  <span className="text-amber-700">
+                    Ningún campo parece traer modificadores. Probablemente la API pública de OlaClick
+                    no los expone y habrá que cargarlos a mano en QuickTap.
+                  </span>
+                )}
+              </p>
+              <pre className="max-h-56 overflow-auto rounded bg-brand-950/90 p-3 text-[11px] leading-relaxed text-white">
+                {JSON.stringify(preview.diagnostics.rawSampleProduct, null, 2)}
+              </pre>
+            </div>
+          </details>
 
           <TextureButton
             variant="brand"
