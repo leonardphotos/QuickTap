@@ -17,5 +17,13 @@ export const updateDeliveryZoneSchema = z.object({
   polygon: z.array(pointSchema).min(3).optional(),
 });
 
+// Carga masiva desde una lista escrita (Ajustes → Delivery → "Importar lista").
+// Va en su propio endpoint en vez de repetir POST /delivery-zones N veces para
+// que 20 zonas entren en una sola transacción: o se guardan todas o ninguna.
+export const bulkCreateDeliveryZonesSchema = z.object({
+  zones: z.array(createDeliveryZoneSchema).min(1, 'No hay zonas para importar.').max(100),
+});
+
 export type CreateDeliveryZoneInput = z.infer<typeof createDeliveryZoneSchema>;
 export type UpdateDeliveryZoneInput = z.infer<typeof updateDeliveryZoneSchema>;
+export type BulkCreateDeliveryZonesInput = z.infer<typeof bulkCreateDeliveryZonesSchema>;

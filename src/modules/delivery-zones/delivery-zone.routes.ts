@@ -11,6 +11,7 @@ const mutate = requireRole(...FULL_ACCESS_ROLES);
 
 router.get('/', deliveryZoneController.list);
 router.post('/', mutate, deliveryZoneController.create);
+router.post('/bulk', mutate, deliveryZoneController.bulkCreate);
 router.patch('/:id', mutate, deliveryZoneController.update);
 router.delete('/:id', mutate, deliveryZoneController.remove);
 

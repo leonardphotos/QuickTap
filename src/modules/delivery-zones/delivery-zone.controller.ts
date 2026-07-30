@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
-import { createDeliveryZoneSchema, updateDeliveryZoneSchema } from './delivery-zone.dto';
+import { bulkCreateDeliveryZonesSchema, createDeliveryZoneSchema, updateDeliveryZoneSchema } from './delivery-zone.dto';
 import { deliveryZoneService } from './delivery-zone.service';
 
 export const deliveryZoneController = {
@@ -10,6 +10,10 @@ export const deliveryZoneController = {
   create: asyncHandler(async (req: Request, res: Response) => {
     const input = createDeliveryZoneSchema.parse(req.body);
     res.status(201).json({ data: await deliveryZoneService.create(req.restaurantId!, input) });
+  }),
+  bulkCreate: asyncHandler(async (req: Request, res: Response) => {
+    const input = bulkCreateDeliveryZonesSchema.parse(req.body);
+    res.status(201).json({ data: await deliveryZoneService.bulkCreate(req.restaurantId!, input) });
   }),
   update: asyncHandler(async (req: Request, res: Response) => {
     const input = updateDeliveryZoneSchema.parse(req.body);

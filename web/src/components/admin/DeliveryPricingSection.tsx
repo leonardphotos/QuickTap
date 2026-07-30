@@ -8,6 +8,7 @@ import type { DeliveryZone } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
 import { AddressAutocomplete, reverseGeocode } from '@/components/AddressAutocomplete';
+import { ImportZonesDialog } from './ImportZonesDialog';
 
 // Los íconos por defecto de Leaflet se rompen con bundlers (rutas relativas al CSS).
 // No usamos marcador de ícono personalizado, así que no hace falta arreglarlo aquí.
@@ -219,6 +220,7 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
   const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
   const [editingPrice, setEditingPrice] = useState('');
   const [savingPrice, setSavingPrice] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const selectedZone = zones.find((z) => z.id === selectedZoneId) ?? null;
 
@@ -473,9 +475,14 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
           {/* Barra superior derecha: dibujar / pantalla completa. */}
           <div className="pointer-events-auto absolute top-3 right-3 flex flex-wrap items-center justify-end gap-2">
             {!drawing && !pendingSave && (
-              <TextureButton variant="brand" size="sm" className="!w-auto shadow-lg" onClick={startDrawing}>
-                + Dibujar zona
-              </TextureButton>
+              <>
+                <TextureButton variant="minimal" size="sm" className="!w-auto shadow-lg" onClick={() => setImportOpen(true)}>
+                  Importar lista
+                </TextureButton>
+                <TextureButton variant="brand" size="sm" className="!w-auto shadow-lg" onClick={startDrawing}>
+                  + Dibujar zona
+                </TextureButton>
+              </>
             )}
             {drawing && (
               <>
@@ -607,6 +614,8 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
 
       {/* En celular (y fuera de pantalla completa) la lista va debajo del mapa. */}
       {!fullscreen && <div className="lg:hidden">{zoneList}</div>}
+
+      <ImportZonesDialog open={importOpen} onOpenChange={setImportOpen} onImported={loadZones} />
     </div>
   );
 }
