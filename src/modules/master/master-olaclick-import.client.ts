@@ -11,7 +11,13 @@ const BASE_URL = 'https://public-api.olaclick.app';
 export interface OlaclickVariant {
   id: string;
   name: string;
-  price: number; // unidades menores (centavos)
+  /**
+   * Monto decimal en la moneda de `currency` — NO centavos. Ej: un plato de 6,00
+   * llega como `6`, no como `600`. Esto se corrigió después de que la primera
+   * versión asumiera unidades menores y dividiera entre 100, dejando todos los
+   * precios importados 100 veces más chicos (6,00 se guardaba como 0,06).
+   */
+  price: number;
   currency: string;
 }
 

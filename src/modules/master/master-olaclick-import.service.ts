@@ -5,9 +5,14 @@ import { fetchOlaclickMenu, OlaclickCategory, OlaclickProduct } from './master-o
 
 const EXTERNAL_SOURCE = 'olaclick';
 
-function minorUnitsToDecimal(amount: number | undefined | null): number | null {
-  if (typeof amount !== 'number') return null;
-  return Math.round(amount) / 100;
+/**
+ * OlaClick manda el precio ya en unidades mayores (6,00 llega como `6`), así que
+ * acá solo se normaliza a 2 decimales. Antes se dividía entre 100 asumiendo
+ * centavos, y eso importaba todo el menú 100 veces más barato.
+ */
+function toPriceDecimal(amount: number | undefined | null): number | null {
+  if (typeof amount !== 'number' || !Number.isFinite(amount)) return null;
+  return Math.round(amount * 100) / 100;
 }
 
 function mapProductPreview(product: OlaclickProduct) {
@@ -17,7 +22,7 @@ function mapProductPreview(product: OlaclickProduct) {
     name: product.name,
     description: product.description ?? '',
     isAvailable: product.available ?? true,
-    price: minorUnitsToDecimal(variant?.price),
+    price: toPriceDecimal(variant?.price),
     currency: variant?.currency ?? null,
     importedImageUrl: product.image_url ?? null,
     hasPhoto: Boolean(product.image_url),
@@ -67,6 +72,14 @@ export const masterOlaclickImportService = {
       0,
     );
 
+    // Las monedas que declara OlaClick. Los precios se guardan tal cual en
+    // `Product.price`, que la app interpreta SIEMPRE en el baseCurrency del
+    // restaurante — así que si no coinciden hay que avisarlo antes de importar,
+    // no convertir a ciegas con una tasa que nadie decidió.
+    const sourceCurrencies = Array.from(
+      new Set(categories.flatMap((c) => c.products.map((p) => p.currency).filter(Boolean))),
+    ) as string[];
+
     return {
       categories,
       summary: {
@@ -74,6 +87,9 @@ export const masterOlaclickImportService = {
         totalProducts,
         productsWithImportedPhoto: productsWithPhoto,
         productsMissingPhoto: totalProducts - productsWithPhoto,
+        sourceCurrencies,
+        baseCurrency: restaurant.baseCurrency,
+        currencyMismatch: sourceCurrencies.some((c) => c !== restaurant.baseCurrency),
       },
     };
   },
@@ -93,6 +109,18 @@ export const masterOlaclickImportService = {
     const apiKey = decryptOlaclickApiKey(restaurant.olaclickApiKeyEncrypted);
     const rawCategories = await fetchOlaclickMenu(apiKey);
     const excluded = new Set(excludedProductExternalIds);
+
+    // Fotos que ya tiene cada producto importado, para no pisar en una segunda
+    // corrida una que el restaurante subió a mano (ver el upsert más abajo).
+    const alreadyImported = await prisma.product.findMany({
+      where: { restaurantId, externalSource: EXTERNAL_SOURCE },
+      select: { externalSourceId: true, photoUrl: true },
+    });
+    const existingPhotoByExternalId = new Map(
+      alreadyImported
+        .filter((p) => p.externalSourceId && p.photoUrl)
+        .map((p) => [p.externalSourceId as string, p.photoUrl as string]),
+    );
 
     let savedCategories = 0;
     let savedProducts = 0;
@@ -125,9 +153,9 @@ export const masterOlaclickImportService = {
         if (excluded.has(prod.id)) continue;
 
         const variant = prod.variants.find((v) => v.name === 'Default') ?? prod.variants[0];
-        const price = minorUnitsToDecimal(variant?.price) ?? 0;
-        const hasPhoto = Boolean(prod.image_url);
-        if (!hasPhoto) productsMissingPhoto++;
+        const price = toPriceDecimal(variant?.price) ?? 0;
+        const photo = prod.image_url ?? null;
+        if (!photo) productsMissingPhoto++;
 
         await prisma.product.upsert({
           where: {
@@ -146,16 +174,22 @@ export const masterOlaclickImportService = {
             description: prod.description ?? null,
             price,
             isAvailable: prod.available ?? true,
-            importedImageUrl: prod.image_url ?? null,
-            // photoUrl queda null a propósito: el equipo/restaurante decide si
-            // sube una foto propia o confirma usar importedImageUrl más adelante.
+            importedImageUrl: photo,
+            // La foto importada se usa de una: `importedImageUrl` sola no la
+            // muestra en ningún lado (el catálogo y el menú público leen
+            // `photoUrl`), así que el menú quedaba entero sin fotos. Sigue
+            // siendo reemplazable subiendo una propia desde el catálogo.
+            photoUrl: photo,
           },
           update: {
             name: prod.name,
             description: prod.description ?? null,
             price,
             isAvailable: prod.available ?? true,
-            importedImageUrl: prod.image_url ?? null,
+            importedImageUrl: photo,
+            // En re-sincronizaciones NO se pisa una foto que alguien ya subió a
+            // mano: solo se rellena si el producto todavía no tiene ninguna.
+            ...(photo ? { photoUrl: existingPhotoByExternalId.get(prod.id) ?? photo } : {}),
           },
         });
         savedProducts++;

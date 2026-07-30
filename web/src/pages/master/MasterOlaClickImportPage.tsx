@@ -25,6 +25,9 @@ interface PreviewResponse {
     totalProducts: number;
     productsWithImportedPhoto: number;
     productsMissingPhoto: number;
+    sourceCurrencies: string[];
+    baseCurrency: string;
+    currencyMismatch: boolean;
   };
 }
 
@@ -158,7 +161,19 @@ export default function MasterOlaClickImportPage() {
             <strong className="text-right">{preview.summary.productsWithImportedPhoto}</strong>
             <span>Sin foto (habrá que subirla):</span>
             <strong className="text-right">{preview.summary.productsMissingPhoto}</strong>
+            <span>Moneda en OlaClick:</span>
+            <strong className="text-right">{preview.summary.sourceCurrencies.join(' / ') || '—'}</strong>
           </div>
+
+          {preview.summary.currencyMismatch && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+              <strong>Ojo con la moneda.</strong> OlaClick declara los precios en{' '}
+              {preview.summary.sourceCurrencies.join(' / ')} y este restaurante cobra en{' '}
+              {preview.summary.baseCurrency}. Los montos se importan tal cual, sin convertir — si
+              hace falta convertirlos, hay que ajustar los precios después en el catálogo o cambiar
+              la moneda base del restaurante antes de importar.
+            </div>
+          )}
 
           <div className="max-h-96 divide-y divide-brand-950/10 overflow-y-auto rounded-lg border border-brand-950/10">
             {preview.categories.map((cat) => (
@@ -183,7 +198,7 @@ export default function MasterOlaClickImportPage() {
                         )}
                         <span className="flex-1 text-brand-950">{prod.name}</span>
                         <span className="text-brand-950/50">
-                          {prod.currency} {prod.price}
+                          {prod.price === null ? 'sin precio' : `${prod.currency ?? ''} ${prod.price.toFixed(2)}`.trim()}
                         </span>
                       </label>
                     );
