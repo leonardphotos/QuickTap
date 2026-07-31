@@ -32,6 +32,8 @@ export function DeliveryPricingSection() {
   const [originAddress, setOriginAddress] = useState('');
   const [baseFee, setBaseFee] = useState(restaurant?.deliveryBaseFee ?? '0');
   const [pricePerKm, setPricePerKm] = useState(restaurant?.deliveryPricePerKm ?? '0');
+  const [autoOpen, setAutoOpen] = useState(!!restaurant?.deliveryAutoOpenOnPaid);
+  const [autoAssign, setAutoAssign] = useState(!!restaurant?.deliveryAutoAssignOnPaid);
   const [gettingLocation, setGettingLocation] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -76,6 +78,8 @@ export function DeliveryPricingSection() {
         deliveryOriginLng: originLng ?? undefined,
         deliveryBaseFee: Number(baseFee) || 0,
         deliveryPricePerKm: Number(pricePerKm) || 0,
+        deliveryAutoOpenOnPaid: autoOpen,
+        deliveryAutoAssignOnPaid: autoAssign,
       });
       await refresh();
       setMessage('Configuración de delivery guardada.');
@@ -164,6 +168,34 @@ export function DeliveryPricingSection() {
           </div>
         )}
 
+        <div className="space-y-2 pt-1 border-t border-brand-950/[0.06]">
+          <p className="text-sm font-medium text-brand-950 pt-3">Al terminar de cobrar un pedido de delivery</p>
+          <DeliveryPaidToggle
+            checked={autoOpen}
+            onChange={(v) => {
+              setAutoOpen(v);
+              if (v) setAutoAssign(false);
+            }}
+            title="Abrir el equipo de delivery automáticamente"
+            description="Apenas se completa el cobro, se abre la ventana para elegir a qué repartidor mandarlo — sin buscar el pedido en la lista."
+          />
+          <DeliveryPaidToggle
+            checked={autoAssign}
+            onChange={(v) => {
+              setAutoAssign(v);
+              if (v) setAutoOpen(false);
+            }}
+            title="Enviar a un repartidor automáticamente"
+            description="No pregunta: elige repartidor por turnos (el que lleve más tiempo sin recibir un pedido) y abre su WhatsApp con la comanda."
+          />
+          {autoAssign && (
+            <p className="text-xs font-light text-amber-700">
+              Necesitas al menos un repartidor activo en Ajustes → Equipo de Delivery. Si no hay ninguno, el cobro se
+              completa igual y el pedido queda sin despachar.
+            </p>
+          )}
+        </div>
+
         {error && <p className="text-sm text-red-600">{error}</p>}
         {message && <p className="text-sm text-brand-500">{message}</p>}
 
@@ -176,6 +208,44 @@ export function DeliveryPricingSection() {
         )}
       </TextureCardContent>
     </TextureCard>
+  );
+}
+
+/** Interruptor de las dos automatizaciones de despacho al cobrar. Son excluyentes
+ * entre sí (enviar solo ya implica no preguntar), así que el padre apaga una al
+ * encender la otra. */
+function DeliveryPaidToggle({
+  checked,
+  onChange,
+  title,
+  description,
+}: {
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4 rounded-xl border border-brand-950/10 bg-brand-50/40 px-4 py-3">
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-brand-950">{title}</p>
+        <p className="mt-0.5 text-xs font-light text-brand-950/50">{description}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        aria-label={title}
+        onClick={() => onChange(!checked)}
+        className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition-colors ${
+          checked ? 'bg-brand-500' : 'bg-brand-950/20'
+        }`}
+      >
+        <span
+          className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${checked ? 'left-6' : 'left-1'}`}
+        />
+      </button>
+    </div>
   );
 }
 

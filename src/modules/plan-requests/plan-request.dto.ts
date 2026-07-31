@@ -92,3 +92,10 @@ export const activateRestaurantSchema = z.object({
 });
 
 export type ActivateRestaurantInput = z.infer<typeof activateRestaurantSchema>;
+
+// GET /plan-requests/quote — desglose (mensualidad + cargos adicionales) antes de cobrar.
+export const quoteQuerySchema = z.object({
+  plan: z.enum(['DELIVERY', 'PRO', 'SUCURSALES', 'DELIVERY_SUCURSALES']),
+  billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL']),
+  promoCode: z.string().max(40).optional(),
+});

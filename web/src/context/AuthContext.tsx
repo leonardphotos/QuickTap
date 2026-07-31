@@ -48,6 +48,8 @@ export interface AuthRestaurant {
   deliveryPricingMode: 'DISABLED' | 'DISTANCE' | 'ZONE';
   deliveryBaseFee: string;
   deliveryPricePerKm: string;
+  deliveryAutoOpenOnPaid: boolean;
+  deliveryAutoAssignOnPaid: boolean;
   paymentMethodsConfig?: PaymentMethodsConfig | null;
   fullscreenImageEnabled: boolean;
   fullscreenImageUrl?: string | null;

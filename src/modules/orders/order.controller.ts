@@ -205,7 +205,10 @@ export const orderController = {
   /** POST /api/v1/orders/:id/dispatch-courier — "Delivery": arma el WhatsApp para el repartidor. */
   dispatchCourier: asyncHandler(async (req: Request, res: Response) => {
     const { courierId } = dispatchCourierSchema.parse(req.body);
-    const result = await orderService.dispatchToCourier(req.restaurantId!, req.params.id, courierId);
+    // Sin courierId: "despacho automático al cobrar" — lo elige el servidor por rotación.
+    const result = courierId
+      ? await orderService.dispatchToCourier(req.restaurantId!, req.params.id, courierId)
+      : await orderService.autoDispatchToCourier(req.restaurantId!, req.params.id);
     res.json({ data: result });
   }),
 

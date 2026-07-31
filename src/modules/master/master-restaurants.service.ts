@@ -4,7 +4,11 @@ import { badRequest, notFound } from '../../utils/http-error';
 import { allowsBranches, daysRemaining, isLocked } from '../../utils/subscription';
 import { branchService } from '../branches/branch.service';
 import { planRequestService } from '../plan-requests/plan-request.service';
-import { CreateBranchForRestaurantInput, UpdateRestaurantUserInput } from './master-restaurants.dto';
+import {
+  CreateAdditionalChargeInput,
+  CreateBranchForRestaurantInput,
+  UpdateRestaurantUserInput,
+} from './master-restaurants.dto';
 
 const USER_SELECT = { id: true, name: true, email: true, role: true, isActive: true, createdAt: true } as const;
 
@@ -157,6 +161,35 @@ export const masterRestaurantsService = {
     const existing = await prisma.restaurant.findUnique({ where: { id }, select: { id: true } });
     if (!existing) throw notFound('Restaurante no encontrado.');
     return prisma.restaurant.update({ where: { id }, data: { customMonthlyPriceUsd } });
+  },
+
+  /**
+   * Cargos adicionales (Dashboard maestro → Cobro). Se listan los pendientes y
+   * también los ya cobrados, para tener el histórico de qué se le facturó
+   * aparte de la mensualidad a este restaurante.
+   */
+  async listAdditionalCharges(restaurantId: string) {
+    return prisma.additionalCharge.findMany({
+      where: { restaurantId },
+      orderBy: { createdAt: 'desc' },
+    });
+  },
+
+  async createAdditionalCharge(restaurantId: string, input: CreateAdditionalChargeInput) {
+    const existing = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { id: true } });
+    if (!existing) throw notFound('Restaurante no encontrado.');
+    return prisma.additionalCharge.create({
+      data: { restaurantId, amountUsd: input.amountUsd, description: input.description },
+    });
+  },
+
+  /** Solo se puede borrar un cargo que todavía no se cobró: uno ya cobrado es histórico. */
+  async removeAdditionalCharge(restaurantId: string, chargeId: string) {
+    const charge = await prisma.additionalCharge.findFirst({ where: { id: chargeId, restaurantId } });
+    if (!charge) throw notFound('Cargo no encontrado.');
+    if (charge.chargedAt) throw badRequest('Ese cargo ya se cobró, no se puede eliminar.');
+    await prisma.additionalCharge.delete({ where: { id: chargeId } });
+    return { deleted: true };
   },
 
   /** Edita nombre/correo/contraseña de un usuario del restaurante (incluido el dueño). */

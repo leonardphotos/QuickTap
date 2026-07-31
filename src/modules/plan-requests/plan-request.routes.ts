@@ -15,6 +15,7 @@ publicPlanRequestRoutes.post('/ramblay-checkout', planRequestController.createRa
 /** Base: /api/v1/plan-requests — pago de mensualidad, ya autenticado como restaurante. */
 export const tenantPlanRequestRoutes = Router();
 tenantPlanRequestRoutes.use(tenantGuard);
+tenantPlanRequestRoutes.get('/quote', planRequestController.getQuote);
 tenantPlanRequestRoutes.get('/installment/pending', planRequestController.getPendingInstallment);
 tenantPlanRequestRoutes.post('/installment', planRequestController.createInstallment);
 tenantPlanRequestRoutes.post('/', planRequestController.createRenewal);

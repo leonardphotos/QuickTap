@@ -52,10 +52,19 @@ export const createBranchForRestaurantSchema = z.object({
 
 export type CreateBranchForRestaurantInput = z.infer<typeof createBranchForRestaurantSchema>;
 
-/** Precio mensual acordado manualmente por el equipo QuickTap (referencia interna, no
- * vinculado a los reportes automáticos de ingresos) — ver Restaurant.customMonthlyPriceUsd. */
+/** Precio mensual acordado con este restaurante. Cuando está cargado, ES el precio que se
+ * le cobra (manda sobre la tarifa pública del plan) — ver Restaurant.customMonthlyPriceUsd. */
 export const setCustomMonthlyPriceSchema = z.object({
   customMonthlyPriceUsd: z.coerce.number().positive().max(100000).nullable(),
 });
 
 export type SetCustomMonthlyPriceInput = z.infer<typeof setCustomMonthlyPriceSchema>;
+
+// Dashboard maestro → Cobro: cargo puntual que se suma a la próxima mensualidad
+// (setup, QR NFC, diseño…). Ver modelo AdditionalCharge.
+export const createAdditionalChargeSchema = z.object({
+  amountUsd: z.coerce.number().positive('El monto debe ser mayor a 0.').max(100000),
+  description: z.string().min(1, 'Escribe el motivo del cargo.').max(200),
+});
+
+export type CreateAdditionalChargeInput = z.infer<typeof createAdditionalChargeSchema>;

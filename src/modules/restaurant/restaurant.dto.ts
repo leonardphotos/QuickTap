@@ -92,6 +92,10 @@ export const updateRestaurantSchema = z.object({
   deliveryPricingMode: z.enum(['DISABLED', 'DISTANCE', 'ZONE']).optional(),
   deliveryBaseFee: z.coerce.number().nonnegative().optional(),
   deliveryPricePerKm: z.coerce.number().nonnegative().optional(),
+  // Despacho al terminar de cobrar: abrir la ventana de repartidores, o
+  // elegir repartidor automáticamente (ver Restaurant en schema.prisma).
+  deliveryAutoOpenOnPaid: z.boolean().optional(),
+  deliveryAutoAssignOnPaid: z.boolean().optional(),
 
   // Métodos de pago disponibles para los clientes del checkout de delivery/pickup.
   paymentMethodsConfig: paymentMethodsConfigSchema.optional(),

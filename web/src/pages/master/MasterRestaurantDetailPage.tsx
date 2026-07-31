@@ -537,41 +537,54 @@ export default function MasterRestaurantDetailPage() {
         {message && <p className="text-sm text-brand-950/70">{message}</p>}
       </div>
 
+      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-5">
+        <div>
+          <p className="font-semibold text-brand-950">Cobro</p>
+          <p className="text-sm text-brand-950/60 font-light mt-1">
+            Lo que este restaurante paga: su mensualidad y los cargos puntuales que se le sumen
+            aparte. El restaurante lo ve desglosado al momento de pagar.
+          </p>
+        </div>
+
+        <div>
+          <p className="text-sm font-medium text-brand-950/70 mb-2">Precio mensual acordado</p>
+          <p className="text-xs text-brand-950/40 font-light mb-2">
+            Reemplaza la tarifa pública de su plan. Déjalo vacío para volver a cobrarle el precio
+            de lista.
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="text-sm">
+              <span className="block text-brand-950/70 mb-1">USD / mes</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={customPriceInput}
+                onChange={(e) => setCustomPriceInput(e.target.value)}
+                placeholder="Precio de lista"
+                className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm w-40"
+              />
+            </label>
+            <TextureButton variant="minimal" size="default" disabled={busy} className="!w-auto" onClick={saveCustomPrice}>
+              {busy ? 'Guardando…' : 'Guardar precio'}
+            </TextureButton>
+          </div>
+        </div>
+
+        <div className="pt-1 border-t border-brand-950/[0.06]" />
+
+        <AdditionalChargesBlock restaurantId={id!} />
+      </div>
+
       {!detail.parentRestaurantId && (
         <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-5">
           <div>
             <p className="font-semibold text-brand-950">Sucursales</p>
             <p className="text-sm text-brand-950/60 font-light mt-1">
-              Precio mensual acordado con este restaurante y, si todavía no tiene ninguna, la
-              primera sucursal — sin pasar por el autoservicio del restaurante.
+              Si todavía no tiene ninguna, crea la primera sucursal — sin pasar por el
+              autoservicio del restaurante.
             </p>
           </div>
-
-          <div>
-            <p className="text-sm font-medium text-brand-950/70 mb-2">Precio mensual acordado</p>
-            <p className="text-xs text-brand-950/40 font-light mb-2">
-              Solo de referencia interna del equipo QuickTap — no afecta el reporte de "Ingresos de QuickTap".
-            </p>
-            <div className="flex flex-wrap items-end gap-3">
-              <label className="text-sm">
-                <span className="block text-brand-950/70 mb-1">USD / mes</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={customPriceInput}
-                  onChange={(e) => setCustomPriceInput(e.target.value)}
-                  placeholder="Sin definir"
-                  className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm w-40"
-                />
-              </label>
-              <TextureButton variant="minimal" size="default" disabled={busy} className="!w-auto" onClick={saveCustomPrice}>
-                {busy ? 'Guardando…' : 'Guardar precio'}
-              </TextureButton>
-            </div>
-          </div>
-
-          <div className="pt-1 border-t border-brand-950/[0.06]" />
 
           {detail.branches.length === 0 ? (
             <div className="flex items-start justify-between gap-3">
@@ -915,5 +928,154 @@ function DeleteRestaurantDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+interface AdditionalCharge {
+  id: string;
+  amountUsd: string;
+  description: string;
+  chargedAt: string | null;
+}
+
+/**
+ * "Costos adicionales" del bloque de Cobro: cargos puntuales (setup, QR NFC,
+ * diseño…) que se suman a la próxima mensualidad del restaurante. Se listan
+ * separados los pendientes de los ya cobrados — un cargo ya cobrado es
+ * histórico y no se puede borrar (ver master-restaurants.service.ts).
+ */
+function AdditionalChargesBlock({ restaurantId }: { restaurantId: string }) {
+  const [charges, setCharges] = useState<AdditionalCharge[]>([]);
+  const [amount, setAmount] = useState('');
+  const [description, setDescription] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    masterApi
+      .get(`/master/restaurants/${restaurantId}/additional-charges`)
+      .then((res) => setCharges(res.data.data))
+      .catch(() => setCharges([]));
+  }
+
+  useEffect(load, [restaurantId]);
+
+  async function add() {
+    setBusy(true);
+    setError(null);
+    try {
+      await masterApi.post(`/master/restaurants/${restaurantId}/additional-charges`, {
+        amountUsd: Number(amount),
+        description: description.trim(),
+      });
+      setAmount('');
+      setDescription('');
+      load();
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo agregar el cargo.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(chargeId: string) {
+    if (!confirm('¿Eliminar este cargo adicional?')) return;
+    setError(null);
+    try {
+      await masterApi.delete(`/master/restaurants/${restaurantId}/additional-charges/${chargeId}`);
+      load();
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo eliminar el cargo.');
+    }
+  }
+
+  const pending = charges.filter((c) => !c.chargedAt);
+  const charged = charges.filter((c) => c.chargedAt);
+  const pendingTotal = pending.reduce((acc, c) => acc + Number(c.amountUsd), 0);
+
+  return (
+    <div>
+      <p className="text-sm font-medium text-brand-950/70 mb-2">Costos adicionales</p>
+      <p className="text-xs text-brand-950/40 font-light mb-3">
+        Se suman a la próxima mensualidad. El restaurante los ve por separado, con su motivo y una
+        nota de que no son parte del cobro mensual.
+      </p>
+
+      <div className="flex flex-wrap items-end gap-3 mb-3">
+        <label className="text-sm">
+          <span className="block text-brand-950/70 mb-1">Monto (USD)</span>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0.00"
+            className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm w-32"
+          />
+        </label>
+        <label className="text-sm flex-1 min-w-[12rem]">
+          <span className="block text-brand-950/70 mb-1">Motivo</span>
+          <input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Ej: 20 QR NFC, diseño de menú…"
+            className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+          />
+        </label>
+        <TextureButton
+          variant="minimal"
+          size="default"
+          disabled={busy || !amount || !description.trim()}
+          className="!w-auto disabled:opacity-50"
+          onClick={add}
+        >
+          {busy ? 'Agregando…' : 'Agregar cargo'}
+        </TextureButton>
+      </div>
+
+      {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
+
+      {pending.length > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/60 p-3 mb-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-800 mb-2">
+            Pendientes de cobrar · ${pendingTotal.toFixed(2)}
+          </p>
+          <ul className="space-y-1.5">
+            {pending.map((c) => (
+              <li key={c.id} className="flex items-center justify-between gap-3 text-sm">
+                <span className="text-brand-950/80 min-w-0 truncate">{c.description}</span>
+                <span className="flex items-center gap-3 shrink-0">
+                  <span className="font-medium text-brand-950">${Number(c.amountUsd).toFixed(2)}</span>
+                  <button onClick={() => remove(c.id)} className="text-xs text-red-600 hover:text-red-700">
+                    Eliminar
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {charged.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-950/40 mb-1.5">Ya cobrados</p>
+          <ul className="space-y-1 text-sm">
+            {charged.map((c) => (
+              <li key={c.id} className="flex items-center justify-between gap-3 text-brand-950/50">
+                <span className="min-w-0 truncate">{c.description}</span>
+                <span className="shrink-0 font-light">
+                  ${Number(c.amountUsd).toFixed(2)} · {new Date(c.chargedAt!).toLocaleDateString('es-VE')}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {charges.length === 0 && (
+        <p className="text-sm text-brand-950/40 font-light">Sin cargos adicionales.</p>
+      )}
+    </div>
   );
 }

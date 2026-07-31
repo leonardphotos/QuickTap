@@ -371,6 +371,42 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
     }
   }
 
+  /**
+   * "Despacho automático al cobrar" (Ajustes → Delivery). Corre justo después
+   * de que una comanda de delivery queda saldada:
+   *  - "Enviar automáticamente": el servidor elige repartidor por turnos y se
+   *    abre su WhatsApp con la comanda.
+   *  - "Abrir el equipo de delivery": solo abre la ventana para elegir a mano.
+   * Nunca revienta el cobro, que ya se registró: un fallo acá solo se muestra
+   * como aviso y el pedido queda despachable a mano desde la lista.
+   */
+  async function autoDispatchAfterPayment(order: LiveOrder) {
+    if (order.channel !== 'DELIVERY') return;
+
+    if (restaurant?.deliveryAutoAssignOnPaid) {
+      // La pestaña se pide antes del await por el bloqueador de popups, igual
+      // que en dispatch(). Si aun así la bloquea, openInTabAndAutoClose cae en
+      // navegar la pestaña actual, así que el WhatsApp nunca se pierde.
+      const win = window.open('', '_blank');
+      try {
+        const { data } = await api.post(`/orders/${order.id}/dispatch-courier`, {});
+        if (data.data?.url) {
+          openInTabAndAutoClose(win, data.data.url);
+        } else {
+          // Sin repartidores activos: el backend devuelve null en vez de fallar.
+          win?.close();
+          setError('El pedido se cobró, pero no hay repartidores activos para despacharlo.');
+        }
+      } catch (e: any) {
+        win?.close();
+        setError(e.response?.data?.error ?? 'El pedido se cobró, pero no se pudo despachar automáticamente.');
+      }
+      return;
+    }
+
+    if (restaurant?.deliveryAutoOpenOnPaid) handleDeliveryClick(order);
+  }
+
   /** Siempre abre la ventana con todo el equipo de delivery para elegir, aunque haya un solo
    * repartidor — así el mesero/cajero ve y confirma explícitamente a quién le está despachando. */
   function handleDeliveryClick(order: LiveOrder) {
@@ -685,7 +721,11 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
           order={paymentDialog.order}
           mode={paymentDialog.mode}
           onClose={() => setPaymentDialog(null)}
-          onPaid={load}
+          onPaid={(fullyPaid) => {
+            const paidOrder = paymentDialog.order;
+            load();
+            if (fullyPaid) autoDispatchAfterPayment(paidOrder);
+          }}
         />
       )}
 
@@ -843,6 +883,32 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
     } finally {
       setDispatching(false);
     }
+  }
+
+  /** Igual que autoDispatchAfterPayment() en el panel: "Despacho automático al
+   * cobrar" (Ajustes → Delivery), para que funcione también cobrando desde la
+   * ficha del pedido y no solo desde la tarjeta de la lista. */
+  async function autoDispatchAfterPayment() {
+    if (order.channel !== 'DELIVERY') return;
+
+    if (restaurant?.deliveryAutoAssignOnPaid) {
+      const win = window.open('', '_blank');
+      try {
+        const { data } = await api.post(`/orders/${order.id}/dispatch-courier`, {});
+        if (data.data?.url) {
+          openInTabAndAutoClose(win, data.data.url);
+        } else {
+          win?.close();
+          setError('El pedido se cobró, pero no hay repartidores activos para despacharlo.');
+        }
+      } catch (e: any) {
+        win?.close();
+        setError(e.response?.data?.error ?? 'El pedido se cobró, pero no se pudo despachar automáticamente.');
+      }
+      return;
+    }
+
+    if (restaurant?.deliveryAutoOpenOnPaid) handleDeliveryClick();
   }
 
   /** Siempre abre la ventana con todo el equipo de delivery para elegir, aunque haya un solo
@@ -1470,7 +1536,10 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
           order={order}
           mode={paymentMode}
           onClose={() => setPaymentMode(null)}
-          onPaid={onSaved}
+          onPaid={(fullyPaid) => {
+            onSaved();
+            if (fullyPaid) autoDispatchAfterPayment();
+          }}
         />
       )}
 

@@ -7,6 +7,7 @@ import {
   createInstallmentPlanRequestSchema,
   createPlanRequestSchema,
   createRamblayCheckoutSchema,
+  quoteQuerySchema,
   rejectPlanRequestSchema,
   updatePlanRequestSchema,
 } from './plan-request.dto';
@@ -43,6 +44,14 @@ export const planRequestController = {
   /** GET /api/v1/plan-requests/installment/pending — retoma el pago fraccionado pendiente, si hay uno. */
   getPendingInstallment: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await planRequestService.getPendingInstallment(req.restaurantId!) });
+  }),
+
+  /** GET /api/v1/plan-requests/quote — mensualidad + cargos adicionales, desglosado. */
+  getQuote: asyncHandler(async (req: Request, res: Response) => {
+    const input = quoteQuerySchema.parse(req.query);
+    res.json({
+      data: await planRequestService.getQuote(req.restaurantId!, input.plan, input.billingCycle, input.promoCode),
+    });
   }),
 
   /** POST /api/v1/plan-requests/:id/payments — registra un abono (monto + método + comprobante). */

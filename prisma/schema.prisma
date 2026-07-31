@@ -257,9 +257,10 @@ model Restaurant {
   rif                  String?
 
   // Precio mensual acordado manualmente por el equipo QuickTap (ej. tarifa negociada al
-  // habilitar sucursales fuera del tabla de precios compartida) — ver master-restaurants.service.ts.
-  // Puramente informativo/de referencia para el equipo QuickTap: no alimenta automáticamente
-  // "Ingresos de QuickTap" (eso sigue viniendo de PlanRequest.priceUsd).
+  // habilitar sucursales fuera de la tabla de precios compartida) — ver Dashboard maestro →
+  // Cobro. Cuando tiene valor, ES el precio que se le cobra al restaurante: manda sobre la
+  // tarifa pública del plan (ver resolvePrice en plan-request.service.ts). El código
+  // promocional se sigue aplicando encima, igual que sobre la tarifa pública.
   customMonthlyPriceUsd Decimal? @db.Decimal(10, 2)
 
   // --- Migración desde OlaClick (herramienta interna, panel master) ---
@@ -288,6 +289,16 @@ model Restaurant {
   // Modo DISTANCE: tarifa fija + precio por Km recorrido.
   deliveryBaseFee     Decimal             @default(0) @db.Decimal(12, 2)
   deliveryPricePerKm  Decimal             @default(0) @db.Decimal(12, 2)
+
+  // --- Despacho automático al cobrar (Ajustes → Delivery) ---
+  // Al terminar de cobrar un pedido DELIVERY, abrir solo la ventana de
+  // "Equipo de delivery" para que el cajero elija repartidor sin buscar el
+  // pedido en la lista. No despacha nada por su cuenta.
+  deliveryAutoOpenOnPaid   Boolean @default(false)
+  // Un paso más: elige el repartidor automáticamente (rotación por quien
+  // lleva más tiempo sin recibir un pedido) y arma su WhatsApp, sin
+  // preguntar. Tiene prioridad sobre deliveryAutoOpenOnPaid.
+  deliveryAutoAssignOnPaid Boolean @default(false)
 
   // Métodos de pago que el restaurante ofrece a SUS clientes en el checkout
   // (distinto de PlatformSettings, que es cómo el restaurante le paga a
@@ -384,6 +395,7 @@ model Restaurant {
   inventoryCategories   InventoryCategory[]
   recipeIngredients     RecipeIngredient[]
   deliveryCouriers      DeliveryCourier[]
+  additionalCharges     AdditionalCharge[]
   deliveryZones         DeliveryZone[]
   movements             Movement[]
   cashSessions          CashSession[]
@@ -1408,6 +1420,33 @@ model QrNfcRequest {
   @@index([restaurantId])
   @@index([status])
   @@map("qr_nfc_requests")
+}
+
+// Cobro puntual que el equipo QuickTap le suma a un restaurante por fuera de
+// la mensualidad (Dashboard maestro → Cobro): setup, diseño, QR NFC, soporte
+// extra, etc. Se suma al total de la próxima mensualidad, pero SIEMPRE se
+// muestra desglosado y etiquetado como cargo adicional — el restaurante tiene
+// que poder ver por qué está pagando más que su tarifa mensual habitual.
+model AdditionalCharge {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  amountUsd   Decimal @db.Decimal(10, 2)
+  // El "x motivo" que se le muestra al restaurante al cobrarle.
+  description String
+
+  // Se marca al aprobar la solicitud de plan que lo incluyó (ver
+  // applyActivation), para que no se vuelva a cobrar en la mensualidad
+  // siguiente.
+  chargedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, chargedAt])
+  @@map("additional_charges")
 }
 
 // Códigos de descuento para la pasarela de pago (10%–100%).

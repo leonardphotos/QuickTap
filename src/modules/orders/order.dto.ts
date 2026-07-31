@@ -210,8 +210,10 @@ export const changeChannelSchema = z
   });
 
 /** "Delivery" en el panel de Pedidos en vivo: a qué repartidor despachar la comanda. */
+// Sin courierId: el servidor elige repartidor por rotación ("despacho automático
+// al cobrar", Ajustes → Delivery). Con courierId: lo eligió el cajero a mano.
 export const dispatchCourierSchema = z.object({
-  courierId: z.string().min(1, 'Elige un repartidor.'),
+  courierId: z.string().min(1, 'Elige un repartidor.').optional(),
 });
 
 /** Cotización en vivo del costo de envío, antes de enviar el pedido. */

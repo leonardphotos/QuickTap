@@ -1447,6 +1447,37 @@ export const orderService = {
    * de la comanda (sin precios) y los datos de contacto/ubicación del
    * cliente, para que pueda llamarlo o ubicarlo.
    */
+  /**
+   * "Despacho automático al cobrar" (Ajustes → Delivery): elige repartidor por
+   * rotación — el activo que lleva más tiempo sin recibir un pedido, y los que
+   * nunca recibieron ninguno primero. Así el reparto se distribuye solo en vez
+   * de caerle siempre al primero de la lista.
+   *
+   * Devuelve null (sin lanzar) si el restaurante no tiene repartidores activos:
+   * esto corre justo después de confirmar un cobro y jamás debe romperlo.
+   */
+  async autoDispatchToCourier(restaurantId: string, orderId: string) {
+    const couriers = await prisma.deliveryCourier.findMany({
+      where: { restaurantId, isActive: true },
+      select: { id: true },
+    });
+    if (couriers.length === 0) return null;
+
+    const lastDispatches = await prisma.order.groupBy({
+      by: ['deliveryCourierId'],
+      where: { restaurantId, deliveryCourierId: { in: couriers.map((c) => c.id) } },
+      _max: { deliveryDispatchedAt: true },
+    });
+    const lastByCourier = new Map(
+      lastDispatches.map((d) => [d.deliveryCourierId as string, d._max.deliveryDispatchedAt?.getTime() ?? 0]),
+    );
+
+    const chosen = couriers.reduce((best, c) =>
+      (lastByCourier.get(c.id) ?? 0) < (lastByCourier.get(best.id) ?? 0) ? c : best,
+    );
+    return this.dispatchToCourier(restaurantId, orderId, chosen.id);
+  },
+
   async dispatchToCourier(restaurantId: string, orderId: string, courierId: string) {
     const [order, courier] = await Promise.all([
       prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { items: { include: { modifiers: true } } } }),

@@ -3,6 +3,7 @@ import { asyncHandler } from '../../middlewares/error.middleware';
 import { activateRestaurantSchema } from '../plan-requests/plan-request.dto';
 import { planRequestService } from '../plan-requests/plan-request.service';
 import {
+  createAdditionalChargeSchema,
   createBranchForRestaurantSchema,
   extendDaysSchema,
   setCustomMonthlyPriceSchema,
@@ -54,6 +55,19 @@ export const masterRestaurantsController = {
   setCustomMonthlyPrice: asyncHandler(async (req: Request, res: Response) => {
     const { customMonthlyPriceUsd } = setCustomMonthlyPriceSchema.parse(req.body);
     res.json({ data: await masterRestaurantsService.setCustomMonthlyPrice(req.params.id, customMonthlyPriceUsd) });
+  }),
+  /** GET /master/restaurants/:id/additional-charges — cargos aparte de la mensualidad. */
+  listAdditionalCharges: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await masterRestaurantsService.listAdditionalCharges(req.params.id) });
+  }),
+  /** POST /master/restaurants/:id/additional-charges — agrega un cargo puntual (monto + motivo). */
+  createAdditionalCharge: asyncHandler(async (req: Request, res: Response) => {
+    const input = createAdditionalChargeSchema.parse(req.body);
+    res.status(201).json({ data: await masterRestaurantsService.createAdditionalCharge(req.params.id, input) });
+  }),
+  /** DELETE /master/restaurants/:id/additional-charges/:chargeId — solo si aún no se cobró. */
+  removeAdditionalCharge: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await masterRestaurantsService.removeAdditionalCharge(req.params.id, req.params.chargeId) });
   }),
   /** Edita nombre/correo/contraseña de un usuario del restaurante. */
   updateUser: asyncHandler(async (req: Request, res: Response) => {

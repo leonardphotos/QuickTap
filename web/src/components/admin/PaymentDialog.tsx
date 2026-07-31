@@ -44,7 +44,8 @@ interface Props {
   order: LiveOrder;
   mode: 'full' | 'split';
   onClose: () => void;
-  onPaid: () => void;
+  /** `fullyPaid` = con este pago la comanda quedó saldada (no fue un abono parcial). */
+  onPaid: (fullyPaid: boolean) => void;
 }
 
 /** Fila de un pago ya registrado (histórico o hecho en esta misma sesión del diálogo), para el desglose final. */
@@ -177,9 +178,10 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
       const freshPayments: LiveOrderPayment[] = data.data?.payments ?? [];
       const newPayments = freshPayments.filter((fp) => !order.payments.some((p) => p.id === fp.id));
       setSessionPayments((prev) => [...prev, ...newPayments]);
-      onPaid();
       const remaining = balanceBase - amountBase;
-      if (mode === 'full' || remaining <= 0.01) {
+      const fullyPaid = mode === 'full' || remaining <= 0.01;
+      onPaid(fullyPaid);
+      if (fullyPaid) {
         setShowPrintPrompt(true);
       } else {
         setPaidNow(amountBase);

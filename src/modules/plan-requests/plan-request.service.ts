@@ -141,24 +141,71 @@ async function applyActivation(
     data: { subscriptionPlan: plan, billingCycle, ...customFlags },
   });
 
+  // Los cargos adicionales pendientes ya venían sumados en el monto que se
+  // acaba de cobrar (ver resolvePrice), así que se dan por cobrados — si no,
+  // se volverían a cobrar en la mensualidad siguiente.
+  await prisma.additionalCharge.updateMany({
+    where: { restaurantId, chargedAt: null },
+    data: { chargedAt: new Date() },
+  });
+
   return updated;
 }
 
-/** Precio final del plan tras aplicar el código promocional, si hay uno válido. */
-async function resolvePrice(plan: PurchasablePlan, billingCycle: BillingCycle, promoCode?: string) {
+/**
+ * Precio final a cobrar: mensualidad (tarifa pública del plan, o el precio
+ * acordado con ese restaurante en particular si el equipo QuickTap le cargó
+ * uno) + los cargos adicionales pendientes, tras aplicar el código promocional.
+ *
+ * El promocional SOLO descuenta la mensualidad: un cargo adicional es un costo
+ * puntual y concreto (un QR NFC, un diseño), no algo sobre lo que corresponda
+ * aplicar un % de descuento de campaña.
+ */
+async function resolvePrice(
+  plan: PurchasablePlan,
+  billingCycle: BillingCycle,
+  promoCode?: string,
+  restaurantId?: string,
+) {
+  const restaurant = restaurantId
+    ? await prisma.restaurant.findUnique({
+        where: { id: restaurantId },
+        select: { customMonthlyPriceUsd: true },
+      })
+    : null;
+
   // Fuente de verdad real: lo editado desde el Dashboard maestro (platform_settings.planContent),
   // con FIXED_PLAN_PRICES como respaldo si por lo que sea la fila no tuviera nada cargado aún.
-  let priceUsd: number = await platformSettingsService.getPlanPrice(plan, billingCycle);
-  if (!Number.isFinite(priceUsd) || priceUsd <= 0) priceUsd = FIXED_PLAN_PRICES[plan][billingCycle];
-  if (!Number.isFinite(priceUsd) || priceUsd <= 0) {
+  let monthlyUsd: number;
+  const agreed = restaurant?.customMonthlyPriceUsd;
+  if (agreed != null && Number(agreed) > 0) {
+    monthlyUsd = Number(agreed);
+  } else {
+    monthlyUsd = await platformSettingsService.getPlanPrice(plan, billingCycle);
+    if (!Number.isFinite(monthlyUsd) || monthlyUsd <= 0) monthlyUsd = FIXED_PLAN_PRICES[plan][billingCycle];
+  }
+  if (!Number.isFinite(monthlyUsd) || monthlyUsd <= 0) {
     throw badRequest('No se pudo calcular el precio del plan.');
   }
 
   const promo = await promoCodeService.tryApply(promoCode);
   if (promoCode && !promo) throw badRequest('Código de descuento inválido.');
-  if (promo) priceUsd = Math.round(priceUsd * (1 - promo.discountPercent / 100) * 100) / 100;
+  if (promo) monthlyUsd = Math.round(monthlyUsd * (1 - promo.discountPercent / 100) * 100) / 100;
 
-  return { priceUsd, promo };
+  const charges = restaurantId ? await listPendingCharges(restaurantId) : [];
+  const chargesUsd = charges.reduce((acc, c) => acc + Number(c.amountUsd), 0);
+  const priceUsd = Math.round((monthlyUsd + chargesUsd) * 100) / 100;
+
+  return { priceUsd, monthlyUsd, charges, promo };
+}
+
+/** Cargos adicionales que todavía no se cobraron en ninguna mensualidad. */
+function listPendingCharges(restaurantId: string) {
+  return prisma.additionalCharge.findMany({
+    where: { restaurantId, chargedAt: null },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, amountUsd: true, description: true },
+  });
 }
 
 export const planRequestService = {
@@ -169,7 +216,7 @@ export const planRequestService = {
       throw badRequest('El pago manual está deshabilitado por ahora. Intenta con Ramblay o contáctanos.');
     }
 
-    const { priceUsd, promo } = await resolvePrice(input.plan, input.billingCycle, input.promoCode);
+    const { priceUsd, promo } = await resolvePrice(input.plan, input.billingCycle, input.promoCode, opts.restaurantId);
 
     return prisma.planRequest.create({
       data: {
@@ -209,7 +256,7 @@ export const planRequestService = {
       throw badRequest('El pago manual está deshabilitado por ahora. Intenta con Ramblay o contáctanos.');
     }
 
-    const { priceUsd, promo } = await resolvePrice(input.plan, input.billingCycle, input.promoCode);
+    const { priceUsd, promo } = await resolvePrice(input.plan, input.billingCycle, input.promoCode, opts.restaurantId);
 
     return prisma.planRequest.create({
       data: {
@@ -240,6 +287,27 @@ export const planRequestService = {
 
   /** El restaurante retoma su "pago fraccionado" pendiente (si tiene uno) al volver a la
    * pantalla de facturación, en vez de crear uno nuevo cada vez. */
+  /**
+   * Desglose de lo que va a pagar el restaurante, para mostrarlo ANTES de
+   * cobrar (pantalla de Facturación): mensualidad por un lado y cada cargo
+   * adicional con su motivo por el otro. Sin esto el restaurante solo vería un
+   * total más alto que su tarifa habitual, sin explicación.
+   */
+  async getQuote(restaurantId: string, plan: PurchasablePlan, billingCycle: BillingCycle, promoCode?: string) {
+    const { priceUsd, monthlyUsd, charges, promo } = await resolvePrice(plan, billingCycle, promoCode, restaurantId);
+    return {
+      monthlyUsd: monthlyUsd.toFixed(2),
+      additionalCharges: charges.map((c) => ({
+        id: c.id,
+        description: c.description,
+        amountUsd: Number(c.amountUsd).toFixed(2),
+      })),
+      totalUsd: priceUsd.toFixed(2),
+      promoCode: promo?.code ?? null,
+      discountPercent: promo?.discountPercent ?? null,
+    };
+  },
+
   async getPendingInstallment(restaurantId: string) {
     return prisma.planRequest.findFirst({
       where: { restaurantId, status: 'PENDING', paymentReference: INSTALLMENT_PLACEHOLDER_REFERENCE },
@@ -283,7 +351,7 @@ export const planRequestService = {
       throw badRequest('El pago con Ramblay está deshabilitado por ahora. Intenta con el pago manual.');
     }
 
-    const { priceUsd, promo } = await resolvePrice(input.plan, input.billingCycle, input.promoCode);
+    const { priceUsd, promo } = await resolvePrice(input.plan, input.billingCycle, input.promoCode, opts.restaurantId);
 
     const planRequest = await prisma.planRequest.create({
       data: {
