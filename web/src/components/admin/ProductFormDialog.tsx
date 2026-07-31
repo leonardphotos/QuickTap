@@ -37,7 +37,15 @@ const emptyForm = {
   isStar: false,
   isPromo: false,
   isHouseSpecial: false,
+  promoPriceEnabled: false,
+  promoPrice: '',
+  promoStartTime: '',
+  promoEndTime: '',
+  promoStartDate: '',
+  promoEndDate: '',
 };
+
+const DAY_LABELS = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
 export function ProductFormDialog({
   open,
@@ -57,6 +65,7 @@ export function ProductFormDialog({
   const [justCreated, setJustCreated] = useState(false);
 
   const [pricingMode, setPricingMode] = useState<'SIMPLE' | 'VARIANTS'>('SIMPLE');
+  const [promoDaysOfWeek, setPromoDaysOfWeek] = useState<number[]>([]);
   const [variants, setVariants] = useState<ProductVariant[]>([]);
   const [linkedCategories, setLinkedCategories] = useState<ModifierCategory[]>([]);
   const [libraryCategories, setLibraryCategories] = useState<ModifierCategory[]>([]);
@@ -81,15 +90,23 @@ export function ProductFormDialog({
         isStar: product.isStar,
         isPromo: product.isPromo,
         isHouseSpecial: product.isHouseSpecial,
+        promoPriceEnabled: product.promoPriceEnabled ?? false,
+        promoPrice: product.promoPrice ?? '',
+        promoStartTime: product.promoStartTime ?? '',
+        promoEndTime: product.promoEndTime ?? '',
+        promoStartDate: product.promoStartDate ?? '',
+        promoEndDate: product.promoEndDate ?? '',
       });
       setPricingMode(product.pricingMode ?? 'SIMPLE');
       setVariants(product.variants ?? []);
       setLinkedCategories(product.modifierCategories ?? []);
+      setPromoDaysOfWeek(product.promoDaysOfWeek ?? []);
     } else {
       setForm({ ...emptyForm, categoryId: categories[0]?.id ?? '' });
       setPricingMode('SIMPLE');
       setVariants([]);
       setLinkedCategories([]);
+      setPromoDaysOfWeek([]);
       setJustCreated(false);
     }
     setShowCategoryPicker(false);
@@ -123,6 +140,13 @@ export function ProductFormDialog({
         isStar: form.isStar,
         isPromo: form.isPromo,
         isHouseSpecial: form.isHouseSpecial,
+        promoPriceEnabled: form.promoPriceEnabled,
+        promoPrice: form.promoPriceEnabled && form.promoPrice ? Number(form.promoPrice) : null,
+        promoStartTime: form.promoPriceEnabled && form.promoStartTime ? form.promoStartTime : null,
+        promoEndTime: form.promoPriceEnabled && form.promoEndTime ? form.promoEndTime : null,
+        promoDaysOfWeek: form.promoPriceEnabled ? promoDaysOfWeek : [],
+        promoStartDate: form.promoPriceEnabled && form.promoStartDate ? form.promoStartDate : null,
+        promoEndDate: form.promoPriceEnabled && form.promoEndDate ? form.promoEndDate : null,
       };
       if (product) {
         await api.patch(`/products/${product.id}`, payload);
@@ -305,6 +329,97 @@ export function ProductFormDialog({
               </div>
             )}
           </div>
+
+          {pricingMode === 'SIMPLE' && (
+            <div className="rounded-xl border border-brand-950/10 p-3 space-y-2.5">
+              <label className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-brand-950/70">⏰ Promoción por tiempo</span>
+                <input
+                  type="checkbox"
+                  checked={form.promoPriceEnabled}
+                  onChange={(e) => setForm({ ...form, promoPriceEnabled: e.target.checked })}
+                />
+              </label>
+              {form.promoPriceEnabled && (
+                <div className="space-y-2.5">
+                  <p className="text-xs text-brand-950/45 font-light">
+                    Precio especial que solo aplica dentro de la ventana que definas abajo (hora, días y/o fechas — las que dejes
+                    cargadas deben cumplirse todas a la vez; deja algo vacío para no restringir por ese lado).
+                  </p>
+                  <input
+                    value={form.promoPrice}
+                    onChange={(e) => setForm({ ...form, promoPrice: e.target.value })}
+                    placeholder={`Precio de promoción en ${currencySymbol}`}
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="text-[11px] text-brand-950/40">Desde la hora</span>
+                      <input
+                        value={form.promoStartTime}
+                        onChange={(e) => setForm({ ...form, promoStartTime: e.target.value })}
+                        type="time"
+                        className="mt-0.5 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-[11px] text-brand-950/40">Hasta la hora</span>
+                      <input
+                        value={form.promoEndTime}
+                        onChange={(e) => setForm({ ...form, promoEndTime: e.target.value })}
+                        type="time"
+                        className="mt-0.5 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                      />
+                    </label>
+                  </div>
+                  <div>
+                    <span className="text-[11px] text-brand-950/40">Días de la semana (ninguno = todos)</span>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {DAY_LABELS.map((label, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() =>
+                            setPromoDaysOfWeek((days) => (days.includes(idx) ? days.filter((d) => d !== idx) : [...days, idx]))
+                          }
+                          className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
+                            promoDaysOfWeek.includes(idx)
+                              ? 'bg-brand-500 text-white border-brand-500'
+                              : 'text-brand-950/60 border-brand-950/15'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="block">
+                      <span className="text-[11px] text-brand-950/40">Desde la fecha</span>
+                      <input
+                        value={form.promoStartDate}
+                        onChange={(e) => setForm({ ...form, promoStartDate: e.target.value })}
+                        type="date"
+                        className="mt-0.5 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                      />
+                    </label>
+                    <label className="block">
+                      <span className="text-[11px] text-brand-950/40">Hasta la fecha</span>
+                      <input
+                        value={form.promoEndDate}
+                        onChange={(e) => setForm({ ...form, promoEndDate: e.target.value })}
+                        type="date"
+                        className="mt-0.5 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <textarea
             value={form.description}

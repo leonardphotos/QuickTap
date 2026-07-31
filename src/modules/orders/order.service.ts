@@ -16,6 +16,7 @@ import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { resolveDateFilter } from '../../utils/date-range';
 import { hourCaracas, startOfTodayCaracas, startOfWeekCaracas } from '../../utils/timezone';
 import { assertRestaurantOpen } from '../../utils/business-hours';
+import { effectiveProductPrice } from '../../utils/promo-price';
 import { haversineDistanceKm, isPointInPolygon, LatLng } from '../../utils/geo';
 import { tableSessionService } from '../table-sessions/table-session.service';
 import { fiscalInvoicingService } from '../fiscal-invoicing/fiscal-invoicing.service';
@@ -94,7 +95,9 @@ async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<
       throw badRequest(`"${product.name}" no está disponible en este momento.`);
     }
 
-    let basePrice = product.price;
+    // Precio de promoción por tiempo (si está activa ahora — hora/días/fechas configurados en
+    // el producto): solo aplica al precio simple, no a variantes (ver promo-price.ts).
+    let basePrice = effectiveProductPrice(product);
     let variantName: string | null = null;
     if (product.pricingMode === 'VARIANTS') {
       const variant = product.variants.find((v) => v.id === item.variantId);
@@ -887,11 +890,20 @@ export const orderService = {
     });
 
     // Notifica en vivo a la sección Delivery (y a Cocina, que también lista todos los canales).
+    // Incluye teléfono/dirección/método de pago: la Estación de Impresión los usa para armar
+    // la comanda de delivery (nombre + monto + descripción + ubicación, todo junto) cuando el
+    // restaurante acepte el pedido (ver acceptOrder más abajo — ahí es cuando se imprime).
     emitToKitchen(restaurantId, SocketEvents.ORDER_NEW, {
       orderId: order.id,
       orderNumber: order.orderNumber,
       channel: order.channel,
+      status: order.status,
       customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      customerAddress: order.customerAddress,
+      customerNote: order.customerNote,
+      paymentMethod: order.paymentMethod,
+      deliveryFeeBase: order.deliveryFeeBase,
       items: order.items.map((i) => ({
         name: i.productName,
         variantName: i.variantName,
@@ -1284,7 +1296,47 @@ export const orderService = {
       });
     }
 
-    emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId: order.id, status: order.status });
+    // Delivery: manda el pedido completo (no solo status) — la Estación de Impresión lo usa
+    // para imprimir automáticamente, recién ahora que se aceptó, la comanda de delivery
+    // (nombre + monto + descripción + ubicación juntos) en la impresora dedicada a Delivery.
+    if (order.channel === 'DELIVERY') {
+      const full = await prisma.order.findUnique({
+        where: { id: order.id },
+        include: { items: { include: { modifiers: true } } },
+      });
+      emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, {
+        orderId: order.id,
+        status: order.status,
+        channel: full!.channel,
+        orderNumber: full!.orderNumber,
+        customerName: full!.customerName,
+        customerPhone: full!.customerPhone,
+        customerAddress: full!.customerAddress,
+        customerNote: full!.customerNote,
+        paymentMethod: full!.paymentMethod,
+        deliveryFeeBase: full!.deliveryFeeBase,
+        items: full!.items.map((i) => ({
+          name: i.productName,
+          variantName: i.variantName,
+          quantity: i.quantity,
+          unitPrice: i.unitPrice.toString(),
+          lineTotal: i.lineTotal.toString(),
+          modifiers: i.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase.toString(), quantity: m.quantity })),
+          note: i.note,
+          kitchenName: i.kitchenName,
+        })),
+        subtotalBase: full!.subtotalBase,
+        serviceChargeBase: full!.serviceChargeBase,
+        ivaBase: full!.ivaBase,
+        totalBase: full!.totalBase,
+        currency: full!.currency,
+        exchangeRate: full!.exchangeRate,
+        totalBs: full!.totalBs,
+        createdAt: full!.createdAt,
+      });
+    } else {
+      emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId: order.id, status: order.status });
+    }
     return order;
   },
 

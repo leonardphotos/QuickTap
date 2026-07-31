@@ -4,6 +4,7 @@ import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { CURRENCY_SYMBOLS, round2, toDecimal } from '../../utils/money';
 import { isLockedAsync } from '../../utils/subscription';
 import { getRestaurantOpenStatus } from '../../utils/business-hours';
+import { effectiveProductPrice, isPromoPriceActive } from '../../utils/promo-price';
 
 /**
  * Servicio del menú público. Se resuelve por `slug` (no requiere auth) y
@@ -97,6 +98,13 @@ export const menuService = {
             name: true,
             description: true,
             price: true,
+            promoPriceEnabled: true,
+            promoPrice: true,
+            promoStartTime: true,
+            promoEndTime: true,
+            promoDaysOfWeek: true,
+            promoStartDate: true,
+            promoEndDate: true,
             photoUrl: true,
             prepTimeMinutes: true,
             isStar: true,
@@ -141,11 +149,17 @@ export const menuService = {
       .map((c) => ({
         id: c.id,
         name: c.name,
-        products: c.products.map((p) => ({
+        products: c.products.map((p) => {
+          // Promoción por tiempo activa ahora mismo: se muestra el precio especial
+          // ya calculado, más el precio normal aparte para tacharlo en el frontend.
+          const onTimePromo = p.pricingMode === 'SIMPLE' && isPromoPriceActive(p);
+          return {
           id: p.id,
           name: p.name,
           description: p.description,
-          price: p.price,
+          price: onTimePromo ? effectiveProductPrice(p) : p.price,
+          originalPrice: onTimePromo ? p.price : null,
+          onTimePromo,
           photoUrl: p.photoUrl,
           prepTimeMinutes: p.prepTimeMinutes,
           isStar: p.isStar,
@@ -171,7 +185,8 @@ export const menuService = {
               maxQuantity: m.maxQuantity,
             })),
           })),
-        })),
+          };
+        }),
       }));
 
     // Secciones destacadas transversales (para carruseles / banners arriba).

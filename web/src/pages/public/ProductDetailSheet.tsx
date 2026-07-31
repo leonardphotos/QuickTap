@@ -187,11 +187,12 @@ export default function ProductDetailSheet({
               <div className="px-6 pt-4 pb-6">
                 <div className="flex items-start justify-between gap-3">
                   <h2 className="text-xl font-semibold text-brand-950">{product.name}</h2>
-                  {(product.isStar || product.isPromo || product.isHouseSpecial) && (
+                  {(product.isStar || product.isPromo || product.isHouseSpecial || product.onTimePromo) && (
                     <div className="flex gap-1 shrink-0 pt-1">
                       {product.isStar && <Badge color="amber">Estrella</Badge>}
                       {product.isPromo && <Badge color="rose">Promo</Badge>}
                       {product.isHouseSpecial && <Badge color="indigo">Recomendado</Badge>}
+                      {product.onTimePromo && <Badge color="emerald">⏰ Oferta</Badge>}
                     </div>
                   )}
                 </div>
@@ -445,11 +446,12 @@ function SuggestionCard({ product, restaurant, onClick }: { product: Product; re
   );
 }
 
-function Badge({ children, color }: { children: string; color: 'amber' | 'rose' | 'indigo' }) {
+function Badge({ children, color }: { children: string; color: 'amber' | 'rose' | 'indigo' | 'emerald' }) {
   const map = {
     amber: 'bg-amber-100 text-amber-700',
     rose: 'bg-rose-100 text-rose-700',
     indigo: 'bg-indigo-100 text-indigo-700',
+    emerald: 'bg-emerald-100 text-emerald-700',
   };
   return <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${map[color]}`}>{children}</span>;
 }

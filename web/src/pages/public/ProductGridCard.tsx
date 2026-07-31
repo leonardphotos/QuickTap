@@ -9,6 +9,7 @@ interface Props {
 
 export default function ProductGridCard({ product, restaurant, onOpen }: Props) {
   const price = publicPriceLabel(product.price, restaurant);
+  const originalPrice = product.onTimePromo && product.originalPrice ? publicPriceLabel(product.originalPrice, restaurant) : null;
 
   return (
     <button
@@ -29,14 +30,16 @@ export default function ProductGridCard({ product, restaurant, onOpen }: Props) 
             🍽️
           </div>
         )}
-        <span className="absolute -bottom-2 right-2 bg-brand-500 text-[color:var(--qt-button-text,white)] text-xs font-semibold px-2.5 py-1 rounded-full shadow">
+        <span className="absolute -bottom-2 right-2 flex items-center gap-1.5 bg-brand-500 text-[color:var(--qt-button-text,white)] text-xs font-semibold px-2.5 py-1 rounded-full shadow">
+          {originalPrice && <span className="opacity-60 line-through font-normal">{originalPrice.primary}</span>}
           {price.primary}
         </span>
-        {(product.isStar || product.isPromo || product.isHouseSpecial) && (
+        {(product.isStar || product.isPromo || product.isHouseSpecial || product.onTimePromo) && (
           <div className="absolute top-1.5 left-1.5 flex flex-col gap-1 items-start">
             {product.isStar && <Badge color="amber">Estrella</Badge>}
             {product.isPromo && <Badge color="rose">Promo</Badge>}
             {product.isHouseSpecial && <Badge color="indigo">Recomendado</Badge>}
+            {product.onTimePromo && <Badge color="emerald">⏰ Oferta</Badge>}
           </div>
         )}
       </div>
@@ -49,11 +52,12 @@ export default function ProductGridCard({ product, restaurant, onOpen }: Props) 
   );
 }
 
-function Badge({ children, color }: { children: string; color: 'amber' | 'rose' | 'indigo' }) {
+function Badge({ children, color }: { children: string; color: 'amber' | 'rose' | 'indigo' | 'emerald' }) {
   const map = {
     amber: 'bg-amber-100 text-amber-700',
     rose: 'bg-rose-100 text-rose-700',
     indigo: 'bg-indigo-100 text-indigo-700',
+    emerald: 'bg-emerald-100 text-emerald-700',
   };
   return <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full shadow-sm ${map[color]}`}>{children}</span>;
 }

@@ -192,6 +192,22 @@ export interface Product {
   isStar: boolean;
   isPromo: boolean;
   isHouseSpecial: boolean;
+  // Promoción por tiempo: precio especial que solo aplica dentro de la ventana configurada
+  // (hora / días de la semana / rango de fechas). Solo aplica a pricingMode SIMPLE.
+  promoPriceEnabled?: boolean;
+  promoPrice?: string | null;
+  /** "HH:mm" 24h, hora de Caracas. */
+  promoStartTime?: string | null;
+  promoEndTime?: string | null;
+  /** 0=domingo..6=sábado. Vacío = todos los días. */
+  promoDaysOfWeek?: number[];
+  /** "YYYY-MM-DD". */
+  promoStartDate?: string | null;
+  promoEndDate?: string | null;
+  // Devueltos por el menú público cuando la promoción está activa ahora mismo (ver menu.service.ts):
+  // `price` ya viene como el precio de promo, `originalPrice` es el normal para tacharlo.
+  originalPrice?: string | null;
+  onTimePromo?: boolean;
   priority: number;
   category?: { id: string; name: string };
   // "SIMPLE" = precio único (el campo price); "VARIANTS" = el cliente elige entre `variants`.

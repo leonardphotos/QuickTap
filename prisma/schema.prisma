@@ -593,6 +593,24 @@ model Product {
   isPromo        Boolean @default(false) // Promoción
   isHouseSpecial Boolean @default(false) // Recomendación de la Casa
 
+  // --- Promoción por tiempo: precio especial que solo aplica dentro de una ventana ---
+  // (hora del día, días de la semana y/o rango de fechas — las tres condiciones son
+  // opcionales e independientes, y TODAS las que estén configuradas deben cumplirse a
+  // la vez). Se evalúa en vivo (hora de Caracas) tanto en el menú público como al
+  // cobrar (ver src/utils/promo-price.ts) — nunca se persiste si está "activa ahora".
+  // Solo aplica a productos de precio simple (pricingMode = SIMPLE), no a variantes.
+  promoPriceEnabled Boolean   @default(false)
+  promoPrice        Decimal?  @db.Decimal(12, 2)
+  // "HH:mm" 24h, hora de Caracas. Null en cualquiera de los dos = sin restricción de hora.
+  // Si promoEndTime < promoStartTime se interpreta como un rango que cruza la medianoche.
+  promoStartTime String?
+  promoEndTime   String?
+  // 0=domingo..6=sábado (igual que Date#getDay()). Vacío = todos los días.
+  promoDaysOfWeek Int[]     @default([])
+  // Rango de fechas (inclusive, medianoche a medianoche hora de Caracas). Null = sin límite.
+  promoStartDate DateTime?
+  promoEndDate   DateTime?
+
   // Orden dentro de su categoría.
   priority Int @default(0)
 

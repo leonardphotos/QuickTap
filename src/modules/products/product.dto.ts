@@ -31,6 +31,36 @@ export const createProductSchema = z.object({
   isPromo: z.boolean().optional().default(false),
   isHouseSpecial: z.boolean().optional().default(false),
 
+  // Promoción por tiempo: precio especial que solo aplica dentro de la ventana configurada
+  // (hora del día / días de la semana / rango de fechas — todas las que estén cargadas deben
+  // cumplirse a la vez). Solo tiene efecto en productos de precio simple.
+  promoPriceEnabled: z.boolean().optional().default(false),
+  promoPrice: z.coerce.number().nonnegative('El precio de promoción no puede ser negativo.').nullable().optional(),
+  // "HH:mm" 24h, hora de Caracas.
+  promoStartTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Hora inválida, usa formato HH:mm.')
+    .nullable()
+    .optional(),
+  promoEndTime: z
+    .string()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Hora inválida, usa formato HH:mm.')
+    .nullable()
+    .optional(),
+  // 0=domingo..6=sábado. Vacío/ausente = todos los días.
+  promoDaysOfWeek: z.array(z.number().int().min(0).max(6)).max(7).optional().default([]),
+  // "YYYY-MM-DD" — se guarda como medianoche UTC de esa fecha.
+  promoStartDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida.')
+    .nullable()
+    .optional(),
+  promoEndDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida.')
+    .nullable()
+    .optional(),
+
   priority: z.coerce.number().int().optional().default(0),
 });
 

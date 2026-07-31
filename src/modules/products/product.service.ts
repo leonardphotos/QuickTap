@@ -1,7 +1,16 @@
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { round2, toDecimal } from '../../utils/money';
+import { startOfDayCaracas } from '../../utils/timezone';
 import { CreateProductInput, UpdateProductInput } from './product.dto';
+
+/** "YYYY-MM-DD" -> medianoche Caracas en UTC (igual que el resto del sistema, ver timezone.ts).
+ * undefined = no tocar el campo; null = borrarlo. */
+function toPromoDate(dateStr: string | null | undefined): Date | null | undefined {
+  if (dateStr === undefined) return undefined;
+  if (dateStr === null) return null;
+  return startOfDayCaracas(dateStr);
+}
 
 /**
  * Servicio de productos. TODAS las operaciones reciben `restaurantId` para
@@ -101,6 +110,13 @@ export const productService = {
         isStar: input.isStar,
         isPromo: input.isPromo,
         isHouseSpecial: input.isHouseSpecial,
+        promoPriceEnabled: input.promoPriceEnabled,
+        promoPrice: input.promoPrice,
+        promoStartTime: input.promoStartTime,
+        promoEndTime: input.promoEndTime,
+        promoDaysOfWeek: input.promoDaysOfWeek,
+        promoStartDate: toPromoDate(input.promoStartDate) ?? undefined,
+        promoEndDate: toPromoDate(input.promoEndDate) ?? undefined,
         priority: input.priority,
       },
     });
@@ -116,9 +132,14 @@ export const productService = {
       await assertKitchenBelongs(restaurantId, input.kitchenId);
     }
 
+    const { promoStartDate, promoEndDate, ...rest } = input;
     return prisma.product.update({
       where: { id },
-      data: input,
+      data: {
+        ...rest,
+        ...(promoStartDate !== undefined ? { promoStartDate: toPromoDate(promoStartDate) } : {}),
+        ...(promoEndDate !== undefined ? { promoEndDate: toPromoDate(promoEndDate) } : {}),
+      },
     });
   },
 

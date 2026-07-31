@@ -421,7 +421,7 @@
 
       <div class="card">
         <h3>Impresoras</h3>
-        <p class="muted small" style="margin-bottom:10px;line-height:1.5;">Conecta una impresora térmica por USB/Serial o por red (Ethernet/WiFi con IP fija) por cada cocina o caja, y asígnale su estación — así cada comanda sale sola en la impresora correcta. Si no conectas ninguna, se usa la impresión normal del navegador.</p>
+        <p class="muted small" style="margin-bottom:10px;line-height:1.5;">Conecta una impresora térmica por USB/Serial o por red (Ethernet/WiFi con IP fija) por cada cocina, caja o delivery, y asígnale su estación — así cada comanda sale sola en la impresora correcta. La de Delivery imprime un ticket aparte (cliente, monto, pedido y ubicación juntos) apenas aceptas ese pedido. Si no conectas ninguna, se usa la impresión normal del navegador.</p>
         <button class="btn btn-secondary btn-block" id="connectSerialBtn">🔌 Conectar impresora USB/Serial</button>
         <p class="muted small" style="margin:10px 0 6px;">Impresora de red (IP) — ej. Xprinter Ethernet:</p>
         <div style="display:flex;gap:8px;">
@@ -776,15 +776,26 @@ function handleIncomingOrder(payload){
   // antes de imprimirse en cocina — solo se imprimió ya el ticket "Número de orden"
   // (print:request tipo 'orden-numero'). La comanda real llega en un order:new/updated
   // posterior, ya con status KITCHEN, cuando addPayment lo libera.
-  if(state.autoPrint && order.status !== 'NEEDS_PAYMENT'){
+  // Delivery es distinto: no se imprime al llegar, sino recién cuando el restaurante lo
+  // acepta (ver handleOrderUpdated) — así la comanda de delivery sale con el pedido ya
+  // confirmado, no antes.
+  if(state.autoPrint && order.status !== 'NEEDS_PAYMENT' && order.channel !== 'DELIVERY'){
     setTimeout(() => printOrder(order), 250);
   }
 }
 
 function handleOrderUpdated(payload){
   const existing = state.orders.find(o => o.orderId === payload.orderId);
+  const wasKitchen = existing?.status === 'KITCHEN';
   if(existing) Object.assign(existing, payload);
   renderQueue();
+  // Delivery recién aceptado (pasa a KITCHEN): imprime sola la comanda de delivery, en la
+  // impresora dedicada — antes de aceptar no se imprime nada (ver handleIncomingOrder).
+  if(existing && existing.channel === 'DELIVERY' && !wasKitchen && existing.status === 'KITCHEN' && !existing._printed){
+    if(state.autoPrint){
+      setTimeout(() => printDeliveryTicket(existing), 250);
+    }
+  }
 }
 
 /* ============================================================
@@ -836,7 +847,9 @@ function orderCardHtml(order){
 
 function printOrderById(orderId){
   const order = state.orders.find(o => o.orderId === orderId);
-  if(order) printOrder(order);
+  if(!order) return;
+  if(order.channel === 'DELIVERY') printDeliveryTicket(order);
+  else printOrder(order);
 }
 
 /* ============================================================
@@ -1095,6 +1108,63 @@ async function printOrder(order){
   renderQueue();
 }
 
+/**
+ * Comanda de Delivery: distinta a la de cocina — un solo ticket (no uno por cocina) con
+ * todo junto: nombre del cliente, monto, descripción del pedido y la ubicación, para que el
+ * repartidor/caja tenga todo a la vista sin tener que combinar varias comandas. Se manda a la
+ * impresora asignada a la estación 'DELIVERY' (o a la única impresora conectada, si hay una
+ * sola) — se dispara sola al aceptar el pedido, ver handleOrderUpdated.
+ */
+function buildDeliveryTicketHtml(order){
+  const bizName = state.restaurant?.name || 'QuickTap';
+  const items = order.items || [];
+  const rate = order.exchangeRate != null ? Number(order.exchangeRate) : null;
+  const currencySymbol = order.currency === 'EUR' ? '€' : '$';
+  const totalBase = Number(order.totalBase ?? items.reduce((s,it)=> s + (it.lineTotal!=null? Number(it.lineTotal): 0), 0));
+  const toBs = (amountBase) => (rate != null ? amountBase * rate : amountBase);
+  const paymentLabel = PAYMENT_METHOD_LABEL[order.paymentMethod] || 'Sin especificar';
+
+  const itemsHtml = items.map(it => `
+    <div class="r-row">
+      <span class="r-item-name">${esc(it.quantity)}x ${esc(it.name)}${it.variantName ? ' ('+esc(it.variantName)+')' : ''}</span>
+    </div>
+    ${(it.modifiers && it.modifiers.length) ? it.modifiers.map(m => `<div class="r-muted">+${esc(m.quantity||1)} ${esc(m.name)}</div>`).join('') : ''}
+    ${it.note ? `<div class="r-muted">Nota: ${esc(it.note)}</div>` : ''}
+  `).join('');
+
+  return `
+    <div class="r-center r-bold r-title">${esc(bizName)}</div>
+    <div class="r-line-sm"></div>
+    <div class="r-center r-bold r-sub">🛵 COMANDA · DELIVERY</div>
+    <div class="r-line"></div>
+    <div class="r-row"><span>Orden:</span><span>#${esc(order.orderNumber ?? '—')}</span></div>
+    <div class="r-row"><span>Hora:</span><span>${timeLabel(order.createdAt || order._receivedAt)}</span></div>
+    <div class="r-line"></div>
+    <div class="r-row r-bold"><span>Cliente:</span><span>${esc(order.customerName || 'Sin nombre')}</span></div>
+    ${order.customerPhone ? `<div class="r-row"><span>Teléfono:</span><span>${esc(order.customerPhone)}</span></div>` : ''}
+    ${order.customerAddress ? `<div class="r-muted">📍 ${esc(order.customerAddress)}</div>` : ''}
+    ${order.customerNote ? `<div class="r-muted">Nota: ${esc(order.customerNote)}</div>` : ''}
+    <div class="r-line"></div>
+    <div class="r-row r-bold"><span>DESCRIPCIÓN DEL PEDIDO</span></div>
+    ${itemsHtml || '<div class="r-muted r-center">Sin productos</div>'}
+    <div class="r-line"></div>
+    <div class="r-row"><span>Método de pago:</span><span>${esc(paymentLabel)}</span></div>
+    <div class="r-row r-bold"><span>TOTAL Bs.:</span><span>${bsNumber(toBs(totalBase))}</span></div>
+    <div class="r-row"><span>TOTAL (${currencySymbol}):</span><span>${totalBase.toFixed(2)}</span></div>
+    <div class="r-line-sm"></div>
+    <div class="r-center r-muted">Impreso con QuickTap</div>
+  `;
+}
+
+async function printDeliveryTicket(order){
+  const receiptEl = $('receipt');
+  applyReceiptStyle(receiptEl);
+  receiptEl.innerHTML = buildDeliveryTicketHtml(order);
+  await sendTicket('DELIVERY', receiptEl);
+  order._printed = true;
+  renderQueue();
+}
+
 /** Ancho de papel (clase) + tamaño de letra (según state.fontScale) del ticket a imprimir. */
 function applyReceiptStyle(el){
   const isW58 = state.paperWidth === '58';
@@ -1179,7 +1249,11 @@ function renderPrintersList(){
     el.innerHTML = '<p class="muted small">Ninguna conectada · se usará la impresión normal del navegador.</p>';
     return;
   }
-  const options = ['<option value="">Sin asignar</option>', '<option value="CAJA">Caja (recibo)</option>']
+  const options = [
+    '<option value="">Sin asignar</option>',
+    '<option value="CAJA">Caja (recibo)</option>',
+    '<option value="DELIVERY">🛵 Delivery (comanda de delivery)</option>',
+  ]
     .concat(state.kitchens.map(k => `<option value="${esc(k.name)}">${esc(k.name)}</option>`))
     .join('');
 
