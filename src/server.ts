@@ -8,6 +8,7 @@ import { demoResetService } from './utils/demo-reset.service';
 import { demoSimulatorService } from './utils/demo-simulator.service';
 import { masterServerStatusService } from './modules/master/master-server-status.service';
 import { fiscalInvoicingService } from './modules/fiscal-invoicing/fiscal-invoicing.service';
+import { whatsappBotService } from './modules/whatsapp-bot/whatsapp-bot.service';
 
 async function bootstrap() {
   const app = createApp();
@@ -15,6 +16,10 @@ async function bootstrap() {
 
   // WebSockets (cola de cocina en tiempo real).
   initSockets(server);
+
+  // Chatbot de WhatsApp: reconecta las sesiones ya vinculadas (el reinicio nocturno de PM2,
+  // ver ecosystem.config.js, no debe forzar a cada restaurante a escanear el QR de nuevo).
+  whatsappBotService.reconnectEnabledSessions().catch(() => undefined);
 
   // Tasa BCV: refresco inicial (best-effort, no bloquea el arranque si falla)
   // + refresco periódico según EXCHANGE_RATE_TTL_HOURS.

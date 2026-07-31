@@ -17,6 +17,7 @@ import { resolveDateFilter } from '../../utils/date-range';
 import { hourCaracas, startOfTodayCaracas, startOfWeekCaracas } from '../../utils/timezone';
 import { assertRestaurantOpen } from '../../utils/business-hours';
 import { effectiveProductPrice } from '../../utils/promo-price';
+import { whatsappBotService } from '../whatsapp-bot/whatsapp-bot.service';
 import { haversineDistanceKm, isPointInPolygon, LatLng } from '../../utils/geo';
 import { tableSessionService } from '../table-sessions/table-session.service';
 import { fiscalInvoicingService } from '../fiscal-invoicing/fiscal-invoicing.service';
@@ -824,6 +825,8 @@ export const orderService = {
         deliveryOriginLng: true,
         deliveryBaseFee: true,
         deliveryPricePerKm: true,
+        whatsappBotEnabled: true,
+        whatsappBotNotifyReceived: true,
       },
     });
     if (!restaurant || !restaurant.isActive) throw notFound('Restaurante no encontrado.');
@@ -928,6 +931,19 @@ export const orderService = {
       totalBs: order.totalBs,
       createdAt: order.createdAt,
     });
+
+    // Chatbot de WhatsApp (vinculado por QR, ver whatsapp-bot.service.ts): avisa solo al
+    // cliente que su pedido llegó — no reemplaza el enlace wa.me de abajo (ese lo manda el
+    // cliente al restaurante), es un mensaje aparte que sale DEL restaurante hacia el cliente.
+    if (restaurant.whatsappBotEnabled && restaurant.whatsappBotNotifyReceived) {
+      whatsappBotService
+        .sendMessage(
+          restaurant.id,
+          order.customerPhone,
+          `✅ *${restaurant.name}*\n\nRecibimos tu pedido #${order.orderNumber}. ¡Ya lo estamos preparando!`,
+        )
+        .catch(() => undefined);
+    }
 
     // Construye el enlace de WhatsApp con el pedido ya congelado.
     const whatsapp = buildWhatsappCheckoutUrl({
@@ -1221,6 +1237,24 @@ export const orderService = {
         channel: order.channel,
         placedByRole: existing.placedByUser?.role ?? null,
       });
+
+      // Chatbot de WhatsApp: Pickup no pasa por dispatchToCourier (no hay repartidor), así que
+      // "listo" se avisa acá — Delivery ya recibe su "en camino" al despachar con un repartidor.
+      if (order.channel === 'PICKUP') {
+        const restaurant = await prisma.restaurant.findUnique({
+          where: { id: restaurantId },
+          select: { name: true, whatsappBotEnabled: true, whatsappBotNotifyReady: true },
+        });
+        if (restaurant?.whatsappBotEnabled && restaurant.whatsappBotNotifyReady) {
+          whatsappBotService
+            .sendMessage(
+              restaurantId,
+              order.customerPhone,
+              `✅ *${restaurant.name}*\n\n¡Tu pedido #${order.orderNumber} ya está listo para retirar!`,
+            )
+            .catch(() => undefined);
+        }
+      }
     }
 
     return order;
@@ -1566,6 +1600,22 @@ export const orderService = {
       where: { id: orderId },
       data: { deliveryCourierId: courierId, deliveryDispatchedAt: new Date() },
     });
+
+    // Chatbot de WhatsApp: al cliente le avisa que su pedido salió — el enlace de arriba (`url`)
+    // es aparte, ese lo manda el restaurante al repartidor, no al cliente.
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { name: true, whatsappBotEnabled: true, whatsappBotNotifyReady: true },
+    });
+    if (restaurant?.whatsappBotEnabled && restaurant.whatsappBotNotifyReady) {
+      whatsappBotService
+        .sendMessage(
+          restaurantId,
+          order.customerPhone,
+          `🛵 *${restaurant.name}*\n\n¡Tu pedido #${order.orderNumber} va en camino!`,
+        )
+        .catch(() => undefined);
+    }
 
     return { url };
   },

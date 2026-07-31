@@ -40,6 +40,8 @@ export const SocketEvents = {
   RESERVATION_NEW: 'reservation:new', // reserva nueva desde el menú público -> pestaña Reservas (Cajero/Admin)
   RESERVATION_UPDATED: 'reservation:updated', // se aceptó o canceló una reserva
   INVENTORY_LOW_STOCK: 'inventory:low-stock', // cambió el stock de un insumo -> recalcular avisos de agotamiento
+  WHATSAPP_BOT_QR: 'whatsapp-bot:qr', // nuevo código QR para vincular (Ajustes -> WhatsApp)
+  WHATSAPP_BOT_STATUS: 'whatsapp-bot:status', // cambió el estado de la sesión (conectando/conectado/desconectado)
 } as const;
 
 export function initSockets(server: HttpServer): IOServer {

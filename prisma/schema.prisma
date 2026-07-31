@@ -233,6 +233,17 @@ model Restaurant {
   // se usa DEFAULT_COMANDA_WHATSAPP_TEMPLATE (src/utils/whatsapp.ts).
   whatsappOrderMessageTemplate String?
 
+  // --- Chatbot de WhatsApp (vinculado por QR, ver whatsapp-bot.service.ts) ---
+  // Interruptor maestro: si está apagado, no se manda ningún mensaje automático
+  // aunque la sesión siga vinculada (permite pausar sin desvincular el número).
+  whatsappBotEnabled Boolean @default(false)
+  // Número vinculado tal como lo reporta la sesión de WhatsApp (solo informativo,
+  // para mostrar "Conectado como +58..." en Ajustes) — no se usa para enviar.
+  whatsappBotConnectedNumber String?
+  // Qué eventos del ciclo de vida del pedido disparan un mensaje automático.
+  whatsappBotNotifyReceived Boolean @default(true)
+  whatsappBotNotifyReady    Boolean @default(true)
+
   // --- Apariencia del menú público ---
   // Colores personalizados del menú público (fondo, botones, acentos, texto).
   // JSON flexible para poder agregar nuevas claves sin nuevas migraciones.

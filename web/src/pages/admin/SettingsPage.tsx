@@ -11,6 +11,7 @@ import { ThemeSection } from '@/components/admin/ThemeSection';
 import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection';
 import { DesktopShortcutSection } from '@/components/admin/DesktopShortcutSection';
 import { WhatsappMessageSection } from '@/components/admin/WhatsappMessageSection';
+import { WhatsappBotSection } from '@/components/admin/WhatsappBotSection';
 import { CheckoutSettingsSection } from '@/components/admin/CheckoutSettingsSection';
 import { ScheduleSection } from '@/components/admin/ScheduleSection';
 import { FullscreenImageSection } from '@/components/admin/FullscreenImageSection';
@@ -87,6 +88,9 @@ export default function SettingsPage() {
       </div>
       <div className="break-inside-avoid lg:mb-8">
         <WhatsappMessageSection />
+      </div>
+      <div className="break-inside-avoid lg:mb-8">
+        <WhatsappBotSection />
       </div>
 
       <TextureCard className="break-inside-avoid lg:mb-8">
