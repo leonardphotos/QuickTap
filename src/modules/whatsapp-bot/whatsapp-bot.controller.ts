@@ -8,7 +8,13 @@ export const whatsappBotController = {
   getStatus: asyncHandler(async (req: Request, res: Response) => {
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: req.restaurantId! },
-      select: { whatsappBotEnabled: true, whatsappBotNotifyReceived: true, whatsappBotNotifyReady: true },
+      select: {
+        whatsappBotEnabled: true,
+        whatsappBotNotifyReceived: true,
+        whatsappBotNotifyReady: true,
+        whatsappBotWelcomeEnabled: true,
+        whatsappBotWelcomeMessage: true,
+      },
     });
     res.json({ data: { ...whatsappBotService.getStatus(req.restaurantId!), ...restaurant } });
   }),

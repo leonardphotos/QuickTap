@@ -3,10 +3,18 @@ import path from 'path';
 import { Boom } from '@hapi/boom';
 import pino from 'pino';
 import QRCode from 'qrcode';
-import makeWASocket, { DisconnectReason, fetchLatestBaileysVersion, useMultiFileAuthState, WASocket } from '@whiskeysockets/baileys';
+import makeWASocket, {
+  DisconnectReason,
+  fetchLatestBaileysVersion,
+  useMultiFileAuthState,
+  WAMessage,
+  WASocket,
+} from '@whiskeysockets/baileys';
+import { env } from '../../config/env';
 import { prisma } from '../../config/prisma';
 import { UPLOADS_DIR } from '../../middlewares/upload.middleware';
 import { emitToKitchen, SocketEvents } from '../../sockets';
+import { renderWhatsappTemplate } from '../../utils/whatsapp';
 import { UpdateWhatsappBotSettingsInput } from './whatsapp-bot.dto';
 
 /**
@@ -49,6 +57,16 @@ interface SessionState {
 }
 
 const sessions = new Map<string, SessionState>();
+
+/** No contestar dos veces al mismo contacto dentro de esta ventana — si no, cada mensaje de
+ * una conversación en curso dispara otra vez el saludo, lo cual se ve como un bot roto (y
+ * abulta el patrón de envío automatizado que puede hacer que WhatsApp bloquee el número). */
+const WELCOME_REPLY_COOLDOWN_MS = 6 * 60 * 60 * 1000;
+const lastWelcomeReplyAt = new Map<string, number>();
+
+export const DEFAULT_WELCOME_TEMPLATE = ['¡Hola! 👋 Bienvenido a *{{restaurant}}*.', '', 'Puedes ver el menú y hacer tu pedido aquí:', '{{link}}'].join(
+  '\n',
+);
 
 function sessionDir(restaurantId: string): string {
   return path.join(UPLOADS_DIR, 'whatsapp-sessions', restaurantId);
@@ -118,6 +136,14 @@ export const whatsappBotService = {
 
     sock.ev.on('creds.update', saveCreds);
 
+    sock.ev.on('messages.upsert', ({ messages, type }) => {
+      // 'notify' = mensaje real entrante en vivo (no historial sincronizado al conectar).
+      if (type !== 'notify') return;
+      for (const msg of messages) {
+        this.handleIncomingMessage(restaurantId, msg).catch(() => undefined);
+      }
+    });
+
     sock.ev.on('connection.update', async (update) => {
       const { connection, lastDisconnect, qr } = update;
 
@@ -172,6 +198,41 @@ export const whatsappBotService = {
     });
   },
 
+  /**
+   * Mensaje entrante de un cliente: contesta con el saludo de bienvenida + el enlace del menú,
+   * una sola vez por contacto dentro de WELCOME_REPLY_COOLDOWN_MS. Ignora mensajes propios (los
+   * que este mismo bot mandó), de grupos y de difusión de estados — solo conversaciones 1 a 1.
+   */
+  async handleIncomingMessage(restaurantId: string, msg: WAMessage): Promise<void> {
+    if (!msg.message || msg.key.fromMe) return;
+    const jid = msg.key.remoteJid;
+    if (!jid || jid.endsWith('@g.us') || jid === 'status@broadcast') return;
+
+    const cooldownKey = `${restaurantId}:${jid}`;
+    const last = lastWelcomeReplyAt.get(cooldownKey) ?? 0;
+    if (Date.now() - last < WELCOME_REPLY_COOLDOWN_MS) return;
+
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { slug: true, name: true, whatsappBotWelcomeEnabled: true, whatsappBotWelcomeMessage: true },
+    });
+    if (!restaurant || !restaurant.whatsappBotWelcomeEnabled) return;
+
+    const s = sessions.get(restaurantId);
+    if (!s || s.status !== 'connected' || !s.sock) return;
+
+    const link = `${env.appUrl}/r/${restaurant.slug}`;
+    const text = renderWhatsappTemplate(restaurant.whatsappBotWelcomeMessage || DEFAULT_WELCOME_TEMPLATE, {
+      restaurant: restaurant.name,
+      link,
+    });
+
+    // Marca el enfriamiento ANTES de mandar: si sendMessage tarda o el cliente escribe de nuevo
+    // mientras tanto, no queremos dos saludos en carrera.
+    lastWelcomeReplyAt.set(cooldownKey, Date.now());
+    await s.sock.sendMessage(jid, { text }).catch(() => undefined);
+  },
+
   /** Desvincula a propósito: cierra la sesión en WhatsApp y borra las credenciales guardadas. */
   async disconnect(restaurantId: string): Promise<void> {
     const s = sessions.get(restaurantId);
@@ -197,8 +258,15 @@ export const whatsappBotService = {
       data: {
         ...(input.notifyReceived !== undefined ? { whatsappBotNotifyReceived: input.notifyReceived } : {}),
         ...(input.notifyReady !== undefined ? { whatsappBotNotifyReady: input.notifyReady } : {}),
+        ...(input.welcomeEnabled !== undefined ? { whatsappBotWelcomeEnabled: input.welcomeEnabled } : {}),
+        ...(input.welcomeMessage !== undefined ? { whatsappBotWelcomeMessage: input.welcomeMessage } : {}),
       },
-      select: { whatsappBotNotifyReceived: true, whatsappBotNotifyReady: true },
+      select: {
+        whatsappBotNotifyReceived: true,
+        whatsappBotNotifyReady: true,
+        whatsappBotWelcomeEnabled: true,
+        whatsappBotWelcomeMessage: true,
+      },
     });
   },
 

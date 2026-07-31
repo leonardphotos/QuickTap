@@ -18,7 +18,14 @@ interface StatusResponse {
   whatsappBotEnabled: boolean;
   whatsappBotNotifyReceived: boolean;
   whatsappBotNotifyReady: boolean;
+  whatsappBotWelcomeEnabled: boolean;
+  whatsappBotWelcomeMessage: string | null;
 }
+
+// Debe coincidir con DEFAULT_WELCOME_TEMPLATE en whatsapp-bot.service.ts.
+const DEFAULT_WELCOME_TEMPLATE = ['¡Hola! 👋 Bienvenido a *{{restaurant}}*.', '', 'Puedes ver el menú y hacer tu pedido aquí:', '{{link}}'].join(
+  '\n',
+);
 
 /**
  * Chatbot de WhatsApp vinculado por QR (protocolo WhatsApp Web, NO la API oficial de Meta —
@@ -32,9 +39,15 @@ export function WhatsappBotSection() {
   const [data, setData] = useState<StatusResponse | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [welcomeDraft, setWelcomeDraft] = useState('');
+  const [savingWelcome, setSavingWelcome] = useState(false);
+  const [welcomeSaved, setWelcomeSaved] = useState(false);
 
   useEffect(() => {
-    api.get('/whatsapp-bot/status').then((res) => setData(res.data.data));
+    api.get('/whatsapp-bot/status').then((res) => {
+      setData(res.data.data);
+      setWelcomeDraft(res.data.data.whatsappBotWelcomeMessage || DEFAULT_WELCOME_TEMPLATE);
+    });
 
     const socket: Socket = io('/', { auth: { token: getToken() } });
     socket.on('whatsapp-bot:qr', (payload: { qrDataUrl: string }) => {
@@ -86,11 +99,28 @@ export function WhatsappBotSection() {
     }
   }
 
-  async function toggle(key: 'notifyReceived' | 'notifyReady', value: boolean) {
-    setData((d) =>
-      d ? { ...d, [key === 'notifyReceived' ? 'whatsappBotNotifyReceived' : 'whatsappBotNotifyReady']: value } : d,
-    );
+  const TOGGLE_FIELD = {
+    notifyReceived: 'whatsappBotNotifyReceived',
+    notifyReady: 'whatsappBotNotifyReady',
+    welcomeEnabled: 'whatsappBotWelcomeEnabled',
+  } as const;
+
+  async function toggle(key: keyof typeof TOGGLE_FIELD, value: boolean) {
+    setData((d) => (d ? { ...d, [TOGGLE_FIELD[key]]: value } : d));
     await api.patch('/whatsapp-bot/settings', { [key]: value }).catch(() => undefined);
+  }
+
+  async function saveWelcomeMessage() {
+    setSavingWelcome(true);
+    setWelcomeSaved(false);
+    try {
+      await api.patch('/whatsapp-bot/settings', { welcomeMessage: welcomeDraft.trim() || null });
+      setData((d) => (d ? { ...d, whatsappBotWelcomeMessage: welcomeDraft.trim() || null } : d));
+      setWelcomeSaved(true);
+      setTimeout(() => setWelcomeSaved(false), 3000);
+    } finally {
+      setSavingWelcome(false);
+    }
   }
 
   if (!data) return null;
@@ -170,6 +200,46 @@ export function WhatsappBotSection() {
                 onChange={(e) => toggle('notifyReady', e.target.checked)}
               />
             </label>
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span className="text-brand-950/80">Responder solo con un mensaje de bienvenida al primer mensaje de cada cliente</span>
+              <input
+                type="checkbox"
+                checked={data.whatsappBotWelcomeEnabled}
+                disabled={!canManage}
+                onChange={(e) => toggle('welcomeEnabled', e.target.checked)}
+              />
+            </label>
+
+            {data.whatsappBotWelcomeEnabled && (
+              <div className="pt-1 space-y-2">
+                <p className="text-xs text-brand-950/50 font-light">
+                  Se envía solo una vez cada 6 horas por cliente, para que no se sienta como spam. Variables:{' '}
+                  <code className="text-[11px]">{'{{restaurant}}'}</code> y <code className="text-[11px]">{'{{link}}'}</code> (enlace a tu
+                  menú público).
+                </p>
+                <textarea
+                  value={welcomeDraft}
+                  onChange={(e) => setWelcomeDraft(e.target.value)}
+                  disabled={!canManage}
+                  rows={5}
+                  className="w-full border border-brand-950/15 rounded-lg px-3 py-2 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                />
+                {canManage && (
+                  <div className="flex items-center gap-2">
+                    <TextureButton
+                      variant="secondary"
+                      size="sm"
+                      className="!w-auto"
+                      disabled={savingWelcome}
+                      onClick={saveWelcomeMessage}
+                    >
+                      {savingWelcome ? 'Guardando…' : 'Guardar mensaje'}
+                    </TextureButton>
+                    {welcomeSaved && <span className="text-xs text-emerald-700">Guardado.</span>}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </TextureCardContent>
