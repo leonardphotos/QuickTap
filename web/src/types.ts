@@ -264,6 +264,24 @@ export interface PaymentMethodStats {
   totalBs: string;
 }
 
+export interface QuoteItem {
+  name: string;
+  qty: number;
+  unitPrice: number;
+}
+
+export interface Quote {
+  id: string;
+  customerName: string | null;
+  customerPhone: string | null;
+  note: string | null;
+  items: QuoteItem[];
+  totalBase: string;
+  currency: 'USD' | 'EUR';
+  convertedToId: string | null;
+  createdAt: string;
+}
+
 export interface DeliveryZone {
   id: string;
   name: string;

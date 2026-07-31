@@ -14,8 +14,10 @@ import {
   CalendarRange,
   PackageX,
   Clock,
+  FileText,
   type LucideIcon,
 } from 'lucide-react';
+import type { ShopScreen } from './ShopLayout';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { ExpenseFormDialog } from '@/components/admin/ExpenseFormDialog';
@@ -37,6 +39,7 @@ interface Props {
   restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate'>;
   canSeeMoney: boolean;
   userName: string;
+  onNavigate: (screen: ShopScreen) => void;
 }
 
 function marginClass(pct: number): string {
@@ -111,7 +114,7 @@ function groupIncomeByMethod(sales: Sale[]): { method: string; count: number; to
     .sort((a, b) => b.total - a.total);
 }
 
-export default function ShopDashboardPage({ session, restaurant, canSeeMoney, userName }: Props) {
+export default function ShopDashboardPage({ session, restaurant, canSeeMoney, userName, onNavigate }: Props) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
   const { products, sales, purchases, returnSale } = session;
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
@@ -167,6 +170,31 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
         <p className="text-[13px] text-brand-950/45 mt-0.5">
           {new Date().toLocaleDateString('es-VE', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
+      </div>
+
+      {/* Cotizaciones y Cuentas por Cobrar no viven en el dock de navegación (ya tiene 5 iconos) —
+          se llega desde acá, el punto de partida de todos los días. */}
+      <div className="flex gap-2.5">
+        <button
+          type="button"
+          onClick={() => onNavigate('cotizaciones')}
+          className="flex-1 flex items-center gap-2.5 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm px-4 py-3 text-left hover:border-brand-400 transition-colors"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-500">
+            <FileText className="h-4 w-4" />
+          </span>
+          <span className="text-[13px] font-semibold text-brand-950">Cotizaciones</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => onNavigate('cuentas')}
+          className="flex-1 flex items-center gap-2.5 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm px-4 py-3 text-left hover:border-brand-400 transition-colors"
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
+            <Landmark className="h-4 w-4" />
+          </span>
+          <span className="text-[13px] font-semibold text-brand-950">Cuentas por Cobrar</span>
+        </button>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">

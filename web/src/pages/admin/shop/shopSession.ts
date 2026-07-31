@@ -176,6 +176,7 @@ export interface NewProductInput {
   name: string;
   category: string;
   subcategory: string;
+  brand: string;
   sku: string;
   location: string;
   price: number;

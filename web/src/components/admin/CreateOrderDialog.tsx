@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Bike, Check, Clock, MapPin, Martini, ReceiptText, Search, SplitSquareHorizontal, Store, UtensilsCrossed } from 'lucide-react';
+import { Bike, Check, Clock, MapPin, Martini, ReceiptText, ScanLine, Search, SplitSquareHorizontal, Store, UtensilsCrossed } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { CURRENCY_SYMBOLS, cartLineUnitPrice, formatBase, formatBs, formatModifierLabel, modifierSelectionKey } from '@/utils/format';
@@ -9,6 +9,7 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { AddressAutocomplete, reverseGeocode } from '@/components/AddressAutocomplete';
 import { CustomerPicker } from './CustomerPicker';
 import { ProductOptionsDialog } from './ProductOptionsDialog';
+import ProductBarcodeScanDialog from './ProductBarcodeScanDialog';
 import type { LiveOrder } from './LiveOrdersPanel';
 
 interface ExistingOrderOption {
@@ -75,6 +76,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   const [customerNote, setCustomerNote] = useState('');
   const [lines, setLines] = useState<CartLine[]>([]);
   const [optionsProduct, setOptionsProduct] = useState<Product | null>(null);
+  const [scanOpen, setScanOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deliveryFeeBase, setDeliveryFeeBase] = useState<number | null>(null);
@@ -488,14 +490,25 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                   </div>
                 )}
 
-                <div className="relative pt-1 border-t border-brand-950/10">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-950/30" />
-                  <input
-                    value={productSearch}
-                    onChange={(e) => setProductSearch(e.target.value)}
-                    placeholder="Buscar en el menú…"
-                    className="w-full text-sm border border-brand-950/15 rounded-lg pl-8 pr-2.5 py-1.5"
-                  />
+                <div className="flex items-center gap-2 pt-1 border-t border-brand-950/10">
+                  <div className="relative flex-1 min-w-0">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-950/30" />
+                    <input
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      placeholder="Buscar en el menú…"
+                      className="w-full text-sm border border-brand-950/15 rounded-lg pl-8 pr-2.5 py-1.5"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setScanOpen(true)}
+                    title="Escanear código de barras"
+                    aria-label="Escanear código de barras"
+                    className="shrink-0 flex items-center justify-center h-[34px] w-[34px] rounded-lg border border-brand-950/15 text-brand-950/50 hover:bg-brand-950/5 hover:text-brand-950"
+                  >
+                    <ScanLine className="h-4 w-4" />
+                  </button>
                 </div>
                 <div className="flex gap-1.5 flex-wrap">
                   <button
@@ -877,6 +890,8 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
           onAdd={addPickedLine}
         />
       )}
+
+      <ProductBarcodeScanDialog open={scanOpen} onOpenChange={setScanOpen} products={products} onFound={setOptionsProduct} />
     </>
   );
 }

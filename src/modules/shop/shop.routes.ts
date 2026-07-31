@@ -17,6 +17,11 @@ router.post('/upload-payment-proof', uploadShopPaymentProof, optimizeImage(1200,
 router.post('/sales', shopController.recordSale);
 router.post('/sales/:id/return', shopController.returnSale);
 
+router.get('/receivables', shopController.listReceivables);
+router.get('/receivables/history', shopController.listAllCredit);
+router.post('/sales/:id/payments', shopController.addSalePayment);
+router.patch('/sales/:id/due-date', shopController.setSaleDueDate);
+
 router.post('/purchases', shopController.recordPurchase);
 router.post('/adjustments', shopController.recordAdjustment);
 

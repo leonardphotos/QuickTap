@@ -48,6 +48,7 @@ const ADMIN_CASHIER_ONLY_PATHS = [
   '/admin/expenses',
   '/admin/sucursales',
   '/admin/reservations',
+  '/admin/quotes',
 ];
 
 export function hasFullAccess(role?: UserRole | null): boolean {

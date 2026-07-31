@@ -11,6 +11,8 @@ import {
   closeShopTillSchema,
   addShopCategorySchema,
   addShopSubcategorySchema,
+  createShopSalePaymentSchema,
+  setShopSaleDueDateSchema,
 } from './shop.dto';
 import { shopService } from './shop.service';
 
@@ -68,6 +70,24 @@ export const shopController = {
     const input = addShopSubcategorySchema.parse(req.body);
     await shopService.addSubcategory(req.restaurantId!, req.params.category, input.name);
     res.status(201).json({ data: { category: req.params.category, name: input.name } });
+  }),
+
+  listReceivables: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await shopService.listReceivables(req.restaurantId!) });
+  }),
+
+  listAllCredit: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await shopService.listAllCredit(req.restaurantId!) });
+  }),
+
+  addSalePayment: asyncHandler(async (req: Request, res: Response) => {
+    const input = createShopSalePaymentSchema.parse(req.body);
+    res.status(201).json({ data: await shopService.addSalePayment(req.restaurantId!, req.params.id, input) });
+  }),
+
+  setSaleDueDate: asyncHandler(async (req: Request, res: Response) => {
+    const input = setShopSaleDueDateSchema.parse(req.body);
+    res.json({ data: await shopService.setSaleDueDate(req.restaurantId!, req.params.id, input.dueDate) });
   }),
 
   uploadProductPhoto: asyncHandler(async (req: Request, res: Response) => {

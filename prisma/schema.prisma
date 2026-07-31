@@ -396,6 +396,7 @@ model Restaurant {
   recipeIngredients     RecipeIngredient[]
   deliveryCouriers      DeliveryCourier[]
   additionalCharges     AdditionalCharge[]
+  quotes                Quote[]
   deliveryZones         DeliveryZone[]
   movements             Movement[]
   cashSessions          CashSession[]
@@ -1422,6 +1423,36 @@ model QrNfcRequest {
   @@map("qr_nfc_requests")
 }
 
+// Cotización/presupuesto: un total para aprobar (catering, pedido grande, venta al mayor) sin
+// cobrar ni afectar cocina/inventario todavía. Sirve tanto para restaurantes como para Locales
+// Comerciales — `items` es JSON libre en vez de relaciones a Product/ShopProduct porque cada
+// negocio tiene un catálogo con forma distinta; lo único que importa acá es nombre/cantidad/precio
+// ya congelados, igual que OrderItem congela lo suyo al momento de la venta real.
+model Quote {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  customerName  String?
+  customerPhone String?
+  note          String?
+
+  // [{ name, qty, unitPrice }] — snapshot de lo cotizado, no referencias vivas al catálogo.
+  items      Json
+  totalBase  Decimal  @db.Decimal(12, 2)
+  currency   Currency
+
+  // Se llena cuando el cliente aprueba y el presupuesto se convierte en una venta real —
+  // Order.id para restaurantes, ShopSale.id para Locales Comerciales (un solo campo de texto
+  // libre porque son dos tablas distintas; no hay integridad referencial cruzada a propósito).
+  convertedToId String?
+  createdAt     DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, createdAt])
+  @@map("quotes")
+}
+
 // Cobro puntual que el equipo QuickTap le suma a un restaurante por fuera de
 // la mensualidad (Dashboard maestro → Cobro): setup, diseño, QR NFC, soporte
 // extra, etc. Se suma al total de la próxima mensualidad, pero SIEMPRE se
@@ -1660,6 +1691,9 @@ model ShopProduct {
   promoPrice      Float?
   // Fecha de vencimiento (ISO yyyy-mm-dd), texto libre igual que en el frontend.
   expiryDate      String?
+  // Marca del producto (ej. "Coca-Cola", "Polar") — separado de la categoría para poder
+  // filtrar/agrupar el inventario por marca sin mezclarlo con la clasificación por tipo.
+  brand           String  @default("")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1706,11 +1740,37 @@ model ShopSale {
   creditTerms   String?
   amountPaidNow Float?
 
-  restaurant Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  // --- Cuentas por cobrar (solo aplica cuando creditTerms no es null) ---
+  // Fecha en que el cliente se comprometió a pagar el saldo — igual que expiryDate en
+  // ShopProduct, texto libre ISO yyyy-mm-dd para no acoplarse a huso horario.
+  dueDate   String?
+  // Se marca cuando la suma de amountPaidNow + todos los ShopSalePayment iguala el total.
+  // Null = todavía tiene saldo pendiente.
+  settledAt DateTime?
+
+  restaurant Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   items      ShopSaleItem[]
+  payments   ShopSalePayment[]
 
   @@index([restaurantId])
+  @@index([restaurantId, creditTerms, settledAt])
   @@map("shop_sales")
+}
+
+// Abono posterior contra una venta fiada (ShopSale.creditTerms != null) — cada uno reduce el
+// saldo pendiente sin tener que reabrir o duplicar la venta original. El saldo se calcula
+// siempre en el servicio (total - amountPaidNow - suma de estos pagos), nunca se cachea.
+model ShopSalePayment {
+  id         String   @id @default(cuid())
+  shopSaleId String
+  amount     Float
+  method     String?
+  createdAt  DateTime @default(now())
+
+  shopSale ShopSale @relation(fields: [shopSaleId], references: [id], onDelete: Cascade)
+
+  @@index([shopSaleId])
+  @@map("shop_sale_payments")
 }
 
 model ShopSaleItem {

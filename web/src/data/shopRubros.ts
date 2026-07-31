@@ -20,6 +20,9 @@ export interface ShopProductSeed {
   name: string;
   category: string;
   subcategory: string;
+  /** Marca del producto (ej. "Coca-Cola") — opcional porque las plantillas de ejemplo por rubro
+   * no la traen cargada; en un producto real siempre viene como string ('' si no se cargó). */
+  brand?: string;
   sku: string;
   location: string;
   price: number;

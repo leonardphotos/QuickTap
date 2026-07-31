@@ -11,6 +11,9 @@ export const createShopProductSchema = z.object({
   name: z.string().min(1).max(120),
   category: z.string().min(1).max(60),
   subcategory: z.string().max(60).optional().default(''),
+  // Marca del producto (ej. "Coca-Cola") — separada de la categoría para poder agrupar/filtrar
+  // el inventario por marca sin mezclarla con la clasificación por tipo de producto.
+  brand: z.string().max(60).optional().default(''),
   sku: z.string().max(60).optional().default(''),
   location: z.string().max(60).optional().default(''),
   price: z.coerce.number().min(0),
@@ -50,6 +53,19 @@ export const createShopSaleSchema = z.object({
     .optional(),
   creditTerms: z.enum(['FULL', 'INSTALLMENT']).nullable().optional(),
   amountPaidNow: z.coerce.number().nullable().optional(),
+  // Fecha en que el cliente se compromete a pagar el saldo — solo tiene sentido si creditTerms
+  // no es null. Texto libre ISO yyyy-mm-dd, igual que ShopProduct.expiryDate.
+  dueDate: z.string().max(10).nullable().optional(),
+});
+
+// Cuentas por Cobrar: abono posterior contra una venta fiada.
+export const createShopSalePaymentSchema = z.object({
+  amount: z.coerce.number().positive(),
+  method: z.string().max(60).optional(),
+});
+
+export const setShopSaleDueDateSchema = z.object({
+  dueDate: z.string().max(10).nullable(),
 });
 
 // v1/v2 (no un índice numérico) identifican la variante: el orden en que Postgres devuelve las

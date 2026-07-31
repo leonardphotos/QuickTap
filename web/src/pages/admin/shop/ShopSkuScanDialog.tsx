@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ScanLine } from 'lucide-react';
 import { TextureButton } from '@/components/ui/texture-button';
-import ScannerModal from './ScannerModal';
-import { useBarcodeCamera } from './useBarcodeCamera';
+import ScannerModal from '@/components/ui/scanner-modal';
+import { useBarcodeCamera } from '@/hooks/useBarcodeCamera';
 import { playScannerSound } from './shopSounds';
 
 interface Props {

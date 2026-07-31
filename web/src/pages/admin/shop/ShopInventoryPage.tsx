@@ -43,6 +43,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   const [npName, setNpName] = useState('');
   const [npCategory, setNpCategory] = useState(categories[0] ?? '');
   const [npSubcategory, setNpSubcategory] = useState('');
+  const [npBrand, setNpBrand] = useState('');
   const [npSku, setNpSku] = useState('');
   const [npLocation, setNpLocation] = useState('');
   const [npPrice, setNpPrice] = useState('');
@@ -201,11 +202,16 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   const low = products.filter((p) => productStatus(p) === 'warn').length;
   const out = products.filter((p) => productStatus(p) === 'danger').length;
 
-  const filtered = products.filter(
-    (p) =>
-      (!category || p.category === category) &&
-      (!search.trim() || p.name.toLowerCase().includes(search.trim().toLowerCase()) || p.sku.toLowerCase().includes(search.trim().toLowerCase())),
-  );
+  // Marcas ya cargadas en el catálogo, para autocompletar el campo del formulario sin tener
+  // que escribirlas siempre iguales a mano (ej. no mezclar "Coca-Cola" con "coca cola").
+  const brandOptions = Array.from(new Set(products.map((p) => p.brand).filter((b): b is string => !!b))).sort();
+
+  const filtered = products.filter((p) => {
+    if (category && p.category !== category) return false;
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    return p.name.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q) || (p.brand ?? '').toLowerCase().includes(q);
+  });
 
   const puProduct = products.find((p) => p.id === puProductId);
 
@@ -239,6 +245,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     setNpName('');
     setNpCategory(categories[0] ?? '');
     setNpSubcategory('');
+    setNpBrand('');
     setNpSku(initialSku ?? '');
     setNpLocation('');
     setNpPrice('');
@@ -270,6 +277,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     setNpName(p.name);
     setNpCategory(p.category);
     setNpSubcategory(p.subcategory);
+    setNpBrand(p.brand ?? '');
     setNpSku(p.sku);
     setNpLocation(p.location);
     setNpPrice(String(p.price));
@@ -303,6 +311,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     setNpName(seed.name);
     setNpCategory(seed.category);
     setNpSubcategory(seed.subcategory);
+    setNpBrand('');
     setNpSku(seed.sku);
     setNpLocation(seed.location);
     setNpPrice(String(seed.price));
@@ -353,6 +362,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
       name: npName.trim(),
       category: npCategory,
       subcategory: npSubcategory.trim(),
+      brand: npBrand.trim(),
       sku: npSku.trim(),
       location: npLocation.trim(),
       price,
@@ -516,6 +526,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                         <td className="py-3 pr-3">
                           <span className="text-brand-950/70">{p.category}</span>
                           {p.subcategory && <span className="block text-[11px] text-brand-950/40">{p.subcategory}</span>}
+                          {p.brand && <span className="block text-[11px] font-medium text-brand-500">{p.brand}</span>}
                         </td>
                         <td className="py-3 pr-3 text-brand-950/60">{p.location || '—'}</td>
                         <td className="py-3 pr-3">
@@ -820,6 +831,19 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
               />
               <datalist id="shop-subcategory-suggestions">
                 {(subcategories[npCategory] ?? []).map((s) => <option key={s} value={s} />)}
+              </datalist>
+            </label>
+            <label className="block text-sm">
+              <span className="text-brand-950/70">Marca</span>
+              <input
+                value={npBrand}
+                onChange={(e) => setNpBrand(e.target.value)}
+                list="shop-brand-suggestions"
+                placeholder="Ej: Coca-Cola"
+                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              />
+              <datalist id="shop-brand-suggestions">
+                {brandOptions.map((b) => <option key={b} value={b} />)}
               </datalist>
             </label>
             <label className="block text-sm">

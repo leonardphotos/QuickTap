@@ -47,6 +47,7 @@ export const shopService = {
         name: input.name,
         category: input.category,
         subcategory: input.subcategory ?? '',
+        brand: input.brand ?? '',
         sku: input.sku ?? '',
         location: input.location ?? '',
         price: input.price,
@@ -129,6 +130,7 @@ export const shopService = {
           paymentMeta: input.paymentMeta ?? undefined,
           creditTerms: input.creditTerms ?? null,
           amountPaidNow: input.amountPaidNow ?? null,
+          dueDate: input.creditTerms ? (input.dueDate ?? null) : null,
           items: {
             createMany: {
               data: input.items.map((it) => ({
@@ -266,4 +268,71 @@ export const shopService = {
       },
     });
   },
+
+  // --- Cuentas por Cobrar (ventas fiadas: creditTerms FULL o INSTALLMENT) ---
+
+  /** Ventas fiadas con su saldo pendiente ya calculado — solo las que aún no se saldaron. */
+  async listReceivables(restaurantId: string) {
+    const sales = await prisma.shopSale.findMany({
+      where: { restaurantId, creditTerms: { not: null }, settledAt: null },
+      include: { payments: { orderBy: { createdAt: 'asc' } } },
+      orderBy: [{ dueDate: 'asc' }, { time: 'asc' }],
+    });
+    return sales.map((s) => {
+      const paid = (s.amountPaidNow ?? 0) + s.payments.reduce((a, p) => a + p.amount, 0);
+      return { ...s, paid, balance: Math.max(0, round(s.total - paid)) };
+    });
+  },
+
+  /** Historial completo (saldadas incluidas) — para el "estado de cuenta" de un cliente. */
+  async listAllCredit(restaurantId: string) {
+    const sales = await prisma.shopSale.findMany({
+      where: { restaurantId, creditTerms: { not: null } },
+      include: { payments: { orderBy: { createdAt: 'asc' } } },
+      orderBy: { time: 'desc' },
+    });
+    return sales.map((s) => {
+      const paid = (s.amountPaidNow ?? 0) + s.payments.reduce((a, p) => a + p.amount, 0);
+      return { ...s, paid, balance: Math.max(0, round(s.total - paid)) };
+    });
+  },
+
+  /**
+   * Registra un abono contra una venta fiada. Si el abono cubre todo lo que faltaba, marca
+   * settledAt — de ahí en adelante la venta deja de aparecer en listReceivables().
+   */
+  async addSalePayment(restaurantId: string, saleId: string, input: { amount: number; method?: string }) {
+    const sale = await prisma.shopSale.findFirst({ where: { id: saleId, restaurantId }, include: { payments: true } });
+    if (!sale) throw notFound('Venta no encontrada.');
+    if (!sale.creditTerms) throw badRequest('Esta venta no es una venta fiada.');
+    if (sale.settledAt) throw badRequest('Esta venta ya está saldada.');
+
+    const paidSoFar = (sale.amountPaidNow ?? 0) + sale.payments.reduce((a, p) => a + p.amount, 0);
+    const balance = round(sale.total - paidSoFar);
+    if (input.amount > balance + 0.01) {
+      throw badRequest(`El abono no puede superar el saldo pendiente (${balance.toFixed(2)}).`);
+    }
+
+    return prisma.$transaction(async (tx) => {
+      const payment = await tx.shopSalePayment.create({
+        data: { shopSaleId: saleId, amount: input.amount, method: input.method },
+      });
+      const newBalance = round(balance - input.amount);
+      if (newBalance <= 0.01) {
+        await tx.shopSale.update({ where: { id: saleId }, data: { settledAt: new Date() } });
+      }
+      return payment;
+    });
+  },
+
+  async setSaleDueDate(restaurantId: string, saleId: string, dueDate: string | null) {
+    const sale = await prisma.shopSale.findFirst({ where: { id: saleId, restaurantId } });
+    if (!sale) throw notFound('Venta no encontrada.');
+    if (!sale.creditTerms) throw badRequest('Esta venta no es una venta fiada.');
+    return prisma.shopSale.update({ where: { id: saleId }, data: { dueDate } });
+  },
 };
+
+function round(n: number): number {
+  return Math.round(n * 100) / 100;
+}

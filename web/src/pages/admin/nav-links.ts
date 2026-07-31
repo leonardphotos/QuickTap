@@ -6,6 +6,7 @@ import {
   ChefHat,
   CircleDollarSign,
   ClipboardList,
+  FileText,
   Grid2x2,
   LayoutDashboard,
   QrCode,
@@ -59,6 +60,8 @@ export const EXPENSES_NAV_LINK: AdminNavLink = { to: '/admin/expenses', label: '
 export const SUCURSALES_NAV_LINK: AdminNavLink = { to: '/admin/sucursales', label: 'Sucursales', icon: Building2 };
 // Reservas hechas desde el botón "Mesa" del menú público: solo dueño/admin/cajero, que son quienes las aceptan.
 export const RESERVATIONS_NAV_LINK: AdminNavLink = { to: '/admin/reservations', label: 'Reservas', icon: CalendarDays };
+// Presupuestos/cotizaciones: un total para aprobar sin cobrar ni tocar cocina todavía.
+export const QUOTES_NAV_LINK: AdminNavLink = { to: '/admin/quotes', label: 'Cotizaciones', icon: FileText };
 
 const RESTRICTED_VISIBLE = new Set(['/admin/comandas', '/admin/kitchen', '/admin/table-orders']);
 // Plan Solo Delivery: sin mesas, así que estas pestañas no aportan nada.
@@ -97,7 +100,7 @@ export function visibleNavLinks(
   }
   if (!isRestricted && restaurant) {
     const extra: AdminNavLink[] = [];
-    if (isAdminCashier(role)) extra.push(RESERVATIONS_NAV_LINK);
+    if (isAdminCashier(role)) extra.push(RESERVATIONS_NAV_LINK, QUOTES_NAV_LINK);
     if (isAdminCashier(role) && hasFeature(restaurant, 'administration')) extra.push(ADMINISTRATION_NAV_LINK, EXPENSES_NAV_LINK);
     if (hasFeature(restaurant, 'inventoryBasic') || hasFeature(restaurant, 'inventoryRecipe')) {
       extra.push(INVENTORY_NAV_LINK);

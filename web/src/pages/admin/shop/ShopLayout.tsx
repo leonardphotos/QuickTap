@@ -1,16 +1,26 @@
 import { useState } from 'react';
-import { Home, Receipt, Boxes, Users, Settings } from 'lucide-react';
+import { Home, Receipt, Boxes, Users, Settings, FileText, Landmark } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getShopRubro } from '@/data/shopRubros';
 import { TextureButton } from '@/components/ui/texture-button';
+import { QuoteManager } from '@/components/admin/QuoteManager';
 import { useShopSession } from './shopSession';
 import ShopDashboardPage from './ShopDashboardPage';
 import ShopPosPage from './ShopPosPage';
 import ShopInventoryPage from './ShopInventoryPage';
 import ShopCustomersPage from './ShopCustomersPage';
 import ShopSettingsPage from './ShopSettingsPage';
+import ShopReceivablesPage from './ShopReceivablesPage';
 
-export type ShopScreen = 'admin' | 'venta' | 'inventario' | 'clientes' | 'ajustes';
+export type ShopScreen = 'admin' | 'venta' | 'inventario' | 'clientes' | 'ajustes' | 'cotizaciones' | 'cuentas';
+
+// Cotizaciones y Cuentas por Cobrar no van en el dock flotante de celular (ya tiene 5 iconos,
+// uno más lo dejaría apretado) — se llega a ellas desde los accesos de Inicio (ShopDashboardPage)
+// y, en escritorio, desde estos dos botones extra en la cabecera.
+const MORE_TABS: { id: ShopScreen; label: string; icon: typeof FileText }[] = [
+  { id: 'cotizaciones', label: 'Cotizaciones', icon: FileText },
+  { id: 'cuentas', label: 'Cuentas por Cobrar', icon: Landmark },
+];
 
 function getTabs(rubroId: string | undefined): { id: ShopScreen; label: string; icon: typeof Home }[] {
   return [
@@ -77,12 +87,12 @@ export default function ShopLayout() {
 
           {/* Escritorio: pestañas dentro de la cabecera (no hay dock flotante en lg+). */}
           <nav className="hidden lg:flex items-center gap-1 bg-brand-950/[0.05] p-1 rounded-full shrink-0">
-            {tabs.map((t) => (
+            {[...tabs, ...MORE_TABS].map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => setScreen(t.id)}
-                className={`text-[13px] font-semibold px-3.5 py-2 rounded-full transition-colors ${
+                className={`text-[13px] font-semibold px-3.5 py-2 rounded-full transition-colors whitespace-nowrap ${
                   screen === t.id ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
                 }`}
               >
@@ -101,7 +111,7 @@ export default function ShopLayout() {
 
       <main className="max-w-7xl mx-auto px-5 sm:px-6 py-5 pb-28 lg:pb-8">
         {screen === 'admin' && (
-          <ShopDashboardPage session={session} restaurant={restaurant} canSeeMoney={canSeeMoney} userName={user.name} />
+          <ShopDashboardPage session={session} restaurant={restaurant} canSeeMoney={canSeeMoney} userName={user.name} onNavigate={setScreen} />
         )}
         {screen === 'venta' && (
           <ShopPosPage session={session} restaurant={restaurant} rubro={rubro} />
@@ -109,6 +119,8 @@ export default function ShopLayout() {
         {screen === 'inventario' && <ShopInventoryPage session={session} rubro={rubro} restaurant={restaurant} />}
         {screen === 'clientes' && <ShopCustomersPage session={session} restaurant={restaurant} />}
         {screen === 'ajustes' && <ShopSettingsPage onBack={() => setScreen('admin')} />}
+        {screen === 'cotizaciones' && <QuoteManager />}
+        {screen === 'cuentas' && <ShopReceivablesPage />}
       </main>
 
       {/* Dock flotante y redondeado: mismo patrón visual que el dock del panel de restaurante

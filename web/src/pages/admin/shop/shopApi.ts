@@ -17,6 +17,7 @@ export interface RawShopProduct {
   name: string;
   category: string;
   subcategory: string;
+  brand: string;
   sku: string;
   location: string;
   price: number;
@@ -173,6 +174,7 @@ export function toShopProduct(p: RawShopProduct) {
     name: p.name,
     category: p.category,
     subcategory: p.subcategory,
+    brand: p.brand,
     sku: p.sku,
     location: p.location,
     price: p.price,

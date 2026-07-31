@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Minus, Plus, ScanLine, X } from 'lucide-react';
 import { TextureButton } from '@/components/ui/texture-button';
-import ScannerModal from './ScannerModal';
+import ScannerModal from '@/components/ui/scanner-modal';
 import type { ShopVariant } from '@/data/shopRubros';
 import { productStatus, productStock, type ShopProduct } from './shopSession';
-import { useBarcodeCamera } from './useBarcodeCamera';
+import { useBarcodeCamera } from '@/hooks/useBarcodeCamera';
 import { playScannerSound } from './shopSounds';
 
 interface Props {
