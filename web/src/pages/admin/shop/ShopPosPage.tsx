@@ -123,6 +123,10 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const [weightVariant, setWeightVariant] = useState<ShopVariant | null>(null);
   const [weightInput, setWeightInput] = useState('');
 
+  // Selector de variante: solo se abre si el producto tiene más de una (talla/color/presentación).
+  // Con una sola, se agrega directo — no tiene sentido pedirle al cajero que "elija" lo único que hay.
+  const [variantPickerProduct, setVariantPickerProduct] = useState<ShopProduct | null>(null);
+
   const [tillDialogOpen, setTillDialogOpen] = useState(false);
   const [cashReportsOpen, setCashReportsOpen] = useState(false);
   const [openingInput, setOpeningInput] = useState('');
@@ -172,7 +176,17 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   );
 
   function pickOrAddToCart(product: ShopProduct) {
-    const variant = bestVariant(product);
+    if (product.variants.length > 1) {
+      setVariantPickerProduct(product);
+      return;
+    }
+    addVariantToCart(product, bestVariant(product));
+  }
+
+  /** Punto único por el que cualquier variante (elegida a mano o resuelta sola) llega al carrito
+   * o al diálogo de peso — usado tanto desde la tarjeta directa como desde el selector. */
+  function addVariantToCart(product: ShopProduct, variant: ShopVariant) {
+    setVariantPickerProduct(null);
     if (variant.soldByWeight) {
       setWeightProduct(product);
       setWeightVariant(variant);
@@ -460,9 +474,17 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
                       disabled ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5 hover:border-brand-400'
                     }`}
                   >
-                    <div className={`aspect-square w-full rounded-xl flex items-center justify-center font-bold text-lg mb-2 ${categoryColor(categories, p.category)}`}>
-                      {initials(p.name)}
-                    </div>
+                    {p.photoUrl ? (
+                      <img
+                        src={p.photoUrl}
+                        alt=""
+                        className="aspect-square w-full rounded-xl object-cover mb-2"
+                      />
+                    ) : (
+                      <div className={`aspect-square w-full rounded-xl flex items-center justify-center font-bold text-lg mb-2 ${categoryColor(categories, p.category)}`}>
+                        {initials(p.name)}
+                      </div>
+                    )}
                     <p className="text-[13px] font-semibold text-brand-950 leading-tight line-clamp-2">{p.name}</p>
                     {p.promoPrice != null ? (
                       <p className="text-sm font-bold text-red-600 mt-1">
@@ -886,6 +908,39 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
                 </TextureButton>
               </DialogFooter>
             </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ---------- Selector de variante (talla/color/presentación) ---------- */}
+      <Dialog open={!!variantPickerProduct} onOpenChange={(open) => !open && setVariantPickerProduct(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{variantPickerProduct?.name}</DialogTitle>
+          </DialogHeader>
+          {variantPickerProduct && (
+            <div className="flex flex-col gap-1.5 max-h-[60vh] overflow-y-auto">
+              {variantPickerProduct.variants.map((v, i) => {
+                const label = [v.v1, v.v2].filter(Boolean).join(' · ') || 'Única';
+                const out = v.stock <= 0 && !v.soldByWeight;
+                return (
+                  <button
+                    key={`${v.v1}-${v.v2}-${i}`}
+                    type="button"
+                    disabled={out}
+                    onClick={() => addVariantToCart(variantPickerProduct, v)}
+                    className={`flex items-center justify-between gap-3 rounded-xl border border-brand-950/10 px-4 py-3 text-left transition-colors ${
+                      out ? 'opacity-40 cursor-not-allowed' : 'hover:bg-brand-950/[0.04]'
+                    }`}
+                  >
+                    <span className="font-medium text-brand-950">{label}</span>
+                    <span className="text-sm text-brand-950/50 shrink-0">
+                      {out ? 'Agotado' : v.soldByWeight ? 'Por Kg' : `${v.stock} en stock`}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           )}
         </DialogContent>
       </Dialog>

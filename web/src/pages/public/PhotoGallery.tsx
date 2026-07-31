@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import type { PanInfo } from 'motion/react';
+import { ChevronRight, X } from 'lucide-react';
 import type { CartLine, ModifierCategory, Product, Restaurant, SelectedModifier } from '../../types';
 import { formatBase, formatModifierLabel, modifierSelectionKey, publicPriceLabel } from '../../utils/format';
 import { effectiveMax, effectiveMin } from '../../utils/modifierLimits';
@@ -47,6 +48,9 @@ export default function PhotoGallery({
   const [closing, setClosing] = useState(false);
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [selectedQty, setSelectedQty] = useState<Record<string, number>>({});
+  // Variantes y modificadores viven en su propio panel, no como chips apilados debajo de la
+  // foto — con varias categorías esa lista empujaba la foto entera fuera de la pantalla.
+  const [panel, setPanel] = useState<'variants' | 'modifiers' | null>(null);
 
   const product = products[index];
 
@@ -56,6 +60,7 @@ export default function PhotoGallery({
       product.pricingMode === 'VARIANTS' ? product.variants?.find((v) => v.isAvailable !== false) : undefined;
     setSelectedVariantId(firstVariant?.id ?? null);
     setSelectedQty({});
+    setPanel(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product?.id]);
 
@@ -81,6 +86,15 @@ export default function PhotoGallery({
   const needsVariant = product.pricingMode === 'VARIANTS' && !selectedVariant;
   const missingRequiredCategory = modifierCategories.some((c) => categoryTotal(c) < effectiveMin(c));
   const canAdd = !needsVariant && !missingRequiredCategory;
+  const hasVariants = product.pricingMode === 'VARIANTS' && !!product.variants && product.variants.length > 0;
+  const totalModifiersSelected = chosenModifiers.reduce((acc, m) => acc + m.quantity, 0);
+  const variantsLabel = selectedVariant ? selectedVariant.name : 'Elige una opción';
+  const modifiersLabel =
+    totalModifiersSelected > 0
+      ? `${totalModifiersSelected} extra${totalModifiersSelected > 1 ? 's' : ''} elegido${totalModifiersSelected > 1 ? 's' : ''}`
+      : missingRequiredCategory
+        ? 'Elige tus opciones'
+        : 'Personalizar (opcional)';
 
   const currentLine: CartLine = {
     product,
@@ -191,70 +205,48 @@ export default function PhotoGallery({
                 {price.secondary && <span className="text-white/60 font-normal"> · {price.secondary}</span>}
               </p>
 
-              {orderingEnabled && product.pricingMode === 'VARIANTS' && product.variants && product.variants.length > 0 && (
-                <div className="mt-4">
-                  <p className="text-white/50 text-[11px] font-medium tracking-wide">Elige una opción</p>
-                  <div className="flex flex-wrap justify-center gap-1.5 mt-2">
-                    {product.variants.map((v) => {
-                      const selected = selectedVariantId === v.id;
-                      return (
-                        <motion.button
-                          key={v.id}
-                          whileTap={{ scale: 0.94 }}
-                          transition={CHIP_SPRING}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedVariantId(v.id);
-                          }}
-                          className={`text-xs font-medium px-3.5 py-1.5 rounded-full border backdrop-blur-sm transition-colors ${
-                            selected ? 'bg-white text-neutral-900 border-white' : 'bg-white/10 text-white border-white/25'
-                          }`}
-                        >
-                          {v.name} · {formatBase(v.priceBase, restaurant.currencySymbol)}
-                        </motion.button>
-                      );
-                    })}
-                  </div>
-                </div>
+              {/* Botones resumen: abren su lista en un panel aparte en vez de apilar chips
+                  debajo de la foto, que con varias variantes/modificadores la empujaban
+                  fuera de la pantalla. */}
+              {orderingEnabled && hasVariants && (
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  transition={CHIP_SPRING}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPanel('variants');
+                  }}
+                  className="mt-3 w-full flex items-center justify-between gap-3 bg-white/10 border border-white/25 backdrop-blur-sm rounded-2xl px-4 py-3 text-left"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-white/50 text-[11px] font-medium tracking-wide">
+                      Opciones{needsVariant && <span className="text-amber-300"> · Obligatorio</span>}
+                    </span>
+                    <span className="block text-white text-sm font-semibold mt-0.5 truncate">{variantsLabel}</span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 text-white/40 shrink-0" />
+                </motion.button>
               )}
 
-              {orderingEnabled &&
-                modifierCategories.map((category) => (
-                  <div key={category.id} className="mt-4">
-                    <p className="text-white/50 text-[11px] font-medium tracking-wide">
-                      {category.name}
-                      {category.isRequired && <span className="text-amber-300"> · Obligatorio</span>}
-                    </p>
-                    <div className="flex flex-wrap justify-center gap-1.5 mt-2">
-                      {category.modifiers.map((m) => {
-                        const qty = selectedQty[m.id] ?? 0;
-                        const selected = qty > 0;
-                        // Solo aplica a categorías "Varios": ya no se puede sumar más este modificador
-                        // (tope propio o tope total de la categoría alcanzado) — el toque no hace nada.
-                        const atCap =
-                          category.allowMultiple &&
-                          (categoryTotal(category) >= effectiveMax(category) || qty >= (m.maxQuantity ?? Infinity));
-                        return (
-                          <motion.button
-                            key={m.id}
-                            whileTap={atCap ? undefined : { scale: 0.94 }}
-                            transition={CHIP_SPRING}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleModifier(category, m.id);
-                            }}
-                            className={`text-xs font-medium px-3.5 py-1.5 rounded-full border backdrop-blur-sm transition-colors ${
-                              selected ? 'bg-white text-neutral-900 border-white' : 'bg-white/10 text-white border-white/25'
-                            } ${atCap ? 'opacity-50' : ''}`}
-                          >
-                            {formatModifierLabel({ name: m.name, quantity: qty || undefined })}
-                            {Number(m.priceBase) > 0 && ` +${formatBase(m.priceBase, restaurant.currencySymbol)}`}
-                          </motion.button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
+              {orderingEnabled && modifierCategories.length > 0 && (
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  transition={CHIP_SPRING}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPanel('modifiers');
+                  }}
+                  className="mt-3 w-full flex items-center justify-between gap-3 bg-white/10 border border-white/25 backdrop-blur-sm rounded-2xl px-4 py-3 text-left"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-white/50 text-[11px] font-medium tracking-wide">
+                      Modificadores{missingRequiredCategory && <span className="text-amber-300"> · Obligatorio</span>}
+                    </span>
+                    <span className="block text-white text-sm font-semibold mt-0.5 truncate">{modifiersLabel}</span>
+                  </span>
+                  <ChevronRight className="h-4 w-4 text-white/40 shrink-0" />
+                </motion.button>
+              )}
 
               {orderingEnabled && (
                 <motion.div layout="position" transition={CHIP_SPRING} className="mt-5 flex justify-center">
@@ -307,6 +299,112 @@ export default function PhotoGallery({
               )}
             </div>
           </motion.div>
+
+          <AnimatePresence>
+            {panel && (
+              <motion.div
+                className="fixed inset-0 z-10 flex items-center justify-center bg-black/70 backdrop-blur-sm px-6"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18 }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPanel(null);
+                }}
+              >
+                <motion.div
+                  onClick={(e) => e.stopPropagation()}
+                  initial={{ opacity: 0, scale: 0.94, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.96, y: 8 }}
+                  transition={{ type: 'spring', damping: 28, stiffness: 320 }}
+                  className="w-full max-w-sm max-h-[70vh] overflow-y-auto rounded-[24px] border border-white/10 bg-neutral-900/95 backdrop-blur-xl p-5"
+                >
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-white font-semibold text-base">
+                      {panel === 'variants' ? 'Elige una opción' : 'Personaliza tu pedido'}
+                    </h3>
+                    <button onClick={() => setPanel(null)} className="text-white/50 hover:text-white -m-1.5 p-1.5">
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  {panel === 'variants' && product.variants && (
+                    <div className="flex flex-col gap-1.5">
+                      {product.variants.map((v) => {
+                        const selected = selectedVariantId === v.id;
+                        return (
+                          <button
+                            key={v.id}
+                            onClick={() => {
+                              setSelectedVariantId(v.id);
+                              setPanel(null);
+                            }}
+                            className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+                              selected ? 'bg-white text-neutral-900 border-white' : 'border-white/15 text-white hover:bg-white/5'
+                            }`}
+                          >
+                            <span className="font-medium text-sm">{v.name}</span>
+                            <span className={`text-sm shrink-0 ${selected ? 'text-neutral-500' : 'text-white/50'}`}>
+                              {formatBase(v.priceBase, restaurant.currencySymbol)}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {panel === 'modifiers' && (
+                    <div className="flex flex-col gap-5">
+                      {modifierCategories.map((category) => (
+                        <div key={category.id}>
+                          <p className="text-white/50 text-[11px] font-medium tracking-wide">
+                            {category.name}
+                            {category.isRequired && <span className="text-amber-300"> · Obligatorio</span>}
+                          </p>
+                          <div className="flex flex-col gap-1.5 mt-2">
+                            {category.modifiers.map((m) => {
+                              const qty = selectedQty[m.id] ?? 0;
+                              const selected = qty > 0;
+                              const atCap =
+                                category.allowMultiple &&
+                                (categoryTotal(category) >= effectiveMax(category) || qty >= (m.maxQuantity ?? Infinity));
+                              return (
+                                <button
+                                  key={m.id}
+                                  disabled={atCap && !selected}
+                                  onClick={() => toggleModifier(category, m.id)}
+                                  className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition-colors ${
+                                    selected ? 'bg-white text-neutral-900 border-white' : 'border-white/15 text-white hover:bg-white/5'
+                                  } ${atCap && !selected ? 'opacity-40' : ''}`}
+                                >
+                                  <span className="font-medium text-sm">
+                                    {formatModifierLabel({ name: m.name, quantity: qty || undefined })}
+                                  </span>
+                                  {Number(m.priceBase) > 0 && (
+                                    <span className={`text-sm shrink-0 ${selected ? 'text-neutral-500' : 'text-white/50'}`}>
+                                      +{formatBase(m.priceBase, restaurant.currencySymbol)}
+                                    </span>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => setPanel(null)}
+                        className="w-full bg-white text-neutral-900 rounded-full py-2.5 font-semibold text-sm"
+                      >
+                        Listo
+                      </button>
+                    </div>
+                  )}
+                </motion.div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {products.length > 1 && (
             <div className="absolute bottom-7 flex gap-1.5">
