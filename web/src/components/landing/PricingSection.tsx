@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/api/client';
-import type { BillingCycle, PlanId } from '@/utils/plans';
+import type { BillingCycle, PurchasablePlan } from '@/utils/plans';
 import { PlanCards } from './PlanCards';
 import { ShopPlanCard } from './ShopPlanCard';
 
@@ -22,7 +22,7 @@ export function PricingSection() {
   // El pago solo se hace ya con la cuenta creada (ver BillingPage): aquí solo
   // se elige el plan y se manda a registrar, llevando la elección en la URL
   // para que el panel la retome automáticamente después de crear la cuenta.
-  function choosePlan(plan: Exclude<PlanId, 'TRIAL' | 'STARTER' | 'PREMIUM' | 'CUSTOM'>) {
+  function choosePlan(plan: PurchasablePlan) {
     const params = new URLSearchParams({ plan, cycle: billingCycle });
     navigate(`/empezar?${params.toString()}`);
   }

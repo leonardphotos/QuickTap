@@ -4,7 +4,7 @@ import { UpdatePaymentMethodsInput, UpdatePlanContentInput } from './platform-se
 
 const SINGLETON_ID = 'singleton';
 
-export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'SUCURSALES' | 'DELIVERY_SUCURSALES';
+export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE';
 export type PlanBillingCycle = 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL';
 
 export interface PlanContentEntry {
@@ -18,59 +18,52 @@ export interface PlanContentEntry {
 export type PlanContent = Record<PurchasablePlan, PlanContentEntry>;
 
 /**
- * Valores por defecto (precios/descripción) de los 4 planes vigentes. Única
+ * Valores por defecto (precios/descripción) de los 3 planes vigentes. Única
  * fuente de verdad para el precio de facturación (ver resolvePrice() en
  * plan-request.service.ts) — lo editable desde el Dashboard maestro se
- * fusiona sobre esto, así que un plan nunca queda a medio configurar.
+ * fusiona sobre esto, así que un plan nunca queda a medio configurar. Los
+ * tres incluyen sucursales ILIMITADAS (ver allowsBranches en subscription.ts).
  */
 export const DEFAULT_PLAN_CONTENT: PlanContent = {
   DELIVERY: {
     name: 'Solo Delivery',
     subtitle: 'Cocinas fantasma o solo pedidos por WhatsApp',
-    capacity: 'Sin mesas ni códigos QR — acceso directo a Cocina',
-    features: ['Productos', 'Cocinas', 'Sección de Delivery', 'Pedidos ilimitados', 'Hasta 6 usuarios de tu equipo'],
-    prices: { MONTHLY: 18.99, QUARTERLY: 16.99, SEMIANNUAL: 14.99 },
+    capacity: 'Sucursales ilimitadas — sin mesas ni códigos QR',
+    features: [
+      'Productos, Cocinas y Sección de Delivery en cada sucursal',
+      'Pedidos ilimitados',
+      'Hasta 6 usuarios de tu equipo',
+    ],
+    prices: { MONTHLY: 14.99, QUARTERLY: 12.74, SEMIANNUAL: 10.49 },
   },
   PRO: {
     name: 'Plan Pro',
     subtitle: 'Todos los beneficios de QuickTap',
-    capacity: 'Mesas y pedidos ilimitados',
+    capacity: 'Mesas, pedidos y sucursales ilimitadas',
     features: [
       'Usuarios ilimitados',
-      'Administración: historial de pedidos, propinas, Estadísticas y reportes de ventas',
+      'Administración, propinas y reportes de ventas',
       'Margen de utilidad por producto',
       'Inventario por receta: descuenta insumos automáticamente al vender',
-      'Gastos: proveedores, categorías de egreso y balance',
-      'Cuentas por pagar: cuentas abiertas pendientes de cobro',
+      'Gastos y cuentas por pagar',
     ],
-    prices: { MONTHLY: 28.99, QUARTERLY: 24.99, SEMIANNUAL: 20.99 },
+    prices: { MONTHLY: 19.99, QUARTERLY: 16.99, SEMIANNUAL: 13.99 },
   },
-  SUCURSALES: {
-    name: 'Plan Sucursales',
-    subtitle: 'Todos los beneficios de Pro, en hasta 5 sucursales',
-    capacity: 'Hasta 5 sucursales, cada una con mesas y pedidos ilimitados',
+  ELITE: {
+    name: 'Plan Elite',
+    subtitle: 'Todo lo del Plan Pro + beneficios exclusivos, sin límite de sucursales',
+    capacity: 'Sucursales ilimitadas, cada una con mesas y pedidos ilimitados',
     features: [
-      'Todos los beneficios del Plan Pro en cada sucursal',
-      'Cada sucursal con su propio catálogo, inventario, mesas y equipo',
-      'Reporte consolidado de ventas: sede principal + cada sucursal',
-      'Inventario por sucursal: qué falta reabastecer en cada una',
+      'Todo el Plan Pro en cada sucursal',
+      'Catálogo, inventario y equipo por sucursal',
+      'Reporte consolidado de ventas entre sucursales',
       'Productos más vendidos por sucursal',
-      'Equipo de trabajo por sucursal',
+      'Soporte prioritario 24/7 por WhatsApp',
+      'Gerente de cuenta dedicado',
+      'Onboarding y migración de catálogo sin costo',
+      'Acceso anticipado a nuevas funcionalidades',
     ],
-    prices: { MONTHLY: 78.99, QUARTERLY: 64.99, SEMIANNUAL: 50.99 },
-  },
-  DELIVERY_SUCURSALES: {
-    name: 'Delivery Sucursales',
-    subtitle: 'Todos los beneficios de Solo Delivery, en hasta 5 sucursales',
-    capacity: 'Hasta 5 sucursales — sin mesas ni códigos QR',
-    features: [
-      'Productos, Cocinas y Sección de Delivery en cada sucursal',
-      'Cada sucursal con su propio catálogo, inventario y equipo',
-      'Reporte consolidado de ventas: sede principal + cada sucursal',
-      'Inventario por sucursal: qué falta reabastecer en cada una',
-      'Productos más vendidos por sucursal',
-    ],
-    prices: { MONTHLY: 38.99, QUARTERLY: 32.99, SEMIANNUAL: 26.99 },
+    prices: { MONTHLY: 29.99, QUARTERLY: 25.49, SEMIANNUAL: 20.99 },
   },
 };
 

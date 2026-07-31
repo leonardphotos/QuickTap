@@ -36,7 +36,7 @@ const CUSTOM_FLAG_FIELD: Record<FeatureFlag, keyof FeatureCheckRestaurant> = {
 
 /** Planes "completos" (todos los beneficios de Administración/Inventario/etc.), con o sin sucursales. */
 export function isFullTierPlan(plan?: string | null): boolean {
-  return plan === 'PRO' || plan === 'PREMIUM' || plan === 'SUCURSALES';
+  return plan === 'PRO' || plan === 'PREMIUM' || plan === 'SUCURSALES' || plan === 'ELITE';
 }
 
 /** Planes "Solo Delivery" (sin mesas/QR, acceso directo a Cocina), con o sin sucursales. */
@@ -44,9 +44,19 @@ export function isDeliveryTierPlan(plan?: string | null): boolean {
   return plan === 'DELIVERY' || plan === 'DELIVERY_SUCURSALES';
 }
 
-/** Planes que habilitan crear sucursales (tope de 5 cada uno, ver MAX_BRANCHES en el backend). */
+/**
+ * Planes que habilitan crear sucursales. Los 3 planes vigentes (Delivery/Pro/Elite) traen
+ * sucursales ILIMITADAS; SUCURSALES/DELIVERY_SUCURSALES son legados (ya no se ofrecen a
+ * clientes nuevos) que se mantienen topados en 5, ver MAX_BRANCHES en el backend.
+ */
 export function allowsBranches(plan?: string | null): boolean {
-  return plan === 'SUCURSALES' || plan === 'DELIVERY_SUCURSALES';
+  return (
+    plan === 'DELIVERY' ||
+    plan === 'PRO' ||
+    plan === 'ELITE' ||
+    plan === 'SUCURSALES' ||
+    plan === 'DELIVERY_SUCURSALES'
+  );
 }
 
 export function hasFeature(restaurant: FeatureCheckRestaurant | null | undefined, feature: FeatureFlag): boolean {

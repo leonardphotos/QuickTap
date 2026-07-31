@@ -1,10 +1,12 @@
 import { z } from 'zod';
 
 export const createPlanRequestSchema = z.object({
-  // Cuatro planes vigentes: Delivery ($18.99), Pro ($28.99, todos los
-  // beneficios), Sucursales ($78.99, Pro + hasta 5 sucursales) y Delivery
-  // Sucursales ($38.99, Delivery + hasta 5 sucursales).
-  plan: z.enum(['DELIVERY', 'PRO', 'SUCURSALES', 'DELIVERY_SUCURSALES']),
+  // Tres planes vigentes: Delivery ($14.99), Pro ($19.99, más popular) y
+  // Elite ($29.99, todos los beneficios de Pro + soporte prioritario). Los
+  // tres incluyen sucursales ilimitadas. SUCURSALES/DELIVERY_SUCURSALES son
+  // planes legados — ya no se ofrecen por este flujo (solo el master puede
+  // reactivar/extenderlos, ver activateRestaurantSchema).
+  plan: z.enum(['DELIVERY', 'PRO', 'ELITE']),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL']),
   paymentMethod: z.enum(['PAGO_MOVIL', 'BINANCE', 'BANK_TRANSFER']),
   // Número de referencia de la transferencia/pago móvil/Binance (reemplaza
@@ -86,8 +88,11 @@ export const updatePlanRequestSchema = z.object({
 
 export type UpdatePlanRequestInput = z.infer<typeof updatePlanRequestSchema>;
 
+// Solo el Dashboard maestro puede activar/extender en SUCURSALES o DELIVERY_SUCURSALES
+// (planes legados, quedan disponibles acá únicamente para gestionar a los restaurantes
+// que ya los tenían contratados — no se ofrecen a clientes nuevos).
 export const activateRestaurantSchema = z.object({
-  plan: z.enum(['DELIVERY', 'PRO', 'SUCURSALES', 'DELIVERY_SUCURSALES']),
+  plan: z.enum(['DELIVERY', 'PRO', 'ELITE', 'SUCURSALES', 'DELIVERY_SUCURSALES']),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL']),
 });
 
@@ -95,7 +100,7 @@ export type ActivateRestaurantInput = z.infer<typeof activateRestaurantSchema>;
 
 // GET /plan-requests/quote — desglose (mensualidad + cargos adicionales) antes de cobrar.
 export const quoteQuerySchema = z.object({
-  plan: z.enum(['DELIVERY', 'PRO', 'SUCURSALES', 'DELIVERY_SUCURSALES']),
+  plan: z.enum(['DELIVERY', 'PRO', 'ELITE']),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL']),
   promoCode: z.string().max(40).optional(),
 });

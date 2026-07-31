@@ -56,15 +56,19 @@ interface RestaurantDetail {
   }[];
 }
 
-const PLAN_OPTIONS = ['DELIVERY', 'PRO', 'SUCURSALES', 'DELIVERY_SUCURSALES'] as const;
+// SUCURSALES/DELIVERY_SUCURSALES son planes legados (ya no se ofrecen a clientes nuevos, ver
+// CLAUDE.md) — se mantienen acá solo para poder seguir gestionando a los restaurantes que ya
+// los tienen activos.
+const PLAN_OPTIONS = ['DELIVERY', 'PRO', 'ELITE', 'SUCURSALES', 'DELIVERY_SUCURSALES'] as const;
 const PLAN_OPTION_LABELS: Record<(typeof PLAN_OPTIONS)[number], string> = {
   DELIVERY: 'DELIVERY — Solo Delivery',
   PRO: 'PRO — Plan Pro',
-  SUCURSALES: 'SUCURSALES — Plan Sucursales',
-  DELIVERY_SUCURSALES: 'DELIVERY_SUCURSALES — Delivery Sucursales',
+  ELITE: 'ELITE — Plan Elite',
+  SUCURSALES: 'SUCURSALES — Plan Sucursales (legado)',
+  DELIVERY_SUCURSALES: 'DELIVERY_SUCURSALES — Delivery Sucursales (legado)',
 };
 const CYCLE_OPTIONS = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL'] as const;
-const BRANCH_PLAN_OPTIONS = ['SUCURSALES', 'DELIVERY_SUCURSALES'] as const;
+const BRANCH_PLAN_OPTIONS = ['DELIVERY', 'PRO', 'ELITE', 'SUCURSALES', 'DELIVERY_SUCURSALES'] as const;
 
 export default function MasterRestaurantDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -799,7 +803,7 @@ function AddBranchDialog({
 }) {
   const [name, setName] = useState('');
   const [whatsappPhone, setWhatsappPhone] = useState('');
-  const [plan, setPlan] = useState<(typeof BRANCH_PLAN_OPTIONS)[number]>('SUCURSALES');
+  const [plan, setPlan] = useState<(typeof BRANCH_PLAN_OPTIONS)[number]>('ELITE');
   const [billingCycle, setBillingCycle] = useState<(typeof CYCLE_OPTIONS)[number]>('MONTHLY');
   const [copyCatalog, setCopyCatalog] = useState(false);
 

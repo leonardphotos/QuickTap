@@ -46,7 +46,7 @@ export const createBranchForRestaurantSchema = z.object({
   whatsappPhone: z.string().min(7).max(30).optional(),
   baseCurrency: z.enum(['USD', 'EUR']).optional().default('USD'),
   copyCatalog: z.boolean().default(false),
-  plan: z.enum(['SUCURSALES', 'DELIVERY_SUCURSALES']).default('SUCURSALES'),
+  plan: z.enum(['DELIVERY', 'PRO', 'ELITE', 'SUCURSALES', 'DELIVERY_SUCURSALES']).default('ELITE'),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL']).default('MONTHLY'),
 });
 

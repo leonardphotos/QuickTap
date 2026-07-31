@@ -29,18 +29,20 @@ const PLAN_LABELS: Record<SubscriptionPlan, string> = {
   CUSTOM: 'Plan Personalizado',
   SUCURSALES: 'Plan Sucursales',
   DELIVERY_SUCURSALES: 'Plan Delivery Sucursales',
+  ELITE: 'Plan Elite',
 };
 
 // Beneficios breves para el mensaje de bienvenida por WhatsApp al activar la cuenta.
 const PLAN_BENEFITS: Record<SubscriptionPlan, string> = {
   TRIAL: 'Mesas y códigos QR ilimitados durante tu prueba.',
   STARTER: 'Hasta 5-6 mesas, 500 pedidos al mes y 4 usuarios de tu equipo.',
-  PRO: 'Todos los beneficios: mesas y pedidos ilimitados, usuarios ilimitados, Administración, Estadísticas, Inventario por receta, Gastos y Cuentas por pagar.',
+  PRO: 'Todos los beneficios: mesas, pedidos y sucursales ilimitadas, usuarios ilimitados, Administración, Estadísticas, Inventario por receta, Gastos y Cuentas por pagar.',
   PREMIUM: 'Mesas y pedidos ilimitados, hasta 20 usuarios, Administración e Inventario por receta.',
-  DELIVERY: 'Productos, Cocinas, sección de Delivery y pedidos ilimitados. Hasta 6 usuarios de tu equipo.',
+  DELIVERY: 'Productos, Cocinas, sección de Delivery, pedidos ilimitados y sucursales ilimitadas. Hasta 6 usuarios de tu equipo.',
   CUSTOM: 'Tu plan armado a la medida de tu restaurante.',
   SUCURSALES: 'Todos los beneficios del Plan Pro, más hasta 5 sucursales con reporte consolidado de ventas, inventario y equipo.',
   DELIVERY_SUCURSALES: 'Todos los beneficios del Plan Solo Delivery, más hasta 5 sucursales con reporte consolidado de ventas, inventario y equipo.',
+  ELITE: 'Todos los beneficios del Plan Pro, sucursales ilimitadas, soporte prioritario 24/7, gerente de cuenta dedicado y onboarding sin costo.',
 };
 
 function buildAcceptedMessage(plan: SubscriptionPlan): string {
@@ -66,22 +68,22 @@ function buildPaymentNotReceivedMessage(): string {
   ].join('\n\n');
 }
 
-export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'SUCURSALES' | 'DELIVERY_SUCURSALES';
+export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE';
 
 /**
  * Precios fijos por plan y ciclo de facturación (USD/mes). Única fuente de
- * verdad: el precio que llega del cliente NUNCA se usa, siempre se recalcula
- * aquí para evitar manipulación. Cuatro planes vigentes: Delivery y Pro (los
- * de siempre) más Sucursales y Delivery Sucursales (mismos beneficios que
- * Pro/Delivery respectivamente, más hasta 5 sucursales — ver MAX_BRANCHES en
- * src/utils/subscription.ts). 20%/40% de descuento en trimestral/semestral,
- * igual que los dos planes originales.
+ * verdad de respaldo: el precio que llega del cliente NUNCA se usa, siempre
+ * se recalcula aquí (o desde platform_settings.planContent, ver resolvePrice)
+ * para evitar manipulación. Tres planes vigentes: Delivery, Pro y Elite, los
+ * tres con sucursales ILIMITADAS (ver allowsBranches/maxBranchesFor en
+ * src/utils/subscription.ts) — SUCURSALES y DELIVERY_SUCURSALES quedaron como
+ * planes legados, ya no se ofrecen a clientes nuevos pero se mantienen en el
+ * enum/PLAN_LABELS por los restaurantes que ya los tienen activos.
  */
 const FIXED_PLAN_PRICES: Record<PurchasablePlan, Record<BillingCycle, number>> = {
-  DELIVERY: { MONTHLY: 18.99, QUARTERLY: 16.99, SEMIANNUAL: 14.99 },
-  PRO: { MONTHLY: 28.99, QUARTERLY: 24.99, SEMIANNUAL: 20.99 },
-  SUCURSALES: { MONTHLY: 78.99, QUARTERLY: 64.99, SEMIANNUAL: 50.99 },
-  DELIVERY_SUCURSALES: { MONTHLY: 38.99, QUARTERLY: 32.99, SEMIANNUAL: 26.99 },
+  DELIVERY: { MONTHLY: 14.99, QUARTERLY: 12.74, SEMIANNUAL: 10.49 },
+  PRO: { MONTHLY: 19.99, QUARTERLY: 16.99, SEMIANNUAL: 13.99 },
+  ELITE: { MONTHLY: 29.99, QUARTERLY: 25.49, SEMIANNUAL: 20.99 },
 };
 
 export interface CustomAddons {

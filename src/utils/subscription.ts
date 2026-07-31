@@ -91,7 +91,7 @@ const CUSTOM_FLAG_FIELD: Record<FeatureFlag, keyof FeatureCheckRestaurant> = {
 
 /** Planes "completos" (todos los beneficios de Administración/Inventario/etc.), con o sin sucursales. */
 export function isFullTierPlan(plan?: string | null): boolean {
-  return plan === 'PRO' || plan === 'PREMIUM' || plan === 'SUCURSALES';
+  return plan === 'PRO' || plan === 'PREMIUM' || plan === 'SUCURSALES' || plan === 'ELITE';
 }
 
 /** Planes "Solo Delivery" (sin mesas/QR, acceso directo a Cocina), con o sin sucursales. */
@@ -99,12 +99,30 @@ export function isDeliveryTierPlan(plan?: string | null): boolean {
   return plan === 'DELIVERY' || plan === 'DELIVERY_SUCURSALES';
 }
 
-/** Planes que habilitan crear sucursales (tope de MAX_BRANCHES cada uno). */
+/**
+ * Planes que habilitan crear sucursales. Desde la reestructuración a 3 planes
+ * (Delivery/Pro/Elite), los tres vigentes traen sucursales ILIMITADAS —
+ * SUCURSALES/DELIVERY_SUCURSALES son planes legados (ya no se ofrecen a
+ * clientes nuevos, ver maxBranchesFor) que siguen topados en 5.
+ */
 export function allowsBranches(plan?: string | null): boolean {
-  return plan === 'SUCURSALES' || plan === 'DELIVERY_SUCURSALES';
+  return (
+    plan === 'DELIVERY' ||
+    plan === 'PRO' ||
+    plan === 'ELITE' ||
+    plan === 'SUCURSALES' ||
+    plan === 'DELIVERY_SUCURSALES'
+  );
 }
 
+/** [Legado] Tope de sucursales de SUCURSALES/DELIVERY_SUCURSALES, los únicos planes que aún limitan. */
 export const MAX_BRANCHES = 5;
+
+/** Tope de sucursales según el plan — null significa sin límite (Delivery/Pro/Elite). */
+export function maxBranchesFor(plan?: string | null): number | null {
+  if (plan === 'SUCURSALES' || plan === 'DELIVERY_SUCURSALES') return MAX_BRANCHES;
+  return null;
+}
 
 export function hasFeature(restaurant: FeatureCheckRestaurant, feature: FeatureFlag): boolean {
   // Plan Pro (único plan completo desde la reducción a 2 planes): todos los beneficios,

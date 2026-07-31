@@ -2,16 +2,16 @@ import { useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
 import { api } from '@/api/client';
 import { formatBs } from '@/utils/format';
-import { BILLING_CYCLE_LABEL, FIXED_PLAN_PRICES, type BillingCycle, type PlanId } from '@/utils/plans';
+import { BILLING_CYCLE_LABEL, FIXED_PLAN_PRICES, type BillingCycle, type PurchasablePlan } from '@/utils/plans';
 import { TextureButton } from '@/components/ui/texture-button';
 
 export interface PlanContent {
-  id: 'DELIVERY' | 'PRO' | 'SUCURSALES' | 'DELIVERY_SUCURSALES';
+  id: PurchasablePlan;
   name: string;
   subtitle: string;
   capacity: string;
   features: string[];
-  highlighted?: boolean;
+  tier?: 'popular' | 'premium';
 }
 
 export const PLAN_CONTENT: PlanContent[] = [
@@ -19,58 +19,49 @@ export const PLAN_CONTENT: PlanContent[] = [
     id: 'DELIVERY',
     name: 'Solo Delivery',
     subtitle: 'Cocinas fantasma o solo pedidos por WhatsApp',
-    capacity: 'Sin mesas ni códigos QR — acceso directo a Cocina',
-    features: ['Productos', 'Cocinas', 'Sección de Delivery', 'Pedidos ilimitados', 'Hasta 6 usuarios de tu equipo'],
+    capacity: 'Sucursales ilimitadas — sin mesas ni códigos QR',
+    features: ['Productos, Cocinas y Sección de Delivery en cada sucursal', 'Pedidos ilimitados', 'Hasta 6 usuarios de tu equipo'],
   },
   {
     id: 'PRO',
     name: 'Plan Pro',
     subtitle: 'Todos los beneficios de QuickTap',
-    capacity: 'Mesas y pedidos ilimitados',
+    capacity: 'Mesas, pedidos y sucursales ilimitadas',
     features: [
       'Usuarios ilimitados',
-      'Administración: historial de pedidos, propinas, Estadísticas y reportes de ventas',
+      'Administración, propinas y reportes de ventas',
       'Margen de utilidad por producto',
-      'Inventario por receta: descuenta insumos automáticamente al vender',
-      'Gastos: proveedores, categorías de egreso y balance',
-      'Cuentas por pagar: cuentas abiertas pendientes de cobro',
+      'Inventario por receta',
+      'Gastos y cuentas por pagar',
     ],
-    highlighted: true,
+    tier: 'popular',
   },
   {
-    id: 'SUCURSALES',
-    name: 'Plan Sucursales',
-    subtitle: 'Todos los beneficios de Pro, en hasta 5 sucursales',
-    capacity: 'Hasta 5 sucursales, cada una con mesas y pedidos ilimitados',
+    id: 'ELITE',
+    name: 'Plan Elite',
+    subtitle: 'Todo lo del Plan Pro + beneficios exclusivos, sin límite de sucursales',
+    capacity: 'Sucursales ilimitadas, cada una con mesas y pedidos ilimitados',
     features: [
-      'Todos los beneficios del Plan Pro en cada sucursal',
-      'Cada sucursal con su propio catálogo, inventario, mesas y equipo',
-      'Reporte consolidado de ventas: sede principal + cada sucursal',
-      'Inventario por sucursal: qué falta reabastecer en cada una',
+      'Todo el Plan Pro en cada sucursal',
+      'Catálogo, inventario y equipo por sucursal',
+      'Reporte consolidado de ventas entre sucursales',
       'Productos más vendidos por sucursal',
-      'Equipo de trabajo por sucursal',
+      'Soporte prioritario 24/7 por WhatsApp',
+      'Gerente de cuenta dedicado',
+      'Onboarding y migración de catálogo sin costo',
+      'Acceso anticipado a nuevas funcionalidades',
     ],
-  },
-  {
-    id: 'DELIVERY_SUCURSALES',
-    name: 'Delivery Sucursales',
-    subtitle: 'Todos los beneficios de Solo Delivery, en hasta 5 sucursales',
-    capacity: 'Hasta 5 sucursales — sin mesas ni códigos QR',
-    features: [
-      'Productos, Cocinas y Sección de Delivery en cada sucursal',
-      'Cada sucursal con su propio catálogo, inventario y equipo',
-      'Reporte consolidado de ventas: sede principal + cada sucursal',
-      'Inventario por sucursal: qué falta reabastecer en cada una',
-      'Productos más vendidos por sucursal',
-    ],
+    tier: 'premium',
   },
 ];
+
+const CYCLE_MONTHS: Record<BillingCycle, number> = { MONTHLY: 1, QUARTERLY: 3, SEMIANNUAL: 6 };
 
 interface Props {
   rateBs: string | null;
   billingCycle: BillingCycle;
   onBillingCycleChange: (c: BillingCycle) => void;
-  onChoosePlan: (plan: Exclude<PlanId, 'TRIAL' | 'STARTER' | 'PREMIUM' | 'CUSTOM'>) => void;
+  onChoosePlan: (plan: PurchasablePlan) => void;
 }
 
 interface FetchedPlan {
@@ -79,6 +70,15 @@ interface FetchedPlan {
   capacity: string;
   features: string[];
   prices: Record<BillingCycle, number>;
+}
+
+/** % de descuento del ciclo frente al mensual, tomando el Plan Pro como referencia
+ * para el badge del propio toggle (igual para los tres planes, ya que todos aplican
+ * el mismo % de descuento por ciclo). */
+function cycleOffPercent(cycle: BillingCycle): number {
+  if (cycle === 'MONTHLY') return 0;
+  const base = FIXED_PLAN_PRICES.PRO.MONTHLY;
+  return Math.round((1 - FIXED_PLAN_PRICES.PRO[cycle] / base) * 100);
 }
 
 export function PlanCards({ rateBs, billingCycle, onBillingCycleChange, onChoosePlan }: Props) {
@@ -93,90 +93,123 @@ export function PlanCards({ rateBs, billingCycle, onBillingCycleChange, onChoose
       .catch(() => {});
   }, []);
 
-  function priceLabel(usd: number) {
-    return (
-      <>
-        <span className="text-3xl font-semibold text-brand-950">${usd.toFixed(2)}</span>
-        <span className="text-brand-950/60">/mes</span>
-        {rateBs && <p className="text-xs text-brand-950/50 mt-0.5">{formatBs(usd, rateBs)}/mes · a tasa BCV</p>}
-      </>
-    );
-  }
-
   return (
     <div>
-      <div className="flex items-center justify-center gap-2 mb-8">
-        {(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL'] as const).map((c) => (
-          <button
-            key={c}
-            onClick={() => onBillingCycleChange(c)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-[background-color,color,transform] duration-200 ease-out-strong active:scale-[0.96] ${
-              billingCycle === c
-                ? 'bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]'
-                : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
-            }`}
-          >
-            {BILLING_CYCLE_LABEL[c]}
-          </button>
-        ))}
+      <div className="flex items-center justify-center gap-1 mb-8">
+        <div className="inline-flex gap-1 rounded-full border border-brand-950/10 bg-brand-950/[0.05] p-1.5">
+          {(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL'] as const).map((c) => {
+            const active = billingCycle === c;
+            const off = cycleOffPercent(c);
+            return (
+              <button
+                key={c}
+                onClick={() => onBillingCycleChange(c)}
+                className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold transition-[background-color,color,transform] duration-200 ease-out-strong active:scale-[0.96] ${
+                  active
+                    ? 'bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]'
+                    : 'text-brand-950/60 hover:text-brand-950'
+                }`}
+              >
+                {BILLING_CYCLE_LABEL[c]}
+                {off > 0 && (
+                  <span
+                    className={`text-[10.5px] font-bold rounded-full px-1.5 py-0.5 ${
+                      active ? 'bg-white/25 text-white' : 'bg-emerald-100 text-emerald-700'
+                    }`}
+                  >
+                    -{off}%
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      <div className="grid sm:grid-cols-2 gap-5 max-w-2xl mx-auto">
+      <div className="grid sm:grid-cols-3 gap-5 max-w-4xl mx-auto items-stretch">
         {PLAN_CONTENT.map((plan) => {
-          const isSucursales = plan.id === 'SUCURSALES' || plan.id === 'DELIVERY_SUCURSALES';
           const d = dynamicContent?.[plan.id];
           const name = d?.name ?? plan.name;
           const subtitle = d?.subtitle ?? plan.subtitle;
           const capacity = d?.capacity ?? plan.capacity;
           const features = d?.features ?? plan.features;
           const price = d?.prices[billingCycle] ?? FIXED_PLAN_PRICES[plan.id][billingCycle];
+          const monthlyPrice = d?.prices.MONTHLY ?? FIXED_PLAN_PRICES[plan.id].MONTHLY;
+          const months = CYCLE_MONTHS[billingCycle];
+          const totalSavings = Math.max(0, (monthlyPrice - price) * months);
+          const showSavings = billingCycle !== 'MONTHLY' && totalSavings > 0.01;
+          const isPopular = plan.tier === 'popular';
+          const isPremium = plan.tier === 'premium';
+
           return (
-          <div key={plan.id} className="relative">
-            {plan.highlighted && (
-              <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 bg-brand-500 text-white text-xs font-medium px-3 py-1 rounded-full">
-                Más popular
-              </span>
-            )}
-            {isSucursales && (
-              <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 bg-[#D4AF37] text-white text-xs font-medium px-3 py-1 rounded-full shadow-[0_4px_12px_-2px_rgba(212,175,55,0.6)]">
-                ✨ Premium
-              </span>
-            )}
-            <div
-              className={`h-full flex flex-col rounded-2xl border bg-white p-6 ${
-                plan.highlighted
-                  ? 'border-brand-400/40 shadow-[0_16px_40px_-20px_rgba(5,108,242,0.45)]'
-                  : isSucursales
-                    ? 'border-2 border-[#D4AF37] shadow-[0_16px_40px_-20px_rgba(212,175,55,0.5)]'
-                    : 'border-brand-950/10 shadow-sm'
-              }`}
-            >
-              <p className="font-semibold text-brand-950">{name}</p>
-              <p className="text-xs text-brand-950/50 font-light mt-0.5">{subtitle}</p>
-
-              <div className="mt-4">{priceLabel(price)}</div>
-
-              <ul className="mt-4 space-y-2 text-sm text-brand-950/70 flex-1 font-light">
-                <li className="flex items-start gap-2">
-                  <Check className="h-4 w-4 text-brand-500 shrink-0 mt-0.5" /> {capacity}
-                </li>
-                {features.map((f) => (
-                  <li key={f} className="flex items-start gap-2">
-                    <Check className="h-4 w-4 text-brand-500 shrink-0 mt-0.5" /> {f}
-                  </li>
-                ))}
-              </ul>
-
-              <TextureButton
-                variant={plan.highlighted ? 'brand' : 'primary'}
-                size="default"
-                className="mt-6"
-                onClick={() => onChoosePlan(plan.id)}
+            <div key={plan.id} className={`relative ${isPopular ? 'sm:-translate-y-1.5' : ''}`}>
+              {isPopular && (
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 bg-brand-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-[0_4px_12px_-2px_rgba(5,108,242,0.5)]">
+                  Más popular
+                </span>
+              )}
+              {isPremium && (
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 z-10 bg-[#B8902E] text-white text-xs font-bold px-3 py-1 rounded-full shadow-[0_4px_12px_-2px_rgba(184,144,46,0.5)]">
+                  ✨ Premium
+                </span>
+              )}
+              <div
+                className={`h-full flex flex-col rounded-2xl border bg-white p-6 ${
+                  isPopular
+                    ? 'border-brand-400/50 shadow-[0_20px_48px_-20px_rgba(5,108,242,0.4)]'
+                    : isPremium
+                      ? 'border-2 border-[#B8902E]/70 shadow-[0_16px_40px_-20px_rgba(184,144,46,0.4)]'
+                      : 'border-brand-950/10 shadow-sm'
+                }`}
               >
-                Elegir plan
-              </TextureButton>
+                <p className="font-semibold text-brand-950">{name}</p>
+                <p className="text-xs text-brand-950/50 font-light mt-0.5 min-h-[2.2em]">{subtitle}</p>
+
+                <div className="mt-4 flex flex-col gap-0.5">
+                  <div className="flex items-baseline gap-2 flex-wrap">
+                    <span className="text-3xl font-bold text-brand-950 tracking-tight">${price.toFixed(2)}</span>
+                    <span className="text-xs text-brand-950/40 font-medium">/mes</span>
+                    {billingCycle !== 'MONTHLY' && (
+                      <span className="text-sm text-brand-950/35 line-through">${monthlyPrice.toFixed(2)}</span>
+                    )}
+                  </div>
+                  {rateBs && <p className="text-[11px] text-brand-950/45">{formatBs(price, rateBs)}/mes · a tasa BCV</p>}
+                  <span
+                    className={`self-start mt-2 inline-flex items-center gap-1 text-[11px] font-bold rounded-full px-2.5 py-1 transition-opacity duration-200 ${
+                      showSavings ? 'opacity-100 bg-emerald-50 text-emerald-700' : 'opacity-0 pointer-events-none'
+                    }`}
+                  >
+                    ◆ Ahorras ${totalSavings.toFixed(0)} en el ciclo
+                  </span>
+                </div>
+
+                <ul className="mt-4 space-y-2 text-sm text-brand-950/70 flex-1 font-light pt-4 border-t border-brand-950/[0.06]">
+                  <li className="flex items-start gap-2 font-semibold text-brand-950">
+                    <Check
+                      className={`h-4 w-4 shrink-0 mt-0.5 ${isPopular ? 'text-brand-500' : isPremium ? 'text-[#B8902E]' : 'text-brand-950/40'}`}
+                    />
+                    {capacity}
+                  </li>
+                  {features.map((f) => (
+                    <li key={f} className="flex items-start gap-2">
+                      <Check
+                        className={`h-4 w-4 shrink-0 mt-0.5 ${isPopular ? 'text-brand-500' : isPremium ? 'text-[#B8902E]' : 'text-brand-950/40'}`}
+                      />
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+
+                <TextureButton
+                  variant={isPopular ? 'brand' : 'primary'}
+                  size="default"
+                  className="mt-6"
+                  onClick={() => onChoosePlan(plan.id)}
+                >
+                  Elegir plan
+                </TextureButton>
+              </div>
             </div>
-          </div>
           );
         })}
       </div>

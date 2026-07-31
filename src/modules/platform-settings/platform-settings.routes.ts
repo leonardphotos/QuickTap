@@ -12,7 +12,7 @@ masterPlatformSettingsRoutes.use(platformAuthGuard);
 masterPlatformSettingsRoutes.get('/', platformSettingsController.getPaymentMethods);
 masterPlatformSettingsRoutes.patch('/', platformSettingsController.updatePaymentMethods);
 
-/** Base: /api/v1/public/plans — precios/descripción de los 4 planes (landing + billing). */
+/** Base: /api/v1/public/plans — precios/descripción de los 3 planes (landing + billing). */
 export const publicPlanContentRoutes = Router();
 publicPlanContentRoutes.get('/', platformSettingsController.getPlanContent);
 

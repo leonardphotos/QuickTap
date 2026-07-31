@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, getToken } from '@/api/client';
 import { useAuth } from '../../context/AuthContext';
-import { FIXED_PLAN_PRICES, type BillingCycle, type PlanId } from '@/utils/plans';
+import { FIXED_PLAN_PRICES, type BillingCycle, type PurchasablePlan } from '@/utils/plans';
 import { PlanCards } from '@/components/landing/PlanCards';
 import { PaymentForm, type SelectedPlan } from '@/components/landing/PaymentForm';
 import { TextureButton } from '@/components/ui/texture-button';
 
-type ChoosablePlan = Exclude<PlanId, 'TRIAL' | 'STARTER' | 'PREMIUM' | 'CUSTOM'>;
-const VALID_PLANS: ChoosablePlan[] = ['DELIVERY', 'PRO', 'SUCURSALES', 'DELIVERY_SUCURSALES'];
+type ChoosablePlan = PurchasablePlan;
+const VALID_PLANS: ChoosablePlan[] = ['DELIVERY', 'PRO', 'ELITE'];
 
 /** Activar el plan (fin de la prueba) o pagar la mensualidad, ya autenticado. */
 export default function BillingPage() {

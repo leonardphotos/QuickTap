@@ -2,7 +2,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, forbidden, notFound } from '../../utils/http-error';
 import { signToken } from '../auth/auth.service';
-import { allowsBranches, MAX_BRANCHES, trialPeriodEnd } from '../../utils/subscription';
+import { allowsBranches, maxBranchesFor, trialPeriodEnd } from '../../utils/subscription';
 import { round2, toDecimal } from '../../utils/money';
 import { resolveDateFilter, ReportRange } from '../../utils/date-range';
 import { CreateBranchInput } from './branch.dto';
@@ -162,10 +162,11 @@ export const branchService = {
       throw badRequest('Una sucursal no puede tener sus propias sucursales.');
     }
     if (!allowsBranches(restaurant.subscriptionPlan)) {
-      throw badRequest('Tu plan no incluye sucursales. Mejora al Plan Sucursales o Delivery Sucursales para agregar una.');
+      throw badRequest('Tu plan no incluye sucursales. Mejora tu plan para agregar una.');
     }
-    if (branchCount >= MAX_BRANCHES) {
-      throw badRequest(`Ya alcanzaste el máximo de ${MAX_BRANCHES} sucursales de tu plan.`);
+    const maxBranches = maxBranchesFor(restaurant.subscriptionPlan);
+    if (maxBranches !== null && branchCount >= maxBranches) {
+      throw badRequest(`Ya alcanzaste el máximo de ${maxBranches} sucursales de tu plan.`);
     }
 
     const owner = await prisma.user.findUnique({ where: { id: callerUserId } });

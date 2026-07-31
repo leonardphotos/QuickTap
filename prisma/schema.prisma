@@ -138,8 +138,9 @@ enum SubscriptionPlan {
   PREMIUM // Plan Premium / Grandes Formatos
   DELIVERY // Plan Solo Delivery: Cocina + pedidos por WhatsApp, sin mesas/QR
   CUSTOM // Plan Personalizado (por sumatoria de mesas/usuarios/pedidos)
-  SUCURSALES // Todos los beneficios de Pro + hasta 5 sucursales
-  DELIVERY_SUCURSALES // Plan Solo Delivery + hasta 5 sucursales
+  SUCURSALES // [Legado, ya no se ofrece] Todos los beneficios de Pro + hasta 5 sucursales
+  DELIVERY_SUCURSALES // [Legado, ya no se ofrece] Plan Solo Delivery + hasta 5 sucursales
+  ELITE // Todos los beneficios de Pro + sucursales ilimitadas + soporte prioritario
 }
 
 enum BillingCycle {

@@ -14,7 +14,7 @@ interface PlanEntry {
 
 type PlanContent = Record<PurchasablePlan, PlanEntry>;
 
-const PLAN_ORDER: PurchasablePlan[] = ['DELIVERY', 'PRO', 'SUCURSALES', 'DELIVERY_SUCURSALES'];
+const PLAN_ORDER: PurchasablePlan[] = ['DELIVERY', 'PRO', 'ELITE'];
 const BILLING_CYCLES: BillingCycle[] = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL'];
 
 export default function MasterPlansPage() {
