@@ -15,11 +15,13 @@ import { useCopyToast } from '../../hooks/useCopyToast';
 import { usePendingReservationsCount } from '../../hooks/usePendingReservations';
 import { useLowStockItems } from '../../hooks/useLowStockItems';
 import { useLockScreen } from '../../hooks/useLockScreen';
+import { useIsLandscapeTablet } from '../../hooks/useIsLandscapeTablet';
 import { RESTRICTED_ROLES, canAccessPath, defaultPathFor, isAdminCashier, isKioskRole, isNumeroRole, isScreenRole } from '../../utils/roles';
 import { daysRemaining, graceHoursRemaining, hasFeature } from '../../utils/subscription';
 import { visibleNavLinks } from './nav-links';
 
 const WaiterLayout = lazy(() => import('./WaiterLayout'));
+const LandscapeStaffLayout = lazy(() => import('./landscape/LandscapeStaffLayout'));
 const ComandaKioskPage = lazy(() => import('./ComandaKioskPage'));
 const NumeroPage = lazy(() => import('./NumeroPage'));
 const ShopLayout = lazy(() => import('./shop/ShopLayout'));
@@ -33,6 +35,7 @@ export default function AdminLayout() {
   const pendingReservations = usePendingReservationsCount(user?.role);
   const lowStockItems = useLowStockItems(user?.role, user?.canAccessInventory);
   const lockScreen = useLockScreen();
+  const isLandscapeTablet = useIsLandscapeTablet();
 
   if (loading) return <div className="p-10 text-center text-brand-950/50 font-light">Cargando…</div>;
   if (!user || !restaurant) return <Navigate to="/admin/login" replace />;
@@ -112,6 +115,14 @@ export default function AdminLayout() {
         <NumeroPage />
       </div>
     );
+  }
+
+  // Tablet real en horizontal (Mesero o Cajero): sidebar de iconos + POS en vez del layout
+  // móvil de siempre — ver useIsLandscapeTablet/LandscapeStaffLayout. Dueño/Admin en tablet
+  // horizontal siguen viendo el panel de escritorio completo (no tiene sentido limitarlos a
+  // 4 pestañas). Mismo criterio de "reemplaza el Outlet normal" que WaiterLayout debajo.
+  if (isLandscapeTablet && (user.role === 'WAITER' || user.role === 'CASHIER')) {
+    return <LandscapeStaffLayout />;
   }
 
   // Mesero: panel simplificado con pestañas arriba en vez del menú lateral/dock — ver
