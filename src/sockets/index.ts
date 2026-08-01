@@ -42,6 +42,7 @@ export const SocketEvents = {
   INVENTORY_LOW_STOCK: 'inventory:low-stock', // cambió el stock de un insumo -> recalcular avisos de agotamiento
   WHATSAPP_BOT_QR: 'whatsapp-bot:qr', // nuevo código QR para vincular (Ajustes -> WhatsApp)
   WHATSAPP_BOT_STATUS: 'whatsapp-bot:status', // cambió el estado de la sesión (conectando/conectado/desconectado)
+  PAYMENT_VERIFICATION_TIMEOUT: 'payment-verification:timeout', // el verificador de pagos no respondió a tiempo -> revisar el pedido a mano
 } as const;
 
 export function initSockets(server: HttpServer): IOServer {

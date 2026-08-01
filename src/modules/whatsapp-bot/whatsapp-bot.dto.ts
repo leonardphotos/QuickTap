@@ -6,6 +6,9 @@ export const updateWhatsappBotSettingsSchema = z.object({
   welcomeEnabled: z.boolean().optional(),
   // null = borrar la personalización y volver a DEFAULT_WELCOME_TEMPLATE.
   welcomeMessage: z.string().max(1000).nullable().optional(),
+  // null = desactiva el flujo de verificación de pago con comprobante (ver
+  // order-payment-verification.service.ts).
+  paymentVerifierPhone: z.string().max(30).nullable().optional(),
 });
 
 export type UpdateWhatsappBotSettingsInput = z.infer<typeof updateWhatsappBotSettingsSchema>;

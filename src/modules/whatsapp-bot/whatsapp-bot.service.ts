@@ -5,6 +5,7 @@ import pino from 'pino';
 import QRCode from 'qrcode';
 import makeWASocket, {
   DisconnectReason,
+  downloadMediaMessage,
   fetchLatestBaileysVersion,
   useMultiFileAuthState,
   WAMessage,
@@ -16,6 +17,7 @@ import { UPLOADS_DIR } from '../../middlewares/upload.middleware';
 import { emitToKitchen, SocketEvents } from '../../sockets';
 import { renderWhatsappTemplate } from '../../utils/whatsapp';
 import { UpdateWhatsappBotSettingsInput } from './whatsapp-bot.dto';
+import { orderPaymentVerificationService } from '../orders/order-payment-verification.service';
 
 /**
  * ============================================================================
@@ -199,24 +201,53 @@ export const whatsappBotService = {
   },
 
   /**
-   * Mensaje entrante de un cliente: contesta con el saludo de bienvenida + el enlace del menú,
-   * una sola vez por contacto dentro de WELCOME_REPLY_COOLDOWN_MS. Ignora mensajes propios (los
-   * que este mismo bot mandó), de grupos y de difusión de estados — solo conversaciones 1 a 1.
+   * Mensaje entrante de un cliente (o del verificador de pagos): rutea antes de caer en el
+   * saludo de bienvenida, para que ni el verificador ni un comprobante de pago disparen el
+   * saludo normal. Ignora mensajes propios (los que este mismo bot mandó), de grupos y de
+   * difusión de estados — solo conversaciones 1 a 1.
    */
   async handleIncomingMessage(restaurantId: string, msg: WAMessage): Promise<void> {
     if (!msg.message || msg.key.fromMe) return;
     const jid = msg.key.remoteJid;
     if (!jid || jid.endsWith('@g.us') || jid === 'status@broadcast') return;
-
-    const cooldownKey = `${restaurantId}:${jid}`;
-    const last = lastWelcomeReplyAt.get(cooldownKey) ?? 0;
-    if (Date.now() - last < WELCOME_REPLY_COOLDOWN_MS) return;
+    const phoneDigits = jid.replace(/@.*/, '');
 
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
-      select: { slug: true, name: true, whatsappBotWelcomeEnabled: true, whatsappBotWelcomeMessage: true },
+      select: {
+        slug: true,
+        name: true,
+        whatsappBotWelcomeEnabled: true,
+        whatsappBotWelcomeMessage: true,
+        whatsappBotPaymentVerifierPhone: true,
+      },
     });
-    if (!restaurant || !restaurant.whatsappBotWelcomeEnabled) return;
+    if (!restaurant) return;
+
+    // 1) ¿El verificador de pagos escribió? Nunca dispara el saludo — solo se interpreta como
+    // Aprobado/Rechazado (ver order-payment-verification.service.ts).
+    if (
+      restaurant.whatsappBotPaymentVerifierPhone &&
+      restaurant.whatsappBotPaymentVerifierPhone.replace(/\D/g, '') === phoneDigits
+    ) {
+      const text = msg.message.conversation ?? msg.message.extendedTextMessage?.text;
+      if (text) await this.routeVerifierReply(restaurantId, text);
+      return;
+    }
+
+    // 2) ¿Es una imagen? Posible comprobante de pago — si no hay ninguna verificación
+    // esperando comprobante de ese teléfono, se ignora en silencio (no cae al saludo: una
+    // foto no es un "primer mensaje" típico de un cliente nuevo).
+    if (msg.message.imageMessage) {
+      await this.routeIncomingProofImage(restaurantId, phoneDigits, msg);
+      return;
+    }
+
+    // 3) Texto normal: saludo de bienvenida de siempre, con su enfriamiento de 6h.
+    const cooldownKey = `${restaurantId}:${jid}`;
+    const last = lastWelcomeReplyAt.get(cooldownKey) ?? 0;
+    if (Date.now() - last < WELCOME_REPLY_COOLDOWN_MS) return;
+    if (!restaurant.whatsappBotWelcomeEnabled) return;
 
     const s = sessions.get(restaurantId);
     if (!s || s.status !== 'connected' || !s.sock) return;
@@ -231,6 +262,108 @@ export const whatsappBotService = {
     // mientras tanto, no queremos dos saludos en carrera.
     lastWelcomeReplyAt.set(cooldownKey, Date.now());
     await s.sock.sendMessage(jid, { text }).catch(() => undefined);
+  },
+
+  /**
+   * Foto entrante de un cliente con una verificación de pago AWAITING_PROOF abierta: la
+   * descarga, la guarda, la reenvía al verificador (o la encola si ya hay otra en curso para
+   * este restaurante) y le acusa recibo al cliente.
+   */
+  async routeIncomingProofImage(restaurantId: string, phoneDigits: string, msg: WAMessage): Promise<void> {
+    const match = await orderPaymentVerificationService.matchAwaitingProofOrder(restaurantId, phoneDigits);
+    if (!match) return;
+
+    const s = sessions.get(restaurantId);
+    if (!s || s.status !== 'connected' || !s.sock) return;
+
+    let buffer: Buffer;
+    try {
+      buffer = (await downloadMediaMessage(msg, 'buffer', {})) as Buffer;
+    } catch {
+      return;
+    }
+
+    const dir = path.join(UPLOADS_DIR, 'whatsapp-payment-proofs', restaurantId);
+    fs.mkdirSync(dir, { recursive: true });
+    const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}.jpg`;
+    fs.writeFileSync(path.join(dir, filename), buffer);
+    const proofImageUrl = `/uploads/whatsapp-payment-proofs/${restaurantId}/${filename}`;
+
+    const { shouldForwardNow } = await orderPaymentVerificationService.recordProofImage(match.id, proofImageUrl);
+
+    if (shouldForwardNow) {
+      const restaurant = await prisma.restaurant.findUnique({
+        where: { id: restaurantId },
+        select: { whatsappBotPaymentVerifierPhone: true },
+      });
+      const order = await prisma.order.findUnique({ where: { id: match.orderId } });
+      if (restaurant?.whatsappBotPaymentVerifierPhone && order) {
+        const caption = [
+          `📄 Comprobante — Pedido #${order.orderNumber}`,
+          `👤 ${order.customerName ?? 'Cliente'}`,
+          `📞 ${order.customerPhone ?? ''}`,
+          `💰 Total: ${order.totalBase}`,
+          '',
+          'Responde *Aprobado* o *Rechazado*.',
+        ].join('\n');
+        await this.sendImage(restaurantId, restaurant.whatsappBotPaymentVerifierPhone, buffer, caption);
+      }
+    }
+
+    await this.sendMessage(
+      restaurantId,
+      phoneDigits,
+      '📥 Recibimos tu comprobante, estamos confirmando tu pago con el restaurante.',
+    );
+  },
+
+  /** Respuesta del verificador de pagos: "Aprobado" acepta el pedido a cocina, "Rechazado" pide reenviar. */
+  async routeVerifierReply(restaurantId: string, text: string): Promise<void> {
+    const result = await orderPaymentVerificationService.resolveVerifierReply(restaurantId, text);
+    if (result.action === 'ignore' || !result.verification) return;
+
+    if (result.action === 'approve') {
+      const { customerPhone, orderId } = await orderPaymentVerificationService.approve(result.verification.id);
+      const order = await prisma.order.findUnique({ where: { id: orderId } });
+      await this.sendMessage(
+        restaurantId,
+        customerPhone,
+        `✅ Tu pago fue confirmado. ¡Tu pedido #${order?.orderNumber ?? ''} ya está en proceso!`,
+      );
+    } else {
+      const { customerPhone } = await orderPaymentVerificationService.reject(result.verification.id);
+      await this.sendMessage(
+        restaurantId,
+        customerPhone,
+        '⚠️ No pudimos confirmar tu pago. Por favor reenvía tu comprobante.',
+      );
+    }
+    await this.advanceQueue(restaurantId);
+  },
+
+  /** Tras resolver una verificación, reenvía al verificador la siguiente que estaba en cola (si hay). */
+  async advanceQueue(restaurantId: string): Promise<void> {
+    const next = await orderPaymentVerificationService.dequeueNext(restaurantId);
+    if (!next || !next.proofImageUrl) return;
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { whatsappBotPaymentVerifierPhone: true },
+    });
+    if (!restaurant?.whatsappBotPaymentVerifierPhone) return;
+    const order = await prisma.order.findUnique({ where: { id: next.orderId } });
+    if (!order) return;
+    const imagePath = path.join(process.cwd(), next.proofImageUrl.replace(/^\//, ''));
+    const buffer = await fs.promises.readFile(imagePath).catch(() => null);
+    if (!buffer) return;
+    const caption = [
+      `📄 Comprobante — Pedido #${order.orderNumber}`,
+      `👤 ${order.customerName ?? 'Cliente'}`,
+      `📞 ${order.customerPhone ?? ''}`,
+      `💰 Total: ${order.totalBase}`,
+      '',
+      'Responde *Aprobado* o *Rechazado*.',
+    ].join('\n');
+    await this.sendImage(restaurantId, restaurant.whatsappBotPaymentVerifierPhone, buffer, caption);
   },
 
   /** Desvincula a propósito: cierra la sesión en WhatsApp y borra las credenciales guardadas. */
@@ -260,12 +393,16 @@ export const whatsappBotService = {
         ...(input.notifyReady !== undefined ? { whatsappBotNotifyReady: input.notifyReady } : {}),
         ...(input.welcomeEnabled !== undefined ? { whatsappBotWelcomeEnabled: input.welcomeEnabled } : {}),
         ...(input.welcomeMessage !== undefined ? { whatsappBotWelcomeMessage: input.welcomeMessage } : {}),
+        ...(input.paymentVerifierPhone !== undefined
+          ? { whatsappBotPaymentVerifierPhone: input.paymentVerifierPhone ? input.paymentVerifierPhone.replace(/\D/g, '') : null }
+          : {}),
       },
       select: {
         whatsappBotNotifyReceived: true,
         whatsappBotNotifyReady: true,
         whatsappBotWelcomeEnabled: true,
         whatsappBotWelcomeMessage: true,
+        whatsappBotPaymentVerifierPhone: true,
       },
     });
   },
@@ -281,6 +418,19 @@ export const whatsappBotService = {
     if (!s || s.status !== 'connected' || !s.sock) return false;
     try {
       await s.sock.sendMessage(toJid(phone), { text: message });
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  /** Manda una imagen (ej. comprobante de pago reenviado al verificador) con un pie de foto opcional. */
+  async sendImage(restaurantId: string, phone: string | null | undefined, image: Buffer, caption?: string): Promise<boolean> {
+    if (!phone) return false;
+    const s = sessions.get(restaurantId);
+    if (!s || s.status !== 'connected' || !s.sock) return false;
+    try {
+      await s.sock.sendMessage(toJid(phone), { image, caption });
       return true;
     } catch {
       return false;

@@ -220,6 +220,53 @@ export function buildWhatsappCheckoutUrl(
 
 /**
  * ============================================================================
+ *  Instrucciones de pago (chatbot de WhatsApp — verificación de comprobante)
+ * ============================================================================
+ *  Métodos de pago que exigen que el cliente mande la foto de un comprobante
+ *  antes de que el pedido pase a cocina (ver order-payment-verification.service.ts).
+ *  Efectivo/tarjeta se cobran en persona/al recibir, así que no aplican aquí.
+ */
+export const PROOF_REQUIRED_PAYMENT_METHODS: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'BINANCE', 'PAYPAL', 'TRANSFER'];
+
+// Mismas claves/labels que PAYMENT_FIELD_LABELS en web/src/pages/public/CartDrawer.tsx —
+// mantenerlos sincronizados a mano (igual que roles.ts).
+const PAYMENT_FIELD_LABELS: Record<string, string> = {
+  banco: 'Banco',
+  telefono: 'Teléfono',
+  cedula: 'Cédula/RIF',
+  titular: 'Titular',
+  correo: 'Correo',
+  id: 'ID',
+  cuenta: 'Cuenta',
+  rif: 'RIF',
+};
+
+/** Arma el mensaje "cómo pagar" que el bot le manda al cliente justo al crear el pedido. */
+export function renderPaymentInstructions(params: {
+  restaurantName: string;
+  methodLabel: string;
+  methodConfig: Record<string, unknown> | undefined;
+  totalBase: string;
+  totalBs: string;
+  currencySymbol: string;
+}): string {
+  const lines = [
+    `💳 *${params.restaurantName}*`,
+    '',
+    `Tu pedido se paga por *${params.methodLabel}*.`,
+    `Total a pagar: ${formatBs(params.totalBs)} (${formatMoney(params.totalBase, params.currencySymbol)})`,
+    '',
+  ];
+  for (const [key, label] of Object.entries(PAYMENT_FIELD_LABELS)) {
+    const value = params.methodConfig?.[key];
+    if (value) lines.push(`${label}: ${value}`);
+  }
+  lines.push('', 'Cuando completes el pago, *responde a este chat con la foto/captura de tu comprobante*.');
+  return lines.join('\n');
+}
+
+/**
+ * ============================================================================
  *  Plantilla del mensaje de "Enviar vía WhatsApp" (comanda al cliente)
  * ============================================================================
  *  Cada restaurante puede personalizar el texto desde Configuración

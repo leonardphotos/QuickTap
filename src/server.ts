@@ -9,6 +9,8 @@ import { demoSimulatorService } from './utils/demo-simulator.service';
 import { masterServerStatusService } from './modules/master/master-server-status.service';
 import { fiscalInvoicingService } from './modules/fiscal-invoicing/fiscal-invoicing.service';
 import { whatsappBotService } from './modules/whatsapp-bot/whatsapp-bot.service';
+import { orderPaymentVerificationService } from './modules/orders/order-payment-verification.service';
+import { emitToKitchen, SocketEvents } from './sockets';
 
 async function bootstrap() {
   const app = createApp();
@@ -70,6 +72,23 @@ async function bootstrap() {
   // decide "¿actualizo el plan?" (ver master-server-status.service.ts).
   masterServerStatusService.startSampling();
 
+  // Chatbot de WhatsApp: si el verificador de un pago no responde "Aprobado"/"Rechazado" en
+  // 20 min, se marca vencido y se avisa por socket al panel (no por WhatsApp — insistirle al
+  // mismo verificador que ya no respondió no llega a nadie nuevo) para que el staff revise el
+  // pago a mano. Ver order-payment-verification.service.ts.
+  const PAYMENT_VERIFICATION_TIMEOUT_MS = 20 * 60 * 1000;
+  const paymentVerificationSweepInterval = setInterval(async () => {
+    try {
+      const timedOut = await orderPaymentVerificationService.sweepTimeouts(PAYMENT_VERIFICATION_TIMEOUT_MS);
+      for (const t of timedOut) {
+        emitToKitchen(t.restaurantId, SocketEvents.PAYMENT_VERIFICATION_TIMEOUT, { orderId: t.orderId });
+        await whatsappBotService.advanceQueue(t.restaurantId).catch(() => undefined);
+      }
+    } catch {
+      // Se reintenta en el próximo barrido.
+    }
+  }, 2 * 60 * 1000);
+
   // Solo localhost: Nginx (misma máquina) es el único que debe llegar a este
   // puerto — así queda fuera de alcance directo de internet aunque el
   // firewall se desconfigure alguna vez.
@@ -88,6 +107,7 @@ async function bootstrap() {
     clearInterval(demoInventorySimInterval);
     clearInterval(fiscalInvoicingPollInterval);
     clearInterval(fiscalInvoicingRetryInterval);
+    clearInterval(paymentVerificationSweepInterval);
     masterServerStatusService.stopSampling();
     server.close();
     await prisma.$disconnect();

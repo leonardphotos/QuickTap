@@ -20,6 +20,7 @@ interface StatusResponse {
   whatsappBotNotifyReady: boolean;
   whatsappBotWelcomeEnabled: boolean;
   whatsappBotWelcomeMessage: string | null;
+  whatsappBotPaymentVerifierPhone: string | null;
 }
 
 // Debe coincidir con DEFAULT_WELCOME_TEMPLATE en whatsapp-bot.service.ts.
@@ -42,11 +43,15 @@ export function WhatsappBotSection() {
   const [welcomeDraft, setWelcomeDraft] = useState('');
   const [savingWelcome, setSavingWelcome] = useState(false);
   const [welcomeSaved, setWelcomeSaved] = useState(false);
+  const [verifierDraft, setVerifierDraft] = useState('');
+  const [savingVerifier, setSavingVerifier] = useState(false);
+  const [verifierSaved, setVerifierSaved] = useState(false);
 
   useEffect(() => {
     api.get('/whatsapp-bot/status').then((res) => {
       setData(res.data.data);
       setWelcomeDraft(res.data.data.whatsappBotWelcomeMessage || DEFAULT_WELCOME_TEMPLATE);
+      setVerifierDraft(res.data.data.whatsappBotPaymentVerifierPhone || '');
     });
 
     const socket: Socket = io('/', { auth: { token: getToken() } });
@@ -120,6 +125,19 @@ export function WhatsappBotSection() {
       setTimeout(() => setWelcomeSaved(false), 3000);
     } finally {
       setSavingWelcome(false);
+    }
+  }
+
+  async function saveVerifierPhone() {
+    setSavingVerifier(true);
+    setVerifierSaved(false);
+    try {
+      await api.patch('/whatsapp-bot/settings', { paymentVerifierPhone: verifierDraft.trim() || null });
+      setData((d) => (d ? { ...d, whatsappBotPaymentVerifierPhone: verifierDraft.trim() || null } : d));
+      setVerifierSaved(true);
+      setTimeout(() => setVerifierSaved(false), 3000);
+    } finally {
+      setSavingVerifier(false);
     }
   }
 
@@ -232,6 +250,40 @@ export function WhatsappBotSection() {
                 )}
               </div>
             )}
+
+            <div className="pt-1 space-y-2">
+              <label className="text-sm text-brand-950/80">
+                Número que verifica los pagos (recibe cada comprobante y responde Aprobado/Rechazado)
+              </label>
+              <p className="text-xs text-brand-950/50 font-light">
+                Cuando un cliente paga por Pago Móvil/Zelle/Binance/PayPal/Transferencia y manda la foto de su
+                comprobante, el chatbot se la reenvía a este número. Si responde <em>Aprobado</em>, el pedido pasa
+                solo a cocina; si responde <em>Rechazado</em>, se le pide al cliente reenviar el comprobante. Déjalo
+                vacío para desactivar este flujo (el pedido seguirá requiriendo aceptación manual, como siempre).
+              </p>
+              <input
+                type="tel"
+                value={verifierDraft}
+                onChange={(e) => setVerifierDraft(e.target.value)}
+                disabled={!canManage}
+                placeholder="Ej: 584141234567"
+                className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              />
+              {canManage && (
+                <div className="flex items-center gap-2">
+                  <TextureButton
+                    variant="secondary"
+                    size="sm"
+                    className="!w-auto"
+                    disabled={savingVerifier}
+                    onClick={saveVerifierPhone}
+                  >
+                    {savingVerifier ? 'Guardando…' : 'Guardar número'}
+                  </TextureButton>
+                  {verifierSaved && <span className="text-xs text-emerald-700">Guardado.</span>}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </TextureCardContent>

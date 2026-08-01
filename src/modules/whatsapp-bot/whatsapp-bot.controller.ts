@@ -14,6 +14,7 @@ export const whatsappBotController = {
         whatsappBotNotifyReady: true,
         whatsappBotWelcomeEnabled: true,
         whatsappBotWelcomeMessage: true,
+        whatsappBotPaymentVerifierPhone: true,
       },
     });
     res.json({ data: { ...whatsappBotService.getStatus(req.restaurantId!), ...restaurant } });

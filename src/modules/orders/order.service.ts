@@ -9,6 +9,9 @@ import {
   buildWhatsappUrl,
   DEFAULT_COMANDA_WHATSAPP_TEMPLATE,
   formatVenezuelanWhatsappPhone,
+  PAYMENT_LABELS,
+  PROOF_REQUIRED_PAYMENT_METHODS,
+  renderPaymentInstructions,
   renderWhatsappTemplate,
 } from '../../utils/whatsapp';
 import { emitToKitchen, emitToTable, SocketEvents } from '../../sockets';
@@ -18,6 +21,7 @@ import { hourCaracas, startOfTodayCaracas, startOfWeekCaracas } from '../../util
 import { assertRestaurantOpen } from '../../utils/business-hours';
 import { effectiveProductPrice } from '../../utils/promo-price';
 import { whatsappBotService } from '../whatsapp-bot/whatsapp-bot.service';
+import { orderPaymentVerificationService } from './order-payment-verification.service';
 import { haversineDistanceKm, isPointInPolygon, LatLng } from '../../utils/geo';
 import { tableSessionService } from '../table-sessions/table-session.service';
 import { fiscalInvoicingService } from '../fiscal-invoicing/fiscal-invoicing.service';
@@ -386,6 +390,53 @@ async function deductProductStock(restaurantId: string, items: { productId: stri
 }
 
 /** Inicio del período usado por getSalesStats/getSalesStatsUserOrders (semana o mes en curso) — debe coincidir en ambos para que los totales no se desalineen. */
+/**
+ * Emite el ORDER_UPDATED tras un pedido pasar a KITCHEN, sea por aceptación manual
+ * (acceptOrder) o automática (autoAcceptAfterPaymentApproved). Delivery manda el
+ * pedido completo (lo usa la Estación de Impresión para imprimir la comanda de
+ * delivery recién ahora que se aceptó); el resto solo notifica el cambio de status.
+ */
+async function emitOrderAccepted(restaurantId: string, order: { id: string; channel: OrderChannel; status: string }) {
+  if (order.channel === 'DELIVERY') {
+    const full = await prisma.order.findUnique({
+      where: { id: order.id },
+      include: { items: { include: { modifiers: true } } },
+    });
+    emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, {
+      orderId: order.id,
+      status: order.status,
+      channel: full!.channel,
+      orderNumber: full!.orderNumber,
+      customerName: full!.customerName,
+      customerPhone: full!.customerPhone,
+      customerAddress: full!.customerAddress,
+      customerNote: full!.customerNote,
+      paymentMethod: full!.paymentMethod,
+      deliveryFeeBase: full!.deliveryFeeBase,
+      items: full!.items.map((i) => ({
+        name: i.productName,
+        variantName: i.variantName,
+        quantity: i.quantity,
+        unitPrice: i.unitPrice.toString(),
+        lineTotal: i.lineTotal.toString(),
+        modifiers: i.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase.toString(), quantity: m.quantity })),
+        note: i.note,
+        kitchenName: i.kitchenName,
+      })),
+      subtotalBase: full!.subtotalBase,
+      serviceChargeBase: full!.serviceChargeBase,
+      ivaBase: full!.ivaBase,
+      totalBase: full!.totalBase,
+      currency: full!.currency,
+      exchangeRate: full!.exchangeRate,
+      totalBs: full!.totalBs,
+      createdAt: full!.createdAt,
+    });
+  } else {
+    emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId: order.id, status: order.status });
+  }
+}
+
 function salesStatsPeriodStart(range: 'week' | 'month', now: Date): Date {
   return range === 'week' ? startOfWeekCaracas() : new Date(now.getFullYear(), now.getMonth(), 1);
 }
@@ -827,6 +878,7 @@ export const orderService = {
         deliveryPricePerKm: true,
         whatsappBotEnabled: true,
         whatsappBotNotifyReceived: true,
+        paymentMethodsConfig: true,
       },
     });
     if (!restaurant || !restaurant.isActive) throw notFound('Restaurante no encontrado.');
@@ -943,6 +995,31 @@ export const orderService = {
           `✅ *${restaurant.name}*\n\nRecibimos tu pedido #${order.orderNumber}. ¡Ya lo estamos preparando!`,
         )
         .catch(() => undefined);
+    }
+
+    // Chatbot: si el método de pago exige comprobante (Pago Móvil/Zelle/Binance/PayPal/
+    // Transferencia), manda los datos de pago y abre una verificación (ver
+    // order-payment-verification.service.ts) para que, cuando llegue la foto del comprobante
+    // y el verificador del restaurante la apruebe, el pedido pase solo a cocina.
+    if (
+      restaurant.whatsappBotEnabled &&
+      order.customerPhone &&
+      order.paymentMethod &&
+      PROOF_REQUIRED_PAYMENT_METHODS.includes(order.paymentMethod)
+    ) {
+      const methodConfig = (restaurant.paymentMethodsConfig as Record<string, Record<string, unknown>> | null)?.[
+        order.paymentMethod
+      ];
+      const text = renderPaymentInstructions({
+        restaurantName: restaurant.name,
+        methodLabel: PAYMENT_LABELS[order.paymentMethod],
+        methodConfig,
+        totalBase: order.totalBase.toString(),
+        totalBs: order.totalBs.toString(),
+        currencySymbol: CURRENCY_SYMBOLS[restaurant.baseCurrency],
+      });
+      whatsappBotService.sendMessage(restaurant.id, order.customerPhone, text).catch(() => undefined);
+      orderPaymentVerificationService.create(restaurantId, order.id, order.customerPhone).catch(() => undefined);
     }
 
     // Construye el enlace de WhatsApp con el pedido ya congelado.
@@ -1330,47 +1407,24 @@ export const orderService = {
       });
     }
 
-    // Delivery: manda el pedido completo (no solo status) — la Estación de Impresión lo usa
-    // para imprimir automáticamente, recién ahora que se aceptó, la comanda de delivery
-    // (nombre + monto + descripción + ubicación juntos) en la impresora dedicada a Delivery.
-    if (order.channel === 'DELIVERY') {
-      const full = await prisma.order.findUnique({
-        where: { id: order.id },
-        include: { items: { include: { modifiers: true } } },
-      });
-      emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, {
-        orderId: order.id,
-        status: order.status,
-        channel: full!.channel,
-        orderNumber: full!.orderNumber,
-        customerName: full!.customerName,
-        customerPhone: full!.customerPhone,
-        customerAddress: full!.customerAddress,
-        customerNote: full!.customerNote,
-        paymentMethod: full!.paymentMethod,
-        deliveryFeeBase: full!.deliveryFeeBase,
-        items: full!.items.map((i) => ({
-          name: i.productName,
-          variantName: i.variantName,
-          quantity: i.quantity,
-          unitPrice: i.unitPrice.toString(),
-          lineTotal: i.lineTotal.toString(),
-          modifiers: i.modifiers.map((m) => ({ name: m.name, priceBase: m.priceBase.toString(), quantity: m.quantity })),
-          note: i.note,
-          kitchenName: i.kitchenName,
-        })),
-        subtotalBase: full!.subtotalBase,
-        serviceChargeBase: full!.serviceChargeBase,
-        ivaBase: full!.ivaBase,
-        totalBase: full!.totalBase,
-        currency: full!.currency,
-        exchangeRate: full!.exchangeRate,
-        totalBs: full!.totalBs,
-        createdAt: full!.createdAt,
-      });
-    } else {
-      emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId: order.id, status: order.status });
-    }
+    await emitOrderAccepted(restaurantId, order);
+    return order;
+  },
+
+  /**
+   * PENDING -> KITCHEN disparado por el propio chatbot cuando el verificador de pagos
+   * responde "Aprobado" (ver order-payment-verification.service.ts). A diferencia de
+   * acceptOrder, no hay un humano detrás: sin guard de roles, sin asignación de mesa
+   * (este flujo es exclusivo de DELIVERY/PICKUP, que nunca tienen mesa). Si el pedido
+   * ya no está en PENDING (por ejemplo porque un cajero ya lo aceptó a mano viendo el
+   * pago en su banco antes de que llegara el "Aprobado"), es un no-op silencioso —
+   * la aprobación de pago y la aceptación manual pueden competir, no es un error.
+   */
+  async autoAcceptAfterPaymentApproved(restaurantId: string, orderId: string) {
+    const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });
+    if (!existing || existing.status !== 'PENDING') return null;
+    const order = await prisma.order.update({ where: { id: orderId }, data: { status: 'KITCHEN' } });
+    await emitOrderAccepted(restaurantId, order);
     return order;
   },
 

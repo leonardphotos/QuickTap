@@ -241,6 +241,9 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
     const socket: Socket = io('/', { auth: { token: getToken() } });
     socket.on('order:new', load);
     socket.on('order:updated', load);
+    socket.on('payment-verification:timeout', () => {
+      show('El verificador de pagos no respondió a tiempo — revisa el comprobante manualmente.');
+    });
 
     return () => {
       socket.disconnect();

@@ -250,6 +250,11 @@ model Restaurant {
   // Placeholders disponibles: {{restaurant}}, {{link}}. Si es null, se usa
   // DEFAULT_WELCOME_TEMPLATE (whatsapp-bot.service.ts).
   whatsappBotWelcomeMessage String?
+  // Número (solo dígitos) al que el chatbot reenvía cada comprobante de pago de un
+  // pedido delivery/pickup para que el propio restaurante lo revise y responda
+  // "Aprobado"/"Rechazado" — ver order-payment-verification.service.ts. null = ese
+  // flujo está desactivado (el pedido sigue requiriendo aceptación manual, como hoy).
+  whatsappBotPaymentVerifierPhone String?
 
   // --- Apariencia del menú público ---
   // Colores personalizados del menú público (fondo, botones, acentos, texto).
@@ -1017,6 +1022,7 @@ model Order {
   payments        OrderPayment[]
   // Plural: la factura (FA) y su eventual nota de crédito/débito (NC/ND).
   fiscalInvoices  FiscalInvoice[]
+  paymentVerification OrderPaymentVerification?
 
   @@unique([restaurantId, orderNumber])
   @@index([restaurantId, status])
@@ -1045,6 +1051,50 @@ model OrderPayment {
 
   @@index([orderId])
   @@map("order_payments")
+}
+
+enum OrderPaymentVerificationStatus {
+  AWAITING_PROOF // esperando que el cliente mande la foto del comprobante
+  PENDING_FORWARD // ya llegó la foto, pero hay otra verificación en curso para este restaurante — en cola
+  AWAITING_VERIFIER // foto reenviada al verificador, esperando "Aprobado"/"Rechazado"
+  APPROVED
+  TIMED_OUT
+}
+
+// Estado persistido (a diferencia de lastWelcomeReplyAt, que es solo un Map en memoria) de la
+// verificación de pago por WhatsApp de un pedido delivery/pickup: el chatbot manda los datos de
+// pago al crear el pedido, espera la foto del comprobante del cliente, se la reenvía al número
+// verificador del restaurante (Ajustes -> WhatsApp,
+// Restaurant.whatsappBotPaymentVerifierPhone) y, cuando ese número contesta "Aprobado", el
+// pedido pasa solo de PENDING a KITCHEN (ver order.service.ts ->
+// autoAcceptAfterPaymentApproved). Solo existe una fila por Order (@unique), y solo se crea
+// para métodos de pago que requieren comprobante (ver PROOF_REQUIRED_PAYMENT_METHODS en
+// src/utils/whatsapp.ts).
+model OrderPaymentVerification {
+  id           String @id @default(cuid())
+  orderId      String @unique
+  restaurantId String
+  // Teléfono del cliente normalizado a solo dígitos con código de país (mismo criterio que
+  // formatVenezuelanWhatsappPhone), para poder compararlo dígito a dígito contra el JID de
+  // WhatsApp de un mensaje entrante.
+  customerPhone String
+
+  status OrderPaymentVerificationStatus @default(AWAITING_PROOF)
+
+  proofImageUrl         String?
+  proofReceivedAt       DateTime?
+  forwardedToVerifierAt DateTime?
+  verifierRepliedAt     DateTime?
+  resolvedAt            DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, status])
+  @@index([restaurantId, customerPhone, status])
+  @@map("order_payment_verifications")
 }
 
 // Configuración de facturación fiscal (SENIAT) vía Corporación Unidigital
