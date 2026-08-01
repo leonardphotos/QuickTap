@@ -1114,7 +1114,8 @@ export const orderService = {
       where: { id: restaurantId },
       select: { serviceChargeEnabled: true, ivaEnabled: true },
     });
-    const { serviceChargeBase, ivaBase, totalBase } = calculateCharges(subtotalBase, restaurant!);
+    const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant!);
+    const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(order.deliveryFeeBase));
     const totalBs = baseToBs(totalBase, order.exchangeRate);
 
     await prisma.$transaction(async (tx) => {
@@ -1165,7 +1166,8 @@ export const orderService = {
       where: { id: restaurantId },
       select: { serviceChargeEnabled: true, ivaEnabled: true },
     });
-    const { serviceChargeBase, ivaBase, totalBase } = calculateCharges(subtotalBase, restaurant!);
+    const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant!);
+    const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(order.deliveryFeeBase));
     const totalBs = baseToBs(totalBase, order.exchangeRate);
 
     await prisma.$transaction([
