@@ -64,6 +64,9 @@ export interface Restaurant {
   /** Tasa BCV vigente para baseCurrency. Null si aún no se ha logrado obtener ninguna. */
   exchangeRate: ExchangeRateInfo | null;
   whatsappPhone?: string | null;
+  /** Chatbot de WhatsApp vinculado y activo — cambia el checkout de delivery/pickup a "Ordenar"
+   * directo (sin abrir wa.me), porque el bot ya le manda los datos de pago al cliente solo. */
+  whatsappBotConnected?: boolean;
   theme?: RestaurantTheme | null;
   orderingEnabled: boolean;
   /** Según Ajustes → Horario. true si no hay horario configurado (siempre abierto). */

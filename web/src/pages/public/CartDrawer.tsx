@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowLeft, Check, Copy, Lock, MapPin } from 'lucide-react';
+import { ArrowLeft, Check, Copy, Lock, MapPin, MessageCircle } from 'lucide-react';
 import { api } from '../../api/client';
 import type { CartLine, PaymentMethod, Restaurant } from '../../types';
 import { cartLineUnitPrice, formatModifierLabel, publicPriceLabel } from '../../utils/format';
@@ -79,6 +79,7 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dineInSent, setDineInSent] = useState(false);
+  const [orderProcessing, setOrderProcessing] = useState(false);
   // Propina opcional (solo en mesa): porcentaje rápido o monto libre.
   const [tipPercent, setTipPercent] = useState<number | null>(null);
   const [tipCustom, setTipCustom] = useState('');
@@ -326,8 +327,14 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
           note,
         },
       });
-      window.location.href = data.data.whatsappUrl;
-      onClearAndClose();
+      if (restaurant.whatsappBotConnected) {
+        // El chatbot ya le manda al cliente los datos de pago y el monto exacto por su cuenta —
+        // no hace falta abrir wa.me para que el cliente redacte el pedido a mano.
+        setOrderProcessing(true);
+      } else {
+        window.location.href = data.data.whatsappUrl;
+        onClearAndClose();
+      }
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo generar el pedido.');
     } finally {
@@ -343,7 +350,29 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
           <FamilyDrawerAnimatedWrapper>
             <FamilyDrawerClose />
 
-            {dineInSent ? (
+            {orderProcessing ? (
+              <div className="text-center py-8 space-y-3">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 animate-[bounce_0.6s_ease-in-out]">
+                  <MessageCircle className="h-8 w-8 text-emerald-600" />
+                </div>
+                <p className="font-semibold text-brand-950">Tu pedido está siendo procesado</p>
+                <p className="text-sm text-brand-950/60 font-light max-w-xs mx-auto">
+                  En unos segundos te llegará un mensaje por WhatsApp con el monto y los datos para cancelar. Apenas
+                  confirmes el pago, tu pedido entra directo a cocina.
+                </p>
+                <TextureButton
+                  variant="brand"
+                  size="default"
+                  className="!w-auto mx-auto"
+                  onClick={() => {
+                    setOrderProcessing(false);
+                    onClearAndClose();
+                  }}
+                >
+                  Entendido
+                </TextureButton>
+              </div>
+            ) : dineInSent ? (
               pinFlow === 'ask' ? (
                 <div className="text-center py-8 space-y-4">
                   <p className="font-semibold text-brand-950">
@@ -770,7 +799,13 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                               onClick={submitDelivery}
                               className="disabled:opacity-50"
                             >
-                              {sending ? 'Generando…' : '📲 Enviar pedido por WhatsApp'}
+                              {sending
+                                ? restaurant.whatsappBotConnected
+                                  ? 'Ordenando…'
+                                  : 'Generando…'
+                                : restaurant.whatsappBotConnected
+                                  ? 'Ordenar'
+                                  : '📲 Enviar pedido por WhatsApp'}
                             </TextureButton>
                           </>
                         )}
