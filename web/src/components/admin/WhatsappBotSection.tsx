@@ -140,14 +140,6 @@ export function WhatsappBotSection() {
         </p>
       </TextureCardHeader>
       <TextureCardContent className="space-y-4">
-        {!connected && (
-          <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2 font-light leading-relaxed">
-            ⚠️ Esto no es la app oficial de WhatsApp Business — es el mismo mecanismo de "Dispositivos vinculados".
-            Funciona bien para avisos puntuales, pero WhatsApp podría bloquear el número si detecta un patrón de
-            envío automatizado a mucho volumen.
-          </p>
-        )}
-
         {error && <p className="text-sm text-red-600">{error}</p>}
 
         {connected ? (

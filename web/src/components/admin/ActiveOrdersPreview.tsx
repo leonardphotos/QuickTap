@@ -7,7 +7,9 @@ import { api, getToken } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { hasFeature } from '@/utils/subscription';
 import { abbreviateTableBadge } from '@/utils/format';
-import { EditOrderDialog, getPaymentStatus, type LiveOrder } from './LiveOrdersPanel';
+import { useToast } from '@/hooks/useToast';
+import { Toast } from '@/components/ui/toast';
+import { EditOrderDialog, getPaymentStatus, handleWhatsappSendResult, type LiveOrder } from './LiveOrdersPanel';
 import { PaymentDialog } from './PaymentDialog';
 
 const CHANNEL_LABEL: Record<LiveOrder['channel'], string> = {
@@ -27,25 +29,6 @@ const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {
 function timeAgo(iso: string) {
   const secs = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
   return secs < 60 ? `hace ${secs}s` : `hace ${Math.floor(secs / 60)} min`;
-}
-
-/** Igual que openInTabAndAutoClose en LiveOrdersPanel.tsx: en móvil, wa.me le entrega el
- * control a la app de WhatsApp de inmediato y la pestaña queda pegada en "about:blank". */
-function openInTabAndAutoClose(win: Window | null, url: string) {
-  if (!win) {
-    window.location.href = url;
-    return;
-  }
-  win.location.href = url;
-  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-    setTimeout(() => {
-      try {
-        win.close();
-      } catch {
-        // Algunos navegadores no dejan cerrar pestañas con las que el usuario ya interactuó.
-      }
-    }, 1200);
-  }
 }
 
 /** Envuelve una tarjeta pagada: deslizar hacia la izquierda la quita de la lista (solo visual,
@@ -101,6 +84,7 @@ function DismissibleRow({ onDismiss, children }: { onDismiss: () => void; childr
 export function ActiveOrdersPreview() {
   const { user, restaurant } = useAuth();
   const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
+  const { show, toastMessage } = useToast();
   const [orders, setOrders] = useState<LiveOrder[] | null>(null);
   const [editingOrder, setEditingOrder] = useState<LiveOrder | null>(null);
   const [paymentDialog, setPaymentDialog] = useState<{ order: LiveOrder; mode: 'full' | 'split' } | null>(null);
@@ -162,7 +146,7 @@ export function ActiveOrdersPreview() {
     setSendingWhatsappId(order.id);
     try {
       const { data } = await api.post(`/orders/${order.id}/send-whatsapp`);
-      openInTabAndAutoClose(win, data.data.url);
+      handleWhatsappSendResult(win, data.data, () => show('Mensaje enviado'));
     } catch {
       win?.close();
     } finally {
@@ -308,6 +292,8 @@ export function ActiveOrdersPreview() {
           onPaid={load}
         />
       )}
+
+      <Toast message={toastMessage} />
     </div>
   );
 }

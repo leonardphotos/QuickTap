@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   Building2,
+  ChevronDown,
   Clock,
   MessageCircle,
   Wallet,
@@ -18,6 +19,7 @@ import { formatBsAbsolute } from '../../utils/format';
 import { canManageTeam } from '../../utils/roles';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { TeamSection } from '@/components/admin/TeamSection';
 import { ThemeSection } from '@/components/admin/ThemeSection';
 import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection';
@@ -46,18 +48,59 @@ interface RateInfo {
 
 const CURRENCY_LABELS: Record<Currency, string> = { USD: 'Dólares ($)', EUR: 'Euros (€)' };
 
-/** Categoría de Ajustes: título + ícono arriba, y una grilla de tarjetas debajo — cada
- * tarjeta ocupa 1 columna salvo que pida `full` (mapas, selector de colores, etc.). */
-function SettingsCategory({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
+/**
+ * Categoría de Ajustes: título + ícono, con su contenido colapsado/expandido según
+ * `open` — la propia cabecera también es clickeable, además del menú desplegable de
+ * arriba. La animación de "desplegado fluido" usa el truco de CSS grid-template-rows
+ * 0fr → 1fr (en vez de max-height/JS), que anima limpio sin medir el alto del contenido.
+ */
+function SettingsCategory({
+  id,
+  title,
+  icon,
+  open,
+  onToggle,
+  children,
+}: {
+  id: string;
+  title: string;
+  icon: ReactNode;
+  open: boolean;
+  onToggle: (id: string) => void;
+  children: ReactNode;
+}) {
   return (
-    <section className="mb-10 last:mb-0">
-      <h2 className="flex items-center gap-2 text-base font-semibold text-brand-950 mb-4">
+    <section className="mb-3 last:mb-0" id={`ajustes-${id}`}>
+      <button
+        type="button"
+        onClick={() => onToggle(id)}
+        className={`w-full flex items-center gap-2.5 text-left rounded-2xl px-4 py-3.5 transition-colors ${
+          open ? 'bg-brand-500/[0.06]' : 'hover:bg-brand-950/[0.03]'
+        }`}
+      >
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-brand-500">
           {icon}
         </span>
-        {title}
-      </h2>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">{children}</div>
+        <span className="text-base font-semibold text-brand-950 flex-1">{title}</span>
+        <ChevronDown
+          className={`h-4 w-4 text-brand-950/40 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
+        />
+      </button>
+      <div
+        className={`grid transition-[grid-template-rows] duration-300 ease-out-strong ${
+          open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+        }`}
+      >
+        <div className="overflow-hidden">
+          <div
+            className={`grid grid-cols-1 lg:grid-cols-2 gap-5 items-start px-1 pt-4 pb-2 transition-opacity duration-300 ${
+              open ? 'opacity-100 delay-100' : 'opacity-0'
+            }`}
+          >
+            {children}
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
@@ -110,22 +153,72 @@ export default function SettingsPage() {
   const activeRate = rates?.[baseCurrency];
   const isManager = canManageTeam(user?.role);
 
+  const CATEGORIES = [
+    { id: 'negocio', title: 'Negocio', icon: <Building2 className="h-4 w-4" /> },
+    { id: 'whatsapp', title: 'WhatsApp', icon: <MessageCircle className="h-4 w-4" /> },
+    { id: 'pagos', title: 'Pagos y moneda', icon: <Wallet className="h-4 w-4" /> },
+    { id: 'delivery', title: 'Delivery', icon: <Bike className="h-4 w-4" /> },
+    { id: 'apariencia', title: 'Apariencia del menú público', icon: <Palette className="h-4 w-4" /> },
+    ...(isManager ? [{ id: 'equipo', title: 'Equipo y seguridad', icon: <ShieldCheck className="h-4 w-4" /> }] : []),
+    { id: 'impresion', title: 'Estación de impresión', icon: <Printer className="h-4 w-4" /> },
+    ...(isManager ? [{ id: 'datos', title: 'Datos y reportes', icon: <Database className="h-4 w-4" /> }] : []),
+    ...(!isManager ? [{ id: 'seguridad', title: 'Seguridad', icon: <Clock className="h-4 w-4" /> }] : []),
+  ];
+
+  const [openCategory, setOpenCategory] = useState<string>(CATEGORIES[0].id);
+
+  function selectCategory(id: string) {
+    setOpenCategory(id);
+    requestAnimationFrame(() => {
+      document.getElementById(`ajustes-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }
+
+  function toggleCategory(id: string) {
+    setOpenCategory((current) => (current === id ? '' : id));
+  }
+
+  const currentCategory = CATEGORIES.find((c) => c.id === openCategory);
+
   return (
     <div className="max-w-5xl">
-      <h1 className="text-3xl font-semibold tracking-tight text-brand-950 mb-8">Ajustes</h1>
+      <div className="flex items-center justify-between gap-3 mb-6 flex-wrap">
+        <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Ajustes</h1>
 
-      <SettingsCategory title="Negocio" icon={<Building2 className="h-4 w-4" />}>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex items-center gap-2 rounded-full border border-brand-950/10 bg-white px-4 py-2 text-sm font-medium text-brand-950 shadow-sm hover:bg-brand-950/[0.03]"
+            >
+              {currentCategory?.icon}
+              {currentCategory?.title ?? 'Elige una categoría'}
+              <ChevronDown className="h-3.5 w-3.5 text-brand-950/40" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {CATEGORIES.map((c) => (
+              <DropdownMenuItem key={c.id} onClick={() => selectCategory(c.id)}>
+                {c.icon}
+                {c.title}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <SettingsCategory id="negocio" title="Negocio" icon={<Building2 className="h-4 w-4" />} open={openCategory === 'negocio'} onToggle={toggleCategory}>
         <RestaurantInfoSection />
         <DesktopShortcutSection />
         <ScheduleSection />
       </SettingsCategory>
 
-      <SettingsCategory title="WhatsApp" icon={<MessageCircle className="h-4 w-4" />}>
+      <SettingsCategory id="whatsapp" title="WhatsApp" icon={<MessageCircle className="h-4 w-4" />} open={openCategory === 'whatsapp'} onToggle={toggleCategory}>
         <WhatsappMessageSection />
         <WhatsappBotSection />
       </SettingsCategory>
 
-      <SettingsCategory title="Pagos y moneda" icon={<Wallet className="h-4 w-4" />}>
+      <SettingsCategory id="pagos" title="Pagos y moneda" icon={<Wallet className="h-4 w-4" />} open={openCategory === 'pagos'} onToggle={toggleCategory}>
         <TextureCard>
           <TextureCardHeader className="px-6">
             <TextureCardTitle className="pl-0">Tasa cambiaria</TextureCardTitle>
@@ -192,14 +285,20 @@ export default function SettingsPage() {
         <CheckoutSettingsSection />
       </SettingsCategory>
 
-      <SettingsCategory title="Delivery" icon={<Bike className="h-4 w-4" />}>
+      <SettingsCategory id="delivery" title="Delivery" icon={<Bike className="h-4 w-4" />} open={openCategory === 'delivery'} onToggle={toggleCategory}>
         <DeliveryTeamSection />
         <FullWidth>
           <DeliveryPricingSection />
         </FullWidth>
       </SettingsCategory>
 
-      <SettingsCategory title="Apariencia del menú público" icon={<Palette className="h-4 w-4" />}>
+      <SettingsCategory
+        id="apariencia"
+        title="Apariencia del menú público"
+        icon={<Palette className="h-4 w-4" />}
+        open={openCategory === 'apariencia'}
+        onToggle={toggleCategory}
+      >
         <FullscreenImageSection />
         <FullWidth>
           <ThemeSection />
@@ -207,26 +306,50 @@ export default function SettingsPage() {
       </SettingsCategory>
 
       {isManager && (
-        <SettingsCategory title="Equipo y seguridad" icon={<ShieldCheck className="h-4 w-4" />}>
+        <SettingsCategory
+          id="equipo"
+          title="Equipo y seguridad"
+          icon={<ShieldCheck className="h-4 w-4" />}
+          open={openCategory === 'equipo'}
+          onToggle={toggleCategory}
+        >
           <TeamSection />
           <DeleteOrderPinSection />
           <LockScreenSettingsSection />
         </SettingsCategory>
       )}
 
-      <SettingsCategory title="Estación de impresión" icon={<Printer className="h-4 w-4" />}>
+      <SettingsCategory
+        id="impresion"
+        title="Estación de impresión"
+        icon={<Printer className="h-4 w-4" />}
+        open={openCategory === 'impresion'}
+        onToggle={toggleCategory}
+      >
         <PrintStationSection />
       </SettingsCategory>
 
       {isManager && (
-        <SettingsCategory title="Datos y reportes" icon={<Database className="h-4 w-4" />}>
+        <SettingsCategory
+          id="datos"
+          title="Datos y reportes"
+          icon={<Database className="h-4 w-4" />}
+          open={openCategory === 'datos'}
+          onToggle={toggleCategory}
+        >
           <SalesHistoryExportSection />
           <DemoAdminUnlockSection />
         </SettingsCategory>
       )}
 
       {!isManager && (
-        <SettingsCategory title="Seguridad" icon={<Clock className="h-4 w-4" />}>
+        <SettingsCategory
+          id="seguridad"
+          title="Seguridad"
+          icon={<Clock className="h-4 w-4" />}
+          open={openCategory === 'seguridad'}
+          onToggle={toggleCategory}
+        >
           <LockScreenSettingsSection />
         </SettingsCategory>
       )}

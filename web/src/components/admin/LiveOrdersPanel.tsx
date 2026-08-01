@@ -31,6 +31,8 @@ import { ProductOptionsDialog } from './ProductOptionsDialog';
 import { useAuth } from '@/context/AuthContext';
 import { isAdminCashier } from '@/utils/roles';
 import { hasFeature } from '@/utils/subscription';
+import { useToast } from '@/hooks/useToast';
+import { Toast } from '@/components/ui/toast';
 import { abbreviateTableBadge, CURRENCY_SYMBOLS, formatBase, formatBsAbsolute, formatModifierLabel } from '@/utils/format';
 
 interface LiveOrderItem {
@@ -137,6 +139,25 @@ function openInTabAndAutoClose(win: Window | null, url: string) {
   }
 }
 
+/**
+ * Resultado de un endpoint que intenta mandar el mensaje por el chatbot de WhatsApp vinculado
+ * (ver whatsapp-bot.service.ts) y cae a un enlace wa.me si no está conectado: si `sent` es true
+ * ya salió solo (cierra la pestaña en blanco que se pre-abrió por el bloqueador de popups y
+ * muestra el aviso de confirmación); si no, abre esa pestaña con el enlace de siempre.
+ */
+export function handleWhatsappSendResult(win: Window | null, data: { sent?: boolean; url?: string }, onSent: () => void) {
+  if (data.sent) {
+    win?.close();
+    onSent();
+    return;
+  }
+  if (data.url) {
+    openInTabAndAutoClose(win, data.url);
+  } else {
+    win?.close();
+  }
+}
+
 const CHANNEL_LABELS: Record<LiveOrder['channel'], string> = {
   DINE_IN: 'Mesa',
   DELIVERY: 'Delivery',
@@ -188,6 +209,7 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
   const { restaurant, user } = useAuth();
   const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
+  const { show, toastMessage } = useToast();
   const [orders, setOrders] = useState<LiveOrder[] | null>(null);
   const [couriers, setCouriers] = useState<DeliveryCourier[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -280,7 +302,7 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
     setError(null);
     try {
       const { data } = await api.post(`/orders/${order.id}/send-whatsapp`);
-      openInTabAndAutoClose(win, data.data.url);
+      handleWhatsappSendResult(win, data.data, () => show('Mensaje enviado'));
     } catch (e: any) {
       win?.close();
       setError(e.response?.data?.error ?? 'No se pudo enviar la comanda por WhatsApp.');
@@ -361,7 +383,7 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
     setError(null);
     try {
       const { data } = await api.post(`/orders/${orderId}/dispatch-courier`, { courierId });
-      openInTabAndAutoClose(win, data.data.url);
+      handleWhatsappSendResult(win, data.data, () => show('Mensaje enviado'));
       setCourierPickerFor(null);
     } catch (e: any) {
       win?.close();
@@ -390,8 +412,8 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
       const win = window.open('', '_blank');
       try {
         const { data } = await api.post(`/orders/${order.id}/dispatch-courier`, {});
-        if (data.data?.url) {
-          openInTabAndAutoClose(win, data.data.url);
+        if (data.data?.url || data.data?.sent) {
+          handleWhatsappSendResult(win, data.data, () => show('Mensaje enviado'));
         } else {
           // Sin repartidores activos: el backend devuelve null en vez de fallar.
           win?.close();
@@ -771,6 +793,8 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
           </DialogContent>
         </Dialog>
       )}
+
+      <Toast message={toastMessage} />
     </div>
   );
 }
@@ -788,6 +812,7 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
+  const { show, toastMessage } = useToast();
   const { fullyPaid } = getPaymentStatus(order);
   const [name, setName] = useState(order.customerName ?? '');
   const [phone, setPhone] = useState(order.customerPhone ?? '');
@@ -874,7 +899,7 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
     setError(null);
     try {
       const { data } = await api.post(`/orders/${order.id}/dispatch-courier`, { courierId });
-      openInTabAndAutoClose(win, data.data.url);
+      handleWhatsappSendResult(win, data.data, () => show('Mensaje enviado'));
       setShowCourierPicker(false);
       onSaved();
     } catch (e: any) {
@@ -895,8 +920,8 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
       const win = window.open('', '_blank');
       try {
         const { data } = await api.post(`/orders/${order.id}/dispatch-courier`, {});
-        if (data.data?.url) {
-          openInTabAndAutoClose(win, data.data.url);
+        if (data.data?.url || data.data?.sent) {
+          handleWhatsappSendResult(win, data.data, () => show('Mensaje enviado'));
         } else {
           win?.close();
           setError('El pedido se cobró, pero no hay repartidores activos para despacharlo.');
@@ -977,7 +1002,7 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
     setError(null);
     try {
       const { data } = await api.post(`/orders/${order.id}/send-whatsapp`);
-      openInTabAndAutoClose(win, data.data.url);
+      handleWhatsappSendResult(win, data.data, () => show('Mensaje enviado'));
     } catch (e: any) {
       win?.close();
       setError(e.response?.data?.error ?? 'No se pudo enviar la comanda por WhatsApp.');
@@ -1552,6 +1577,8 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
           onClose={() => setShowCourierPicker(false)}
         />
       )}
+
+      <Toast message={toastMessage} />
     </Dialog>
   );
 }

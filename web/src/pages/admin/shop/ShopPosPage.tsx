@@ -3,8 +3,11 @@ import type { ChangeEvent, KeyboardEvent } from 'react';
 import { Camera, CheckCircle2, ClipboardList, Loader2, MessageCircle, Minus, Plus, Printer, ScanLine, Search, ShoppingCart, Wrench, X } from 'lucide-react';
 import { api } from '@/api/client';
 import type { AuthRestaurant } from '@/context/AuthContext';
+import { useToast } from '@/hooks/useToast';
+import { sendWhatsappOrOpen } from '@/utils/sendWhatsapp';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Toast } from '@/components/ui/toast';
 import type { ShopRubro, ShopVariant } from '@/data/shopRubros';
 import { shopMoneyFormatters } from './shopFormat';
 import { effectivePrice, lineTotal, productStatus, productStock, type PaymentMeta, type Sale, type ShopProduct, type ShopSession } from './shopSession';
@@ -106,6 +109,7 @@ const PAYMENT_METHOD_META: { key: keyof NonNullable<AuthRestaurant['paymentMetho
 export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
   const { products, cart, till, closedTills, categories, addToCart, addAdhocLine, updateCartQty, setCartQty, removeFromCart, setCartLineDiscount, openTill, closeTill, checkout } = session;
+  const { show, toastMessage } = useToast();
 
   const [adhocOpen, setAdhocOpen] = useState(false);
   const [adhocName, setAdhocName] = useState('');
@@ -256,11 +260,13 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
     setAdhocOpen(false);
   }
 
-  function sendReceiptWhatsapp(sale: Sale) {
+  async function sendReceiptWhatsapp(sale: Sale) {
+    if (!sale.customerPhone) return;
     const message = buildReceiptMessage(sale, restaurant.name, money, moneyBs);
-    const phone = sale.customerPhone ? waPhone(sale.customerPhone) : '';
+    const phone = waPhone(sale.customerPhone);
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
-    window.open(url, '_blank');
+    const sent = await sendWhatsappOrOpen(phone, message, url);
+    if (sent) show('Mensaje enviado');
   }
 
   function startCheckout() {
@@ -1129,6 +1135,8 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
           )}
         </DialogContent>
       </Dialog>
+
+      <Toast message={toastMessage} />
     </div>
   );
 }

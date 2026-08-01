@@ -3,7 +3,11 @@ import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import { Ban, Check, Clock, MessageCircle, Table2, Users } from 'lucide-react';
 import { api, getToken } from '@/api/client';
+import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/hooks/useToast';
+import { sendWhatsappOrOpen } from '@/utils/sendWhatsapp';
 import { TextureButton } from '@/components/ui/texture-button';
+import { Toast } from '@/components/ui/toast';
 
 interface Reservation {
   id: string;
@@ -17,20 +21,40 @@ interface Reservation {
   tables: { id: string; number: string }[];
 }
 
-function whatsappUrl(phone: string): string {
-  return `https://wa.me/${phone.replace(/\D/g, '')}`;
+function whatsappUrl(phone: string, text?: string): string {
+  const base = `https://wa.me/${phone.replace(/\D/g, '')}`;
+  return text ? `${base}?text=${encodeURIComponent(text)}` : base;
 }
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString('es-VE', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
+function reservationMessage(restaurantName: string, r: Reservation): string {
+  const tables = r.tables.map((t) => t.number).join(', ');
+  return [
+    `Hola ${r.customerName}, te escribimos de *${restaurantName}* sobre tu reserva.`,
+    `📅 ${formatDate(r.date)}, ${r.time} · 👥 ${r.partySize} · 🪑 Mesa ${tables}`,
+    r.status === 'CONFIRMED' ? '¡Tu reserva está confirmada, te esperamos!' : '',
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
 /** Pestaña "Reservas" (Cajero/Administrador): reservas hechas desde el botón "Mesa" del menú
  * público. Quedan PENDING hasta que el staff las acepte o cancele; el cliente se entera por WhatsApp. */
 export default function ReservationsPage() {
+  const { restaurant } = useAuth();
+  const { show, toastMessage } = useToast();
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  async function sendWhatsapp(r: Reservation) {
+    const message = reservationMessage(restaurant?.name ?? '', r);
+    const sent = await sendWhatsappOrOpen(r.customerPhone, message, whatsappUrl(r.customerPhone, message));
+    if (sent) show('Mensaje enviado');
+  }
 
   function load() {
     api
@@ -111,6 +135,7 @@ export default function ReservationsPage() {
                 busy={busyId === r.id}
                 onAccept={() => accept(r.id)}
                 onCancel={() => cancel(r.id)}
+                onSendWhatsapp={() => sendWhatsapp(r)}
               />
             ))}
           </div>
@@ -124,11 +149,19 @@ export default function ReservationsPage() {
         ) : (
           <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
             {confirmed.map((r) => (
-              <ReservationRow key={r.id} reservation={r} busy={busyId === r.id} onCancel={() => cancel(r.id)} />
+              <ReservationRow
+                key={r.id}
+                reservation={r}
+                busy={busyId === r.id}
+                onCancel={() => cancel(r.id)}
+                onSendWhatsapp={() => sendWhatsapp(r)}
+              />
             ))}
           </div>
         )}
       </section>
+
+      <Toast message={toastMessage} />
     </div>
   );
 }
@@ -138,11 +171,13 @@ function ReservationRow({
   busy,
   onAccept,
   onCancel,
+  onSendWhatsapp,
 }: {
   reservation: Reservation;
   busy: boolean;
   onAccept?: () => void;
   onCancel: () => void;
+  onSendWhatsapp: () => void;
 }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 p-4">
@@ -164,15 +199,14 @@ function ReservationRow({
         </p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
-        <a
-          href={whatsappUrl(reservation.customerPhone)}
-          target="_blank"
-          rel="noreferrer"
+        <button
+          type="button"
+          onClick={onSendWhatsapp}
           aria-label="Escribir por WhatsApp"
           className="flex items-center justify-center h-8 w-8 rounded-full bg-emerald-500 text-white hover:bg-emerald-600 transition-colors shrink-0"
         >
           <MessageCircle className="h-4 w-4" />
-        </a>
+        </button>
         {onAccept && (
           <TextureButton
             variant="brand"

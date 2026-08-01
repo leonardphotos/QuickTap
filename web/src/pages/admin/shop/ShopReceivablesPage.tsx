@@ -2,8 +2,11 @@ import { useEffect, useState } from 'react';
 import { AlertTriangle, Landmark, Send } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/hooks/useToast';
+import { sendWhatsappOrOpen } from '@/utils/sendWhatsapp';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard } from '@/components/ui/texture-card';
+import { Toast } from '@/components/ui/toast';
 import { shopMoneyFormatters } from './shopFormat';
 
 interface ReceivableSale {
@@ -38,13 +41,17 @@ function DueBadge({ dueDate }: { dueDate: string | null }) {
   return <span className="text-xs text-brand-950/50">Vence {label}</span>;
 }
 
-function whatsappReminderUrl(phone: string, businessName: string, balance: number, money: (n: number) => string, dueDate: string | null): string {
+function reminderMessage(businessName: string, balance: number, money: (n: number) => string, dueDate: string | null): string {
   const parts = [
     `Hola, te escribimos de *${businessName}* — tienes un saldo pendiente de ${money(balance)}.`,
     dueDate ? `Fecha de pago acordada: ${new Date(`${dueDate}T00:00:00`).toLocaleDateString('es-VE')}.` : '',
     'Cualquier duda, con gusto te ayudamos. ¡Gracias!',
   ].filter(Boolean);
-  return `https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(parts.join('\n\n'))}`;
+  return parts.join('\n\n');
+}
+
+function whatsappUrl(phone: string, text: string): string {
+  return `https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`;
 }
 
 /**
@@ -52,12 +59,13 @@ function whatsappReminderUrl(phone: string, businessName: string, balance: numbe
  * pendiente, agrupadas por vencimiento. A diferencia de la venta a crédito de siempre (que solo
  * registraba el "fiado" pero no llevaba seguimiento del pago después), acá se puede abonar contra
  * el saldo y ponerle/editarle fecha de compromiso — sin eso, "fiado" era solo una etiqueta.
- * El recordatorio es un enlace de WhatsApp que el cajero dispara a mano (igual que el resto de la
- * app): no hay envío automático, QuickTap no tiene una API de WhatsApp que empuje mensajes solo.
+ * El recordatorio sale por el chatbot de WhatsApp vinculado (Ajustes → WhatsApp) si está
+ * conectado; si no, cae al enlace wa.me de siempre para que el cajero lo mande a mano.
  */
 export default function ShopReceivablesPage() {
   const { restaurant } = useAuth();
   const { money } = shopMoneyFormatters(restaurant!);
+  const { show, toastMessage } = useToast();
 
   const [sales, setSales] = useState<ReceivableSale[]>([]);
   const [showHistory, setShowHistory] = useState(false);
@@ -96,6 +104,13 @@ export default function ShopReceivablesPage() {
     await api.patch(`/shop/sales/${saleId}/due-date`, { dueDate: dueInput || null });
     setEditingDueId(null);
     load();
+  }
+
+  async function sendReminder(s: ReceivableSale) {
+    if (!s.customerPhone) return;
+    const message = reminderMessage(restaurant?.name ?? '', s.balance, money, s.dueDate);
+    const sent = await sendWhatsappOrOpen(s.customerPhone, message, whatsappUrl(s.customerPhone, message));
+    if (sent) show('Mensaje enviado');
   }
 
   return (
@@ -230,14 +245,13 @@ export default function ShopReceivablesPage() {
                     </button>
                   )}
                   {s.customerPhone && (
-                    <a
-                      href={whatsappReminderUrl(s.customerPhone, restaurant?.name ?? '', s.balance, money, s.dueDate)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
+                      onClick={() => sendReminder(s)}
                       className="text-sm text-brand-950/50 hover:text-brand-950 flex items-center gap-1"
                     >
                       <Send className="h-3.5 w-3.5" /> Recordar por WhatsApp
-                    </a>
+                    </button>
                   )}
                 </div>
               )}
@@ -250,6 +264,8 @@ export default function ShopReceivablesPage() {
           )}
         </ul>
       </TextureCard>
+
+      <Toast message={toastMessage} />
     </div>
   );
 }

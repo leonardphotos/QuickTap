@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
-import { updateWhatsappBotSettingsSchema } from './whatsapp-bot.dto';
+import { sendWhatsappMessageSchema, updateWhatsappBotSettingsSchema } from './whatsapp-bot.dto';
 import { whatsappBotService } from './whatsapp-bot.service';
 import { prisma } from '../../config/prisma';
 
@@ -35,5 +35,14 @@ export const whatsappBotController = {
     const input = updateWhatsappBotSettingsSchema.parse(req.body);
     const data = await whatsappBotService.updateSettings(req.restaurantId!, input);
     res.json({ data });
+  }),
+
+  /** Botones "Enviar por WhatsApp" del panel (comanda, cotización, recordatorio, recibo...):
+   * lo manda la sesión vinculada de este restaurante. Si no está conectada, `sent: false` y el
+   * frontend cae al enlace wa.me de siempre para que el staff lo mande a mano. */
+  send: asyncHandler(async (req: Request, res: Response) => {
+    const input = sendWhatsappMessageSchema.parse(req.body);
+    const sent = await whatsappBotService.sendMessage(req.restaurantId!, input.phone, input.message);
+    res.json({ data: { sent } });
   }),
 };

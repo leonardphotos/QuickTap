@@ -2,11 +2,14 @@ import { useEffect, useState } from 'react';
 import { FileText, Plus, Send, Trash2, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/hooks/useToast';
+import { sendWhatsappOrOpen } from '@/utils/sendWhatsapp';
 import { CURRENCY_SYMBOLS } from '@/utils/format';
 import type { Quote, QuoteItem } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard } from '@/components/ui/texture-card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Toast } from '@/components/ui/toast';
 
 function whatsappUrl(phone: string, text: string): string {
   return `https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`;
@@ -42,6 +45,7 @@ interface DraftItem extends QuoteItem {
 export function QuoteManager() {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
+  const { show, toastMessage } = useToast();
 
   const [quotes, setQuotes] = useState<Quote[]>([]);
   const [open, setOpen] = useState(false);
@@ -118,6 +122,13 @@ export function QuoteManager() {
     load();
   }
 
+  async function sendQuote(q: Quote) {
+    if (!q.customerPhone) return;
+    const message = buildQuoteMessage(q, restaurant?.name ?? '', symbol);
+    const sent = await sendWhatsappOrOpen(q.customerPhone, message, whatsappUrl(q.customerPhone, message));
+    if (sent) show('Mensaje enviado');
+  }
+
   async function confirmConvert(id: string) {
     if (!convertRef.trim()) return;
     await api.patch(`/quotes/${id}/converted`, { convertedToId: convertRef.trim() });
@@ -183,14 +194,13 @@ export function QuoteManager() {
 
               <div className="mt-3 flex flex-wrap items-center gap-3">
                 {q.customerPhone && (
-                  <a
-                    href={whatsappUrl(q.customerPhone, buildQuoteMessage(q, restaurant?.name ?? '', symbol))}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                  <button
+                    type="button"
+                    onClick={() => sendQuote(q)}
                     className="text-sm text-brand-500 hover:text-brand-600 flex items-center gap-1"
                   >
                     <Send className="h-3.5 w-3.5" /> Enviar por WhatsApp
-                  </a>
+                  </button>
                 )}
                 {!q.convertedToId &&
                   (convertingId === q.id ? (
@@ -323,6 +333,8 @@ export function QuoteManager() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <Toast message={toastMessage} />
     </div>
   );
 }

@@ -13,5 +13,8 @@ router.get('/status', whatsappBotController.getStatus);
 router.post('/connect', manage, whatsappBotController.connect);
 router.post('/disconnect', manage, whatsappBotController.disconnect);
 router.patch('/settings', manage, whatsappBotController.updateSettings);
+// Cualquier rol con acceso al panel puede usar los botones "Enviar por WhatsApp" (comanda,
+// cotización, recordatorio, recibo...) — no es una acción de configuración, es operación normal.
+router.post('/send', whatsappBotController.send);
 
 export default router;

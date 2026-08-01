@@ -1593,7 +1593,8 @@ export const orderService = {
     parts.push('━━━━━━━━━━━━━━━━━━━━');
     parts.push('_Enviado desde QuickTap.club_');
 
-    const url = buildWhatsappUrl(courier.whatsappPhone, parts.join('\n'));
+    const message = parts.join('\n');
+    const url = buildWhatsappUrl(courier.whatsappPhone, message);
 
     // Queda registrado quién se lleva la comanda, para el movimiento por repartidor en Administración.
     await prisma.order.update({
@@ -1601,8 +1602,12 @@ export const orderService = {
       data: { deliveryCourierId: courierId, deliveryDispatchedAt: new Date() },
     });
 
-    // Chatbot de WhatsApp: al cliente le avisa que su pedido salió — el enlace de arriba (`url`)
-    // es aparte, ese lo manda el restaurante al repartidor, no al cliente.
+    // Manda la comanda al repartidor por la sesión vinculada de este restaurante — si no está
+    // conectada, `sent: false` y el frontend cae al enlace wa.me de siempre (`url`).
+    const sent = await whatsappBotService.sendMessage(restaurantId, courier.whatsappPhone, message);
+
+    // Chatbot de WhatsApp: al cliente le avisa que su pedido salió — mensaje aparte del de arriba
+    // (ese va al repartidor, no al cliente).
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
       select: { name: true, whatsappBotEnabled: true, whatsappBotNotifyReady: true },
@@ -1617,7 +1622,7 @@ export const orderService = {
         .catch(() => undefined);
     }
 
-    return { url };
+    return { sent, url };
   },
 
   /**
@@ -1676,7 +1681,8 @@ export const orderService = {
     // a diferencia de restaurant.whatsappPhone que ya guarda el código de
     // marcación elegido en el registro.
     const customerWhatsapp = formatVenezuelanWhatsappPhone(order.customerPhone);
-    return { url: buildWhatsappUrl(customerWhatsapp, message) };
+    const sent = await whatsappBotService.sendMessage(restaurantId, customerWhatsapp, message);
+    return { sent, url: buildWhatsappUrl(customerWhatsapp, message) };
   },
 
   /** Botón "Imprimir" del panel: reenvía la comanda a la estación de impresión (misma room de
