@@ -3,8 +3,8 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { masterApi } from '@/api/client';
 import { formatBase, formatBsAbsolute } from '@/utils/format';
-import { SpeedGauge } from '@/components/master/SpeedGauge';
 import { ServerHealthCard } from '@/components/master/ServerHealthCard';
+import { VpsCapacityBar } from '@/components/master/VpsCapacityBar';
 import { QuickTapRevenueDialog } from '@/components/master/QuickTapRevenueDialog';
 import { MaskedAmount } from '@/components/master/MaskedAmount';
 import { MoneyVisibilityToggle } from '@/components/master/MoneyVisibilityToggle';
@@ -62,14 +62,9 @@ export default function MasterSummaryPage() {
     <div className="space-y-8">
       <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Resumen</h1>
 
-      <div className="flex flex-col sm:flex-row gap-4 items-stretch">
-        <div className="sm:w-64 sm:shrink-0">
-          <SpeedGauge />
-        </div>
-        <div className="flex-1">
-          <ServerHealthCard />
-        </div>
-      </div>
+      <VpsCapacityBar />
+
+      <ServerHealthCard />
 
       <div>
         <div className="flex items-center gap-2 mb-3">
