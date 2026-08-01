@@ -984,6 +984,12 @@ export const orderService = {
       createdAt: order.createdAt,
     });
 
+    // El teléfono del cliente se captura en formato local venezolano (ej. "0424-1234567", sin
+    // código de país) en el checkout — hay que normalizarlo a internacional antes de armar el
+    // JID de WhatsApp (toJid solo limpia dígitos, no agrega el 58), o el bot manda el mensaje a
+    // un contacto inexistente y falla en silencio.
+    const customerWhatsapp = order.customerPhone ? formatVenezuelanWhatsappPhone(order.customerPhone) : null;
+
     // Chatbot de WhatsApp (vinculado por QR, ver whatsapp-bot.service.ts): avisa solo al
     // cliente que su pedido llegó — no reemplaza el enlace wa.me de abajo (ese lo manda el
     // cliente al restaurante), es un mensaje aparte que sale DEL restaurante hacia el cliente.
@@ -991,7 +997,7 @@ export const orderService = {
       whatsappBotService
         .sendMessage(
           restaurant.id,
-          order.customerPhone,
+          customerWhatsapp,
           `✅ *${restaurant.name}*\n\nRecibimos tu pedido #${order.orderNumber}. ¡Ya lo estamos preparando!`,
         )
         .catch(() => undefined);
@@ -1003,7 +1009,7 @@ export const orderService = {
     // y el verificador del restaurante la apruebe, el pedido pase solo a cocina.
     if (
       restaurant.whatsappBotEnabled &&
-      order.customerPhone &&
+      customerWhatsapp &&
       order.paymentMethod &&
       PROOF_REQUIRED_PAYMENT_METHODS.includes(order.paymentMethod)
     ) {
@@ -1018,8 +1024,8 @@ export const orderService = {
         totalBs: order.totalBs.toString(),
         currencySymbol: CURRENCY_SYMBOLS[restaurant.baseCurrency],
       });
-      whatsappBotService.sendMessage(restaurant.id, order.customerPhone, text).catch(() => undefined);
-      orderPaymentVerificationService.create(restaurantId, order.id, order.customerPhone).catch(() => undefined);
+      whatsappBotService.sendMessage(restaurant.id, customerWhatsapp, text).catch(() => undefined);
+      orderPaymentVerificationService.create(restaurantId, order.id, customerWhatsapp).catch(() => undefined);
     }
 
     // Construye el enlace de WhatsApp con el pedido ya congelado.
@@ -1322,11 +1328,11 @@ export const orderService = {
           where: { id: restaurantId },
           select: { name: true, whatsappBotEnabled: true, whatsappBotNotifyReady: true },
         });
-        if (restaurant?.whatsappBotEnabled && restaurant.whatsappBotNotifyReady) {
+        if (restaurant?.whatsappBotEnabled && restaurant.whatsappBotNotifyReady && order.customerPhone) {
           whatsappBotService
             .sendMessage(
               restaurantId,
-              order.customerPhone,
+              formatVenezuelanWhatsappPhone(order.customerPhone),
               `✅ *${restaurant.name}*\n\n¡Tu pedido #${order.orderNumber} ya está listo para retirar!`,
             )
             .catch(() => undefined);
@@ -1666,11 +1672,11 @@ export const orderService = {
       where: { id: restaurantId },
       select: { name: true, whatsappBotEnabled: true, whatsappBotNotifyReady: true },
     });
-    if (restaurant?.whatsappBotEnabled && restaurant.whatsappBotNotifyReady) {
+    if (restaurant?.whatsappBotEnabled && restaurant.whatsappBotNotifyReady && order.customerPhone) {
       whatsappBotService
         .sendMessage(
           restaurantId,
-          order.customerPhone,
+          formatVenezuelanWhatsappPhone(order.customerPhone),
           `🛵 *${restaurant.name}*\n\n¡Tu pedido #${order.orderNumber} va en camino!`,
         )
         .catch(() => undefined);
