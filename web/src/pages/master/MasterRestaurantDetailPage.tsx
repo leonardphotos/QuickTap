@@ -7,6 +7,7 @@ import { MoneyVisibilityToggle } from '@/components/master/MoneyVisibilityToggle
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PasswordInput } from '@/components/ui/password-input';
+import { WhatsappPhoneInput } from '@/components/ui/whatsapp-phone-input';
 
 interface RestaurantUser {
   id: string;
@@ -825,11 +826,7 @@ function AddBranchDialog({
           </label>
           <label className="block text-sm">
             <span className="block text-brand-950/70 mb-1">WhatsApp (opcional)</span>
-            <input
-              value={whatsappPhone}
-              onChange={(e) => setWhatsappPhone(e.target.value)}
-              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
-            />
+            <WhatsappPhoneInput value={whatsappPhone} onChange={setWhatsappPhone} />
           </label>
           <div className="flex gap-3">
             <label className="text-sm flex-1">

@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { WhatsappPhoneInput } from '@/components/ui/whatsapp-phone-input';
 import { PAYMENT_LABELS } from '@/components/admin/PaymentDialog';
 import type { OrderChannel, PaymentMethod } from '@/types';
 
@@ -618,12 +619,7 @@ function AddBranchDialog({ onClose, onCreated }: { onClose: () => void; onCreate
 
           <div>
             <label className="block text-sm font-medium text-brand-950 mb-1">WhatsApp (opcional)</label>
-            <input
-              value={whatsappPhone}
-              onChange={(e) => setWhatsappPhone(e.target.value)}
-              placeholder="584141234567"
-              className="w-full rounded-xl border border-brand-950/15 px-3.5 py-2.5 text-sm outline-none focus:border-brand-500"
-            />
+            <WhatsappPhoneInput value={whatsappPhone} onChange={setWhatsappPhone} />
           </div>
 
           <div className="rounded-xl bg-brand-950/[0.03] p-4">

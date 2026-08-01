@@ -6,7 +6,7 @@ import { Field } from './LoginPage';
 import AuthLayout from './AuthLayout';
 import type { Currency } from '../../types';
 import { TextureButton } from '@/components/ui/texture-button';
-import { COUNTRY_DIAL_CODES } from '@/data/dialCodes';
+import { WhatsappPhoneInput } from '@/components/ui/whatsapp-phone-input';
 import { getShopRubro } from '@/data/shopRubros';
 
 export default function RegisterPage() {
@@ -20,20 +20,13 @@ export default function RegisterPage() {
   const shopRubro = isShop ? getShopRubro(shopRubroId) : undefined;
   const [restaurantName, setRestaurantName] = useState('');
   const [slug, setSlug] = useState('');
-  const [countryCode, setCountryCode] = useState('VE');
-  const [localPhone, setLocalPhone] = useState('');
+  const [whatsappPhone, setWhatsappPhone] = useState('');
   const [baseCurrency, setBaseCurrency] = useState<Currency>('USD');
   const [ownerName, setOwnerName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const dialCode = COUNTRY_DIAL_CODES.find((c) => c.code === countryCode)?.dialCode ?? '58';
-  // El código de marcación se antepone solo, y se quita cualquier 0 inicial
-  // que el usuario escriba por costumbre (formato local): así el número
-  // siempre queda en formato internacional, listo para WhatsApp.
-  const whatsappPhone = localPhone.trim() ? `${dialCode}${localPhone.trim().replace(/\D/g, '').replace(/^0+/, '')}` : '';
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -100,30 +93,8 @@ export default function RegisterPage() {
         />
         <label className="block text-sm">
           <span className="text-brand-950/70">WhatsApp</span>
-          <div className="mt-1 flex gap-2">
-            <select
-              value={countryCode}
-              onChange={(e) => setCountryCode(e.target.value)}
-              className="w-40 shrink-0 border border-brand-950/15 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-            >
-              {COUNTRY_DIAL_CODES.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.name} (+{c.dialCode})
-                </option>
-              ))}
-            </select>
-            <div className="relative flex-1 min-w-0">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-950/40 text-sm pointer-events-none">
-                +{dialCode}
-              </span>
-              <input
-                value={localPhone}
-                onChange={(e) => setLocalPhone(e.target.value)}
-                placeholder="4141234567"
-                className="w-full border border-brand-950/15 rounded-lg py-2 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-                style={{ paddingLeft: `${dialCode.length * 8 + 22}px` }}
-              />
-            </div>
+          <div className="mt-1">
+            <WhatsappPhoneInput value={whatsappPhone} onChange={setWhatsappPhone} />
           </div>
           <span className="text-xs text-brand-950/40 font-light">
             Elige tu país y escribe el número local; el código se agrega automáticamente.

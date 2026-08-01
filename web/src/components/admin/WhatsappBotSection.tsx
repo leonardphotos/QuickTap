@@ -8,6 +8,7 @@ import { TEAM_MANAGER_ROLES } from '@/utils/roles';
 import type { UserRole } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
+import { WhatsappPhoneInput } from '@/components/ui/whatsapp-phone-input';
 
 type BotStatus = 'idle' | 'connecting' | 'qr' | 'connected' | 'disconnected';
 
@@ -262,14 +263,7 @@ export function WhatsappBotSection() {
                 solo a cocina; si responde <em>Rechazado</em>, se le pide al cliente reenviar el comprobante. Déjalo
                 vacío para desactivar este flujo (el pedido seguirá requiriendo aceptación manual, como siempre).
               </p>
-              <input
-                type="tel"
-                value={verifierDraft}
-                onChange={(e) => setVerifierDraft(e.target.value)}
-                disabled={!canManage}
-                placeholder="Ej: 584141234567"
-                className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-              />
+              <WhatsappPhoneInput value={verifierDraft} onChange={setVerifierDraft} disabled={!canManage} />
               {canManage && (
                 <div className="flex items-center gap-2">
                   <TextureButton

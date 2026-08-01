@@ -3,6 +3,7 @@ import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
+import { WhatsappPhoneInput } from '@/components/ui/whatsapp-phone-input';
 import { PhotoUploadField } from './PhotoUploadField';
 
 export function RestaurantInfoSection() {
@@ -74,12 +75,9 @@ export function RestaurantInfoSection() {
 
         <label className="block text-sm">
           <span className="text-brand-950/70">Número de contacto (WhatsApp)</span>
-          <input
-            value={whatsappPhone}
-            onChange={(e) => setWhatsappPhone(e.target.value)}
-            placeholder="584141234567"
-            className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-          />
+          <div className="mt-1">
+            <WhatsappPhoneInput value={whatsappPhone} onChange={setWhatsappPhone} />
+          </div>
         </label>
 
         {error && <p className="text-sm text-red-600">{error}</p>}

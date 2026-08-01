@@ -4,6 +4,7 @@ import { api } from '@/api/client';
 import type { DeliveryCourier } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
+import { WhatsappPhoneInput } from '@/components/ui/whatsapp-phone-input';
 
 const emptyForm = { name: '', whatsappPhone: '' };
 
@@ -58,13 +59,7 @@ export function DeliveryTeamSection() {
             required
             className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
           />
-          <input
-            value={form.whatsappPhone}
-            onChange={(e) => setForm({ ...form, whatsappPhone: e.target.value })}
-            placeholder="WhatsApp (ej: 584141234567)"
-            required
-            className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-          />
+          <WhatsappPhoneInput value={form.whatsappPhone} onChange={(whatsappPhone) => setForm({ ...form, whatsappPhone })} />
           {error && <p className="text-sm text-red-600 sm:col-span-2">{error}</p>}
           <TextureButton
             variant="brand"
