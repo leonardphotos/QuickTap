@@ -205,7 +205,7 @@ export const menuService = {
     // null en vez de tumbar el menú completo.
     let exchangeRate: { rateBs: string; fetchedAt: Date } | null = null;
     try {
-      const rate = await exchangeRateService.getRate(restaurant.baseCurrency);
+      const rate = await exchangeRateService.getRate(restaurant.baseCurrency, restaurant.id);
       exchangeRate = { rateBs: rate.rateBs.toString(), fetchedAt: rate.fetchedAt };
     } catch {
       exchangeRate = null;

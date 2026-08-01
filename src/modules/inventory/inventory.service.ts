@@ -22,7 +22,7 @@ async function resolvePricePerUnit(
   let priceBase = toDecimal(price);
   if (priceCurrency === 'BS') {
     const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { baseCurrency: true } });
-    const rate = await exchangeRateService.getRate(restaurant!.baseCurrency);
+    const rate = await exchangeRateService.getRate(restaurant!.baseCurrency, restaurantId);
     priceBase = bsToBase(price, rate.rateBs);
   }
   return priceBase.div(quantity).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);

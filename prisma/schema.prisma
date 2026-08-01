@@ -220,9 +220,13 @@ model Restaurant {
 
   // --- Configuración de moneda ---
   // Moneda en la que el restaurante coloca sus precios ($ o €).
-  // La conversión a Bs se resuelve con la tasa BCV vigente (tabla ExchangeRate),
-  // NO con un valor manual por restaurante.
-  baseCurrency Currency @default(USD)
+  // Por defecto la conversión a Bs se resuelve con la tasa BCV vigente (tabla
+  // ExchangeRate, global). Si el restaurante activa `exchangeRateManual`, se usa
+  // en cambio `manualExchangeRateBs` (fijo hasta que el propio restaurante lo
+  // vuelva a editar) — ver exchangeRateService.getRate().
+  baseCurrency         Currency @default(USD)
+  exchangeRateManual   Boolean  @default(false)
+  manualExchangeRateBs Decimal? @db.Decimal(12, 4)
 
   // --- Contacto / checkout ---
   // Número de WhatsApp en formato internacional SIN "+" (ej: 584141234567).

@@ -44,6 +44,8 @@ interface RateInfo {
   fetchedAt: string | null;
   source: string | null;
   stale: boolean;
+  manual: boolean;
+  manualRateBs: string | null;
 }
 
 const CURRENCY_LABELS: Record<Currency, string> = { USD: 'Dólares ($)', EUR: 'Euros (€)' };
@@ -118,6 +120,8 @@ export default function SettingsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [manualRateInput, setManualRateInput] = useState('');
+  const [savingManualRate, setSavingManualRate] = useState(false);
 
   function loadRates() {
     api.get('/exchange-rates').then((res) => setRates(res.data.data));
@@ -152,6 +156,39 @@ export default function SettingsPage() {
 
   const activeRate = rates?.[baseCurrency];
   const isManager = canManageTeam(user?.role);
+
+  useEffect(() => {
+    if (activeRate?.manualRateBs != null) setManualRateInput(activeRate.manualRateBs);
+  }, [activeRate?.manualRateBs]);
+
+  async function toggleManualRate(manual: boolean) {
+    setSavingManualRate(true);
+    setError(null);
+    try {
+      const parsed = Number(manualRateInput.replace(',', '.'));
+      const rateBs = manual && parsed > 0 ? parsed : undefined;
+      const { data } = await api.patch('/exchange-rates/manual', { manual, rateBs });
+      setRates(data.data);
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo guardar la tasa manual.');
+    } finally {
+      setSavingManualRate(false);
+    }
+  }
+
+  async function saveManualRateValue() {
+    setSavingManualRate(true);
+    setError(null);
+    try {
+      const rateBs = Number(manualRateInput.replace(',', '.'));
+      const { data } = await api.patch('/exchange-rates/manual', { manual: true, rateBs });
+      setRates(data.data);
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo guardar la tasa manual.');
+    } finally {
+      setSavingManualRate(false);
+    }
+  }
 
   const CATEGORIES = [
     { id: 'negocio', title: 'Negocio', icon: <Building2 className="h-4 w-4" /> },
@@ -243,9 +280,66 @@ export default function SettingsPage() {
               ))}
             </div>
 
+            <div className="flex items-start justify-between gap-4 rounded-xl border border-brand-950/10 bg-brand-50/40 px-4 py-3">
+              <div className="min-w-0">
+                <p className="text-sm font-medium text-brand-950">Fijar tasa manualmente</p>
+                <p className="mt-0.5 text-xs font-light text-brand-950/50">
+                  En vez de usar la tasa BCV automática, coloca tú mismo el valor en Bs y no cambiará hasta que lo
+                  edites.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={!!activeRate?.manual}
+                aria-label="Fijar tasa manualmente"
+                disabled={savingManualRate}
+                onClick={() => toggleManualRate(!activeRate?.manual)}
+                className={`relative mt-0.5 h-7 w-12 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
+                  activeRate?.manual ? 'bg-brand-500' : 'bg-brand-950/20'
+                }`}
+              >
+                <span
+                  className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition-all ${
+                    activeRate?.manual ? 'left-6' : 'left-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                inputMode="decimal"
+                value={manualRateInput}
+                onChange={(e) => setManualRateInput(e.target.value)}
+                placeholder="Ej: 55.30"
+                className="flex-1 border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              />
+              <span className="text-sm text-brand-950/50">Bs / {baseCurrency === 'USD' ? '$1' : '€1'}</span>
+              <TextureButton
+                variant="brand"
+                size="sm"
+                disabled={savingManualRate}
+                onClick={saveManualRateValue}
+                className="!w-auto disabled:opacity-50"
+              >
+                {savingManualRate ? 'Guardando…' : 'Guardar y activar'}
+              </TextureButton>
+            </div>
+
             {activeRate && (
               <div className="text-sm bg-brand-950/[0.03] rounded-lg p-3 space-y-1">
-                {activeRate.rateBs ? (
+                {activeRate.manual ? (
+                  activeRate.manualRateBs ? (
+                    <p>
+                      Tasa manual activa: <span className="font-semibold">{formatBsAbsolute(activeRate.manualRateBs)}</span>{' '}
+                      / {baseCurrency === 'USD' ? '$1' : '€1'}
+                    </p>
+                  ) : (
+                    <p className="text-amber-600">Activaste la tasa manual pero aún no has guardado un valor.</p>
+                  )
+                ) : activeRate.rateBs ? (
                   <>
                     <p>
                       Tasa BCV vigente: <span className="font-semibold">{formatBsAbsolute(activeRate.rateBs)}</span> /{' '}
@@ -264,13 +358,15 @@ export default function SettingsPage() {
                 ) : (
                   <p className="text-amber-600">Aún no se ha obtenido una tasa BCV para esta moneda.</p>
                 )}
-                <button
-                  onClick={refreshRates}
-                  disabled={refreshing}
-                  className="text-xs font-medium text-brand-500 underline disabled:opacity-50"
-                >
-                  {refreshing ? 'Actualizando…' : 'Actualizar tasa ahora'}
-                </button>
+                {!activeRate.manual && (
+                  <button
+                    onClick={refreshRates}
+                    disabled={refreshing}
+                    className="text-xs font-medium text-brand-500 underline disabled:opacity-50"
+                  >
+                    {refreshing ? 'Actualizando…' : 'Actualizar tasa ahora'}
+                  </button>
+                )}
               </div>
             )}
 

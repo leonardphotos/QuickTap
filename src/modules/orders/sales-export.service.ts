@@ -210,7 +210,7 @@ async function buildShopSheet(workbook: ExcelJS.Workbook, restaurantId: string, 
         items: { select: { name: true, qty: true } },
       },
     }),
-    exchangeRateService.getRate(baseCurrency),
+    exchangeRateService.getRate(baseCurrency, restaurantId),
   ]);
 
   const rate = toDecimal(rateRow?.rateBs ?? 0);

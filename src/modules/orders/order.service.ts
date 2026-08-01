@@ -477,7 +477,7 @@ export const orderService = {
 
     const restaurantId = table.restaurantId;
     const currency = table.restaurant.baseCurrency;
-    const rate = await exchangeRateService.getRate(currency);
+    const rate = await exchangeRateService.getRate(currency, restaurantId);
 
     const lines = await priceCart(restaurantId, input.items);
     const subtotalBase = sumSubtotal(lines);
@@ -642,7 +642,7 @@ export const orderService = {
     const customerAddress = input.customerAddress || resolvedCustomer?.address || undefined;
 
     const currency = restaurant.baseCurrency;
-    const rate = await exchangeRateService.getRate(currency);
+    const rate = await exchangeRateService.getRate(currency, restaurantId);
 
     const lines = await priceCart(restaurantId, input.items);
     const subtotalBase = sumSubtotal(lines);
@@ -853,7 +853,7 @@ export const orderService = {
     if (!restaurant || !restaurant.isActive) throw notFound('Restaurante no encontrado.');
 
     const feeBase = await computeDeliveryFee(restaurant, { lat, lng });
-    const rate = await exchangeRateService.getRate(restaurant.baseCurrency);
+    const rate = await exchangeRateService.getRate(restaurant.baseCurrency, restaurant.id);
     const feeBs = baseToBs(feeBase, rate.rateBs);
 
     return { feeBase: feeBase.toFixed(2), feeBs: feeBs.toFixed(2), currency: restaurant.baseCurrency };
@@ -891,7 +891,7 @@ export const orderService = {
     await assertRestaurantOpen(restaurant.id);
 
     const restaurantId = restaurant.id;
-    const rate = await exchangeRateService.getRate(restaurant.baseCurrency);
+    const rate = await exchangeRateService.getRate(restaurant.baseCurrency, restaurantId);
     const lines = await priceCart(restaurantId, input.items);
     const subtotalBase = sumSubtotal(lines);
     const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant);
@@ -1852,7 +1852,7 @@ export const orderService = {
       select: { baseCurrency: true },
     });
     const currency = restaurant?.baseCurrency ?? 'USD';
-    const rate = await exchangeRateService.getRate(currency);
+    const rate = await exchangeRateService.getRate(currency, restaurantId);
 
     const [orders, movements, latePayments] = await Promise.all([
       prisma.order.findMany({

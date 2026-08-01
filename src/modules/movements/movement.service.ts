@@ -12,7 +12,7 @@ export const movementService = {
     let amountBase = toDecimal(input.amountBase);
     if (input.amountCurrency === 'BS') {
       const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { baseCurrency: true } });
-      const rate = await exchangeRateService.getRate(restaurant?.baseCurrency ?? 'USD');
+      const rate = await exchangeRateService.getRate(restaurant?.baseCurrency ?? 'USD', restaurantId);
       amountBase = bsToBase(input.amountBase, rate.rateBs);
     }
 
@@ -70,7 +70,7 @@ export const movementService = {
     const net = round2(totalIncome.sub(totalExpense));
 
     const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { baseCurrency: true } });
-    const rate = await exchangeRateService.getRate(restaurant?.baseCurrency ?? 'USD');
+    const rate = await exchangeRateService.getRate(restaurant?.baseCurrency ?? 'USD', restaurantId);
 
     return {
       totalIncome: totalIncome.toFixed(2),

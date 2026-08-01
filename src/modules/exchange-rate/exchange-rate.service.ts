@@ -83,8 +83,22 @@ export const exchangeRateService = {
     await Promise.all([this.refreshCurrency('USD'), this.refreshCurrency('EUR')]);
   },
 
-  /** Tasa vigente (cacheada) para una moneda. Lanza si nunca se ha obtenido ninguna. */
-  async getRate(currency: Currency) {
+  /**
+   * Tasa vigente para una moneda. Si se pasa `restaurantId` y ese restaurante activó
+   * `exchangeRateManual`, devuelve su `manualExchangeRateBs` fijo en vez de la tasa BCV
+   * cacheada (global). Lanza si no hay tasa BCV disponible y tampoco hay una manual.
+   */
+  async getRate(currency: Currency, restaurantId?: string) {
+    if (restaurantId) {
+      const restaurant = await prisma.restaurant.findUnique({
+        where: { id: restaurantId },
+        select: { exchangeRateManual: true, manualExchangeRateBs: true },
+      });
+      if (restaurant?.exchangeRateManual && restaurant.manualExchangeRateBs) {
+        return { currency, rateBs: restaurant.manualExchangeRateBs, source: 'MANUAL', fetchedAt: new Date() };
+      }
+    }
+
     const rate = await prisma.exchangeRate.findUnique({ where: { currency } });
     if (!rate) {
       throw badRequest(
@@ -94,24 +108,47 @@ export const exchangeRateService = {
     return rate;
   },
 
-  /** Resumen de ambas monedas para el dashboard, con indicador de "desactualizada". */
-  async getSummary() {
+  /**
+   * Resumen de ambas monedas para el panel de Ajustes, con indicador de "desactualizada".
+   * Si se pasa `restaurantId`, agrega el estado manual de ESE restaurante (`manual`/
+   * `manualRateBs`) para que el frontend pueda mostrar/editar el interruptor.
+   */
+  async getSummary(restaurantId?: string) {
     const rates = await prisma.exchangeRate.findMany();
     const ttlMs = env.exchangeRate.ttlHours * 60 * 60 * 1000;
     const now = Date.now();
 
+    const restaurant = restaurantId
+      ? await prisma.restaurant.findUnique({
+          where: { id: restaurantId },
+          select: { exchangeRateManual: true, manualExchangeRateBs: true },
+        })
+      : null;
+
     const byCurrency = (currency: Currency) => {
       const r = rates.find((x) => x.currency === currency);
-      if (!r) return { currency, rateBs: null, fetchedAt: null, stale: true, source: null };
+      const base = r
+        ? { currency, rateBs: r.rateBs, fetchedAt: r.fetchedAt, source: r.source, stale: now - r.fetchedAt.getTime() > ttlMs }
+        : { currency, rateBs: null, fetchedAt: null, stale: true, source: null };
       return {
-        currency,
-        rateBs: r.rateBs,
-        fetchedAt: r.fetchedAt,
-        source: r.source,
-        stale: now - r.fetchedAt.getTime() > ttlMs,
+        ...base,
+        manual: restaurant?.exchangeRateManual ?? false,
+        manualRateBs: restaurant?.manualExchangeRateBs ?? null,
       };
     };
 
     return { USD: byCurrency('USD'), EUR: byCurrency('EUR') };
+  },
+
+  /** Activa/desactiva la tasa manual del restaurante y/o actualiza su valor fijo en Bs. */
+  async setManualRate(restaurantId: string, manual: boolean, rateBs: number | null) {
+    if (manual && (rateBs == null || rateBs <= 0)) {
+      throw badRequest('Ingresa una tasa manual válida (mayor a 0) antes de activarla.');
+    }
+    await prisma.restaurant.update({
+      where: { id: restaurantId },
+      data: { exchangeRateManual: manual, manualExchangeRateBs: rateBs },
+    });
+    return this.getSummary(restaurantId);
   },
 };
