@@ -228,7 +228,13 @@ export const whatsappBotService = {
     if (!msg.message || msg.key.fromMe) return;
     const jid = msg.key.remoteJid;
     if (!jid || jid.endsWith('@g.us') || jid === 'status@broadcast') return;
-    const phoneDigits = jid.replace(/@.*/, '');
+    // WhatsApp identifica a algunos contactos con un "@lid" (linked ID, más privado) en vez de
+    // su número real — remoteJid en ese caso NO tiene el teléfono, así que ninguna comparación
+    // por dígitos (verificador, pedido en AWAITING_PROOF) matcheaba nunca. Baileys expone el JID
+    // real del teléfono en remoteJidAlt cuando esto pasa; se usa ese para matchear por dígitos,
+    // pero se sigue respondiendo a "jid" (el hilo real de la conversación).
+    const phoneJid = msg.key.remoteJidAlt || jid;
+    const phoneDigits = phoneJid.replace(/@.*/, '');
 
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
@@ -290,7 +296,10 @@ export const whatsappBotService = {
    */
   async routeIncomingProofImage(restaurantId: string, phoneDigits: string, msg: WAMessage): Promise<void> {
     const match = await orderPaymentVerificationService.matchAwaitingProofOrder(restaurantId, phoneDigits);
-    if (!match) return;
+    if (!match) {
+      console.log(`[whatsapp-bot] imagen de ${phoneDigits} sin verificación AWAITING_PROOF pendiente — se ignora.`);
+      return;
+    }
 
     const s = sessions.get(restaurantId);
     if (!s || s.status !== 'connected' || !s.sock) return;
