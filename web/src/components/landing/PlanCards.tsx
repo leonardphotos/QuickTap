@@ -14,13 +14,26 @@ export interface PlanContent {
   tier?: 'popular' | 'premium';
 }
 
+/** Incluido en los 3 planes por igual — ver DEFAULT_PLAN_CONTENT en platform-settings.service.ts. */
+const CHATBOT_FEATURES = [
+  'Chatbot de WhatsApp vinculado a tu propio número, sin apps externas ni comisiones',
+  'Responde solo con el menú apenas alguien te escribe por primera vez',
+  'Manda los datos de pago y el monto exacto a cancelar apenas se crea el pedido',
+  'Recibe la foto del comprobante, la verifica contigo y manda el pedido a cocina solo al aprobarla',
+];
+
 export const PLAN_CONTENT: PlanContent[] = [
   {
     id: 'DELIVERY',
     name: 'Solo Delivery',
     subtitle: 'Cocinas fantasma o solo pedidos por WhatsApp',
     capacity: 'Sucursales ilimitadas — sin mesas ni códigos QR',
-    features: ['Productos, Cocinas y Sección de Delivery en cada sucursal', 'Pedidos ilimitados', 'Hasta 6 usuarios de tu equipo'],
+    features: [
+      'Productos, Cocinas y Sección de Delivery en cada sucursal',
+      'Pedidos ilimitados',
+      'Hasta 6 usuarios de tu equipo',
+      ...CHATBOT_FEATURES,
+    ],
   },
   {
     id: 'PRO',
@@ -33,6 +46,7 @@ export const PLAN_CONTENT: PlanContent[] = [
       'Margen de utilidad por producto',
       'Inventario por receta',
       'Gastos y cuentas por pagar',
+      ...CHATBOT_FEATURES,
     ],
     tier: 'popular',
   },
@@ -50,6 +64,7 @@ export const PLAN_CONTENT: PlanContent[] = [
       'Gerente de cuenta dedicado',
       'Onboarding y migración de catálogo sin costo',
       'Acceso anticipado a nuevas funcionalidades',
+      ...CHATBOT_FEATURES,
     ],
     tier: 'premium',
   },

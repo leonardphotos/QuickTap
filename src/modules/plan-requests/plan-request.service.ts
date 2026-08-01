@@ -81,9 +81,9 @@ export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE';
  * enum/PLAN_LABELS por los restaurantes que ya los tienen activos.
  */
 const FIXED_PLAN_PRICES: Record<PurchasablePlan, Record<BillingCycle, number>> = {
-  DELIVERY: { MONTHLY: 14.99, QUARTERLY: 12.74, SEMIANNUAL: 10.49 },
-  PRO: { MONTHLY: 19.99, QUARTERLY: 16.99, SEMIANNUAL: 13.99 },
-  ELITE: { MONTHLY: 29.99, QUARTERLY: 25.49, SEMIANNUAL: 20.99 },
+  DELIVERY: { MONTHLY: 24.99, QUARTERLY: 22.74, SEMIANNUAL: 20.49 },
+  PRO: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99 },
+  ELITE: { MONTHLY: 39.99, QUARTERLY: 35.49, SEMIANNUAL: 30.99 },
 };
 
 export interface CustomAddons {

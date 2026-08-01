@@ -24,6 +24,18 @@ export type PlanContent = Record<PurchasablePlan, PlanContentEntry>;
  * fusiona sobre esto, así que un plan nunca queda a medio configurar. Los
  * tres incluyen sucursales ILIMITADAS (ver allowsBranches en subscription.ts).
  */
+/**
+ * Beneficios del chatbot de WhatsApp (ver whatsapp-bot.service.ts y
+ * order-payment-verification.service.ts) — incluido en los 3 planes por
+ * igual, así que se repite tal cual en cada `features`.
+ */
+const CHATBOT_FEATURES = [
+  'Chatbot de WhatsApp vinculado a tu propio número, sin apps externas ni comisiones',
+  'Responde solo con el menú apenas alguien te escribe por primera vez',
+  'Manda los datos de pago y el monto exacto a cancelar apenas se crea el pedido',
+  'Recibe la foto del comprobante, la verifica contigo y manda el pedido a cocina solo al aprobarla',
+];
+
 export const DEFAULT_PLAN_CONTENT: PlanContent = {
   DELIVERY: {
     name: 'Solo Delivery',
@@ -33,8 +45,9 @@ export const DEFAULT_PLAN_CONTENT: PlanContent = {
       'Productos, Cocinas y Sección de Delivery en cada sucursal',
       'Pedidos ilimitados',
       'Hasta 6 usuarios de tu equipo',
+      ...CHATBOT_FEATURES,
     ],
-    prices: { MONTHLY: 14.99, QUARTERLY: 12.74, SEMIANNUAL: 10.49 },
+    prices: { MONTHLY: 24.99, QUARTERLY: 22.74, SEMIANNUAL: 20.49 },
   },
   PRO: {
     name: 'Plan Pro',
@@ -46,8 +59,9 @@ export const DEFAULT_PLAN_CONTENT: PlanContent = {
       'Margen de utilidad por producto',
       'Inventario por receta: descuenta insumos automáticamente al vender',
       'Gastos y cuentas por pagar',
+      ...CHATBOT_FEATURES,
     ],
-    prices: { MONTHLY: 19.99, QUARTERLY: 16.99, SEMIANNUAL: 13.99 },
+    prices: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99 },
   },
   ELITE: {
     name: 'Plan Elite',
@@ -62,8 +76,9 @@ export const DEFAULT_PLAN_CONTENT: PlanContent = {
       'Gerente de cuenta dedicado',
       'Onboarding y migración de catálogo sin costo',
       'Acceso anticipado a nuevas funcionalidades',
+      ...CHATBOT_FEATURES,
     ],
-    prices: { MONTHLY: 29.99, QUARTERLY: 25.49, SEMIANNUAL: 20.99 },
+    prices: { MONTHLY: 39.99, QUARTERLY: 35.49, SEMIANNUAL: 30.99 },
   },
 };
 

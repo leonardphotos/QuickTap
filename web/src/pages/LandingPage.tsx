@@ -10,6 +10,7 @@ import {
   ChefHat,
   SplitSquareHorizontal,
   MessageCircle,
+  Bot,
   Users,
   Boxes,
   BarChart3,
@@ -196,6 +197,24 @@ function WhatsappMock() {
       <p className="text-[10px] text-brand-950/60">• 2x Combo Big Bite — $19.80</p>
       <p className="text-[10px] text-brand-950/60">• 1x Refresco — $1.80</p>
       <p className="text-[10px] font-semibold text-brand-950 mt-1">Total: $21.60</p>
+    </div>
+  );
+}
+
+/** Mini mockup: secuencia de mensajes automáticos del chatbot (bienvenida -> cobro -> confirmación). */
+function ChatbotMock() {
+  const bubbles = [
+    '¡Hola! 👋 Bienvenido a Big Bite Burgers. Puedes ver el menú y pedir aquí: quicktap.club/r/bigbite',
+    '💳 Total a pagar: Bs 8.372,71 ($11.21) — Pago Móvil: Banesco, 0424-1234567, V-12345678',
+    '✅ Tu pago fue confirmado. ¡Tu pedido #42 ya está en proceso!',
+  ];
+  return (
+    <div className="space-y-1.5 max-w-xs">
+      {bubbles.map((b, i) => (
+        <div key={i} className="rounded-2xl bg-[#dcf8c6]/60 px-3 py-2">
+          <p className="text-[10px] text-brand-950/70 leading-snug">{b}</p>
+        </div>
+      ))}
     </div>
   );
 }
@@ -406,6 +425,22 @@ const SHOWCASES: Showcase[] = [
       'Ubicación en vivo del cliente (botón "usar mi ubicación actual")',
     ],
     mock: <WhatsappMock />,
+  },
+  {
+    icon: Bot,
+    eyebrow: 'Chatbot de WhatsApp',
+    title: 'Un chatbot que cobra y confirma el pedido por ti',
+    description:
+      'Vincula el WhatsApp del negocio (como un dispositivo más, sin apps externas ni comisiones) y deja que el chatbot atienda cada conversación de principio a fin: saluda al cliente, le manda los datos exactos para pagar, revisa el comprobante contigo y manda el pedido a cocina solo cuando el pago quedó confirmado.',
+    bullets: [
+      'Responde con el menú apenas alguien te escribe por primera vez, sin que nadie del equipo tenga que contestar',
+      'Apenas se crea el pedido, manda el monto exacto y los datos de cobro (Pago Móvil, Zelle, Binance, PayPal o Transferencia) según el método elegido',
+      'El cliente responde con la foto del comprobante — el chatbot se la reenvía a tu número de confianza para que la apruebes o la rechaces',
+      'Al aprobarla, el pedido pasa solo de pendiente a cocina — nadie del equipo tiene que aceptar nada a mano',
+      'Si rechazas el comprobante, le pide al cliente reenviarlo; si no respondes a tiempo, te avisa en el panel para que lo revises',
+      'Avisa automáticamente "pedido recibido", "listo para retirar" y "va en camino" en cada paso, desde el WhatsApp del propio negocio',
+    ],
+    mock: <ChatbotMock />,
   },
   {
     icon: Users,
