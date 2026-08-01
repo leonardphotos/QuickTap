@@ -16,7 +16,7 @@ import { env } from '../../config/env';
 import { prisma } from '../../config/prisma';
 import { UPLOADS_DIR } from '../../middlewares/upload.middleware';
 import { emitToKitchen, SocketEvents } from '../../sockets';
-import { renderWhatsappTemplate } from '../../utils/whatsapp';
+import { formatVenezuelanWhatsappPhone, renderWhatsappTemplate } from '../../utils/whatsapp';
 import { UpdateWhatsappBotSettingsInput } from './whatsapp-bot.dto';
 import { orderPaymentVerificationService } from '../orders/order-payment-verification.service';
 import { CURRENCY_SYMBOLS, formatBs, formatMoney } from '../../utils/money';
@@ -398,7 +398,11 @@ export const whatsappBotService = {
         ...(input.welcomeEnabled !== undefined ? { whatsappBotWelcomeEnabled: input.welcomeEnabled } : {}),
         ...(input.welcomeMessage !== undefined ? { whatsappBotWelcomeMessage: input.welcomeMessage } : {}),
         ...(input.paymentVerifierPhone !== undefined
-          ? { whatsappBotPaymentVerifierPhone: input.paymentVerifierPhone ? input.paymentVerifierPhone.replace(/\D/g, '') : null }
+          ? {
+              whatsappBotPaymentVerifierPhone: input.paymentVerifierPhone
+                ? formatVenezuelanWhatsappPhone(input.paymentVerifierPhone).replace(/\D/g, '')
+                : null,
+            }
           : {}),
       },
       select: {
