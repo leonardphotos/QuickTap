@@ -1414,6 +1414,19 @@ export const orderService = {
     }
 
     await emitOrderAccepted(restaurantId, order);
+
+    // Ajustes → Delivery: "asignar repartidor automáticamente al aceptar" — no debe
+    // tumbar la aceptación del pedido si el despacho falla (sin repartidores activos,
+    // WhatsApp caído, etc.), por eso es best-effort y no se espera con await.
+    if (order.channel === 'DELIVERY') {
+      prisma.restaurant
+        .findUnique({ where: { id: restaurantId }, select: { deliveryAutoAssignOnAccept: true } })
+        .then((r) => {
+          if (r?.deliveryAutoAssignOnAccept) return this.autoDispatchToCourier(restaurantId, order.id);
+        })
+        .catch(() => undefined);
+    }
+
     return order;
   },
 
@@ -1603,6 +1616,12 @@ export const orderService = {
    * esto corre justo después de confirmar un cobro y jamás debe romperlo.
    */
   async autoDispatchToCourier(restaurantId: string, orderId: string) {
+    // Puede dispararse tanto al aceptar (deliveryAutoAssignOnAccept) como al cobrar
+    // (deliveryAutoAssignOnPaid) — si ya tiene repartidor asignado (por el otro
+    // interruptor, o a mano), no lo vuelve a despachar.
+    const current = await prisma.order.findFirst({ where: { id: orderId, restaurantId }, select: { deliveryCourierId: true } });
+    if (current?.deliveryCourierId) return null;
+
     const couriers = await prisma.deliveryCourier.findMany({
       where: { restaurantId, isActive: true },
       select: { id: true },

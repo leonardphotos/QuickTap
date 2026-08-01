@@ -57,6 +57,7 @@ const RESTAURANT_SELECT = {
   deliveryPricePerKm: true,
   deliveryAutoOpenOnPaid: true,
   deliveryAutoAssignOnPaid: true,
+  deliveryAutoAssignOnAccept: true,
   paymentMethodsConfig: true,
   fullscreenImageEnabled: true,
   fullscreenImageUrl: true,
@@ -103,6 +104,7 @@ type RestaurantRow = {
   deliveryPricePerKm: Prisma.Decimal;
   deliveryAutoOpenOnPaid: boolean;
   deliveryAutoAssignOnPaid: boolean;
+  deliveryAutoAssignOnAccept: boolean;
   paymentMethodsConfig: unknown;
   fullscreenImageEnabled: boolean;
   fullscreenImageUrl: string | null;
@@ -165,6 +167,7 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
     deliveryPricePerKm: restaurant.deliveryPricePerKm,
     deliveryAutoOpenOnPaid: restaurant.deliveryAutoOpenOnPaid,
     deliveryAutoAssignOnPaid: restaurant.deliveryAutoAssignOnPaid,
+    deliveryAutoAssignOnAccept: restaurant.deliveryAutoAssignOnAccept,
     paymentMethodsConfig: restaurant.paymentMethodsConfig,
     fullscreenImageEnabled: restaurant.fullscreenImageEnabled,
     fullscreenImageUrl: restaurant.fullscreenImageUrl,

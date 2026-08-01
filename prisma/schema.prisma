@@ -323,6 +323,12 @@ model Restaurant {
   // lleva más tiempo sin recibir un pedido) y arma su WhatsApp, sin
   // preguntar. Tiene prioridad sobre deliveryAutoOpenOnPaid.
   deliveryAutoAssignOnPaid Boolean @default(false)
+  // Independiente de los dos de arriba: elige el repartidor automáticamente
+  // (misma rotación por quien lleva más tiempo sin recibir un pedido) apenas
+  // se ACEPTA un pedido DELIVERY, sin esperar a que se cobre. Si el pedido
+  // ya tiene repartidor asignado (por este mismo interruptor) el auto-asignado
+  // al cobrar no lo vuelve a despachar (ver autoDispatchToCourier).
+  deliveryAutoAssignOnAccept Boolean @default(false)
 
   // Métodos de pago que el restaurante ofrece a SUS clientes en el checkout
   // (distinto de PlatformSettings, que es cómo el restaurante le paga a

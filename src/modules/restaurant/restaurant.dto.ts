@@ -96,6 +96,8 @@ export const updateRestaurantSchema = z.object({
   // elegir repartidor automáticamente (ver Restaurant en schema.prisma).
   deliveryAutoOpenOnPaid: z.boolean().optional(),
   deliveryAutoAssignOnPaid: z.boolean().optional(),
+  // Elige repartidor automáticamente apenas se acepta el pedido, sin esperar el cobro.
+  deliveryAutoAssignOnAccept: z.boolean().optional(),
 
   // Métodos de pago disponibles para los clientes del checkout de delivery/pickup.
   paymentMethodsConfig: paymentMethodsConfigSchema.optional(),

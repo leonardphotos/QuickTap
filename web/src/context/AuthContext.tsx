@@ -50,6 +50,7 @@ export interface AuthRestaurant {
   deliveryPricePerKm: string;
   deliveryAutoOpenOnPaid: boolean;
   deliveryAutoAssignOnPaid: boolean;
+  deliveryAutoAssignOnAccept: boolean;
   paymentMethodsConfig?: PaymentMethodsConfig | null;
   fullscreenImageEnabled: boolean;
   fullscreenImageUrl?: string | null;

@@ -34,6 +34,7 @@ export function DeliveryPricingSection() {
   const [pricePerKm, setPricePerKm] = useState(restaurant?.deliveryPricePerKm ?? '0');
   const [autoOpen, setAutoOpen] = useState(!!restaurant?.deliveryAutoOpenOnPaid);
   const [autoAssign, setAutoAssign] = useState(!!restaurant?.deliveryAutoAssignOnPaid);
+  const [autoAssignOnAccept, setAutoAssignOnAccept] = useState(!!restaurant?.deliveryAutoAssignOnAccept);
   const [gettingLocation, setGettingLocation] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -80,6 +81,7 @@ export function DeliveryPricingSection() {
         deliveryPricePerKm: Number(pricePerKm) || 0,
         deliveryAutoOpenOnPaid: autoOpen,
         deliveryAutoAssignOnPaid: autoAssign,
+        deliveryAutoAssignOnAccept: autoAssignOnAccept,
       });
       await refresh();
       setMessage('Configuración de delivery guardada.');
@@ -167,6 +169,22 @@ export function DeliveryPricingSection() {
             </label>
           </div>
         )}
+
+        <div className="space-y-2 pt-1 border-t border-brand-950/[0.06]">
+          <p className="text-sm font-medium text-brand-950 pt-3">Al aceptar un pedido de delivery</p>
+          <DeliveryPaidToggle
+            checked={autoAssignOnAccept}
+            onChange={setAutoAssignOnAccept}
+            title="Asignar repartidor automáticamente al aceptar"
+            description="Apenas se acepta el pedido (antes de cobrarlo), elige repartidor por turnos y abre su WhatsApp con la comanda, sin preguntar."
+          />
+          {autoAssignOnAccept && (
+            <p className="text-xs font-light text-amber-700">
+              Necesitas al menos un repartidor activo en Ajustes → Equipo de Delivery. Si no hay ninguno, el pedido
+              se acepta igual y queda sin despachar.
+            </p>
+          )}
+        </div>
 
         <div className="space-y-2 pt-1 border-t border-brand-950/[0.06]">
           <p className="text-sm font-medium text-brand-950 pt-3">Al terminar de cobrar un pedido de delivery</p>
