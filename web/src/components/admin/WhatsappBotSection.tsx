@@ -223,7 +223,8 @@ export function WhatsappBotSection() {
             {data.whatsappBotWelcomeEnabled && (
               <div className="pt-1 space-y-2">
                 <p className="text-xs text-brand-950/50 font-light">
-                  Se envía solo una vez cada 6 horas por cliente, para que no se sienta como spam. Variables:{' '}
+                  Se envía en cada mensaje que escriba el cliente (sin límite de frecuencia), para responder lo más
+                  rápido posible en hora pico. Variables:{' '}
                   <code className="text-[11px]">{'{{restaurant}}'}</code> y <code className="text-[11px]">{'{{link}}'}</code> (enlace a tu
                   menú público).
                 </p>

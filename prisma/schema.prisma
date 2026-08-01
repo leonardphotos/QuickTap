@@ -243,9 +243,9 @@ model Restaurant {
   // Qué eventos del ciclo de vida del pedido disparan un mensaje automático.
   whatsappBotNotifyReceived Boolean @default(true)
   whatsappBotNotifyReady    Boolean @default(true)
-  // Respuesta automática al primer mensaje que escribe un cliente (por contacto, con un
-  // enfriamiento — ver WELCOME_REPLY_COOLDOWN_MS en whatsapp-bot.service.ts — para no
-  // contestar lo mismo en cada mensaje de una misma conversación).
+  // Respuesta automática con el saludo + enlace del menú a cada mensaje de texto que escribe un
+  // cliente (sin enfriamiento: en hora pico el restaurante prefiere que conteste rápido, aunque
+  // sea el mismo contacto escribiendo varias veces — ver handleIncomingMessage en whatsapp-bot.service.ts).
   whatsappBotWelcomeEnabled Boolean @default(true)
   // Placeholders disponibles: {{restaurant}}, {{link}}. Si es null, se usa
   // DEFAULT_WELCOME_TEMPLATE (whatsapp-bot.service.ts).

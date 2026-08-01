@@ -60,12 +60,6 @@ interface SessionState {
 
 const sessions = new Map<string, SessionState>();
 
-/** No contestar dos veces al mismo contacto dentro de esta ventana — si no, cada mensaje de
- * una conversación en curso dispara otra vez el saludo, lo cual se ve como un bot roto (y
- * abulta el patrón de envío automatizado que puede hacer que WhatsApp bloquee el número). */
-const WELCOME_REPLY_COOLDOWN_MS = 6 * 60 * 60 * 1000;
-const lastWelcomeReplyAt = new Map<string, number>();
-
 export const DEFAULT_WELCOME_TEMPLATE = ['¡Hola! 👋 Bienvenido a *{{restaurant}}*.', '', 'Puedes ver el menú y hacer tu pedido aquí:', '{{link}}'].join(
   '\n',
 );
@@ -243,10 +237,9 @@ export const whatsappBotService = {
       return;
     }
 
-    // 3) Texto normal: saludo de bienvenida de siempre, con su enfriamiento de 6h.
-    const cooldownKey = `${restaurantId}:${jid}`;
-    const last = lastWelcomeReplyAt.get(cooldownKey) ?? 0;
-    if (Date.now() - last < WELCOME_REPLY_COOLDOWN_MS) return;
+    // 3) Texto normal: saludo de bienvenida de siempre. Sin enfriamiento — en hora pico el
+    // restaurante necesita que el bot conteste cada mensaje lo más rápido posible, aunque sea
+    // el mismo contacto escribiendo varias veces seguidas.
     if (!restaurant.whatsappBotWelcomeEnabled) return;
 
     const s = sessions.get(restaurantId);
@@ -258,9 +251,6 @@ export const whatsappBotService = {
       link,
     });
 
-    // Marca el enfriamiento ANTES de mandar: si sendMessage tarda o el cliente escribe de nuevo
-    // mientras tanto, no queremos dos saludos en carrera.
-    lastWelcomeReplyAt.set(cooldownKey, Date.now());
     await s.sock.sendMessage(jid, { text }).catch(() => undefined);
   },
 
