@@ -35,10 +35,19 @@ export function DeliveryPricingSection() {
   const [autoOpen, setAutoOpen] = useState(!!restaurant?.deliveryAutoOpenOnPaid);
   const [autoAssign, setAutoAssign] = useState(!!restaurant?.deliveryAutoAssignOnPaid);
   const [autoAssignOnAccept, setAutoAssignOnAccept] = useState(!!restaurant?.deliveryAutoAssignOnAccept);
+  const [activeCourierCount, setActiveCourierCount] = useState<number | null>(null);
   const [gettingLocation, setGettingLocation] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Para las advertencias de "necesitas al menos un repartidor activo" — no tiene sentido
+  // mostrarlas si el restaurante ya tiene repartidores cargados en Equipo de Delivery.
+  useEffect(() => {
+    api.get('/delivery-couriers').then((res) => {
+      setActiveCourierCount((res.data.data as { isActive: boolean }[]).filter((c) => c.isActive).length);
+    });
+  }, []);
 
   function useCurrentLocationAsOrigin() {
     if (!navigator.geolocation) {
@@ -178,7 +187,7 @@ export function DeliveryPricingSection() {
             title="Asignar repartidor automáticamente al aceptar"
             description="Apenas se acepta el pedido (antes de cobrarlo), elige repartidor por turnos y abre su WhatsApp con la comanda, sin preguntar."
           />
-          {autoAssignOnAccept && (
+          {autoAssignOnAccept && activeCourierCount === 0 && (
             <p className="text-xs font-light text-amber-700">
               Necesitas al menos un repartidor activo en Ajustes → Equipo de Delivery. Si no hay ninguno, el pedido
               se acepta igual y queda sin despachar.
@@ -206,7 +215,7 @@ export function DeliveryPricingSection() {
             title="Enviar a un repartidor automáticamente"
             description="No pregunta: elige repartidor por turnos (el que lleve más tiempo sin recibir un pedido) y abre su WhatsApp con la comanda."
           />
-          {autoAssign && (
+          {autoAssign && activeCourierCount === 0 && (
             <p className="text-xs font-light text-amber-700">
               Necesitas al menos un repartidor activo en Ajustes → Equipo de Delivery. Si no hay ninguno, el cobro se
               completa igual y el pedido queda sin despachar.
