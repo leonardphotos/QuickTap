@@ -165,7 +165,8 @@ export default function SettingsPage() {
     ...(!isManager ? [{ id: 'seguridad', title: 'Seguridad', icon: <Clock className="h-4 w-4" /> }] : []),
   ];
 
-  const [openCategory, setOpenCategory] = useState<string>(CATEGORIES[0].id);
+  // Vacío = todas las categorías cerradas al entrar a Ajustes; el staff abre la que necesite.
+  const [openCategory, setOpenCategory] = useState<string>('');
 
   function selectCategory(id: string) {
     setOpenCategory(id);
