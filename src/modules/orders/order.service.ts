@@ -22,7 +22,7 @@ import { assertRestaurantOpen } from '../../utils/business-hours';
 import { effectiveProductPrice } from '../../utils/promo-price';
 import { whatsappBotService } from '../whatsapp-bot/whatsapp-bot.service';
 import { orderPaymentVerificationService } from './order-payment-verification.service';
-import { haversineDistanceKm, isPointInPolygon, LatLng } from '../../utils/geo';
+import { distanceToPolygonKm, haversineDistanceKm, isPointInPolygon, LatLng } from '../../utils/geo';
 import { tableSessionService } from '../table-sessions/table-session.service';
 import { fiscalInvoicingService } from '../fiscal-invoicing/fiscal-invoicing.service';
 import { writeFiscalAudit } from '../fiscal-invoicing/fiscal-invoicing.audit';
@@ -244,6 +244,23 @@ async function computeDeliveryFee(
     if (Array.isArray(polygon) && isPointInPolygon(customer, polygon)) {
       return round2(toDecimal(zone.price));
     }
+  }
+
+  // Ningún polígono contiene al cliente (punto justo afuera de una zona por
+  // imprecisión del GPS/dibujo, o zona sin cubrir del todo). En vez de dejarlo
+  // sin cobrar, usamos el precio de la zona dibujada más cercana — pero solo si
+  // está dentro de NEARBY_ZONE_MAX_KM de esa zona. Más lejos (fuera del área que
+  // el restaurante efectivamente cubrió con zonas) el envío queda sin definir (0).
+  const NEARBY_ZONE_MAX_KM = 10;
+  let nearest: { price: Prisma.Decimal; distanceKm: number } | null = null;
+  for (const zone of zones) {
+    const polygon = zone.polygon as unknown as LatLng[];
+    if (!Array.isArray(polygon) || polygon.length < 2) continue;
+    const distanceKm = distanceToPolygonKm(customer, polygon);
+    if (!nearest || distanceKm < nearest.distanceKm) nearest = { price: zone.price, distanceKm };
+  }
+  if (nearest && nearest.distanceKm <= NEARBY_ZONE_MAX_KM) {
+    return round2(toDecimal(nearest.price));
   }
   return toDecimal(0);
 }

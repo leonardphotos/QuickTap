@@ -38,3 +38,29 @@ export function isPointInPolygon(point: LatLng, polygon: LatLng[]): boolean {
   }
   return inside;
 }
+
+/** Distancia mínima de un punto a un segmento, en km — proyección sobre un plano
+ * local aproximado centrado en `a` (suficientemente preciso a escala de zonas
+ * urbanas de delivery, unos pocos km). */
+function distanceToSegmentKm(point: LatLng, a: LatLng, b: LatLng): number {
+  const kmPerDegLat = 111.32;
+  const kmPerDegLng = 111.32 * Math.cos((a.lat * Math.PI) / 180);
+  const toXY = (p: LatLng) => ({ x: (p.lng - a.lng) * kmPerDegLng, y: (p.lat - a.lat) * kmPerDegLat });
+
+  const P = toXY(point);
+  const B = toXY(b);
+  const lengthSq = B.x * B.x + B.y * B.y;
+  const t = lengthSq === 0 ? 0 : Math.max(0, Math.min(1, (P.x * B.x + P.y * B.y) / lengthSq));
+  const closest = { x: t * B.x, y: t * B.y };
+  return Math.sqrt((P.x - closest.x) ** 2 + (P.y - closest.y) ** 2);
+}
+
+/** Distancia mínima de un punto al borde de un polígono, en km. */
+export function distanceToPolygonKm(point: LatLng, polygon: LatLng[]): number {
+  let min = Infinity;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const d = distanceToSegmentKm(point, polygon[j], polygon[i]);
+    if (d < min) min = d;
+  }
+  return min;
+}
