@@ -17,6 +17,31 @@ const BRANCH_SELECT = {
 } as const;
 
 /**
+ * Slug público de una sucursal a partir de su nombre ("All Grill Viñedo" →
+ * "all-grill-vinedo"), con sufijo numérico si ya está tomado. Antes era
+ * aleatorio (`branch-a1b2c3d4-1785386788190`), y como el slug no se puede
+ * editar desde ningún panel, la sucursal quedaba para siempre con un enlace
+ * de menú impresentable — que es justo el que se imprime en el QR.
+ */
+async function buildBranchSlug(name: string): Promise<string> {
+  const base =
+    name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 40) || 'sucursal';
+
+  for (let i = 0; i < 50; i++) {
+    const candidate = i === 0 ? base : `${base}-${i + 1}`;
+    const taken = await prisma.restaurant.findUnique({ where: { slug: candidate }, select: { id: true } });
+    if (!taken) return candidate;
+  }
+  return `${base}-${Date.now()}`;
+}
+
+/**
  * Copia categorías/productos/variantes/modificadores de `sourceRestaurantId`
  * a `targetRestaurantId` (sucursal recién creada). El inventario NUNCA se
  * copia — cada sucursal arranca con su propio InventoryItem vacío, tal como
@@ -172,10 +197,12 @@ export const branchService = {
     const owner = await prisma.user.findUnique({ where: { id: callerUserId } });
     if (!owner) throw notFound('Usuario no encontrado.');
 
+    const branchSlug = await buildBranchSlug(input.name);
+
     const branch = await prisma.$transaction(async (tx) => {
       const created = await tx.restaurant.create({
         data: {
-          slug: `branch-${Math.random().toString(36).slice(2, 10)}-${Date.now()}`,
+          slug: branchSlug,
           name: input.name,
           whatsappPhone: input.whatsappPhone,
           baseCurrency: input.baseCurrency,

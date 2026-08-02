@@ -284,6 +284,22 @@ async function nextOrderNumber(tx: Prisma.TransactionClient, restaurantId: strin
  * El stock nunca baja de 0 (se recorta si hay menos existencia de la que
  * "debería" haber, en vez de fallar el cambio de estado).
  */
+/**
+ * Unidades vendidas por producto, SUMANDO las líneas repetidas. Un mismo producto
+ * aparece en varios OrderItem cuando el cliente lo pidió con modificadores o notas
+ * distintas ("2x Hamburguesa sin cebolla" + "1x Hamburguesa"), así que construir el
+ * mapa con `new Map(items.map(...))` se quedaba solo con la última línea y descontaba
+ * 1 unidad en vez de 3 — el inventario se desviaba en silencio en cada pedido así.
+ */
+function sumQuantityByProduct(items: { productId: string | null; quantity: number }[]): Map<string, number> {
+  const byProduct = new Map<string, number>();
+  for (const item of items) {
+    if (!item.productId) continue;
+    byProduct.set(item.productId, (byProduct.get(item.productId) ?? 0) + item.quantity);
+  }
+  return byProduct;
+}
+
 async function deductRecipeStock(restaurantId: string, items: { productId: string | null; quantity: number }[]) {
   const productIds = items.map((i) => i.productId).filter((id): id is string => Boolean(id));
   if (productIds.length === 0) return;
@@ -293,7 +309,7 @@ async function deductRecipeStock(restaurantId: string, items: { productId: strin
   });
   if (recipeLines.length === 0) return;
 
-  const qtyByProduct = new Map(items.map((i) => [i.productId, i.quantity]));
+  const qtyByProduct = sumQuantityByProduct(items);
   let deducted = false;
 
   for (const line of recipeLines) {
@@ -396,7 +412,7 @@ async function deductProductStock(restaurantId: string, items: { productId: stri
   });
   if (products.length === 0) return;
 
-  const qtyByProduct = new Map(items.map((i) => [i.productId, i.quantity]));
+  const qtyByProduct = sumQuantityByProduct(items);
 
   for (const product of products) {
     const soldQty = qtyByProduct.get(product.id) ?? 0;
@@ -1308,10 +1324,19 @@ export const orderService = {
     });
     if (!existing) throw notFound('Comanda no encontrada.');
 
-    const order = await prisma.order.update({ where: { id: orderId }, data: { status } });
+    // Transición atómica en vez de leer-y-luego-escribir: si dos clientes marcan el
+    // mismo pedido SERVED a la vez (la tablet de cocina y el teléfono del mesero, o
+    // un doble toque), ambos leerían el estado viejo y el inventario se descontaría
+    // dos veces. Con el updateMany condicionado al estado anterior, solo uno cuenta.
+    const transition = await prisma.order.updateMany({
+      where: { id: orderId, restaurantId, status: { not: status } },
+      data: { status },
+    });
+    const statusChanged = transition.count > 0;
+    const order = await prisma.order.findFirstOrThrow({ where: { id: orderId, restaurantId } });
 
     // Descuenta el inventario por receta y el stock simple por producto, la primera vez que se marca SERVED.
-    if (status === 'SERVED' && existing.status !== 'SERVED') {
+    if (status === 'SERVED' && statusChanged) {
       await deductRecipeStock(restaurantId, existing.items);
       await deductProductStock(restaurantId, existing.items);
       await deductModifierStock(restaurantId, existing.items);
@@ -1332,7 +1357,7 @@ export const orderService = {
 
     // Avisa a Caja (para despachar delivery) y al rol Numero (Autoservicio/Pickup)
     // que este pedido ya está listo — un pedido, un aviso, sin importar el canal.
-    if (order.status === 'SERVED' && existing.status !== 'SERVED') {
+    if (order.status === 'SERVED' && statusChanged) {
       emitToKitchen(restaurantId, SocketEvents.ORDER_READY_STAFF, {
         orderId: order.id,
         orderNumber: order.orderNumber,
@@ -1417,10 +1442,15 @@ export const orderService = {
     // Registra quién aceptó el pedido del cliente (mesa/QR): junto con
     // placedByUserId, define qué pedidos ve el rol Mesero en el Dashboard.
     const shouldSetAcceptedBy = !existing.placedByUserId;
-    const order = await prisma.order.update({
-      where: { id: orderId },
+    // Condicionado al estado anterior: si dos cajeros aceptan el mismo pedido a la vez
+    // (o uno acepta justo cuando el bot aprueba el pago), solo el primero pasa de aquí
+    // y la comanda se imprime y se despacha una sola vez.
+    const accepted = await prisma.order.updateMany({
+      where: { id: orderId, restaurantId, status: { in: ['NEEDS_CONFIRMATION', 'PENDING'] } },
       data: { status: 'KITCHEN', acceptedByUserId: shouldSetAcceptedBy ? acceptedByUserId : undefined },
     });
+    if (accepted.count === 0) throw badRequest('Este pedido ya fue aceptado o no está pendiente.');
+    const order = await prisma.order.findFirstOrThrow({ where: { id: orderId, restaurantId } });
 
     // Mesa sin mesero asignado: el primero que acepta un pedido de esa mesa
     // se la queda de forma permanente (Equipo → "Asignar mesas" la puede
@@ -1461,7 +1491,14 @@ export const orderService = {
   async autoAcceptAfterPaymentApproved(restaurantId: string, orderId: string) {
     const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });
     if (!existing || existing.status !== 'PENDING') return null;
-    const order = await prisma.order.update({ where: { id: orderId }, data: { status: 'KITCHEN' } });
+    // Igual que en acceptOrder: la transición decide quién gana la carrera contra la
+    // aceptación manual, para no imprimir la comanda dos veces.
+    const accepted = await prisma.order.updateMany({
+      where: { id: orderId, restaurantId, status: 'PENDING' },
+      data: { status: 'KITCHEN' },
+    });
+    if (accepted.count === 0) return null;
+    const order = await prisma.order.findFirstOrThrow({ where: { id: orderId, restaurantId } });
     await emitOrderAccepted(restaurantId, order);
     return order;
   },

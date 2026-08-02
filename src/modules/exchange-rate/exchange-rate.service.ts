@@ -94,7 +94,10 @@ export const exchangeRateService = {
         where: { id: restaurantId },
         select: { exchangeRateManual: true, manualExchangeRateBs: true },
       });
-      if (restaurant?.exchangeRateManual && restaurant.manualExchangeRateBs) {
+      // `.gt(0)` explícito: manualExchangeRateBs es un Decimal (un objeto), así que
+      // un 0 guardado pasaría cualquier chequeo de verdad/falsedad y dejaría TODOS
+      // los precios en Bs 0,00.
+      if (restaurant?.exchangeRateManual && restaurant.manualExchangeRateBs?.gt(0)) {
         return { currency, rateBs: restaurant.manualExchangeRateBs, source: 'MANUAL', fetchedAt: new Date() };
       }
     }
@@ -147,7 +150,12 @@ export const exchangeRateService = {
     }
     await prisma.restaurant.update({
       where: { id: restaurantId },
-      data: { exchangeRateManual: manual, manualExchangeRateBs: rateBs },
+      data: {
+        exchangeRateManual: manual,
+        // Apagar el interruptor CONSERVA el valor guardado: si lo borráramos, volver
+        // a activarlo obligaría a escribir la tasa de nuevo.
+        ...(rateBs != null ? { manualExchangeRateBs: rateBs } : {}),
+      },
     });
     return this.getSummary(restaurantId);
   },

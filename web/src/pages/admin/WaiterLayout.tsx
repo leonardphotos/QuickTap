@@ -61,6 +61,9 @@ export default function WaiterLayout() {
   const fabDrag = useRef<{ startX: number; startY: number; startLeft: number; startTop: number; moved: boolean } | null>(
     null,
   );
+  // Antes del `return null`: si se llamara después, al cerrar sesión (user pasa a null)
+  // React renderizaría menos hooks que en el render anterior y el panel truena.
+  const lowStockItems = useLowStockItems(user?.role, user?.canAccessInventory);
 
   if (!user || !restaurant) return null;
 
@@ -102,7 +105,6 @@ export default function WaiterLayout() {
 
   const canSeeInventory =
     user.canAccessInventory && (hasFeature(restaurant, 'inventoryBasic') || hasFeature(restaurant, 'inventoryRecipe'));
-  const lowStockItems = useLowStockItems(user.role, user.canAccessInventory);
 
   const tabs: { id: WaiterTab; label: string; icon: typeof Grid2x2 }[] = [
     { id: 'mesas', label: 'Mesas', icon: Grid2x2 },
