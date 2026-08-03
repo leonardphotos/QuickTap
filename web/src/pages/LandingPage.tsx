@@ -900,6 +900,7 @@ export default function LandingPage() {
               </Link>
             </div>
           </div>
+          <p className="text-center text-[11px] text-brand-950/25 font-light pb-4">Isaías 41:20</p>
         </footer>
 
         {/* Selector de rol para entrar al restaurante de demostración */}
