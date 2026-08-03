@@ -41,7 +41,9 @@ export interface CartLine {
   detail?: string;
   /** Unidad a mostrar junto a la cantidad ('m²' en impresión). Ausente = unidades. */
   unitLabel?: string;
-  /** Metros lineales a descontar del rollo, cuando difiere de `qty` (los m² que se cobran). */
+  /** Cuánto descontar del stock cuando difiere de `qty`. Hoy no lo usa ninguna línea (en
+   * impresión el material se lleva en m² y coincide con lo facturado), pero se conserva para
+   * casos donde lo cobrado y lo consumido no sean el mismo número. */
   stockQty?: number;
   /** Profesional que presta ESTE servicio (barbero/estilista) — alimenta su reporte y comisión. */
   staffUserId?: string;
@@ -500,8 +502,9 @@ export function useShopSession(initialCategories: string[] = []) {
         disc: 0,
         detail,
         unitLabel: 'm²',
-        // Del rollo se van metros LINEALES, no los m² que se le cobran al cliente.
-        stockQty: quote.lengthM,
+        // No se setea stockQty: el material del rollo se lleva en m² y se consume el ancho
+        // COMPLETO por el largo impreso, que es exactamente lo que se factura (billedM2). Los
+        // dos números coinciden, así que descontar `qty` es lo correcto.
         staffUserId: activeStaffUserId || undefined,
       },
     ]);

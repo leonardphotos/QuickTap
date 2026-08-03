@@ -583,7 +583,7 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
                           stock > 0 ? 'bg-sky-100 text-sky-700' : 'bg-red-100 text-red-700'
                         }`}
                       >
-                        Por medida · {stock > 0 ? `${stock.toFixed(1)} m de material` : 'sin material'}
+                        Por medida · {stock > 0 ? `${stock.toFixed(1)} m² de material` : 'sin material'}
                       </span>
                     ) : (
                       <span className={`inline-block mt-1.5 text-[10.5px] font-medium px-2 py-0.5 rounded-full ${STATUS_CLASS[status]}`}>
@@ -1168,16 +1168,17 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
                     </span>
                   </div>
                   {(() => {
-                    // Metros lineales que quedan de ESE rollo (la variante cuyo v1 es su ancho).
+                    // m² que quedan de ESE rollo (la variante cuyo v1 es su ancho). Se consume el
+                    // ancho completo por el largo impreso, o sea exactamente lo que se factura.
                     const roll = printProduct.variants.find((v) => v.v1 === rollWidthLabel(printQuote.rollWidth));
                     if (!roll) return null;
-                    const left = roll.stock - printQuote.lengthM;
+                    const left = roll.stock - printQuote.billedM2;
                     return (
                       <div className="flex justify-between text-xs">
                         <span className="text-brand-950/40">Material del rollo</span>
                         <span className={left < 0 ? 'font-semibold text-red-600' : 'text-brand-950/40'}>
-                          consume {printQuote.lengthM.toFixed(2).replace('.', ',')} m · quedan{' '}
-                          {Math.max(0, left).toFixed(2).replace('.', ',')} m de {roll.stock.toFixed(2).replace('.', ',')} m
+                          consume {printQuote.billedM2.toFixed(2).replace('.', ',')} m² · quedan{' '}
+                          {Math.max(0, left).toFixed(2).replace('.', ',')} m² de {roll.stock.toFixed(2).replace('.', ',')} m²
                         </span>
                       </div>
                     );
@@ -1202,12 +1203,12 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
                   )}
                   {(() => {
                     const roll = printProduct.variants.find((v) => v.v1 === rollWidthLabel(printQuote.rollWidth));
-                    if (!roll || roll.stock >= printQuote.lengthM) return null;
+                    if (!roll || roll.stock >= printQuote.billedM2) return null;
                     return (
                       <p className="text-xs text-red-700 bg-red-50 rounded-lg px-2 py-1.5">
-                        No alcanza el material: quedan {roll.stock.toFixed(2).replace('.', ',')} m del rollo de{' '}
+                        No alcanza el material: quedan {roll.stock.toFixed(2).replace('.', ',')} m² del rollo de{' '}
                         {rollWidthLabel(printQuote.rollWidth)} y esta pieza necesita{' '}
-                        {printQuote.lengthM.toFixed(2).replace('.', ',')} m. Puedes venderla igual, pero registra la compra del rollo.
+                        {printQuote.billedM2.toFixed(2).replace('.', ',')} m². Puedes venderla igual, pero registra la compra del rollo.
                       </p>
                     );
                   })()}

@@ -613,7 +613,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                         </td>
                         <td className="py-3 pr-3 text-brand-950/70">
                           {p.pricingMode === 'AREA_ROLL'
-                            ? `${productStock(p).toFixed(1)} m`
+                            ? `${productStock(p).toFixed(1)} m²`
                             : isWeight
                               ? `${productStock(p).toFixed(1)} Kg`
                               : formatStock(productStock(p))}
@@ -783,7 +783,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
               {puProduct?.variants.map((v, i) => (
                 <option key={i} value={i}>
                   {puProduct.pricingMode === 'AREA_ROLL' ? `Rollo ${v.v1} m` : `${v.v1}${v.v2 ? ` · ${v.v2}` : ''}`} (stock actual:{' '}
-                  {formatStock(v.stock)}{puProduct.pricingMode === 'AREA_ROLL' ? ' m' : ''})
+                  {formatStock(v.stock)}{puProduct.pricingMode === 'AREA_ROLL' ? ' m²' : ''})
                 </option>
               ))}
             </select>
@@ -793,7 +793,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
               <span className="text-brand-950/70">
                 Cantidad
                 {puProduct?.pricingMode === 'AREA_ROLL'
-                  ? ' (metros del rollo)'
+                  ? ' (m² del rollo)'
                   : puProduct?.variants[puVariantIndex]?.soldByWeight
                     ? ' (Kg)'
                     : ''}
@@ -805,7 +805,13 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                 onChange={(e) => setPuQty(e.target.value)}
                 placeholder={
                   puProduct?.pricingMode === 'AREA_ROLL'
-                    ? String(puProduct.rollLengthM ?? 50)
+                    ? // Un rollo entero = ancho × largo m², que es lo que se repone al comprarlo.
+                      String(
+                        Math.round(
+                          (Number((puProduct.variants[puVariantIndex]?.v1 ?? '').replace(',', '.')) * (puProduct.rollLengthM ?? 50) +
+                            Number.EPSILON) * 100,
+                        ) / 100 || puProduct.rollLengthM || 50,
+                      )
                     : puProduct?.variants[puVariantIndex]?.soldByWeight
                       ? '10.000'
                       : '10'
@@ -857,7 +863,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
               {rcProduct?.variants.map((v, i) => (
                 <option key={i} value={i}>
                   {rcProduct?.pricingMode === 'AREA_ROLL' ? `Rollo ${v.v1} m` : `${v.v1}${v.v2 ? ` · ${v.v2}` : ''}`} (sistema: {formatStock(v.stock)}
-                  {rcProduct?.pricingMode === 'AREA_ROLL' ? ' m' : v.soldByWeight ? ' Kg' : ''})
+                  {rcProduct?.pricingMode === 'AREA_ROLL' ? ' m²' : v.soldByWeight ? ' Kg' : ''})
                 </option>
               ))}
             </select>
@@ -866,7 +872,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
             <span className="text-brand-950/70">
               Cantidad contada
               {rcProduct?.pricingMode === 'AREA_ROLL'
-                ? ' (metros que quedan)'
+                ? ' (m² que quedan)'
                 : rcProduct?.variants[rcVariantIndex]?.soldByWeight
                   ? ' (Kg)'
                   : ''}
@@ -1176,33 +1182,50 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                   />
                 </label>
 
-                {parseRollWidths(npRollWidths).length > 0 && (
-                  <div>
-                    <p className="text-sm text-brand-950/70">Metros disponibles de cada rollo</p>
-                    <p className="text-xs text-brand-950/45 mt-0.5 mb-2">
-                      Metros lineales que te quedan hoy. Se descuentan solos con cada impresión, y se reponen
-                      desde "Registrar compra" al comprar un rollo nuevo.
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {parseRollWidths(npRollWidths).map((w) => {
-                        const label = rollWidthLabel(w);
-                        return (
-                          <label key={label} className="flex items-center gap-1.5 text-sm">
-                            <span className="text-brand-950/60 w-12 shrink-0">{label} m</span>
-                            <input
-                              value={npRollMeters[label] ?? ''}
-                              onChange={(e) => setNpRollMeters((prev) => ({ ...prev, [label]: e.target.value }))}
-                              placeholder={npRollLength || '50'}
-                              inputMode="decimal"
-                              className="w-20 border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
-                            />
-                            <span className="text-brand-950/40 text-xs">m</span>
-                          </label>
-                        );
-                      })}
+                {parseRollWidths(npRollWidths).length > 0 && (() => {
+                  const rollLen = Number(npRollLength.replace(',', '.')) || 50;
+                  // Un rollo entero rinde ancho × largo m² (1,22 × 50 = 61 m²) — ese es el número
+                  // que se lleva como existencia, no los metros lineales.
+                  const fullRollM2 = (w: number) => Math.round((w * rollLen + Number.EPSILON) * 100) / 100;
+                  return (
+                    <div>
+                      <p className="text-sm text-brand-950/70">Metros cuadrados disponibles de cada rollo</p>
+                      <p className="text-xs text-brand-950/45 mt-0.5 mb-2">
+                        Los m² que te quedan hoy. Se descuentan solos con cada impresión y se reponen desde
+                        "Registrar compra" al comprar un rollo nuevo.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {parseRollWidths(npRollWidths).map((w) => {
+                          const label = rollWidthLabel(w);
+                          return (
+                            <label key={label} className="flex items-center gap-1.5 text-sm">
+                              <span className="text-brand-950/60 w-12 shrink-0">{label} m</span>
+                              <input
+                                value={npRollMeters[label] ?? ''}
+                                onChange={(e) => setNpRollMeters((prev) => ({ ...prev, [label]: e.target.value }))}
+                                placeholder={String(fullRollM2(w))}
+                                inputMode="decimal"
+                                className="w-20 border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                              />
+                              <span className="text-brand-950/40 text-xs">m²</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setNpRollMeters(
+                            Object.fromEntries(parseRollWidths(npRollWidths).map((w) => [rollWidthLabel(w), String(fullRollM2(w))])),
+                          )
+                        }
+                        className="mt-2 text-xs font-semibold text-brand-500 hover:underline"
+                      >
+                        Llenar con un rollo completo de cada ancho ({rollLen} m de largo)
+                      </button>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
 
                 <div className="rounded-xl bg-brand-950/[0.03] border border-brand-950/10 p-3">
                   <p className="text-xs font-semibold text-brand-950 mb-2">Calcular el costo por m² desde el rollo</p>
