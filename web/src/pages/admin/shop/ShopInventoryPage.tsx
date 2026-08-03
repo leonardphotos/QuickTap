@@ -10,6 +10,7 @@ import { formatStock, shopMoneyFormatters } from './shopFormat';
 import { productStatus, productStock, type ShopProduct, type ShopSession } from './shopSession';
 import { shopApi } from './shopApi';
 import { costPerM2FromRoll, formatRollWidths, parseRollWidths, rollWidthLabel } from './printPricing';
+import { resolveVariantDims } from '@/data/variantDims';
 import ShopSkuScanDialog from './ShopSkuScanDialog';
 
 interface Props {
@@ -44,6 +45,9 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [npName, setNpName] = useState('');
   const [npCategory, setNpCategory] = useState(categories[0] ?? '');
+  // Variantes correctas para la categoría elegida en el formulario (ver variantDims.ts): una
+  // joyería que también vende carteras no las mide en "Material", las mide en Talla/Color.
+  const variantDims = resolveVariantDims(rubro, npCategory);
   const [npSubcategory, setNpSubcategory] = useState('');
   const [npBrand, setNpBrand] = useState('');
   const [npSku, setNpSku] = useState('');
@@ -358,10 +362,10 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   }
 
   function addVariant() {
-    if (!npV1.trim() || (rubro.dim2 && !npV2.trim())) return;
+    if (!npV1.trim() || (variantDims.dim2 && !npV2.trim())) return;
     setNpVariants((prev) => [
       ...prev,
-      { v1: npV1.trim(), v2: rubro.dim2 ? npV2.trim() : '', stock: Number(npStock) || 0, soldByWeight: npSoldByWeight },
+      { v1: npV1.trim(), v2: variantDims.dim2 ? npV2.trim() : '', stock: Number(npStock) || 0, soldByWeight: npSoldByWeight },
     ]);
     setNpV1('');
     setNpV2('');
@@ -651,9 +655,13 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                               const isBasicVariant = v.v1 === 'Único' && !v.v2;
                               return (
                                 <div key={i} className="text-[12.5px] text-brand-950/60 py-0.5">
-                                  {isBasicVariant
-                                    ? `${p.sku} · Stock ${v.stock}${v.soldByWeight ? ' Kg' : ''}`
-                                    : `${p.sku}-${v.v1}${v.v2 ? `-${v.v2}` : ''} · ${rubro.dim1} ${v.v1}${v.v2 ? ` · ${rubro.dim2} ${v.v2}` : ''} · Stock ${v.stock}${v.soldByWeight ? ' Kg' : ''}`}
+                                  {(() => {
+                                    if (isBasicVariant) return `${p.sku} · Stock ${v.stock}${v.soldByWeight ? ' Kg' : ''}`;
+                                    // Dimensiones de ESTE producto, no las del formulario — un producto ya guardado
+                                    // puede tener otra categoría que la que esté abierta ahora en "Nuevo producto".
+                                    const dims = resolveVariantDims(rubro, p.category);
+                                    return `${p.sku}-${v.v1}${v.v2 ? `-${v.v2}` : ''} · ${dims.dim1} ${v.v1}${v.v2 ? ` · ${dims.dim2} ${v.v2}` : ''} · Stock ${v.stock}${v.soldByWeight ? ' Kg' : ''}`;
+                                  })()}
                                 </div>
                               );
                             })}
@@ -1275,9 +1283,13 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
           </div>
 
           <div className={`border-t border-brand-950/[0.06] pt-3.5 ${npAreaRoll ? 'hidden' : ''}`}>
-            <p className="text-sm font-bold text-brand-950 mb-1">Stock y variantes</p>
+            <p className="text-sm font-bold text-brand-950 mb-1">
+              Stock por {variantDims.dim1}{variantDims.dim2 ? ` y ${variantDims.dim2}` : ''}
+            </p>
             <p className="text-xs text-brand-950/50 mb-3">
-              Si es un producto básico (no maneja talla/color), ingresa su stock directamente. Si maneja variantes, agrégalas abajo en vez de llenar el stock básico.
+              Si es un producto básico (no maneja {variantDims.dim1.toLowerCase()}
+              {variantDims.dim2 ? `/${variantDims.dim2.toLowerCase()}` : ''}), ingresa su stock directamente. Si
+              maneja variantes, agrégalas abajo en vez de llenar el stock básico.
             </p>
             <label className="flex items-center gap-2 mb-3 text-sm cursor-pointer">
               <input type="checkbox" checked={npSoldByWeight} onChange={(e) => setNpSoldByWeight(e.target.checked)} />
@@ -1299,17 +1311,17 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
             )}
 
             <p className="text-[11px] font-bold uppercase text-brand-950/40 mb-2">
-              Variantes ({rubro.dim1}{rubro.dim2 ? ` × ${rubro.dim2}` : ''}) — opcional
+              Variantes ({variantDims.dim1}{variantDims.dim2 ? ` × ${variantDims.dim2}` : ''}) — opcional
             </p>
             <div className="flex items-end gap-2 mb-3">
               <label className="block text-xs flex-1">
-                <span className="text-brand-950/60">{rubro.dim1}</span>
-                <input value={npV1} onChange={(e) => setNpV1(e.target.value)} placeholder={rubro.dim1Example} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
+                <span className="text-brand-950/60">{variantDims.dim1}</span>
+                <input value={npV1} onChange={(e) => setNpV1(e.target.value)} placeholder={variantDims.dim1Example} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
               </label>
-              {rubro.dim2 && (
+              {variantDims.dim2 && (
                 <label className="block text-xs flex-1">
-                  <span className="text-brand-950/60">{rubro.dim2}</span>
-                  <input value={npV2} onChange={(e) => setNpV2(e.target.value)} placeholder={rubro.dim2Example} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
+                  <span className="text-brand-950/60">{variantDims.dim2}</span>
+                  <input value={npV2} onChange={(e) => setNpV2(e.target.value)} placeholder={variantDims.dim2Example} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
                 </label>
               )}
               <label className="block text-xs w-24 shrink-0">
