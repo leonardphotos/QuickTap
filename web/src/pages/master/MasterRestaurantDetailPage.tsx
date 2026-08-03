@@ -29,6 +29,7 @@ interface RestaurantDetail {
   id: string;
   slug: string;
   name: string;
+  businessType: 'RESTAURANT' | 'SHOP';
   whatsappPhone: string | null;
   rif: string | null;
   ivaEnabled: boolean;
@@ -60,13 +61,18 @@ interface RestaurantDetail {
 // SUCURSALES/DELIVERY_SUCURSALES son planes legados (ya no se ofrecen a clientes nuevos, ver
 // CLAUDE.md) — se mantienen acá solo para poder seguir gestionando a los restaurantes que ya
 // los tienen activos.
-const PLAN_OPTIONS = ['DELIVERY', 'PRO', 'ELITE', 'SUCURSALES', 'DELIVERY_SUCURSALES'] as const;
+const RESTAURANT_PLAN_OPTIONS = ['DELIVERY', 'PRO', 'ELITE', 'SUCURSALES', 'DELIVERY_SUCURSALES'] as const;
+// Locales Comerciales (businessType SHOP) tienen un único plan — no comparten los planes de
+// Restaurante (Delivery/Pro/Elite/Sucursales no aplican a una tienda o barbería).
+const SHOP_PLAN_OPTIONS = ['SHOP'] as const;
+const PLAN_OPTIONS = [...RESTAURANT_PLAN_OPTIONS, ...SHOP_PLAN_OPTIONS] as const;
 const PLAN_OPTION_LABELS: Record<(typeof PLAN_OPTIONS)[number], string> = {
   DELIVERY: 'DELIVERY — Solo Delivery',
   PRO: 'PRO — Plan Pro',
   ELITE: 'ELITE — Plan Elite',
   SUCURSALES: 'SUCURSALES — Plan Sucursales (legado)',
   DELIVERY_SUCURSALES: 'DELIVERY_SUCURSALES — Delivery Sucursales (legado)',
+  SHOP: 'SHOP — QuickTap Shop',
 };
 const CYCLE_OPTIONS = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL'] as const;
 const BRANCH_PLAN_OPTIONS = ['DELIVERY', 'PRO', 'ELITE', 'SUCURSALES', 'DELIVERY_SUCURSALES'] as const;
@@ -96,6 +102,7 @@ export default function MasterRestaurantDetailPage() {
     masterApi.get(`/master/restaurants/${id}`).then((res) => {
       const data: RestaurantDetail = res.data.data;
       setDetail(data);
+      setPlan(data.businessType === 'SHOP' ? 'SHOP' : 'PRO');
       setExactPeriodEnd(data.periodEnd.slice(0, 10));
       if (data.fiscalInvoicingConfig) {
         setFiscalEnvironment(data.fiscalInvoicingConfig.environment as 'QA' | 'PRODUCTION');
@@ -497,7 +504,7 @@ export default function MasterRestaurantDetailPage() {
                 onChange={(e) => setPlan(e.target.value as (typeof PLAN_OPTIONS)[number])}
                 className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
               >
-                {PLAN_OPTIONS.map((p) => (
+                {(detail.businessType === 'SHOP' ? SHOP_PLAN_OPTIONS : RESTAURANT_PLAN_OPTIONS).map((p) => (
                   <option key={p} value={p}>
                     {PLAN_OPTION_LABELS[p]}
                   </option>

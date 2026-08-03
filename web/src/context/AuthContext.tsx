@@ -55,7 +55,7 @@ export interface AuthRestaurant {
   fullscreenImageEnabled: boolean;
   fullscreenImageUrl?: string | null;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';
-  subscriptionPlan: 'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM' | 'CUSTOM' | 'SUCURSALES' | 'DELIVERY_SUCURSALES' | null;
+  subscriptionPlan: 'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM' | 'CUSTOM' | 'SUCURSALES' | 'DELIVERY_SUCURSALES' | 'ELITE' | 'SHOP' | null;
   billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | null;
   /** Fin del período vigente (prueba o ciclo pagado). El bloqueo por vencimiento se calcula a partir de esto. */
   periodEnd: string;

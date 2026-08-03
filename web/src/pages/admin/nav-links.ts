@@ -32,6 +32,8 @@ export const PLAN_LABELS: Record<string, string> = {
   CUSTOM: 'Plan Personalizado',
   SUCURSALES: 'Plan Sucursales',
   DELIVERY_SUCURSALES: 'Delivery Sucursales',
+  ELITE: 'Plan Elite',
+  SHOP: 'QuickTap Shop',
 };
 
 // Todas las pestañas del panel. Mesero/Cocina solo ven Comandas, Cocina y Órdenes de Mesa.

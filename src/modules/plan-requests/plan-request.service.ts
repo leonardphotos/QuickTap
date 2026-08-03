@@ -30,6 +30,7 @@ const PLAN_LABELS: Record<SubscriptionPlan, string> = {
   SUCURSALES: 'Plan Sucursales',
   DELIVERY_SUCURSALES: 'Plan Delivery Sucursales',
   ELITE: 'Plan Elite',
+  SHOP: 'Plan QuickTap Shop',
 };
 
 // Beneficios breves para el mensaje de bienvenida por WhatsApp al activar la cuenta.
@@ -43,6 +44,7 @@ const PLAN_BENEFITS: Record<SubscriptionPlan, string> = {
   SUCURSALES: 'Todos los beneficios del Plan Pro, más hasta 5 sucursales con reporte consolidado de ventas, inventario y equipo.',
   DELIVERY_SUCURSALES: 'Todos los beneficios del Plan Solo Delivery, más hasta 5 sucursales con reporte consolidado de ventas, inventario y equipo.',
   ELITE: 'Todos los beneficios del Plan Pro, sucursales ilimitadas, soporte prioritario 24/7, gerente de cuenta dedicado y onboarding sin costo.',
+  SHOP: 'Punto de venta, inventario con variantes, caja y reportes para tu local comercial.',
 };
 
 function buildAcceptedMessage(plan: SubscriptionPlan): string {

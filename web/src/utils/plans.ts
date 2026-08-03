@@ -7,7 +7,8 @@ export type PlanId =
   | 'CUSTOM'
   | 'SUCURSALES'
   | 'DELIVERY_SUCURSALES'
-  | 'ELITE';
+  | 'ELITE'
+  | 'SHOP';
 export type BillingCycle = 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL';
 export type SubscriptionPaymentMethod = 'PAGO_MOVIL' | 'BINANCE' | 'BANK_TRANSFER';
 
