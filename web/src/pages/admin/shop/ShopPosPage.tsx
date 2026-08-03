@@ -129,6 +129,10 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const [qsPrice, setQsPrice] = useState('');
   const [qsPaymentMethod, setQsPaymentMethod] = useState('');
   const [qsSaving, setQsSaving] = useState(false);
+  // La pantalla de Pago Móvil (QR/monto/referencia/comprobante) es la MISMA que usa el cobro
+  // normal del carrito — esta bandera le dice a esa pantalla y a confirmPagoMovil que, al
+  // terminar, tienen que cerrar una "Crear venta" en vez de vaciar el carrito.
+  const [qsPendingPayment, setQsPendingPayment] = useState(false);
   // Tras registrar la venta, se ofrece cargarla al catálogo — así el dueño va armando su
   // inventario sobre la marcha, en vez de tener que cargarlo todo antes de poder vender.
   const [addToInventoryPrompt, setAddToInventoryPrompt] = useState<{ name: string; category: string; cost: number; price: number } | null>(
@@ -207,9 +211,9 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const total = subtotal * (1 - discount / 100);
   // Datos de cobro que se le muestran al cliente: los del BARBERO si tiene los suyos cargados
   // (le paga directo a él), si no los del local. La venta se registra igual en el local.
-  const payToConfig = activeProvider?.paymentMethodsConfig ?? restaurant.paymentMethodsConfig;
-  const payToName = activeProvider?.paymentMethodsConfig ? activeProvider.name : restaurant.name;
-  const payToIsStaff = Boolean(activeProvider?.paymentMethodsConfig);
+  const payToConfig = qsPendingPayment ? restaurant.paymentMethodsConfig : (activeProvider?.paymentMethodsConfig ?? restaurant.paymentMethodsConfig);
+  const payToName = !qsPendingPayment && activeProvider?.paymentMethodsConfig ? activeProvider.name : restaurant.name;
+  const payToIsStaff = !qsPendingPayment && Boolean(activeProvider?.paymentMethodsConfig);
   // El QR del local no aplica si el cobro va a la cuenta del barbero.
   const qrImageUrl = payToIsStaff ? undefined : restaurant.paymentMethodsConfig?.MOBILE_PAYMENT?.qrImageUrl;
   // Solo se ofrecen al cobrar los métodos que el dueño activó en Ajustes > Métodos de pago —
@@ -222,7 +226,11 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   );
   const paymentMethodOptions = enabledPaymentMethods.length > 0 ? enabledPaymentMethods : [PAYMENT_METHOD_META[0]];
   // Monto a cobrar en la pantalla de Pago Móvil: el total normal, o el abono elegido si es fiado fraccionado.
-  const pmTargetAmount = saleMode.kind === 'fiado' ? saleMode.amountPaidNow : total;
+  const pmTargetAmount = qsPendingPayment
+    ? Number(qsPrice.replace(',', '.')) || 0
+    : saleMode.kind === 'fiado'
+      ? saleMode.amountPaidNow
+      : total;
   // Las líneas con cantidad decimal (peso en Kg, m² de impresión) cuentan como 1 ítem cada una:
   // sumar su cantidad daría "1.096 items" para un solo banner, o "0.5 items" para medio kilo.
   const cartItemCount = cart.reduce((a, c) => a + (c.soldByWeight || c.unitLabel ? 1 : c.qty), 0);
@@ -343,6 +351,20 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
     const price = Number(qsPrice.replace(',', '.'));
     const cost = Number(qsCost.replace(',', '.')) || 0;
     if (!name || !(price > 0) || !qsPaymentMethod) return;
+
+    // Pago Móvil necesita su propia pantalla (QR, monto, referencia, comprobante) antes de poder
+    // cerrar el cobro — la misma que usa el checkout normal del carrito, ver pmTargetAmount/
+    // payToConfig arriba y confirmPagoMovil más abajo.
+    if (qsPaymentMethod === 'Pago Móvil') {
+      setQuickSaleOpen(false);
+      setPmReference('');
+      setPmProofUrl(null);
+      setPmProofError(null);
+      setQsPendingPayment(true);
+      setPagoMovilOpen(true);
+      return;
+    }
+
     setQsSaving(true);
     try {
       quickSale({ name, category, cost, price, paymentMethod: qsPaymentMethod });
@@ -479,6 +501,7 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   function closePagoMovil() {
     setPagoMovilOpen(false);
     setSaleMode({ kind: 'direct' });
+    setQsPendingPayment(false);
   }
 
   async function handleProofFileChange(e: ChangeEvent<HTMLInputElement>) {
@@ -502,6 +525,19 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   function confirmPagoMovil() {
     if (!pmReference.trim()) return;
     const meta: PaymentMeta = { reference: pmReference.trim(), hasProof: !!pmProofUrl, proofImageUrl: pmProofUrl ?? undefined };
+
+    if (qsPendingPayment) {
+      const name = qsName.trim();
+      const category = qsCategory.trim();
+      const price = Number(qsPrice.replace(',', '.'));
+      const cost = Number(qsCost.replace(',', '.')) || 0;
+      quickSale({ name, category, cost, price, paymentMethod: 'Pago Móvil', paymentMeta: meta });
+      setPagoMovilOpen(false);
+      setQsPendingPayment(false);
+      setAddToInventoryPrompt({ name, category, cost, price });
+      return;
+    }
+
     const sale = finalizeSale('Pago Móvil', meta);
     setPagoMovilOpen(false);
     setSuccessOpen(true);
@@ -560,7 +596,7 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
               <ScanLine className="h-4 w-4" /> Escanear
             </TextureButton>
             <TextureButton
-              variant="minimal"
+              variant="success"
               size="default"
               className="!w-auto disabled:opacity-50"
               title={till ? 'Cobrar algo que todavía no está en tu inventario' : 'Abre la caja para poder cobrar'}

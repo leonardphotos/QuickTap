@@ -670,11 +670,21 @@ export function useShopSession(initialCategories: string[] = []) {
    * catálogo (ver addProduct, disparado desde el diálogo de seguimiento en ShopPosPage), arranca
    * en 0 y el dueño carga el stock real por separado.
    */
-  function quickSale(input: { name: string; category: string; cost: number; price: number; paymentMethod: string }): Sale {
+  function quickSale(input: {
+    name: string;
+    category: string;
+    cost: number;
+    price: number;
+    paymentMethod: string;
+    // Pago Móvil pasa por su propia pantalla (QR/referencia/comprobante) antes de llegar acá —
+    // ver confirmPagoMovil en ShopPosPage.tsx. Null para el resto de los métodos.
+    paymentMeta?: PaymentMeta | null;
+  }): Sale {
     const saleItems: SaleItem[] = [
       { productId: '', v1: '', v2: '', name: input.name, category: input.category || null, qty: 1, price: input.price, cost: input.cost },
     ];
     const total = Math.round((input.price + Number.EPSILON) * 100) / 100;
+    const paymentMeta = input.paymentMeta ?? null;
     const sale: Sale = {
       id: `s${Date.now()}`,
       items: saleItems,
@@ -684,7 +694,7 @@ export function useShopSession(initialCategories: string[] = []) {
       customerPhone: null,
       returned: false,
       paymentMethod: input.paymentMethod,
-      paymentMeta: null,
+      paymentMeta,
       creditTerms: null,
       amountPaidNow: null,
     };
@@ -696,7 +706,7 @@ export function useShopSession(initialCategories: string[] = []) {
         customerName: null,
         customerPhone: null,
         paymentMethod: sale.paymentMethod,
-        paymentMeta: null,
+        paymentMeta,
         creditTerms: null,
         amountPaidNow: null,
       })

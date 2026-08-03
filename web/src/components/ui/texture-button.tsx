@@ -13,6 +13,7 @@ const buttonVariantsOuter = cva(
         accent: 'w-full shadow-[0_16px_32px_-8px_rgba(99,102,241,0.4)]',
         brand: 'w-full shadow-[0_16px_32px_-8px_rgba(5,108,242,0.4)]',
         destructive: 'w-full shadow-[0_16px_32px_-8px_rgba(239,68,68,0.4)]',
+        success: 'w-full shadow-[0_16px_32px_-8px_rgba(16,185,129,0.4)]',
         secondary: 'w-full border border-brand-950/10 shadow-[0_16px_32px_-8px_rgba(0,0,0,0.12)]',
         minimal: 'group/texture-button w-full border border-brand-950/10',
         icon: 'group/texture-button border border-brand-950/10',
@@ -41,6 +42,7 @@ const innerDivVariants = cva(
         brand:
           'gap-2 bg-brand-500 text-sm text-[color:var(--qt-button-text,rgba(255,255,255,0.9))] transition-colors hover:bg-brand-400 active:bg-brand-800',
         destructive: 'gap-2 bg-red-500 text-sm text-white/90 transition-colors hover:bg-red-600 active:bg-red-700',
+        success: 'gap-2 bg-emerald-500 text-sm text-white/90 transition-colors hover:bg-emerald-600 active:bg-emerald-700',
         secondary: 'bg-white text-sm text-brand-950 transition-colors hover:bg-brand-950/5 active:bg-brand-950/10',
         minimal:
           'bg-white text-sm text-brand-950 transition-colors group-hover/texture-button:bg-brand-950/5 group-active/texture-button:bg-brand-950/10',
@@ -68,6 +70,7 @@ export interface UnifiedButtonProps
     | 'accent'
     | 'brand'
     | 'destructive'
+    | 'success'
     | 'minimal'
     | 'icon';
   size?: 'default' | 'sm' | 'lg' | 'icon';
