@@ -1,13 +1,14 @@
 import { Fragment, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { ChevronDown, ClipboardList, FolderPlus, Package, Pencil, Plus, ScanLine, Search, Sparkles, Truck, X } from 'lucide-react';
+import { ChevronDown, ClipboardList, FlaskConical, FolderPlus, Package, Pencil, Plus, ScanLine, Search, Sparkles, Truck, X } from 'lucide-react';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
 import type { ShopProductSeed, ShopRubro, ShopVariant } from '@/data/shopRubros';
-import { shopMoneyFormatters } from './shopFormat';
+import { formatStock, shopMoneyFormatters } from './shopFormat';
 import { productStatus, productStock, type ShopProduct, type ShopSession } from './shopSession';
+import { shopApi } from './shopApi';
 import { costPerM2FromRoll, formatRollWidths, parseRollWidths, rollWidthLabel } from './printPricing';
 import ShopSkuScanDialog from './ShopSkuScanDialog';
 
@@ -26,7 +27,7 @@ const STATUS_CLASS: Record<string, string> = {
 
 export default function ShopInventoryPage({ session, rubro, restaurant }: Props) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
-  const { products, sales, purchases, adjustments, registerPurchase, adjustStock, addProduct, updateProduct, categories, addCategory, subcategories } = session;
+  const { products, sales, purchases, adjustments, registerPurchase, adjustStock, addProduct, updateProduct, categories, addCategory, subcategories, serviceSupplies, setServiceSupplies } = session;
 
   const [category, setCategory] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -68,6 +69,10 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   const [npRollPriceWidth, setNpRollPriceWidth] = useState('');
   // Metros lineales disponibles por ancho de rollo, indexado por su etiqueta ("1,37").
   const [npRollMeters, setNpRollMeters] = useState<Record<string, string>>({});
+  // Editor de insumos que consume un servicio (barbería/salón): producto+variante y cuánto gasta.
+  const [suppliesFor, setSuppliesFor] = useState<ShopProduct | null>(null);
+  const [supplyDraft, setSupplyDraft] = useState<{ supplyProductId: string; supplyV1: string; supplyV2: string; quantity: string }[]>([]);
+  const [savingSupplies, setSavingSupplies] = useState(false);
   const [npWholesalePrice, setNpWholesalePrice] = useState('');
   const [npWholesaleMinQty, setNpWholesaleMinQty] = useState('');
   const [npPromoPrice, setNpPromoPrice] = useState('');
@@ -366,6 +371,38 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   /** Antes esto fallaba en silencio: si faltaba algo (más comúnmente, no haber tocado el botón +
    * para agregar la variante) el clic en "Guardar producto" simplemente no hacía nada, sin avisar
    * qué faltaba. Ahora cada condición deja un mensaje concreto arriba del botón. */
+  function openSupplies(p: ShopProduct) {
+    setSuppliesFor(p);
+    setSupplyDraft(
+      serviceSupplies
+        .filter((x) => x.serviceProductId === p.id)
+        .map((x) => ({ supplyProductId: x.supplyProductId, supplyV1: x.supplyV1, supplyV2: x.supplyV2, quantity: String(x.quantity) })),
+    );
+  }
+
+  async function saveSupplies() {
+    if (!suppliesFor) return;
+    setSavingSupplies(true);
+    try {
+      const payload = supplyDraft
+        .filter((x) => x.supplyProductId && Number(x.quantity.replace(',', '.')) > 0)
+        .map((x) => ({
+          supplyProductId: x.supplyProductId,
+          supplyV1: x.supplyV1,
+          supplyV2: x.supplyV2,
+          quantity: Number(x.quantity.replace(',', '.')),
+        }));
+      const saved = await shopApi.setServiceSupplies(suppliesFor.id, payload);
+      // Se reemplaza solo la receta de ESTE servicio; las de los demás quedan como estaban.
+      setServiceSupplies([...serviceSupplies.filter((x) => x.serviceProductId !== suppliesFor.id), ...saved]);
+      setSuppliesFor(null);
+    } catch (err) {
+      console.error('No se pudieron guardar los insumos', err);
+    } finally {
+      setSavingSupplies(false);
+    }
+  }
+
   function saveNewProduct() {
     const price = Number(npPrice) || 0;
     if (!npName.trim()) return setSaveError('Falta el nombre del producto.');
@@ -579,7 +616,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                             ? `${productStock(p).toFixed(1)} m`
                             : isWeight
                               ? `${productStock(p).toFixed(1)} Kg`
-                              : productStock(p)}
+                              : formatStock(productStock(p))}
                         </td>
                         <td className="py-3">
                           <div className="flex items-center gap-2">
@@ -591,6 +628,18 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                               className="text-brand-950/30 hover:text-brand-500"
                             >
                               <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); openSupplies(p); }}
+                              title="Insumos que consume este servicio"
+                              className={
+                                serviceSupplies.some((x) => x.serviceProductId === p.id)
+                                  ? 'text-brand-500 hover:text-brand-400'
+                                  : 'text-brand-950/30 hover:text-brand-500'
+                              }
+                            >
+                              <FlaskConical className="h-3.5 w-3.5" />
                             </button>
                           </div>
                         </td>
@@ -734,7 +783,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
               {puProduct?.variants.map((v, i) => (
                 <option key={i} value={i}>
                   {puProduct.pricingMode === 'AREA_ROLL' ? `Rollo ${v.v1} m` : `${v.v1}${v.v2 ? ` · ${v.v2}` : ''}`} (stock actual:{' '}
-                  {v.stock}{puProduct.pricingMode === 'AREA_ROLL' ? ' m' : ''})
+                  {formatStock(v.stock)}{puProduct.pricingMode === 'AREA_ROLL' ? ' m' : ''})
                 </option>
               ))}
             </select>
@@ -807,7 +856,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
             >
               {rcProduct?.variants.map((v, i) => (
                 <option key={i} value={i}>
-                  {rcProduct?.pricingMode === 'AREA_ROLL' ? `Rollo ${v.v1} m` : `${v.v1}${v.v2 ? ` · ${v.v2}` : ''}`} (sistema: {v.stock}
+                  {rcProduct?.pricingMode === 'AREA_ROLL' ? `Rollo ${v.v1} m` : `${v.v1}${v.v2 ? ` · ${v.v2}` : ''}`} (sistema: {formatStock(v.stock)}
                   {rcProduct?.pricingMode === 'AREA_ROLL' ? ' m' : v.soldByWeight ? ' Kg' : ''})
                 </option>
               ))}
@@ -859,7 +908,121 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
       {/* ---------- Nuevo producto ---------- */}
       <Dialog open={newOpen} onOpenChange={setNewOpen}>
         <DialogContent className="max-w-xl">
+          <Dialog open={!!suppliesFor} onOpenChange={(o) => !o && setSuppliesFor(null)}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
+            <DialogTitle>Insumos de "{suppliesFor?.name}"</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-brand-950/50">
+            Qué gasta este servicio del inventario cada vez que se vende. Se descuenta solo al cobrar — el
+            barbero no registra nada aparte.
+          </p>
+
+          <div className="space-y-2 max-h-[46vh] overflow-y-auto">
+            {supplyDraft.length === 0 && (
+              <p className="text-sm text-brand-950/40 py-3 text-center">Este servicio todavía no consume insumos.</p>
+            )}
+            {supplyDraft.map((row, i) => {
+              const supply = products.find((x) => x.id === row.supplyProductId);
+              const perUse = Number(row.quantity.replace(',', '.'));
+              return (
+                <div key={i} className="rounded-xl border border-brand-950/10 p-2.5 space-y-2">
+                  <div className="flex gap-2">
+                    <select
+                      value={row.supplyProductId}
+                      onChange={(e) => {
+                        const next = [...supplyDraft];
+                        const chosen = products.find((x) => x.id === e.target.value);
+                        next[i] = {
+                          ...next[i],
+                          supplyProductId: e.target.value,
+                          // Al cambiar de insumo, la variante anterior ya no aplica.
+                          supplyV1: chosen?.variants[0]?.v1 ?? '',
+                          supplyV2: chosen?.variants[0]?.v2 ?? '',
+                        };
+                        setSupplyDraft(next);
+                      }}
+                      className="flex-1 min-w-0 border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                    >
+                      <option value="">— Elegir insumo —</option>
+                      {products
+                        .filter((x) => x.id !== suppliesFor?.id)
+                        .map((x) => (
+                          <option key={x.id} value={x.id}>{x.name}</option>
+                        ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setSupplyDraft(supplyDraft.filter((_, idx) => idx !== i))}
+                      className="text-brand-950/40 hover:text-red-500 shrink-0"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {supply && supply.variants.length > 1 && (
+                    <select
+                      value={`${row.supplyV1}|${row.supplyV2}`}
+                      onChange={(e) => {
+                        const [v1, v2] = e.target.value.split('|');
+                        const next = [...supplyDraft];
+                        next[i] = { ...next[i], supplyV1: v1, supplyV2: v2 };
+                        setSupplyDraft(next);
+                      }}
+                      className="w-full border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                    >
+                      {supply.variants.map((v, vi) => (
+                        <option key={vi} value={`${v.v1}|${v.v2}`}>
+                          {v.v1}{v.v2 ? ` · ${v.v2}` : ''} (quedan {formatStock(v.stock)})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  <label className="flex items-center gap-2 text-xs">
+                    <span className="text-brand-950/60 shrink-0">Consume por servicio</span>
+                    <input
+                      value={row.quantity}
+                      onChange={(e) => {
+                        const next = [...supplyDraft];
+                        next[i] = { ...next[i], quantity: e.target.value };
+                        setSupplyDraft(next);
+                      }}
+                      placeholder="0,025"
+                      inputMode="decimal"
+                      className="w-24 border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                    />
+                    {perUse > 0 && (
+                      <span className="text-brand-950/40">
+                        ≈ rinde {Math.round(1 / perUse)} servicios por unidad
+                      </span>
+                    )}
+                  </label>
+                </div>
+              );
+            })}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setSupplyDraft([...supplyDraft, { supplyProductId: '', supplyV1: '', supplyV2: '', quantity: '' }])}
+            className="text-sm font-semibold text-brand-500 hover:underline self-start"
+          >
+            + Agregar insumo
+          </button>
+
+          <DialogFooter>
+            <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setSuppliesFor(null)}>
+              Cancelar
+            </TextureButton>
+            <TextureButton variant="brand" size="default" className="!w-auto disabled:opacity-50" disabled={savingSupplies} onClick={saveSupplies}>
+              {savingSupplies ? 'Guardando…' : 'Guardar insumos'}
+            </TextureButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <DialogHeader>
             <DialogTitle>{editingProductId ? 'Editar producto' : 'Nuevo producto'}</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1148,7 +1311,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                 {npVariants.map((v, i) => (
                   <div key={i} className="flex items-center gap-2.5 bg-brand-950/[0.04] rounded-lg px-3 py-2">
                     <span className="flex-1 text-[13px] font-semibold text-brand-950">{v.v1}{v.v2 ? ` · ${v.v2}` : ''}</span>
-                    <span className="text-xs text-brand-950/50 w-20">Stock: {v.soldByWeight ? `${v.stock} Kg` : v.stock}</span>
+                    <span className="text-xs text-brand-950/50 w-20">Stock: {v.soldByWeight ? `${formatStock(v.stock)} Kg` : formatStock(v.stock)}</span>
                     <button type="button" onClick={() => setNpVariants((prev) => prev.filter((_, idx) => idx !== i))} className="text-brand-950/40 hover:text-red-500">
                       <X className="h-3.5 w-3.5" />
                     </button>

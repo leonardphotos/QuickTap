@@ -116,10 +116,13 @@ function groupIncomeByMethod(sales: Sale[]): { method: string; count: number; to
 
 export default function ShopDashboardPage({ session, restaurant, canSeeMoney, userName, onNavigate }: Props) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
-  const { products, sales, purchases, returnSale } = session;
+  const { products, sales, purchases, returnSale, providers } = session;
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [showExpenseDialog, setShowExpenseDialog] = useState(false);
   const [showIncomeByMethod, setShowIncomeByMethod] = useState(false);
+  // Nombres del equipo, para poder rotular el reporte por profesional (las ventas solo guardan el id).
+  // Las ventas solo guardan el id del profesional; el nombre sale del equipo cargado en la sesión.
+  const providerNames = Object.fromEntries(providers.map((p) => [p.id, p.name]));
 
   /** Bs para Pago Móvil/Punto/Efectivo Bs, $ para el resto (Efectivo $, Zelle, Binance, etc.) —
    * en vez de mostrar siempre el total en $ con Bs de referencia. */
@@ -146,6 +149,27 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
   const qtyByName: Record<string, number> = {};
   todaySales.forEach((s) => s.items.forEach((it) => { qtyByName[it.name] = (qtyByName[it.name] || 0) + it.qty; }));
   const topProducts = Object.entries(qtyByName).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  /**
+   * Cuánto hizo cada profesional (barbero/estilista) en los últimos 30 días: lo que facturó, la
+   * comisión que le toca y lo que queda para el local. La comisión sale del % congelado en cada
+   * línea al momento de vender, no del % actual del usuario — así lo ya liquidado no se mueve si
+   * después le cambian el porcentaje.
+   */
+  const byProvider = (() => {
+    const acc = new Map<string, { name: string; billed: number; commission: number; services: number }>();
+    for (const sale of monthSales) {
+      for (const it of sale.items) {
+        if (!it.staffUserId) continue;
+        const entry = acc.get(it.staffUserId) ?? { name: providerNames[it.staffUserId] ?? 'Profesional', billed: 0, commission: 0, services: 0 };
+        entry.billed += it.price * it.qty;
+        entry.commission += it.commissionBase ?? 0;
+        entry.services += it.qty;
+        acc.set(it.staffUserId, entry);
+      }
+    }
+    return [...acc.values()].sort((a, b) => b.billed - a.billed);
+  })();
 
   const recentSales = [...sales].sort((a, b) => b.time.getTime() - a.time.getTime()).slice(0, 8);
   const recentPurchases = [...purchases].sort((a, b) => b.time.getTime() - a.time.getTime()).slice(0, 6);
@@ -265,6 +289,31 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
               </div>
             )}
           </div>
+
+          {byProvider.length > 0 && (
+            <div className="rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-5">
+              <h3 className="text-[15px] font-bold text-brand-950">Por profesional (30 días)</h3>
+              <p className="text-xs text-brand-950/45 mb-3.5">Lo que factura cada uno y cuánto le toca de comisión.</p>
+              <div className="flex flex-col">
+                {byProvider.map((b) => (
+                  <div key={b.name} className="py-2.5 border-b border-brand-950/[0.05] last:border-b-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-brand-950">{b.name}</span>
+                      <span className="text-sm font-bold text-brand-950">{money(b.billed)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 mt-0.5">
+                      <span className="text-[11.5px] text-brand-950/45">{b.services} servicios</span>
+                      {canSeeMoney && b.commission > 0 && (
+                        <span className="text-[11.5px] text-brand-950/45">
+                          para él {money(b.commission)} · para el local {money(b.billed - b.commission)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-5">
             <h3 className="text-[15px] font-bold text-brand-950 mb-3.5">Alertas de stock</h3>

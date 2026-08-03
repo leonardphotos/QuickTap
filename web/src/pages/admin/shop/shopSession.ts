@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ShopProductSeed, ShopVariant } from '@/data/shopRubros';
+import { api } from '@/api/client';
 import { shopApi, toShopProduct } from './shopApi';
 import { rollWidthLabel } from './printPricing';
 
@@ -42,6 +43,8 @@ export interface CartLine {
   unitLabel?: string;
   /** Metros lineales a descontar del rollo, cuando difiere de `qty` (los m² que se cobran). */
   stockQty?: number;
+  /** Profesional que presta ESTE servicio (barbero/estilista) — alimenta su reporte y comisión. */
+  staffUserId?: string;
 }
 
 /** Precio unitario que realmente aplica a una línea del carrito: la promoción siempre gana (si
@@ -64,6 +67,10 @@ export interface SaleItem {
   soldByWeight?: boolean;
   detail?: string;
   stockQty?: number;
+  staffUserId?: string;
+  /** Comisión congelada de esta línea al momento de la venta (ver ShopSaleItem en el backend). */
+  commissionPercent?: number;
+  commissionBase?: number;
 }
 
 export interface PaymentMeta {
@@ -182,6 +189,62 @@ export function isExpiringSoon(p: ShopProduct): boolean {
   return days != null && days <= 30;
 }
 
+/** Una línea de la receta de insumos de un servicio. */
+export interface ServiceSupply {
+  id: string;
+  serviceProductId: string;
+  supplyProductId: string;
+  supplyV1: string;
+  supplyV2: string;
+  quantity: number;
+}
+
+/**
+ * Aplica en el estado local el mismo movimiento de stock que hace el backend al vender/devolver:
+ * lo vendido de cada variante MÁS los insumos que consumen los servicios del ticket. `sign` = -1
+ * al vender, +1 al devolver. Espejo de applySupplyConsumption en src/modules/shop/shop.service.ts
+ * — si los dos se desalinean, el cajero ve un stock que no es el que quedó guardado.
+ */
+function applyStockMovement(
+  products: ShopProduct[],
+  lines: { productId: string; v1: string; v2: string; qty: number; stockQty?: number }[],
+  supplies: ServiceSupply[],
+  sign: 1 | -1,
+): ShopProduct[] {
+  // Delta por producto+variante, empezando por lo que se vendió.
+  const delta = new Map<string, number>();
+  const key = (productId: string, v1: string, v2: string) => `${productId}|${v1}|${v2}`;
+  for (const l of lines) {
+    const k = key(l.productId, l.v1, l.v2);
+    delta.set(k, (delta.get(k) ?? 0) + sign * (l.stockQty ?? l.qty));
+  }
+
+  // Y sumando los insumos que consumen los servicios vendidos.
+  const soldByService = new Map<string, number>();
+  for (const l of lines) soldByService.set(l.productId, (soldByService.get(l.productId) ?? 0) + l.qty);
+  for (const r of supplies) {
+    const sold = soldByService.get(r.serviceProductId) ?? 0;
+    if (sold <= 0) continue;
+    const k = key(r.supplyProductId, r.supplyV1, r.supplyV2);
+    delta.set(k, (delta.get(k) ?? 0) + sign * r.quantity * sold);
+  }
+
+  if (delta.size === 0) return products;
+  return products.map((p) => {
+    const touched = p.variants.some((v) => delta.has(key(p.id, v.v1, v.v2)));
+    if (!touched) return p;
+    return {
+      ...p,
+      variants: p.variants.map((v) => {
+        const d = delta.get(key(p.id, v.v1, v.v2));
+        // Redondeado a 3 decimales: sin esto, restar fracciones (0,025 de un pote por corte)
+        // arrastra error binario y el stock termina mostrándose como 9.924999999999999.
+        return d == null ? v : { ...v, stock: Math.max(0, Math.round((v.stock + d + Number.EPSILON) * 1000) / 1000) };
+      }),
+    };
+  });
+}
+
 export interface NewProductInput {
   name: string;
   category: string;
@@ -208,6 +271,43 @@ export interface NewProductInput {
 // productos/ventas — solo aporta categorías/dim1/dim2/proveedores a ShopInventoryPage/ShopPosPage.
 export function useShopSession(initialCategories: string[] = []) {
   const [products, setProducts] = useState<ShopProduct[]>([]);
+  // Recetas de insumos por servicio (ver ShopServiceSupply): qué gasta cada corte del inventario.
+  const [serviceSupplies, setServiceSupplies] = useState<ServiceSupply[]>([]);
+  // Equipo que presta servicios, con su comisión: se usa para acreditar la venta y para poder
+  // calcular la comisión en el acto (el backend la congela igual, esto solo evita que el panel
+  // muestre 0 hasta el próximo refresh).
+  const [providers, setProviders] = useState<{ id: string; name: string; commissionPercent: number | null }[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .get('/team')
+      .then((res) => {
+        if (cancelled) return;
+        const list = (res.data.data as { id: string; name: string; isServiceProvider?: boolean; isActive: boolean; commissionPercent?: number | null }[])
+          .filter((u) => u.isServiceProvider && u.isActive)
+          .map((u) => ({ id: u.id, name: u.name, commissionPercent: u.commissionPercent ?? null }));
+        setProviders(list);
+      })
+      .catch(() => setProviders([]));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Profesional al que se le acredita lo que se agregue al carrito (selector "Atendido por").
+  const [activeStaffUserId, setActiveStaffUserId] = useState<string>('');
+
+  /**
+   * Cambiar de profesional también rellena hacia atrás las líneas que todavía no tienen a nadie
+   * asignado: lo natural es agregar el corte y recién ahí elegir quién lo hizo, y si solo valiera
+   * para lo que se agregue después esa venta quedaría sin acreditar sin que nadie lo note. Las
+   * líneas que YA tienen un profesional no se tocan, para que un ticket con dos barberos siga
+   * funcionando (se elige uno, se agrega lo suyo, se cambia y se agrega lo del otro).
+   */
+  function selectActiveStaff(userId: string) {
+    setActiveStaffUserId(userId);
+    setCart((prev) => prev.map((c) => (c.staffUserId ? c : { ...c, staffUserId: userId || undefined })));
+  }
   const [sales, setSales] = useState<Sale[]>([]);
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -239,6 +339,7 @@ export function useShopSession(initialCategories: string[] = []) {
       .then((state) => {
         if (cancelled) return;
         setProducts(state.products.map(toShopProduct));
+        setServiceSupplies(state.serviceSupplies ?? []);
         setSales(
           state.sales.map((s) => ({
             id: s.id,
@@ -254,6 +355,9 @@ export function useShopSession(initialCategories: string[] = []) {
               soldByWeight: it.soldByWeight,
               detail: it.detail ?? undefined,
               stockQty: it.stockQty ?? undefined,
+              staffUserId: it.staffUserId ?? undefined,
+              commissionPercent: it.commissionPercent ?? undefined,
+              commissionBase: it.commissionBase ?? undefined,
             })),
             total: s.total,
             time: new Date(s.time),
@@ -345,7 +449,9 @@ export function useShopSession(initialCategories: string[] = []) {
   }
 
   function addToCart(product: ShopProduct, variant: ShopVariant, qty = 1) {
-    const key = `${product.id}-${variant.v1}-${variant.v2}`;
+    // El profesional entra en la clave: si dos barberos hacen el mismo corte en un ticket, deben
+    // quedar como dos líneas separadas o se le acreditaría todo a uno solo.
+    const key = `${product.id}-${variant.v1}-${variant.v2}-${activeStaffUserId}`;
     setCart((prev) => {
       const existing = prev.find((c) => c.key === key);
       if (existing) return prev.map((c) => (c.key === key ? { ...c, qty: c.qty + qty } : c));
@@ -364,6 +470,7 @@ export function useShopSession(initialCategories: string[] = []) {
           qty,
           disc: 0,
           soldByWeight: variant.soldByWeight,
+          staffUserId: activeStaffUserId || undefined,
         },
       ];
     });
@@ -395,6 +502,7 @@ export function useShopSession(initialCategories: string[] = []) {
         unitLabel: 'm²',
         // Del rollo se van metros LINEALES, no los m² que se le cobran al cliente.
         stockQty: quote.lengthM,
+        staffUserId: activeStaffUserId || undefined,
       },
     ]);
   }
@@ -415,6 +523,7 @@ export function useShopSession(initialCategories: string[] = []) {
         v2: '',
         qty: 1,
         disc: 0,
+        staffUserId: activeStaffUserId || undefined,
       },
     ]);
   }
@@ -499,6 +608,15 @@ export function useShopSession(initialCategories: string[] = []) {
         soldByWeight: c.soldByWeight,
         detail: c.detail,
         stockQty: c.stockQty,
+        staffUserId: c.staffUserId,
+        // Mismo cálculo que hace el backend al guardar (ver recordSale): sin esto el reporte por
+        // profesional mostraría la venta sin comisión hasta recargar el panel.
+        ...(() => {
+          if (!c.staffUserId) return {};
+          const pct = providers.find((p) => p.id === c.staffUserId)?.commissionPercent ?? 0;
+          const gross = effectivePrice(c) * (1 - (c.disc || 0) / 100) * c.qty;
+          return { commissionPercent: pct, commissionBase: Math.round((gross * (pct / 100) + Number.EPSILON) * 100) / 100 };
+        })(),
       };
     });
     const subtotal = cart.reduce((a, c) => a + lineTotal(c), 0);
@@ -521,17 +639,7 @@ export function useShopSession(initialCategories: string[] = []) {
       amountPaidNow: credit ? credit.amountPaidNow : null,
     };
 
-    setProducts((prev) => prev.map((p) => {
-      const updates = cart.filter((c) => c.productId === p.id);
-      if (updates.length === 0) return p;
-      return {
-        ...p,
-        variants: p.variants.map((v) => {
-          const match = updates.find((c) => c.v1 === v.v1 && c.v2 === v.v2);
-          return match ? { ...v, stock: Math.max(0, v.stock - match.qty) } : v;
-        }),
-      };
-    }));
+    setProducts((prev) => applyStockMovement(prev, cart, serviceSupplies, -1));
     setSales((prev) => [sale, ...prev]);
     setCart([]);
 
@@ -554,17 +662,7 @@ export function useShopSession(initialCategories: string[] = []) {
   function returnSale(saleId: string) {
     const sale = sales.find((s) => s.id === saleId);
     if (!sale || sale.returned) return;
-    setProducts((prev) => prev.map((p) => {
-      const relevant = sale.items.filter((it) => it.productId === p.id);
-      if (relevant.length === 0) return p;
-      return {
-        ...p,
-        variants: p.variants.map((v) => {
-          const match = relevant.find((it) => it.v1 === v.v1 && it.v2 === v.v2);
-          return match ? { ...v, stock: v.stock + match.qty } : v;
-        }),
-      };
-    }));
+    setProducts((prev) => applyStockMovement(prev, sale.items, serviceSupplies, 1));
     setSales((prev) => prev.map((s) => (s.id === saleId ? { ...s, returned: true } : s)));
     shopApi.returnSale(saleId).catch((err) => console.error('No se pudo registrar la devolución en el servidor', err));
   }
@@ -684,6 +782,11 @@ export function useShopSession(initialCategories: string[] = []) {
     addToCart,
     addAdhocLine,
     addPrintLine,
+    serviceSupplies,
+    setServiceSupplies,
+    providers,
+    activeStaffUserId,
+    setActiveStaffUserId: selectActiveStaff,
     updateCartQty,
     setCartQty,
     removeFromCart,

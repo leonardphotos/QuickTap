@@ -13,6 +13,7 @@ import {
   addShopSubcategorySchema,
   createShopSalePaymentSchema,
   setShopSaleDueDateSchema,
+  setShopServiceSuppliesSchema,
 } from './shop.dto';
 import { shopService } from './shop.service';
 
@@ -38,6 +39,12 @@ export const shopController = {
 
   returnSale: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await shopService.returnSale(req.restaurantId!, req.params.id) });
+  }),
+
+  /** PUT /shop/products/:id/supplies — reemplaza la receta de insumos de un servicio. */
+  setServiceSupplies: asyncHandler(async (req: Request, res: Response) => {
+    const input = setShopServiceSuppliesSchema.parse(req.body);
+    res.json({ data: await shopService.setServiceSupplies(req.restaurantId!, req.params.id, input) });
   }),
 
   recordPurchase: asyncHandler(async (req: Request, res: Response) => {

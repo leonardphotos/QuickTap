@@ -255,6 +255,12 @@ export interface StaffMember {
   role: UserRole;
   isActive: boolean;
   canAccessInventory: boolean;
+  /** Local Comercial: presta servicios (barbero/estilista) — aparece en "Atendido por" del POS. */
+  isServiceProvider?: boolean;
+  /** % que se lleva de lo que factura. Null/0 = sin comisión. */
+  commissionPercent?: number | null;
+  /** Sus propios datos de cobro (Pago Móvil/Zelle) — en barbería el cliente le paga directo. */
+  paymentMethodsConfig?: PaymentMethodsConfig | null;
   createdAt: string;
 }
 

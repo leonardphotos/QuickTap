@@ -28,7 +28,18 @@ export function ShopTeamSection() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState<{ role: UserRole; isActive: boolean } | null>(null);
+  const [editDraft, setEditDraft] = useState<{
+    role: UserRole;
+    isActive: boolean;
+    isServiceProvider: boolean;
+    commissionPercent: string;
+    // Datos de cobro propios del profesional: en barbería el cliente le paga directo a él.
+    pmTelefono: string;
+    pmBanco: string;
+    pmCedula: string;
+    pmTitular: string;
+    zelleCorreo: string;
+  } | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
 
   function load() {
@@ -59,8 +70,20 @@ export function ShopTeamSection() {
   }
 
   function startEdit(s: StaffMember) {
+    const pm = s.paymentMethodsConfig?.MOBILE_PAYMENT;
+    const zelle = s.paymentMethodsConfig?.ZELLE;
     setEditingId(s.id);
-    setEditDraft({ role: s.role, isActive: s.isActive });
+    setEditDraft({
+      role: s.role,
+      isActive: s.isActive,
+      isServiceProvider: s.isServiceProvider ?? false,
+      commissionPercent: s.commissionPercent != null ? String(s.commissionPercent) : '',
+      pmTelefono: pm?.telefono ?? '',
+      pmBanco: pm?.banco ?? '',
+      pmCedula: pm?.cedula ?? '',
+      pmTitular: pm?.titular ?? '',
+      zelleCorreo: zelle?.correo ?? '',
+    });
   }
 
   async function saveEdit(id: string) {
@@ -68,7 +91,27 @@ export function ShopTeamSection() {
     setSavingEdit(true);
     setError(null);
     try {
-      await api.patch(`/team/${id}`, editDraft);
+      const { pmTelefono, pmBanco, pmCedula, pmTitular, zelleCorreo, commissionPercent, ...rest } = editDraft;
+      // Solo se manda el método que tenga datos cargados: un objeto vacío haría que el POS
+      // creyera que el barbero tiene cobro propio y mostrara una pantalla en blanco.
+      const paymentMethodsConfig: Record<string, Record<string, unknown>> = {};
+      if (pmTelefono.trim()) {
+        paymentMethodsConfig.MOBILE_PAYMENT = {
+          enabled: true,
+          telefono: pmTelefono.trim(),
+          banco: pmBanco.trim(),
+          cedula: pmCedula.trim(),
+          titular: pmTitular.trim(),
+        };
+      }
+      if (zelleCorreo.trim()) {
+        paymentMethodsConfig.ZELLE = { enabled: true, correo: zelleCorreo.trim(), titular: pmTitular.trim() };
+      }
+      await api.patch(`/team/${id}`, {
+        ...rest,
+        commissionPercent: commissionPercent.trim() === '' ? null : Number(commissionPercent.replace(',', '.')),
+        paymentMethodsConfig: Object.keys(paymentMethodsConfig).length > 0 ? paymentMethodsConfig : null,
+      });
       setEditingId(null);
       setEditDraft(null);
       load();
@@ -158,6 +201,73 @@ export function ShopTeamSection() {
                   />
                   Activo
                 </label>
+
+                <label className="flex items-center gap-2 text-xs text-brand-950/70">
+                  <input
+                    type="checkbox"
+                    checked={editDraft.isServiceProvider}
+                    onChange={(e) => setEditDraft({ ...editDraft, isServiceProvider: e.target.checked })}
+                    className="h-4 w-4 rounded border-brand-950/20"
+                  />
+                  Presta servicios (barbero/estilista) — aparece en "Atendido por" al cobrar
+                </label>
+
+                {editDraft.isServiceProvider && (
+                  <div className="rounded-xl bg-brand-950/[0.03] border border-brand-950/10 p-3 space-y-2.5">
+                    <label className="block text-xs">
+                      <span className="text-brand-950/60">Comisión que se lleva (%)</span>
+                      <input
+                        value={editDraft.commissionPercent}
+                        onChange={(e) => setEditDraft({ ...editDraft, commissionPercent: e.target.value })}
+                        placeholder="50"
+                        inputMode="decimal"
+                        className="mt-1 w-24 border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                      />
+                      <span className="ml-2 text-brand-950/40">del monto de sus servicios</span>
+                    </label>
+
+                    <div>
+                      <p className="text-xs font-semibold text-brand-950 mb-1">Sus datos de cobro</p>
+                      <p className="text-[11px] text-brand-950/45 mb-2">
+                        Al cobrar un servicio suyo se muestran ESTOS datos, no los del local — el cliente le paga
+                        directo. La venta igual queda registrada acá.
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          value={editDraft.pmTelefono}
+                          onChange={(e) => setEditDraft({ ...editDraft, pmTelefono: e.target.value })}
+                          placeholder="Pago Móvil: teléfono"
+                          className="border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                        />
+                        <input
+                          value={editDraft.pmBanco}
+                          onChange={(e) => setEditDraft({ ...editDraft, pmBanco: e.target.value })}
+                          placeholder="Banco"
+                          className="border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                        />
+                        <input
+                          value={editDraft.pmCedula}
+                          onChange={(e) => setEditDraft({ ...editDraft, pmCedula: e.target.value })}
+                          placeholder="Cédula"
+                          className="border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                        />
+                        <input
+                          value={editDraft.pmTitular}
+                          onChange={(e) => setEditDraft({ ...editDraft, pmTitular: e.target.value })}
+                          placeholder="Titular"
+                          className="border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                        />
+                        <input
+                          value={editDraft.zelleCorreo}
+                          onChange={(e) => setEditDraft({ ...editDraft, zelleCorreo: e.target.value })}
+                          placeholder="Zelle: correo (opcional)"
+                          className="border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm col-span-2"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex items-center gap-3 pt-1">
                   <TextureButton
                     variant="brand"
@@ -188,6 +298,7 @@ export function ShopTeamSection() {
                   </p>
                   <p className="text-xs text-brand-950/40 truncate">
                     {s.email} · {ROLE_LABELS[s.role]}
+                    {s.isServiceProvider && ` · presta servicios${s.commissionPercent ? ` (${s.commissionPercent}%)` : ''}`}
                   </p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">

@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import type {
@@ -8,6 +9,7 @@ import type {
   CreateShopAdjustmentInput,
   OpenShopTillInput,
   CloseShopTillInput,
+  SetShopServiceSuppliesInput,
 } from './shop.dto';
 
 /**
@@ -16,10 +18,64 @@ import type {
  * mutación del hook de frontend dispara una llamada aquí; el frontend mantiene su propio
  * estado local optimista y reconcilia con lo que devuelve el servidor (ver shopSession.ts).
  */
+
+/**
+ * Aplica (o revierte) el consumo de insumos de los servicios de un ticket.
+ *
+ * `sign` = -1 al vender (descuenta) y +1 al devolver (repone), para que ambos caminos usen
+ * exactamente el mismo cálculo y no puedan desalinearse. Es best-effort: si un insumo ya no
+ * existe, la venta se registra igual — nunca se bloquea un cobro por el inventario. El stock
+ * nunca queda negativo.
+ */
+async function applySupplyConsumption(
+  tx: Prisma.TransactionClient,
+  restaurantId: string,
+  items: { productId?: string | null; qty: number }[],
+  sign: 1 | -1,
+) {
+  const serviceIds = [...new Set(items.map((it) => it.productId).filter((v): v is string => !!v))];
+  if (serviceIds.length === 0) return;
+
+  const recipes = await tx.shopServiceSupply.findMany({
+    where: { restaurantId, serviceProductId: { in: serviceIds } },
+  });
+  if (recipes.length === 0) return;
+
+  // Cuántas veces se vendió cada servicio en este ticket (sumando líneas repetidas — el mismo
+  // corte puede aparecer dos veces, con barberos distintos).
+  const soldByService = new Map<string, number>();
+  for (const it of items) {
+    if (!it.productId) continue;
+    soldByService.set(it.productId, (soldByService.get(it.productId) ?? 0) + it.qty);
+  }
+
+  // Consumo total por insumo+variante, acumulando todos los servicios del ticket.
+  const usedByVariant = new Map<string, { productId: string; v1: string; v2: string; qty: number }>();
+  for (const line of recipes) {
+    const sold = soldByService.get(line.serviceProductId) ?? 0;
+    if (sold <= 0) continue;
+    const key = `${line.supplyProductId}|${line.supplyV1}|${line.supplyV2}`;
+    const prev = usedByVariant.get(key);
+    const qty = (prev?.qty ?? 0) + line.quantity * sold;
+    usedByVariant.set(key, { productId: line.supplyProductId, v1: line.supplyV1, v2: line.supplyV2, qty });
+  }
+
+  for (const u of usedByVariant.values()) {
+    await tx.shopProductVariant.updateMany({
+      where: { productId: u.productId, v1: u.v1, v2: u.v2 },
+      data: { stock: { increment: sign * u.qty } },
+    });
+    await tx.shopProductVariant.updateMany({
+      where: { productId: u.productId, v1: u.v1, v2: u.v2, stock: { lt: 0 } },
+      data: { stock: 0 },
+    });
+  }
+}
+
 export const shopService = {
   /** Carga inicial única: todo lo que ShopLayout necesita para hidratar la sesión. */
   async getState(restaurantId: string) {
-    const [products, sales, purchases, adjustments, categories, subcategories, till, closedTills] = await Promise.all([
+    const [products, sales, purchases, adjustments, categories, subcategories, till, closedTills, serviceSupplies] = await Promise.all([
       prisma.shopProduct.findMany({ where: { restaurantId }, include: { variants: true }, orderBy: { createdAt: 'asc' } }),
       prisma.shopSale.findMany({ where: { restaurantId }, include: { items: true }, orderBy: { time: 'desc' } }),
       prisma.shopPurchase.findMany({ where: { restaurantId }, orderBy: { time: 'desc' } }),
@@ -28,6 +84,7 @@ export const shopService = {
       prisma.shopSubcategory.findMany({ where: { restaurantId }, orderBy: { name: 'asc' } }),
       prisma.shopCashSession.findFirst({ where: { restaurantId, closedAt: null } }),
       prisma.shopCashSession.findMany({ where: { restaurantId, closedAt: { not: null } }, orderBy: { closedAt: 'desc' } }),
+      prisma.shopServiceSupply.findMany({ where: { restaurantId } }),
     ]);
 
     const subcategoriesByCategory: Record<string, string[]> = {};
@@ -35,7 +92,7 @@ export const shopService = {
       (subcategoriesByCategory[s.category] ??= []).push(s.name);
     }
 
-    return { products, sales, purchases, adjustments, categories: categories.map((c) => c.name), subcategories: subcategoriesByCategory, till, closedTills };
+    return { products, sales, purchases, adjustments, categories: categories.map((c) => c.name), subcategories: subcategoriesByCategory, till, closedTills, serviceSupplies };
   },
 
   // --- Catálogo ---
@@ -119,9 +176,48 @@ export const shopService = {
     await this.ensureCategory(restaurantId, category, name);
   },
 
+  // --- Insumos que consume un servicio (barbería/salón) ---
+
+  /** Reemplaza la receta completa de un servicio, igual que se reemplazan sus variantes. */
+  async setServiceSupplies(restaurantId: string, serviceProductId: string, input: SetShopServiceSuppliesInput) {
+    const service = await prisma.shopProduct.findFirst({ where: { id: serviceProductId, restaurantId }, select: { id: true } });
+    if (!service) throw notFound('Servicio no encontrado.');
+
+    // Los insumos tienen que ser productos del MISMO local: si no, se estaría descontando el
+    // inventario de otro inquilino.
+    const supplyIds = [...new Set(input.supplies.map((x) => x.supplyProductId))];
+    if (supplyIds.length > 0) {
+      const owned = await prisma.shopProduct.count({ where: { id: { in: supplyIds }, restaurantId } });
+      if (owned !== supplyIds.length) throw badRequest('Alguno de los insumos no pertenece a este local.');
+    }
+
+    return prisma.$transaction(async (tx) => {
+      await tx.shopServiceSupply.deleteMany({ where: { restaurantId, serviceProductId } });
+      if (input.supplies.length > 0) {
+        await tx.shopServiceSupply.createMany({
+          data: input.supplies.map((x) => ({ restaurantId, serviceProductId, ...x })),
+        });
+      }
+      return tx.shopServiceSupply.findMany({ where: { restaurantId, serviceProductId } });
+    });
+  },
+
   // --- Ventas ---
 
   async recordSale(restaurantId: string, input: CreateShopSaleInput) {
+    // Comisión de cada profesional que aparece en el ticket, congelada al momento de vender:
+    // si mañana le cambian el %, lo ya liquidado no se mueve.
+    const staffIds = [...new Set(input.items.map((it) => it.staffUserId).filter((v): v is string => !!v))];
+    const staff = staffIds.length
+      ? await prisma.user.findMany({ where: { id: { in: staffIds }, restaurantId }, select: { id: true, commissionPercent: true } })
+      : [];
+    const commissionByUser = new Map(staff.map((u) => [u.id, u.commissionPercent ?? 0]));
+    const commissionFor = (it: { staffUserId?: string | null; price: number; qty: number }) => {
+      if (!it.staffUserId) return null;
+      const pct = commissionByUser.get(it.staffUserId) ?? 0;
+      return Math.round((it.price * it.qty * (pct / 100) + Number.EPSILON) * 100) / 100;
+    };
+
     return prisma.$transaction(async (tx) => {
       const sale = await tx.shopSale.create({
         data: {
@@ -148,6 +244,9 @@ export const shopService = {
                 soldByWeight: it.soldByWeight,
                 detail: it.detail ?? null,
                 stockQty: it.stockQty ?? null,
+                staffUserId: it.staffUserId ?? null,
+                commissionPercent: commissionByUser.get(it.staffUserId ?? '') ?? null,
+                commissionBase: commissionFor(it),
               })),
             },
           },
@@ -166,6 +265,10 @@ export const shopService = {
           data: { stock: { decrement: item.stockQty ?? item.qty } },
         });
       }
+      // Insumos que consume cada servicio vendido (ej. un corte gasta 0,025 potes de cera).
+      // Se descuentan del mismo inventario del local, sin que el barbero registre nada aparte.
+      await applySupplyConsumption(tx, restaurantId, input.items, -1);
+
       // Piso en 0 (updateMany con decrement puede dejar negativo si había menos stock del esperado).
       await tx.shopProductVariant.updateMany({
         where: { productId: { in: input.items.map((it) => it.productId).filter((v): v is string => !!v) }, stock: { lt: 0 } },
@@ -190,6 +293,8 @@ export const shopService = {
           data: { stock: { increment: item.stockQty ?? item.qty } },
         });
       }
+      // Y devuelve al inventario los insumos que esos servicios habían consumido.
+      await applySupplyConsumption(tx, restaurantId, sale.items, 1);
       return tx.shopSale.update({ where: { id }, data: { returned: true }, include: { items: true } });
     });
   },

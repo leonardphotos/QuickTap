@@ -50,6 +50,8 @@ const saleItemSchema = z.object({
   detail: z.string().max(200).nullable().optional(),
   // Metros lineales a descontar del rollo, cuando difiere de `qty` (que son los m² cobrados).
   stockQty: z.coerce.number().min(0).nullable().optional(),
+  // Profesional que prestó este servicio (barbero/estilista) — alimenta el reporte por barbero.
+  staffUserId: z.string().nullable().optional(),
 });
 
 export const createShopSaleSchema = z.object({
@@ -100,6 +102,21 @@ export const createShopAdjustmentSchema = z.object({
   reason: z.string().max(200).optional().default(''),
 });
 
+// Receta de insumos de un servicio: se reemplaza completa (igual que las variantes de un
+// producto), en vez de ir agregando/quitando línea por línea.
+export const setShopServiceSuppliesSchema = z.object({
+  supplies: z
+    .array(
+      z.object({
+        supplyProductId: z.string().min(1),
+        supplyV1: z.string().default(''),
+        supplyV2: z.string().default(''),
+        quantity: z.coerce.number().gt(0),
+      }),
+    )
+    .max(30),
+});
+
 export const openShopTillSchema = z.object({
   opening: z.coerce.number().min(0),
 });
@@ -121,5 +138,6 @@ export type UpdateShopProductInput = z.infer<typeof updateShopProductSchema>;
 export type CreateShopSaleInput = z.infer<typeof createShopSaleSchema>;
 export type CreateShopPurchaseInput = z.infer<typeof createShopPurchaseSchema>;
 export type CreateShopAdjustmentInput = z.infer<typeof createShopAdjustmentSchema>;
+export type SetShopServiceSuppliesInput = z.infer<typeof setShopServiceSuppliesSchema>;
 export type OpenShopTillInput = z.infer<typeof openShopTillSchema>;
 export type CloseShopTillInput = z.infer<typeof closeShopTillSchema>;

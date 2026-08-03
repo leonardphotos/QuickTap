@@ -22,6 +22,8 @@ router.get('/receivables/history', shopController.listAllCredit);
 router.post('/sales/:id/payments', shopController.addSalePayment);
 router.patch('/sales/:id/due-date', shopController.setSaleDueDate);
 
+router.put('/products/:id/supplies', shopController.setServiceSupplies);
+
 router.post('/purchases', shopController.recordPurchase);
 router.post('/adjustments', shopController.recordAdjustment);
 

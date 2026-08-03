@@ -452,6 +452,7 @@ model Restaurant {
   shopCashSessions     ShopCashSession[]
   shopCategories       ShopCategory[]
   shopSubcategories    ShopSubcategory[]
+  shopServiceSupplies  ShopServiceSupply[]
 
   @@index([parentRestaurantId])
   @@map("restaurants")
@@ -524,6 +525,17 @@ model User {
   // configura el suyo la primera vez que entra al panel (obligatorio, no se puede
   // omitir). Null = todavía no lo configuró; se le exige antes de poder usar el panel.
   lockPinHash String?
+
+  // --- Personal que presta servicios (barberos, estilistas, manicuristas...) ---
+  // Local Comercial: este usuario aparece en el selector "Atendido por" del POS y sus
+  // servicios se le acreditan para el reporte por profesional.
+  isServiceProvider Boolean @default(false)
+  // % que se lleva de lo que factura (ej. 50 = mitad para él, mitad para el local). Null = 0.
+  commissionPercent Float?
+  // Sus PROPIOS datos de cobro (mismo formato que Restaurant.paymentMethodsConfig): en una
+  // barbería el cliente le paga directo al barbero a su Pago Móvil/Zelle, aunque la venta se
+  // registre igual en el local. Null = se cobra con los datos del local.
+  paymentMethodsConfig Json?
 
   restaurant         Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   placedOrders       Order[]       @relation("OrderPlacedBy")
@@ -1811,6 +1823,8 @@ model ShopProduct {
 
   restaurant Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   variants   ShopProductVariant[]
+  // Insumos que consume este producto cuando es un servicio (ver ShopServiceSupply).
+  serviceSupplies ShopServiceSupply[] @relation("ShopServiceSupplyService")
 
   @@index([restaurantId])
   @@map("shop_products")
@@ -1907,11 +1921,50 @@ model ShopSaleItem {
   // son los m² que se COBRAN (1,096) pero del rollo se consumen metros LINEALES (0,80): sin este
   // campo se descontaría el número equivocado. Null = descontar `qty`, como el resto del catálogo.
   stockQty     Float?
+  // Profesional que prestó ESTE servicio (barbero/estilista). Por línea y no por venta: un
+  // mismo ticket puede llevar el corte de un barbero y un producto vendido sin nadie detrás.
+  // Sin relación FK: si el usuario se borra, la venta histórica no se toca (igual que productId).
+  staffUserId       String?
+  // Congelados al momento de la venta, como el resto de los importes: si después se le cambia
+  // el % al barbero, lo ya liquidado no se mueve.
+  commissionPercent Float?
+  commissionBase    Float?
 
   sale ShopSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
   @@index([saleId])
+  @@index([staffUserId])
   @@map("shop_sale_items")
+}
+
+// Receta de insumos de un servicio del Local Comercial: qué consume cada "Corte" de los
+// productos del propio inventario (shampoo, cera, tinte...). Al vender el servicio, el stock
+// de cada insumo baja solo — el barbero no tiene que registrar nada aparte.
+//
+// El insumo es otro ShopProduct+variante del mismo local, así que se compra y se cuenta con
+// las mismas herramientas que el resto del inventario (Registrar compra / Recuento físico).
+model ShopServiceSupply {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  // Servicio que consume el insumo (ej. "Corte de Cabello").
+  serviceProductId String
+  // Insumo consumido, identificado igual que en las ventas: producto + variante por contenido.
+  supplyProductId  String
+  supplyV1         String
+  supplyV2         String @default("")
+  // Cuánto se consume por servicio, en la MISMA unidad en que se lleva el stock del insumo.
+  // Un pote de cera que rinde 40 cortes se carga como 0.025 (= 1/40).
+  quantity         Float
+
+  createdAt DateTime @default(now())
+
+  restaurant     Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  serviceProduct ShopProduct @relation("ShopServiceSupplyService", fields: [serviceProductId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+  @@index([serviceProductId])
+  @@map("shop_service_supplies")
 }
 
 // Compra a proveedor que repone stock (suma unidades, a diferencia de un ajuste de inventario).

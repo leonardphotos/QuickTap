@@ -1,15 +1,17 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
 import { Camera, CheckCircle2, ClipboardList, Loader2, MessageCircle, Minus, Plus, Printer, ScanLine, Search, ShoppingCart, Wrench, X } from 'lucide-react';
 import { api } from '@/api/client';
 import type { AuthRestaurant } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext';
+import type { StaffMember } from '@/types';
 import { useToast } from '@/hooks/useToast';
 import { sendWhatsappOrOpen } from '@/utils/sendWhatsapp';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Toast } from '@/components/ui/toast';
 import type { ShopRubro, ShopVariant } from '@/data/shopRubros';
-import { shopMoneyFormatters } from './shopFormat';
+import { formatStock, shopMoneyFormatters } from './shopFormat';
 import { effectivePrice, lineTotal, productStatus, productStock, type PaymentMeta, type Sale, type ShopProduct, type ShopSession } from './shopSession';
 import ShopBarcodeScanDialog from './ShopBarcodeScanDialog';
 import { playCashSound } from './shopSounds';
@@ -114,8 +116,9 @@ const PAYMENT_METHOD_META: { key: keyof NonNullable<AuthRestaurant['paymentMetho
 
 export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
-  const { products, cart, till, closedTills, categories, addToCart, addAdhocLine, addPrintLine, updateCartQty, setCartQty, removeFromCart, setCartLineDiscount, openTill, closeTill, checkout } = session;
+  const { products, cart, till, closedTills, categories, addToCart, addAdhocLine, addPrintLine, activeStaffUserId, setActiveStaffUserId, updateCartQty, setCartQty, removeFromCart, setCartLineDiscount, openTill, closeTill, checkout } = session;
   const { show, toastMessage } = useToast();
+  const { user } = useAuth();
 
   const [adhocOpen, setAdhocOpen] = useState(false);
   const [adhocName, setAdhocName] = useState('');
@@ -159,6 +162,24 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const cartPanelRef = useRef<HTMLDivElement>(null);
   const [scanCameraOpen, setScanCameraOpen] = useState(false);
 
+  // Profesionales que prestan servicios (barberos/estilistas) y a quién se le acredita la venta.
+  const [providers, setProviders] = useState<StaffMember[]>([]);
+
+  useEffect(() => {
+    api
+      .get('/team')
+      .then((res) => {
+        const list = (res.data.data as StaffMember[]).filter((u) => u.isServiceProvider && u.isActive);
+        setProviders(list);
+        // Si quien está cobrando es él mismo un barbero, se preselecciona: en la práctica cada
+        // uno carga sus propios cortes desde su sesión.
+        if (user && list.some((u) => u.id === user.id)) setActiveStaffUserId(user.id);
+      })
+      .catch(() => setProviders([]));
+  }, [user?.id]);
+
+  const activeProvider = providers.find((p) => p.id === activeStaffUserId) ?? null;
+
   const [fiadoOpen, setFiadoOpen] = useState(false);
   const [fiadoStep, setFiadoStep] = useState<'choose' | 'installment'>('choose');
   const [fiadoAbono, setFiadoAbono] = useState('');
@@ -168,10 +189,21 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
 
   const subtotal = cart.reduce((a, c) => a + lineTotal(c), 0);
   const total = subtotal * (1 - discount / 100);
-  const qrImageUrl = restaurant.paymentMethodsConfig?.MOBILE_PAYMENT?.qrImageUrl;
+  // Datos de cobro que se le muestran al cliente: los del BARBERO si tiene los suyos cargados
+  // (le paga directo a él), si no los del local. La venta se registra igual en el local.
+  const payToConfig = activeProvider?.paymentMethodsConfig ?? restaurant.paymentMethodsConfig;
+  const payToName = activeProvider?.paymentMethodsConfig ? activeProvider.name : restaurant.name;
+  const payToIsStaff = Boolean(activeProvider?.paymentMethodsConfig);
+  // El QR del local no aplica si el cobro va a la cuenta del barbero.
+  const qrImageUrl = payToIsStaff ? undefined : restaurant.paymentMethodsConfig?.MOBILE_PAYMENT?.qrImageUrl;
   // Solo se ofrecen al cobrar los métodos que el dueño activó en Ajustes > Métodos de pago —
   // si todavía no configuró ninguno, se cae a Efectivo Bs para no bloquear el cobro.
-  const enabledPaymentMethods = PAYMENT_METHOD_META.filter((m) => restaurant.paymentMethodsConfig?.[m.key]?.enabled);
+  // Los métodos que se ofrecen al cobrar son los del local MÁS los propios del barbero que
+  // atiende: si él tiene su Pago Móvil pero el local no lo activó, igual debe poder cobrarlo —
+  // el cliente le paga a él. Sin esto, tener datos de cobro propios no servía de nada.
+  const enabledPaymentMethods = PAYMENT_METHOD_META.filter(
+    (m) => restaurant.paymentMethodsConfig?.[m.key]?.enabled || activeProvider?.paymentMethodsConfig?.[m.key]?.enabled,
+  );
   const paymentMethodOptions = enabledPaymentMethods.length > 0 ? enabledPaymentMethods : [PAYMENT_METHOD_META[0]];
   // Monto a cobrar en la pantalla de Pago Móvil: el total normal, o el abono elegido si es fiado fraccionado.
   const pmTargetAmount = saleMode.kind === 'fiado' ? saleMode.amountPaidNow : total;
@@ -555,7 +587,7 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
                       </span>
                     ) : (
                       <span className={`inline-block mt-1.5 text-[10.5px] font-medium px-2 py-0.5 rounded-full ${STATUS_CLASS[status]}`}>
-                        {STATUS_LABEL[status]}{status !== 'danger' ? ` · ${isWeight ? `${stock.toFixed(1)} Kg` : stock}` : ''}
+                        {STATUS_LABEL[status]}{status !== 'danger' ? ` · ${isWeight ? `${stock.toFixed(1)} Kg` : formatStock(stock)}` : ''}
                       </span>
                     )}
                   </button>
@@ -566,6 +598,28 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
         </div>
 
         <div ref={cartPanelRef} className="w-full lg:w-[360px] shrink-0 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-5 flex flex-col gap-4">
+          {providers.length > 0 && (
+            <label className="block text-sm">
+              <span className="text-brand-950/70">Atendido por</span>
+              <select
+                value={activeStaffUserId}
+                onChange={(e) => setActiveStaffUserId(e.target.value)}
+                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              >
+                <option value="">— Sin asignar —</option>
+                {providers.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                    {p.commissionPercent ? ` · ${p.commissionPercent}%` : ''}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-1 block text-[11px] text-brand-950/45">
+                Se le acredita lo que agregues al carrito desde ahora. Cámbialo antes de agregar si atiende otro.
+              </span>
+            </label>
+          )}
+
           <div className="flex items-center justify-between">
             <h3 className="text-[15px] font-bold text-brand-950">Carrito</h3>
             <span className="text-[11px] font-bold bg-brand-500/10 text-brand-500 px-2.5 py-1 rounded-full">
@@ -581,7 +635,12 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
                 <div key={c.key} className="flex items-center gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-semibold text-brand-950 truncate">{c.name}</p>
-                    <p className="text-[11.5px] text-brand-950/40">{c.detail ?? `${c.v1}${c.v2 ? ` · ${c.v2}` : ''}`}</p>
+                    <p className="text-[11.5px] text-brand-950/40">
+                      {c.detail ?? `${c.v1}${c.v2 ? ` · ${c.v2}` : ''}`}
+                      {c.staffUserId && providers.find((p) => p.id === c.staffUserId) && (
+                        <span className="text-brand-500"> · {providers.find((p) => p.id === c.staffUserId)!.name}</span>
+                      )}
+                    </p>
                     {effectivePrice(c) !== c.price && (
                       <p className="text-[10.5px] font-semibold text-emerald-600">
                         {c.promoPrice != null ? 'Promo' : 'Mayorista'} {money(effectivePrice(c))}/u
@@ -864,6 +923,29 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
               className="mx-auto w-full max-w-[340px] aspect-square object-contain rounded-2xl border border-brand-950/10"
             />
           )}
+          {(() => {
+            const pm = payToConfig?.MOBILE_PAYMENT;
+            if (!pm?.telefono && !pm?.cedula) return null;
+            return (
+              <div className="rounded-2xl border border-brand-950/10 bg-brand-950/[0.03] p-3.5 text-left">
+                <p className="text-[11px] font-bold uppercase tracking-wide text-brand-950/45">
+                  {payToIsStaff ? `Pagar a ${payToName}` : 'Pagar a'}
+                </p>
+                <div className="mt-1.5 space-y-0.5 text-sm text-brand-950">
+                  {pm.titular && <p className="font-semibold">{pm.titular}</p>}
+                  {pm.telefono && <p>{pm.telefono}</p>}
+                  {pm.banco && <p className="text-brand-950/60">{pm.banco}</p>}
+                  {pm.cedula && <p className="text-brand-950/60">{pm.cedula}</p>}
+                </div>
+                {payToIsStaff && (
+                  <p className="mt-2 text-[11px] text-brand-950/45">
+                    Cuenta propia del profesional. La venta queda registrada igual en el local.
+                  </p>
+                )}
+              </div>
+            );
+          })()}
+
           <div>
             <p className="text-sm font-semibold text-brand-950/50">Monto a cancelar</p>
             <div className="text-[40px] sm:text-[48px] font-extrabold text-emerald-600 leading-none tracking-tight mt-1">
@@ -992,7 +1074,7 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
                   >
                     <span className="font-medium text-brand-950">{label}</span>
                     <span className="text-sm text-brand-950/50 shrink-0">
-                      {out ? 'Agotado' : v.soldByWeight ? 'Por Kg' : `${v.stock} en stock`}
+                      {out ? 'Agotado' : v.soldByWeight ? 'Por Kg' : `${formatStock(v.stock)} en stock`}
                     </span>
                   </button>
                 );

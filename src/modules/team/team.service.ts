@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { isDeliveryTierPlan } from '../../utils/subscription';
@@ -12,6 +13,9 @@ const STAFF_SELECT = {
   role: true,
   isActive: true,
   canAccessInventory: true,
+  isServiceProvider: true,
+  commissionPercent: true,
+  paymentMethodsConfig: true,
   createdAt: true,
 } as const;
 
@@ -49,6 +53,9 @@ export const teamService = {
         passwordHash,
         role: input.role,
         canAccessInventory: input.canAccessInventory ?? false,
+        isServiceProvider: input.isServiceProvider ?? false,
+        commissionPercent: input.commissionPercent ?? null,
+        paymentMethodsConfig: (input.paymentMethodsConfig ?? undefined) as Prisma.InputJsonValue | undefined,
       },
       select: STAFF_SELECT,
     });
@@ -56,7 +63,19 @@ export const teamService = {
 
   async update(restaurantId: string, id: string, input: UpdateStaffInput) {
     await this.assertManageable(restaurantId, id);
-    return prisma.user.update({ where: { id }, data: input, select: STAFF_SELECT });
+    // paymentMethodsConfig es una columna Json: para borrarla hay que mandar Prisma.DbNull, no
+    // null a secas (null en un campo Json significa "no tocar" en el tipado de Prisma).
+    const { paymentMethodsConfig, ...rest } = input;
+    return prisma.user.update({
+      where: { id },
+      data: {
+        ...rest,
+        ...(paymentMethodsConfig !== undefined
+          ? { paymentMethodsConfig: paymentMethodsConfig === null ? Prisma.DbNull : (paymentMethodsConfig as Prisma.InputJsonValue) }
+          : {}),
+      },
+      select: STAFF_SELECT,
+    });
   },
 
   async remove(restaurantId: string, id: string) {

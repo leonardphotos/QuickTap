@@ -46,6 +46,19 @@ export interface RawShopSaleItem {
   soldByWeight: boolean;
   detail: string | null;
   stockQty: number | null;
+  staffUserId: string | null;
+  commissionPercent: number | null;
+  commissionBase: number | null;
+}
+
+/** Una línea de la receta de insumos de un servicio (ver ShopServiceSupply en el backend). */
+export interface RawShopServiceSupply {
+  id: string;
+  serviceProductId: string;
+  supplyProductId: string;
+  supplyV1: string;
+  supplyV2: string;
+  quantity: number;
 }
 
 export interface RawShopSale {
@@ -108,6 +121,7 @@ export interface ShopState {
   subcategories: Record<string, string[]>;
   till: RawShopTill | null;
   closedTills: RawShopTill[];
+  serviceSupplies: RawShopServiceSupply[];
 }
 
 export const shopApi = {
@@ -126,8 +140,29 @@ export const shopApi = {
     return data.data;
   },
 
+  async setServiceSupplies(
+    serviceProductId: string,
+    supplies: { supplyProductId: string; supplyV1: string; supplyV2: string; quantity: number }[],
+  ): Promise<RawShopServiceSupply[]> {
+    const { data } = await api.put(`/shop/products/${serviceProductId}/supplies`, { supplies });
+    return data.data;
+  },
+
   async recordSale(payload: {
-    items: { productId?: string; v1: string; v2: string; name: string; category: string | null; qty: number; price: number; cost: number; soldByWeight?: boolean }[];
+    items: {
+      productId?: string;
+      v1: string;
+      v2: string;
+      name: string;
+      category: string | null;
+      qty: number;
+      price: number;
+      cost: number;
+      soldByWeight?: boolean;
+      detail?: string;
+      stockQty?: number;
+      staffUserId?: string | null;
+    }[];
     total: number;
     customerName: string | null;
     customerPhone: string | null;
