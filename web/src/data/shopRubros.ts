@@ -40,6 +40,14 @@ export interface ShopProductSeed {
   expiryDate?: string;
   /** Foto del producto — obligatoria al crear uno nuevo desde Inventario. */
   photoUrl?: string;
+  /** 'AREA_ROLL' = impresión de gran formato: se cobra por m² saliendo de un rollo de ancho
+   * fijo, y price/cost pasan a ser por m² (ver shop/printPricing.ts). Ausente o 'UNIT' = venta
+   * por unidad de siempre. */
+  pricingMode?: 'UNIT' | 'AREA_ROLL';
+  /** Anchos de rollo disponibles en metros, ej. [1.06, 1.37, 1.6, 1.84]. Solo con AREA_ROLL. */
+  rollWidths?: number[];
+  /** Largo del rollo en metros (típicamente 50) — base para derivar el costo por m². */
+  rollLengthM?: number;
 }
 
 export interface ShopRubro {

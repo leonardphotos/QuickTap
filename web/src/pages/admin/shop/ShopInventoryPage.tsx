@@ -8,6 +8,7 @@ import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
 import type { ShopProductSeed, ShopRubro, ShopVariant } from '@/data/shopRubros';
 import { shopMoneyFormatters } from './shopFormat';
 import { productStatus, productStock, type ShopProduct, type ShopSession } from './shopSession';
+import { costPerM2FromRoll, formatRollWidths, parseRollWidths } from './printPricing';
 import ShopSkuScanDialog from './ShopSkuScanDialog';
 
 interface Props {
@@ -58,6 +59,13 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
    * única variante interna "Único" para reusar el mismo modelo de stock por variante. */
   const [npBasicStock, setNpBasicStock] = useState('');
   const [npSoldByWeight, setNpSoldByWeight] = useState(false);
+  // Impresión de gran formato: se cobra por m² saliendo de un rollo de ancho fijo.
+  const [npAreaRoll, setNpAreaRoll] = useState(false);
+  const [npRollWidths, setNpRollWidths] = useState('');
+  const [npRollLength, setNpRollLength] = useState('50');
+  // Auxiliar para derivar el costo por m²: lo que costó el rollo entero y de qué ancho era.
+  const [npRollPrice, setNpRollPrice] = useState('');
+  const [npRollPriceWidth, setNpRollPriceWidth] = useState('');
   const [npWholesalePrice, setNpWholesalePrice] = useState('');
   const [npWholesaleMinQty, setNpWholesaleMinQty] = useState('');
   const [npPromoPrice, setNpPromoPrice] = useState('');
@@ -257,6 +265,11 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     setNpStock('');
     setNpBasicStock('');
     setNpSoldByWeight(false);
+    setNpAreaRoll(false);
+    setNpRollWidths('');
+    setNpRollLength('50');
+    setNpRollPrice('');
+    setNpRollPriceWidth('');
     setNpWholesalePrice('');
     setNpWholesaleMinQty('');
     setNpPromoPrice('');
@@ -292,6 +305,9 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
       setNpBasicStock('');
     }
     setNpSoldByWeight(p.variants.some((v) => v.soldByWeight));
+    setNpAreaRoll(p.pricingMode === 'AREA_ROLL');
+    setNpRollWidths(p.rollWidths ? formatRollWidths(p.rollWidths) : '');
+    setNpRollLength(p.rollLengthM != null ? String(p.rollLengthM) : '50');
     setNpV1('');
     setNpV2('');
     setNpStock('');
@@ -351,13 +367,24 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     if (!npName.trim()) return setSaveError('Falta el nombre del producto.');
     if (!npSku.trim()) return setSaveError('Falta el SKU / código de barras.');
     if (!price) return setSaveError('El precio de venta debe ser mayor a 0.');
-    if (npVariants.length === 0 && npBasicStock.trim() === '') {
+    const rollWidths = npAreaRoll ? parseRollWidths(npRollWidths) : [];
+    if (npAreaRoll && rollWidths.length === 0) {
+      return setSaveError('Ingresa al menos un ancho de rollo (ej. 1,06 1,37 1,60).');
+    }
+    // Un producto por m² no lleva stock por unidades: el material se controla por rollo, así que
+    // no se le pide stock ni variantes como al resto del catálogo.
+    if (!npAreaRoll && npVariants.length === 0 && npBasicStock.trim() === '') {
       return setSaveError('Ingresa el stock del producto, o agrega al menos una variante (talla/color) si aplica.');
     }
     if (!editingProductId && !npPhotoUrl) return setSaveError('Agrega una foto del producto.');
     setSaveError(null);
-    const variants: ShopVariant[] =
-      npVariants.length > 0 ? npVariants : [{ v1: 'Único', v2: '', stock: Number(npBasicStock) || 0, soldByWeight: npSoldByWeight }];
+    // El esquema exige al menos una variante; en impresión por m² se crea una sola, nominal,
+    // con stock alto para que nunca dispare alertas de agotado (el stock real es el rollo).
+    const variants: ShopVariant[] = npAreaRoll
+      ? [{ v1: 'Impresión', v2: '', stock: 999999, soldByWeight: false }]
+      : npVariants.length > 0
+        ? npVariants
+        : [{ v1: 'Único', v2: '', stock: Number(npBasicStock) || 0, soldByWeight: npSoldByWeight }];
     const input = {
       name: npName.trim(),
       category: npCategory,
@@ -374,6 +401,9 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
       promoPrice: npPromoPrice !== '' ? Number(npPromoPrice) || 0 : undefined,
       expiryDate: npExpiryDate || undefined,
       photoUrl: npPhotoUrl ?? undefined,
+      pricingMode: (npAreaRoll ? 'AREA_ROLL' : 'UNIT') as 'UNIT' | 'AREA_ROLL',
+      rollWidths: npAreaRoll ? rollWidths : undefined,
+      rollLengthM: npAreaRoll ? Number(npRollLength.replace(',', '.')) || 50 : undefined,
     };
     if (editingProductId) updateProduct(editingProductId, input);
     else addProduct(input);
@@ -887,20 +917,107 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
               <input value={npLocation} onChange={(e) => setNpLocation(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500" />
             </label>
             <label className="block text-sm">
-              <span className="text-brand-950/70">Precio de venta</span>
+              <span className="text-brand-950/70">Precio de venta{npAreaRoll ? ' (por m²)' : ''}</span>
               <input type="number" value={npPrice} onChange={(e) => setNpPrice(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500" />
             </label>
             <label className="block text-sm">
-              <span className="text-brand-950/70">Costo</span>
+              <span className="text-brand-950/70">Costo{npAreaRoll ? ' (por m²)' : ''}</span>
               <input type="number" value={npCost} onChange={(e) => setNpCost(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500" />
             </label>
-            <label className="block text-sm">
-              <span className="text-brand-950/70">Stock mínimo</span>
-              <input type="number" value={npMinStock} onChange={(e) => setNpMinStock(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500" />
-            </label>
+            {!npAreaRoll && (
+              <label className="block text-sm">
+                <span className="text-brand-950/70">Stock mínimo</span>
+                <input type="number" value={npMinStock} onChange={(e) => setNpMinStock(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500" />
+              </label>
+            )}
           </div>
 
+          {/* ---------- Impresión de gran formato (vinil / banner) ---------- */}
           <div className="border-t border-brand-950/[0.06] pt-3.5">
+            <label className="flex items-center gap-2 text-sm font-medium text-brand-950">
+              <input type="checkbox" checked={npAreaRoll} onChange={(e) => setNpAreaRoll(e.target.checked)} />
+              Se vende por metro cuadrado (impresión en vinil / banner)
+            </label>
+            <p className="text-xs text-brand-950/50 mt-1">
+              El material sale de rollos de ancho fijo y el sobrante a lo ancho no se reaprovecha, así que
+              al cliente se le cobra el ancho completo del rollo por el largo impreso.
+            </p>
+
+            {npAreaRoll && (
+              <div className="mt-3 space-y-3">
+                <label className="block text-sm">
+                  <span className="text-brand-950/70">Anchos de rollo disponibles (m)</span>
+                  <input
+                    value={npRollWidths}
+                    onChange={(e) => setNpRollWidths(e.target.value)}
+                    placeholder="Banner: 1,06 1,37 1,60 1,84 · Vinil: 1,22 1,40 1,52"
+                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  />
+                  {parseRollWidths(npRollWidths).length > 0 && (
+                    <span className="mt-1 block text-[11px] text-brand-950/50">
+                      Se usarán: {formatRollWidths(parseRollWidths(npRollWidths))} m
+                    </span>
+                  )}
+                </label>
+
+                <label className="block text-sm">
+                  <span className="text-brand-950/70">Largo del rollo (m)</span>
+                  <input
+                    value={npRollLength}
+                    onChange={(e) => setNpRollLength(e.target.value)}
+                    placeholder="50"
+                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  />
+                </label>
+
+                <div className="rounded-xl bg-brand-950/[0.03] border border-brand-950/10 p-3">
+                  <p className="text-xs font-semibold text-brand-950 mb-2">Calcular el costo por m² desde el rollo</p>
+                  <div className="flex gap-2">
+                    <label className="block text-xs flex-1">
+                      <span className="text-brand-950/60">Precio del rollo</span>
+                      <input
+                        value={npRollPrice}
+                        onChange={(e) => setNpRollPrice(e.target.value)}
+                        placeholder="180"
+                        className="mt-1 w-full border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                      />
+                    </label>
+                    <label className="block text-xs flex-1">
+                      <span className="text-brand-950/60">Ancho de ese rollo</span>
+                      <input
+                        value={npRollPriceWidth}
+                        onChange={(e) => setNpRollPriceWidth(e.target.value)}
+                        placeholder="1,37"
+                        className="mt-1 w-full border border-brand-950/15 rounded-lg px-2 py-1.5 text-sm"
+                      />
+                    </label>
+                  </div>
+                  {(() => {
+                    const perM2 = costPerM2FromRoll(
+                      Number(npRollPrice.replace(',', '.')),
+                      Number(npRollPriceWidth.replace(',', '.')),
+                      Number(npRollLength.replace(',', '.')),
+                    );
+                    if (perM2 == null) return null;
+                    return (
+                      <div className="flex items-center justify-between gap-2 mt-2">
+                        <span className="text-xs text-brand-950/60">Costo por m²: <strong className="text-brand-950">{perM2}</strong></span>
+                        <button
+                          type="button"
+                          onClick={() => setNpCost(String(perM2))}
+                          className="text-xs font-semibold text-brand-500 hover:underline"
+                        >
+                          Usar como costo
+                        </button>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className={`border-t border-brand-950/[0.06] pt-3.5 ${npAreaRoll ? 'hidden' : ''}`}>
             <p className="text-sm font-bold text-brand-950 mb-1">Stock y variantes</p>
             <p className="text-xs text-brand-950/50 mb-3">
               Si es un producto básico (no maneja talla/color), ingresa su stock directamente. Si maneja variantes, agrégalas abajo en vez de llenar el stock básico.

@@ -28,6 +28,9 @@ export interface RawShopProduct {
   promoPrice: number | null;
   expiryDate: string | null;
   photoUrl: string | null;
+  pricingMode: string;
+  rollWidths: number[] | null;
+  rollLengthM: number | null;
   variants: RawShopVariant[];
 }
 
@@ -41,6 +44,7 @@ export interface RawShopSaleItem {
   price: number;
   cost: number;
   soldByWeight: boolean;
+  detail: string | null;
 }
 
 export interface RawShopSale {
@@ -186,5 +190,8 @@ export function toShopProduct(p: RawShopProduct) {
     promoPrice: p.promoPrice ?? undefined,
     expiryDate: p.expiryDate ?? undefined,
     photoUrl: p.photoUrl ?? undefined,
+    pricingMode: (p.pricingMode === 'AREA_ROLL' ? 'AREA_ROLL' : 'UNIT') as 'UNIT' | 'AREA_ROLL',
+    rollWidths: p.rollWidths ?? undefined,
+    rollLengthM: p.rollLengthM ?? undefined,
   };
 }

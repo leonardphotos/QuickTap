@@ -34,6 +34,11 @@ export interface CartLine {
   /** Solo en líneas "servicio no registrado" (ver addAdhocLine, exclusivo rubro Agencia de
    * Publicidad): costo escrito a mano, porque no hay un ShopProduct real del que derivarlo. */
   cost?: number;
+  /** Impresión de gran formato: de dónde salió la cantidad de esta línea — "1,20 × 0,80 m ·
+   * rollo 1,37". Sin esto la venta solo mostraría "1,096" y nadie sabría qué se imprimió. */
+  detail?: string;
+  /** Unidad a mostrar junto a la cantidad ('m²' en impresión). Ausente = unidades. */
+  unitLabel?: string;
 }
 
 /** Precio unitario que realmente aplica a una línea del carrito: la promoción siempre gana (si
@@ -54,6 +59,7 @@ export interface SaleItem {
   price: number;
   cost: number;
   soldByWeight?: boolean;
+  detail?: string;
 }
 
 export interface PaymentMeta {
@@ -188,6 +194,9 @@ export interface NewProductInput {
   promoPrice?: number;
   expiryDate?: string;
   photoUrl?: string;
+  pricingMode?: 'UNIT' | 'AREA_ROLL';
+  rollWidths?: number[];
+  rollLengthM?: number;
 }
 
 // Una cuenta nueva arranca sin nada: el dueño carga su propio catálogo desde cero (Inventario
@@ -239,6 +248,7 @@ export function useShopSession(initialCategories: string[] = []) {
               price: it.price,
               cost: it.cost,
               soldByWeight: it.soldByWeight,
+              detail: it.detail ?? undefined,
             })),
             total: s.total,
             time: new Date(s.time),
@@ -354,6 +364,32 @@ export function useShopSession(initialCategories: string[] = []) {
     });
   }
 
+  /**
+   * Línea de carrito de impresión de gran formato (productos con pricingMode = 'AREA_ROLL'):
+   * la cantidad son los m² facturables ya resueltos contra el ancho de rollo (ver
+   * printPricing.ts), y `price` es el precio por m². Cada pieza entra como su propia línea
+   * aunque se repita el producto — dos piezas de medidas distintas del mismo banner no se
+   * pueden sumar en una sola cantidad sin perder qué se imprimió.
+   */
+  function addPrintLine(product: ShopProduct, billedM2: number, detail: string) {
+    setCart((prev) => [
+      ...prev,
+      {
+        key: `print-${product.id}-${Date.now()}`,
+        productId: product.id,
+        name: product.name,
+        price: product.price,
+        promoPrice: product.promoPrice,
+        v1: 'Impresión',
+        v2: '',
+        qty: billedM2,
+        disc: 0,
+        detail,
+        unitLabel: 'm²',
+      },
+    ]);
+  }
+
   /** Línea de carrito para un servicio no registrado en el catálogo (exclusivo del rubro Agencia
    * de Publicidad — ver ShopPosPage): no hay ShopProduct/ShopVariant detrás, así que name/price/cost
    * se escriben a mano en el momento de la venta en vez de venir de un producto existente. */
@@ -452,10 +488,15 @@ export function useShopSession(initialCategories: string[] = []) {
         price: effectivePrice(c) * (1 - (c.disc || 0) / 100),
         cost: c.cost ?? (product ? product.cost : 0),
         soldByWeight: c.soldByWeight,
+        detail: c.detail,
       };
     });
     const subtotal = cart.reduce((a, c) => a + lineTotal(c), 0);
-    const total = subtotal * (1 - generalDiscountPct / 100);
+    // Se guarda redondeado a céntimos, que es lo que realmente se le cobra al cliente. Con
+    // cantidades fraccionadas (Kg, o m² de impresión) el total casi nunca cae en un céntimo
+    // exacto — un banner de 1,096 m² a 12 € da 13,152: la pantalla mostraba 13,15 pero se
+    // guardaba 13,152, y esa diferencia se iba acumulando en los reportes de ventas.
+    const total = Math.round((subtotal * (1 - generalDiscountPct / 100) + Number.EPSILON) * 100) / 100;
     const sale: Sale = {
       id: `s${Date.now()}`,
       items: saleItems,
@@ -632,6 +673,7 @@ export function useShopSession(initialCategories: string[] = []) {
     addSubcategory,
     addToCart,
     addAdhocLine,
+    addPrintLine,
     updateCartQty,
     setCartQty,
     removeFromCart,

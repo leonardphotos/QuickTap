@@ -13,6 +13,7 @@ import { shopMoneyFormatters } from './shopFormat';
 import { effectivePrice, lineTotal, productStatus, productStock, type PaymentMeta, type Sale, type ShopProduct, type ShopSession } from './shopSession';
 import ShopBarcodeScanDialog from './ShopBarcodeScanDialog';
 import { playCashSound } from './shopSounds';
+import { describePrint, formatRollWidths, quotePrint } from './printPricing';
 
 interface Props {
   session: ShopSession;
@@ -40,7 +41,12 @@ function buildReceiptMessage(sale: Sale, restaurantName: string, money: (n: numb
   const bs = moneyBs(sale.total);
   const primary = primaryIsUsd || !bs ? money(sale.total) : bs;
   const secondary = primaryIsUsd || !bs ? bs : money(sale.total);
-  const lines = sale.items.map((it) => `• ${it.soldByWeight ? `${it.qty} Kg` : `${it.qty}x`} ${it.name} — ${money(it.price * it.qty)}`);
+  const lines = sale.items.map((it) => {
+    // Impresión de gran formato: la cantidad son m² y el detalle dice qué pieza se imprimió.
+    const qtyLabel = it.detail ? `${it.qty} m²` : it.soldByWeight ? `${it.qty} Kg` : `${it.qty}x`;
+    const suffix = it.detail ? `\n   ${it.detail}` : '';
+    return `• ${qtyLabel} ${it.name} — ${money(it.price * it.qty)}${suffix}`;
+  });
   return [
     `🧾 *${restaurantName}*`,
     `Ticket #${sale.id.slice(-6)}${sale.paymentMethod ? ` · ${sale.paymentMethod}` : ''}`,
@@ -108,7 +114,7 @@ const PAYMENT_METHOD_META: { key: keyof NonNullable<AuthRestaurant['paymentMetho
 
 export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
-  const { products, cart, till, closedTills, categories, addToCart, addAdhocLine, updateCartQty, setCartQty, removeFromCart, setCartLineDiscount, openTill, closeTill, checkout } = session;
+  const { products, cart, till, closedTills, categories, addToCart, addAdhocLine, addPrintLine, updateCartQty, setCartQty, removeFromCart, setCartLineDiscount, openTill, closeTill, checkout } = session;
   const { show, toastMessage } = useToast();
 
   const [adhocOpen, setAdhocOpen] = useState(false);
@@ -123,6 +129,11 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const [discount, setDiscount] = useState(0);
 
   const [weightOpen, setWeightOpen] = useState(false);
+  // Impresión de gran formato (rubro Agencia de Publicidad): medidas de la pieza a imprimir.
+  const [printOpen, setPrintOpen] = useState(false);
+  const [printProduct, setPrintProduct] = useState<ShopProduct | null>(null);
+  const [printWidth, setPrintWidth] = useState('');
+  const [printHeight, setPrintHeight] = useState('');
   const [weightProduct, setWeightProduct] = useState<ShopProduct | null>(null);
   const [weightVariant, setWeightVariant] = useState<ShopVariant | null>(null);
   const [weightInput, setWeightInput] = useState('');
@@ -164,7 +175,9 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const paymentMethodOptions = enabledPaymentMethods.length > 0 ? enabledPaymentMethods : [PAYMENT_METHOD_META[0]];
   // Monto a cobrar en la pantalla de Pago Móvil: el total normal, o el abono elegido si es fiado fraccionado.
   const pmTargetAmount = saleMode.kind === 'fiado' ? saleMode.amountPaidNow : total;
-  const cartItemCount = cart.reduce((a, c) => a + c.qty, 0);
+  // Las líneas con cantidad decimal (peso en Kg, m² de impresión) cuentan como 1 ítem cada una:
+  // sumar su cantidad daría "1.096 items" para un solo banner, o "0.5 items" para medio kilo.
+  const cartItemCount = cart.reduce((a, c) => a + (c.soldByWeight || c.unitLabel ? 1 : c.qty), 0);
 
   /** Carrito flotante (solo celular, oculto en escritorio donde el panel ya está siempre visible):
    * lleva directo al panel de carrito, que en pantallas angostas queda debajo de toda la grilla
@@ -180,11 +193,34 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   );
 
   function pickOrAddToCart(product: ShopProduct) {
+    // Impresión de gran formato: no se agrega "una unidad", se piden las medidas de la pieza y
+    // de ahí sale la cantidad en m² (ver printPricing.ts).
+    if (product.pricingMode === 'AREA_ROLL') {
+      setPrintProduct(product);
+      setPrintWidth('');
+      setPrintHeight('');
+      setPrintOpen(true);
+      return;
+    }
     if (product.variants.length > 1) {
       setVariantPickerProduct(product);
       return;
     }
     addVariantToCart(product, bestVariant(product));
+  }
+
+  /** Cotización en vivo de la pieza que se está midiendo — null mientras falten datos. */
+  const printQuote =
+    printProduct && printProduct.rollWidths
+      ? quotePrint(Number(printWidth.replace(',', '.')), Number(printHeight.replace(',', '.')), printProduct.rollWidths)
+      : null;
+
+  function confirmPrint() {
+    if (!printProduct || !printQuote) return;
+    const w = Number(printWidth.replace(',', '.'));
+    const h = Number(printHeight.replace(',', '.'));
+    addPrintLine(printProduct, printQuote.billedM2, describePrint(w, h, printQuote));
+    setPrintOpen(false);
   }
 
   /** Punto único por el que cualquier variante (elegida a mano o resuelta sola) llega al carrito
@@ -468,8 +504,13 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
               {filtered.map((p) => {
                 const status = productStatus(p);
                 const stock = productStock(p);
-                const disabled = status === 'danger';
+                // La impresión de gran formato se cobra por m² y no lleva control de stock por
+                // unidades (el material se descuenta por rollo, no por pieza), así que ni se
+                // deshabilita por "agotado" ni muestra la etiqueta de stock.
+                const isArea = p.pricingMode === 'AREA_ROLL';
+                const disabled = status === 'danger' && !isArea;
                 const isWeight = bestVariant(p).soldByWeight;
+                const unitSuffix = isArea ? ' / m²' : isWeight ? ' / Kg' : '';
                 return (
                   <button
                     key={p.id}
@@ -494,19 +535,25 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
                     <p className="text-[13px] font-semibold text-brand-950 leading-tight line-clamp-2">{p.name}</p>
                     {p.promoPrice != null ? (
                       <p className="text-sm font-bold text-red-600 mt-1">
-                        {money(p.promoPrice)}{isWeight ? ' / Kg' : ''}{' '}
+                        {money(p.promoPrice)}{unitSuffix}{' '}
                         <span className="text-[11px] font-medium text-brand-950/35 line-through">{money(p.price)}</span>
                       </p>
                     ) : (
-                      <p className="text-sm font-bold text-brand-500 mt-1">{money(p.price)}{isWeight ? ' / Kg' : ''}</p>
+                      <p className="text-sm font-bold text-brand-500 mt-1">{money(p.price)}{unitSuffix}</p>
                     )}
-                    {moneyBs(p.price) && <p className="text-[11px] text-brand-950/40">{moneyBs(p.promoPrice ?? p.price)}{isWeight ? ' / Kg' : ''}</p>}
+                    {moneyBs(p.price) && <p className="text-[11px] text-brand-950/40">{moneyBs(p.promoPrice ?? p.price)}{unitSuffix}</p>}
                     {p.wholesalePrice != null && p.wholesaleMinQty != null && (
                       <p className="text-[10.5px] font-medium text-emerald-600 mt-0.5">Mayorista {money(p.wholesalePrice)} desde {p.wholesaleMinQty} uds.</p>
                     )}
-                    <span className={`inline-block mt-1.5 text-[10.5px] font-medium px-2 py-0.5 rounded-full ${STATUS_CLASS[status]}`}>
-                      {STATUS_LABEL[status]}{status !== 'danger' ? ` · ${isWeight ? `${stock.toFixed(1)} Kg` : stock}` : ''}
-                    </span>
+                    {isArea ? (
+                      <span className="inline-block mt-1.5 text-[10.5px] font-medium px-2 py-0.5 rounded-full bg-sky-100 text-sky-700">
+                        Por medida
+                      </span>
+                    ) : (
+                      <span className={`inline-block mt-1.5 text-[10.5px] font-medium px-2 py-0.5 rounded-full ${STATUS_CLASS[status]}`}>
+                        {STATUS_LABEL[status]}{status !== 'danger' ? ` · ${isWeight ? `${stock.toFixed(1)} Kg` : stock}` : ''}
+                      </span>
+                    )}
                   </button>
                 );
               })}
@@ -530,14 +577,14 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
                 <div key={c.key} className="flex items-center gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-semibold text-brand-950 truncate">{c.name}</p>
-                    <p className="text-[11.5px] text-brand-950/40">{c.v1}{c.v2 ? ` · ${c.v2}` : ''}</p>
+                    <p className="text-[11.5px] text-brand-950/40">{c.detail ?? `${c.v1}${c.v2 ? ` · ${c.v2}` : ''}`}</p>
                     {effectivePrice(c) !== c.price && (
                       <p className="text-[10.5px] font-semibold text-emerald-600">
                         {c.promoPrice != null ? 'Promo' : 'Mayorista'} {money(effectivePrice(c))}/u
                       </p>
                     )}
                   </div>
-                  {c.soldByWeight ? (
+                  {c.soldByWeight || c.unitLabel ? (
                     <div className="flex items-center gap-1 shrink-0">
                       <input
                         type="number"
@@ -547,7 +594,7 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
                         onChange={(e) => setCartQty(c.key, Number(e.target.value) || 0)}
                         className="w-16 border border-brand-950/15 rounded-md text-center text-xs py-1"
                       />
-                      <span className="text-[10px] font-medium text-brand-950/40">Kg</span>
+                      <span className="text-[10px] font-medium text-brand-950/40">{c.unitLabel ?? 'Kg'}</span>
                     </div>
                   ) : (
                     <div className="flex items-center border border-brand-950/15 rounded-lg overflow-hidden shrink-0">
@@ -989,6 +1036,94 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
         </DialogContent>
       </Dialog>
 
+      {/* ---------- Medidas de impresión (gran formato) ---------- */}
+      <Dialog open={printOpen} onOpenChange={setPrintOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{printProduct?.name}</DialogTitle>
+          </DialogHeader>
+          {printProduct && (
+            <>
+              <p className="text-sm text-brand-950/50">
+                {money(printProduct.price)} / m² · anchos de rollo {formatRollWidths(printProduct.rollWidths ?? [])} m
+              </p>
+              <div className="flex gap-3">
+                <label className="block text-sm flex-1">
+                  <span className="text-brand-950/70">Ancho (m)</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={printWidth}
+                    onChange={(e) => setPrintWidth(e.target.value)}
+                    placeholder="1,20"
+                    autoFocus
+                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  />
+                </label>
+                <label className="block text-sm flex-1">
+                  <span className="text-brand-950/70">Alto (m)</span>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={printHeight}
+                    onChange={(e) => setPrintHeight(e.target.value)}
+                    placeholder="0,80"
+                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  />
+                </label>
+              </div>
+
+              {printQuote && (
+                <div className="rounded-xl bg-brand-950/[0.03] border border-brand-950/10 p-3 space-y-1.5">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-brand-950/60">Rollo que se usa</span>
+                    <span className="font-medium text-brand-950">
+                      {printQuote.rollWidth.toFixed(2).replace('.', ',')} m{printQuote.rotated ? ' · rotado' : ''}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-brand-950/60">Se cobra</span>
+                    <span className="font-medium text-brand-950">
+                      {printQuote.rollWidth.toFixed(2).replace('.', ',')} × {printQuote.lengthM.toFixed(2).replace('.', ',')} ={' '}
+                      {printQuote.billedM2.toFixed(3).replace('.', ',')} m²
+                    </span>
+                  </div>
+                  {printQuote.wasteM2 > 0.001 && (
+                    <div className="flex justify-between text-xs">
+                      <span className="text-brand-950/40">Sobrante del rollo (no reutilizable)</span>
+                      <span className="text-brand-950/40">{printQuote.wasteM2.toFixed(3).replace('.', ',')} m²</span>
+                    </div>
+                  )}
+                  {printQuote.rotated && (
+                    <p className="text-xs text-brand-950/50">
+                      Se imprime rotada: así entra en un rollo más angosto y sale más barato.
+                    </p>
+                  )}
+                  {printQuote.needsPaneling && (
+                    <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-1.5">
+                      Más ancha que el rollo más grande — va por paneles con empalme. Revisa el precio antes de cobrar.
+                    </p>
+                  )}
+                  <div className="flex justify-between text-base font-semibold text-brand-950 pt-1.5 border-t border-brand-950/10">
+                    <span>Total</span>
+                    <span>{money(printQuote.billedM2 * printProduct.price)}</span>
+                  </div>
+                </div>
+              )}
+
+              <DialogFooter>
+                <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setPrintOpen(false)}>
+                  Cancelar
+                </TextureButton>
+                <TextureButton variant="brand" size="default" className="!w-auto" disabled={!printQuote} onClick={confirmPrint}>
+                  Agregar al carrito
+                </TextureButton>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* ---------- Confirmación animada ---------- */}
       <Dialog open={successOpen} onOpenChange={setSuccessOpen}>
         <DialogContent hideClose className="text-center py-9">
@@ -1097,7 +1232,7 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
               <div className="flex flex-col gap-1 text-[13px]">
                 {ticketSale.items.map((it, i) => (
                   <div key={i} className="flex justify-between gap-2">
-                    <span className="flex-1">{it.soldByWeight ? `${it.qty} Kg` : `${it.qty}x`} {it.name}{it.v1 ? ` (${it.v1}${it.v2 ? '·' + it.v2 : ''})` : ''}</span>
+                    <span className="flex-1">{it.detail ? `${it.qty} m²` : it.soldByWeight ? `${it.qty} Kg` : `${it.qty}x`} {it.name}{it.detail ? ` (${it.detail})` : it.v1 ? ` (${it.v1}${it.v2 ? '·' + it.v2 : ''})` : ''}</span>
                     <span>{money(it.price * it.qty)}</span>
                   </div>
                 ))}

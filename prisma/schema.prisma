@@ -1792,6 +1792,20 @@ model ShopProduct {
   // filtrar/agrupar el inventario por marca sin mezclarlo con la clasificación por tipo.
   brand           String  @default("")
 
+  // --- Impresión de gran formato (rubro Agencia de Publicidad) ---
+  // 'UNIT' (por defecto) = se vende por unidad, como cualquier producto.
+  // 'AREA_ROLL' = se vende por metro cuadrado saliendo de un rollo: el cliente pide una pieza
+  // de ancho × alto y se le cobra el ANCHO COMPLETO del rollo del que se corta, porque el
+  // sobrante a lo ancho no se reaprovecha (ver web/.../shop/printPricing.ts). Con este modo,
+  // `price` y `cost` pasan a ser por m² en vez de por unidad.
+  pricingMode     String  @default("UNIT")
+  // Anchos de rollo disponibles en metros, ej. [1.06, 1.37, 1.6, 1.84] para banner. Solo
+  // aplica con pricingMode = 'AREA_ROLL'.
+  rollWidths      Json?
+  // Largo del rollo en metros (típicamente 50) — se usa para derivar el costo por m² a partir
+  // de lo que costó el rollo entero, que es como el dueño compra el material.
+  rollLengthM     Float?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1885,6 +1899,10 @@ model ShopSaleItem {
   price        Float
   cost         Float
   soldByWeight Boolean @default(false)
+  // Detalle congelado de la línea, para que el recibo y el historial sigan explicando de dónde
+  // salió la cantidad. Hoy lo usa la impresión de gran formato: "1,20 × 0,80 m · rollo 1,37" —
+  // sin esto, la venta solo diría "1,096" y nadie podría reconstruir qué se imprimió.
+  detail       String?
 
   sale ShopSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
