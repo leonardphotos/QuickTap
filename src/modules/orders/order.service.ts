@@ -127,7 +127,11 @@ async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<
       const category = link.modifierCategory;
       const chosen = category.modifiers.filter((m) => idCounts.has(m.id));
       const totalSelected = chosen.reduce((acc, m) => acc + (idCounts.get(m.id) ?? 0), 0);
-      const effectiveMin = category.minSelections ?? (category.isRequired ? 1 : 0);
+      // isRequired manda: una categoría marcada "Opcional" nunca debe bloquear el carrito, así
+      // tenga un minSelections guardado (ej. quedó en 1 de una configuración vieja/a medias) —
+      // minSelections solo afina EL mínimo de una categoría que ya es obligatoria (ej. "elige
+      // al menos 2"), no la vuelve obligatoria por sí solo.
+      const effectiveMin = category.isRequired ? (category.minSelections ?? 1) : 0;
       if (totalSelected < effectiveMin) {
         throw badRequest(
           effectiveMin <= 1

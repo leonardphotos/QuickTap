@@ -27,9 +27,11 @@ function effectiveMax(category: Category): number {
   return category.allowMultiple ? Infinity : 1;
 }
 
+/** isRequired manda: una categoría "Opcional" nunca exige nada, tenga o no un minSelections
+ * guardado — ver misma nota en web/src/utils/modifierLimits.ts. */
 function effectiveMin(category: Category): number {
-  if (category.minSelections != null) return category.minSelections;
-  return category.isRequired ? 1 : 0;
+  if (!category.isRequired) return 0;
+  return category.minSelections ?? 1;
 }
 
 function categoryHint(category: Category): string {
