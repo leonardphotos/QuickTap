@@ -129,14 +129,22 @@ export default function MasterRestaurantDetailPage() {
   }
 
   /** Botón "Entrar sin contraseña": abre el panel del restaurante en una pestaña nueva,
-   * sin tocar la sesión del Dashboard maestro en esta. */
+   * sin tocar la sesión del Dashboard maestro en esta.
+   *
+   * La pestaña se abre ANTES del await (dentro del mismo gesto de clic) y se le pone la URL
+   * después de recibir el token — abrirla después del await hace que el navegador la trate
+   * como un popup no solicitado y la bloquee en silencio, sin lanzar ningún error. */
   async function impersonate() {
     setImpersonating(true);
     setMessage(null);
+    const win = window.open('', '_blank');
     try {
       const { data } = await masterApi.post(`/master/restaurants/${id}/impersonate`);
-      window.open(`/admin/impersonate?token=${encodeURIComponent(data.data.token)}`, '_blank');
+      const url = `/admin/impersonate?token=${encodeURIComponent(data.data.token)}`;
+      if (win) win.location.href = url;
+      else window.open(url, '_blank');
     } catch (err: any) {
+      win?.close();
       setMessage(err.response?.data?.error ?? 'No se pudo entrar al panel de este restaurante.');
     } finally {
       setImpersonating(false);
