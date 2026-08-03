@@ -45,6 +45,7 @@ export interface RawShopSaleItem {
   cost: number;
   soldByWeight: boolean;
   detail: string | null;
+  stockQty: number | null;
 }
 
 export interface RawShopSale {

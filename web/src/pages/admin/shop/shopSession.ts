@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ShopProductSeed, ShopVariant } from '@/data/shopRubros';
 import { shopApi, toShopProduct } from './shopApi';
+import { rollWidthLabel } from './printPricing';
 
 /**
  * Estado de una sesión de QuickTap Shop: catálogo, carrito, ventas, compras y caja. El carrito
@@ -39,6 +40,8 @@ export interface CartLine {
   detail?: string;
   /** Unidad a mostrar junto a la cantidad ('m²' en impresión). Ausente = unidades. */
   unitLabel?: string;
+  /** Metros lineales a descontar del rollo, cuando difiere de `qty` (los m² que se cobran). */
+  stockQty?: number;
 }
 
 /** Precio unitario que realmente aplica a una línea del carrito: la promoción siempre gana (si
@@ -60,6 +63,7 @@ export interface SaleItem {
   cost: number;
   soldByWeight?: boolean;
   detail?: string;
+  stockQty?: number;
 }
 
 export interface PaymentMeta {
@@ -249,6 +253,7 @@ export function useShopSession(initialCategories: string[] = []) {
               cost: it.cost,
               soldByWeight: it.soldByWeight,
               detail: it.detail ?? undefined,
+              stockQty: it.stockQty ?? undefined,
             })),
             total: s.total,
             time: new Date(s.time),
@@ -371,7 +376,7 @@ export function useShopSession(initialCategories: string[] = []) {
    * aunque se repita el producto — dos piezas de medidas distintas del mismo banner no se
    * pueden sumar en una sola cantidad sin perder qué se imprimió.
    */
-  function addPrintLine(product: ShopProduct, billedM2: number, detail: string) {
+  function addPrintLine(product: ShopProduct, quote: { billedM2: number; lengthM: number; rollWidth: number }, detail: string) {
     setCart((prev) => [
       ...prev,
       {
@@ -380,12 +385,16 @@ export function useShopSession(initialCategories: string[] = []) {
         name: product.name,
         price: product.price,
         promoPrice: product.promoPrice,
-        v1: 'Impresión',
+        // v1 = ancho del rollo: identifica la variante que lleva los metros lineales de ESE
+        // rollo, que es de donde se descuenta el material (ver rollWidthLabel).
+        v1: rollWidthLabel(quote.rollWidth),
         v2: '',
-        qty: billedM2,
+        qty: quote.billedM2,
         disc: 0,
         detail,
         unitLabel: 'm²',
+        // Del rollo se van metros LINEALES, no los m² que se le cobran al cliente.
+        stockQty: quote.lengthM,
       },
     ]);
   }
@@ -489,6 +498,7 @@ export function useShopSession(initialCategories: string[] = []) {
         cost: c.cost ?? (product ? product.cost : 0),
         soldByWeight: c.soldByWeight,
         detail: c.detail,
+        stockQty: c.stockQty,
       };
     });
     const subtotal = cart.reduce((a, c) => a + lineTotal(c), 0);

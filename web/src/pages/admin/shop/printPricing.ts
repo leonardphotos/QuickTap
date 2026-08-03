@@ -111,7 +111,7 @@ export function costPerM2FromRoll(rollPrice: number, rollWidth: number, rollLeng
 /** "1,20 × 0,80 m · rollo 1,37" — el detalle que se guarda en la línea de venta y sale en el recibo. */
 export function describePrint(width: number, height: number, quote: PrintQuote): string {
   const n = (v: number) => v.toFixed(2).replace('.', ',');
-  const parts = [`${n(width)} × ${n(height)} m`, `rollo ${n(quote.rollWidth)}`];
+  const parts = [`${n(width)} × ${n(height)} m`, `rollo ${rollWidthLabel(quote.rollWidth)}`];
   if (quote.rotated) parts.push('rotado');
   if (quote.needsPaneling) parts.push('por paneles');
   return parts.join(' · ');
@@ -132,7 +132,17 @@ export function parseRollWidths(raw: string): number[] {
   ].sort((a, b) => a - b);
 }
 
+/**
+ * Etiqueta de un ancho de rollo ("1,37"). Es también el `v1` de la variante que lleva los metros
+ * lineales disponibles de ese rollo, así que TODO lo que empareje stock con un ancho tiene que
+ * pasar por acá: el descuento al vender resuelve la variante por v1, y si el formato no coincide
+ * exacto el stock simplemente no se descontaría (sin error visible).
+ */
+export function rollWidthLabel(width: number): string {
+  return width.toFixed(2).replace('.', ',');
+}
+
 /** Inverso de parseRollWidths, para mostrar en el formulario ("1,06 · 1,37 · 1,60"). */
 export function formatRollWidths(widths: number[]): string {
-  return widths.map((w) => w.toFixed(2).replace('.', ',')).join(' · ');
+  return widths.map(rollWidthLabel).join(' · ');
 }

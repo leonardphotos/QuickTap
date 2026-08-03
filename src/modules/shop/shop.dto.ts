@@ -48,6 +48,8 @@ const saleItemSchema = z.object({
   soldByWeight: z.boolean().optional().default(false),
   // "1,20 × 0,80 m · rollo 1,37" — de dónde salió la cantidad de esta línea (ver ShopSaleItem).
   detail: z.string().max(200).nullable().optional(),
+  // Metros lineales a descontar del rollo, cuando difiere de `qty` (que son los m² cobrados).
+  stockQty: z.coerce.number().min(0).nullable().optional(),
 });
 
 export const createShopSaleSchema = z.object({

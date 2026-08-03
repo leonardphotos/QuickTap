@@ -13,7 +13,7 @@ import { shopMoneyFormatters } from './shopFormat';
 import { effectivePrice, lineTotal, productStatus, productStock, type PaymentMeta, type Sale, type ShopProduct, type ShopSession } from './shopSession';
 import ShopBarcodeScanDialog from './ShopBarcodeScanDialog';
 import { playCashSound } from './shopSounds';
-import { describePrint, formatRollWidths, quotePrint } from './printPricing';
+import { describePrint, formatRollWidths, quotePrint, rollWidthLabel } from './printPricing';
 
 interface Props {
   session: ShopSession;
@@ -219,7 +219,7 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
     if (!printProduct || !printQuote) return;
     const w = Number(printWidth.replace(',', '.'));
     const h = Number(printHeight.replace(',', '.'));
-    addPrintLine(printProduct, printQuote.billedM2, describePrint(w, h, printQuote));
+    addPrintLine(printProduct, printQuote, describePrint(w, h, printQuote));
     setPrintOpen(false);
   }
 
@@ -546,8 +546,12 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
                       <p className="text-[10.5px] font-medium text-emerald-600 mt-0.5">Mayorista {money(p.wholesalePrice)} desde {p.wholesaleMinQty} uds.</p>
                     )}
                     {isArea ? (
-                      <span className="inline-block mt-1.5 text-[10.5px] font-medium px-2 py-0.5 rounded-full bg-sky-100 text-sky-700">
-                        Por medida
+                      <span
+                        className={`inline-block mt-1.5 text-[10.5px] font-medium px-2 py-0.5 rounded-full ${
+                          stock > 0 ? 'bg-sky-100 text-sky-700' : 'bg-red-100 text-red-700'
+                        }`}
+                      >
+                        Por medida · {stock > 0 ? `${stock.toFixed(1)} m de material` : 'sin material'}
                       </span>
                     ) : (
                       <span className={`inline-block mt-1.5 text-[10.5px] font-medium px-2 py-0.5 rounded-full ${STATUS_CLASS[status]}`}>
@@ -1078,13 +1082,28 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
                   <div className="flex justify-between text-sm">
                     <span className="text-brand-950/60">Rollo que se usa</span>
                     <span className="font-medium text-brand-950">
-                      {printQuote.rollWidth.toFixed(2).replace('.', ',')} m{printQuote.rotated ? ' · rotado' : ''}
+                      {rollWidthLabel(printQuote.rollWidth)} m{printQuote.rotated ? ' · rotado' : ''}
                     </span>
                   </div>
+                  {(() => {
+                    // Metros lineales que quedan de ESE rollo (la variante cuyo v1 es su ancho).
+                    const roll = printProduct.variants.find((v) => v.v1 === rollWidthLabel(printQuote.rollWidth));
+                    if (!roll) return null;
+                    const left = roll.stock - printQuote.lengthM;
+                    return (
+                      <div className="flex justify-between text-xs">
+                        <span className="text-brand-950/40">Material del rollo</span>
+                        <span className={left < 0 ? 'font-semibold text-red-600' : 'text-brand-950/40'}>
+                          consume {printQuote.lengthM.toFixed(2).replace('.', ',')} m · quedan{' '}
+                          {Math.max(0, left).toFixed(2).replace('.', ',')} m de {roll.stock.toFixed(2).replace('.', ',')} m
+                        </span>
+                      </div>
+                    );
+                  })()}
                   <div className="flex justify-between text-sm">
                     <span className="text-brand-950/60">Se cobra</span>
                     <span className="font-medium text-brand-950">
-                      {printQuote.rollWidth.toFixed(2).replace('.', ',')} × {printQuote.lengthM.toFixed(2).replace('.', ',')} ={' '}
+                      {rollWidthLabel(printQuote.rollWidth)} × {printQuote.lengthM.toFixed(2).replace('.', ',')} ={' '}
                       {printQuote.billedM2.toFixed(3).replace('.', ',')} m²
                     </span>
                   </div>
@@ -1099,6 +1118,17 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
                       Se imprime rotada: así entra en un rollo más angosto y sale más barato.
                     </p>
                   )}
+                  {(() => {
+                    const roll = printProduct.variants.find((v) => v.v1 === rollWidthLabel(printQuote.rollWidth));
+                    if (!roll || roll.stock >= printQuote.lengthM) return null;
+                    return (
+                      <p className="text-xs text-red-700 bg-red-50 rounded-lg px-2 py-1.5">
+                        No alcanza el material: quedan {roll.stock.toFixed(2).replace('.', ',')} m del rollo de{' '}
+                        {rollWidthLabel(printQuote.rollWidth)} y esta pieza necesita{' '}
+                        {printQuote.lengthM.toFixed(2).replace('.', ',')} m. Puedes venderla igual, pero registra la compra del rollo.
+                      </p>
+                    );
+                  })()}
                   {printQuote.needsPaneling && (
                     <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-2 py-1.5">
                       Más ancha que el rollo más grande — va por paneles con empalme. Revisa el precio antes de cobrar.

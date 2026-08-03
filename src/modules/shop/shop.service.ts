@@ -147,6 +147,7 @@ export const shopService = {
                 cost: it.cost,
                 soldByWeight: it.soldByWeight,
                 detail: it.detail ?? null,
+                stockQty: it.stockQty ?? null,
               })),
             },
           },
@@ -158,9 +159,11 @@ export const shopService = {
       // producto ya no existe o el id era temporal del frontend, la venta queda igual registrada).
       for (const item of input.items) {
         if (!item.productId) continue;
+        // stockQty manda cuando existe: en impresión de gran formato del rollo se consumen
+        // metros lineales (0,80), no los m² que se le cobran al cliente (1,096).
         await tx.shopProductVariant.updateMany({
           where: { productId: item.productId, v1: item.v1, v2: item.v2 },
-          data: { stock: { decrement: item.qty } },
+          data: { stock: { decrement: item.stockQty ?? item.qty } },
         });
       }
       // Piso en 0 (updateMany con decrement puede dejar negativo si había menos stock del esperado).
@@ -181,9 +184,10 @@ export const shopService = {
     return prisma.$transaction(async (tx) => {
       for (const item of sale.items) {
         if (!item.productId) continue;
+        // Se devuelve exactamente lo que se descontó al vender (ver recordSale).
         await tx.shopProductVariant.updateMany({
           where: { productId: item.productId, v1: item.v1, v2: item.v2 },
-          data: { stock: { increment: item.qty } },
+          data: { stock: { increment: item.stockQty ?? item.qty } },
         });
       }
       return tx.shopSale.update({ where: { id }, data: { returned: true }, include: { items: true } });

@@ -1903,6 +1903,10 @@ model ShopSaleItem {
   // salió la cantidad. Hoy lo usa la impresión de gran formato: "1,20 × 0,80 m · rollo 1,37" —
   // sin esto, la venta solo diría "1,096" y nadie podría reconstruir qué se imprimió.
   detail       String?
+  // Cuánto descontar del stock cuando NO coincide con `qty`. En impresión de gran formato `qty`
+  // son los m² que se COBRAN (1,096) pero del rollo se consumen metros LINEALES (0,80): sin este
+  // campo se descontaría el número equivocado. Null = descontar `qty`, como el resto del catálogo.
+  stockQty     Float?
 
   sale ShopSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
