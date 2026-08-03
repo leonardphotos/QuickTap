@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
-import { Camera, CheckCircle2, ClipboardList, Loader2, MessageCircle, Minus, Plus, Printer, ScanLine, Search, ShoppingCart, Wrench, X } from 'lucide-react';
+import { Camera, CheckCircle2, ClipboardList, Loader2, MessageCircle, Minus, Plus, PlusCircle, Printer, ScanLine, Search, ShoppingCart, Wrench, X } from 'lucide-react';
 import { api } from '@/api/client';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { useAuth } from '@/context/AuthContext';
@@ -116,9 +116,25 @@ const PAYMENT_METHOD_META: { key: keyof NonNullable<AuthRestaurant['paymentMetho
 
 export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
-  const { products, cart, till, closedTills, categories, addToCart, addAdhocLine, addPrintLine, activeStaffUserId, setActiveStaffUserId, updateCartQty, setCartQty, removeFromCart, setCartLineDiscount, openTill, closeTill, checkout } = session;
+  const { products, cart, till, closedTills, categories, addToCart, addAdhocLine, addPrintLine, activeStaffUserId, setActiveStaffUserId, updateCartQty, setCartQty, removeFromCart, setCartLineDiscount, openTill, closeTill, checkout, quickSale, addProduct } = session;
   const { show, toastMessage } = useToast();
   const { user } = useAuth();
+
+  // "Crear venta": registra en un solo paso un producto/servicio que todavía no está en el
+  // catálogo, para negocios que arrancan sin nada cargado en Inventario.
+  const [quickSaleOpen, setQuickSaleOpen] = useState(false);
+  const [qsName, setQsName] = useState('');
+  const [qsCategory, setQsCategory] = useState('');
+  const [qsCost, setQsCost] = useState('');
+  const [qsPrice, setQsPrice] = useState('');
+  const [qsPaymentMethod, setQsPaymentMethod] = useState('');
+  const [qsSaving, setQsSaving] = useState(false);
+  // Tras registrar la venta, se ofrece cargarla al catálogo — así el dueño va armando su
+  // inventario sobre la marcha, en vez de tener que cargarlo todo antes de poder vender.
+  const [addToInventoryPrompt, setAddToInventoryPrompt] = useState<{ name: string; category: string; cost: number; price: number } | null>(
+    null,
+  );
+  const [addingToInventory, setAddingToInventory] = useState(false);
 
   const [adhocOpen, setAdhocOpen] = useState(false);
   const [adhocName, setAdhocName] = useState('');
@@ -312,6 +328,57 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
     setTillDialogOpen(false);
   }
 
+  function openQuickSaleDialog() {
+    setQsName('');
+    setQsCategory('');
+    setQsCost('');
+    setQsPrice('');
+    setQsPaymentMethod(paymentMethodOptions[0]?.label ?? 'Efectivo Bs');
+    setQuickSaleOpen(true);
+  }
+
+  function confirmQuickSale() {
+    const name = qsName.trim();
+    const category = qsCategory.trim();
+    const price = Number(qsPrice.replace(',', '.'));
+    const cost = Number(qsCost.replace(',', '.')) || 0;
+    if (!name || !(price > 0) || !qsPaymentMethod) return;
+    setQsSaving(true);
+    try {
+      quickSale({ name, category, cost, price, paymentMethod: qsPaymentMethod });
+      setQuickSaleOpen(false);
+      // Se pregunta aparte (no bloquea el cobro) si quiere sumarlo al catálogo para la próxima.
+      setAddToInventoryPrompt({ name, category, cost, price });
+    } finally {
+      setQsSaving(false);
+    }
+  }
+
+  async function confirmAddToInventory() {
+    if (!addToInventoryPrompt) return;
+    setAddingToInventory(true);
+    try {
+      addProduct({
+        name: addToInventoryPrompt.name,
+        category: addToInventoryPrompt.category || 'General',
+        subcategory: '',
+        brand: '',
+        sku: '',
+        location: '',
+        price: addToInventoryPrompt.price,
+        cost: addToInventoryPrompt.cost,
+        minStock: 0,
+        // Arranca sin stock: no hay unidades reales cargadas todavía, solo el registro del
+        // producto — el dueño carga la cantidad real (y la foto) después desde Inventario.
+        variants: [{ v1: 'Único', v2: '', stock: 0 }],
+      });
+      show('Agregado a Inventario — carga la foto y el stock cuando puedas.');
+    } finally {
+      setAddingToInventory(false);
+      setAddToInventoryPrompt(null);
+    }
+  }
+
   function openAdhocDialog() {
     setAdhocName('');
     setAdhocCost('');
@@ -491,6 +558,16 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
               onClick={() => setScanCameraOpen(true)}
             >
               <ScanLine className="h-4 w-4" /> Escanear
+            </TextureButton>
+            <TextureButton
+              variant="minimal"
+              size="default"
+              className="!w-auto disabled:opacity-50"
+              title={till ? 'Cobrar algo que todavía no está en tu inventario' : 'Abre la caja para poder cobrar'}
+              disabled={!till}
+              onClick={openQuickSaleDialog}
+            >
+              <PlusCircle className="h-4 w-4" /> Crear venta
             </TextureButton>
             {rubro.id === 'agencia_publicidad' && (
               <TextureButton
@@ -1253,6 +1330,136 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
         money={money}
         onAdd={(product, variant, qty) => addToCart(product, variant, qty)}
       />
+
+      {/* ---------- Crear venta (producto/servicio todavía no cargado en el catálogo) ---------- */}
+      <Dialog open={quickSaleOpen} onOpenChange={setQuickSaleOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Crear venta</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-brand-950/50 -mt-1">
+            Para cobrar algo que todavía no está en tu inventario. Al terminar te preguntamos si quieres
+            agregarlo al catálogo para la próxima vez.
+          </p>
+          <div className="flex flex-col gap-3">
+            <div>
+              <label className="text-xs font-semibold text-brand-950/60 mb-1 block">Nombre</label>
+              <input
+                autoFocus
+                value={qsName}
+                onChange={(e) => setQsName(e.target.value)}
+                placeholder="Ej: Corte de cabello"
+                className="w-full border border-brand-950/15 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-brand-950/60 mb-1 block">Categoría</label>
+              <input
+                value={qsCategory}
+                onChange={(e) => setQsCategory(e.target.value)}
+                placeholder="Ej: Servicios"
+                list="quick-sale-categories"
+                className="w-full border border-brand-950/15 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              />
+              <datalist id="quick-sale-categories">
+                {categories.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
+            </div>
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className="text-xs font-semibold text-brand-950/60 mb-1 block">Costo</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={qsCost}
+                  onChange={(e) => setQsCost(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full border border-brand-950/15 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs font-semibold text-brand-950/60 mb-1 block">Precio de venta</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={qsPrice}
+                  onChange={(e) => setQsPrice(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full border border-brand-950/15 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-brand-950/60 mb-1 block">Método de pago</label>
+              <div className="flex flex-wrap gap-2">
+                {paymentMethodOptions.map((m) => (
+                  <button
+                    key={m.key}
+                    type="button"
+                    onClick={() => setQsPaymentMethod(m.label)}
+                    className={`text-sm px-3 py-1.5 rounded-full border transition-colors ${
+                      qsPaymentMethod === m.label
+                        ? 'bg-brand-500 text-white border-brand-500'
+                        : 'border-brand-950/15 text-brand-950/70 hover:bg-brand-950/5'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setQuickSaleOpen(false)}>
+              Cancelar
+            </TextureButton>
+            <TextureButton
+              variant="brand"
+              size="default"
+              className="!w-auto disabled:opacity-50"
+              disabled={qsSaving || !qsName.trim() || !(Number(qsPrice.replace(',', '.')) > 0) || !qsPaymentMethod}
+              onClick={confirmQuickSale}
+            >
+              {qsSaving ? 'Registrando…' : 'Registrar venta'}
+            </TextureButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ---------- ¿Agregar esta venta al catálogo? ---------- */}
+      <Dialog open={!!addToInventoryPrompt} onOpenChange={(o) => !o && setAddToInventoryPrompt(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Venta registrada</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-brand-950/70">
+            ¿Quieres agregar <strong>"{addToInventoryPrompt?.name}"</strong> a tu inventario? Así la próxima vez lo
+            eliges directo de la lista, sin volver a escribirlo.
+          </p>
+          <p className="text-xs text-brand-950/45">
+            Queda con el nombre, la categoría, el costo y el precio que acabas de cargar, y sin stock —
+            solo entra a completar la foto y la cantidad disponible desde Inventario cuando puedas.
+          </p>
+          <DialogFooter>
+            <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setAddToInventoryPrompt(null)}>
+              No, gracias
+            </TextureButton>
+            <TextureButton
+              variant="brand"
+              size="default"
+              className="!w-auto disabled:opacity-50"
+              disabled={addingToInventory}
+              onClick={confirmAddToInventory}
+            >
+              {addingToInventory ? 'Agregando…' : 'Sí, agregar a Inventario'}
+            </TextureButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ---------- Servicio no registrado (exclusivo Agencia de Publicidad) ---------- */}
       <Dialog open={adhocOpen} onOpenChange={setAdhocOpen}>

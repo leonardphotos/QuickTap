@@ -662,6 +662,48 @@ export function useShopSession(initialCategories: string[] = []) {
     return sale;
   }
 
+  /**
+   * "Crear venta": registra el cobro de un producto/servicio que TODAVÍA no está en el catálogo,
+   * de un tirón (nombre, categoría, costo, precio, método de pago) sin pasar por el carrito. Para
+   * el negocio que arranca sin nada cargado en Inventario — puede empezar a vender y cobrar el
+   * mismo día. No hay stock que descontar (no hay ShopProduct detrás); si después se agrega al
+   * catálogo (ver addProduct, disparado desde el diálogo de seguimiento en ShopPosPage), arranca
+   * en 0 y el dueño carga el stock real por separado.
+   */
+  function quickSale(input: { name: string; category: string; cost: number; price: number; paymentMethod: string }): Sale {
+    const saleItems: SaleItem[] = [
+      { productId: '', v1: '', v2: '', name: input.name, category: input.category || null, qty: 1, price: input.price, cost: input.cost },
+    ];
+    const total = Math.round((input.price + Number.EPSILON) * 100) / 100;
+    const sale: Sale = {
+      id: `s${Date.now()}`,
+      items: saleItems,
+      total,
+      time: new Date(),
+      customerName: null,
+      customerPhone: null,
+      returned: false,
+      paymentMethod: input.paymentMethod,
+      paymentMeta: null,
+      creditTerms: null,
+      amountPaidNow: null,
+    };
+    setSales((prev) => [sale, ...prev]);
+    shopApi
+      .recordSale({
+        items: saleItems.map((it) => ({ ...it, productId: undefined })),
+        total,
+        customerName: null,
+        customerPhone: null,
+        paymentMethod: sale.paymentMethod,
+        paymentMeta: null,
+        creditTerms: null,
+        amountPaidNow: null,
+      })
+      .catch((err) => console.error('No se pudo guardar la venta en el servidor', err));
+    return sale;
+  }
+
   function returnSale(saleId: string) {
     const sale = sales.find((s) => s.id === saleId);
     if (!sale || sale.returned) return;
@@ -787,6 +829,7 @@ export function useShopSession(initialCategories: string[] = []) {
     addPrintLine,
     serviceSupplies,
     setServiceSupplies,
+    quickSale,
     providers,
     activeStaffUserId,
     setActiveStaffUserId: selectActiveStaff,
