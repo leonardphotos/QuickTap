@@ -74,6 +74,10 @@ export const masterRestaurantsController = {
     const input = updateRestaurantUserSchema.parse(req.body);
     res.json({ data: await masterRestaurantsService.updateUser(req.params.id, req.params.userId, input) });
   }),
+  /** POST /master/restaurants/:id/impersonate — "Entrar sin contraseña" al panel de ese restaurante. */
+  impersonate: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await masterRestaurantsService.impersonate(req.params.id) });
+  }),
   /** Elimina el restaurante y todos sus datos. No se puede deshacer. */
   remove: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await masterRestaurantsService.remove(req.params.id) });

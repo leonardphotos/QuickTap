@@ -90,6 +90,7 @@ export default function MasterRestaurantDetailPage() {
   const [fiscalEnvironment, setFiscalEnvironment] = useState<'QA' | 'PRODUCTION'>('QA');
   const [fiscalUsername, setFiscalUsername] = useState('');
   const [fiscalPassword, setFiscalPassword] = useState('');
+  const [impersonating, setImpersonating] = useState(false);
 
   function load() {
     masterApi.get(`/master/restaurants/${id}`).then((res) => {
@@ -117,6 +118,21 @@ export default function MasterRestaurantDetailPage() {
       setMessage(err.response?.data?.error ?? 'No se pudo activar.');
     } finally {
       setBusy(false);
+    }
+  }
+
+  /** Botón "Entrar sin contraseña": abre el panel del restaurante en una pestaña nueva,
+   * sin tocar la sesión del Dashboard maestro en esta. */
+  async function impersonate() {
+    setImpersonating(true);
+    setMessage(null);
+    try {
+      const { data } = await masterApi.post(`/master/restaurants/${id}/impersonate`);
+      window.open(`/admin/impersonate?token=${encodeURIComponent(data.data.token)}`, '_blank');
+    } catch (err: any) {
+      setMessage(err.response?.data?.error ?? 'No se pudo entrar al panel de este restaurante.');
+    } finally {
+      setImpersonating(false);
     }
   }
 
@@ -281,9 +297,20 @@ export default function MasterRestaurantDetailPage() {
 
   return (
     <div className="space-y-8 max-w-3xl">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight text-brand-950">{detail.name}</h1>
-        <p className="text-sm text-brand-950/40 font-light">/{detail.slug}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-3xl font-semibold tracking-tight text-brand-950">{detail.name}</h1>
+          <p className="text-sm text-brand-950/40 font-light">/{detail.slug}</p>
+        </div>
+        <TextureButton
+          variant="brand"
+          size="sm"
+          disabled={impersonating}
+          className="!w-auto shrink-0 disabled:opacity-50"
+          onClick={impersonate}
+        >
+          {impersonating ? 'Entrando…' : 'Entrar sin contraseña'}
+        </TextureButton>
       </div>
 
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-2">
@@ -303,6 +330,16 @@ export default function MasterRestaurantDetailPage() {
         <p className="text-sm text-brand-950/70">
           <span className="text-brand-950/50">RIF: </span>
           {detail.rif?.trim() || 'No registrado'}
+        </p>
+        <p className="text-sm text-brand-950/70">
+          <span className="text-brand-950/50">Registrado: </span>
+          {new Date(detail.createdAt).toLocaleString('es-VE', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })}
         </p>
       </div>
 

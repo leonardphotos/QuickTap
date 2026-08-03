@@ -113,6 +113,17 @@ function timeAgo(iso: string) {
   return secs < 60 ? `hace ${secs}s` : `hace ${Math.floor(secs / 60)} min`;
 }
 
+/** Fecha y hora exactas del pedido, para la tarjeta de Comandas — junto al "hace X min" no
+ * alcanza para saber si un pedido viejo quedó pendiente de ayer o de hace un rato. */
+function exactDateTime(iso: string) {
+  return new Date(iso).toLocaleString('es-VE', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 /**
  * Navega la pestaña abierta con `window.open('', '_blank')` a `url` (WhatsApp,
  * despacho de repartidor). En móvil, wa.me le entrega el control a la app de
@@ -559,7 +570,7 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
                         {o.awaitingPayment && <Clock className="h-3.5 w-3.5 text-amber-500 shrink-0" />}
                       </p>
                       <p className="text-xs text-brand-950/50 font-light truncate">
-                        #{o.orderNumber}
+                        #{o.orderNumber} · {exactDateTime(o.createdAt)}
                         {o.customerName && ` · ${o.customerName}`}
                       </p>
                     </div>
@@ -571,7 +582,8 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
                   imprimir, aceptar/cancelar, etc.) viven en la hoja de "Editar pedido"
                   que se abre al tocarla. En escritorio se mantiene la tarjeta completa. */}
               <p className="lg:hidden text-xs text-brand-950/50 truncate">
-                {o.items.map((it) => `${it.quantity}x ${it.productName}`).join(', ') || 'Sin productos'} · {timeAgo(o.createdAt)}
+                {o.items.map((it) => `${it.quantity}x ${it.productName}`).join(', ') || 'Sin productos'} ·{' '}
+                {exactDateTime(o.createdAt)} ({timeAgo(o.createdAt)})
               </p>
 
               <div className="hidden lg:block">

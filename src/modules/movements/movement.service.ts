@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { baseToBs, bsToBase, round2, toDecimal } from '../../utils/money';
@@ -107,8 +108,29 @@ export const movementService = {
     return prisma.movement.update({ where: { id }, data: { creditPaidAt: new Date() } });
   },
 
+  /**
+   * Borra un movimiento y REVIERTE su reabastecimiento, si lo tenía. Antes solo
+   * borraba la fila: un gasto cargado con "sumar al inventario" que después se
+   * borraba (monto equivocado, insumo equivocado) dejaba la existencia inflada
+   * para siempre, sin rastro de por qué. Nunca baja de 0.
+   */
   async remove(restaurantId: string, id: string) {
-    await prisma.movement.deleteMany({ where: { id, restaurantId } });
-    return { deleted: true };
+    return prisma.$transaction(async (tx) => {
+      const existing = await tx.movement.findFirst({ where: { id, restaurantId } });
+      if (!existing) throw notFound('Movimiento no encontrado.');
+
+      if (existing.inventoryItemId && existing.inventoryQuantity) {
+        const item = await tx.inventoryItem.findFirst({
+          where: { id: existing.inventoryItemId, restaurantId },
+        });
+        if (item) {
+          const restored = Prisma.Decimal.max(0, toDecimal(item.quantity).sub(existing.inventoryQuantity));
+          await tx.inventoryItem.update({ where: { id: item.id }, data: { quantity: restored } });
+        }
+      }
+
+      await tx.movement.delete({ where: { id: existing.id } });
+      return { deleted: true };
+    });
   },
 };

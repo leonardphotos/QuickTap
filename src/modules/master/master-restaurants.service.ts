@@ -2,8 +2,10 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { allowsBranches, daysRemaining, isLocked } from '../../utils/subscription';
+import { FULL_ACCESS_ROLES } from '../../utils/roles';
 import { branchService } from '../branches/branch.service';
 import { planRequestService } from '../plan-requests/plan-request.service';
+import { signToken } from '../auth/auth.service';
 import {
   CreateAdditionalChargeInput,
   CreateBranchForRestaurantInput,
@@ -211,6 +213,35 @@ export const masterRestaurantsService = {
     if (input.password) data.passwordHash = await bcrypt.hash(input.password, 10);
 
     return prisma.user.update({ where: { id: userId }, data, select: USER_SELECT });
+  },
+
+  /**
+   * "Entrar sin contraseña" del Dashboard maestro: firma un token de sesión de
+   * ese restaurante para el equipo QuickTap, sin tocar ni necesitar la
+   * contraseña del dueño — mismo mecanismo que switchToBranch (branch.service.ts),
+   * pero disparado por un admin de plataforma en vez de por el propio dueño.
+   * Prioriza al OWNER; si no hay (cuenta vieja sin uno), cualquier otro rol de
+   * acceso total (ADMIN/CASHIER/STAFF) para poder soportar la cuenta igual.
+   */
+  async impersonate(id: string) {
+    const restaurant = await prisma.restaurant.findUnique({ where: { id }, select: { id: true, parentRestaurantId: true } });
+    if (!restaurant) throw notFound('Restaurante no encontrado.');
+
+    const user =
+      (await prisma.user.findFirst({ where: { restaurantId: id, role: 'OWNER', isActive: true } })) ??
+      (await prisma.user.findFirst({
+        where: { restaurantId: id, role: { in: [...FULL_ACCESS_ROLES] }, isActive: true },
+        orderBy: { createdAt: 'asc' },
+      }));
+    if (!user) throw badRequest('Este restaurante no tiene un usuario con acceso al panel.');
+
+    const token = signToken({
+      userId: user.id,
+      restaurantId: id,
+      role: user.role,
+      ...(restaurant.parentRestaurantId ? { parentRestaurantId: restaurant.parentRestaurantId } : {}),
+    });
+    return { token };
   },
 
   /**

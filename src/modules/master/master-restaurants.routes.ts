@@ -14,6 +14,7 @@ router.patch('/:id/extend', masterRestaurantsController.extendDays);
 router.patch('/:id/period-end', masterRestaurantsController.setPeriodEnd);
 router.patch('/:id/iva', masterRestaurantsController.setIvaEnabled);
 router.post('/:id/branches', masterRestaurantsController.createBranch);
+router.post('/:id/impersonate', masterRestaurantsController.impersonate);
 router.patch('/:id/custom-price', masterRestaurantsController.setCustomMonthlyPrice);
 router.get('/:id/additional-charges', masterRestaurantsController.listAdditionalCharges);
 router.post('/:id/additional-charges', masterRestaurantsController.createAdditionalCharge);

@@ -7,6 +7,7 @@ const LandingPage = lazy(() => import('./pages/LandingPage'));
 const PlansPage = lazy(() => import('./pages/PlansPage'));
 const MenuPage = lazy(() => import('./pages/public/MenuPage'));
 const LoginPage = lazy(() => import('./pages/admin/LoginPage'));
+const ImpersonatePage = lazy(() => import('./pages/admin/ImpersonatePage'));
 const StartRegisterPage = lazy(() => import('./pages/admin/StartRegisterPage'));
 const ShopRubroPage = lazy(() => import('./pages/admin/ShopRubroPage'));
 const RegisterPage = lazy(() => import('./pages/admin/RegisterPage'));
@@ -72,6 +73,7 @@ export default function App() {
 
             {/* Panel del restaurante */}
             <Route path="/admin/login" element={<LoginPage />} />
+            <Route path="/admin/impersonate" element={<ImpersonatePage />} />
             {/* Primer paso del registro: elige el rubro/vertical antes de cualquier dato. */}
             <Route path="/empezar" element={<StartRegisterPage />} />
             {/* Solo para "Locales Comerciales": elegir uno de los 23 rubros de retail. */}
