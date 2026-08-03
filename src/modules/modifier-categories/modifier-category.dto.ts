@@ -46,6 +46,13 @@ export const associateProductSchema = z.object({
   productId: z.string().min(1),
 });
 
+// Precio propio de un modificador para una variante puntual (ej. "Extra queso" en Pizza
+// Grande vs. Pequeña). Un PUT por variante = "guardar/reemplazar este override"; DELETE = "volver
+// a usar el priceBase de siempre para esa variante".
+export const setModifierVariantPriceSchema = z.object({
+  priceBase: z.coerce.number().nonnegative(),
+});
+
 export type CreateModifierCategoryInput = z.infer<typeof createModifierCategorySchema>;
 export type UpdateModifierCategoryInput = z.infer<typeof updateModifierCategorySchema>;
 export type CreateModifierInput = z.infer<typeof createModifierSchema>;
@@ -53,3 +60,4 @@ export type UpdateModifierInput = z.infer<typeof updateModifierSchema>;
 export type AssociateProductInput = z.infer<typeof associateProductSchema>;
 export type UpdateProductLinkInput = z.infer<typeof updateProductLinkSchema>;
 export type ReorderModifiersInput = z.infer<typeof reorderModifiersSchema>;
+export type SetModifierVariantPriceInput = z.infer<typeof setModifierVariantPriceSchema>;

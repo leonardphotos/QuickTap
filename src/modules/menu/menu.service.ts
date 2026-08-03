@@ -134,7 +134,14 @@ export const menuService = {
                     modifiers: {
                       where: { isAvailable: true },
                       orderBy: [{ priority: 'asc' }, { name: 'asc' }],
-                      select: { id: true, name: true, priceBase: true, discountBase: true, maxQuantity: true },
+                      select: {
+                        id: true,
+                        name: true,
+                        priceBase: true,
+                        discountBase: true,
+                        maxQuantity: true,
+                        variantPrices: { select: { variantId: true, priceBase: true } },
+                      },
                     },
                   },
                 },
@@ -186,6 +193,13 @@ export const menuService = {
               name: m.name,
               priceBase: round2(toDecimal(m.priceBase).sub(m.discountBase ?? 0)).toFixed(2),
               maxQuantity: m.maxQuantity,
+              // Precios propios por variante (ej. "Extra queso" en Pizza Grande vs. Pequeña),
+              // ya con el descuento del modificador restado — el frontend público no
+              // recalcula nada, solo elige la fila que corresponda a la variante activa.
+              variantPrices: m.variantPrices.map((vp) => ({
+                variantId: vp.variantId,
+                priceBase: round2(toDecimal(vp.priceBase).sub(m.discountBase ?? 0)).toFixed(2),
+              })),
             })),
           })),
           };

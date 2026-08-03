@@ -21,7 +21,12 @@ const PRODUCT_MODIFIER_INCLUDE = {
   modifierCategories: {
     include: {
       modifierCategory: {
-        include: { modifiers: { orderBy: [{ priority: 'asc' as const }, { name: 'asc' as const }] } },
+        include: {
+          modifiers: {
+            orderBy: [{ priority: 'asc' as const }, { name: 'asc' as const }],
+            include: { variantPrices: { select: { variantId: true, priceBase: true } } },
+          },
+        },
       },
     },
   },

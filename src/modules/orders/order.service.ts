@@ -86,7 +86,9 @@ async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<
     include: {
       kitchen: { select: { name: true } },
       variants: true,
-      modifierCategories: { include: { modifierCategory: { include: { modifiers: true } } } },
+      modifierCategories: {
+        include: { modifierCategory: { include: { modifiers: { include: { variantPrices: true } } } } },
+      },
     },
   });
   const byId = new Map(products.map((p) => [p.id, p]));
@@ -149,10 +151,14 @@ async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<
         if (m.maxQuantity != null && chosenQty > m.maxQuantity) {
           throw badRequest(`Elige como máximo ${m.maxQuantity} de "${m.name}" en "${product.name}".`);
         }
+        // Si el modificador tiene un precio propio para la variante elegida (ej. "Extra queso"
+        // en Pizza Grande vs. Pequeña), usa ese en vez del priceBase general.
+        const variantOverride = item.variantId ? m.variantPrices.find((vp) => vp.variantId === item.variantId) : undefined;
+        const effectivePriceBase = variantOverride?.priceBase ?? m.priceBase;
         modifierLines.push({
           modifierId: m.id,
           name: m.name,
-          priceBase: round2(m.priceBase.sub(m.discountBase ?? 0)),
+          priceBase: round2(effectivePriceBase.sub(m.discountBase ?? 0)),
           quantity: chosenQty,
         });
       }

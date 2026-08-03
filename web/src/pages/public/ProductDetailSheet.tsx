@@ -3,7 +3,7 @@ import type { MouseEvent } from 'react';
 import { Check, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import type { CartLine, ModifierCategory, Product, Restaurant, SelectedModifier } from '../../types';
 import { formatBase, publicPriceLabel } from '../../utils/format';
-import { effectiveMax, effectiveMin } from '../../utils/modifierLimits';
+import { effectiveMax, effectiveMin, effectiveModifierPrice } from '../../utils/modifierLimits';
 import {
   FamilyDrawerRoot,
   FamilyDrawerPortal,
@@ -91,7 +91,12 @@ export default function ProductDetailSheet({
   const chosenModifiers: SelectedModifier[] = modifierCategories.flatMap((c) =>
     c.modifiers
       .filter((m) => (selectedQty[m.id] ?? 0) > 0)
-      .map((m) => ({ modifierId: m.id, name: m.name, priceBase: m.priceBase, quantity: selectedQty[m.id] })),
+      .map((m) => ({
+        modifierId: m.id,
+        name: m.name,
+        priceBase: String(effectiveModifierPrice(m, selectedVariant?.id)),
+        quantity: selectedQty[m.id],
+      })),
   );
   const modifiersTotal = chosenModifiers.reduce((acc, m) => acc + Number(m.priceBase) * m.quantity, 0);
   const unitPrice = basePrice + modifiersTotal;
@@ -279,6 +284,7 @@ export default function ProductDetailSheet({
                               {category.modifiers.map((m) => {
                                 const qty = selectedQty[m.id] ?? 0;
                                 const checked = qty > 0;
+                                const modPrice = effectiveModifierPrice(m, selectedVariant?.id);
 
                                 if (category.allowMultiple) {
                                   return (
@@ -290,10 +296,10 @@ export default function ProductDetailSheet({
                                     >
                                       <span className="text-brand-950 min-w-0 truncate">
                                         {m.name}
-                                        {Number(m.priceBase) > 0 && (
+                                        {modPrice > 0 && (
                                           <span className="text-brand-950/60 font-medium">
                                             {' '}
-                                            +{formatBase(m.priceBase, restaurant.currencySymbol)}
+                                            +{formatBase(modPrice, restaurant.currencySymbol)}
                                           </span>
                                         )}
                                       </span>
@@ -339,9 +345,9 @@ export default function ProductDetailSheet({
                                       </span>
                                       {m.name}
                                     </span>
-                                    {Number(m.priceBase) > 0 && (
+                                    {modPrice > 0 && (
                                       <span className="text-brand-950/60 font-medium">
-                                        +{formatBase(m.priceBase, restaurant.currencySymbol)}
+                                        +{formatBase(modPrice, restaurant.currencySymbol)}
                                       </span>
                                     )}
                                   </button>

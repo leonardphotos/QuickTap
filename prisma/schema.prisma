@@ -763,11 +763,29 @@ model Modifier {
   category   ModifierCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   // SetNull: si se borra el insumo, el modificador sigue vivo (solo deja de
   // descontar) — borrar un insumo no puede tumbar el menú.
-  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  inventoryItem InventoryItem?         @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  variantPrices ModifierVariantPrice[]
 
   @@index([restaurantId, categoryId])
   @@index([inventoryItemId])
   @@map("modifiers")
+}
+
+// Precio propio de un modificador para UNA variante puntual de un producto (ej. "Extra queso"
+// cuesta distinto en "Pizza Grande" que en "Pizza Pequeña"). Sin fila acá = el modificador usa
+// su Modifier.priceBase de siempre, sin importar la variante elegida — esto es solo el override.
+model ModifierVariantPrice {
+  id         String  @id @default(cuid())
+  modifierId String
+  variantId  String
+  priceBase  Decimal @db.Decimal(12, 2)
+
+  modifier Modifier       @relation(fields: [modifierId], references: [id], onDelete: Cascade)
+  variant  ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@unique([modifierId, variantId])
+  @@index([variantId])
+  @@map("modifier_variant_prices")
 }
 
 // Asocia una categoría de modificadores reutilizable a un producto puntual ("Asociar/Desasociar").
@@ -815,8 +833,9 @@ model ProductVariant {
   // y por eso la importación nunca la borra.
   externalSourceId String?
 
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  restaurant     Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  product        Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
+  modifierPrices ModifierVariantPrice[]
 
   @@unique([productId, externalSourceId])
   @@index([restaurantId, productId])

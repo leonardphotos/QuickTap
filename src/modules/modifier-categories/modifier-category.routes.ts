@@ -18,6 +18,9 @@ router.patch('/:id/modifiers/reorder', modifierCategoryController.reorderModifie
 router.patch('/modifiers/:modifierId', modifierCategoryController.updateModifier);
 router.delete('/modifiers/:modifierId', modifierCategoryController.removeModifier);
 
+router.put('/modifiers/:modifierId/variant-prices/:variantId', modifierCategoryController.setModifierVariantPrice);
+router.delete('/modifiers/:modifierId/variant-prices/:variantId', modifierCategoryController.removeModifierVariantPrice);
+
 router.get('/:id/products', modifierCategoryController.listLinkedProducts);
 router.post('/:id/products', modifierCategoryController.associateProduct);
 router.patch('/:id/products/:productId', modifierCategoryController.updateProductLink);

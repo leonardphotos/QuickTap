@@ -5,6 +5,7 @@ import {
   createModifierCategorySchema,
   createModifierSchema,
   reorderModifiersSchema,
+  setModifierVariantPriceSchema,
   updateModifierCategorySchema,
   updateModifierSchema,
   updateProductLinkSchema,
@@ -57,6 +58,22 @@ export const modifierCategoryController = {
     const input = updateProductLinkSchema.parse(req.body);
     res.json({
       data: await modifierCategoryService.updateProductLink(req.restaurantId!, req.params.id, req.params.productId, input),
+    });
+  }),
+  setModifierVariantPrice: asyncHandler(async (req: Request, res: Response) => {
+    const input = setModifierVariantPriceSchema.parse(req.body);
+    res.json({
+      data: await modifierCategoryService.setModifierVariantPrice(
+        req.restaurantId!,
+        req.params.modifierId,
+        req.params.variantId,
+        input,
+      ),
+    });
+  }),
+  removeModifierVariantPrice: asyncHandler(async (req: Request, res: Response) => {
+    res.json({
+      data: await modifierCategoryService.removeModifierVariantPrice(req.restaurantId!, req.params.modifierId, req.params.variantId),
     });
   }),
 };

@@ -5,6 +5,7 @@ import {
   CreateModifierCategoryInput,
   CreateModifierInput,
   ReorderModifiersInput,
+  SetModifierVariantPriceInput,
   UpdateModifierCategoryInput,
   UpdateModifierInput,
   UpdateProductLinkInput,
@@ -25,7 +26,10 @@ export const modifierCategoryService = {
           orderBy: [{ priority: 'asc' }, { name: 'asc' }],
           // Nombre y unidad del insumo vinculado, para que el editor muestre
           // "30 gr de Queso" sin tener que cruzar listas en el frontend.
-          include: { inventoryItem: { select: { id: true, name: true, unit: true } } },
+          include: {
+            inventoryItem: { select: { id: true, name: true, unit: true } },
+            variantPrices: { select: { variantId: true, priceBase: true } },
+          },
         },
         _count: { select: { products: true } },
       },
@@ -55,6 +59,9 @@ export const modifierCategoryService = {
         inventoryQuantity: m.inventoryQuantity?.toString() ?? null,
         inventoryItemName: m.inventoryItem?.name ?? null,
         inventoryItemUnit: m.inventoryItem?.unit ?? null,
+        // Precios propios por variante (ej. "Extra queso" en Pizza Grande vs. Pequeña).
+        // Vacío = usa priceBase de arriba sin importar la variante elegida.
+        variantPrices: m.variantPrices.map((vp) => ({ variantId: vp.variantId, priceBase: vp.priceBase.toFixed(2) })),
       })),
     }));
   },
@@ -182,5 +189,33 @@ export const modifierCategoryService = {
     const category = await prisma.modifierCategory.findFirst({ where: { id, restaurantId }, select: { id: true } });
     if (!category) throw notFound('Categoría de modificadores no encontrada.');
     return category;
+  },
+
+  /** Guarda/reemplaza el precio propio de un modificador para una variante puntual (ej. "Extra
+   * queso" en Pizza Grande). Tanto el modificador como la variante deben ser de este restaurante. */
+  async setModifierVariantPrice(
+    restaurantId: string,
+    modifierId: string,
+    variantId: string,
+    input: SetModifierVariantPriceInput,
+  ) {
+    const modifier = await prisma.modifier.findFirst({ where: { id: modifierId, restaurantId }, select: { id: true } });
+    if (!modifier) throw notFound('Modificador no encontrado.');
+    const variant = await prisma.productVariant.findFirst({ where: { id: variantId, restaurantId }, select: { id: true } });
+    if (!variant) throw notFound('Variante no encontrada.');
+
+    return prisma.modifierVariantPrice.upsert({
+      where: { modifierId_variantId: { modifierId, variantId } },
+      update: { priceBase: input.priceBase },
+      create: { modifierId, variantId, priceBase: input.priceBase },
+    });
+  },
+
+  /** Quita el override: la variante vuelve a usar el priceBase general del modificador. */
+  async removeModifierVariantPrice(restaurantId: string, modifierId: string, variantId: string) {
+    const modifier = await prisma.modifier.findFirst({ where: { id: modifierId, restaurantId }, select: { id: true } });
+    if (!modifier) throw notFound('Modificador no encontrado.');
+    await prisma.modifierVariantPrice.deleteMany({ where: { modifierId, variantId } });
+    return { deleted: true };
   },
 };

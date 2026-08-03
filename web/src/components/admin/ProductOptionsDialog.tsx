@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { formatBase } from '@/utils/format';
+import { effectiveModifierPrice } from '@/utils/modifierLimits';
 import type { CartLine, Product, SelectedModifier } from '@/types';
 
 interface Props {
@@ -97,7 +98,12 @@ export function ProductOptionsDialog({
   const chosenModifiers: SelectedModifier[] = modifierCategories.flatMap((c) =>
     c.modifiers
       .filter((m) => (selectedQty[m.id] ?? 0) > 0)
-      .map((m) => ({ modifierId: m.id, name: m.name, priceBase: m.priceBase, quantity: selectedQty[m.id] })),
+      .map((m) => ({
+        modifierId: m.id,
+        name: m.name,
+        priceBase: String(effectiveModifierPrice(m, selectedVariant?.id)),
+        quantity: selectedQty[m.id],
+      })),
   );
   const modifiersTotal = chosenModifiers.reduce((acc, m) => acc + Number(m.priceBase) * m.quantity, 0);
   const unitPrice = basePrice + modifiersTotal;
@@ -204,6 +210,7 @@ export function ProductOptionsDialog({
                   {category.modifiers.map((m) => {
                     const qty = selectedQty[m.id] ?? 0;
                     const checked = qty > 0;
+                    const modPrice = effectiveModifierPrice(m, selectedVariant?.id);
 
                     if (category.allowMultiple) {
                       return (
@@ -215,8 +222,8 @@ export function ProductOptionsDialog({
                         >
                           <span className="text-brand-950 min-w-0 truncate">
                             {m.name}
-                            {Number(m.priceBase) > 0 && (
-                              <span className="text-brand-950/60 font-medium"> +{formatBase(m.priceBase, currencySymbol)}</span>
+                            {modPrice > 0 && (
+                              <span className="text-brand-950/60 font-medium"> +{formatBase(modPrice, currencySymbol)}</span>
                             )}
                           </span>
                           <div className="flex items-center gap-2.5 shrink-0">
@@ -261,8 +268,8 @@ export function ProductOptionsDialog({
                           </span>
                           {m.name}
                         </span>
-                        {Number(m.priceBase) > 0 && (
-                          <span className="text-brand-950/60 font-medium">+{formatBase(m.priceBase, currencySymbol)}</span>
+                        {modPrice > 0 && (
+                          <span className="text-brand-950/60 font-medium">+{formatBase(modPrice, currencySymbol)}</span>
                         )}
                       </button>
                     );

@@ -140,6 +140,10 @@ export interface Modifier {
   /** Denormalizados por el backend para pintar "30 gr de Queso" sin cruzar listas. */
   inventoryItemName?: string | null;
   inventoryItemUnit?: string | null;
+  /** Precio propio de este modificador para variantes puntuales del producto (ej. "Extra
+   * queso" cuesta distinto en "Pizza Grande" que en "Pizza Pequeña"). Vacío/undefined = usa
+   * `priceBase` de arriba sin importar la variante elegida — ver effectiveModifierPrice(). */
+  variantPrices?: { variantId: string; priceBase: string }[];
 }
 
 export interface ModifierCategory {

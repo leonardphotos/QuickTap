@@ -169,6 +169,15 @@ interface LinkedProduct {
   name: string;
 }
 
+/** Producto con variantes (pricingMode "VARIANTS") entre los que la categoría tiene asociados —
+ * es sobre estas variantes que se puede fijar un precio propio por modificador. */
+interface VariantProductOption {
+  id: string;
+  name: string;
+  pricingMode: string;
+  variants: { id: string; name: string }[];
+}
+
 function CategoryEditor({
   category,
   onBack,
@@ -190,7 +199,7 @@ function CategoryEditor({
   // por editor abierto y se comparten entre todas las filas.
   const [insumos, setInsumos] = useState<InsumoOption[]>([]);
   const linkEnabled = !!restaurant?.modifierInventoryLinkEnabled;
-  const [allProducts, setAllProducts] = useState<{ id: string; name: string }[] | null>(null);
+  const [allProducts, setAllProducts] = useState<VariantProductOption[] | null>(null);
   const [linkedProducts, setLinkedProducts] = useState<LinkedProduct[] | null>(null);
 
   useEffect(() => setName(category.name), [category.id, category.name]);
@@ -200,6 +209,13 @@ function CategoryEditor({
   useEffect(() => {
     setAllProducts(null);
     setLinkedProducts(null);
+  }, [category.id]);
+
+  // Se necesita saber qué productos/variantes usa esta categoría para poder ofrecer "Precio por
+  // variante" en cada modificador (no solo cuando el admin abre el desplegable Asociar/Desasociar).
+  useEffect(() => {
+    loadProductLinkData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category.id]);
 
   // Los insumos solo hacen falta si el vínculo con inventario está activo.
@@ -277,7 +293,16 @@ function CategoryEditor({
       api.get('/products'),
       api.get(`/modifier-categories/${category.id}/products`),
     ]);
-    setAllProducts(productsRes.data.data.map((p: { id: string; name: string }) => ({ id: p.id, name: p.name })));
+    setAllProducts(
+      productsRes.data.data.map(
+        (p: { id: string; name: string; pricingMode: string; variants?: { id: string; name: string }[] }) => ({
+          id: p.id,
+          name: p.name,
+          pricingMode: p.pricingMode,
+          variants: p.variants ?? [],
+        }),
+      ),
+    );
     setLinkedProducts(linkedRes.data.data);
   }
 
@@ -304,6 +329,11 @@ function CategoryEditor({
   }
 
   const linkedIds = new Set((linkedProducts ?? []).map((p) => p.productId));
+  // Solo los productos asociados a esta categoría que cobran "por variantes" (ej. Pizza
+  // Pequeña/Grande) tienen sentido para fijar un precio propio de modificador por variante.
+  const variantProducts: VariantProductOption[] = (allProducts ?? []).filter(
+    (p) => linkedIds.has(p.id) && p.pricingMode === 'VARIANTS' && p.variants.length > 0,
+  );
 
   return (
     <>
@@ -448,6 +478,7 @@ function CategoryEditor({
                 onChanged={onChanged}
                 insumos={insumos}
                 linkEnabled={linkEnabled}
+                variantProducts={variantProducts}
               />
             ))}
           </div>
@@ -475,6 +506,7 @@ function ModifierRow({
   onChanged,
   insumos,
   linkEnabled,
+  variantProducts,
 }: {
   modifier: Modifier;
   categoryId: string;
@@ -487,6 +519,7 @@ function ModifierRow({
   onChanged: () => void;
   insumos: InsumoOption[];
   linkEnabled: boolean;
+  variantProducts: VariantProductOption[];
 }) {
   const [name, setName] = useState(modifier.name);
   const [price, setPrice] = useState(modifier.priceBase);
@@ -497,6 +530,11 @@ function ModifierRow({
   const [cost, setCost] = useState(modifier.costBase ?? '');
   const [discount, setDiscount] = useState(modifier.discountBase ?? '');
   const [sku, setSku] = useState(modifier.sku ?? '');
+
+  // --- Precio propio por variante (ej. "Extra queso" cuesta distinto en Pizza Grande vs.
+  // Pequeña) — solo tiene sentido si la categoría está asociada a algún producto "por variantes".
+  const [showVariantPrices, setShowVariantPrices] = useState((modifier.variantPrices?.length ?? 0) > 0);
+  const [variantPriceInputs, setVariantPriceInputs] = useState<Record<string, string>>({});
 
   // --- Vínculo con inventario ---
   const [showInsumo, setShowInsumo] = useState(!!modifier.inventoryItemId);
@@ -527,7 +565,24 @@ function ModifierRow({
       setSubUnit(options[0]?.value ?? '');
       setInsumoQty(base > 0 ? String(Number(base.toFixed(3))) : '');
     }
+    setShowVariantPrices((modifier.variantPrices?.length ?? 0) > 0);
+    const priceInputs: Record<string, string> = {};
+    for (const vp of modifier.variantPrices ?? []) priceInputs[vp.variantId] = vp.priceBase;
+    setVariantPriceInputs(priceInputs);
   }, [modifier]);
+
+  /** Precio por variante: vacío = borra el override (vuelve a usar el precio general de arriba). */
+  async function saveVariantPrice(variantId: string, raw: string) {
+    const trimmed = raw.trim();
+    if (trimmed === '') {
+      await api.delete(`/modifier-categories/modifiers/${modifier.id}/variant-prices/${variantId}`);
+    } else {
+      await api.put(`/modifier-categories/modifiers/${modifier.id}/variant-prices/${variantId}`, {
+        priceBase: Number(trimmed) || 0,
+      });
+    }
+    onChanged();
+  }
 
   /** Guarda el vínculo convirtiendo la cantidad a la unidad base del insumo. */
   async function saveInsumoLink() {
@@ -676,7 +731,49 @@ function ModifierRow({
             <Plus className="h-3 w-3" /> SKU
           </button>
         )}
+        {variantProducts.length > 0 && !showVariantPrices && (
+          <button
+            type="button"
+            onClick={() => setShowVariantPrices(true)}
+            className="flex items-center gap-1 text-xs font-medium text-brand-500 bg-brand-500/10 rounded-full px-2.5 py-1"
+          >
+            <Plus className="h-3 w-3" /> Precio por variante
+          </button>
+        )}
       </div>
+
+      {/* Precio propio por variante (ej. "Extra queso" en Pizza Grande vs. Pequeña): solo
+          aparece si esta categoría está asociada a algún producto que cobra "por variantes". */}
+      {variantProducts.length > 0 && showVariantPrices && (
+        <div className="pl-[26px] pt-1 space-y-2">
+          <p className="text-xs font-medium text-brand-950/60">
+            Precio por variante <span className="text-brand-950/35 font-normal">(vacío = usa {symbol}{price || '0'} de arriba)</span>
+          </p>
+          {variantProducts.map((product) => (
+            <div key={product.id} className="rounded-xl border border-brand-950/10 p-2 space-y-1.5">
+              {variantProducts.length > 1 && (
+                <p className="text-xs font-medium text-brand-950/50 truncate">{product.name}</p>
+              )}
+              <div className="grid grid-cols-2 gap-1.5">
+                {product.variants.map((v) => (
+                  <OutlinedField key={v.id} label={v.name} prefix={symbol}>
+                    <input
+                      value={variantPriceInputs[v.id] ?? ''}
+                      onChange={(e) =>
+                        setVariantPriceInputs((prev) => ({ ...prev, [v.id]: e.target.value.replace(/[^0-9.]/g, '') }))
+                      }
+                      onBlur={(e) => saveVariantPrice(v.id, e.target.value)}
+                      placeholder="—"
+                      className={outlinedFieldInputClass}
+                    />
+                  </OutlinedField>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {(showCost || showDiscount || showSku) && (
         <div className="grid grid-cols-2 gap-1.5 pl-[26px]">
           {showCost && (
