@@ -9,6 +9,9 @@ export const updateWhatsappBotSettingsSchema = z.object({
   // null = desactiva el flujo de verificación de pago con comprobante (ver
   // order-payment-verification.service.ts).
   paymentVerifierPhone: z.string().max(30).nullable().optional(),
+  // 'PAYMENT_VERIFICATION' (de siempre) = solo pide comprobante en métodos que lo exigen.
+  // 'FULL_ORDER' = manda el pedido completo a paymentVerifierPhone para confirmación manual.
+  orderMode: z.enum(['PAYMENT_VERIFICATION', 'FULL_ORDER']).optional(),
 });
 
 export type UpdateWhatsappBotSettingsInput = z.infer<typeof updateWhatsappBotSettingsSchema>;

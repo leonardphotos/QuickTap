@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { ArrowLeft, Check, Copy } from 'lucide-react';
+import { useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
+import { ArrowLeft, Camera, Check, Copy, Loader2 } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute, formatModifierLabel } from '@/utils/format';
+import { CURRENCY_SYMBOLS, formatBase, formatBs, formatBsAbsolute, formatModifierLabel } from '@/utils/format';
 import { canApplyDiscount } from '@/utils/roles';
 import type { PaymentMethod } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -22,8 +23,14 @@ export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
 
 const DEFAULT_PAYMENT_OPTIONS: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD'];
 
-// Métodos que exigen un número de referencia/comprobante al registrar el cobro.
-const METHODS_REQUIRING_REFERENCE: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'CARD'];
+// Métodos que exigen un número de referencia/comprobante al registrar el cobro. Todos menos
+// Efectivo Bs/$ (que no dejan rastro que verificar) — mismo criterio que el backend
+// (order.dto.ts).
+const METHODS_REQUIRING_REFERENCE: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER'];
+
+// Además de la referencia, estos exigen la FOTO del comprobante — Punto de Venta queda fuera:
+// no tiene datos bancarios/QR que mostrar y el ticket impreso ya es su propio comprobante.
+const METHODS_REQUIRING_PROOF: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'BINANCE', 'PAYPAL', 'TRANSFER'];
 
 function referenceLabel(method: PaymentMethod): string {
   return method === 'CARD' ? 'Número de ticket' : 'Número de referencia';
@@ -54,7 +61,12 @@ function PaymentRow({ payment, symbol }: { payment: LiveOrderPayment; symbol: st
     <div className="flex items-center justify-between gap-2 text-xs py-1.5 border-b border-brand-950/[0.06] last:border-0">
       <div className="min-w-0">
         <p className="font-medium text-brand-950">{PAYMENT_LABELS[payment.method as PaymentMethod] ?? payment.method}</p>
-        {payment.referenceNumber && <p className="text-brand-950/40 truncate">Ref: {payment.referenceNumber}</p>}
+        {payment.referenceNumber && (
+          <p className="text-brand-950/40 truncate">
+            Ref: {payment.referenceNumber}
+            {payment.proofImageUrl && <span className="text-emerald-600"> · ✓ Comprobante</span>}
+          </p>
+        )}
         {Number(payment.discountBase ?? 0) > 0 && (
           <p className="text-brand-950/40">Descuento: {formatBase(payment.discountBase!, symbol)}</p>
         )}
@@ -84,6 +96,10 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   const [amount, setAmount] = useState(mode === 'split' ? '' : balanceBase.toFixed(2));
   const [discountPercent, setDiscountPercent] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
+  const [proofUrl, setProofUrl] = useState<string | null>(null);
+  const [uploadingProof, setUploadingProof] = useState(false);
+  const [proofError, setProofError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   // Submodalidad de "Pago fraccionado": por monto libre (de siempre) o eligiendo ítems puntuales.
   const [splitBy, setSplitBy] = useState<'amount' | 'items'>('amount');
   const [pickedQty, setPickedQty] = useState<Record<string, number>>({});
@@ -100,6 +116,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   const discountPct = showDiscount && splitBy === 'amount' ? Math.min(100, Math.max(0, Number(discountPercent) || 0)) : 0;
   const discountedBalance = round2(balanceBase * (1 - discountPct / 100));
   const needsReference = METHODS_REQUIRING_REFERENCE.includes(method);
+  const needsProof = METHODS_REQUIRING_PROOF.includes(method);
 
   function round2(n: number) {
     return Math.round(n * 100) / 100;
@@ -118,6 +135,10 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
 
   const itemsSubtotal = round2(order.items.reduce((acc, it) => acc + Number(it.unitPrice) * (pickedQty[it.id] ?? 0), 0));
   const itemsPickedCount = Object.values(pickedQty).reduce((acc, q) => acc + q, 0);
+  // Monto a cobrar ahora mismo — mismo valor que ya se muestra como "Monto a cobrar" más abajo,
+  // usado también para el bloque de QR/Bs de Pago Móvil.
+  const amountToCharge =
+    mode === 'split' && splitBy === 'items' ? itemsSubtotal : mode === 'split' ? Number(amount) || 0 : discountedBalance;
 
   function onDiscountChange(v: string) {
     const clean = v.replace(/[^0-9.]/g, '');
@@ -134,6 +155,26 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
       setTimeout(() => setCopiedField((c) => (c === key ? null : c)), 1500);
     } catch {
       // El navegador puede negar el permiso de portapapeles; fallamos en silencio.
+    }
+  }
+
+  async function handleProofFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadingProof(true);
+    setProofError(null);
+    try {
+      const form = new FormData();
+      form.append('photo', file);
+      const { data } = await api.post('/orders/upload-payment-proof', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setProofUrl(data.data.url);
+    } catch (e: any) {
+      setProofError(e.response?.data?.error ?? 'No se pudo subir la foto.');
+    } finally {
+      setUploadingProof(false);
     }
   }
 
@@ -157,6 +198,10 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
       setError(`Escribe el ${referenceLabel(method).toLowerCase()}.`);
       return;
     }
+    if (needsProof && !proofUrl) {
+      setError('Adjunta la foto del comprobante.');
+      return;
+    }
     setSending(true);
     setError(null);
     try {
@@ -170,6 +215,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
         method,
         discountPercent: discountPct > 0 ? discountPct : undefined,
         referenceNumber: needsReference ? referenceNumber.trim() : undefined,
+        proofImageUrl: needsProof ? (proofUrl ?? undefined) : undefined,
       });
       // El endpoint devuelve el pedido completo (no solo el pago nuevo). Se identifica el/los
       // pago(s) recién creados comparando contra los que ya conocíamos ANTES de este POST — así
@@ -187,6 +233,8 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
         setPaidNow(amountBase);
         setAmount('');
         setReferenceNumber('');
+        setProofUrl(null);
+        setProofError(null);
       }
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo registrar el pago.');
@@ -323,6 +371,8 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                       setAmount('');
                       setDiscountPercent('');
                       setReferenceNumber('');
+                      setProofUrl(null);
+                      setProofError(null);
                       setPickedQty({});
                     }}
                   >
@@ -370,6 +420,30 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                 </div>
               </div>
 
+              {method === 'MOBILE_PAYMENT' && (
+                <div className="text-center space-y-2">
+                  {restaurant?.paymentMethodsConfig?.MOBILE_PAYMENT?.qrImageUrl && (
+                    <img
+                      src={restaurant.paymentMethodsConfig.MOBILE_PAYMENT.qrImageUrl}
+                      alt="QR de Pago Móvil"
+                      className="mx-auto w-full max-w-[220px] aspect-square object-contain rounded-2xl border border-brand-950/10"
+                    />
+                  )}
+                  <div>
+                    <p className="text-xs font-semibold text-brand-950/50">Monto a cobrar</p>
+                    <div className="text-3xl font-extrabold text-emerald-600 leading-none tracking-tight mt-1">
+                      {restaurant?.exchangeRate ? formatBs(amountToCharge, restaurant.exchangeRate.rateBs) : formatBase(amountToCharge, symbol)}
+                    </div>
+                    {restaurant?.exchangeRate && (
+                      <p className="text-xs font-medium text-brand-950/50 mt-1.5">
+                        {formatBase(amountToCharge, symbol)} &nbsp;x&nbsp; Bs{Number(restaurant.exchangeRate.rateBs).toFixed(2)}{' '}
+                        (tasa del día)
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {selectedDetails && (
                 <div className="text-xs text-brand-950/60 bg-brand-950/[0.03] rounded-lg px-2.5 py-2 space-y-1">
                   {(Object.keys(PAYMENT_FIELD_LABELS) as (keyof typeof PAYMENT_FIELD_LABELS)[])
@@ -410,6 +484,36 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     placeholder={referenceLabel(method)}
                     className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
                   />
+                </div>
+              )}
+
+              {needsProof && (
+                <div className="space-y-1.5">
+                  <TextureButton
+                    variant="minimal"
+                    size="sm"
+                    className="w-full justify-center"
+                    disabled={uploadingProof}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {uploadingProof ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                    {uploadingProof ? 'Subiendo…' : proofUrl ? 'Cambiar comprobante' : 'Adjuntar comprobante'}
+                  </TextureButton>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={handleProofFileChange}
+                  />
+                  {proofUrl && (
+                    <div className="flex items-center gap-2.5 justify-center">
+                      <img src={proofUrl} alt="Comprobante" className="h-12 w-12 rounded-lg object-cover border border-brand-950/10" />
+                      <p className="text-xs font-semibold text-emerald-600">✓ Comprobante adjunto</p>
+                    </div>
+                  )}
+                  {proofError && <p className="text-xs font-semibold text-red-600">{proofError}</p>}
                 </div>
               )}
 

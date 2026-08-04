@@ -196,6 +196,11 @@ export interface Product {
   stockQuantity?: number | null;
   /** Calculado en el backend: stockControlEnabled && stockQuantity<=0. Distinto de isAvailable (manual). */
   stockDepleted?: boolean;
+  // Embase: solo se cobra en pedidos DELIVERY/PICKUP. "FIXED" usa packagingFeeBase propio;
+  // "INVENTORY" usa el precio de venta del insumo vinculado (packagingItemId).
+  packagingMode?: 'NONE' | 'FIXED' | 'INVENTORY';
+  packagingFeeBase?: string | null;
+  packagingItemId?: string | null;
   isStar: boolean;
   isPromo: boolean;
   isHouseSpecial: boolean;

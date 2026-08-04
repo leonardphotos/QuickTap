@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
-import { forbidden } from '../../utils/http-error';
+import { badRequest, forbidden } from '../../utils/http-error';
 import { DISCOUNT_ROLES } from '../../utils/roles';
 import {
   addOrderItemSchema,
@@ -86,6 +86,12 @@ export const orderController = {
     }
     const order = await orderService.addPayment(req.restaurantId!, req.params.id, input);
     res.status(201).json({ data: order });
+  }),
+
+  /** POST /api/v1/orders/upload-payment-proof — foto del comprobante para el botón "Cobrar". */
+  uploadPaymentProof: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw badRequest('No se recibió ningún archivo.');
+    res.status(201).json({ data: { url: `/uploads/order-payment-proofs/${req.file.filename}` } });
   }),
 
   /** PATCH /api/v1/orders/:id/customer — editar nombre/teléfono/dirección/nota (protegido). */

@@ -1,4 +1,4 @@
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { SHOP_RUBROS } from '@/data/shopRubros';
 
 /**
@@ -12,13 +12,15 @@ import { SHOP_RUBROS } from '@/data/shopRubros';
  */
 export default function ShopRubroPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
 
   function choose(rubroId: string) {
     const params = new URLSearchParams(searchParams);
     params.set('businessType', 'shop');
     params.set('rubro', rubroId);
-    navigate(`/admin/register?${params.toString()}`);
+    // Reenvía location.state (datos de "Continuar con Google", ver StartRegisterPage.tsx).
+    navigate(`/admin/register?${params.toString()}`, { state: location.state });
   }
 
   return (

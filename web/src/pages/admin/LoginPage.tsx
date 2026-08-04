@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../../context/AuthContext';
 import { clearRememberedEmail, getRememberedEmail, getStoredSlug, setRememberedEmail } from '../../api/client';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -8,7 +9,7 @@ import { PasswordInput } from '@/components/ui/password-input';
 import AuthLayout from './AuthLayout';
 
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const rememberedEmail = getRememberedEmail();
   const [email, setEmail] = useState(rememberedEmail ?? '');
@@ -16,6 +17,7 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(rememberedEmail !== null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -35,6 +37,25 @@ export default function LoginPage() {
     }
   }
 
+  async function onGoogleSuccess(credential: string) {
+    setGoogleLoading(true);
+    setError(null);
+    try {
+      const result = await loginWithGoogle(credential, getStoredSlug() ?? undefined);
+      if (result.needsRegistration) {
+        // Sin cuenta todavía: manda los datos ya verificados de Google al registro para
+        // que solo falte pedir nombre del restaurante + slug (nunca email/contraseña).
+        navigate('/empezar', { state: { googleCredential: credential, googleEmail: result.email, googleName: result.name } });
+        return;
+      }
+      navigate('/admin');
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo iniciar sesión con Google.');
+    } finally {
+      setGoogleLoading(false);
+    }
+  }
+
   return (
     <AuthLayout
       title="Ingresa a tu Dashboard"
@@ -47,6 +68,20 @@ export default function LoginPage() {
         </p>
       }
     >
+      <div className="mb-4">
+        <GoogleLogin
+          onSuccess={(cred) => cred.credential && onGoogleSuccess(cred.credential)}
+          onError={() => setError('No se pudo iniciar sesión con Google.')}
+          text="signin_with"
+          width="384"
+        />
+        {googleLoading && <p className="text-xs text-brand-950/50 mt-1">Ingresando…</p>}
+      </div>
+      <div className="flex items-center gap-3 my-4">
+        <div className="h-px flex-1 bg-brand-950/10" />
+        <span className="text-xs text-brand-950/40">o con tu correo</span>
+        <div className="h-px flex-1 bg-brand-950/10" />
+      </div>
       <form onSubmit={onSubmit} className="space-y-4">
         <Field label="Email" type="email" value={email} onChange={setEmail} name="email" autoComplete="username" />
         <Field

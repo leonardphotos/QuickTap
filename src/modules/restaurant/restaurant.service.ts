@@ -6,6 +6,15 @@ import { UpdateLockScreenIntervalsInput, UpdateRestaurantInput, UpdateScheduleIn
 
 export const restaurantService = {
   async update(restaurantId: string, input: UpdateRestaurantInput) {
+    // "Inventario compartido/por sede" y "Casa Matriz" son ajustes de TODO el grupo
+    // (sede principal + sucursales) — solo se cambian desde la sede principal, nunca
+    // desde una sucursal, para que no queden desincronizados entre sí.
+    if (input.inventoryMode !== undefined || input.casaMatrizEnabled !== undefined) {
+      const current = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { parentRestaurantId: true } });
+      if (current?.parentRestaurantId) {
+        throw badRequest('Este ajuste solo se cambia desde la sede principal.');
+      }
+    }
     return prisma.restaurant.update({
       where: { id: restaurantId },
       data: input,

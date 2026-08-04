@@ -34,6 +34,11 @@ export interface AuthRestaurant {
   isDemo: boolean;
   /** Modo administrador activado (código de 4 dígitos en Ajustes): exime del reset automático. */
   demoAdminUnlocked: boolean;
+  /** Plan Sucursales: "PER_BRANCH" (de siempre, cada sede su propio stock) o "SHARED" (una
+   * sola bolsa de stock para todas las sedes del grupo). Solo se cambia desde la sede principal. */
+  inventoryMode: 'PER_BRANCH' | 'SHARED';
+  /** Activa la ventana "Casa Matriz" (segundo inventario para distribuir a las sedes). */
+  casaMatrizEnabled: boolean;
   serviceChargeEnabled: boolean;
   /** Interruptor del vínculo modificador -> insumo (botón en Inventario). */
   modifierInventoryLinkEnabled: boolean;
@@ -95,6 +100,21 @@ interface AuthState {
     shopRubro?: string;
   }) => Promise<void>;
   logout: () => void;
+  /** "Continuar con Google": `credential` es el ID token que devuelve el botón de Google.
+   * Sin cuenta existente devuelve `{ needsRegistration: true, email, name }` en vez de loguear
+   * (el llamador debe pedir los datos del restaurante y volver a llamar con `registration`). */
+  loginWithGoogle: (
+    credential: string,
+    slug?: string,
+    registration?: {
+      restaurantName: string;
+      slug: string;
+      whatsappPhone?: string;
+      baseCurrency?: Currency;
+      businessType?: 'RESTAURANT' | 'SHOP';
+      shopRubro?: string;
+    },
+  ) => Promise<{ needsRegistration: true; email: string; name: string } | { needsRegistration?: undefined }>;
   refresh: () => Promise<void>;
   /** Cambia la sesión activa hacia una sucursal (ver src/modules/branches/). Recarga la app. */
   switchToBranch: (branchId: string) => Promise<void>;
@@ -182,6 +202,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRestaurant(data.data.restaurant);
   }
 
+  async function loginWithGoogle(
+    credential: string,
+    slug?: string,
+    registration?: {
+      restaurantName: string;
+      slug: string;
+      whatsappPhone?: string;
+      baseCurrency?: Currency;
+      businessType?: 'RESTAURANT' | 'SHOP';
+      shopRubro?: string;
+    },
+  ) {
+    const { data } = await api.post('/auth/google', { credential, slug, registration });
+    if (data.data.needsRegistration) {
+      return data.data as { needsRegistration: true; email: string; name: string };
+    }
+    setToken(data.data.token);
+    setStoredSlug(data.data.restaurant.slug);
+    setUser(data.data.user);
+    setRestaurant(data.data.restaurant);
+    return {};
+  }
+
   function logout() {
     // Entorno Demo Efímero: si esta era la cuenta demo, este POST dispara el
     // reset inmediato en el backend (ver auth.service.ts logout()) — best
@@ -219,7 +262,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, restaurant, loading, login, register, logout, refresh, switchToBranch, switchToParent, setLockPin, verifyLockPin }}
+      value={{
+        user,
+        restaurant,
+        loading,
+        login,
+        register,
+        loginWithGoogle,
+        logout,
+        refresh,
+        switchToBranch,
+        switchToParent,
+        setLockPin,
+        verifyLockPin,
+      }}
     >
       {children}
     </AuthContext.Provider>

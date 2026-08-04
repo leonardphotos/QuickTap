@@ -28,13 +28,13 @@ export const productController = {
 
   create: asyncHandler(async (req: Request, res: Response) => {
     const input = createProductSchema.parse(req.body);
-    const product = await productService.create(req.restaurantId!, input);
+    const product = await productService.create(req.restaurantId!, req.auth?.parentRestaurantId, input);
     res.status(201).json({ data: product });
   }),
 
   update: asyncHandler(async (req: Request, res: Response) => {
     const input = updateProductSchema.parse(req.body);
-    const product = await productService.update(req.restaurantId!, req.params.id, input);
+    const product = await productService.update(req.restaurantId!, req.auth?.parentRestaurantId, req.params.id, input);
     res.json({ data: product });
   }),
 

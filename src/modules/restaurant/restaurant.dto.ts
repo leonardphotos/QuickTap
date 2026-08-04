@@ -105,6 +105,12 @@ export const updateRestaurantSchema = z.object({
   // Modo Cartelera: imagen de pantalla completa en vez del menú.
   fullscreenImageEnabled: z.boolean().optional(),
   fullscreenImageUrl: z.string().min(1).optional(),
+
+  // Plan Sucursales: inventario por sede (de siempre) o compartido entre todas las sedes
+  // del grupo, y ventana opcional de Casa Matriz. Solo se aplican desde la sede principal
+  // (ver restaurant.service.ts update()).
+  inventoryMode: z.enum(['PER_BRANCH', 'SHARED']).optional(),
+  casaMatrizEnabled: z.boolean().optional(),
 });
 
 export type RestaurantTheme = z.infer<typeof restaurantThemeSchema>;

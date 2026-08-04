@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireFeature, requireRole, tenantGuard } from '../../middlewares/auth.middleware';
+import { optimizeImage, uploadOrderPaymentProof } from '../../middlewares/upload.middleware';
 import { ADMIN_CASHIER_ROLES } from '../../utils/roles';
 import { orderController } from './order.controller';
 
@@ -47,6 +48,7 @@ router.post('/:id/print-comanda', orderController.printComanda);
 router.post('/:id/print-receipt', orderController.printReceipt);
 router.post('/:id/items', orderController.addItem);
 router.post('/:id/payments', orderController.addPayment);
+router.post('/upload-payment-proof', uploadOrderPaymentProof, optimizeImage(1200, 1200), orderController.uploadPaymentProof);
 router.patch('/:id/status', orderController.updateStatus);
 router.patch('/:id/kitchen-ready', orderController.markKitchenReady);
 router.patch('/:id/items', orderController.updateItems);

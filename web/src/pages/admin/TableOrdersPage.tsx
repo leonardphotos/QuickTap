@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
-import { BellRing, Check, Lock, LogOut, MoveHorizontal, Plus, Printer, Receipt } from 'lucide-react';
+import { BellRing, Check, CreditCard, Lock, LogOut, MoveHorizontal, Plus, Printer, Receipt, SplitSquareHorizontal } from 'lucide-react';
 import { api, getToken } from '../../api/client';
-import type { FloorPlan, FloorPlanTable, Product } from '../../types';
+import type { FloorPlan, FloorPlanTable, Product, TableSession } from '../../types';
 import { useAuth } from '@/context/AuthContext';
 import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -38,6 +38,11 @@ export default function TableOrdersPage() {
   const [liveOrders, setLiveOrders] = useState<LiveOrder[] | null>(null);
   const [editingOrder, setEditingOrder] = useState<LiveOrder | null>(null);
   const [payBeforeClosing, setPayBeforeClosing] = useState<LiveOrder | null>(null);
+  const [payMode, setPayMode] = useState<'full' | 'split'>('full');
+  // Botón "Cobrar": con varias cuentas abiertas, primero se elige cuál cobrar; con una sola,
+  // se salta directo al paso de elegir la modalidad de pago.
+  const [cobrarAccountPicker, setCobrarAccountPicker] = useState(false);
+  const [cobrarModeSession, setCobrarModeSession] = useState<TableSession | null>(null);
 
   function load() {
     api.get('/tables/floor-plan').then((res) => setPlan(res.data.data));
@@ -117,19 +122,59 @@ export default function TableOrdersPage() {
     }
   }
 
+  /** Pedidos de una cuenta puntual que todavía tienen saldo pendiente. */
+  function getUnpaidOrdersFor(session: TableSession | null): LiveOrder[] {
+    if (!session) return [];
+    return session.orders
+      .map((o) => liveOrders?.find((lo) => lo.id === o.orderId))
+      .filter((full): full is LiveOrder => !!full && !getPaymentStatus(full).fullyPaid);
+  }
+
+  /** Pedidos de la cuenta activa (la que está seleccionada ahora mismo) con saldo pendiente. */
+  function getUnpaidOrders(): LiveOrder[] {
+    return getUnpaidOrdersFor(activeSession);
+  }
+
   /** "Cerrar mesa": si algún pedido de la cuenta activa todavía no está pagado, abre "Pagar" para
    * ese pedido en vez de cerrar — no debe poder cerrarse una cuenta dejando saldo sin cobrar.
    * Si todo ya está pagado, cierra directo sin preguntar cómo se pagó. */
   function handleCerrarMesaClick() {
-    if (!activeSession) return;
-    const unpaid = activeSession.orders
-      .map((o) => liveOrders?.find((lo) => lo.id === o.orderId))
-      .filter((full): full is LiveOrder => !!full && !getPaymentStatus(full).fullyPaid);
+    const unpaid = getUnpaidOrders();
     if (unpaid.length === 0) {
       closeTable();
       return;
     }
     const current = editingOrder && unpaid.find((o) => o.id === editingOrder.id);
+    setPayMode('full');
+    setPayBeforeClosing(current ?? unpaid[0]);
+  }
+
+  /** "Cobrar": con varias cuentas abiertas en la mesa, primero pregunta cuál cobrar (no asume
+   * que es la que está activa en pantalla); con una sola, salta directo a elegir la modalidad. */
+  function openCobrar() {
+    if (!selected || selected.sessions.length === 0) return;
+    if (selected.sessions.length > 1) {
+      setCobrarAccountPicker(true);
+      return;
+    }
+    setCobrarModeSession(selected.sessions[0]);
+  }
+
+  function chooseCobrarAccount(session: TableSession) {
+    setCobrarAccountPicker(false);
+    setCobrarModeSession(session);
+  }
+
+  /** Último paso: con la cuenta ya elegida, arma qué pedido pagar (el que se está viendo si
+   * tiene saldo, si no el primero pendiente) y abre "Pagar" en la modalidad elegida. */
+  function chooseCobrarMode(mode: 'full' | 'split') {
+    const session = cobrarModeSession;
+    setCobrarModeSession(null);
+    if (!session) return;
+    const unpaid = getUnpaidOrdersFor(session);
+    if (unpaid.length === 0) return;
+    const current = editingOrder && unpaid.find((o) => o.id === editingOrder.id);
+    setPayMode(mode);
     setPayBeforeClosing(current ?? unpaid[0]);
   }
 
@@ -256,6 +301,15 @@ export default function TableOrdersPage() {
           className="flex items-center justify-center gap-1.5 disabled:opacity-50"
         >
           <Plus className="h-4 w-4" /> Generar orden
+        </TextureButton>
+        <TextureButton
+          variant="success"
+          size="default"
+          onClick={openCobrar}
+          disabled={busy || !selected?.sessions.some((s) => getUnpaidOrdersFor(s).length > 0)}
+          className="flex items-center justify-center gap-1.5 disabled:opacity-50"
+        >
+          <CreditCard className="h-4 w-4" /> Cobrar
         </TextureButton>
         <TextureButton
           variant="minimal"
@@ -412,6 +466,15 @@ export default function TableOrdersPage() {
                               ? 'Reservada'
                               : 'Libre'}
                     </span>
+                    {t.sessions.length > 0 && (
+                      <span
+                        className={`text-[8px] font-bold uppercase tracking-wide ${
+                          t.sessions.some((s) => getUnpaidOrdersFor(s).length > 0) ? 'text-amber-700' : 'text-emerald-700'
+                        }`}
+                      >
+                        {t.sessions.some((s) => getUnpaidOrdersFor(s).length > 0) ? 'Pendiente' : 'Pagado'}
+                      </span>
+                    )}
                   </button>
                   {t.serviceRequest && (
                     <button
@@ -567,6 +630,59 @@ export default function TableOrdersPage() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={cobrarAccountPicker} onOpenChange={setCobrarAccountPicker}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>¿Qué cuenta vas a cobrar?</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            {selected?.sessions.map((s, i) => {
+              const unpaidCount = getUnpaidOrdersFor(s).length;
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  disabled={unpaidCount === 0}
+                  onClick={() => chooseCobrarAccount(s)}
+                  className="w-full flex items-center justify-between gap-2 rounded-xl border border-brand-950/10 px-4 py-3 text-left hover:border-brand-400 hover:bg-brand-500/5 transition-colors disabled:opacity-40 disabled:hover:border-brand-950/10 disabled:hover:bg-transparent"
+                >
+                  <span className="font-medium text-brand-950">{s.label ?? `Cuenta ${i + 1}`}</span>
+                  <span className="text-sm text-brand-950/50">
+                    {unpaidCount === 0 ? 'Pagada' : formatBase(s.totalBase, symbol)}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!cobrarModeSession} onOpenChange={(o) => !o && setCobrarModeSession(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>¿Cómo va a pagar?</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => chooseCobrarMode('full')}
+              className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-brand-950/10 px-4 py-5 text-center hover:border-brand-400 hover:bg-brand-500/5 transition-colors"
+            >
+              <CreditCard className="h-5 w-5 text-brand-950/70" />
+              <span className="text-sm font-medium text-brand-950">Pago único</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => chooseCobrarMode('split')}
+              className="flex flex-col items-center justify-center gap-1.5 rounded-2xl border border-brand-950/10 px-4 py-5 text-center hover:border-brand-400 hover:bg-brand-500/5 transition-colors"
+            >
+              <SplitSquareHorizontal className="h-5 w-5 text-brand-950/70" />
+              <span className="text-sm font-medium text-brand-950">Pago fraccionado</span>
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {manualOrderOpen && selected && (
         <ManualOrderDialog
           tableId={selected.id}
@@ -581,6 +697,7 @@ export default function TableOrdersPage() {
       {editingOrder && (
         <EditOrderDialog
           order={editingOrder}
+          context="mesa"
           onClose={() => {
             setEditingOrder(null);
             setSelected(null);
@@ -596,8 +713,11 @@ export default function TableOrdersPage() {
       {payBeforeClosing && (
         <PaymentDialog
           order={payBeforeClosing}
-          mode="full"
-          onClose={() => setPayBeforeClosing(null)}
+          mode={payMode}
+          onClose={() => {
+            setPayBeforeClosing(null);
+            setPayMode('full');
+          }}
           onPaid={() => {
             load();
             loadOrders();

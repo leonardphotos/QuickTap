@@ -31,6 +31,13 @@ export const env = {
     .map((o) => o.trim())
     .filter(Boolean),
 
+  // --- "Continuar con Google" (login/registro) ---
+  // Opcional a propósito (sin required()): no debe romper el arranque si todavía no
+  // se configuró. auth.service.ts responde un error claro si falta al llamarlo.
+  google: {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+  },
+
   // --- Tasa de cambio BCV ---
   // Endpoints JSON que devuelven la tasa oficial del Banco Central de Venezuela.
   // Configurables por si la fuente cambia; por defecto usan dolarapi.com (gratuito, sin API key).

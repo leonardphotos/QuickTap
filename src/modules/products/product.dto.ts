@@ -26,6 +26,12 @@ export const createProductSchema = z.object({
   stockControlEnabled: z.boolean().optional().default(false),
   stockQuantity: z.coerce.number().int().min(0).nullable().optional(),
 
+  // Embase: solo se cobra en pedidos DELIVERY/PICKUP. "FIXED" usa packagingFeeBase;
+  // "INVENTORY" usa el precio de venta del insumo vinculado (packagingItemId).
+  packagingMode: z.enum(['NONE', 'FIXED', 'INVENTORY']).optional().default('NONE'),
+  packagingFeeBase: z.coerce.number().nonnegative('El precio de embase no puede ser negativo.').nullable().optional(),
+  packagingItemId: z.string().min(1).nullable().optional(),
+
   // Banderas de marketing
   isStar: z.boolean().optional().default(false),
   isPromo: z.boolean().optional().default(false),

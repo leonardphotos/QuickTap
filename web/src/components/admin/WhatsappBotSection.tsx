@@ -11,6 +11,7 @@ import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } 
 import { WhatsappPhoneInput } from '@/components/ui/whatsapp-phone-input';
 
 type BotStatus = 'idle' | 'connecting' | 'qr' | 'connected' | 'disconnected';
+type OrderMode = 'PAYMENT_VERIFICATION' | 'FULL_ORDER';
 
 interface StatusResponse {
   status: BotStatus;
@@ -22,6 +23,7 @@ interface StatusResponse {
   whatsappBotWelcomeEnabled: boolean;
   whatsappBotWelcomeMessage: string | null;
   whatsappBotPaymentVerifierPhone: string | null;
+  whatsappOrderMode: OrderMode;
 }
 
 // Debe coincidir con DEFAULT_WELCOME_TEMPLATE en whatsapp-bot.service.ts.
@@ -114,6 +116,11 @@ export function WhatsappBotSection() {
   async function toggle(key: keyof typeof TOGGLE_FIELD, value: boolean) {
     setData((d) => (d ? { ...d, [TOGGLE_FIELD[key]]: value } : d));
     await api.patch('/whatsapp-bot/settings', { [key]: value }).catch(() => undefined);
+  }
+
+  async function setOrderMode(mode: OrderMode) {
+    setData((d) => (d ? { ...d, whatsappOrderMode: mode } : d));
+    await api.patch('/whatsapp-bot/settings', { orderMode: mode }).catch(() => undefined);
   }
 
   async function saveWelcomeMessage() {
@@ -253,15 +260,68 @@ export function WhatsappBotSection() {
               </div>
             )}
 
+            <div className="pt-2 space-y-2 border-t border-brand-950/[0.06]">
+              <p className="text-sm text-brand-950/80 font-medium">Modo de pedidos</p>
+              <p className="text-xs text-brand-950/50 font-light">
+                Cómo confirmar un pedido de Delivery/Pickup antes de que pase a cocina.
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  disabled={!canManage}
+                  onClick={() => setOrderMode('PAYMENT_VERIFICATION')}
+                  className={`text-left rounded-xl border px-3 py-2.5 transition-colors ${
+                    data.whatsappOrderMode === 'PAYMENT_VERIFICATION'
+                      ? 'border-brand-500 bg-brand-50/60'
+                      : 'border-brand-950/10 hover:border-brand-950/20'
+                  }`}
+                >
+                  <p className="text-sm font-medium text-brand-950/90">Verificación de pago</p>
+                  <p className="text-xs text-brand-950/50 font-light mt-0.5">
+                    El cliente manda foto del comprobante y ustedes la aprueban por WhatsApp.
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  disabled={!canManage}
+                  onClick={() => setOrderMode('FULL_ORDER')}
+                  className={`text-left rounded-xl border px-3 py-2.5 transition-colors ${
+                    data.whatsappOrderMode === 'FULL_ORDER'
+                      ? 'border-brand-500 bg-brand-50/60'
+                      : 'border-brand-950/10 hover:border-brand-950/20'
+                  }`}
+                >
+                  <p className="text-sm font-medium text-brand-950/90">Enviar pedido completo</p>
+                  <p className="text-xs text-brand-950/50 font-light mt-0.5">
+                    Les llega el pedido completo a este WhatsApp y ustedes confirman a mano antes de que pase a
+                    cocina.
+                  </p>
+                </button>
+              </div>
+            </div>
+
             <div className="pt-1 space-y-2">
               <label className="text-sm text-brand-950/80">
-                Número que verifica los pagos (recibe cada comprobante y responde Aprobado/Rechazado)
+                {data.whatsappOrderMode === 'FULL_ORDER'
+                  ? 'Número que recibe los pedidos para confirmar'
+                  : 'Número que verifica los pagos (recibe cada comprobante y responde Aprobado/Rechazado)'}
               </label>
               <p className="text-xs text-brand-950/50 font-light">
-                Cuando un cliente paga por Pago Móvil/Zelle/Binance/PayPal/Transferencia y manda la foto de su
-                comprobante, el chatbot se la reenvía a este número. Si responde <em>Aprobado</em>, el pedido pasa
-                solo a cocina; si responde <em>Rechazado</em>, se le pide al cliente reenviar el comprobante. Déjalo
-                vacío para desactivar este flujo (el pedido seguirá requiriendo aceptación manual, como siempre).
+                {data.whatsappOrderMode === 'FULL_ORDER' ? (
+                  <>
+                    Cada pedido de Delivery/Pickup (sin importar el método de pago) le llega completo a este número.
+                    Si responden <em>Aprobado</em>, el pedido pasa solo a cocina; si responden <em>Rechazado</em>, se
+                    le avisa al cliente. Déjalo vacío para desactivar este flujo.
+                  </>
+                ) : (
+                  <>
+                    Cuando un cliente paga por Pago Móvil/Zelle/Binance/PayPal/Transferencia y manda la foto de su
+                    comprobante, el chatbot se la reenvía a este número. Si responde <em>Aprobado</em>, el pedido pasa
+                    solo a cocina; si responde <em>Rechazado</em>, se le pide al cliente reenviar el comprobante.
+                    Déjalo vacío para desactivar este flujo (el pedido seguirá requiriendo aceptación manual, como
+                    siempre).
+                  </>
+                )}
               </p>
               <WhatsappPhoneInput value={verifierDraft} onChange={setVerifierDraft} disabled={!canManage} />
               {canManage && (

@@ -2,6 +2,7 @@ import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { round2, toDecimal } from '../../utils/money';
 import { startOfDayCaracas } from '../../utils/timezone';
+import { resolveInventoryScope } from '../inventory/inventory-scope';
 import { CreateProductInput, UpdateProductInput } from './product.dto';
 
 /** "YYYY-MM-DD" -> medianoche Caracas en UTC (igual que el resto del sistema, ver timezone.ts).
@@ -90,10 +91,11 @@ export const productService = {
     return serializeProduct(product);
   },
 
-  async create(restaurantId: string, input: CreateProductInput) {
+  async create(restaurantId: string, parentRestaurantId: string | null | undefined, input: CreateProductInput) {
     // La categoría debe pertenecer al mismo restaurante (evita fugas de tenant).
     await assertCategoryBelongs(restaurantId, input.categoryId);
     if (input.kitchenId) await assertKitchenBelongs(restaurantId, input.kitchenId);
+    if (input.packagingItemId) await assertPackagingItemBelongs(restaurantId, parentRestaurantId, input.packagingItemId);
 
     return prisma.product.create({
       data: {
@@ -111,6 +113,9 @@ export const productService = {
         sku: input.sku,
         stockControlEnabled: input.stockControlEnabled,
         stockQuantity: input.stockQuantity,
+        packagingMode: input.packagingMode,
+        packagingFeeBase: input.packagingFeeBase,
+        packagingItemId: input.packagingItemId,
         isAvailable: input.isAvailable,
         isStar: input.isStar,
         isPromo: input.isPromo,
@@ -127,7 +132,7 @@ export const productService = {
     });
   },
 
-  async update(restaurantId: string, id: string, input: UpdateProductInput) {
+  async update(restaurantId: string, parentRestaurantId: string | null | undefined, id: string, input: UpdateProductInput) {
     await this.getById(restaurantId, id); // valida pertenencia al tenant
 
     if (input.categoryId) {
@@ -135,6 +140,9 @@ export const productService = {
     }
     if (input.kitchenId) {
       await assertKitchenBelongs(restaurantId, input.kitchenId);
+    }
+    if (input.packagingItemId) {
+      await assertPackagingItemBelongs(restaurantId, parentRestaurantId, input.packagingItemId);
     }
 
     const { promoStartDate, promoEndDate, ...rest } = input;
@@ -201,4 +209,17 @@ async function assertKitchenBelongs(restaurantId: string, kitchenId: string) {
     select: { id: true },
   });
   if (!kitchen) throw badRequest('La cocina no existe o no pertenece a este restaurante.');
+}
+
+async function assertPackagingItemBelongs(
+  restaurantId: string,
+  parentRestaurantId: string | null | undefined,
+  packagingItemId: string,
+) {
+  const effectiveId = await resolveInventoryScope(restaurantId, parentRestaurantId);
+  const item = await prisma.inventoryItem.findFirst({
+    where: { id: packagingItemId, restaurantId: effectiveId, locationScope: 'LOCAL', packagingType: { not: null } },
+    select: { id: true },
+  });
+  if (!item) throw badRequest('El insumo de embase no existe o no está marcado como embase.');
 }

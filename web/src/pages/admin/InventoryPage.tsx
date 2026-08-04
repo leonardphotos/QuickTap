@@ -26,9 +26,13 @@ interface InventoryItem {
   photoUrl?: string | null;
   categoryId?: string | null;
   category?: { id: string; name: string } | null;
+  // Embase: no nulo = este insumo se puede vincular como embase de un producto.
+  packagingType?: 'ENVASE' | 'CAJA' | 'BOLSA' | null;
+  salePriceBase?: string | null;
 }
 
 const UNIT_LABELS: Record<string, string> = { kg: 'Kg', lt: 'Lt', ml: 'Ml', unidad: 'Unidad' };
+const PACKAGING_TYPE_LABELS: Record<string, string> = { ENVASE: 'Envase', CAJA: 'Caja', BOLSA: 'Bolsa' };
 // Sub-unidades para cargar la cantidad de receta en algo más chico que la unidad del insumo.
 const SUB_UNITS: Record<string, { value: string; label: string; toBase: number }[]> = {
   kg: [
@@ -53,23 +57,37 @@ const emptyForm = {
   priceCurrency: 'BASE' as 'BASE' | 'BS',
   photoUrl: null as string | null,
   categoryId: '',
+  isPackaging: false,
+  packagingType: 'ENVASE' as 'ENVASE' | 'CAJA' | 'BOLSA',
+  salePrice: '',
 };
 
 /** Inventario: insumos con stock directo ("normal", Pro+), o por receta vinculada al producto (solo Premium). */
 export default function InventoryPage() {
   const { restaurant } = useAuth();
   const canRecipes = hasFeature(restaurant, 'inventoryRecipe');
+  // Casa Matriz y Transferencias son de Plan Sucursales — solo aparecen desde la sede
+  // principal (una sucursal no puede activar Casa Matriz ni ver la pestaña).
+  const isMain = !restaurant?.parentRestaurantId;
+  const showCasaMatriz = isMain && !!restaurant?.casaMatrizEnabled;
   const TABS = [
     { id: 'insumos', label: 'Insumos (normal)' },
     ...(canRecipes ? [{ id: 'recetas', label: 'Recetas' }] : []),
     { id: 'stock', label: 'Stock de productos' },
+    ...(showCasaMatriz ? [{ id: 'casa-matriz', label: 'Casa Matriz' }] : []),
+    { id: 'transferencias', label: 'Transferencia de insumos' },
   ] as const;
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('insumos');
   const [items, setItems] = useState<InventoryItem[] | null>(null);
   const [categories, setCategories] = useState<InventoryCategory[]>([]);
+  const [casaMatrizItems, setCasaMatrizItems] = useState<InventoryItem[] | null>(null);
 
   function loadItems() {
-    api.get('/inventory').then((res) => setItems(res.data.data));
+    api.get('/inventory', { params: { locationScope: 'LOCAL' } }).then((res) => setItems(res.data.data));
+  }
+
+  function loadCasaMatrizItems() {
+    api.get('/inventory', { params: { locationScope: 'CASA_MATRIZ' } }).then((res) => setCasaMatrizItems(res.data.data));
   }
 
   function loadCategories() {
@@ -78,6 +96,10 @@ export default function InventoryPage() {
 
   useEffect(loadItems, []);
   useEffect(loadCategories, []);
+  useEffect(() => {
+    if (showCasaMatriz) loadCasaMatrizItems();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCasaMatriz]);
 
   return (
     <div className="space-y-8 max-w-3xl">
@@ -107,10 +129,27 @@ export default function InventoryPage() {
       </div>
 
       {tab === 'insumos' && (
-        <InsumosTab items={items} categories={categories} onChanged={loadItems} onCategoriesChanged={loadCategories} />
+        <InsumosTab
+          locationScope="LOCAL"
+          items={items}
+          categories={categories}
+          onChanged={loadItems}
+          onCategoriesChanged={loadCategories}
+        />
       )}
       {tab === 'recetas' && canRecipes && <RecetasTab insumos={items ?? []} />}
       {tab === 'stock' && <StockTab />}
+      {tab === 'casa-matriz' && (
+        <InsumosTab
+          locationScope="CASA_MATRIZ"
+          items={casaMatrizItems}
+          categories={categories}
+          onChanged={loadCasaMatrizItems}
+          onCategoriesChanged={loadCategories}
+          showModifierLinkToggle={false}
+        />
+      )}
+      {tab === 'transferencias' && <TransferenciasTab />}
     </div>
   );
 }
@@ -218,15 +257,22 @@ function StockTab() {
 // -----------------------------------------------------------------------------
 
 function InsumosTab({
+  locationScope,
   items,
   categories,
   onChanged,
   onCategoriesChanged,
+  showModifierLinkToggle = true,
 }: {
+  /** "LOCAL" (Insumos de siempre) o "CASA_MATRIZ" (ventana aparte, ver InventoryPage). */
+  locationScope: 'LOCAL' | 'CASA_MATRIZ';
   items: InventoryItem[] | null;
   categories: InventoryCategory[];
   onChanged: () => void;
   onCategoriesChanged: () => void;
+  /** El interruptor de "Descontar insumos por modificador" es un ajuste único del
+   * restaurante — solo tiene sentido mostrarlo una vez, en la pestaña Insumos normal. */
+  showModifierLinkToggle?: boolean;
 }) {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
@@ -293,6 +339,9 @@ function InsumosTab({
       priceCurrency: 'BASE',
       photoUrl: item.photoUrl ?? null,
       categoryId: item.categoryId ?? '',
+      isPackaging: !!item.packagingType,
+      packagingType: item.packagingType ?? 'ENVASE',
+      salePrice: item.salePriceBase ?? '',
     });
   }
 
@@ -319,6 +368,9 @@ function InsumosTab({
         priceCurrency: form.priceCurrency,
         photoUrl: form.photoUrl,
         categoryId: form.categoryId || null,
+        packagingType: form.isPackaging ? form.packagingType : null,
+        salePrice: form.isPackaging ? Number(form.salePrice) || 0 : null,
+        locationScope,
       };
       if (editingId) {
         await api.patch(`/inventory/${editingId}`, payload);
@@ -345,33 +397,36 @@ function InsumosTab({
     <div className="space-y-8">
       {/* Interruptor del vínculo modificador -> insumo. Se deja arriba de todo
           porque cambia el comportamiento de TODA la venta: con esto apagado, los
-          modificadores no tocan el stock aunque tengan el insumo configurado. */}
-      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5 flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-brand-950">Descontar insumos por modificador</p>
-          <p className="text-xs text-brand-950/50 font-light mt-0.5">
-            Cuando está activo, cada modificador que tenga un insumo vinculado (ej. "Extra queso" → 30 gr de Queso)
-            descuenta del inventario al servirse el pedido. Apagado, la configuración se conserva pero no toca el stock.
-          </p>
-          {linkError && <p className="text-xs text-red-600 mt-1">{linkError}</p>}
-        </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={linkEnabled}
-          onClick={toggleModifierLink}
-          disabled={savingLink}
-          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
-            linkEnabled ? 'bg-brand-500' : 'bg-brand-950/20'
-          }`}
-        >
-          <span
-            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
-              linkEnabled ? 'left-[22px]' : 'left-0.5'
+          modificadores no tocan el stock aunque tengan el insumo configurado. Ajuste único
+          del restaurante — no se repite en la ventana de Casa Matriz. */}
+      {showModifierLinkToggle && (
+        <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-brand-950">Descontar insumos por modificador</p>
+            <p className="text-xs text-brand-950/50 font-light mt-0.5">
+              Cuando está activo, cada modificador que tenga un insumo vinculado (ej. "Extra queso" → 30 gr de Queso)
+              descuenta del inventario al servirse el pedido. Apagado, la configuración se conserva pero no toca el stock.
+            </p>
+            {linkError && <p className="text-xs text-red-600 mt-1">{linkError}</p>}
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={linkEnabled}
+            onClick={toggleModifierLink}
+            disabled={savingLink}
+            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
+              linkEnabled ? 'bg-brand-500' : 'bg-brand-950/20'
             }`}
-          />
-        </button>
-      </div>
+          >
+            <span
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+                linkEnabled ? 'left-[22px]' : 'left-0.5'
+              }`}
+            />
+          </button>
+        </div>
+      )}
 
       <form onSubmit={onSubmit} className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-4">
         <div className="flex items-start gap-4">
@@ -521,6 +576,44 @@ function InsumosTab({
             </select>
           </label>
         </div>
+
+        <div className="rounded-xl border border-brand-950/10 p-4 space-y-3">
+          <label className="flex items-center gap-2 text-sm text-brand-950/70">
+            <input
+              type="checkbox"
+              checked={form.isPackaging}
+              onChange={(e) => setForm({ ...form, isPackaging: e.target.checked })}
+              className="rounded border-brand-950/30"
+            />
+            Es un embase para delivery (envase, caja o bolsa)
+          </label>
+          {form.isPackaging && (
+            <div className="grid sm:grid-cols-2 gap-3">
+              <label className="block text-sm">
+                <span className="text-brand-950/70">Tipo</span>
+                <select
+                  value={form.packagingType}
+                  onChange={(e) => setForm({ ...form, packagingType: e.target.value as 'ENVASE' | 'CAJA' | 'BOLSA' })}
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                >
+                  <option value="ENVASE">Envase</option>
+                  <option value="CAJA">Caja</option>
+                  <option value="BOLSA">Bolsa</option>
+                </select>
+              </label>
+              <label className="block text-sm">
+                <span className="text-brand-950/70">Precio de venta al cliente ({symbol})</span>
+                <input
+                  value={form.salePrice}
+                  onChange={(e) => setForm({ ...form, salePrice: e.target.value.replace(/[^0-9.]/g, '') })}
+                  placeholder="0.00"
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                />
+              </label>
+            </div>
+          )}
+        </div>
+
         {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="flex gap-2">
           <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto disabled:opacity-50">
@@ -583,10 +676,16 @@ function InsumosTab({
                           <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
                         </span>
                       )}
+                      {item.packagingType && (
+                        <span className="text-[10px] font-medium uppercase tracking-wide text-brand-500 bg-brand-500/10 rounded-full px-2 py-0.5">
+                          {PACKAGING_TYPE_LABELS[item.packagingType]}
+                        </span>
+                      )}
                     </p>
                     <p className={`text-xs font-light mt-0.5 ${low ? 'text-amber-600' : 'text-brand-950/40'}`}>
                       {item.quantity} {item.unit} · mínimo {item.minQuantity} {item.unit}
-                      {item.pricePerUnitBase && ` · ${symbol}${item.pricePerUnitBase}/${item.unit}`}
+                      {item.pricePerUnitBase && ` · costo ${symbol}${item.pricePerUnitBase}/${item.unit}`}
+                      {item.salePriceBase && ` · venta ${symbol}${item.salePriceBase}`}
                     </p>
                     {minQty > 0 && (
                       <div className="h-1.5 w-full max-w-48 rounded-full bg-brand-950/[0.08] overflow-hidden mt-1.5">
@@ -866,5 +965,216 @@ function RecipeDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// -----------------------------------------------------------------------------
+//  Transferencia de insumos: mueve cantidad de un insumo de una sede a otra dentro
+//  del mismo grupo (sede principal + sucursales), o hacia/desde Casa Matriz.
+// -----------------------------------------------------------------------------
+
+interface TransferLocation {
+  restaurantId: string;
+  scope: 'LOCAL' | 'CASA_MATRIZ';
+  name: string;
+  isMain: boolean;
+}
+
+interface TransferItem {
+  id: string;
+  name: string;
+  unit: string;
+  quantity: string;
+}
+
+interface TransferRecord {
+  id: string;
+  fromLocationName: string;
+  toLocationName: string;
+  itemName: string;
+  unit: string;
+  quantity: string;
+  createdAt: string;
+}
+
+function locationKey(restaurantId: string, scope: string) {
+  return `${restaurantId}:${scope}`;
+}
+
+function TransferenciasTab() {
+  const [locations, setLocations] = useState<TransferLocation[] | null>(null);
+  const [history, setHistory] = useState<TransferRecord[]>([]);
+  const [fromKey, setFromKey] = useState('');
+  const [toKey, setToKey] = useState('');
+  const [fromItems, setFromItems] = useState<TransferItem[]>([]);
+  const [itemId, setItemId] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function loadHistory() {
+    api.get('/inventory/transfers').then((res) => setHistory(res.data.data));
+  }
+
+  useEffect(() => {
+    api.get('/inventory/transfer-locations').then((res) => setLocations(res.data.data));
+    loadHistory();
+  }, []);
+
+  useEffect(() => {
+    if (!fromKey) {
+      setFromItems([]);
+      setItemId('');
+      return;
+    }
+    const [restaurantId, scope] = fromKey.split(':');
+    api
+      .get('/inventory/transfer-locations/items', { params: { restaurantId, scope } })
+      .then((res) => setFromItems(res.data.data));
+    setItemId('');
+  }, [fromKey]);
+
+  const selectedItem = fromItems.find((i) => i.id === itemId);
+  const toOptions = (locations ?? []).filter((l) => locationKey(l.restaurantId, l.scope) !== fromKey);
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!fromKey || !toKey || !itemId) return;
+    const [fromRestaurantId, fromScope] = fromKey.split(':');
+    const [toRestaurantId, toScope] = toKey.split(':');
+    setSaving(true);
+    try {
+      await api.post('/inventory/transfers', {
+        fromRestaurantId,
+        fromScope,
+        toRestaurantId,
+        toScope,
+        itemId,
+        quantity: Number(quantity) || 0,
+      });
+      setItemId('');
+      setQuantity('');
+      // Recarga los insumos del origen (la cantidad disponible cambió) y el historial.
+      const res = await api.get('/inventory/transfer-locations/items', { params: { restaurantId: fromRestaurantId, scope: fromScope } });
+      setFromItems(res.data.data);
+      loadHistory();
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo registrar la transferencia.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!locations) return <p className="text-brand-950/50 font-light">Cargando…</p>;
+
+  if (locations.length < 2) {
+    return (
+      <p className="text-sm text-brand-950/50 font-light">
+        Todavía no tienes otras sedes ni Casa Matriz activada para transferir insumos. Crea una sucursal en
+        Administración → Sucursales, o activa Casa Matriz, para usar esta pestaña.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-8">
+      <form onSubmit={onSubmit} className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-4">
+        <div className="grid sm:grid-cols-2 gap-3">
+          <label className="block text-sm">
+            <span className="text-brand-950/70">Origen</span>
+            <select
+              value={fromKey}
+              onChange={(e) => {
+                setFromKey(e.target.value);
+                if (e.target.value === toKey) setToKey('');
+              }}
+              required
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            >
+              <option value="">Elige el origen…</option>
+              {locations.map((l) => (
+                <option key={locationKey(l.restaurantId, l.scope)} value={locationKey(l.restaurantId, l.scope)}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm">
+            <span className="text-brand-950/70">Destino</span>
+            <select
+              value={toKey}
+              onChange={(e) => setToKey(e.target.value)}
+              required
+              disabled={!fromKey}
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 disabled:opacity-50"
+            >
+              <option value="">Elige el destino…</option>
+              {toOptions.map((l) => (
+                <option key={locationKey(l.restaurantId, l.scope)} value={locationKey(l.restaurantId, l.scope)}>
+                  {l.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <div className="grid sm:grid-cols-2 gap-3">
+          <label className="block text-sm">
+            <span className="text-brand-950/70">Insumo</span>
+            <select
+              value={itemId}
+              onChange={(e) => setItemId(e.target.value)}
+              required
+              disabled={!fromKey || fromItems.length === 0}
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 disabled:opacity-50"
+            >
+              <option value="">{fromKey && fromItems.length === 0 ? 'Sin insumos en esa sede' : 'Elige el insumo…'}</option>
+              {fromItems.map((i) => (
+                <option key={i.id} value={i.id}>
+                  {i.name} ({i.quantity} {i.unit} disponibles)
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm">
+            <span className="text-brand-950/70">Cantidad{selectedItem ? ` (${selectedItem.unit})` : ''}</span>
+            <input
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value.replace(/[^0-9.]/g, ''))}
+              placeholder="0.00"
+              disabled={!itemId}
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 disabled:opacity-50"
+            />
+          </label>
+        </div>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <TextureButton variant="brand" size="default" disabled={saving || !fromKey || !toKey || !itemId} className="!w-auto disabled:opacity-50">
+          {saving ? 'Transfiriendo…' : 'Transferir'}
+        </TextureButton>
+      </form>
+
+      <div>
+        <h2 className="text-sm font-semibold text-brand-950 mb-2">Historial</h2>
+        {history.length === 0 ? (
+          <p className="text-sm text-brand-950/50 font-light">Todavía no se ha hecho ninguna transferencia.</p>
+        ) : (
+          <ul className="divide-y divide-brand-950/10 rounded-2xl border border-brand-950/10 bg-white">
+            {history.map((h) => (
+              <li key={h.id} className="px-4 py-3 text-sm">
+                <p className="text-brand-950">
+                  <span className="font-medium">
+                    {h.quantity} {h.unit} de {h.itemName}
+                  </span>{' '}
+                  — {h.fromLocationName} → {h.toLocationName}
+                </p>
+                <p className="text-xs text-brand-950/40 font-light mt-0.5">{new Date(h.createdAt).toLocaleString('es-VE')}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
   );
 }

@@ -21,6 +21,16 @@ interface Props {
   onCreated: (product: Product) => void;
 }
 
+/** Insumo de inventario marcado como embase (GET /inventory/packaging) — picker de "Vincular con stock". */
+interface PackagingItem {
+  id: string;
+  name: string;
+  packagingType: 'ENVASE' | 'CAJA' | 'BOLSA' | null;
+  salePriceBase: string | null;
+}
+
+const PACKAGING_TYPE_LABELS: Record<string, string> = { ENVASE: 'Envase', CAJA: 'Caja', BOLSA: 'Bolsa' };
+
 const emptyForm = {
   name: '',
   description: '',
@@ -34,6 +44,9 @@ const emptyForm = {
   sku: '',
   stockControlEnabled: false,
   stockQuantity: '',
+  packagingMode: 'NONE' as 'NONE' | 'FIXED' | 'INVENTORY',
+  packagingFeeBase: '',
+  packagingItemId: '',
   isStar: false,
   isPromo: false,
   isHouseSpecial: false,
@@ -70,6 +83,8 @@ export function ProductFormDialog({
   const [linkedCategories, setLinkedCategories] = useState<ModifierCategory[]>([]);
   const [libraryCategories, setLibraryCategories] = useState<ModifierCategory[]>([]);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  const [packagingItems, setPackagingItems] = useState<PackagingItem[]>([]);
+  const canLinkPackagingStock = hasFeature(restaurant, 'inventoryBasic');
 
   useEffect(() => {
     if (!open) return;
@@ -87,6 +102,9 @@ export function ProductFormDialog({
         sku: product.sku ?? '',
         stockControlEnabled: product.stockControlEnabled ?? false,
         stockQuantity: product.stockQuantity != null ? String(product.stockQuantity) : '',
+        packagingMode: product.packagingMode ?? 'NONE',
+        packagingFeeBase: product.packagingFeeBase ?? '',
+        packagingItemId: product.packagingItemId ?? '',
         isStar: product.isStar,
         isPromo: product.isPromo,
         isHouseSpecial: product.isHouseSpecial,
@@ -116,7 +134,10 @@ export function ProductFormDialog({
   useEffect(() => {
     if (!open) return;
     api.get('/modifier-categories').then((res) => setLibraryCategories(res.data.data));
-  }, [open]);
+    if (canLinkPackagingStock) {
+      api.get('/inventory/packaging').then((res) => setPackagingItems(res.data.data));
+    }
+  }, [open, canLinkPackagingStock]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -137,6 +158,9 @@ export function ProductFormDialog({
         sku: form.sku.trim() || null,
         stockControlEnabled: form.stockControlEnabled,
         stockQuantity: form.stockControlEnabled ? Number(form.stockQuantity) || 0 : null,
+        packagingMode: form.packagingMode,
+        packagingFeeBase: form.packagingMode === 'FIXED' ? Number(form.packagingFeeBase) || 0 : null,
+        packagingItemId: form.packagingMode === 'INVENTORY' ? form.packagingItemId || null : null,
         isStar: form.isStar,
         isPromo: form.isPromo,
         isHouseSpecial: form.isHouseSpecial,
@@ -534,6 +558,64 @@ export function ProductFormDialog({
               className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
             />
           )}
+
+          <div className="rounded-xl border border-brand-950/10 p-4 space-y-3">
+            <p className="text-sm font-medium text-brand-950">
+              Embase <span className="font-normal text-brand-950/40">— solo se cobra en pedidos de Delivery/Pickup</span>
+            </p>
+            <div className="flex flex-wrap gap-2 text-sm">
+              {(['NONE', 'FIXED', 'INVENTORY'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setForm({ ...form, packagingMode: mode })}
+                  className={`rounded-full px-3 py-1.5 border transition-colors ${
+                    form.packagingMode === mode
+                      ? 'bg-brand-500 border-brand-500 text-white'
+                      : 'border-brand-950/15 text-brand-950/70 hover:border-brand-950/30'
+                  }`}
+                >
+                  {mode === 'NONE' ? 'Ninguno' : mode === 'FIXED' ? 'Precio propio' : 'Vincular con stock'}
+                </button>
+              ))}
+            </div>
+            {form.packagingMode === 'FIXED' && (
+              <input
+                value={form.packagingFeeBase}
+                onChange={(e) => setForm({ ...form, packagingFeeBase: e.target.value.replace(/[^0-9.]/g, '') })}
+                placeholder={`Precio del embase (${currencySymbol})`}
+                className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              />
+            )}
+            {form.packagingMode === 'INVENTORY' &&
+              (canLinkPackagingStock ? (
+                packagingItems.length > 0 ? (
+                  <select
+                    value={form.packagingItemId}
+                    onChange={(e) => setForm({ ...form, packagingItemId: e.target.value })}
+                    className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  >
+                    <option value="">Elige un insumo de embase…</option>
+                    {packagingItems.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} ({PACKAGING_TYPE_LABELS[item.packagingType ?? '']})
+                        {item.salePriceBase ? ` — ${currencySymbol}${item.salePriceBase}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <p className="text-xs text-brand-950/40 font-light">
+                    Aún no tienes insumos marcados como embase. Créalos desde Inventario → Insumos, marcando "Es un embase
+                    para delivery".
+                  </p>
+                )
+              ) : (
+                <p className="text-xs text-brand-950/40 font-light">
+                  Este plan no incluye Inventario — usa "Precio propio" o mejora tu plan para vincular con stock.
+                </p>
+              ))}
+          </div>
+
           {error && <p className="text-sm text-red-600">{error}</p>}
           <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto disabled:opacity-50">
             {saving ? 'Guardando…' : product ? 'Guardar cambios' : 'Crear producto'}

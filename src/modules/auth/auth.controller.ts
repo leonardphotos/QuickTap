@@ -1,6 +1,14 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
-import { forgotPasswordSchema, loginSchema, registerSchema, resetPasswordSchema, setLockPinSchema, verifyLockPinSchema } from './auth.dto';
+import {
+  forgotPasswordSchema,
+  googleAuthSchema,
+  loginSchema,
+  registerSchema,
+  resetPasswordSchema,
+  setLockPinSchema,
+  verifyLockPinSchema,
+} from './auth.dto';
 import { authService } from './auth.service';
 
 export const authController = {
@@ -13,6 +21,13 @@ export const authController = {
   login: asyncHandler(async (req: Request, res: Response) => {
     const input = loginSchema.parse(req.body);
     const result = await authService.login(input);
+    res.json({ data: result });
+  }),
+
+  /** "Continuar con Google" — login automático, o registro si no hay cuenta (ver auth.service.ts). */
+  google: asyncHandler(async (req: Request, res: Response) => {
+    const input = googleAuthSchema.parse(req.body);
+    const result = await authService.googleAuth(input);
     res.json({ data: result });
   }),
 

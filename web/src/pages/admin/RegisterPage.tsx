@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { GoogleLogin } from '@react-oauth/google';
 import { useAuth } from '../../context/AuthContext';
 import { Field } from './LoginPage';
 import AuthLayout from './AuthLayout';
@@ -9,15 +10,27 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { WhatsappPhoneInput } from '@/components/ui/whatsapp-phone-input';
 import { getShopRubro } from '@/data/shopRubros';
 
+interface GoogleSignupState {
+  googleCredential: string;
+  googleEmail: string;
+  googleName: string;
+}
+
 export default function RegisterPage() {
-  const { register } = useAuth();
+  const { register, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   // Presencia de estos dos params = viene del flujo "Locales Comerciales" (ver StartRegisterPage
   // -> ShopRubroPage). Sin ellos, el registro se comporta exactamente igual que siempre.
   const isShop = searchParams.get('businessType') === 'shop';
   const shopRubroId = searchParams.get('rubro');
   const shopRubro = isShop ? getShopRubro(shopRubroId) : undefined;
+  // Viene de "Continuar con Google" en /admin/login sin cuenta todavía (ver LoginPage.tsx):
+  // el email/nombre ya están verificados por Google, así que el form ya no los pide.
+  const [googleSignup, setGoogleSignup] = useState<GoogleSignupState | null>(
+    (location.state as GoogleSignupState | null) ?? null,
+  );
   const [restaurantName, setRestaurantName] = useState('');
   const [slug, setSlug] = useState('');
   const [whatsappPhone, setWhatsappPhone] = useState('');
@@ -28,22 +41,53 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  async function onGoogleSuccess(credential: string) {
+    setError(null);
+    setGoogleSignup({ googleCredential: credential, googleEmail: '', googleName: '' });
+    // Reusa exactamente la misma verificación que /admin/login: si esta cuenta de Google
+    // ya existe (ej. abrió /empezar por error) entra directo en vez de pedirle de nuevo
+    // los datos del restaurante.
+    try {
+      const result = await loginWithGoogle(credential);
+      if (result.needsRegistration) {
+        setGoogleSignup({ googleCredential: credential, googleEmail: result.email, googleName: result.name });
+      } else {
+        navigate('/admin');
+      }
+    } catch (err: any) {
+      setGoogleSignup(null);
+      setError(err.response?.data?.error ?? 'No se pudo continuar con Google.');
+    }
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
     try {
-      await register({
-        restaurantName,
-        slug,
-        whatsappPhone: whatsappPhone || undefined,
-        baseCurrency,
-        ownerName,
-        email,
-        password,
-        businessType: isShop ? 'SHOP' : 'RESTAURANT',
-        shopRubro: isShop ? (shopRubroId ?? undefined) : undefined,
-      });
+      if (googleSignup) {
+        const result = await loginWithGoogle(googleSignup.googleCredential, undefined, {
+          restaurantName,
+          slug,
+          whatsappPhone: whatsappPhone || undefined,
+          baseCurrency,
+          businessType: isShop ? 'SHOP' : 'RESTAURANT',
+          shopRubro: isShop ? (shopRubroId ?? undefined) : undefined,
+        });
+        if (result.needsRegistration) return; // no debería pasar en esta rama, pero por las dudas no navega
+      } else {
+        await register({
+          restaurantName,
+          slug,
+          whatsappPhone: whatsappPhone || undefined,
+          baseCurrency,
+          ownerName,
+          email,
+          password,
+          businessType: isShop ? 'SHOP' : 'RESTAURANT',
+          shopRubro: isShop ? (shopRubroId ?? undefined) : undefined,
+        });
+      }
       // Si venía de "Elegir plan" en la landing, lo mandamos directo a pagar ese plan.
       const plan = searchParams.get('plan');
       navigate(plan ? `/admin/billing?${searchParams.toString()}` : '/admin');
@@ -77,6 +121,34 @@ export default function RegisterPage() {
           >
             Cambiar
           </Link>
+        </div>
+      )}
+      {googleSignup ? (
+        <div className="mb-5 flex items-center justify-between gap-3 rounded-xl bg-brand-500/10 px-4 py-3">
+          <span className="text-sm font-medium text-brand-950">
+            {googleSignup.googleName} · {googleSignup.googleEmail}
+          </span>
+          <button
+            type="button"
+            onClick={() => setGoogleSignup(null)}
+            className="shrink-0 text-xs font-semibold text-brand-500 hover:underline"
+          >
+            Usar otro correo
+          </button>
+        </div>
+      ) : (
+        <div className="mb-4">
+          <GoogleLogin
+            onSuccess={(cred) => cred.credential && onGoogleSuccess(cred.credential)}
+            onError={() => setError('No se pudo continuar con Google.')}
+            text="signup_with"
+            width="384"
+          />
+          <div className="flex items-center gap-3 my-4">
+            <div className="h-px flex-1 bg-brand-950/10" />
+            <span className="text-xs text-brand-950/40">o con tu correo</span>
+            <div className="h-px flex-1 bg-brand-950/10" />
+          </div>
         </div>
       )}
       <form onSubmit={onSubmit} className="space-y-4">
@@ -114,9 +186,13 @@ export default function RegisterPage() {
             La conversión a Bs para tus clientes se calcula sola con la tasa BCV.
           </span>
         </label>
-        <Field label="Tu nombre" value={ownerName} onChange={setOwnerName} />
-        <Field label="Email" type="email" value={email} onChange={setEmail} />
-        <Field label="Contraseña" type="password" value={password} onChange={setPassword} />
+        {!googleSignup && (
+          <>
+            <Field label="Tu nombre" value={ownerName} onChange={setOwnerName} />
+            <Field label="Email" type="email" value={email} onChange={setEmail} />
+            <Field label="Contraseña" type="password" value={password} onChange={setPassword} />
+          </>
+        )}
         {error && <p className="text-sm text-red-600">{error}</p>}
         <TextureButton variant="brand" size="default" disabled={loading} className="mt-2 disabled:opacity-50">
           {loading ? 'Creando…' : 'Crear cuenta'}

@@ -39,6 +39,30 @@ async function matchAwaitingProofOrder(restaurantId: string, phoneDigits: string
   });
 }
 
+/**
+ * Modo FULL_ORDER (ver whatsapp-bot.service.ts): no hay foto que esperar, el pedido
+ * completo YA es lo que se reenvía al verificador — así que arranca directo en
+ * AWAITING_VERIFIER (o PENDING_FORWARD si ya hay otra verificación en curso), nunca en
+ * AWAITING_PROOF. Mismo criterio de "solo una AWAITING_VERIFIER a la vez" que
+ * recordProofImage.
+ */
+async function createAwaitingVerifierOrQueue(restaurantId: string, orderId: string, customerPhone: string) {
+  const hasActiveVerification = await prisma.orderPaymentVerification.findFirst({
+    where: { restaurantId, status: 'AWAITING_VERIFIER' },
+  });
+  const shouldForwardNow = !hasActiveVerification;
+  const verification = await prisma.orderPaymentVerification.create({
+    data: {
+      restaurantId,
+      orderId,
+      customerPhone: normalizePhone(customerPhone),
+      status: shouldForwardNow ? 'AWAITING_VERIFIER' : 'PENDING_FORWARD',
+      ...(shouldForwardNow ? { forwardedToVerifierAt: new Date() } : {}),
+    },
+  });
+  return { shouldForwardNow, verification };
+}
+
 /** Guarda la foto recibida; decide si se reenvía ya al verificador o si queda en cola. */
 async function recordProofImage(verificationId: string, imageUrl: string) {
   const restaurantId = (await prisma.orderPaymentVerification.findUniqueOrThrow({ where: { id: verificationId } }))
@@ -87,21 +111,39 @@ async function approve(verificationId: string) {
     data: { status: 'APPROVED', verifierRepliedAt: new Date(), resolvedAt: new Date() },
   });
   await orderService.autoAcceptAfterPaymentApproved(verification.restaurantId, verification.orderId);
-  return { orderId: verification.orderId, restaurantId: verification.restaurantId, customerPhone: verification.customerPhone };
+  return {
+    orderId: verification.orderId,
+    restaurantId: verification.restaurantId,
+    customerPhone: verification.customerPhone,
+    isFullOrder: !verification.proofImageUrl,
+  };
 }
 
-/** El verificador respondió "Rechazado": vuelve a pedir el comprobante, mismo pedido. */
+/**
+ * El verificador respondió "Rechazado". En modo PAYMENT_VERIFICATION (tenía foto) vuelve
+ * a pedir el comprobante, mismo pedido. En modo FULL_ORDER (nunca tuvo foto, ver
+ * createAwaitingVerifierOrQueue) no hay nada que reenviar — queda REJECTED, terminal.
+ */
 async function reject(verificationId: string) {
+  const current = await prisma.orderPaymentVerification.findUniqueOrThrow({ where: { id: verificationId } });
+  const isFullOrder = !current.proofImageUrl;
   const verification = await prisma.orderPaymentVerification.update({
     where: { id: verificationId },
-    data: {
-      status: 'AWAITING_PROOF',
-      proofImageUrl: null,
-      forwardedToVerifierAt: null,
-      verifierRepliedAt: new Date(),
-    },
+    data: isFullOrder
+      ? { status: 'REJECTED', verifierRepliedAt: new Date(), resolvedAt: new Date() }
+      : {
+          status: 'AWAITING_PROOF',
+          proofImageUrl: null,
+          forwardedToVerifierAt: null,
+          verifierRepliedAt: new Date(),
+        },
   });
-  return { orderId: verification.orderId, restaurantId: verification.restaurantId, customerPhone: verification.customerPhone };
+  return {
+    orderId: verification.orderId,
+    restaurantId: verification.restaurantId,
+    customerPhone: verification.customerPhone,
+    isFullOrder,
+  };
 }
 
 /** Tras resolver una verificación (aprobada/rechazada/timeout), avanza la siguiente en cola. */
@@ -133,6 +175,7 @@ async function sweepTimeouts(timeoutMs: number) {
 
 export const orderPaymentVerificationService = {
   create,
+  createAwaitingVerifierOrQueue,
   matchAwaitingProofOrder,
   recordProofImage,
   resolveVerifierReply,

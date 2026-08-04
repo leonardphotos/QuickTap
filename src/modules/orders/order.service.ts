@@ -276,6 +276,37 @@ async function computeDeliveryFee(
 }
 
 /**
+ * Suma el cargo de embase (envase/caja/bolsa) de las líneas del pedido. Solo aplica en
+ * DELIVERY/PICKUP (en mesa/barra se sirve sin empaque) — ver Product.packagingMode.
+ * "FIXED" usa Product.packagingFeeBase; "INVENTORY" usa el precio de venta del insumo
+ * vinculado (0 si no tiene precio de venta cargado). Se multiplica por la cantidad
+ * vendida de cada producto (mismo criterio que sumSubtotal/deductRecipeStock).
+ */
+async function computeEmbaseFee(
+  restaurantId: string,
+  channel: OrderChannel,
+  items: { productId: string | null; quantity: number }[],
+): Promise<Prisma.Decimal> {
+  if (channel !== 'DELIVERY' && channel !== 'PICKUP') return toDecimal(0);
+  const qtyByProduct = sumQuantityByProduct(items);
+  if (qtyByProduct.size === 0) return toDecimal(0);
+
+  const products = await prisma.product.findMany({
+    where: { id: { in: [...qtyByProduct.keys()] }, restaurantId, packagingMode: { not: 'NONE' } },
+    include: { packagingItem: { select: { salePriceBase: true } } },
+  });
+
+  return round2(
+    products.reduce((acc, p) => {
+      const qty = qtyByProduct.get(p.id) ?? 0;
+      const unitFee =
+        p.packagingMode === 'FIXED' ? toDecimal(p.packagingFeeBase ?? 0) : toDecimal(p.packagingItem?.salePriceBase ?? 0);
+      return acc.add(unitFee.mul(qty));
+    }, toDecimal(0)),
+  );
+}
+
+/**
  * Genera el correlativo por inquilino de forma segura ante concurrencia,
  * dentro de una transacción.
  */
@@ -429,6 +460,53 @@ async function deductProductStock(restaurantId: string, items: { productId: stri
     if (soldQty <= 0) continue;
     const nextQuantity = Math.max(0, (product.stockQuantity ?? 0) - soldQty);
     await prisma.product.update({ where: { id: product.id }, data: { stockQuantity: nextQuantity } });
+  }
+}
+
+/**
+ * Descuenta del inventario el insumo de embase de cada producto vendido con
+ * packagingMode = INVENTORY. Igual que las otras deducciones: solo aplica en
+ * DELIVERY/PICKUP, se llama una sola vez al marcar SERVED, nunca baja de 0.
+ */
+async function deductPackagingStock(
+  restaurantId: string,
+  channel: OrderChannel,
+  items: { productId: string | null; quantity: number }[],
+) {
+  if (channel !== 'DELIVERY' && channel !== 'PICKUP') return;
+  const qtyByProduct = sumQuantityByProduct(items);
+  if (qtyByProduct.size === 0) return;
+
+  const products = await prisma.product.findMany({
+    where: {
+      id: { in: [...qtyByProduct.keys()] },
+      restaurantId,
+      packagingMode: 'INVENTORY',
+      packagingItemId: { not: null },
+    },
+    select: { id: true, packagingItemId: true },
+  });
+  if (products.length === 0) return;
+
+  const usedByItem = new Map<string, number>();
+  for (const p of products) {
+    const qty = qtyByProduct.get(p.id) ?? 0;
+    if (qty <= 0 || !p.packagingItemId) continue;
+    usedByItem.set(p.packagingItemId, (usedByItem.get(p.packagingItemId) ?? 0) + qty);
+  }
+  if (usedByItem.size === 0) return;
+
+  let deducted = false;
+  for (const [inventoryItemId, used] of usedByItem) {
+    const item = await prisma.inventoryItem.findFirst({ where: { id: inventoryItemId, restaurantId } });
+    if (!item) continue;
+    const nextQuantity = Prisma.Decimal.max(0, toDecimal(item.quantity).sub(used));
+    await prisma.inventoryItem.update({ where: { id: item.id }, data: { quantity: nextQuantity } });
+    deducted = true;
+  }
+
+  if (deducted) {
+    emitToKitchen(restaurantId, SocketEvents.INVENTORY_LOW_STOCK, {});
   }
 }
 
@@ -696,7 +774,8 @@ export const orderService = {
         ? { lat: input.customerLat, lng: input.customerLng }
         : null;
     const deliveryFeeBase = await computeDeliveryFee({ id: restaurantId, ...restaurant }, customerPoint);
-    const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(deliveryFeeBase));
+    const embaseFeeBase = await computeEmbaseFee(restaurantId, input.channel, input.items);
+    const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(deliveryFeeBase).add(embaseFeeBase));
     const totalBs = baseToBs(totalBase, rate.rateBs);
 
     const itemsCreate = lines.map((l) => buildOrderItemCreateData(l));
@@ -757,6 +836,7 @@ export const orderService = {
                   serviceChargeBase,
                   ivaBase,
                   deliveryFeeBase,
+                  embaseFeeBase,
                   totalBase,
                   exchangeRate: rate.rateBs,
                   totalBs,
@@ -797,6 +877,7 @@ export const orderService = {
                 serviceChargeBase,
                 ivaBase,
                 deliveryFeeBase,
+                embaseFeeBase,
                 totalBase,
                 exchangeRate: rate.rateBs,
                 totalBs,
@@ -921,6 +1002,8 @@ export const orderService = {
         deliveryPricePerKm: true,
         whatsappBotEnabled: true,
         whatsappBotNotifyReceived: true,
+        whatsappBotPaymentVerifierPhone: true,
+        whatsappOrderMode: true,
         paymentMethodsConfig: true,
       },
     });
@@ -944,7 +1027,8 @@ export const orderService = {
         ? { lat: input.customer.lat, lng: input.customer.lng }
         : null;
     const deliveryFeeBase = await computeDeliveryFee(restaurant, customerPoint);
-    const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(deliveryFeeBase));
+    const embaseFeeBase = await computeEmbaseFee(restaurantId, input.mode, input.items);
+    const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(deliveryFeeBase).add(embaseFeeBase));
     const totalBs = baseToBs(totalBase, rate.rateBs);
 
     const order = await prisma.$transaction(async (tx) => {
@@ -960,6 +1044,7 @@ export const orderService = {
           serviceChargeBase,
           ivaBase,
           deliveryFeeBase,
+          embaseFeeBase,
           totalBase,
           exchangeRate: rate.rateBs,
           totalBs,
@@ -1046,11 +1131,29 @@ export const orderService = {
         .catch(() => undefined);
     }
 
-    // Chatbot: si el método de pago exige comprobante (Pago Móvil/Zelle/Binance/PayPal/
-    // Transferencia), manda los datos de pago y abre una verificación (ver
-    // order-payment-verification.service.ts) para que, cuando llegue la foto del comprobante
-    // y el verificador del restaurante la apruebe, el pedido pase solo a cocina.
-    if (
+    // Chatbot: dos modos posibles (Restaurant.whatsappOrderMode), mutuamente excluyentes.
+    // FULL_ORDER: manda el pedido completo al propio WhatsApp del negocio
+    // (whatsappBotPaymentVerifierPhone) para CUALQUIER método de pago, y espera que el
+    // negocio confirme "Aprobado" a mano (sin pedirle comprobante al cliente). PAYMENT_
+    // VERIFICATION (default): si el método exige comprobante (Pago Móvil/Zelle/Binance/
+    // PayPal/Transferencia), manda los datos de pago al cliente y espera su foto. Ambos
+    // casos reutilizan la misma verificación (ver order-payment-verification.service.ts)
+    // para que, al aprobarse, el pedido pase solo a cocina.
+    if (restaurant.whatsappBotEnabled && customerWhatsapp && restaurant.whatsappBotPaymentVerifierPhone && restaurant.whatsappOrderMode === 'FULL_ORDER') {
+      const { shouldForwardNow } = await orderPaymentVerificationService.createAwaitingVerifierOrQueue(
+        restaurantId,
+        order.id,
+        customerWhatsapp,
+      );
+      if (shouldForwardNow) {
+        const fullOrder = await prisma.order.findUnique({ where: { id: order.id }, include: { items: true } });
+        if (fullOrder) {
+          whatsappBotService
+            .sendMessage(restaurant.id, restaurant.whatsappBotPaymentVerifierPhone, whatsappBotService.buildFullOrderCaption(fullOrder))
+            .catch(() => undefined);
+        }
+      }
+    } else if (
       restaurant.whatsappBotEnabled &&
       customerWhatsapp &&
       order.paymentMethod &&
@@ -1158,7 +1261,8 @@ export const orderService = {
       select: { serviceChargeEnabled: true, ivaEnabled: true },
     });
     const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant!);
-    const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(order.deliveryFeeBase));
+    const embaseFeeBase = await computeEmbaseFee(restaurantId, order.channel, remaining);
+    const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(order.deliveryFeeBase).add(embaseFeeBase));
     const totalBs = baseToBs(totalBase, order.exchangeRate);
 
     await prisma.$transaction(async (tx) => {
@@ -1175,7 +1279,7 @@ export const orderService = {
       }
       await tx.order.update({
         where: { id: orderId },
-        data: { subtotalBase, serviceChargeBase, ivaBase, totalBase, totalBs },
+        data: { subtotalBase, serviceChargeBase, ivaBase, embaseFeeBase, totalBase, totalBs },
       });
     });
 
@@ -1210,14 +1314,21 @@ export const orderService = {
       select: { serviceChargeEnabled: true, ivaEnabled: true },
     });
     const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant!);
-    const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(order.deliveryFeeBase));
+    const embaseFeeBase = await computeEmbaseFee(restaurantId, order.channel, [
+      ...order.items,
+      { productId: line.productId, quantity: line.quantity },
+    ]);
+    const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(order.deliveryFeeBase).add(embaseFeeBase));
     const totalBs = baseToBs(totalBase, order.exchangeRate);
 
     await prisma.$transaction([
       prisma.orderItem.create({
         data: { orderId, ...buildOrderItemCreateData(line) },
       }),
-      prisma.order.update({ where: { id: orderId }, data: { subtotalBase, serviceChargeBase, ivaBase, totalBase, totalBs } }),
+      prisma.order.update({
+        where: { id: orderId },
+        data: { subtotalBase, serviceChargeBase, ivaBase, embaseFeeBase, totalBase, totalBs },
+      }),
     ]);
 
     const updated = await prisma.order.findUnique({ where: { id: orderId }, include: { items: { include: { modifiers: true } } } });
@@ -1240,7 +1351,7 @@ export const orderService = {
 
   /** Cambia el tipo (canal) de un pedido ya creado, ej. de Mesa a Delivery o viceversa. */
   async changeChannel(restaurantId: string, orderId: string, input: ChangeChannelInput) {
-    const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });
+    const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { items: true } });
     if (!existing) throw notFound('Comanda no encontrada.');
     if (existing.status === 'SERVED' || existing.status === 'CANCELLED') {
       throw badRequest('No se puede editar un pedido ya finalizado o cancelado.');
@@ -1302,7 +1413,10 @@ export const orderService = {
       customerLng = null;
     }
 
-    const totalBase = round2(existing.subtotalBase.add(existing.serviceChargeBase).add(existing.ivaBase).add(deliveryFeeBase));
+    const embaseFeeBase = await computeEmbaseFee(restaurantId, input.channel, existing.items);
+    const totalBase = round2(
+      existing.subtotalBase.add(existing.serviceChargeBase).add(existing.ivaBase).add(deliveryFeeBase).add(embaseFeeBase),
+    );
     const totalBs = baseToBs(totalBase, existing.exchangeRate);
 
     const updated = await prisma.$transaction(async (tx) => {
@@ -1316,6 +1430,7 @@ export const orderService = {
           customerLat,
           customerLng,
           deliveryFeeBase,
+          embaseFeeBase,
           totalBase,
           totalBs,
         },
@@ -1350,6 +1465,7 @@ export const orderService = {
       await deductRecipeStock(restaurantId, existing.items);
       await deductProductStock(restaurantId, existing.items);
       await deductModifierStock(restaurantId, existing.items);
+      await deductPackagingStock(restaurantId, existing.channel, existing.items);
     }
 
     emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, {
@@ -1626,6 +1742,7 @@ export const orderService = {
           discountPercent: input.discountPercent,
           discountBase,
           referenceNumber: input.referenceNumber,
+          proofImageUrl: input.proofImageUrl,
         },
       });
 

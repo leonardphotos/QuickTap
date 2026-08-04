@@ -55,6 +55,7 @@ export interface LiveOrderPayment {
   method: string;
   discountBase?: string | null;
   referenceNumber?: string | null;
+  proofImageUrl?: string | null;
   createdAt: string;
 }
 
@@ -821,9 +822,15 @@ interface EditOrderDialogProps {
   /** Órdenes de Mesa: pestañas para saltar a otro pedido activo de la misma mesa + Rodar/Cerrar
    * mesa, fijos arriba (no se pierden al desplazarse dentro del editor). */
   mesaFooter?: ReactNode;
+  /** 'mesa' (Órdenes de Mesa): oculta Pagar/Fraccionado/Deuda — ahí se cobra por cuenta desde el
+   * botón "Cobrar" del diálogo de mesa, que ya cubre esa misma función — y cambia "Descargar" por
+   * "Enviar por WhatsApp" al teléfono capturado al abrir la cuenta. 'pedidos' (default):
+   * comportamiento de siempre, sin cambios. */
+  context?: 'pedidos' | 'mesa';
 }
 
-export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrderDialogProps) {
+export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context = 'pedidos' }: EditOrderDialogProps) {
+  const isMesa = context === 'mesa';
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
@@ -1472,9 +1479,22 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
             >
               <Receipt className="h-3.5 w-3.5" /> Recibo
             </TextureButton>
-            <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={downloading} onClick={downloadJpg}>
-              <Download className="h-3.5 w-3.5" /> {downloading ? 'Generando…' : 'Descargar'}
-            </TextureButton>
+            {isMesa ? (
+              <TextureButton
+                variant="secondary"
+                size="sm"
+                className="!w-auto"
+                disabled={sendingWhatsapp || !order.customerPhone}
+                title={order.customerPhone ? undefined : 'Este pedido no tiene teléfono registrado.'}
+                onClick={sendWhatsapp}
+              >
+                <MessageCircle className="h-3.5 w-3.5" /> {sendingWhatsapp ? 'Enviando…' : 'Enviar WhatsApp'}
+              </TextureButton>
+            ) : (
+              <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={downloading} onClick={downloadJpg}>
+                <Download className="h-3.5 w-3.5" /> {downloading ? 'Generando…' : 'Descargar'}
+              </TextureButton>
+            )}
             {order.channel === 'DELIVERY' && (
               <TextureButton
                 variant="secondary"
@@ -1510,8 +1530,15 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter }: EditOrd
 
           {/* Fila de pago: siempre visible (igual que la tarjeta de "Pedidos en vivo") — no
               se puede depender de una tarjeta exterior porque este diálogo también se abre
-              directo desde Mesa/Pedidos sin pasar por esa lista. */}
-          {fullyPaid ? (
+              directo desde Mesa/Pedidos sin pasar por esa lista. En Órdenes de Mesa (isMesa) se
+              oculta del todo: el cobro ya se hace por cuenta desde el botón "Cobrar" del diálogo
+              de mesa, así que Pagar/Fraccionado/Deuda quedarían duplicados acá — solo queda el
+              indicador de estado. */}
+          {isMesa ? (
+            <p className={`text-sm font-medium text-center ${fullyPaid ? 'text-emerald-600' : 'text-amber-600'}`}>
+              {fullyPaid ? '✓ Pagado' : 'Pendiente de pago'}
+            </p>
+          ) : fullyPaid ? (
             <p className="text-sm text-emerald-600 font-medium text-center">✓ Pagado</p>
           ) : (
             <div className={`grid ${canAccountsPayable ? 'grid-cols-3' : 'grid-cols-2'} gap-1.5`}>

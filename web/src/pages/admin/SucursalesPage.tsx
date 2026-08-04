@@ -32,10 +32,14 @@ interface Branch {
 
 /** Administración → Sucursales: crear sucursales y ver el reporte consolidado. Planes Sucursales/Delivery Sucursales. */
 export default function SucursalesPage() {
-  const { restaurant, switchToBranch } = useAuth();
+  const { restaurant, switchToBranch, refresh } = useAuth();
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('summary');
   const [branches, setBranches] = useState<Branch[]>([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
+  const [savingSetting, setSavingSetting] = useState<'inventoryMode' | 'casaMatriz' | null>(null);
+  // Estos dos ajustes son de TODO el grupo (sede principal + sucursales) — solo se
+  // muestran/cambian desde la sede principal (ver restaurant.service.ts update()).
+  const isMain = !restaurant?.parentRestaurantId;
 
   function loadBranches() {
     api
@@ -45,6 +49,27 @@ export default function SucursalesPage() {
   }
 
   useEffect(loadBranches, []);
+
+  async function toggleInventoryShared() {
+    setSavingSetting('inventoryMode');
+    try {
+      const next = restaurant?.inventoryMode === 'SHARED' ? 'PER_BRANCH' : 'SHARED';
+      await api.patch('/restaurant', { inventoryMode: next });
+      await refresh();
+    } finally {
+      setSavingSetting(null);
+    }
+  }
+
+  async function toggleCasaMatriz() {
+    setSavingSetting('casaMatriz');
+    try {
+      await api.patch('/restaurant', { casaMatrizEnabled: !restaurant?.casaMatrizEnabled });
+      await refresh();
+    } finally {
+      setSavingSetting(null);
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -90,6 +115,62 @@ export default function SucursalesPage() {
           ))
         )}
       </div>
+
+      {isMain && (
+        <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
+          <div className="flex items-start justify-between gap-4 p-5">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-brand-950">Inventario compartido entre sedes</p>
+              <p className="text-xs text-brand-950/50 font-light mt-0.5">
+                Apagado (de siempre): cada sede tiene su propio stock. Encendido: la sede principal y todas sus
+                sucursales comparten una sola bolsa de stock en Insumos.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={restaurant?.inventoryMode === 'SHARED'}
+              onClick={toggleInventoryShared}
+              disabled={savingSetting === 'inventoryMode'}
+              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
+                restaurant?.inventoryMode === 'SHARED' ? 'bg-brand-500' : 'bg-brand-950/20'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+                  restaurant?.inventoryMode === 'SHARED' ? 'left-[22px]' : 'left-0.5'
+                }`}
+              />
+            </button>
+          </div>
+          <div className="flex items-start justify-between gap-4 p-5">
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-brand-950">Casa Matriz</p>
+              <p className="text-xs text-brand-950/50 font-light mt-0.5">
+                Un segundo inventario, aparte del normal, para el sitio central donde tienen los insumos que
+                distribuyen a la sede principal y a las demás sucursales. Actívalo solo si tienes una casa matriz
+                de producción — se maneja desde una ventana propia en Inventario.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={!!restaurant?.casaMatrizEnabled}
+              onClick={toggleCasaMatriz}
+              disabled={savingSetting === 'casaMatriz'}
+              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
+                restaurant?.casaMatrizEnabled ? 'bg-brand-500' : 'bg-brand-950/20'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+                  restaurant?.casaMatrizEnabled ? 'left-[22px]' : 'left-0.5'
+                }`}
+              />
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2">
         {TABS.map((t) => (

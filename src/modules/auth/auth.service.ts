@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { OAuth2Client } from 'google-auth-library';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
@@ -10,7 +11,37 @@ import { sendMail } from '../../utils/mailer';
 import { CURRENCY_SYMBOLS } from '../../utils/money';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { demoResetService } from '../../utils/demo-reset.service';
-import { ForgotPasswordInput, LoginInput, RegisterInput, ResetPasswordInput } from './auth.dto';
+import { ForgotPasswordInput, GoogleAuthInput, LoginInput, RegisterInput, ResetPasswordInput } from './auth.dto';
+
+const googleClient = new OAuth2Client();
+
+/** Verifica el ID token de Google contra nuestro Client ID (audience) y devuelve el
+ * perfil ya confiable. Nunca se lee email/nombre de lo que mande el cliente sin pasar
+ * por acá primero — el token viene firmado por Google, así que esto es lo único que
+ * garantiza que de verdad es esa cuenta de Google. */
+async function verifyGoogleToken(credential: string) {
+  if (!env.google.clientId) {
+    throw badRequest('El inicio de sesión con Google no está configurado en este servidor.');
+  }
+  let payload;
+  try {
+    const ticket = await googleClient.verifyIdToken({ idToken: credential, audience: env.google.clientId });
+    payload = ticket.getPayload();
+  } catch {
+    throw unauthorized('El token de Google no es válido o venció. Intenta de nuevo.');
+  }
+  if (!payload?.sub || !payload.email) {
+    throw unauthorized('Google no devolvió los datos esperados.');
+  }
+  if (!payload.email_verified) {
+    throw unauthorized('Tu email de Google no está verificado.');
+  }
+  return {
+    googleId: payload.sub,
+    email: payload.email.trim().toLowerCase(),
+    name: payload.name ?? payload.email,
+  };
+}
 
 const RESET_CODE_TTL_MINUTES = 15;
 const RESET_CODE_MAX_ATTEMPTS = 5;
@@ -76,6 +107,8 @@ const RESTAURANT_SELECT = {
   lockScreenIntervals: true,
   isDemo: true,
   demoAdminUnlocked: true,
+  inventoryMode: true,
+  casaMatrizEnabled: true,
 } as const;
 
 type RestaurantRow = {
@@ -123,6 +156,8 @@ type RestaurantRow = {
   lockScreenIntervals: unknown;
   isDemo: boolean;
   demoAdminUnlocked: boolean;
+  inventoryMode: string;
+  casaMatrizEnabled: boolean;
 };
 
 /** Forma que el frontend consume: agrega `locked`, calculado en vivo (nunca persistido; ver isLockedAsync),
@@ -153,6 +188,8 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
     theme: restaurant.theme,
     isDemo: restaurant.isDemo,
     demoAdminUnlocked: restaurant.demoAdminUnlocked,
+    inventoryMode: restaurant.inventoryMode,
+    casaMatrizEnabled: restaurant.casaMatrizEnabled,
     serviceChargeEnabled: restaurant.serviceChargeEnabled,
     modifierInventoryLinkEnabled: restaurant.modifierInventoryLinkEnabled,
     lockScreenEnabled: restaurant.lockScreenEnabled,
@@ -246,7 +283,7 @@ export const authService = {
         const user = await prisma.user.findFirst({
           where: { restaurantId: restaurant.id, email: { equals: input.email, mode: 'insensitive' }, isActive: true },
         });
-        if (user && (await bcrypt.compare(input.password, user.passwordHash))) {
+        if (user?.passwordHash && (await bcrypt.compare(input.password, user.passwordHash))) {
           return this.buildSession(user, restaurant);
         }
       }
@@ -262,11 +299,110 @@ export const authService = {
     });
 
     for (const candidate of candidates) {
+      if (!candidate.passwordHash) continue; // cuenta creada solo con Google, sin contraseña
       const valid = await bcrypt.compare(input.password, candidate.passwordHash);
       if (valid) return this.buildSession(candidate, candidate.restaurant);
     }
 
     throw unauthorized('Credenciales inválidas.');
+  },
+
+  /**
+   * "Continuar con Google" — login automático o registro de una cuenta nueva.
+   * El `credential` (ID token) SIEMPRE se verifica contra Google antes de confiar en
+   * el email/nombre que trae, en ambas llamadas (con o sin `registration`).
+   *
+   * 1. Sin `registration`: busca una cuenta existente por googleId y, si no hay,
+   *    por email — si encuentra una cuenta con contraseña que todavía no tiene
+   *    googleId, la vincula sola (así una cuenta vieja por contraseña también puede
+   *    entrar con un clic de ahí en adelante). Sin ningún candidato, devuelve
+   *    `needsRegistration` en vez de fallar: el frontend pide los datos del
+   *    restaurante y vuelve a llamar esto con `registration` lleno.
+   * 2. Con `registration`: crea Restaurant + User igual que `register()`, pero sin
+   *    contraseña (passwordHash null) y con el googleId ya vinculado.
+   */
+  async googleAuth(input: GoogleAuthInput) {
+    const google = await verifyGoogleToken(input.credential);
+
+    if (input.registration) {
+      const existingSlug = await prisma.restaurant.findUnique({ where: { slug: input.registration.slug } });
+      if (existingSlug) throw conflict('Ese slug ya está en uso.');
+
+      const restaurant = await prisma.restaurant.create({
+        data: {
+          slug: input.registration.slug,
+          name: input.registration.restaurantName,
+          businessType: input.registration.businessType,
+          shopRubro: input.registration.businessType === 'SHOP' ? input.registration.shopRubro : undefined,
+          whatsappPhone: input.registration.whatsappPhone,
+          baseCurrency: input.registration.baseCurrency,
+          periodEnd: trialPeriodEnd(),
+          users: {
+            create: {
+              email: google.email,
+              name: google.name,
+              googleId: google.googleId,
+              role: 'OWNER',
+            },
+          },
+        },
+        include: { users: true },
+      });
+
+      const owner = restaurant.users[0];
+      return this.buildSession(owner, restaurant);
+    }
+
+    if (input.slug) {
+      const restaurant = await prisma.restaurant.findUnique({ where: { slug: input.slug } });
+      if (restaurant?.isActive) {
+        const user = await prisma.user.findFirst({
+          where: { restaurantId: restaurant.id, isActive: true, OR: [{ googleId: google.googleId }, { email: google.email }] },
+        });
+        if (user) return this.googleSession(user, restaurant, google.googleId);
+      }
+    }
+
+    const candidates = await prisma.user.findMany({
+      where: {
+        isActive: true,
+        restaurant: { isActive: true },
+        OR: [{ googleId: google.googleId }, { email: { equals: google.email, mode: 'insensitive' } }],
+      },
+      include: { restaurant: true },
+    });
+
+    if (candidates.length === 0) {
+      return { needsRegistration: true as const, email: google.email, name: google.name };
+    }
+    if (candidates.length > 1) {
+      throw conflict('Ese correo tiene cuenta en varios restaurantes — inicia sesión con contraseña para elegir cuál.');
+    }
+
+    const [candidate] = candidates;
+    return this.googleSession(candidate, candidate.restaurant, google.googleId);
+  },
+
+  /** Arma la sesión para un match encontrado por googleAuth, vinculando el googleId
+   * a la cuenta si todavía no lo tenía (ej. cuenta vieja creada por contraseña, que
+   * a partir de ahora también puede entrar con un clic). */
+  async googleSession(
+    user: {
+      id: string;
+      name: string;
+      email: string;
+      role: string;
+      canAccessInventory: boolean;
+      lockPinHash: string | null;
+      googleId: string | null;
+    },
+    restaurant: RestaurantRow,
+    googleId: string,
+  ) {
+    if (!user.googleId) {
+      await prisma.user.update({ where: { id: user.id }, data: { googleId } });
+    }
+    return this.buildSession(user, restaurant);
   },
 
   /**

@@ -16,7 +16,7 @@ import { env } from '../../config/env';
 import { prisma } from '../../config/prisma';
 import { UPLOADS_DIR } from '../../middlewares/upload.middleware';
 import { emitToKitchen, SocketEvents } from '../../sockets';
-import { formatVenezuelanWhatsappPhone, renderWhatsappTemplate } from '../../utils/whatsapp';
+import { formatVenezuelanWhatsappPhone, PAYMENT_LABELS, renderWhatsappTemplate } from '../../utils/whatsapp';
 import { UpdateWhatsappBotSettingsInput } from './whatsapp-bot.dto';
 import { orderPaymentVerificationService } from '../orders/order-payment-verification.service';
 import { CURRENCY_SYMBOLS, formatBs, formatMoney } from '../../utils/money';
@@ -115,7 +115,28 @@ function buildVerifierCaption(order: NonNullable<Awaited<ReturnType<typeof fetch
   ].join('\n');
 }
 
+/** Mensaje del modo FULL_ORDER (ver Restaurant.whatsappOrderMode): el pedido completo,
+ * mandado al WhatsApp del propio negocio en vez de pedirle comprobante al cliente —
+ * el negocio confirma "Aprobado"/"Rechazado" a mano tras coordinar el cobro por fuera. */
+function buildFullOrderCaption(order: NonNullable<Awaited<ReturnType<typeof fetchOrderWithItems>>>): string {
+  const itemsSummary = order.items.map((i) => `${i.quantity}x ${i.productName}`).join('\n');
+  const symbol = CURRENCY_SYMBOLS[order.currency];
+  const lines = [
+    `🛎️ Nuevo pedido #${order.orderNumber} (${order.channel === 'DELIVERY' ? 'Delivery' : 'Pickup'})`,
+    `👤 Cliente: ${order.customerName ?? 'Cliente'}`,
+    `📞 ${order.customerPhone ?? ''}`,
+  ];
+  if (order.channel === 'DELIVERY' && order.customerAddress) lines.push(`📍 ${order.customerAddress}`);
+  lines.push('', `🧾 Pedido:\n${itemsSummary || '—'}`, '');
+  if (order.paymentMethod) lines.push(`💳 Pago: ${PAYMENT_LABELS[order.paymentMethod]}`);
+  lines.push(`💰 Total: ${formatBs(order.totalBs)} (${formatMoney(order.totalBase, symbol)})`, '', 'Responde *Aprobado* o *Rechazado*.');
+  return lines.join('\n');
+}
+
 export const whatsappBotService = {
+  /** Texto del pedido completo para el modo FULL_ORDER — ver checkoutDelivery en order.service.ts. */
+  buildFullOrderCaption,
+
   /** Estado actual (para pintar Ajustes -> WhatsApp sin esperar el próximo evento de socket). */
   getStatus(restaurantId: string) {
     const s = getOrCreateSessionState(restaurantId);
@@ -338,39 +359,55 @@ export const whatsappBotService = {
     );
   },
 
-  /** Respuesta del verificador de pagos: "Aprobado" acepta el pedido a cocina, "Rechazado" pide reenviar. */
+  /** Respuesta del verificador: "Aprobado" acepta el pedido a cocina, "Rechazado" según el
+   * modo — pide reenviar comprobante (PAYMENT_VERIFICATION) o queda rechazado (FULL_ORDER,
+   * ver order-payment-verification.service.ts). */
   async routeVerifierReply(restaurantId: string, text: string): Promise<void> {
     const result = await orderPaymentVerificationService.resolveVerifierReply(restaurantId, text);
     if (result.action === 'ignore' || !result.verification) return;
 
     if (result.action === 'approve') {
-      const { customerPhone, orderId } = await orderPaymentVerificationService.approve(result.verification.id);
+      const { customerPhone, orderId, isFullOrder } = await orderPaymentVerificationService.approve(result.verification.id);
       const order = await prisma.order.findUnique({ where: { id: orderId } });
       await this.sendMessage(
         restaurantId,
         customerPhone,
-        `✅ Tu pago fue confirmado. ¡Tu pedido #${order?.orderNumber ?? ''} ya está en proceso!`,
+        isFullOrder
+          ? `✅ Tu pedido #${order?.orderNumber ?? ''} fue confirmado. ¡Ya lo estamos preparando!`
+          : `✅ Tu pago fue confirmado. ¡Tu pedido #${order?.orderNumber ?? ''} ya está en proceso!`,
       );
     } else {
-      const { customerPhone } = await orderPaymentVerificationService.reject(result.verification.id);
+      const { customerPhone, isFullOrder } = await orderPaymentVerificationService.reject(result.verification.id);
       await this.sendMessage(
         restaurantId,
         customerPhone,
-        '⚠️ No pudimos confirmar tu pago. Por favor reenvía tu comprobante.',
+        isFullOrder
+          ? '⚠️ Tu pedido no pudo ser confirmado. Contáctanos por este mismo chat si tienes dudas.'
+          : '⚠️ No pudimos confirmar tu pago. Por favor reenvía tu comprobante.',
       );
     }
     await this.advanceQueue(restaurantId);
   },
 
-  /** Tras resolver una verificación, reenvía al verificador la siguiente que estaba en cola (si hay). */
+  /** Tras resolver una verificación, reenvía al verificador la siguiente que estaba en cola (si hay):
+   * la foto del comprobante (PAYMENT_VERIFICATION) o el texto del pedido completo (FULL_ORDER, sin
+   * proofImageUrl — ver order-payment-verification.service.ts). */
   async advanceQueue(restaurantId: string): Promise<void> {
     const next = await orderPaymentVerificationService.dequeueNext(restaurantId);
-    if (!next || !next.proofImageUrl) return;
+    if (!next) return;
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
       select: { whatsappBotPaymentVerifierPhone: true },
     });
     if (!restaurant?.whatsappBotPaymentVerifierPhone) return;
+
+    if (!next.proofImageUrl) {
+      const order = await fetchOrderWithItems(next.orderId);
+      if (!order) return;
+      await this.sendMessage(restaurantId, restaurant.whatsappBotPaymentVerifierPhone, buildFullOrderCaption(order));
+      return;
+    }
+
     const order = await fetchOrderWithItems(next.orderId);
     if (!order) return;
     const imagePath = path.join(process.cwd(), next.proofImageUrl.replace(/^\//, ''));
@@ -413,6 +450,7 @@ export const whatsappBotService = {
                 : null,
             }
           : {}),
+        ...(input.orderMode !== undefined ? { whatsappOrderMode: input.orderMode } : {}),
       },
       select: {
         whatsappBotNotifyReceived: true,
@@ -420,6 +458,7 @@ export const whatsappBotService = {
         whatsappBotWelcomeEnabled: true,
         whatsappBotWelcomeMessage: true,
         whatsappBotPaymentVerifierPhone: true,
+        whatsappOrderMode: true,
       },
     });
   },

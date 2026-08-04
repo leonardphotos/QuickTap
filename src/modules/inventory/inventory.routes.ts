@@ -5,6 +5,7 @@ import { FULL_ACCESS_ROLES } from '../../utils/roles';
 import { uploadInventoryPhoto, optimizeImage } from '../../middlewares/upload.middleware';
 import { inventoryController } from './inventory.controller';
 import { inventoryCategoryController } from './inventory-category.controller';
+import { inventoryTransferController } from './inventory-transfer.controller';
 import { recipeController } from './recipe.controller';
 
 /**
@@ -34,12 +35,26 @@ router.post(
   inventoryController.uploadPhoto,
 );
 
+// Insumos marcados como embase (para el picker de "Vincular con stock" en Productos).
+router.get('/packaging', requireFeature('inventoryBasic'), requireInventoryAccess, inventoryController.listPackaging);
+
 // Insumos "normales": stock directo por insumo.
 router.get('/', requireFeature('inventoryBasic'), requireInventoryAccess, inventoryController.list);
 router.post('/', requireFeature('inventoryBasic'), mutate, inventoryController.create);
 router.patch('/:id', requireFeature('inventoryBasic'), mutate, inventoryController.update);
 router.delete('/:id', requireFeature('inventoryBasic'), mutate, inventoryController.remove);
 router.post('/print-list', requireFeature('inventoryBasic'), requireInventoryAccess, inventoryController.printList);
+
+// Transferencia de insumos entre sedes del mismo grupo (o hacia/desde Casa Matriz).
+router.get('/transfer-locations', requireFeature('inventoryBasic'), requireInventoryAccess, inventoryTransferController.listLocations);
+router.get(
+  '/transfer-locations/items',
+  requireFeature('inventoryBasic'),
+  requireInventoryAccess,
+  inventoryTransferController.listItemsForLocation,
+);
+router.get('/transfers', requireFeature('inventoryBasic'), requireInventoryAccess, inventoryTransferController.list);
+router.post('/transfers', requireFeature('inventoryBasic'), mutate, inventoryTransferController.create);
 
 // Recetas: vincula productos del menú con insumos (descuenta stock al vender).
 router.get('/recipes', requireFeature('inventoryRecipe'), requireInventoryAccess, recipeController.listOverview);

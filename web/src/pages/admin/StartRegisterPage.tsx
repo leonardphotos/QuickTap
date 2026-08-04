@@ -1,4 +1,4 @@
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Store, Utensils, Warehouse } from 'lucide-react';
 import AuthLayout from './AuthLayout';
 import { cn } from '@/lib/utils';
@@ -25,12 +25,15 @@ const OPTIONS: {
  */
 export default function StartRegisterPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const qs = searchParams.toString();
 
   function choose(option: StartOption) {
-    if (option === 'restaurant') navigate(`/admin/register${qs ? `?${qs}` : ''}`);
-    if (option === 'shop') navigate(`/admin/register/rubro${qs ? `?${qs}` : ''}`);
+    // Reenvía location.state (datos ya verificados de "Continuar con Google" desde
+    // /admin/login, ver LoginPage.tsx) — sin esto se pierden al pasar por acá.
+    if (option === 'restaurant') navigate(`/admin/register${qs ? `?${qs}` : ''}`, { state: location.state });
+    if (option === 'shop') navigate(`/admin/register/rubro${qs ? `?${qs}` : ''}`, { state: location.state });
   }
 
   return (

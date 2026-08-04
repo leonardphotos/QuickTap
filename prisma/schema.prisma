@@ -255,11 +255,18 @@ model Restaurant {
   // Placeholders disponibles: {{restaurant}}, {{link}}. Si es null, se usa
   // DEFAULT_WELCOME_TEMPLATE (whatsapp-bot.service.ts).
   whatsappBotWelcomeMessage String?
-  // Número (solo dígitos) al que el chatbot reenvía cada comprobante de pago de un
-  // pedido delivery/pickup para que el propio restaurante lo revise y responda
+  // Número (solo dígitos) al que el chatbot reenvía cada comprobante de pago (modo
+  // PAYMENT_VERIFICATION) o el pedido completo (modo FULL_ORDER) de un pedido
+  // delivery/pickup para que el propio restaurante lo revise y responda
   // "Aprobado"/"Rechazado" — ver order-payment-verification.service.ts. null = ese
   // flujo está desactivado (el pedido sigue requiriendo aceptación manual, como hoy).
   whatsappBotPaymentVerifierPhone String?
+  // 'PAYMENT_VERIFICATION' (de siempre) = solo abre verificación en métodos de pago que
+  // exigen comprobante, esperando la FOTO del cliente. 'FULL_ORDER' = para cualquier
+  // pedido sin importar el método de pago, manda el pedido completo al número de
+  // whatsappBotPaymentVerifierPhone y espera que el negocio confirme "Aprobado" a mano
+  // (sin foto) antes de pasar a cocina. Solo aplica si whatsappBotEnabled.
+  whatsappOrderMode String @default("PAYMENT_VERIFICATION")
 
   // --- Apariencia del menú público ---
   // Colores personalizados del menú público (fondo, botones, acentos, texto).
@@ -385,6 +392,15 @@ model Restaurant {
   parent             Restaurant?  @relation("RestaurantBranches", fields: [parentRestaurantId], references: [id])
   branches           Restaurant[] @relation("RestaurantBranches")
 
+  // Grupo (sede principal + sucursales): "PER_BRANCH" = cada sede su propio stock (de
+  // siempre); "SHARED" = una sola bolsa de stock para todas. Solo se cambia desde la
+  // sede principal (ver restaurant.service.ts update()).
+  inventoryMode String @default("PER_BRANCH")
+  // Activa la ventana "Casa Matriz" (segundo inventario, aparte del normal, para
+  // distribuir a la sede principal y a las sucursales). Solo aplica en la sede
+  // principal — no todos los clientes de Sucursales tienen una.
+  casaMatrizEnabled Boolean @default(false)
+
   // --- Adicionales del Plan Personalizado (CUSTOM) ---
   // Para PRO/PREMIUM el acceso a estas funciones ya viene incluido según el
   // plan (ver src/utils/subscription.ts, hasFeature()); estos 4 campos solo
@@ -504,9 +520,14 @@ model User {
   restaurantId String
 
   email        String
-  passwordHash String
+  // Null = cuenta creada solo con "Continuar con Google" (ver googleId), sin contraseña propia.
+  passwordHash String?
   name         String
   role         UserRole @default(OWNER)
+
+  // Id de cuenta de Google (claim "sub" del ID token), si esta cuenta se creó o se
+  // vinculó con "Continuar con Google". Null = nunca se usó Google en esta cuenta.
+  googleId String?
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -546,8 +567,11 @@ model User {
   cashSessionsOpened CashSession[] @relation("CashSessionOpenedBy")
   cashSessionsClosed CashSession[] @relation("CashSessionClosedBy")
 
-  // El email es único DENTRO de cada restaurante (no globalmente).
+  // El email es único DENTRO de cada restaurante (no globalmente); mismo criterio
+  // para googleId (una cuenta de Google puede ser dueña de un restaurante y también
+  // staff invitado en otro).
   @@unique([restaurantId, email])
+  @@unique([restaurantId, googleId])
   @@index([restaurantId])
   @@map("users")
 }
@@ -634,6 +658,15 @@ model Product {
   stockControlEnabled Boolean @default(false)
   stockQuantity       Int?
 
+  // --- Embase (envase/caja/bolsa) ---
+  // Cargo que se suma al total del pedido SOLO cuando el canal es DELIVERY o PICKUP
+  // (nunca DINE_IN/BAR — en mesa se sirve sin empaque). "NONE" = no cobra embase;
+  // "FIXED" = precio propio (packagingFeeBase); "INVENTORY" = precio y descuento de
+  // stock tomados del insumo vinculado (packagingItem, ver InventoryItem.packagingType).
+  packagingMode    String   @default("NONE")
+  packagingFeeBase Decimal? @db.Decimal(12, 2)
+  packagingItemId  String?
+
   // --- Banderas de marketing ---
   isStar         Boolean @default(false) // Producto Estrella
   isPromo        Boolean @default(false) // Promoción
@@ -679,6 +712,9 @@ model Product {
   restaurant         Restaurant                @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   category           Category                  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   kitchen            Kitchen?                  @relation(fields: [kitchenId], references: [id], onDelete: SetNull)
+  // Insumo vinculado como embase (packagingMode = INVENTORY). SetNull: si se borra el
+  // insumo, el producto no se rompe, solo deja de cobrar/descontar embase.
+  packagingItem      InventoryItem?            @relation("ProductPackaging", fields: [packagingItemId], references: [id], onDelete: SetNull)
   orderItems         OrderItem[]
   recipeIngredients  RecipeIngredient[]
   modifierCategories ProductModifierCategory[]
@@ -686,6 +722,7 @@ model Product {
 
   @@unique([restaurantId, externalSource, externalSourceId])
   @@index([restaurantId, categoryId])
+  @@index([restaurantId, packagingItemId])
   @@index([restaurantId, isAvailable])
   @@index([restaurantId, kitchenId])
   @@map("products")
@@ -1017,6 +1054,9 @@ model Order {
   // Costo de envío calculado en el checkout de delivery (por distancia o por
   // zona). Sí forma parte de totalBase/totalBs, a diferencia de la propina.
   deliveryFeeBase   Decimal  @default(0) @db.Decimal(12, 2)
+  // Cargo por embase (envase/caja/bolsa) de los productos del pedido. Solo se
+  // calcula para canal DELIVERY/PICKUP (nunca DINE_IN/BAR) — ver Product.packagingMode.
+  embaseFeeBase     Decimal  @default(0) @db.Decimal(12, 2)
 
   // --- Datos del cliente ---
   customerName     String?
@@ -1087,6 +1127,9 @@ model OrderPayment {
   discountBase    Decimal?      @db.Decimal(12, 2)
   // Número de referencia/comprobante (Pago Móvil, Zelle) o de ticket (Punto de venta).
   referenceNumber String?
+  // Foto del comprobante (Pago Móvil/Zelle/Binance/PayPal/Transferencia) — obligatoria para
+  // esos métodos al cobrar desde el panel (ver METHODS_REQUIRING_PROOF en order.dto.ts).
+  proofImageUrl String?
   createdAt       DateTime      @default(now())
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -1097,9 +1140,13 @@ model OrderPayment {
 
 enum OrderPaymentVerificationStatus {
   AWAITING_PROOF // esperando que el cliente mande la foto del comprobante
-  PENDING_FORWARD // ya llegó la foto, pero hay otra verificación en curso para este restaurante — en cola
-  AWAITING_VERIFIER // foto reenviada al verificador, esperando "Aprobado"/"Rechazado"
+  PENDING_FORWARD // ya llegó la foto (o, en modo FULL_ORDER, el pedido en sí), pero hay otra verificación en curso para este restaurante — en cola
+  AWAITING_VERIFIER // foto (o pedido completo) reenviado al verificador, esperando "Aprobado"/"Rechazado"
   APPROVED
+  // Terminal, solo en modo FULL_ORDER (sin foto que reenviar): a diferencia de un
+  // rechazo en modo PAYMENT_VERIFICATION, que vuelve a AWAITING_PROOF para que el
+  // cliente reenvíe el comprobante, acá no hay nada que reenviar.
+  REJECTED
   TIMED_OUT
 }
 
@@ -1708,18 +1755,63 @@ model InventoryItem {
   // insumos, y alimenta el cálculo automático del costo de receta.
   pricePerUnitBase Decimal? @db.Decimal(14, 4)
 
+  // --- Embase (envase/caja/bolsa) ---
+  // No nulo = este insumo está disponible para vincularse como embase de un producto
+  // (Product.packagingItemId), sin importar en qué InventoryCategory esté archivado.
+  packagingType  String?
+  // Precio que se le cobra al cliente por 1 unidad de este embase (distinto de
+  // pricePerUnitBase, que es costo). Solo tiene efecto cuando packagingType no es null.
+  salePriceBase  Decimal? @db.Decimal(12, 2)
+
+  // "LOCAL" (de siempre) = insumo normal de esta sede; "CASA_MATRIZ" = vive en la
+  // ventana aparte de Casa Matriz (solo existe en la sede principal, ver
+  // Restaurant.casaMatrizEnabled). Incluido en la resolución de "compartido/por sede"
+  // de src/modules/inventory/inventory-scope.ts.
+  locationScope String @default("LOCAL")
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurant  Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  category    InventoryCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  recipeLines RecipeIngredient[]
-  modifiers   Modifier[]
-  movements   Movement[]
+  restaurant        Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category          InventoryCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  recipeLines       RecipeIngredient[]
+  modifiers         Modifier[]
+  movements         Movement[]
+  packagingProducts Product[]          @relation("ProductPackaging")
 
   @@index([restaurantId])
   @@index([restaurantId, categoryId])
+  @@index([restaurantId, packagingType])
+  @@index([restaurantId, locationScope])
   @@map("inventory_items")
+}
+
+// Registro histórico de una transferencia de insumos entre sedes de un mismo grupo
+// (sede principal + sucursales), o entre Casa Matriz y una sede. Snapshot de nombres
+// (igual criterio que Order congela productName): el historial no debe cambiar si el
+// insumo o la sede se renombran/borran después.
+model InventoryTransfer {
+  id   String @id @default(cuid())
+  // Id de la sede principal del grupo (self o parentRestaurantId) — ancla el
+  // historial a un grupo entero sin importar desde qué sede se consulte.
+  groupId String
+
+  fromRestaurantId String
+  fromScope        String // "LOCAL" | "CASA_MATRIZ"
+  fromLocationName String
+  toRestaurantId   String
+  toScope          String
+  toLocationName   String
+
+  itemName String
+  unit     String
+  quantity Decimal @db.Decimal(12, 2)
+
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  @@index([groupId, createdAt])
+  @@map("inventory_transfers")
 }
 
 // Línea de receta: cuánto de un insumo (InventoryItem) usa un producto del

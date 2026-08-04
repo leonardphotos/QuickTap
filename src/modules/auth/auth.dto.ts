@@ -28,6 +28,16 @@ export const registerSchema = z.object({
   shopRubro: z.string().min(1).max(60).optional(),
 });
 
+// "Continuar con Google": el credential (ID token firmado por Google) se verifica
+// en el backend, nunca se confía en datos sueltos que mande el cliente. `registration`
+// solo viene en la segunda llamada, cuando el usuario ya completó los datos del
+// restaurante tras recibir `needsRegistration: true` en la primera.
+export const googleAuthSchema = z.object({
+  credential: z.string().min(1),
+  slug: z.string().min(1).optional(),
+  registration: registerSchema.omit({ email: true, password: true }).optional(),
+});
+
 export const loginSchema = z.object({
   email: emailSchema,
   password: z.string().min(1),
@@ -63,5 +73,6 @@ export type VerifyLockPinInput = z.infer<typeof verifyLockPinSchema>;
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type GoogleAuthInput = z.infer<typeof googleAuthSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;

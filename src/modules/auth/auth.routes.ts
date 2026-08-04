@@ -8,6 +8,7 @@ const router = Router();
 
 router.post('/register', authRateLimit, authController.register);
 router.post('/login', authRateLimit, authController.login);
+router.post('/google', authRateLimit, authController.google);
 router.post('/forgot-password', passwordResetRateLimit, authController.forgotPassword);
 router.post('/reset-password', passwordResetRateLimit, authController.resetPassword);
 router.get('/me', authGuard, authController.me);
