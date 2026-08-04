@@ -890,6 +890,9 @@ export default function LandingPage() {
               </p>
             </div>
             <div className="flex items-center gap-3">
+              <Link to="/legal" className="text-sm text-brand-950/70 hover:text-brand-950">
+                Legal
+              </Link>
               <Link to="/admin/login" className="text-sm text-brand-950/70 hover:text-brand-950">
                 Iniciar sesión
               </Link>

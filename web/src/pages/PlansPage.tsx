@@ -45,6 +45,9 @@ export default function PlansPage() {
             <Link to="/" className="text-sm text-brand-950/70 hover:text-brand-950">
               Todo lo que hace
             </Link>
+            <Link to="/legal" className="text-sm text-brand-950/70 hover:text-brand-950">
+              Legal
+            </Link>
             <Link to="/admin/login" className="text-sm text-brand-950/70 hover:text-brand-950">
               Iniciar sesión
             </Link>

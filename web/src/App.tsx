@@ -5,6 +5,7 @@ import { MasterAuthProvider } from './context/MasterAuthContext';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const PlansPage = lazy(() => import('./pages/PlansPage'));
+const LegalPage = lazy(() => import('./pages/LegalPage'));
 const MenuPage = lazy(() => import('./pages/public/MenuPage'));
 const LoginPage = lazy(() => import('./pages/admin/LoginPage'));
 const ImpersonatePage = lazy(() => import('./pages/admin/ImpersonatePage'));
@@ -67,6 +68,9 @@ export default function App() {
             {/* La página de soluciones se fusionó con la Landing (ahora vive debajo del hero). */}
             <Route path="/soluciones" element={<Navigate to="/" replace />} />
             <Route path="/planes" element={<PlansPage />} />
+            <Route path="/legal" element={<LegalPage />} />
+            <Route path="/terminos" element={<Navigate to="/legal#terminos" replace />} />
+            <Route path="/privacidad" element={<Navigate to="/legal#privacidad" replace />} />
 
             {/* Menú público (QR de mesa o link general para delivery/pickup) */}
             <Route path="/r/:slug" element={<MenuPage />} />
