@@ -119,6 +119,27 @@ export const uploadPhotoToMemory = multer({
 }).single('photo');
 
 /**
+ * Subida en memoria de un .xlsx (importar insumos/recetas) — se lee directo con ExcelJS desde
+ * el buffer, nunca toca disco, no hace falta guardarlo después de procesarlo.
+ */
+const SPREADSHEET_MIME = new Set([
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  // Algunos navegadores/SO mandan este genérico para .xlsx en vez del MIME correcto.
+  'application/octet-stream',
+]);
+export const uploadSpreadsheet = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!SPREADSHEET_MIME.has(file.mimetype) && !file.originalname.toLowerCase().endsWith('.xlsx')) {
+      cb(badRequest('Formato no soportado (usa un archivo .xlsx).'));
+      return;
+    }
+    cb(null, true);
+  },
+}).single('file');
+
+/**
  * Redimensiona/recomprime la imagen recién subida (en el mismo archivo, sin
  * cambiar de nombre ni extensión). El cliente ya comprime antes de subir,
  * pero esto es la garantía real: sin importar lo que llegue, nunca se sirve

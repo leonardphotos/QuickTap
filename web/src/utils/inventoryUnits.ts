@@ -5,7 +5,7 @@
  * necesitó exactamente la misma conversión.
  */
 
-export const UNIT_LABELS: Record<string, string> = { kg: 'Kg', lt: 'Lt', ml: 'Ml', unidad: 'Unidad' };
+export const UNIT_LABELS: Record<string, string> = { kg: 'Kg', lt: 'Lt', ml: 'Ml', unidad: 'Und' };
 
 export interface SubUnit {
   value: string;
@@ -25,7 +25,7 @@ export const SUB_UNITS: Record<string, SubUnit[]> = {
     { value: 'ml', label: 'Ml', toBase: 0.001 },
   ],
   ml: [{ value: 'ml', label: 'Ml', toBase: 1 }],
-  unidad: [{ value: 'unidad', label: 'Unidad', toBase: 1 }],
+  unidad: [{ value: 'unidad', label: 'Und', toBase: 1 }],
 };
 
 export function subUnitsFor(unit: string | null | undefined): SubUnit[] {

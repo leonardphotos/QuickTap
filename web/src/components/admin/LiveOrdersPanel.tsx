@@ -54,6 +54,7 @@ export interface LiveOrderPayment {
   amountBase: string;
   method: string;
   discountBase?: string | null;
+  serviceChargeDiscountBase?: string | null;
   referenceNumber?: string | null;
   proofImageUrl?: string | null;
   createdAt: string;

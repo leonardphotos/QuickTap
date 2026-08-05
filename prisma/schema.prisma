@@ -1125,6 +1125,10 @@ model OrderPayment {
   // pagos fraccionados distintos pueden llevar descuentos distintos).
   discountPercent Decimal?      @db.Decimal(5, 2)
   discountBase    Decimal?      @db.Decimal(12, 2)
+  // Ajuste puntual al cargo de servicio de ESTE cobro (perdona parte/todo el servicio de este
+  // pago) — mismo criterio que discountPercent/discountBase, nunca toca Order.serviceChargeBase.
+  serviceChargeDiscountPercent Decimal? @db.Decimal(5, 2)
+  serviceChargeDiscountBase    Decimal? @db.Decimal(12, 2)
   // Número de referencia/comprobante (Pago Móvil, Zelle) o de ticket (Punto de venta).
   referenceNumber String?
   // Foto del comprobante (Pago Móvil/Zelle/Binance/PayPal/Transferencia) — obligatoria para

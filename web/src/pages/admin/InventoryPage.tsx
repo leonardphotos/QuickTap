@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
-import { AlertTriangle, Plus, Printer, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import type { ChangeEvent, FormEvent } from 'react';
+import { AlertTriangle, FileSpreadsheet, Plus, Printer, Upload, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { hasFeature } from '@/utils/subscription';
@@ -9,6 +9,7 @@ import type { Product } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
+import { UNIT_LABELS, SUB_UNITS } from '@/utils/inventoryUnits';
 
 interface InventoryCategory {
   id: string;
@@ -31,21 +32,7 @@ interface InventoryItem {
   salePriceBase?: string | null;
 }
 
-const UNIT_LABELS: Record<string, string> = { kg: 'Kg', lt: 'Lt', ml: 'Ml', unidad: 'Unidad' };
 const PACKAGING_TYPE_LABELS: Record<string, string> = { ENVASE: 'Envase', CAJA: 'Caja', BOLSA: 'Bolsa' };
-// Sub-unidades para cargar la cantidad de receta en algo más chico que la unidad del insumo.
-const SUB_UNITS: Record<string, { value: string; label: string; toBase: number }[]> = {
-  kg: [
-    { value: 'kg', label: 'Kg', toBase: 1 },
-    { value: 'gr', label: 'Gr', toBase: 0.001 },
-  ],
-  lt: [
-    { value: 'lt', label: 'Lt', toBase: 1 },
-    { value: 'ml', label: 'Ml', toBase: 0.001 },
-  ],
-  ml: [{ value: 'ml', label: 'Ml', toBase: 1 }],
-  unidad: [{ value: 'unidad', label: 'Unidad', toBase: 1 }],
-};
 
 const emptyForm = {
   name: '',
@@ -284,6 +271,12 @@ function InsumosTab({
   const [printSent, setPrintSent] = useState(false);
   const [addingCategory, setAddingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ created: number; updated: number; errors: { row: number; message: string }[] } | null>(
+    null,
+  );
+  const importInputRef = useRef<HTMLInputElement>(null);
   // Interruptor del vínculo modificador -> insumo.
   const { refresh } = useAuth();
   const linkEnabled = !!restaurant?.modifierInventoryLinkEnabled;
@@ -324,6 +317,43 @@ function InsumosTab({
       setError(err.response?.data?.error ?? 'No se pudo enviar la lista a la estación de impresión.');
     } finally {
       setPrintingList(false);
+    }
+  }
+
+  async function downloadImportTemplate() {
+    setDownloadingTemplate(true);
+    try {
+      const res = await api.get('/inventory/import-template', { responseType: 'blob' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(res.data);
+      link.download = 'plantilla-insumos.xlsx';
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch {
+      setError('No se pudo generar la plantilla. Intenta de nuevo.');
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  }
+
+  async function handleImportFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setImporting(true);
+    setImportResult(null);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await api.post('/inventory/import', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setImportResult(res.data.data);
+      onChanged();
+      onCategoriesChanged();
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo importar el archivo.');
+    } finally {
+      setImporting(false);
     }
   }
 
@@ -499,10 +529,10 @@ function InsumosTab({
             className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
           >
             <option value="">Unidad…</option>
-            <option value="kg">Kg</option>
-            <option value="lt">Lt</option>
-            <option value="ml">Ml</option>
-            <option value="unidad">Unidad</option>
+            <option value="kg">{UNIT_LABELS.kg}</option>
+            <option value="lt">{UNIT_LABELS.lt}</option>
+            <option value="ml">{UNIT_LABELS.ml}</option>
+            <option value="unidad">{UNIT_LABELS.unidad}</option>
           </select>
           <div className="flex gap-1.5">
             <input
@@ -629,8 +659,21 @@ function InsumosTab({
 
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-brand-950">Insumos</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {printSent && <span className="text-xs text-emerald-600 font-medium">Enviado a la estación de impresión</span>}
+          <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={downloadingTemplate} onClick={downloadImportTemplate}>
+            <FileSpreadsheet className="h-3.5 w-3.5" /> {downloadingTemplate ? 'Generando…' : 'Descargar plantilla'}
+          </TextureButton>
+          <TextureButton
+            variant="secondary"
+            size="sm"
+            className="!w-auto"
+            disabled={importing}
+            onClick={() => importInputRef.current?.click()}
+          >
+            <Upload className="h-3.5 w-3.5" /> {importing ? 'Importando…' : 'Importar Excel'}
+          </TextureButton>
+          <input ref={importInputRef} type="file" accept=".xlsx" className="hidden" onChange={handleImportFileChange} />
           <TextureButton
             variant="secondary"
             size="sm"
@@ -642,6 +685,24 @@ function InsumosTab({
           </TextureButton>
         </div>
       </div>
+
+      {importResult && (
+        <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-4 text-sm space-y-1">
+          <p className="text-brand-950">
+            {importResult.created} creados · {importResult.updated} actualizados
+            {importResult.errors.length > 0 && <span className="text-red-600"> · {importResult.errors.length} con error</span>}
+          </p>
+          {importResult.errors.length > 0 && (
+            <ul className="text-xs text-red-600 space-y-0.5">
+              {importResult.errors.map((e, i) => (
+                <li key={i}>
+                  Fila {e.row}: {e.message}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {items?.length === 0 && (
         <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5">
@@ -683,8 +744,9 @@ function InsumosTab({
                       )}
                     </p>
                     <p className={`text-xs font-light mt-0.5 ${low ? 'text-amber-600' : 'text-brand-950/40'}`}>
-                      {item.quantity} {item.unit} · mínimo {item.minQuantity} {item.unit}
-                      {item.pricePerUnitBase && ` · costo ${symbol}${item.pricePerUnitBase}/${item.unit}`}
+                      {item.quantity} {UNIT_LABELS[item.unit] ?? item.unit} · mínimo {item.minQuantity}{' '}
+                      {UNIT_LABELS[item.unit] ?? item.unit}
+                      {item.pricePerUnitBase && ` · costo ${symbol}${item.pricePerUnitBase}/${UNIT_LABELS[item.unit] ?? item.unit}`}
                       {item.salePriceBase && ` · venta ${symbol}${item.salePriceBase}`}
                     </p>
                     {minQty > 0 && (
@@ -831,6 +893,12 @@ function RecipeDialog({
   const [adding, setAdding] = useState(false);
   const [newItem, setNewItem] = useState({ inventoryItemId: '', quantity: '', subUnit: '' });
   const [error, setError] = useState<string | null>(null);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ created: number; updated: number; errors: { row: number; message: string }[] } | null>(
+    null,
+  );
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const selectedInsumo = insumos.find((i) => i.id === newItem.inventoryItemId);
   const subUnitOptions = selectedInsumo ? SUB_UNITS[selectedInsumo.unit] ?? SUB_UNITS.unidad : [];
@@ -873,6 +941,45 @@ function RecipeDialog({
     onSaved();
   }
 
+  async function downloadImportTemplate() {
+    setDownloadingTemplate(true);
+    try {
+      const res = await api.get(`/inventory/recipes/${productId}/import-template`, { responseType: 'blob' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(res.data);
+      link.download = `receta-${productName || productId}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch {
+      setError('No se pudo generar la plantilla. Intenta de nuevo.');
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  }
+
+  async function handleImportFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setImporting(true);
+    setImportResult(null);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await api.post(`/inventory/recipes/${productId}/import`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      setImportResult(res.data.data);
+      load();
+      onSaved();
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo importar el archivo.');
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
@@ -880,6 +987,40 @@ function RecipeDialog({
           <DialogTitle>Receta: {productName}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={downloadingTemplate} onClick={downloadImportTemplate}>
+              <FileSpreadsheet className="h-3.5 w-3.5" /> {downloadingTemplate ? 'Generando…' : 'Descargar plantilla'}
+            </TextureButton>
+            <TextureButton
+              variant="secondary"
+              size="sm"
+              className="!w-auto"
+              disabled={importing}
+              onClick={() => importInputRef.current?.click()}
+            >
+              <Upload className="h-3.5 w-3.5" /> {importing ? 'Importando…' : 'Importar Excel'}
+            </TextureButton>
+            <input ref={importInputRef} type="file" accept=".xlsx" className="hidden" onChange={handleImportFileChange} />
+          </div>
+
+          {importResult && (
+            <div className="rounded-xl border border-brand-950/10 bg-brand-950/[0.03] p-3 text-xs space-y-1">
+              <p className="text-brand-950">
+                {importResult.created} creados · {importResult.updated} actualizados
+                {importResult.errors.length > 0 && <span className="text-red-600"> · {importResult.errors.length} con error</span>}
+              </p>
+              {importResult.errors.length > 0 && (
+                <ul className="text-red-600 space-y-0.5">
+                  {importResult.errors.map((e, i) => (
+                    <li key={i}>
+                      Fila {e.row}: {e.message}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+
           {lines?.length === 0 && !adding && (
             <p className="text-sm text-brand-950/40 font-light">Este producto todavía no tiene ingredientes.</p>
           )}

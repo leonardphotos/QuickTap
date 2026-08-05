@@ -70,6 +70,9 @@ function PaymentRow({ payment, symbol }: { payment: LiveOrderPayment; symbol: st
         {Number(payment.discountBase ?? 0) > 0 && (
           <p className="text-brand-950/40">Descuento: {formatBase(payment.discountBase!, symbol)}</p>
         )}
+        {Number(payment.serviceChargeDiscountBase ?? 0) > 0 && (
+          <p className="text-brand-950/40">Servicio ajustado: -{formatBase(payment.serviceChargeDiscountBase!, symbol)}</p>
+        )}
       </div>
       <p className="font-semibold text-brand-950 shrink-0">{formatBase(payment.amountBase, symbol)}</p>
     </div>
@@ -94,7 +97,12 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
 
   const [method, setMethod] = useState<PaymentMethod>(paymentOptions[0] ?? 'CASH');
   const [amount, setAmount] = useState(mode === 'split' ? '' : balanceBase.toFixed(2));
-  const [discountPercent, setDiscountPercent] = useState('');
+  // Descuento y ajuste de servicio de ESTE cobro puntual — cada uno se puede escribir en % o en
+  // monto fijo (discountMode/serviceMode eligen cuál de los dos interpreta discountValue/serviceValue).
+  const [discountMode, setDiscountMode] = useState<'percent' | 'amount'>('percent');
+  const [discountValue, setDiscountValue] = useState('');
+  const [serviceMode, setServiceMode] = useState<'percent' | 'amount'>('percent');
+  const [serviceValue, setServiceValue] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [proofUrl, setProofUrl] = useState<string | null>(null);
   const [uploadingProof, setUploadingProof] = useState(false);
@@ -113,14 +121,32 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   const [sessionPayments, setSessionPayments] = useState<LiveOrderPayment[]>([]);
 
   const selectedDetails = paymentConfig?.[method];
-  const discountPct = showDiscount && splitBy === 'amount' ? Math.min(100, Math.max(0, Number(discountPercent) || 0)) : 0;
-  const discountedBalance = round2(balanceBase * (1 - discountPct / 100));
   const needsReference = METHODS_REQUIRING_REFERENCE.includes(method);
   const needsProof = METHODS_REQUIRING_PROOF.includes(method);
 
   function round2(n: number) {
     return Math.round(n * 100) / 100;
   }
+
+  const canAdjust = showDiscount && splitBy === 'amount';
+  const serviceChargeBaseNum = Number(order.serviceChargeBase);
+  // Porcentaje efectivo (0-100, clamped) de cada ajuste — solo tiene sentido en modo 'percent'.
+  const discountPct = canAdjust && discountMode === 'percent' ? Math.min(100, Math.max(0, Number(discountValue) || 0)) : 0;
+  const servicePct = canAdjust && serviceMode === 'percent' ? Math.min(100, Math.max(0, Number(serviceValue) || 0)) : 0;
+  // Monto forgivado de cada ajuste, sin importar en qué modo se escribió — clamped a su propia base
+  // (el descuento nunca puede superar el saldo; el ajuste de servicio nunca puede superar el
+  // cargo de servicio del pedido).
+  const discountAmt = !canAdjust
+    ? 0
+    : discountMode === 'amount'
+      ? Math.min(balanceBase, Math.max(0, Number(discountValue) || 0))
+      : round2(balanceBase * (discountPct / 100));
+  const serviceAdjAmt = !canAdjust
+    ? 0
+    : serviceMode === 'amount'
+      ? Math.min(serviceChargeBaseNum, Math.max(0, Number(serviceValue) || 0))
+      : round2(serviceChargeBaseNum * (servicePct / 100));
+  const discountedBalance = round2(Math.max(0, balanceBase - discountAmt - serviceAdjAmt));
 
   function remainingQty(item: LiveOrder['items'][number]) {
     return Math.max(0, item.quantity - item.paidQuantity);
@@ -140,12 +166,44 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   const amountToCharge =
     mode === 'split' && splitBy === 'items' ? itemsSubtotal : mode === 'split' ? Number(amount) || 0 : discountedBalance;
 
-  function onDiscountChange(v: string) {
+  // En modo 'split' por monto, cambiar cualquiera de los dos ajustes recalcula el abono
+  // sugerido — en modo 'full' el monto a cobrar ya se muestra calculado (discountedBalance),
+  // no hace falta tocar `amount`.
+  function recomputeSplitAmount(nextDiscountAmt: number, nextServiceAmt: number) {
+    if (mode === 'full') return;
+    setAmount(round2(Math.max(0, balanceBase - nextDiscountAmt - nextServiceAmt)).toFixed(2));
+  }
+
+  function onDiscountValueChange(v: string) {
     const clean = v.replace(/[^0-9.]/g, '');
-    setDiscountPercent(clean);
-    if (mode === 'full') return; // el monto a cobrar en modo full se muestra calculado, no hace falta tocar `amount`
-    const pct = Math.min(100, Math.max(0, Number(clean) || 0));
-    setAmount(round2(balanceBase * (1 - pct / 100)).toFixed(2));
+    setDiscountValue(clean);
+    const amt =
+      discountMode === 'amount'
+        ? Math.min(balanceBase, Math.max(0, Number(clean) || 0))
+        : round2(balanceBase * (Math.min(100, Math.max(0, Number(clean) || 0)) / 100));
+    recomputeSplitAmount(amt, serviceAdjAmt);
+  }
+
+  function onDiscountModeChange(m: 'percent' | 'amount') {
+    setDiscountMode(m);
+    setDiscountValue('');
+    recomputeSplitAmount(0, serviceAdjAmt);
+  }
+
+  function onServiceValueChange(v: string) {
+    const clean = v.replace(/[^0-9.]/g, '');
+    setServiceValue(clean);
+    const amt =
+      serviceMode === 'amount'
+        ? Math.min(serviceChargeBaseNum, Math.max(0, Number(clean) || 0))
+        : round2(serviceChargeBaseNum * (Math.min(100, Math.max(0, Number(clean) || 0)) / 100));
+    recomputeSplitAmount(discountAmt, amt);
+  }
+
+  function onServiceModeChange(m: 'percent' | 'amount') {
+    setServiceMode(m);
+    setServiceValue('');
+    recomputeSplitAmount(discountAmt, 0);
   }
 
   async function copyField(key: string, value: string) {
@@ -213,7 +271,10 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
               .map(([orderItemId, quantity]) => ({ orderItemId, quantity }))
           : undefined,
         method,
-        discountPercent: discountPct > 0 ? discountPct : undefined,
+        discountPercent: discountMode === 'percent' && discountPct > 0 ? discountPct : undefined,
+        discountAmount: discountMode === 'amount' && discountAmt > 0 ? discountAmt : undefined,
+        serviceChargeDiscountPercent: serviceMode === 'percent' && servicePct > 0 ? servicePct : undefined,
+        serviceChargeDiscountAmount: serviceMode === 'amount' && serviceAdjAmt > 0 ? serviceAdjAmt : undefined,
         referenceNumber: needsReference ? referenceNumber.trim() : undefined,
         proofImageUrl: needsProof ? (proofUrl ?? undefined) : undefined,
       });
@@ -235,6 +296,8 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
         setReferenceNumber('');
         setProofUrl(null);
         setProofError(null);
+        setDiscountValue('');
+        setServiceValue('');
       }
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo registrar el pago.');
@@ -369,7 +432,8 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     onClick={() => {
                       setPaidNow(null);
                       setAmount('');
-                      setDiscountPercent('');
+                      setDiscountValue('');
+                      setServiceValue('');
                       setReferenceNumber('');
                       setProofUrl(null);
                       setProofError(null);
@@ -518,14 +582,60 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
               )}
 
               {showDiscount && !(mode === 'split' && splitBy === 'items') && (
-                <div>
-                  <p className="text-xs font-medium text-brand-950/50 mb-1.5">Descuento (%)</p>
-                  <input
-                    value={discountPercent}
-                    onChange={(e) => onDiscountChange(e.target.value)}
-                    placeholder="0"
-                    className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-                  />
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <p className="text-xs font-medium text-brand-950/50 mb-1.5">Descuento</p>
+                    <input
+                      value={discountValue}
+                      onChange={(e) => onDiscountValueChange(e.target.value)}
+                      placeholder="0"
+                      className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                    />
+                  </div>
+                  <div className="flex rounded-lg border border-brand-950/15 overflow-hidden shrink-0">
+                    {(['percent', 'amount'] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => onDiscountModeChange(m)}
+                        className={`px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                          discountMode === m ? 'bg-brand-500 text-white' : 'bg-white text-brand-950/50 hover:bg-brand-950/[0.04]'
+                        }`}
+                      >
+                        {m === 'percent' ? '%' : symbol}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {showDiscount && !(mode === 'split' && splitBy === 'items') && serviceChargeBaseNum > 0 && (
+                <div className="flex items-end gap-2">
+                  <div className="flex-1">
+                    <p className="text-xs font-medium text-brand-950/50 mb-1.5">
+                      Ajuste de servicio <span className="font-normal">(cargo: {formatBase(serviceChargeBaseNum, symbol)})</span>
+                    </p>
+                    <input
+                      value={serviceValue}
+                      onChange={(e) => onServiceValueChange(e.target.value)}
+                      placeholder="0"
+                      className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                    />
+                  </div>
+                  <div className="flex rounded-lg border border-brand-950/15 overflow-hidden shrink-0">
+                    {(['percent', 'amount'] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => onServiceModeChange(m)}
+                        className={`px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                          serviceMode === m ? 'bg-brand-500 text-white' : 'bg-white text-brand-950/50 hover:bg-brand-950/[0.04]'
+                        }`}
+                      >
+                        {m === 'percent' ? '%' : symbol}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -590,10 +700,16 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                 </div>
               ) : (
                 <div className="space-y-1 pt-1">
-                  {discountPct > 0 && (
+                  {discountAmt > 0 && (
                     <div className="flex items-center justify-between text-xs text-brand-950/50">
                       <span>Descuento aplicado</span>
-                      <span>-{formatBase(round2(balanceBase - discountedBalance), symbol)}</span>
+                      <span>-{formatBase(discountAmt, symbol)}</span>
+                    </div>
+                  )}
+                  {serviceAdjAmt > 0 && (
+                    <div className="flex items-center justify-between text-xs text-brand-950/50">
+                      <span>Ajuste de servicio</span>
+                      <span>-{formatBase(serviceAdjAmt, symbol)}</span>
                     </div>
                   )}
                   <div className="flex items-center justify-between text-sm font-semibold">

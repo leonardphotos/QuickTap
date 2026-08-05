@@ -1700,10 +1700,10 @@ export const orderService = {
       if (!order) throw notFound('Comanda no encontrada.');
       if (order.status === 'CANCELLED') throw badRequest('No se puede registrar un cobro en un pedido cancelado.');
 
-      // "Saldado" cuenta lo cobrado en efectivo/transferencia MÁS los descuentos ya
-      // otorgados (un descuento perdona esa parte de la deuda, no queda pendiente).
+      // "Saldado" cuenta lo cobrado en efectivo/transferencia MÁS los descuentos y ajustes de
+      // servicio ya otorgados (perdonan esa parte de la deuda, no quedan pendientes).
       const alreadySettled = order.payments.reduce(
-        (acc, p) => acc.add(p.amountBase).add(p.discountBase ?? toDecimal(0)),
+        (acc, p) => acc.add(p.amountBase).add(p.discountBase ?? toDecimal(0)).add(p.serviceChargeDiscountBase ?? toDecimal(0)),
         toDecimal(0),
       );
       const balance = round2(order.totalBase.sub(alreadySettled));
@@ -1730,9 +1730,25 @@ export const orderService = {
         throw badRequest(`El monto excede el saldo pendiente (${balance.toFixed(2)}).`);
       }
 
-      const discountBase = input.discountPercent
-        ? round2(balance.mul(input.discountPercent).div(100))
-        : undefined;
+      const discountBase =
+        input.discountAmount != null
+          ? toDecimal(input.discountAmount)
+          : input.discountPercent
+            ? round2(balance.mul(input.discountPercent).div(100))
+            : undefined;
+      if (discountBase && discountBase.gt(balance.add(0.01))) {
+        throw badRequest('El descuento no puede superar el saldo pendiente.');
+      }
+
+      const serviceChargeDiscountBase =
+        input.serviceChargeDiscountAmount != null
+          ? toDecimal(input.serviceChargeDiscountAmount)
+          : input.serviceChargeDiscountPercent
+            ? round2(order.serviceChargeBase.mul(input.serviceChargeDiscountPercent).div(100))
+            : undefined;
+      if (serviceChargeDiscountBase && serviceChargeDiscountBase.gt(order.serviceChargeBase.add(0.01))) {
+        throw badRequest('El ajuste de servicio no puede superar el cargo de servicio del pedido.');
+      }
 
       await tx.orderPayment.create({
         data: {
@@ -1741,6 +1757,8 @@ export const orderService = {
           method: input.method,
           discountPercent: input.discountPercent,
           discountBase,
+          serviceChargeDiscountPercent: input.serviceChargeDiscountPercent,
+          serviceChargeDiscountBase,
           referenceNumber: input.referenceNumber,
           proofImageUrl: input.proofImageUrl,
         },
@@ -1756,8 +1774,10 @@ export const orderService = {
       }
 
       // Sin margen de tolerancia: hasta el último centavo debe quedar cobrado (o condonado
-      // explícitamente vía descuento) antes de dar por saldada la cuenta.
-      const settledBase = round2(alreadySettled.add(amountBase).add(discountBase ?? toDecimal(0)));
+      // explícitamente vía descuento/ajuste de servicio) antes de dar por saldada la cuenta.
+      const settledBase = round2(
+        alreadySettled.add(amountBase).add(discountBase ?? toDecimal(0)).add(serviceChargeDiscountBase ?? toDecimal(0)),
+      );
       const fullyPaid = settledBase.gte(order.totalBase);
       // Pedido de kiosco (Comanda): esperaba el pago para entrar a cocina — ya se saldó,
       // así que pasa directo a KITCHEN (nunca por "Aceptar", cocina solo verá "Listo").

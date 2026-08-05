@@ -120,6 +120,9 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [showExpenseDialog, setShowExpenseDialog] = useState(false);
   const [showIncomeByMethod, setShowIncomeByMethod] = useState(false);
+  // Buscador de "Ventas recientes" por número de referencia — con texto, busca en TODAS las
+  // ventas (no solo las últimas 8) para poder ubicar un cobro puntual.
+  const [salesSearch, setSalesSearch] = useState('');
   // Nombres del equipo, para poder rotular el reporte por profesional (las ventas solo guardan el id).
   // Las ventas solo guardan el id del profesional; el nombre sale del equipo cargado en la sesión.
   const providerNames = Object.fromEntries(providers.map((p) => [p.id, p.name]));
@@ -171,7 +174,17 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
     return [...acc.values()].sort((a, b) => b.billed - a.billed);
   })();
 
-  const recentSales = [...sales].sort((a, b) => b.time.getTime() - a.time.getTime()).slice(0, 8);
+  const salesSearchLower = salesSearch.trim().toLowerCase();
+  const sortedSales = [...sales].sort((a, b) => b.time.getTime() - a.time.getTime());
+  // Con búsqueda activa se filtran TODAS las ventas (no solo las últimas 8) por número de
+  // referencia o nombre del cliente, para poder ubicar un cobro puntual.
+  const recentSales = salesSearchLower
+    ? sortedSales.filter(
+        (s) =>
+          s.paymentMeta?.reference?.toLowerCase().includes(salesSearchLower) ||
+          s.customerName?.toLowerCase().includes(salesSearchLower),
+      )
+    : sortedSales.slice(0, 8);
   const recentPurchases = [...purchases].sort((a, b) => b.time.getTime() - a.time.getTime()).slice(0, 6);
 
   const incomeByMethodToday = groupIncomeByMethod(todaySales);
@@ -363,9 +376,16 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
       </div>
 
       <div className="rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-5">
-        <div className="flex items-center justify-between gap-3 mb-3.5">
+        <div className="flex items-center justify-between gap-3 mb-3.5 flex-wrap">
           <h3 className="text-[15px] font-bold text-brand-950">Ventas recientes</h3>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            <input
+              type="search"
+              value={salesSearch}
+              onChange={(e) => setSalesSearch(e.target.value)}
+              placeholder="Buscar por referencia…"
+              className="text-sm border border-brand-950/15 rounded-full px-3.5 py-1.5 w-48"
+            />
             <TextureButton
               variant="secondary"
               size="sm"
@@ -385,7 +405,9 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
           </div>
         </div>
         {recentSales.length === 0 ? (
-          <p className="text-sm text-brand-950/40 text-center py-6">Sin ventas todavía.</p>
+          <p className="text-sm text-brand-950/40 text-center py-6">
+            {salesSearchLower ? 'Ninguna venta coincide con esa referencia.' : 'Sin ventas todavía.'}
+          </p>
         ) : (
           <div className="flex flex-col">
             {recentSales.map((s) => (

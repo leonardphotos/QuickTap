@@ -157,9 +157,15 @@ export const recordPaymentSchema = z
   .object({
     amountBase: z.coerce.number().positive().max(1000000).optional(),
     method: paymentMethodSchema,
-    // Descuento aplicado a este pago puntual (0-100). Opcional, solo informativo:
-    // el monto real a acreditar sigue siendo `amountBase`.
+    // Descuento aplicado a este pago puntual, por % (0-100) o por monto fijo — el cliente manda
+    // solo uno de los dos. Opcional, solo informativo: el monto real a acreditar sigue siendo
+    // `amountBase` (ya viene descontado desde el cliente).
     discountPercent: z.coerce.number().min(0).max(100).optional(),
+    discountAmount: z.coerce.number().nonnegative().optional(),
+    // Ajuste puntual al cargo de servicio de este cobro (perdona parte/todo el servicio),
+    // mismo criterio de % o monto fijo que el descuento — nunca toca el total original del pedido.
+    serviceChargeDiscountPercent: z.coerce.number().min(0).max(100).optional(),
+    serviceChargeDiscountAmount: z.coerce.number().nonnegative().optional(),
     // Número de referencia (Pago Móvil/Zelle) o de ticket (Punto de venta). Obligatorio para esos métodos.
     referenceNumber: z.string().max(60).optional(),
     // Foto del comprobante — obligatoria para METHODS_REQUIRING_PROOF (ver más abajo).

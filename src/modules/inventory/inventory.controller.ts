@@ -3,6 +3,7 @@ import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest } from '../../utils/http-error';
 import { createInventoryItemSchema, listInventoryQuerySchema, updateInventoryItemSchema } from './inventory.dto';
 import { inventoryService } from './inventory.service';
+import { inventoryImportService } from './inventory-import.service';
 
 export const inventoryController = {
   uploadPhoto: asyncHandler(async (req: Request, res: Response) => {
@@ -29,5 +30,17 @@ export const inventoryController = {
   }),
   printList: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await inventoryService.printList(req.restaurantId!, req.auth?.parentRestaurantId) });
+  }),
+  downloadImportTemplate: asyncHandler(async (_req: Request, res: Response) => {
+    const workbook = inventoryImportService.buildTemplate();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="plantilla-insumos.xlsx"');
+    await workbook.xlsx.write(res);
+    res.end();
+  }),
+  importExcel: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw badRequest('No se recibió ningún archivo.');
+    const result = await inventoryImportService.importFromExcel(req.restaurantId!, req.auth?.parentRestaurantId, req.file.buffer);
+    res.json({ data: result });
   }),
 };

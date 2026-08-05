@@ -1,8 +1,15 @@
 import { Prisma } from '@prisma/client';
+import ExcelJS from 'exceljs';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { round2, toDecimal } from '../../utils/money';
 import { CreateRecipeIngredientInput, UpdateRecipeIngredientInput } from './recipe.dto';
+
+function styleHeader(sheet: ExcelJS.Worksheet) {
+  sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0A1428' } };
+  sheet.views = [{ state: 'frozen', ySplit: 1 }];
+}
 
 /**
  * Recetas: cuánto de cada insumo (InventoryItem) usa un producto del menú por
@@ -125,5 +132,92 @@ export const recipeService = {
     if (!existing) throw notFound('Ingrediente no encontrado.');
     await prisma.recipeIngredient.delete({ where: { id } });
     return { deleted: true };
+  },
+
+  /** Plantilla de importación de UN producto — prellenada con su receta actual, para que el
+   * usuario edite y resuba en vez de partir de cero. */
+  async buildImportTemplate(restaurantId: string, productId: string) {
+    const product = await prisma.product.findFirst({ where: { id: productId, restaurantId }, select: { name: true } });
+    if (!product) throw notFound('Producto no encontrado.');
+    const lines = await prisma.recipeIngredient.findMany({
+      where: { restaurantId, productId },
+      include: { inventoryItem: { select: { name: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Receta');
+    sheet.columns = [
+      { header: 'Insumo', width: 28 },
+      { header: 'Cantidad', width: 14 },
+    ];
+    styleHeader(sheet);
+    for (const l of lines) sheet.addRow([l.inventoryItem.name, l.quantity.toNumber()]);
+    if (lines.length === 0) sheet.addRow(['Pan de hamburguesa', 2]);
+
+    return { workbook, productName: product.name };
+  },
+
+  /**
+   * Carga la receta de UN producto desde un Excel de 2 columnas (insumo, cantidad). Hace
+   * upsert por nombre de insumo dentro de esa receta — no borra ingredientes existentes que
+   * no aparezcan en el archivo (no destructivo). Nombres que no calzan con ningún insumo del
+   * restaurante quedan reportados en `errors`, sin crear insumos fantasma (para eso está la
+   * importación de insumos de Inventario).
+   */
+  async importFromExcel(restaurantId: string, productId: string, buffer: Buffer) {
+    const product = await prisma.product.findFirst({ where: { id: productId, restaurantId }, select: { id: true } });
+    if (!product) throw notFound('Producto no encontrado.');
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer as any);
+    const sheet = workbook.worksheets[0];
+    if (!sheet) throw badRequest('El archivo no tiene ninguna hoja.');
+
+    const [items, existingLines] = await Promise.all([
+      prisma.inventoryItem.findMany({ where: { restaurantId, locationScope: 'LOCAL' } }),
+      prisma.recipeIngredient.findMany({ where: { restaurantId, productId } }),
+    ]);
+    const itemByName = new Map(items.map((i) => [i.name.trim().toLowerCase(), i]));
+    const lineByItemId = new Map(existingLines.map((l) => [l.inventoryItemId, l]));
+
+    const result = { created: 0, updated: 0, errors: [] as { row: number; message: string }[] };
+
+    for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber++) {
+      const row = sheet.getRow(rowNumber);
+      const insumoName = String(row.getCell(1).value ?? '').trim();
+      const quantityRaw = row.getCell(2).value;
+      if (!insumoName && (quantityRaw == null || quantityRaw === '')) continue; // fila vacía
+
+      if (!insumoName) {
+        result.errors.push({ row: rowNumber, message: 'Falta el nombre del insumo.' });
+        continue;
+      }
+      const quantity = Number(quantityRaw);
+      if (!quantity || quantity <= 0) {
+        result.errors.push({ row: rowNumber, message: 'La cantidad debe ser mayor a 0.' });
+        continue;
+      }
+      const item = itemByName.get(insumoName.toLowerCase());
+      if (!item) {
+        result.errors.push({ row: rowNumber, message: `No existe un insumo llamado "${insumoName}".` });
+        continue;
+      }
+
+      const costBase = item.pricePerUnitBase ? round2(item.pricePerUnitBase.mul(quantity)) : toDecimal(0);
+      const existingLine = lineByItemId.get(item.id);
+      if (existingLine) {
+        await prisma.recipeIngredient.update({ where: { id: existingLine.id }, data: { quantity, costBase } });
+        result.updated += 1;
+      } else {
+        const created = await prisma.recipeIngredient.create({
+          data: { restaurantId, productId, inventoryItemId: item.id, quantity, costBase },
+        });
+        lineByItemId.set(item.id, created);
+        result.created += 1;
+      }
+    }
+
+    return result;
   },
 };

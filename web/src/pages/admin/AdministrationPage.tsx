@@ -101,6 +101,10 @@ function SummaryTab() {
   const [movements, setMovements] = useState<MovementResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showMovementDialog, setShowMovementDialog] = useState(false);
+  // Buscador por número de referencia (Pago Móvil/Zelle/etc.) para ubicar un cobro puntual
+  // dentro del período elegido — filtra lo que ya está cargado en pantalla, sin ir al servidor.
+  const [search, setSearch] = useState('');
+  const searchLower = search.trim().toLowerCase();
 
   const periodLabel = date ? new Date(date + 'T12:00:00').toLocaleDateString('es-VE') : RANGE_LABELS[range];
 
@@ -124,6 +128,17 @@ function SummaryTab() {
     await api.delete(`/movements/${id}`);
     loadMovements();
   }
+
+  const filteredOrders = !searchLower
+    ? result?.orders
+    : result?.orders.filter(
+        (o) =>
+          String(o.orderNumber).includes(searchLower) ||
+          o.payments.some((p) => p.referenceNumber?.toLowerCase().includes(searchLower)),
+      );
+  const filteredMovements = !searchLower
+    ? movements?.movements
+    : movements?.movements.filter((m) => m.description.toLowerCase().includes(searchLower));
 
   if (error) return <p className="text-sm text-red-600">{error}</p>;
 
@@ -195,14 +210,27 @@ function SummaryTab() {
       )}
 
       <div>
-        <p className="text-sm font-medium text-brand-950/70 mb-3">Detalle de ventas · {periodLabel}</p>
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <p className="text-sm font-medium text-brand-950/70">Detalle de ventas · {periodLabel}</p>
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar por número de referencia…"
+            className="text-sm border border-brand-950/15 rounded-full px-3.5 py-1.5 w-full sm:w-64"
+          />
+        </div>
         <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06] max-h-[36rem] overflow-y-auto">
-          {result?.orders.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin ventas en este período.</p>}
-          {result?.orders.map((o) => (
+          {filteredOrders?.length === 0 && (
+            <p className="p-5 text-sm text-brand-950/40 font-light">
+              {searchLower ? 'Ninguna venta coincide con esa referencia.' : 'Sin ventas en este período.'}
+            </p>
+          )}
+          {filteredOrders?.map((o) => (
             <OrderDetailRow key={o.id} order={o} symbol={symbol} />
           ))}
         </div>
-        {result && result.total > result.pageSize && (
+        {result && !searchLower && result.total > result.pageSize && (
           <p className="text-xs text-brand-950/40 mt-2 text-center">
             Mostrando los {result.pageSize} pedidos más recientes de {result.total}.
           </p>
@@ -220,7 +248,10 @@ function SummaryTab() {
             </p>
           </div>
           <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
-            {movements.movements.map((m) => (
+            {filteredMovements?.length === 0 && (
+              <p className="p-5 text-sm text-brand-950/40 font-light">Ningún movimiento coincide con esa búsqueda.</p>
+            )}
+            {filteredMovements?.map((m) => (
               <div key={m.id} className="flex items-center justify-between gap-3 px-5 py-3">
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-brand-950 truncate">

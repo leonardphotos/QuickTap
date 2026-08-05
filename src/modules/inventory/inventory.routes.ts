@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { requireFeature, requireInventoryAccess, tenantGuard } from '../../middlewares/auth.middleware';
 import { requireRole } from '../../middlewares/auth.middleware';
 import { FULL_ACCESS_ROLES } from '../../utils/roles';
-import { uploadInventoryPhoto, optimizeImage } from '../../middlewares/upload.middleware';
+import { uploadInventoryPhoto, uploadSpreadsheet, optimizeImage } from '../../middlewares/upload.middleware';
 import { inventoryController } from './inventory.controller';
 import { inventoryCategoryController } from './inventory-category.controller';
 import { inventoryTransferController } from './inventory-transfer.controller';
@@ -45,6 +45,10 @@ router.patch('/:id', requireFeature('inventoryBasic'), mutate, inventoryControll
 router.delete('/:id', requireFeature('inventoryBasic'), mutate, inventoryController.remove);
 router.post('/print-list', requireFeature('inventoryBasic'), requireInventoryAccess, inventoryController.printList);
 
+// Carga masiva de insumos por Excel: plantilla descargable + subida que crea/actualiza por nombre.
+router.get('/import-template', requireFeature('inventoryBasic'), requireInventoryAccess, inventoryController.downloadImportTemplate);
+router.post('/import', requireFeature('inventoryBasic'), mutate, uploadSpreadsheet, inventoryController.importExcel);
+
 // Transferencia de insumos entre sedes del mismo grupo (o hacia/desde Casa Matriz).
 router.get('/transfer-locations', requireFeature('inventoryBasic'), requireInventoryAccess, inventoryTransferController.listLocations);
 router.get(
@@ -67,5 +71,20 @@ router.get(
 router.post('/recipes/:productId', requireFeature('inventoryRecipe'), mutate, recipeController.addIngredient);
 router.patch('/recipes/ingredient/:id', requireFeature('inventoryRecipe'), mutate, recipeController.updateIngredient);
 router.delete('/recipes/ingredient/:id', requireFeature('inventoryRecipe'), mutate, recipeController.removeIngredient);
+
+// Carga de la receta de un producto por Excel (insumo, cantidad) — un producto a la vez.
+router.get(
+  '/recipes/:productId/import-template',
+  requireFeature('inventoryRecipe'),
+  requireInventoryAccess,
+  recipeController.downloadImportTemplate,
+);
+router.post(
+  '/recipes/:productId/import',
+  requireFeature('inventoryRecipe'),
+  mutate,
+  uploadSpreadsheet,
+  recipeController.importExcel,
+);
 
 export default router;
