@@ -138,12 +138,13 @@ export default function RegisterPage() {
         </div>
       ) : (
         <div className="mb-4">
-          <GoogleLogin
-            onSuccess={(cred) => cred.credential && onGoogleSuccess(cred.credential)}
-            onError={() => setError('No se pudo continuar con Google.')}
-            text="signup_with"
-            width="384"
-          />
+          <div className="flex justify-center">
+            <GoogleLogin
+              onSuccess={(cred) => cred.credential && onGoogleSuccess(cred.credential)}
+              onError={() => setError('No se pudo continuar con Google.')}
+              text="signup_with"
+            />
+          </div>
           <div className="flex items-center gap-3 my-4">
             <div className="h-px flex-1 bg-brand-950/10" />
             <span className="text-xs text-brand-950/40">o con tu correo</span>
@@ -158,7 +159,7 @@ export default function RegisterPage() {
           onChange={setRestaurantName}
         />
         <Field
-          label="Slug (URL pública)"
+          label="Nombre de usuario"
           value={slug}
           onChange={(v) => setSlug(v.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
           placeholder="mi-restaurante"

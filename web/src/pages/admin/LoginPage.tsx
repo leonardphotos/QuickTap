@@ -69,12 +69,13 @@ export default function LoginPage() {
       }
     >
       <div className="mb-4">
-        <GoogleLogin
-          onSuccess={(cred) => cred.credential && onGoogleSuccess(cred.credential)}
-          onError={() => setError('No se pudo iniciar sesión con Google.')}
-          text="signin_with"
-          width="384"
-        />
+        <div className="flex justify-center">
+          <GoogleLogin
+            onSuccess={(cred) => cred.credential && onGoogleSuccess(cred.credential)}
+            onError={() => setError('No se pudo iniciar sesión con Google.')}
+            text="signin_with"
+          />
+        </div>
         {googleLoading && <p className="text-xs text-brand-950/50 mt-1">Ingresando…</p>}
       </div>
       <div className="flex items-center gap-3 my-4">

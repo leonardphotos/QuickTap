@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
-import { Crosshair, Maximize2, Minimize2, X } from 'lucide-react';
+import { Crosshair, Maximize2, Minimize2, Plus, X } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
@@ -625,7 +625,19 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
           <div
             className={`pointer-events-auto absolute top-3 left-3 w-56 max-h-[45%] overflow-y-auto rounded-2xl border border-brand-950/10 bg-white/95 p-3 shadow-lg backdrop-blur ${floatingListClass}`}
           >
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-brand-950/50">Zonas de envío</p>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-brand-950/50">Zonas de envío</p>
+              {!drawing && !pendingSave && (
+                <button
+                  type="button"
+                  onClick={startDrawing}
+                  title="Añadir zona"
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-500 text-white hover:bg-brand-600"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
             {zoneList}
           </div>
 
@@ -710,7 +722,19 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
       </div>
 
       {/* En celular (y fuera de pantalla completa) la lista va debajo del mapa. */}
-      {!fullscreen && <div className="lg:hidden">{zoneList}</div>}
+      {!fullscreen && (
+        <div className="lg:hidden">
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand-950/50">Zonas de envío</p>
+            {!drawing && !pendingSave && (
+              <TextureButton variant="brand" size="sm" className="!w-auto !h-auto !py-1 !px-2.5 text-xs" onClick={startDrawing}>
+                + Añadir zona
+              </TextureButton>
+            )}
+          </div>
+          {zoneList}
+        </div>
+      )}
 
       <ImportZonesDialog open={importOpen} onOpenChange={setImportOpen} onImported={loadZones} />
     </div>
