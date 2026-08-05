@@ -49,6 +49,40 @@ export function DeliveryPricingSection() {
     });
   }, []);
 
+  // El texto de la dirección nunca se guarda en el backend (solo lat/lng) — sin esto, el
+  // campo siempre aparecía vacío al reabrir Ajustes aunque la ubicación sí estuviera
+  // guardada, dando la falsa impresión de que "no guarda la ubicación".
+  useEffect(() => {
+    if (restaurant?.deliveryOriginLat != null && restaurant?.deliveryOriginLng != null) {
+      reverseGeocode(restaurant.deliveryOriginLat, restaurant.deliveryOriginLng).then(setOriginAddress);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurant?.deliveryOriginLat, restaurant?.deliveryOriginLng]);
+
+  /** Si el usuario escribió una dirección pero nunca hizo clic en una sugerencia del
+   * autocompletado, originLat/originLng quedan en null y el guardado no tenía con qué
+   * calcular el delivery. Geocodifica el texto escrito como último recurso antes de guardar. */
+  async function resolveTypedAddress(): Promise<{ lat: number; lng: number } | null> {
+    if (originLat != null && originLng != null) return { lat: originLat, lng: originLng };
+    const query = originAddress.trim();
+    if (!query) return null;
+    try {
+      const params = new URLSearchParams({ format: 'jsonv2', q: query, limit: '1' });
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?${params.toString()}`);
+      const data: any[] = await res.json();
+      if (data[0]) {
+        const lat = Number(data[0].lat);
+        const lng = Number(data[0].lon);
+        setOriginLat(lat);
+        setOriginLng(lng);
+        return { lat, lng };
+      }
+    } catch {
+      // Sin conexión al servicio de geocodificación — se maneja como "no se pudo resolver".
+    }
+    return null;
+  }
+
   function useCurrentLocationAsOrigin() {
     if (!navigator.geolocation) {
       setError('Tu navegador no soporta geolocalización.');
@@ -82,10 +116,16 @@ export function DeliveryPricingSection() {
     setError(null);
     setMessage(null);
     try {
+      const origin = await resolveTypedAddress();
+      if (origin == null && originAddress.trim() && mode === 'DISTANCE') {
+        setError('No se pudo ubicar esa dirección. Elige una sugerencia de la lista o usa "Usar mi ubicación actual".');
+        setSaving(false);
+        return;
+      }
       await api.patch('/restaurant', {
         deliveryPricingMode: mode,
-        deliveryOriginLat: originLat ?? undefined,
-        deliveryOriginLng: originLng ?? undefined,
+        deliveryOriginLat: origin?.lat ?? undefined,
+        deliveryOriginLng: origin?.lng ?? undefined,
         deliveryBaseFee: Number(baseFee) || 0,
         deliveryPricePerKm: Number(pricePerKm) || 0,
         deliveryAutoOpenOnPaid: autoOpen,
