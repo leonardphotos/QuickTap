@@ -1193,6 +1193,7 @@ export const orderService = {
       serviceChargeBase: serviceChargeBase.toString(),
       ivaBase: ivaBase.toString(),
       deliveryFeeBase: deliveryFeeBase.toString(),
+      envaseFeeBase: envaseFeeBase.toString(),
     });
 
     return {
@@ -1944,6 +1945,7 @@ export const orderService = {
     if (Number(order.serviceChargeBase) > 0) totalesLines.push(`Servicio: ${formatMoney(order.serviceChargeBase, symbol)}`);
     if (Number(order.ivaBase) > 0) totalesLines.push(`IVA: ${formatMoney(order.ivaBase, symbol)}`);
     if (Number(order.deliveryFeeBase) > 0) totalesLines.push(`Envío: ${formatMoney(order.deliveryFeeBase, symbol)}`);
+    if (Number(order.envaseFeeBase) > 0) totalesLines.push(`Envase: ${formatMoney(order.envaseFeeBase, symbol)}`);
     if (Number(order.tipBase) > 0) totalesLines.push(`Propina: ${formatMoney(order.tipBase, symbol)}`);
     totalesLines.push(`*Total: ${formatMoney(order.totalBase, symbol)}*`);
     totalesLines.push(`_Equivalente: ${formatBs(order.totalBs)}_`);

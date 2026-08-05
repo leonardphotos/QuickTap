@@ -57,6 +57,8 @@ export interface BuildWhatsappCheckoutParams {
   ivaBase?: number | string;
   /** Costo de envío calculado (por distancia o zona). 0 si no aplica. */
   deliveryFeeBase?: number | string;
+  /** Costo de envase/empaque delivery calculado. 0 si no aplica. */
+  envaseFeeBase?: number | string;
 }
 
 export interface WhatsappCheckoutResult {
@@ -123,6 +125,7 @@ export function buildWhatsappCheckoutUrl(
     serviceChargeBase = 0,
     ivaBase = 0,
     deliveryFeeBase = 0,
+    envaseFeeBase = 0,
   } = params;
 
   if (items.length === 0) {
@@ -161,8 +164,11 @@ export function buildWhatsappCheckoutUrl(
   const serviceChargeBaseDec = round2(serviceChargeBase);
   const ivaBaseDec = round2(ivaBase);
   const deliveryFeeBaseDec = round2(deliveryFeeBase);
-  const hasCharges = serviceChargeBaseDec.gt(0) || ivaBaseDec.gt(0) || deliveryFeeBaseDec.gt(0);
-  const totalBase = round2(subtotalBase.add(serviceChargeBaseDec).add(ivaBaseDec).add(deliveryFeeBaseDec));
+  const envaseFeeBaseDec = round2(envaseFeeBase);
+  const hasCharges = serviceChargeBaseDec.gt(0) || ivaBaseDec.gt(0) || deliveryFeeBaseDec.gt(0) || envaseFeeBaseDec.gt(0);
+  const totalBase = round2(
+    subtotalBase.add(serviceChargeBaseDec).add(ivaBaseDec).add(deliveryFeeBaseDec).add(envaseFeeBaseDec),
+  );
   const totalBs = baseToBs(totalBase, exchangeRate);
 
   // --- Armado del mensaje ---
@@ -188,6 +194,11 @@ export function buildWhatsappCheckoutUrl(
     if (deliveryFeeBaseDec.gt(0)) {
       parts.push(
         `🛵 Envío: ${formatBs(baseToBs(deliveryFeeBaseDec, exchangeRate))} (${formatMoney(deliveryFeeBaseDec, currencySymbol)})`,
+      );
+    }
+    if (envaseFeeBaseDec.gt(0)) {
+      parts.push(
+        `📦 Envase: ${formatBs(baseToBs(envaseFeeBaseDec, exchangeRate))} (${formatMoney(envaseFeeBaseDec, currencySymbol)})`,
       );
     }
   }
