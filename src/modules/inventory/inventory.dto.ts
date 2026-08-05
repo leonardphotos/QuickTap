@@ -11,9 +11,9 @@ export const createInventoryItemSchema = z.object({
   priceCurrency: z.enum(['BASE', 'BS']).optional().default('BASE'),
   photoUrl: z.string().min(1).nullable().optional(),
   categoryId: z.string().min(1).nullable().optional(),
-  // No nulo = este insumo queda disponible para vincularse como embase de un producto.
+  // No nulo = este insumo queda disponible para vincularse como envase de un producto.
   packagingType: z.enum(['ENVASE', 'CAJA', 'BOLSA']).nullable().optional(),
-  // Precio que se le cobra al cliente por unidad de embase (solo aplica junto a packagingType).
+  // Precio que se le cobra al cliente por unidad de envase (solo aplica junto a packagingType).
   salePrice: z.coerce.number().nonnegative('El precio de venta no puede ser negativo.').nullable().optional(),
   // "LOCAL" (de siempre) = insumo normal de esta sede; "CASA_MATRIZ" = ventana aparte,
   // solo disponible en la sede principal cuando Restaurant.casaMatrizEnabled está activo.

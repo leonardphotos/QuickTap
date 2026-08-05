@@ -21,7 +21,7 @@ interface Props {
   onCreated: (product: Product) => void;
 }
 
-/** Insumo de inventario marcado como embase (GET /inventory/packaging) — picker de "Vincular con stock". */
+/** Insumo de inventario marcado como envase (GET /inventory/packaging) — picker de "Vincular con stock". */
 interface PackagingItem {
   id: string;
   name: string;
@@ -561,7 +561,7 @@ export function ProductFormDialog({
 
           <div className="rounded-xl border border-brand-950/10 p-4 space-y-3">
             <p className="text-sm font-medium text-brand-950">
-              Embase <span className="font-normal text-brand-950/40">— solo se cobra en pedidos de Delivery/Pickup</span>
+              Envase <span className="font-normal text-brand-950/40">— solo se cobra en pedidos de Delivery/Pickup</span>
             </p>
             <div className="flex flex-wrap gap-2 text-sm">
               {(['NONE', 'FIXED', 'INVENTORY'] as const).map((mode) => (
@@ -583,7 +583,7 @@ export function ProductFormDialog({
               <input
                 value={form.packagingFeeBase}
                 onChange={(e) => setForm({ ...form, packagingFeeBase: e.target.value.replace(/[^0-9.]/g, '') })}
-                placeholder={`Precio del embase (${currencySymbol})`}
+                placeholder={`Precio del envase (${currencySymbol})`}
                 className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
               />
             )}
@@ -595,7 +595,7 @@ export function ProductFormDialog({
                     onChange={(e) => setForm({ ...form, packagingItemId: e.target.value })}
                     className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
                   >
-                    <option value="">Elige un insumo de embase…</option>
+                    <option value="">Elige un insumo de envase…</option>
                     {packagingItems.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.name} ({PACKAGING_TYPE_LABELS[item.packagingType ?? '']})
@@ -605,7 +605,7 @@ export function ProductFormDialog({
                   </select>
                 ) : (
                   <p className="text-xs text-brand-950/40 font-light">
-                    Aún no tienes insumos marcados como embase. Créalos desde Inventario → Insumos, marcando "Es un embase
+                    Aún no tienes insumos marcados como envase. Créalos desde Inventario → Insumos, marcando "Es un envase
                     para delivery".
                   </p>
                 )

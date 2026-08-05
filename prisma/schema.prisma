@@ -658,9 +658,9 @@ model Product {
   stockControlEnabled Boolean @default(false)
   stockQuantity       Int?
 
-  // --- Embase (envase/caja/bolsa) ---
+  // --- Envase (envase/caja/bolsa) ---
   // Cargo que se suma al total del pedido SOLO cuando el canal es DELIVERY o PICKUP
-  // (nunca DINE_IN/BAR — en mesa se sirve sin empaque). "NONE" = no cobra embase;
+  // (nunca DINE_IN/BAR — en mesa se sirve sin empaque). "NONE" = no cobra envase;
   // "FIXED" = precio propio (packagingFeeBase); "INVENTORY" = precio y descuento de
   // stock tomados del insumo vinculado (packagingItem, ver InventoryItem.packagingType).
   packagingMode    String   @default("NONE")
@@ -712,8 +712,8 @@ model Product {
   restaurant         Restaurant                @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   category           Category                  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   kitchen            Kitchen?                  @relation(fields: [kitchenId], references: [id], onDelete: SetNull)
-  // Insumo vinculado como embase (packagingMode = INVENTORY). SetNull: si se borra el
-  // insumo, el producto no se rompe, solo deja de cobrar/descontar embase.
+  // Insumo vinculado como envase (packagingMode = INVENTORY). SetNull: si se borra el
+  // insumo, el producto no se rompe, solo deja de cobrar/descontar envase.
   packagingItem      InventoryItem?            @relation("ProductPackaging", fields: [packagingItemId], references: [id], onDelete: SetNull)
   orderItems         OrderItem[]
   recipeIngredients  RecipeIngredient[]
@@ -1054,9 +1054,9 @@ model Order {
   // Costo de envío calculado en el checkout de delivery (por distancia o por
   // zona). Sí forma parte de totalBase/totalBs, a diferencia de la propina.
   deliveryFeeBase   Decimal  @default(0) @db.Decimal(12, 2)
-  // Cargo por embase (envase/caja/bolsa) de los productos del pedido. Solo se
+  // Cargo por envase (envase/caja/bolsa) de los productos del pedido. Solo se
   // calcula para canal DELIVERY/PICKUP (nunca DINE_IN/BAR) — ver Product.packagingMode.
-  embaseFeeBase     Decimal  @default(0) @db.Decimal(12, 2)
+  envaseFeeBase     Decimal  @default(0) @db.Decimal(12, 2)
 
   // --- Datos del cliente ---
   customerName     String?
@@ -1755,11 +1755,11 @@ model InventoryItem {
   // insumos, y alimenta el cálculo automático del costo de receta.
   pricePerUnitBase Decimal? @db.Decimal(14, 4)
 
-  // --- Embase (envase/caja/bolsa) ---
-  // No nulo = este insumo está disponible para vincularse como embase de un producto
+  // --- Envase (envase/caja/bolsa) ---
+  // No nulo = este insumo está disponible para vincularse como envase de un producto
   // (Product.packagingItemId), sin importar en qué InventoryCategory esté archivado.
   packagingType  String?
-  // Precio que se le cobra al cliente por 1 unidad de este embase (distinto de
+  // Precio que se le cobra al cliente por 1 unidad de este envase (distinto de
   // pricePerUnitBase, que es costo). Solo tiene efecto cuando packagingType no es null.
   salePriceBase  Decimal? @db.Decimal(12, 2)
 

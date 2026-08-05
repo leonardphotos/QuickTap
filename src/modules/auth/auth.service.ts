@@ -242,6 +242,12 @@ export const authService = {
         whatsappPhone: input.whatsappPhone,
         baseCurrency: input.baseCurrency,
         periodEnd: trialPeriodEnd(),
+        // Los 15 días de prueba arrancan con el plan más completo ya asignado (Elite en
+        // restaurantes, Shop en locales comerciales) para que el dueño pruebe TODO el
+        // producto —incluida Sucursales— antes de elegir/pagar un plan en Facturación.
+        // BillingPage sigue mostrando "Activar plan" igual, porque eso depende de
+        // subscriptionStatus (TRIALING), no de qué plan tenga asignado.
+        subscriptionPlan: input.businessType === 'SHOP' ? 'SHOP' : 'ELITE',
         users: {
           create: {
             email: input.email,
@@ -337,6 +343,9 @@ export const authService = {
           whatsappPhone: input.registration.whatsappPhone,
           baseCurrency: input.registration.baseCurrency,
           periodEnd: trialPeriodEnd(),
+          // Ver el mismo comentario en register(): arranca la prueba con el plan más
+          // completo ya asignado.
+          subscriptionPlan: input.registration.businessType === 'SHOP' ? 'SHOP' : 'ELITE',
           users: {
             create: {
               email: google.email,

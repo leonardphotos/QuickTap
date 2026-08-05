@@ -276,13 +276,13 @@ async function computeDeliveryFee(
 }
 
 /**
- * Suma el cargo de embase (envase/caja/bolsa) de las líneas del pedido. Solo aplica en
+ * Suma el cargo de envase (envase/caja/bolsa) de las líneas del pedido. Solo aplica en
  * DELIVERY/PICKUP (en mesa/barra se sirve sin empaque) — ver Product.packagingMode.
  * "FIXED" usa Product.packagingFeeBase; "INVENTORY" usa el precio de venta del insumo
  * vinculado (0 si no tiene precio de venta cargado). Se multiplica por la cantidad
  * vendida de cada producto (mismo criterio que sumSubtotal/deductRecipeStock).
  */
-async function computeEmbaseFee(
+async function computeEnvaseFee(
   restaurantId: string,
   channel: OrderChannel,
   items: { productId: string | null; quantity: number }[],
@@ -464,7 +464,7 @@ async function deductProductStock(restaurantId: string, items: { productId: stri
 }
 
 /**
- * Descuenta del inventario el insumo de embase de cada producto vendido con
+ * Descuenta del inventario el insumo de envase de cada producto vendido con
  * packagingMode = INVENTORY. Igual que las otras deducciones: solo aplica en
  * DELIVERY/PICKUP, se llama una sola vez al marcar SERVED, nunca baja de 0.
  */
@@ -774,8 +774,8 @@ export const orderService = {
         ? { lat: input.customerLat, lng: input.customerLng }
         : null;
     const deliveryFeeBase = await computeDeliveryFee({ id: restaurantId, ...restaurant }, customerPoint);
-    const embaseFeeBase = await computeEmbaseFee(restaurantId, input.channel, input.items);
-    const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(deliveryFeeBase).add(embaseFeeBase));
+    const envaseFeeBase = await computeEnvaseFee(restaurantId, input.channel, input.items);
+    const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(deliveryFeeBase).add(envaseFeeBase));
     const totalBs = baseToBs(totalBase, rate.rateBs);
 
     const itemsCreate = lines.map((l) => buildOrderItemCreateData(l));
@@ -836,7 +836,7 @@ export const orderService = {
                   serviceChargeBase,
                   ivaBase,
                   deliveryFeeBase,
-                  embaseFeeBase,
+                  envaseFeeBase,
                   totalBase,
                   exchangeRate: rate.rateBs,
                   totalBs,
@@ -877,7 +877,7 @@ export const orderService = {
                 serviceChargeBase,
                 ivaBase,
                 deliveryFeeBase,
-                embaseFeeBase,
+                envaseFeeBase,
                 totalBase,
                 exchangeRate: rate.rateBs,
                 totalBs,
@@ -1027,8 +1027,8 @@ export const orderService = {
         ? { lat: input.customer.lat, lng: input.customer.lng }
         : null;
     const deliveryFeeBase = await computeDeliveryFee(restaurant, customerPoint);
-    const embaseFeeBase = await computeEmbaseFee(restaurantId, input.mode, input.items);
-    const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(deliveryFeeBase).add(embaseFeeBase));
+    const envaseFeeBase = await computeEnvaseFee(restaurantId, input.mode, input.items);
+    const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(deliveryFeeBase).add(envaseFeeBase));
     const totalBs = baseToBs(totalBase, rate.rateBs);
 
     const order = await prisma.$transaction(async (tx) => {
@@ -1044,7 +1044,7 @@ export const orderService = {
           serviceChargeBase,
           ivaBase,
           deliveryFeeBase,
-          embaseFeeBase,
+          envaseFeeBase,
           totalBase,
           exchangeRate: rate.rateBs,
           totalBs,
@@ -1261,8 +1261,8 @@ export const orderService = {
       select: { serviceChargeEnabled: true, ivaEnabled: true },
     });
     const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant!);
-    const embaseFeeBase = await computeEmbaseFee(restaurantId, order.channel, remaining);
-    const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(order.deliveryFeeBase).add(embaseFeeBase));
+    const envaseFeeBase = await computeEnvaseFee(restaurantId, order.channel, remaining);
+    const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(order.deliveryFeeBase).add(envaseFeeBase));
     const totalBs = baseToBs(totalBase, order.exchangeRate);
 
     await prisma.$transaction(async (tx) => {
@@ -1279,7 +1279,7 @@ export const orderService = {
       }
       await tx.order.update({
         where: { id: orderId },
-        data: { subtotalBase, serviceChargeBase, ivaBase, embaseFeeBase, totalBase, totalBs },
+        data: { subtotalBase, serviceChargeBase, ivaBase, envaseFeeBase, totalBase, totalBs },
       });
     });
 
@@ -1314,11 +1314,11 @@ export const orderService = {
       select: { serviceChargeEnabled: true, ivaEnabled: true },
     });
     const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant!);
-    const embaseFeeBase = await computeEmbaseFee(restaurantId, order.channel, [
+    const envaseFeeBase = await computeEnvaseFee(restaurantId, order.channel, [
       ...order.items,
       { productId: line.productId, quantity: line.quantity },
     ]);
-    const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(order.deliveryFeeBase).add(embaseFeeBase));
+    const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(order.deliveryFeeBase).add(envaseFeeBase));
     const totalBs = baseToBs(totalBase, order.exchangeRate);
 
     await prisma.$transaction([
@@ -1327,7 +1327,7 @@ export const orderService = {
       }),
       prisma.order.update({
         where: { id: orderId },
-        data: { subtotalBase, serviceChargeBase, ivaBase, embaseFeeBase, totalBase, totalBs },
+        data: { subtotalBase, serviceChargeBase, ivaBase, envaseFeeBase, totalBase, totalBs },
       }),
     ]);
 
@@ -1413,9 +1413,9 @@ export const orderService = {
       customerLng = null;
     }
 
-    const embaseFeeBase = await computeEmbaseFee(restaurantId, input.channel, existing.items);
+    const envaseFeeBase = await computeEnvaseFee(restaurantId, input.channel, existing.items);
     const totalBase = round2(
-      existing.subtotalBase.add(existing.serviceChargeBase).add(existing.ivaBase).add(deliveryFeeBase).add(embaseFeeBase),
+      existing.subtotalBase.add(existing.serviceChargeBase).add(existing.ivaBase).add(deliveryFeeBase).add(envaseFeeBase),
     );
     const totalBs = baseToBs(totalBase, existing.exchangeRate);
 
@@ -1430,7 +1430,7 @@ export const orderService = {
           customerLat,
           customerLng,
           deliveryFeeBase,
-          embaseFeeBase,
+          envaseFeeBase,
           totalBase,
           totalBs,
         },

@@ -26,7 +26,7 @@ interface InventoryItem {
   photoUrl?: string | null;
   categoryId?: string | null;
   category?: { id: string; name: string } | null;
-  // Embase: no nulo = este insumo se puede vincular como embase de un producto.
+  // Envase: no nulo = este insumo se puede vincular como envase de un producto.
   packagingType?: 'ENVASE' | 'CAJA' | 'BOLSA' | null;
   salePriceBase?: string | null;
 }
@@ -585,7 +585,7 @@ function InsumosTab({
               onChange={(e) => setForm({ ...form, isPackaging: e.target.checked })}
               className="rounded border-brand-950/30"
             />
-            Es un embase para delivery (envase, caja o bolsa)
+            Es un envase para delivery (envase, caja o bolsa)
           </label>
           {form.isPackaging && (
             <div className="grid sm:grid-cols-2 gap-3">

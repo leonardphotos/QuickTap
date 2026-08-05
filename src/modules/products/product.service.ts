@@ -221,5 +221,5 @@ async function assertPackagingItemBelongs(
     where: { id: packagingItemId, restaurantId: effectiveId, locationScope: 'LOCAL', packagingType: { not: null } },
     select: { id: true },
   });
-  if (!item) throw badRequest('El insumo de embase no existe o no está marcado como embase.');
+  if (!item) throw badRequest('El insumo de envase no existe o no está marcado como envase.');
 }

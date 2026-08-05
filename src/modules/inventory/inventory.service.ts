@@ -43,7 +43,7 @@ export const inventoryService = {
     });
   },
 
-  /** Insumos marcados como embase (packagingType no nulo) — para el picker del formulario
+  /** Insumos marcados como envase (packagingType no nulo) — para el picker del formulario
    * de productos ("Vincular con stock"). Siempre scope LOCAL: un producto nunca vive en
    * Casa Matriz. */
   async listPackaging(restaurantId: string, parentRestaurantId: string | null | undefined) {

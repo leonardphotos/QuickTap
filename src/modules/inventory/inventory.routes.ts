@@ -35,7 +35,7 @@ router.post(
   inventoryController.uploadPhoto,
 );
 
-// Insumos marcados como embase (para el picker de "Vincular con stock" en Productos).
+// Insumos marcados como envase (para el picker de "Vincular con stock" en Productos).
 router.get('/packaging', requireFeature('inventoryBasic'), requireInventoryAccess, inventoryController.listPackaging);
 
 // Insumos "normales": stock directo por insumo.
