@@ -87,7 +87,7 @@ Not served through Vite or the Express app — it's meant to be opened directly 
 
 ### Roles and permissions
 
-`src/utils/roles.ts` is the single source of truth for backend role checks; `web/src/utils/roles.ts` keeps a manual mirror for the frontend nav/UI — **update both when changing role logic**, they are not derived from a shared file. Role groups: `FULL_ACCESS_ROLES` (OWNER/ADMIN/CASHIER/STAFF — STAFF is deprecated, no longer assignable from the UI but still supported), `ADMIN_CASHIER_ROLES` (catalog/tables/admin-config mutations), `RESTRICTED_ROLES` (WAITER/KITCHEN — limited to Kitchen + Table Orders, no catalog/config mutations), `SCREEN` (read-only horizontal TV view of tables + kitchen).
+`src/utils/roles.ts` is the single source of truth for backend role checks; `web/src/utils/roles.ts` keeps a manual mirror for the frontend nav/UI — **update both when changing role logic**, they are not derived from a shared file. Role groups: `FULL_ACCESS_ROLES` (OWNER/ADMIN/CASHIER/STAFF — STAFF is deprecated, no longer assignable from the UI but still supported), `ADMIN_CASHIER_ROLES` (catalog/tables/admin-config mutations), `RESTRICTED_ROLES` (WAITER/KITCHEN — limited to Kitchen + Table Orders, no catalog/config mutations), `SCREEN` (read-only, public-facing TV display: rotating carousel of the public menu — 4 products per page, name + price only, auto-hides out-of-stock/unavailable items since it re-fetches `/public/menu/:slug`, which already filters those server-side).
 
 ### Frontend (`web/`)
 

@@ -1,146 +1,141 @@
-import { useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
-import type { Socket } from 'socket.io-client';
-import { BellRing, LogOut, Receipt, RefreshCw } from 'lucide-react';
-import { api, getToken } from '../../api/client';
+import { useEffect, useMemo, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
+import { LogOut, RefreshCw } from 'lucide-react';
+import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
-import type { FloorPlan, FloorPlanTable, OrderView } from '../../types';
+import type { Product, PublicMenu } from '../../types';
+import { publicPriceLabel } from '../../utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 
-const CHANNEL_LABELS: Record<string, string> = { DELIVERY: 'Delivery', PICKUP: 'Pickup', BAR: 'Barra' };
+const ITEMS_PER_PAGE = 4;
+const PAGE_INTERVAL_MS = 8000;
+// El menú público ya excluye productos agotados/no disponibles server-side (stockControlEnabled +
+// stockQuantity, ver menu.service.ts) — con volver a pedirlo cada tanto alcanza para que un producto
+// que se agota (o vuelve a haber) desaparezca/reaparezca solo, sin tocar nada más en esta pantalla.
+const MENU_REFRESH_MS = 45000;
 
 /**
- * Pantalla (rol SCREEN): pensada para un monitor/TV fijo en el local, sin
- * interacción — Cocina a la izquierda, Mesas a la derecha, en horizontal.
- * Único punto interactivo: el aviso de llamado/cuenta, para que el mesero
- * pueda atenderlo con un toque directo desde este mismo monitor.
+ * Pantalla (rol SCREEN): monitor/TV fijo de cara al público, afuera o en la vitrina del local —
+ * carrusel del menú (solo nombre y precio, 4 productos por pantalla) para que quien pasa por
+ * fuera vea todo lo que ofrece el restaurante sin necesitar el QR. Reemplaza la vista anterior de
+ * Cocina/Mesas (esa información ya la tiene el staff en Comandas/Órdenes de Mesa) — este monitor
+ * ahora es 100% de cara al cliente, sin datos operativos.
  */
 export default function ScreenPage() {
-  const { logout } = useAuth();
-  const [orders, setOrders] = useState<OrderView[]>([]);
-  const [plan, setPlan] = useState<FloorPlan | null>(null);
+  const { logout, restaurant } = useAuth();
+  const [menu, setMenu] = useState<PublicMenu | null>(null);
+  const [page, setPage] = useState(0);
 
-  function load() {
-    api.get('/orders/kitchen').then((res) => setOrders(res.data.data));
-    api.get('/tables/floor-plan').then((res) => setPlan(res.data.data));
+  function loadMenu() {
+    if (!restaurant?.slug) return;
+    api
+      .get(`/public/menu/${restaurant.slug}`)
+      .then((res) => setMenu(res.data.data))
+      .catch(() => undefined);
   }
 
   useEffect(() => {
-    load();
-    const socket: Socket = io('/', { auth: { token: getToken() } });
-    socket.on('order:new', load);
-    socket.on('order:updated', load);
-    socket.on('table:service-request', load);
-    socket.on('table:service-ack', load);
-    return () => {
-      socket.disconnect();
-    };
-  }, []);
+    loadMenu();
+    const refreshInterval = setInterval(loadMenu, MENU_REFRESH_MS);
+    return () => clearInterval(refreshInterval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [restaurant?.slug]);
 
-  async function acknowledgeServiceRequest(t: FloorPlanTable) {
-    try {
-      await api.patch(`/tables/${t.id}/service-request/ack`);
-      load();
-    } catch {
-      // Si falla, el aviso simplemente sigue visible y se puede reintentar.
+  const items = useMemo(() => {
+    if (!menu) return [];
+    // Un producto puede aparecer en más de una categoría destacada — pero acá se muestra el
+    // catálogo completo una sola vez, en el mismo orden en que ya viene organizado por categoría.
+    const seen = new Set<string>();
+    const flat: (Product & { categoryName: string })[] = [];
+    for (const cat of menu.categories) {
+      for (const p of cat.products) {
+        if (seen.has(p.id)) continue;
+        seen.add(p.id);
+        flat.push({ ...p, categoryName: cat.name });
+      }
     }
-  }
+    return flat;
+  }, [menu]);
 
-  const sections = plan
-    ? [...plan.zones, ...(plan.unzoned.length > 0 ? [{ id: 'unzoned', name: 'Sin zona', tables: plan.unzoned }] : [])]
-    : [];
+  const pageCount = Math.max(1, Math.ceil(items.length / ITEMS_PER_PAGE));
+
+  useEffect(() => {
+    if (pageCount <= 1) return;
+    const rotateInterval = setInterval(() => setPage((p) => (p + 1) % pageCount), PAGE_INTERVAL_MS);
+    return () => clearInterval(rotateInterval);
+  }, [pageCount]);
+
+  // Si el catálogo cambió de tamaño (producto agotado/reaparecido) y la página actual ya no
+  // existe, vuelve a la primera en vez de quedar mostrando una lista vacía.
+  useEffect(() => {
+    if (page >= pageCount) setPage(0);
+  }, [page, pageCount]);
+
+  const currentItems = items.slice(page * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE + ITEMS_PER_PAGE);
 
   return (
-    <div className="h-screen w-screen flex overflow-hidden bg-[#fafafa]">
-      <div className="fixed top-3 right-3 z-20 flex items-center gap-2">
-        <TextureButton
-          variant="icon"
-          size="icon"
-          aria-label="Refrescar"
-          onClick={() => window.location.reload()}
-        >
-          <RefreshCw className="h-4 w-4 text-brand-950/70" />
+    <div className="h-screen w-screen flex flex-col overflow-hidden bg-[#0A1428] text-white">
+      <div className="fixed top-3 right-3 z-20 flex items-center gap-2 opacity-30 hover:opacity-100 transition-opacity">
+        <TextureButton variant="icon" size="icon" aria-label="Refrescar" onClick={() => window.location.reload()}>
+          <RefreshCw className="h-4 w-4" />
         </TextureButton>
         <TextureButton variant="icon" size="icon" aria-label="Cerrar sesión" onClick={logout}>
-          <LogOut className="h-4 w-4 text-brand-950/70" />
+          <LogOut className="h-4 w-4" />
         </TextureButton>
       </div>
 
-      <div className="w-1/2 h-full overflow-y-auto p-8 border-r border-brand-950/10">
-        <h1 className="text-2xl font-semibold tracking-tight text-brand-950 mb-6">Cocina</h1>
-        <div className="grid grid-cols-2 gap-4">
-          {orders.map((o) => (
-            <div key={o.id} className="rounded-2xl bg-white shadow-sm p-4">
-              <div className="flex items-center justify-between gap-2">
-                <p className="font-semibold text-brand-950 truncate">
-                  #{o.orderNumber}
-                  {o.customerName && <span className="font-normal text-brand-950/60"> · {o.customerName}</span>}
-                </p>
-                <span className="text-xs bg-brand-950/[0.06] px-2 py-0.5 rounded-full shrink-0">
-                  {o.channel === 'DINE_IN' ? `Mesa ${o.table?.number ?? ''}` : CHANNEL_LABELS[o.channel] ?? o.channel}
-                </span>
-              </div>
-              <ul className="text-sm space-y-1 font-light mt-2">
-                {o.items.map((it) => (
-                  <li key={it.id}>
-                    <span className="font-medium">{it.quantity}x</span> {it.productName}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))}
-          {orders.length === 0 && (
-            <p className="col-span-2 text-brand-950/40 font-light text-center py-16">Sin comandas pendientes.</p>
-          )}
-        </div>
-      </div>
+      <header className="flex flex-col items-center justify-center gap-2 pt-10 pb-6 shrink-0">
+        {menu?.restaurant.logoUrl && (
+          <img src={menu.restaurant.logoUrl} alt="" className="h-16 w-16 rounded-2xl object-cover shadow-lg" />
+        )}
+        <h1 className="text-4xl font-semibold tracking-tight">{menu?.restaurant.name ?? 'Menú'}</h1>
+      </header>
 
-      <div className="w-1/2 h-full overflow-y-auto p-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-brand-950 mb-6">Mesas</h1>
-        <div className="space-y-8">
-          {sections.map((zone) => (
-            <div key={zone.id}>
-              <h2 className="text-sm font-semibold text-brand-950/70 mb-3">{zone.name}</h2>
-              <div className="grid grid-cols-6 gap-3">
-                {zone.tables.map((t) => (
-                  <div key={t.id} className="relative">
-                    <div
-                      className={`aspect-square rounded-xl flex items-center justify-center font-semibold text-sm ${
-                        t.sessions.length > 0 ? 'bg-emerald-500 text-white shadow-sm' : 'bg-brand-950/[0.06] text-brand-950/50'
-                      }`}
-                    >
-                      {t.number}
+      <div className="flex-1 flex items-center justify-center px-16 pb-10">
+        {items.length === 0 ? (
+          <p className="text-white/40 font-light text-2xl">El menú todavía no tiene productos disponibles.</p>
+        ) : (
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={page}
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -40 }}
+              transition={{ duration: 0.5, ease: 'easeInOut' }}
+              className="grid grid-cols-2 grid-rows-2 gap-8 w-full max-w-5xl"
+            >
+              {currentItems.map((p) => {
+                const price = menu ? publicPriceLabel(p.price, menu.restaurant) : null;
+                return (
+                  <div
+                    key={p.id}
+                    className="flex items-center justify-between gap-6 rounded-3xl bg-white/[0.06] border border-white/10 px-10 py-8"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-[11px] uppercase tracking-widest text-white/40 font-medium mb-1">{p.categoryName}</p>
+                      <p className="text-3xl font-semibold truncate">{p.name}</p>
                     </div>
-                    {t.serviceRequest && (
-                      <button
-                        onClick={() => acknowledgeServiceRequest(t)}
-                        aria-label={
-                          t.serviceRequest === 'WAITER_CALL' ? 'Atender llamado al mesonero' : 'Marcar cuenta entregada'
-                        }
-                        title={t.serviceRequest === 'WAITER_CALL' ? 'Llamando al mesonero' : 'Pidió la cuenta'}
-                        className={`absolute -top-1.5 -right-1.5 h-6 w-6 rounded-full flex items-center justify-center shadow ring-2 ring-white animate-pulse ${
-                          t.serviceRequest === 'WAITER_CALL'
-                            ? 'bg-amber-400 text-amber-950 hover:bg-amber-300'
-                            : 'bg-emerald-400 text-emerald-950 hover:bg-emerald-300'
-                        }`}
-                      >
-                        {t.serviceRequest === 'WAITER_CALL' ? (
-                          <BellRing className="h-3.5 w-3.5" />
-                        ) : (
-                          <Receipt className="h-3.5 w-3.5" />
-                        )}
-                      </button>
+                    {price && (
+                      <div className="text-right shrink-0">
+                        <p className="text-3xl font-bold text-brand-400">{price.primary}</p>
+                        {price.secondary && <p className="text-sm text-white/40">{price.secondary}</p>}
+                      </div>
                     )}
                   </div>
-                ))}
-              </div>
-            </div>
-          ))}
-          {sections.length === 0 && (
-            <p className="text-brand-950/40 font-light text-center py-16">Sin mesas creadas.</p>
-          )}
-        </div>
+                );
+              })}
+            </motion.div>
+          </AnimatePresence>
+        )}
       </div>
+
+      {pageCount > 1 && (
+        <div className="flex items-center justify-center gap-2 pb-8 shrink-0">
+          {Array.from({ length: pageCount }).map((_, i) => (
+            <span key={i} className={`h-1.5 rounded-full transition-all ${i === page ? 'w-6 bg-brand-400' : 'w-1.5 bg-white/20'}`} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
