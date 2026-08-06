@@ -58,6 +58,56 @@ function toJid(phone: string): string {
   return `${digits}@s.whatsapp.net`;
 }
 
+/**
+ * ----------------------------------------------------------------------------
+ *  Cola de envío con espera aleatoria entre mensajes
+ * ----------------------------------------------------------------------------
+ *  A diferencia del bot por restaurante (1-2 mensajes puntuales por pedido,
+ *  volumen bajo por diseño), este bot puede necesitar mandar varios mensajes
+ *  seguidos (ej. el barrido de recordatorios de renovación a varios
+ *  restaurantes el mismo día) — mandarlos todos de una es exactamente el
+ *  patrón que WhatsApp detecta como envío automatizado y puede terminar en un
+ *  baneo del número. Todo envío (texto o imagen) pasa por esta cola: se
+ *  procesan de a uno, con una espera aleatoria entre ~25 y 35s (30s ± 5s)
+ *  entre el fin de un envío y el inicio del siguiente. El primer mensaje de
+ *  una cola vacía sale de inmediato, no hace falta esperar sin motivo.
+ */
+const OUTBOX_MIN_DELAY_MS = 25_000;
+const OUTBOX_MAX_DELAY_MS = 35_000;
+
+interface OutboxItem {
+  send: () => Promise<boolean>;
+  resolve: (sent: boolean) => void;
+}
+
+const outbox: OutboxItem[] = [];
+let outboxRunning = false;
+
+function randomOutboxDelay(): number {
+  return OUTBOX_MIN_DELAY_MS + Math.random() * (OUTBOX_MAX_DELAY_MS - OUTBOX_MIN_DELAY_MS);
+}
+
+async function runOutbox(): Promise<void> {
+  if (outboxRunning) return;
+  outboxRunning = true;
+  while (outbox.length > 0) {
+    const item = outbox.shift()!;
+    const sent = await item.send().catch(() => false);
+    item.resolve(sent);
+    if (outbox.length > 0) {
+      await new Promise((resolve) => setTimeout(resolve, randomOutboxDelay()));
+    }
+  }
+  outboxRunning = false;
+}
+
+function enqueueOutbox(send: () => Promise<boolean>): Promise<boolean> {
+  return new Promise((resolve) => {
+    outbox.push({ send, resolve });
+    runOutbox().catch(() => undefined);
+  });
+}
+
 export const masterWhatsappBotService = {
   getStatus() {
     return { status: state.status, qrDataUrl: state.qrDataUrl ?? null, connectedNumber: state.connectedNumber ?? null };
@@ -274,27 +324,33 @@ export const masterWhatsappBotService = {
   },
 
   /** Manda un mensaje de texto libre. Silencioso si el bot no está conectado — nunca debe
-   * tumbar el registro de un restaurante ni el barrido de recordatorios. */
+   * tumbar el registro de un restaurante ni el barrido de recordatorios. Encolado (ver
+   * enqueueOutbox arriba): si hay otros mensajes esperando, este espera su turno con un
+   * intervalo aleatorio de ~30s para no parecer envío masivo automatizado. */
   async sendMessage(phone: string | null | undefined, message: string): Promise<boolean> {
     if (!phone) return false;
-    if (state.status !== 'connected' || !state.sock) return false;
-    try {
-      await state.sock.sendMessage(toJid(phone), { text: message });
-      return true;
-    } catch {
-      return false;
-    }
+    return enqueueOutbox(async () => {
+      if (state.status !== 'connected' || !state.sock) return false;
+      try {
+        await state.sock.sendMessage(toJid(phone), { text: message });
+        return true;
+      } catch {
+        return false;
+      }
+    });
   },
 
   async sendImage(phone: string | null | undefined, image: Buffer, caption?: string): Promise<boolean> {
     if (!phone) return false;
-    if (state.status !== 'connected' || !state.sock) return false;
-    try {
-      await state.sock.sendMessage(toJid(phone), { image, caption });
-      return true;
-    } catch {
-      return false;
-    }
+    return enqueueOutbox(async () => {
+      if (state.status !== 'connected' || !state.sock) return false;
+      try {
+        await state.sock.sendMessage(toJid(phone), { image, caption });
+        return true;
+      } catch {
+        return false;
+      }
+    });
   },
 
   /** Al arrancar el servidor: reconecta la sesión de plataforma si ya estaba vinculada
