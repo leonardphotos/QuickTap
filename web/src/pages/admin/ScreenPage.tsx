@@ -15,10 +15,11 @@ const MENU_REFRESH_MS = 45000;
 
 /**
  * Pantalla (rol SCREEN): monitor/TV fijo de cara al público, afuera o en la vitrina del local —
- * carrusel del menú (solo nombre y precio, 4 productos por pantalla) para que quien pasa por
- * fuera vea todo lo que ofrece el restaurante sin necesitar el QR. Reemplaza la vista anterior de
- * Cocina/Mesas (esa información ya la tiene el staff en Comandas/Órdenes de Mesa) — este monitor
- * ahora es 100% de cara al cliente, sin datos operativos.
+ * carrusel del menú (foto 1x1 a pantalla completa con degradado, nombre/descripción/precio
+ * encima, 4 productos por pantalla) para que quien pasa por fuera vea todo lo que ofrece el
+ * restaurante sin necesitar el QR. Reemplaza la vista anterior de Cocina/Mesas (esa información
+ * ya la tiene el staff en Comandas/Órdenes de Mesa) — este monitor ahora es 100% de cara al
+ * cliente, sin datos operativos.
  */
 export default function ScreenPage() {
   const { logout, restaurant } = useAuth();
@@ -45,12 +46,12 @@ export default function ScreenPage() {
     // Un producto puede aparecer en más de una categoría destacada — pero acá se muestra el
     // catálogo completo una sola vez, en el mismo orden en que ya viene organizado por categoría.
     const seen = new Set<string>();
-    const flat: (Product & { categoryName: string })[] = [];
+    const flat: Product[] = [];
     for (const cat of menu.categories) {
       for (const p of cat.products) {
         if (seen.has(p.id)) continue;
         seen.add(p.id);
-        flat.push({ ...p, categoryName: cat.name });
+        flat.push(p);
       }
     }
     return flat;
@@ -73,7 +74,17 @@ export default function ScreenPage() {
   const currentItems = items.slice(page * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE + ITEMS_PER_PAGE);
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden bg-[#0A1428] text-white">
+    <div className="h-screen w-screen overflow-hidden bg-black text-white relative">
+      {/* Marca: chico, arriba a la izquierda, siempre encima de las fotos. */}
+      <div className="fixed top-3 left-3 z-20 flex items-center gap-2 bg-black/40 backdrop-blur-sm rounded-full pl-1.5 pr-3 py-1.5">
+        {menu?.restaurant.logoUrl ? (
+          <img src={menu.restaurant.logoUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
+        ) : (
+          <div className="h-6 w-6 rounded-full bg-white/20" />
+        )}
+        <span className="text-xs font-semibold tracking-wide">{menu?.restaurant.name ?? 'Menú'}</span>
+      </div>
+
       <div className="fixed top-3 right-3 z-20 flex items-center gap-2 opacity-30 hover:opacity-100 transition-opacity">
         <TextureButton variant="icon" size="icon" aria-label="Refrescar" onClick={() => window.location.reload()}>
           <RefreshCw className="h-4 w-4" />
@@ -83,61 +94,53 @@ export default function ScreenPage() {
         </TextureButton>
       </div>
 
-      <header className="flex flex-col items-center justify-center gap-2 pt-10 pb-6 shrink-0">
-        {menu?.restaurant.logoUrl && (
-          <img src={menu.restaurant.logoUrl} alt="" className="h-16 w-16 rounded-2xl object-cover shadow-lg" />
-        )}
-        <h1 className="text-4xl font-semibold tracking-tight">{menu?.restaurant.name ?? 'Menú'}</h1>
-      </header>
-
-      <div className="flex-1 flex items-center justify-center px-16 pb-10">
-        {items.length === 0 ? (
+      {items.length === 0 ? (
+        <div className="h-full w-full flex items-center justify-center">
           <p className="text-white/40 font-light text-2xl">El menú todavía no tiene productos disponibles.</p>
-        ) : (
-          // Animación por CSS puro (keyframe `menu-slide-in` en index.css), no una librería JS:
-          // el `key={page}` fuerza un nodo DOM nuevo en cada rotación, así que el navegador
-          // dispara la animación de mount solo con eso, sin depender de que ningún estado de
-          // React "arranque" la transición — el contenido queda visible pase lo que pase.
-          <div key={page} className="grid grid-cols-2 grid-rows-2 gap-8 w-full max-w-7xl animate-menu-slide-in">
-            {currentItems.map((p) => {
-              const price = menu ? publicPriceLabel(p.price, menu.restaurant) : null;
-              return (
-                <div
-                  key={p.id}
-                  className="flex items-center gap-5 rounded-3xl bg-white/[0.06] border border-white/10 px-6 py-6"
-                >
-                  {p.photoUrl ? (
-                    <img
-                      src={p.photoUrl}
-                      alt=""
-                      className="h-24 w-24 shrink-0 rounded-2xl object-cover"
-                    />
-                  ) : (
-                    <div className="h-24 w-24 shrink-0 rounded-2xl bg-white/10 flex items-center justify-center text-4xl">
-                      🍽️
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[11px] uppercase tracking-widest text-white/40 font-medium mb-1.5">{p.categoryName}</p>
-                    <p className="text-2xl font-semibold leading-tight line-clamp-2">{p.name}</p>
+        </div>
+      ) : (
+        // Animación por CSS puro (keyframe `menu-slide-in` en index.css), no una librería JS:
+        // el `key={page}` fuerza un nodo DOM nuevo en cada rotación, así que el navegador
+        // dispara la animación de mount solo con eso, sin depender de que ningún estado de
+        // React "arranque" la transición — el contenido queda visible pase lo que pase.
+        <div key={page} className="h-full w-full grid grid-cols-2 grid-rows-2 gap-1 animate-menu-slide-in">
+          {currentItems.map((p) => {
+            const price = menu ? publicPriceLabel(p.price, menu.restaurant) : null;
+            return (
+              <div key={p.id} className="relative overflow-hidden bg-brand-950">
+                {p.photoUrl ? (
+                  <img src={p.photoUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center text-7xl bg-white/5">🍽️</div>
+                )}
+                {/* Degradado de abajo hacia arriba para que el texto siempre sea legible,
+                    sin importar qué tan clara sea la foto de fondo. */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/25 to-transparent" />
+                <div className="absolute inset-x-0 bottom-0 p-6 flex items-end justify-between gap-4">
+                  <div className="min-w-0">
+                    <p className="text-2xl font-bold leading-tight line-clamp-2">{p.name}</p>
+                    {p.description && <p className="text-sm text-white/70 font-light line-clamp-1 mt-1">{p.description}</p>}
                   </div>
                   {price && (
                     <div className="text-right shrink-0">
-                      <p className="text-2xl font-bold text-brand-400 whitespace-nowrap">{price.primary}</p>
-                      {price.secondary && <p className="text-sm text-white/40 whitespace-nowrap">{price.secondary}</p>}
+                      <p className="text-3xl font-extrabold whitespace-nowrap">{price.secondary}</p>
+                      <p className="text-sm text-white/60 whitespace-nowrap">{price.primary}</p>
                     </div>
                   )}
                 </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {pageCount > 1 && (
-        <div className="flex items-center justify-center gap-2 pb-8 shrink-0">
+        <div className="fixed inset-x-0 bottom-3 z-20 flex items-center justify-center gap-2">
           {Array.from({ length: pageCount }).map((_, i) => (
-            <span key={i} className={`h-1.5 rounded-full transition-all ${i === page ? 'w-6 bg-brand-400' : 'w-1.5 bg-white/20'}`} />
+            <span
+              key={i}
+              className={`h-1.5 rounded-full transition-all shadow ${i === page ? 'w-6 bg-white' : 'w-1.5 bg-white/40'}`}
+            />
           ))}
         </div>
       )}
