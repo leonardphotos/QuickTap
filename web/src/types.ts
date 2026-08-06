@@ -81,6 +81,11 @@ export interface Restaurant {
   paymentMethodsConfig?: PaymentMethodsConfig | null;
   fullscreenImageEnabled: boolean;
   fullscreenImageUrl?: string | null;
+  screenDisplayMode?: 'ALL' | 'CATEGORIES' | 'PRODUCTS';
+  screenCategoryIds?: string[];
+  screenProductIds?: string[];
+  screenPageIntervalSec?: number;
+  screenItemsPerPage?: number;
   deliveryOriginLat?: number | null;
   deliveryOriginLng?: number | null;
   /** Solo en el menú público: si el restaurante tiene al menos una mesa creada. */

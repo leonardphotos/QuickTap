@@ -94,6 +94,11 @@ const RESTAURANT_SELECT = {
   paymentMethodsConfig: true,
   fullscreenImageEnabled: true,
   fullscreenImageUrl: true,
+  screenDisplayMode: true,
+  screenCategoryIds: true,
+  screenProductIds: true,
+  screenPageIntervalSec: true,
+  screenItemsPerPage: true,
   subscriptionStatus: true,
   subscriptionPlan: true,
   billingCycle: true,
@@ -143,6 +148,11 @@ type RestaurantRow = {
   paymentMethodsConfig: unknown;
   fullscreenImageEnabled: boolean;
   fullscreenImageUrl: string | null;
+  screenDisplayMode: string;
+  screenCategoryIds: unknown;
+  screenProductIds: unknown;
+  screenPageIntervalSec: number;
+  screenItemsPerPage: number;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';
   subscriptionPlan: string | null;
   billingCycle: string | null;
@@ -210,6 +220,11 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
     paymentMethodsConfig: restaurant.paymentMethodsConfig,
     fullscreenImageEnabled: restaurant.fullscreenImageEnabled,
     fullscreenImageUrl: restaurant.fullscreenImageUrl,
+    screenDisplayMode: restaurant.screenDisplayMode,
+    screenCategoryIds: (restaurant.screenCategoryIds as string[] | null) ?? [],
+    screenProductIds: (restaurant.screenProductIds as string[] | null) ?? [],
+    screenPageIntervalSec: restaurant.screenPageIntervalSec,
+    screenItemsPerPage: restaurant.screenItemsPerPage,
     subscriptionStatus: restaurant.subscriptionStatus,
     subscriptionPlan: restaurant.subscriptionPlan,
     billingCycle: restaurant.billingCycle,

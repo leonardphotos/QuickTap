@@ -59,6 +59,12 @@ export interface AuthRestaurant {
   paymentMethodsConfig?: PaymentMethodsConfig | null;
   fullscreenImageEnabled: boolean;
   fullscreenImageUrl?: string | null;
+  /** Ajustes -> Pantalla: qué muestra el carrusel del rol SCREEN (ver ScreenPage.tsx). */
+  screenDisplayMode: 'ALL' | 'CATEGORIES' | 'PRODUCTS';
+  screenCategoryIds: string[];
+  screenProductIds: string[];
+  screenPageIntervalSec: number;
+  screenItemsPerPage: number;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';
   subscriptionPlan: 'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM' | 'CUSTOM' | 'SUCURSALES' | 'DELIVERY_SUCURSALES' | 'ELITE' | 'SHOP' | null;
   billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | null;

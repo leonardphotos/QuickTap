@@ -353,6 +353,19 @@ model Restaurant {
   fullscreenImageEnabled Boolean @default(false)
   fullscreenImageUrl     String?
 
+  // --- Ajustes -> Pantalla: qué muestra el carrusel del rol SCREEN (ver ScreenPage.tsx) ---
+  // "ALL" = todo el catálogo disponible; "CATEGORIES" = solo las categorías en
+  // screenCategoryIds; "PRODUCTS" = solo los productos puntuales en screenProductIds.
+  screenDisplayMode String @default("ALL")
+  // Arrays de ids como Json (mismo criterio que theme/paymentMethodsConfig en este modelo,
+  // no hay precedente de String[] nativo acá) — solo se leen cuando screenDisplayMode los usa.
+  screenCategoryIds Json?
+  screenProductIds  Json?
+  // Segundos que cada pantalla queda fija antes de rotar a la siguiente. Opciones fijas en la UI: 3/6/10/20.
+  screenPageIntervalSec Int @default(8)
+  // Productos por pantalla. Opciones fijas en la UI: 2/4/6.
+  screenItemsPerPage    Int @default(4)
+
   // Código de 6 dígitos (hasheado, igual que TableSession.pinHash) que el Mesero
   // debe ingresar para eliminar una comanda. Solo lo crea/cambia Dueño/Admin desde
   // Ajustes. Null = todavía no se ha configurado (el Mesero no puede eliminar).

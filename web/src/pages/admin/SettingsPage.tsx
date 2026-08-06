@@ -11,6 +11,7 @@ import {
   ShieldCheck,
   Database,
   Printer,
+  MonitorPlay,
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
@@ -37,6 +38,7 @@ import { DeleteOrderPinSection } from '@/components/admin/DeleteOrderPinSection'
 import { LockScreenSettingsSection } from '@/components/admin/LockScreenSettingsSection';
 import { DemoAdminUnlockSection } from '@/components/admin/DemoAdminUnlockSection';
 import { SalesHistoryExportSection } from '@/components/admin/SalesHistoryExportSection';
+import { PantallaSection } from '@/components/admin/PantallaSection';
 
 interface RateInfo {
   currency: Currency;
@@ -196,6 +198,7 @@ export default function SettingsPage() {
     { id: 'pagos', title: 'Pagos y moneda', icon: <Wallet className="h-4 w-4" /> },
     { id: 'delivery', title: 'Delivery', icon: <Bike className="h-4 w-4" /> },
     { id: 'apariencia', title: 'Apariencia del menú público', icon: <Palette className="h-4 w-4" /> },
+    { id: 'pantalla', title: 'Pantalla', icon: <MonitorPlay className="h-4 w-4" /> },
     ...(isManager ? [{ id: 'equipo', title: 'Equipo y seguridad', icon: <ShieldCheck className="h-4 w-4" /> }] : []),
     { id: 'impresion', title: 'Estación de impresión', icon: <Printer className="h-4 w-4" /> },
     ...(isManager ? [{ id: 'datos', title: 'Datos y reportes', icon: <Database className="h-4 w-4" /> }] : []),
@@ -399,6 +402,18 @@ export default function SettingsPage() {
         <FullscreenImageSection />
         <FullWidth>
           <ThemeSection />
+        </FullWidth>
+      </SettingsCategory>
+
+      <SettingsCategory
+        id="pantalla"
+        title="Pantalla"
+        icon={<MonitorPlay className="h-4 w-4" />}
+        open={openCategory === 'pantalla'}
+        onToggle={toggleCategory}
+      >
+        <FullWidth>
+          <PantallaSection />
         </FullWidth>
       </SettingsCategory>
 

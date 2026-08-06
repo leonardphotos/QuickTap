@@ -6,12 +6,17 @@ import type { Product, PublicMenu } from '../../types';
 import { publicPriceLabel } from '../../utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 
-const ITEMS_PER_PAGE = 4;
-const PAGE_INTERVAL_MS = 8000;
 // El menú público ya excluye productos agotados/no disponibles server-side (stockControlEnabled +
 // stockQuantity, ver menu.service.ts) — con volver a pedirlo cada tanto alcanza para que un producto
 // que se agota (o vuelve a haber) desaparezca/reaparezca solo, sin tocar nada más en esta pantalla.
 const MENU_REFRESH_MS = 45000;
+
+// Grilla según cuántos productos entran por pantalla (Ajustes -> Pantalla, screenItemsPerPage).
+const GRID_CLASS: Record<number, string> = {
+  2: 'grid-cols-2 grid-rows-1',
+  4: 'grid-cols-2 grid-rows-2',
+  6: 'grid-cols-3 grid-rows-2',
+};
 
 /**
  * Pantalla (rol SCREEN): monitor/TV fijo de cara al público, afuera o en la vitrina del local —
@@ -41,6 +46,14 @@ export default function ScreenPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [restaurant?.slug]);
 
+  // Ajustes -> Pantalla (PantallaSection.tsx): qué mostrar, cuánto dura cada pantalla y cuántos
+  // productos entran por pantalla. Todos con default por si el restaurante nunca los tocó.
+  const displayMode = restaurant?.screenDisplayMode ?? 'ALL';
+  const screenCategoryIds = restaurant?.screenCategoryIds ?? [];
+  const screenProductIds = restaurant?.screenProductIds ?? [];
+  const itemsPerPage = restaurant?.screenItemsPerPage ?? 4;
+  const pageIntervalMs = (restaurant?.screenPageIntervalSec ?? 6) * 1000;
+
   const items = useMemo(() => {
     if (!menu) return [];
     // Un producto puede aparecer en más de una categoría destacada — pero acá se muestra el
@@ -48,22 +61,25 @@ export default function ScreenPage() {
     const seen = new Set<string>();
     const flat: Product[] = [];
     for (const cat of menu.categories) {
+      if (displayMode === 'CATEGORIES' && !screenCategoryIds.includes(cat.id)) continue;
       for (const p of cat.products) {
         if (seen.has(p.id)) continue;
+        if (displayMode === 'PRODUCTS' && !screenProductIds.includes(p.id)) continue;
         seen.add(p.id);
         flat.push(p);
       }
     }
     return flat;
-  }, [menu]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [menu, displayMode, JSON.stringify(screenCategoryIds), JSON.stringify(screenProductIds)]);
 
-  const pageCount = Math.max(1, Math.ceil(items.length / ITEMS_PER_PAGE));
+  const pageCount = Math.max(1, Math.ceil(items.length / itemsPerPage));
 
   useEffect(() => {
     if (pageCount <= 1) return;
-    const rotateInterval = setInterval(() => setPage((p) => (p + 1) % pageCount), PAGE_INTERVAL_MS);
+    const rotateInterval = setInterval(() => setPage((p) => (p + 1) % pageCount), pageIntervalMs);
     return () => clearInterval(rotateInterval);
-  }, [pageCount]);
+  }, [pageCount, pageIntervalMs]);
 
   // Si el catálogo cambió de tamaño (producto agotado/reaparecido) y la página actual ya no
   // existe, vuelve a la primera en vez de quedar mostrando una lista vacía.
@@ -71,7 +87,7 @@ export default function ScreenPage() {
     if (page >= pageCount) setPage(0);
   }, [page, pageCount]);
 
-  const currentItems = items.slice(page * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE + ITEMS_PER_PAGE);
+  const currentItems = items.slice(page * itemsPerPage, page * itemsPerPage + itemsPerPage);
 
   return (
     <div className="h-screen w-screen overflow-hidden bg-black text-white relative">
@@ -103,7 +119,7 @@ export default function ScreenPage() {
         // el `key={page}` fuerza un nodo DOM nuevo en cada rotación, así que el navegador
         // dispara la animación de mount solo con eso, sin depender de que ningún estado de
         // React "arranque" la transición — el contenido queda visible pase lo que pase.
-        <div key={page} className="h-full w-full grid grid-cols-2 grid-rows-2 gap-1 animate-menu-slide-in">
+        <div key={page} className={`h-full w-full grid gap-1 animate-menu-slide-in ${GRID_CLASS[itemsPerPage] ?? GRID_CLASS[4]}`}>
           {currentItems.map((p) => {
             const price = menu ? publicPriceLabel(p.price, menu.restaurant) : null;
             return (

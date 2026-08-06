@@ -106,6 +106,13 @@ export const updateRestaurantSchema = z.object({
   fullscreenImageEnabled: z.boolean().optional(),
   fullscreenImageUrl: z.string().min(1).optional(),
 
+  // Ajustes -> Pantalla: qué muestra el carrusel del rol SCREEN (ver ScreenPage.tsx).
+  screenDisplayMode: z.enum(['ALL', 'CATEGORIES', 'PRODUCTS']).optional(),
+  screenCategoryIds: z.array(z.string()).optional(),
+  screenProductIds: z.array(z.string()).optional(),
+  screenPageIntervalSec: z.union([z.literal(3), z.literal(6), z.literal(10), z.literal(20)]).optional(),
+  screenItemsPerPage: z.union([z.literal(2), z.literal(4), z.literal(6)]).optional(),
+
   // Plan Sucursales: inventario por sede (de siempre) o compartido entre todas las sedes
   // del grupo, y ventana opcional de Casa Matriz. Solo se aplican desde la sede principal
   // (ver restaurant.service.ts update()).
