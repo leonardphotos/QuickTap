@@ -104,15 +104,26 @@ export default function ScreenPage() {
               return (
                 <div
                   key={p.id}
-                  className="flex items-center justify-between gap-6 rounded-3xl bg-white/[0.06] border border-white/10 px-10 py-8"
+                  className="flex items-center gap-5 rounded-3xl bg-white/[0.06] border border-white/10 px-6 py-6"
                 >
-                  <div className="min-w-0">
+                  {p.photoUrl ? (
+                    <img
+                      src={p.photoUrl}
+                      alt=""
+                      className="h-24 w-24 shrink-0 rounded-2xl object-cover"
+                    />
+                  ) : (
+                    <div className="h-24 w-24 shrink-0 rounded-2xl bg-white/10 flex items-center justify-center text-4xl">
+                      🍽️
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
                     <p className="text-[11px] uppercase tracking-widest text-white/40 font-medium mb-1.5">{p.categoryName}</p>
-                    <p className="text-3xl font-semibold leading-tight line-clamp-2">{p.name}</p>
+                    <p className="text-2xl font-semibold leading-tight line-clamp-2">{p.name}</p>
                   </div>
                   {price && (
                     <div className="text-right shrink-0">
-                      <p className="text-3xl font-bold text-brand-400 whitespace-nowrap">{price.primary}</p>
+                      <p className="text-2xl font-bold text-brand-400 whitespace-nowrap">{price.primary}</p>
                       {price.secondary && <p className="text-sm text-white/40 whitespace-nowrap">{price.secondary}</p>}
                     </div>
                   )}
