@@ -11,6 +11,8 @@ import { sendMail } from '../../utils/mailer';
 import { CURRENCY_SYMBOLS } from '../../utils/money';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { demoResetService } from '../../utils/demo-reset.service';
+import { formatVenezuelanWhatsappPhone } from '../../utils/whatsapp';
+import { masterWhatsappBotService } from '../master-whatsapp/master-whatsapp-bot.service';
 import { ForgotPasswordInput, GoogleAuthInput, LoginInput, RegisterInput, ResetPasswordInput } from './auth.dto';
 
 const googleClient = new OAuth2Client();
@@ -225,6 +227,25 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
   };
 }
 
+/**
+ * Bienvenida por WhatsApp al registrarse (ver master-whatsapp-bot.service.ts): usa el mismo
+ * WhatsApp del negocio que el restaurante acaba de escribir en el registro (Restaurant.
+ * whatsappPhone) — no hay un campo separado de "WhatsApp del dueño". Fire-and-forget: nunca
+ * debe tumbar el registro si el bot de plataforma está desconectado o falla.
+ */
+function sendMasterWelcomeMessage(restaurant: { name: string; whatsappPhone: string | null }, ownerName: string): void {
+  if (!restaurant.whatsappPhone) return;
+  const phone = formatVenezuelanWhatsappPhone(restaurant.whatsappPhone).replace(/\D/g, '');
+  const message = [
+    `¡Hola ${ownerName}! 👋 Bienvenido/a a *QuickTap.club* 🎉`,
+    '',
+    `Tu cuenta para *${restaurant.name}* ya está lista, con 15 días de prueba gratis y el plan más completo activado.`,
+    '',
+    'Cualquier duda, escríbenos por este mismo chat. ¡Éxitos con tu negocio! 🚀',
+  ].join('\n');
+  masterWhatsappBotService.sendMessage(phone, message).catch(() => undefined);
+}
+
 export const authService = {
   /** Registro de un restaurante nuevo + su usuario dueño (OWNER). Arranca en TRIALING (15 días). */
   async register(input: RegisterInput) {
@@ -261,6 +282,7 @@ export const authService = {
     });
 
     const owner = restaurant.users[0];
+    sendMasterWelcomeMessage(restaurant, owner.name);
     const token = signToken({ userId: owner.id, restaurantId: restaurant.id, role: owner.role });
 
     return {
@@ -359,6 +381,7 @@ export const authService = {
       });
 
       const owner = restaurant.users[0];
+      sendMasterWelcomeMessage(restaurant, owner.name);
       return this.buildSession(owner, restaurant);
     }
 

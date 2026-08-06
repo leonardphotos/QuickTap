@@ -41,6 +41,7 @@ const MasterOlaClickImportPage = lazy(() => import('./pages/master/MasterOlaClic
 const MasterPromoCodesPage = lazy(() => import('./pages/master/MasterPromoCodesPage'));
 const MasterPaymentMethodsPage = lazy(() => import('./pages/master/MasterPaymentMethodsPage'));
 const MasterPlansPage = lazy(() => import('./pages/master/MasterPlansPage'));
+const MasterWhatsappPage = lazy(() => import('./pages/master/MasterWhatsappPage'));
 const MasterProofsPage = lazy(() => import('./pages/master/MasterProofsPage'));
 const MasterAdminsPage = lazy(() => import('./pages/master/MasterAdminsPage'));
 const MasterSummaryPage = lazy(() => import('./pages/master/MasterSummaryPage'));
@@ -120,6 +121,7 @@ export default function App() {
               <Route path="promo-codes" element={<MasterPromoCodesPage />} />
               <Route path="payment-methods" element={<MasterPaymentMethodsPage />} />
               <Route path="plans" element={<MasterPlansPage />} />
+              <Route path="whatsapp" element={<MasterWhatsappPage />} />
               <Route path="proofs" element={<MasterProofsPage />} />
               <Route path="summary" element={<MasterSummaryPage />} />
               <Route path="qrnfc-requests" element={<MasterQrNfcRequestsPage />} />

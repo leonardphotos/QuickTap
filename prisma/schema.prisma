@@ -382,6 +382,14 @@ model Restaurant {
   // No se toca en una renovación del MISMO plan (ver applyActivation()).
   pendingWelcomePlan SubscriptionPlan?
 
+  // Marca el `periodEnd` para el que ya se mandó el recordatorio de renovación por WhatsApp
+  // (ver master-whatsapp/subscription-reminder.service.ts) — evita reenviarlo en cada barrido
+  // mientras siga siendo el mismo vencimiento; se vuelve a disparar solo cuando `periodEnd`
+  // avanza (renovación) y vuelve a caer a 3 días o menos.
+  subscriptionReminderForPeriodEnd DateTime?
+
+  subscriptionPaymentVerifications SubscriptionPaymentVerification[]
+
   // --- Sucursales (Plan Sucursales / Delivery Sucursales, tope de 5) ---
   // Una sucursal es otra fila de Restaurant (reutiliza TODO el modelo tal
   // cual: catálogo, inventario, pedidos, equipo, mesas propias) enlazada a
@@ -1695,9 +1703,67 @@ model PlatformSettings {
   // (solo los planes que el master haya tocado); se fusiona con los valores
   // por defecto en platform-settings.service.ts al leer.
   planContent          Json?
+
+  // --- Chatbot de WhatsApp de la plataforma (ver src/modules/master-whatsapp/) ---
+  // Mismo mecanismo de vinculación por QR que el bot de cada restaurante
+  // (whatsapp-bot.service.ts), pero una única sesión para todo QuickTap: manda el
+  // saludo de bienvenida al registrarse un restaurante y los recordatorios de
+  // renovación de plan.
+  masterWhatsappEnabled         Boolean @default(false)
+  masterWhatsappConnectedNumber String?
+  // Número (solo dígitos) que recibe el comprobante de cada renovación y responde
+  // "Aprobado"/"Rechazado" — igual criterio que Restaurant.whatsappBotPaymentVerifierPhone.
+  // null = el recordatorio de pago se sigue mandando, pero no hay a quién reenviarle el
+  // comprobante (el equipo QuickTap debe revisarlo a mano en Comprobantes).
+  subscriptionVerifierPhone     String?
+
   updatedAt            DateTime @updatedAt
 
   @@map("platform_settings")
+}
+
+enum SubscriptionPaymentVerificationStatus {
+  AWAITING_PROOF // esperando que el dueño mande la foto del comprobante de renovación
+  PENDING_FORWARD // ya llegó la foto, pero hay otra verificación en curso — en cola
+  AWAITING_VERIFIER // foto reenviada al verificador, esperando "Aprobado"/"Rechazado"
+  APPROVED
+  REJECTED
+  TIMED_OUT
+}
+
+// Verificación de pago de RENOVACIÓN de plan por el chatbot maestro de WhatsApp (distinto de
+// OrderPaymentVerification, que es por pedido de un cliente). Mismas reglas centrales: solo
+// puede haber UNA fila en AWAITING_VERIFIER a la vez (acá para toda la plataforma, no por
+// restaurante, porque hay un solo número verificador) — así "Aprobado" nunca es ambiguo.
+model SubscriptionPaymentVerification {
+  id           String @id @default(cuid())
+  restaurantId String
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  // Teléfono del dueño normalizado a solo dígitos (Restaurant.whatsappPhone), para matchear
+  // la foto entrante igual que OrderPaymentVerification.customerPhone.
+  ownerPhone String
+
+  status SubscriptionPaymentVerificationStatus @default(AWAITING_PROOF)
+
+  plan         SubscriptionPlan
+  billingCycle BillingCycle
+  // Monto informado en el recordatorio (referencia — la renovación real usa nextPeriodEnd()
+  // sobre plan/billingCycle, nunca este monto, igual criterio que PlanRequest).
+  amountUsd    Decimal? @db.Decimal(10, 2)
+
+  proofImageUrl         String?
+  proofReceivedAt       DateTime?
+  forwardedToVerifierAt DateTime?
+  verifierRepliedAt     DateTime?
+  resolvedAt            DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([ownerPhone, status])
+  @@map("subscription_payment_verifications")
 }
 
 // Cuenta del equipo de QuickTap (no de un restaurante) con acceso al

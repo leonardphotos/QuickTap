@@ -1,0 +1,128 @@
+import { BillingCycle, SubscriptionPlan } from '@prisma/client';
+import { prisma } from '../../config/prisma';
+import { formatVenezuelanWhatsappPhone } from '../../utils/whatsapp';
+import { platformSettingsService, PurchasablePlan } from '../platform-settings/platform-settings.service';
+import { subscriptionPaymentVerificationService } from './subscription-payment-verification.service';
+import { masterWhatsappBotService } from './master-whatsapp-bot.service';
+
+const REMINDER_DAYS_BEFORE = 3;
+const PURCHASABLE_PLANS: readonly SubscriptionPlan[] = ['DELIVERY', 'PRO', 'ELITE'];
+
+/** Precio de referencia a mostrar en el recordatorio — null si no hay forma de calcularlo
+ * (plan legado/personalizado sin tarifa acordada), en cuyo caso el mensaje solo pide el
+ * comprobante sin un monto exacto (ver buildReminderMessage). */
+async function resolveMonthlyPrice(restaurant: {
+  subscriptionPlan: SubscriptionPlan | null;
+  billingCycle: BillingCycle | null;
+  customMonthlyPriceUsd: unknown;
+}): Promise<number | null> {
+  if (restaurant.customMonthlyPriceUsd != null && Number(restaurant.customMonthlyPriceUsd) > 0) {
+    return Number(restaurant.customMonthlyPriceUsd);
+  }
+  if (restaurant.subscriptionPlan && PURCHASABLE_PLANS.includes(restaurant.subscriptionPlan)) {
+    const price = await platformSettingsService.getPlanPrice(
+      restaurant.subscriptionPlan as PurchasablePlan,
+      restaurant.billingCycle ?? 'MONTHLY',
+    );
+    return Number.isFinite(price) && price > 0 ? price : null;
+  }
+  return null;
+}
+
+function buildReminderMessage(opts: {
+  restaurantName: string;
+  periodEndLabel: string;
+  amount: number | null;
+  pagoMovil: { banco?: string; telefono?: string; cedula?: string; titular?: string } | null;
+}): string {
+  const lines = [
+    `⏰ *Recordatorio de pago — QuickTap*`,
+    '',
+    `Hola 👋 El plan de *${opts.restaurantName}* vence el ${opts.periodEndLabel}.`,
+  ];
+  lines.push(opts.amount != null ? `💰 Monto a cancelar: $${opts.amount.toFixed(2)}` : '💰 Escríbenos si tienes dudas sobre el monto a cancelar.');
+
+  if (opts.pagoMovil?.banco || opts.pagoMovil?.telefono) {
+    lines.push('', '📱 *Pago Móvil:*');
+    if (opts.pagoMovil.banco) lines.push(`Banco: ${opts.pagoMovil.banco}`);
+    if (opts.pagoMovil.telefono) lines.push(`Teléfono: ${opts.pagoMovil.telefono}`);
+    if (opts.pagoMovil.cedula) lines.push(`Cédula/RIF: ${opts.pagoMovil.cedula}`);
+    if (opts.pagoMovil.titular) lines.push(`Titular: ${opts.pagoMovil.titular}`);
+  }
+
+  lines.push('', '📸 Responde este mensaje con la foto de tu comprobante de pago para renovar tu plan automáticamente.');
+  return lines.join('\n');
+}
+
+/**
+ * Barrido periódico (ver server.ts): manda el recordatorio de renovación a cada restaurante
+ * cuyo `periodEnd` cae en 3 días o menos, y abre una SubscriptionPaymentVerification en
+ * AWAITING_PROOF para poder matchear la foto que mande de vuelta. `subscriptionReminderForPeriodEnd`
+ * evita reenviarlo en cada tick mientras siga siendo el mismo vencimiento.
+ */
+async function checkExpiring(): Promise<{ sent: number }> {
+  const now = new Date();
+  const cutoff = new Date(now.getTime() + REMINDER_DAYS_BEFORE * 24 * 60 * 60 * 1000);
+
+  const candidates = await prisma.restaurant.findMany({
+    where: {
+      isDemo: false,
+      parentRestaurantId: null, // las sucursales no tienen suscripción propia (ver applyActivation)
+      whatsappPhone: { not: null },
+      periodEnd: { gt: now, lte: cutoff },
+    },
+    select: {
+      id: true,
+      name: true,
+      whatsappPhone: true,
+      periodEnd: true,
+      subscriptionPlan: true,
+      billingCycle: true,
+      customMonthlyPriceUsd: true,
+      subscriptionReminderForPeriodEnd: true,
+    },
+  });
+
+  // Prisma no permite comparar dos columnas de la misma fila dentro de un where — se trae todo
+  // el rango de fecha y se filtra el dedup (¿ya se mandó para ESTE periodEnd?) acá en memoria.
+  const pending = candidates.filter(
+    (r) => !r.subscriptionReminderForPeriodEnd || r.subscriptionReminderForPeriodEnd.getTime() !== r.periodEnd.getTime(),
+  );
+  if (pending.length === 0) return { sent: 0 };
+
+  const paymentMethods = await platformSettingsService.getPaymentMethods();
+  const pagoMovil = (paymentMethods as { pagoMovil?: { banco?: string; telefono?: string; cedula?: string; titular?: string } })
+    .pagoMovil;
+
+  let sent = 0;
+  for (const restaurant of pending) {
+    if (!restaurant.subscriptionPlan || !restaurant.whatsappPhone) continue;
+
+    const amount = await resolveMonthlyPrice(restaurant);
+    const periodEndLabel = restaurant.periodEnd.toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' });
+    const message = buildReminderMessage({ restaurantName: restaurant.name, periodEndLabel, amount, pagoMovil: pagoMovil ?? null });
+
+    const ownerPhone = formatVenezuelanWhatsappPhone(restaurant.whatsappPhone).replace(/\D/g, '');
+    const wasSent = await masterWhatsappBotService.sendMessage(ownerPhone, message);
+
+    // Se marca como "recordado" y se abre la verificación aunque el envío falle (bot
+    // desconectado): reintentar cada tick a un restaurante sin bot activo no logra nada, y
+    // dejar la fila lista evita que un comprobante que igual llegue por otra vía se pierda.
+    await subscriptionPaymentVerificationService.create(
+      restaurant.id,
+      ownerPhone,
+      restaurant.subscriptionPlan,
+      restaurant.billingCycle ?? 'MONTHLY',
+      amount ?? undefined,
+    );
+    await prisma.restaurant.update({
+      where: { id: restaurant.id },
+      data: { subscriptionReminderForPeriodEnd: restaurant.periodEnd },
+    });
+    if (wasSent) sent += 1;
+  }
+
+  return { sent };
+}
+
+export const subscriptionReminderService = { checkExpiring };

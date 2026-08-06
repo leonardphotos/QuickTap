@@ -31,6 +31,7 @@ import {
 import masterRestaurantsRoutes from '../modules/master/master-restaurants.routes';
 import masterAdminsRoutes from '../modules/master/master-admins.routes';
 import masterOlaclickImportRoutes from '../modules/master/master-olaclick-import.routes';
+import masterWhatsappRoutes from '../modules/master-whatsapp/master-whatsapp.routes';
 import inventoryRoutes from '../modules/inventory/inventory.routes';
 import movementRoutes from '../modules/movements/movement.routes';
 import cashSessionRoutes from '../modules/cash-sessions/cash-session.routes';
@@ -126,5 +127,6 @@ router.use('/master/restaurants', masterFiscalInvoicingRoutes);
 router.use('/master/admins', masterAdminsRoutes);
 // Migración interna OlaClick → QuickTap (ver src/modules/master/master-olaclick-import.*).
 router.use('/master/olaclick-import', masterOlaclickImportRoutes);
+router.use('/master/whatsapp', masterWhatsappRoutes);
 
 export default router;

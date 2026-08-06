@@ -1,0 +1,322 @@
+import fs from 'fs';
+import path from 'path';
+import { Boom } from '@hapi/boom';
+import pino from 'pino';
+import QRCode from 'qrcode';
+import makeWASocket, {
+  DisconnectReason,
+  downloadMediaMessage,
+  extractMessageContent,
+  fetchLatestBaileysVersion,
+  useMultiFileAuthState,
+  WAMessage,
+  WASocket,
+} from '@whiskeysockets/baileys';
+import { prisma } from '../../config/prisma';
+import { UPLOADS_DIR } from '../../middlewares/upload.middleware';
+import { subscriptionPaymentVerificationService } from './subscription-payment-verification.service';
+
+/**
+ * ============================================================================
+ *  Chatbot de WhatsApp de la PLATAFORMA (equipo QuickTap) — no confundir con
+ *  whatsapp-bot.service.ts, que es un bot por restaurante.
+ * ============================================================================
+ *  Mismo mecanismo (WhatsApp Web / multi-dispositivo vía Baileys, QR desde
+ *  Ajustes -> WhatsApp del Dashboard maestro), pero UNA sola sesión para toda
+ *  la plataforma en vez de una por restaurante — por eso no está keyada por
+ *  restaurantId, sino que vive en un único `SessionState` module-level.
+ *
+ *  Qué manda este bot (ver auth.service.ts y subscription-reminder.service.ts):
+ *  - Bienvenida al registrarse un restaurante nuevo.
+ *  - Recordatorio de renovación 3 días antes de periodEnd, con el monto y los
+ *    datos de pago móvil, más el "responde con la foto del comprobante".
+ *  - Reenvía la foto del comprobante al número verificador y, si responde
+ *    "Aprobado", renueva el plan solo (ver subscription-payment-verification.service.ts).
+ */
+
+export type MasterWhatsappStatus = 'idle' | 'connecting' | 'qr' | 'connected' | 'disconnected';
+
+interface SessionState {
+  status: MasterWhatsappStatus;
+  qrDataUrl?: string;
+  connectedNumber?: string;
+  sock?: WASocket;
+  reconnectAttempts: number;
+}
+
+const SESSION_ID = 'platform';
+const SINGLETON_ID = 'singleton';
+
+let state: SessionState = { status: 'idle', reconnectAttempts: 0 };
+
+function sessionDir(): string {
+  return path.join(UPLOADS_DIR, 'whatsapp-sessions', SESSION_ID);
+}
+
+function toJid(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  return `${digits}@s.whatsapp.net`;
+}
+
+export const masterWhatsappBotService = {
+  getStatus() {
+    return { status: state.status, qrDataUrl: state.qrDataUrl ?? null, connectedNumber: state.connectedNumber ?? null };
+  },
+
+  /** Arranca (o reutiliza) la sesión única de la plataforma. Igual patrón que
+   * whatsapp-bot.service.ts -> connect(), sin el parámetro restaurantId. */
+  async connect(): Promise<void> {
+    if (state.status === 'connected' || state.status === 'connecting' || state.status === 'qr') return;
+
+    const dir = sessionDir();
+    fs.mkdirSync(dir, { recursive: true });
+
+    state.status = 'connecting';
+    state.qrDataUrl = undefined;
+
+    const { state: authState, saveCreds } = await useMultiFileAuthState(dir);
+    const { version } = await fetchLatestBaileysVersion();
+
+    const sock = makeWASocket({
+      version,
+      auth: authState,
+      logger: pino({ level: 'silent' }),
+      browser: ['QuickTap', 'Chrome', '1.0'],
+    });
+    state.sock = sock;
+
+    sock.ev.on('creds.update', saveCreds);
+
+    sock.ev.on('messages.upsert', ({ messages, type }) => {
+      if (type !== 'notify') return;
+      for (const msg of messages) {
+        this.handleIncomingMessage(msg).catch(() => undefined);
+      }
+    });
+
+    sock.ev.on('connection.update', async (update) => {
+      const { connection, lastDisconnect, qr } = update;
+
+      if (qr) {
+        state.status = 'qr';
+        state.qrDataUrl = await QRCode.toDataURL(qr);
+      }
+
+      if (connection === 'open') {
+        state.status = 'connected';
+        state.qrDataUrl = undefined;
+        state.reconnectAttempts = 0;
+        const rawNumber = sock.user?.phoneNumber ?? sock.user?.id?.split(/[:@]/)[0] ?? null;
+        state.connectedNumber = rawNumber ? `+${rawNumber.replace(/\D/g, '')}` : undefined;
+        await prisma.platformSettings
+          .upsert({
+            where: { id: SINGLETON_ID },
+            create: { id: SINGLETON_ID, masterWhatsappEnabled: true, masterWhatsappConnectedNumber: state.connectedNumber ?? null },
+            update: { masterWhatsappConnectedNumber: state.connectedNumber ?? null },
+          })
+          .catch(() => undefined);
+      }
+
+      if (connection === 'close') {
+        const statusCode = (lastDisconnect?.error as Boom | undefined)?.output?.statusCode;
+        const loggedOut = statusCode === DisconnectReason.loggedOut;
+
+        if (loggedOut) {
+          await this.forgetSession();
+          return;
+        }
+
+        const attempts = (state.reconnectAttempts ?? 0) + 1;
+        if (attempts <= 5) {
+          state.reconnectAttempts = attempts;
+          state.status = 'disconnected';
+          setTimeout(() => this.connect().catch(() => undefined), Math.min(attempts * 3000, 15000));
+        } else {
+          state.status = 'disconnected';
+        }
+      }
+    });
+  },
+
+  /** Mensaje entrante: solo interesan dos casos (verificador respondiendo, o una foto de
+   * comprobante) — a diferencia del bot por restaurante, este NO manda saludo de bienvenida a
+   * cualquiera que escriba (sería raro que un desconocido le escriba al WhatsApp de QuickTap y
+   * reciba una respuesta automática de "bienvenido a tu restaurante"). */
+  async handleIncomingMessage(msg: WAMessage): Promise<void> {
+    if (!msg.message || msg.key.fromMe) return;
+    const jid = msg.key.remoteJid;
+    if (!jid || jid.endsWith('@g.us') || jid === 'status@broadcast') return;
+    const phoneJid = msg.key.remoteJidAlt || jid;
+    const phoneDigits = phoneJid.replace(/@.*/, '');
+
+    const settings = await prisma.platformSettings.findUnique({
+      where: { id: SINGLETON_ID },
+      select: { subscriptionVerifierPhone: true },
+    });
+
+    const content = extractMessageContent(msg.message) ?? msg.message;
+
+    if (settings?.subscriptionVerifierPhone && settings.subscriptionVerifierPhone.replace(/\D/g, '') === phoneDigits) {
+      const text = content.conversation ?? content.extendedTextMessage?.text;
+      if (text) await this.routeVerifierReply(text);
+      return;
+    }
+
+    if (content.imageMessage) {
+      await this.routeIncomingProofImage(phoneDigits, msg);
+      return;
+    }
+    // Cualquier otro mensaje (texto normal de alguien que no está en un flujo abierto) se
+    // ignora en silencio — este bot no tiene un saludo genérico.
+  },
+
+  async routeIncomingProofImage(phoneDigits: string, msg: WAMessage): Promise<void> {
+    const match = await subscriptionPaymentVerificationService.matchAwaitingProof(phoneDigits);
+    if (!match) return;
+    if (state.status !== 'connected' || !state.sock) return;
+
+    let buffer: Buffer;
+    try {
+      buffer = (await downloadMediaMessage(msg, 'buffer', {})) as Buffer;
+    } catch (err) {
+      console.error('[master-whatsapp] no se pudo descargar el comprobante de renovación:', err);
+      return;
+    }
+
+    const dir = path.join(UPLOADS_DIR, 'subscription-payment-proofs');
+    fs.mkdirSync(dir, { recursive: true });
+    const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}.jpg`;
+    fs.writeFileSync(path.join(dir, filename), buffer);
+    const proofImageUrl = `/uploads/subscription-payment-proofs/${filename}`;
+
+    const { shouldForwardNow } = await subscriptionPaymentVerificationService.recordProofImage(match.id, proofImageUrl);
+
+    if (shouldForwardNow) {
+      const settings = await prisma.platformSettings.findUnique({
+        where: { id: SINGLETON_ID },
+        select: { subscriptionVerifierPhone: true },
+      });
+      const restaurant = await prisma.restaurant.findUnique({ where: { id: match.restaurantId }, select: { name: true } });
+      if (settings?.subscriptionVerifierPhone && restaurant) {
+        await this.sendImage(settings.subscriptionVerifierPhone, buffer, buildVerifierCaption(restaurant.name, match));
+      }
+    }
+
+    await this.sendMessage(phoneDigits, '📥 Recibimos tu comprobante, estamos confirmando tu pago para renovar tu plan.');
+  },
+
+  async routeVerifierReply(text: string): Promise<void> {
+    const result = await subscriptionPaymentVerificationService.resolveVerifierReply(text);
+    if (result.action === 'ignore' || !result.verification) return;
+
+    if (result.action === 'approve') {
+      const { ownerPhone, restaurant } = await subscriptionPaymentVerificationService.approve(result.verification.id);
+      const periodEndLabel = restaurant.periodEnd.toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' });
+      await this.sendMessage(
+        ownerPhone,
+        `✅ *Pago confirmado*\n\nTu plan en QuickTap fue renovado hasta el ${periodEndLabel}. ¡Gracias por seguir con nosotros! 🙌`,
+      );
+    } else {
+      const { ownerPhone } = await subscriptionPaymentVerificationService.reject(result.verification.id);
+      await this.sendMessage(ownerPhone, '⚠️ No pudimos confirmar tu pago. Por favor reenvía la foto de tu comprobante.');
+    }
+    await this.advanceQueue();
+  },
+
+  /** Tras resolver una verificación, reenvía al verificador la siguiente que estaba en cola. */
+  async advanceQueue(): Promise<void> {
+    const next = await subscriptionPaymentVerificationService.dequeueNext();
+    if (!next) return;
+    const settings = await prisma.platformSettings.findUnique({
+      where: { id: SINGLETON_ID },
+      select: { subscriptionVerifierPhone: true },
+    });
+    if (!settings?.subscriptionVerifierPhone || !next.proofImageUrl) return;
+    const restaurant = await prisma.restaurant.findUnique({ where: { id: next.restaurantId }, select: { name: true } });
+    if (!restaurant) return;
+    const imagePath = path.join(process.cwd(), next.proofImageUrl.replace(/^\//, ''));
+    const buffer = await fs.promises.readFile(imagePath).catch(() => null);
+    if (!buffer) return;
+    await this.sendImage(settings.subscriptionVerifierPhone, buffer, buildVerifierCaption(restaurant.name, next));
+  },
+
+  async disconnect(): Promise<void> {
+    if (state.sock) await state.sock.logout().catch(() => undefined);
+    await this.forgetSession();
+  },
+
+  async forgetSession(): Promise<void> {
+    state = { status: 'disconnected', reconnectAttempts: 0 };
+    await fs.promises.rm(sessionDir(), { recursive: true, force: true }).catch(() => undefined);
+    await prisma.platformSettings
+      .upsert({
+        where: { id: SINGLETON_ID },
+        create: { id: SINGLETON_ID, masterWhatsappEnabled: false, masterWhatsappConnectedNumber: null },
+        update: { masterWhatsappEnabled: false, masterWhatsappConnectedNumber: null },
+      })
+      .catch(() => undefined);
+  },
+
+  async setEnabled(enabled: boolean): Promise<void> {
+    await prisma.platformSettings.upsert({
+      where: { id: SINGLETON_ID },
+      create: { id: SINGLETON_ID, masterWhatsappEnabled: enabled },
+      update: { masterWhatsappEnabled: enabled },
+    });
+  },
+
+  async updateVerifierPhone(phone: string | null): Promise<void> {
+    await prisma.platformSettings.upsert({
+      where: { id: SINGLETON_ID },
+      create: { id: SINGLETON_ID, subscriptionVerifierPhone: phone },
+      update: { subscriptionVerifierPhone: phone },
+    });
+  },
+
+  /** Manda un mensaje de texto libre. Silencioso si el bot no está conectado — nunca debe
+   * tumbar el registro de un restaurante ni el barrido de recordatorios. */
+  async sendMessage(phone: string | null | undefined, message: string): Promise<boolean> {
+    if (!phone) return false;
+    if (state.status !== 'connected' || !state.sock) return false;
+    try {
+      await state.sock.sendMessage(toJid(phone), { text: message });
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  async sendImage(phone: string | null | undefined, image: Buffer, caption?: string): Promise<boolean> {
+    if (!phone) return false;
+    if (state.status !== 'connected' || !state.sock) return false;
+    try {
+      await state.sock.sendMessage(toJid(phone), { image, caption });
+      return true;
+    } catch {
+      return false;
+    }
+  },
+
+  /** Al arrancar el servidor: reconecta la sesión de plataforma si ya estaba vinculada
+   * (mismo criterio que whatsapp-bot.service.ts -> reconnectEnabledSessions). */
+  async reconnectIfEnabled(): Promise<void> {
+    const settings = await prisma.platformSettings.findUnique({
+      where: { id: SINGLETON_ID },
+      select: { masterWhatsappEnabled: true },
+    });
+    if (settings?.masterWhatsappEnabled && fs.existsSync(sessionDir())) {
+      this.connect().catch(() => undefined);
+    }
+  },
+};
+
+function buildVerifierCaption(restaurantName: string, verification: { plan: string; billingCycle: string; amountUsd: unknown }): string {
+  const amount = verification.amountUsd != null ? `$${Number(verification.amountUsd).toFixed(2)}` : 'monto acordado';
+  return [
+    `📄 Comprobante de renovación — ${restaurantName}`,
+    `📦 Plan: ${verification.plan} (${verification.billingCycle})`,
+    `💰 Monto: ${amount}`,
+    '',
+    'Responde *Aprobado* o *Rechazado*.',
+  ].join('\n');
+}

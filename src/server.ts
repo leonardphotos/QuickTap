@@ -10,6 +10,9 @@ import { masterServerStatusService } from './modules/master/master-server-status
 import { fiscalInvoicingService } from './modules/fiscal-invoicing/fiscal-invoicing.service';
 import { whatsappBotService } from './modules/whatsapp-bot/whatsapp-bot.service';
 import { orderPaymentVerificationService } from './modules/orders/order-payment-verification.service';
+import { masterWhatsappBotService } from './modules/master-whatsapp/master-whatsapp-bot.service';
+import { subscriptionReminderService } from './modules/master-whatsapp/subscription-reminder.service';
+import { subscriptionPaymentVerificationService } from './modules/master-whatsapp/subscription-payment-verification.service';
 import { emitToKitchen, SocketEvents } from './sockets';
 
 async function bootstrap() {
@@ -22,6 +25,10 @@ async function bootstrap() {
   // Chatbot de WhatsApp: reconecta las sesiones ya vinculadas (el reinicio nocturno de PM2,
   // ver ecosystem.config.js, no debe forzar a cada restaurante a escanear el QR de nuevo).
   whatsappBotService.reconnectEnabledSessions().catch(() => undefined);
+
+  // Chatbot de WhatsApp de la plataforma (bienvenida + recordatorios de renovación, ver
+  // src/modules/master-whatsapp/): misma lógica de reconexión que el bot por restaurante.
+  masterWhatsappBotService.reconnectIfEnabled().catch(() => undefined);
 
   // Tasa BCV: refresco inicial (best-effort, no bloquea el arranque si falla)
   // + refresco periódico según EXCHANGE_RATE_TTL_HOURS.
@@ -89,6 +96,28 @@ async function bootstrap() {
     }
   }, 2 * 60 * 1000);
 
+  // Chatbot de WhatsApp de la plataforma: recordatorio de renovación 3 días antes de
+  // periodEnd (ver subscription-reminder.service.ts). Corre cada 6h + una pasada al arrancar
+  // (mismo criterio que la tasa BCV) — el dedup por `subscriptionReminderForPeriodEnd` evita
+  // reenviarlo en cada tick mientras el restaurante siga sin renovar.
+  subscriptionReminderService.checkExpiring().catch(() => undefined);
+  const subscriptionReminderInterval = setInterval(
+    () => subscriptionReminderService.checkExpiring().catch(() => undefined),
+    6 * 60 * 60 * 1000,
+  );
+
+  // Mismo barrido de vencidos que orderPaymentVerificationService, pero para comprobantes de
+  // RENOVACIÓN de plan (ver subscription-payment-verification.service.ts).
+  const SUBSCRIPTION_VERIFICATION_TIMEOUT_MS = 20 * 60 * 1000;
+  const subscriptionVerificationSweepInterval = setInterval(async () => {
+    try {
+      const timedOut = await subscriptionPaymentVerificationService.sweepTimeouts(SUBSCRIPTION_VERIFICATION_TIMEOUT_MS);
+      if (timedOut.length > 0) await masterWhatsappBotService.advanceQueue().catch(() => undefined);
+    } catch {
+      // Se reintenta en el próximo barrido.
+    }
+  }, 2 * 60 * 1000);
+
   // Solo localhost: Nginx (misma máquina) es el único que debe llegar a este
   // puerto — así queda fuera de alcance directo de internet aunque el
   // firewall se desconfigure alguna vez.
@@ -108,6 +137,8 @@ async function bootstrap() {
     clearInterval(fiscalInvoicingPollInterval);
     clearInterval(fiscalInvoicingRetryInterval);
     clearInterval(paymentVerificationSweepInterval);
+    clearInterval(subscriptionReminderInterval);
+    clearInterval(subscriptionVerificationSweepInterval);
     masterServerStatusService.stopSampling();
     server.close();
     await prisma.$disconnect();

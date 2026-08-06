@@ -518,4 +518,19 @@ export const planRequestService = {
   async activateRestaurant(restaurantId: string, input: ActivateRestaurantInput) {
     return applyActivation(restaurantId, input.plan as SubscriptionPlan, input.billingCycle);
   },
+
+  /**
+   * Renovación automática por el chatbot maestro de WhatsApp (ver subscription-payment-
+   * verification.service.ts): re-usa el plan/ciclo VIGENTE del restaurante — a diferencia de
+   * approve()/activateRestaurant(), que reciben el plan elegido por el equipo QuickTap o el
+   * cliente, acá nadie eligió nada, es solo "seguir pagando lo mismo que ya tenía".
+   */
+  async renewCurrentPlan(restaurantId: string) {
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { subscriptionPlan: true, billingCycle: true },
+    });
+    if (!restaurant?.subscriptionPlan) throw badRequest('Este restaurante todavía no tiene un plan activo para renovar.');
+    return applyActivation(restaurantId, restaurant.subscriptionPlan, restaurant.billingCycle ?? 'MONTHLY');
+  },
 };
