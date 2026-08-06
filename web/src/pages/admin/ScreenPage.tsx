@@ -102,7 +102,7 @@ export default function ScreenPage() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -40 }}
               transition={{ duration: 0.5, ease: 'easeInOut' }}
-              className="grid grid-cols-2 grid-rows-2 gap-8 w-full max-w-5xl"
+              className="grid grid-cols-2 grid-rows-2 gap-8 w-full max-w-7xl"
             >
               {currentItems.map((p) => {
                 const price = menu ? publicPriceLabel(p.price, menu.restaurant) : null;
@@ -112,13 +112,13 @@ export default function ScreenPage() {
                     className="flex items-center justify-between gap-6 rounded-3xl bg-white/[0.06] border border-white/10 px-10 py-8"
                   >
                     <div className="min-w-0">
-                      <p className="text-[11px] uppercase tracking-widest text-white/40 font-medium mb-1">{p.categoryName}</p>
-                      <p className="text-3xl font-semibold truncate">{p.name}</p>
+                      <p className="text-[11px] uppercase tracking-widest text-white/40 font-medium mb-1.5">{p.categoryName}</p>
+                      <p className="text-3xl font-semibold leading-tight line-clamp-2">{p.name}</p>
                     </div>
                     {price && (
                       <div className="text-right shrink-0">
-                        <p className="text-3xl font-bold text-brand-400">{price.primary}</p>
-                        {price.secondary && <p className="text-sm text-white/40">{price.secondary}</p>}
+                        <p className="text-3xl font-bold text-brand-400 whitespace-nowrap">{price.primary}</p>
+                        {price.secondary && <p className="text-sm text-white/40 whitespace-nowrap">{price.secondary}</p>}
                       </div>
                     )}
                   </div>
