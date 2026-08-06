@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
 import { LogOut, RefreshCw } from 'lucide-react';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
@@ -95,37 +94,32 @@ export default function ScreenPage() {
         {items.length === 0 ? (
           <p className="text-white/40 font-light text-2xl">El menú todavía no tiene productos disponibles.</p>
         ) : (
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={page}
-              initial={{ opacity: 0, x: 40 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -40 }}
-              transition={{ duration: 0.5, ease: 'easeInOut' }}
-              className="grid grid-cols-2 grid-rows-2 gap-8 w-full max-w-7xl"
-            >
-              {currentItems.map((p) => {
-                const price = menu ? publicPriceLabel(p.price, menu.restaurant) : null;
-                return (
-                  <div
-                    key={p.id}
-                    className="flex items-center justify-between gap-6 rounded-3xl bg-white/[0.06] border border-white/10 px-10 py-8"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-[11px] uppercase tracking-widest text-white/40 font-medium mb-1.5">{p.categoryName}</p>
-                      <p className="text-3xl font-semibold leading-tight line-clamp-2">{p.name}</p>
-                    </div>
-                    {price && (
-                      <div className="text-right shrink-0">
-                        <p className="text-3xl font-bold text-brand-400 whitespace-nowrap">{price.primary}</p>
-                        {price.secondary && <p className="text-sm text-white/40 whitespace-nowrap">{price.secondary}</p>}
-                      </div>
-                    )}
+          // Animación por CSS puro (keyframe `menu-slide-in` en index.css), no una librería JS:
+          // el `key={page}` fuerza un nodo DOM nuevo en cada rotación, así que el navegador
+          // dispara la animación de mount solo con eso, sin depender de que ningún estado de
+          // React "arranque" la transición — el contenido queda visible pase lo que pase.
+          <div key={page} className="grid grid-cols-2 grid-rows-2 gap-8 w-full max-w-7xl animate-menu-slide-in">
+            {currentItems.map((p) => {
+              const price = menu ? publicPriceLabel(p.price, menu.restaurant) : null;
+              return (
+                <div
+                  key={p.id}
+                  className="flex items-center justify-between gap-6 rounded-3xl bg-white/[0.06] border border-white/10 px-10 py-8"
+                >
+                  <div className="min-w-0">
+                    <p className="text-[11px] uppercase tracking-widest text-white/40 font-medium mb-1.5">{p.categoryName}</p>
+                    <p className="text-3xl font-semibold leading-tight line-clamp-2">{p.name}</p>
                   </div>
-                );
-              })}
-            </motion.div>
-          </AnimatePresence>
+                  {price && (
+                    <div className="text-right shrink-0">
+                      <p className="text-3xl font-bold text-brand-400 whitespace-nowrap">{price.primary}</p>
+                      {price.secondary && <p className="text-sm text-white/40 whitespace-nowrap">{price.secondary}</p>}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
 
