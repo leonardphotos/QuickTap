@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireFeature, requireRole, tenantGuard } from '../../middlewares/auth.middleware';
 import { ADMIN_CASHIER_ROLES } from '../../utils/roles';
-import { optimizeImage, uploadProductPhoto } from '../../middlewares/upload.middleware';
+import { optimizeImage, uploadProductPhoto, uploadSpreadsheet } from '../../middlewares/upload.middleware';
 import { productController } from './product.controller';
 import { productVariantController } from './product-variant.controller';
 
@@ -24,6 +24,12 @@ router.get('/', productController.list);
 router.post('/', mutate, productController.create);
 router.post('/upload-photo', mutate, uploadProductPhoto, optimizeImage(900, 900), productController.uploadPhoto);
 router.get('/margin', mutate, requireFeature('administration'), productController.margin);
+
+// Carga masiva de productos por Excel: plantilla descargable + subida que crea/actualiza por
+// nombre. Van ANTES de `/:id` para que "import-template" no se lea como un id de producto.
+router.get('/import-template', mutate, productController.downloadImportTemplate);
+router.post('/import', mutate, uploadSpreadsheet, productController.importExcel);
+
 router.get('/:id', productController.getOne);
 router.patch('/:id', mutate, productController.update);
 router.delete('/:id', mutate, productController.remove);

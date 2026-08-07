@@ -3,6 +3,7 @@ import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest } from '../../utils/http-error';
 import { createProductSchema, updateProductSchema } from './product.dto';
 import { productService } from './product.service';
+import { productImportService } from './product-import.service';
 
 /** Controladores CRUD de productos (panel del restaurante). */
 export const productController = {
@@ -40,6 +41,20 @@ export const productController = {
 
   remove: asyncHandler(async (req: Request, res: Response) => {
     const result = await productService.remove(req.restaurantId!, req.params.id);
+    res.json({ data: result });
+  }),
+
+  downloadImportTemplate: asyncHandler(async (_req: Request, res: Response) => {
+    const workbook = productImportService.buildTemplate();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="plantilla-productos.xlsx"');
+    await workbook.xlsx.write(res);
+    res.end();
+  }),
+
+  importExcel: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw badRequest('No se recibió ningún archivo.');
+    const result = await productImportService.importFromExcel(req.restaurantId!, req.auth?.parentRestaurantId, req.file.buffer);
     res.json({ data: result });
   }),
 };

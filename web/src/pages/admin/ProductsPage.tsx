@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ListPlus, Pencil, Plus, Search, Tag, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ChangeEvent } from 'react';
+import { FileSpreadsheet, ListPlus, Pencil, Plus, Search, Tag, Upload, X } from 'lucide-react';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import type { Category, Kitchen, Product } from '../../types';
@@ -30,6 +31,13 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ created: number; updated: number; errors: { row: number; message: string }[] } | null>(
+    null,
+  );
+  const [importError, setImportError] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   function load() {
     api.get('/products').then((res) => setProducts(res.data.data));
@@ -53,6 +61,42 @@ export default function ProductsPage() {
   function openCreate() {
     setEditingProduct(null);
     setProductDialogOpen(true);
+  }
+
+  async function downloadImportTemplate() {
+    setDownloadingTemplate(true);
+    try {
+      const res = await api.get('/products/import-template', { responseType: 'blob' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(res.data);
+      link.download = 'plantilla-productos.xlsx';
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch {
+      setImportError('No se pudo generar la plantilla. Intenta de nuevo.');
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  }
+
+  async function handleImportFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setImporting(true);
+    setImportResult(null);
+    setImportError(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await api.post('/products/import', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setImportResult(res.data.data);
+      load();
+    } catch (err: any) {
+      setImportError(err.response?.data?.error ?? 'No se pudo importar el archivo.');
+    } finally {
+      setImporting(false);
+    }
   }
 
   // El filtro corre en memoria porque GET /products ya trae el catálogo completo
@@ -107,7 +151,49 @@ export default function ProductsPage() {
         >
           <ListPlus className="h-4 w-4" /> Modificadores
         </TextureButton>
+        <TextureButton
+          variant="minimal"
+          size="default"
+          className="!w-auto flex items-center gap-1.5 whitespace-nowrap"
+          disabled={downloadingTemplate}
+          onClick={downloadImportTemplate}
+        >
+          <FileSpreadsheet className="h-4 w-4" /> {downloadingTemplate ? 'Generando…' : 'Descargar plantilla'}
+        </TextureButton>
+        <TextureButton
+          variant="minimal"
+          size="default"
+          className="!w-auto flex items-center gap-1.5 whitespace-nowrap"
+          disabled={importing}
+          onClick={() => importInputRef.current?.click()}
+        >
+          <Upload className="h-4 w-4" /> {importing ? 'Importando…' : 'Importar Excel'}
+        </TextureButton>
+        <input ref={importInputRef} type="file" accept=".xlsx" className="hidden" onChange={handleImportFileChange} />
       </div>
+
+      {importError && <p className="text-sm text-red-600">{importError}</p>}
+
+      {importResult && (
+        <div className="rounded-xl border border-brand-950/10 bg-white p-4 text-sm">
+          <p className="font-medium text-brand-950">
+            {importResult.created} creados · {importResult.updated} actualizados
+            {importResult.errors.length > 0 && <span className="text-red-600"> · {importResult.errors.length} con error</span>}
+          </p>
+          <p className="mt-1 text-xs font-light text-brand-950/50">
+            Solo se cargó lo que traía el archivo; el resto (foto, cocina, modificadores…) lo completas desde cada producto.
+          </p>
+          {importResult.errors.length > 0 && (
+            <ul className="mt-2 space-y-0.5 text-xs text-red-600">
+              {importResult.errors.map((e, i) => (
+                <li key={i}>
+                  Fila {e.row}: {e.message}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <div className="relative">
         <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-950/35" />
