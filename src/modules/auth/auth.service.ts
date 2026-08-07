@@ -13,6 +13,7 @@ import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { demoResetService } from '../../utils/demo-reset.service';
 import { formatVenezuelanWhatsappPhone } from '../../utils/whatsapp';
 import { masterWhatsappBotService } from '../master-whatsapp/master-whatsapp-bot.service';
+import { platformSettingsService, renderTemplate } from '../platform-settings/platform-settings.service';
 import { ForgotPasswordInput, GoogleAuthInput, LoginInput, RegisterInput, ResetPasswordInput } from './auth.dto';
 
 const googleClient = new OAuth2Client();
@@ -251,14 +252,13 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
 function sendMasterWelcomeMessage(restaurant: { name: string; whatsappPhone: string | null }, ownerName: string): void {
   if (!restaurant.whatsappPhone) return;
   const phone = formatVenezuelanWhatsappPhone(restaurant.whatsappPhone).replace(/\D/g, '');
-  const message = [
-    `¡Hola ${ownerName}! 👋 Bienvenido/a a *QuickTap.club* 🎉`,
-    '',
-    `Tu cuenta para *${restaurant.name}* ya está lista, con 15 días de prueba gratis y el plan más completo activado.`,
-    '',
-    'Cualquier duda, escríbenos por este mismo chat. ¡Éxitos con tu negocio! 🚀',
-  ].join('\n');
-  masterWhatsappBotService.sendMessage(phone, message).catch(() => undefined);
+  platformSettingsService
+    .getMessageTemplates()
+    .then((templates) => {
+      const message = renderTemplate(templates.welcomeMessage, { ownerName, restaurantName: restaurant.name });
+      return masterWhatsappBotService.sendMessage(phone, message);
+    })
+    .catch(() => undefined);
 }
 
 export const authService = {

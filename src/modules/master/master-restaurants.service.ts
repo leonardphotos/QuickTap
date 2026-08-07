@@ -3,9 +3,13 @@ import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { allowsBranches, daysRemaining, isLocked } from '../../utils/subscription';
 import { FULL_ACCESS_ROLES } from '../../utils/roles';
+import { formatVenezuelanWhatsappPhone } from '../../utils/whatsapp';
 import { branchService } from '../branches/branch.service';
 import { planRequestService } from '../plan-requests/plan-request.service';
 import { signToken } from '../auth/auth.service';
+import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
+import { platformSettingsService } from '../platform-settings/platform-settings.service';
+import { masterWhatsappBotService } from '../master-whatsapp/master-whatsapp-bot.service';
 import {
   CreateAdditionalChargeInput,
   CreateBranchForRestaurantInput,
@@ -253,5 +257,67 @@ export const masterRestaurantsService = {
     if (!existing) throw notFound('Restaurante no encontrado.');
     await prisma.restaurant.delete({ where: { id } });
     return { deleted: true };
+  },
+
+  /**
+   * Botón "Avisar sistema listo": le manda al WhatsApp del restaurante (1) la lista de usuarios
+   * ya creados con su correo, y (2) el monto de instalación a cancelar (en $ y su equivalente en
+   * Bs a la tasa del día) junto con el Pago Móvil de QuickTap, pidiéndole responder SOLO con la
+   * foto del comprobante. No crea ningún cargo/factura — es solo el aviso; el pago se revisa a
+   * mano como cualquier comprobante que llegue por WhatsApp.
+   */
+  async sendInstallationNotice(id: string, amountUsd: number) {
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id },
+      select: {
+        name: true,
+        whatsappPhone: true,
+        users: { where: { isActive: true }, select: { name: true, email: true, role: true }, orderBy: { createdAt: 'asc' } },
+      },
+    });
+    if (!restaurant) throw notFound('Restaurante no encontrado.');
+    if (!restaurant.whatsappPhone) throw badRequest('Este restaurante no tiene un WhatsApp registrado.');
+
+    const rate = await exchangeRateService.getRate('USD');
+    const amountBs = amountUsd * Number(rate.rateBs);
+    const paymentMethods = await platformSettingsService.getPaymentMethods();
+    const pagoMovil = (paymentMethods as { pagoMovil?: { banco?: string; telefono?: string; cedula?: string; titular?: string } })
+      .pagoMovil;
+
+    const roleLabel: Record<string, string> = {
+      OWNER: 'Dueño',
+      ADMIN: 'Administrador',
+      CASHIER: 'Cajero',
+      WAITER: 'Mesero',
+      KITCHEN: 'Cocina',
+      SCREEN: 'Pantalla',
+      COMANDA: 'Comanda',
+      NUMERO: 'Numero',
+      STAFF: 'Personal',
+    };
+
+    const lines = [
+      `🎉 *¡${restaurant.name} ya está listo para funcionar en QuickTap!*`,
+      '',
+      '👤 *Usuarios creados:*',
+      ...restaurant.users.map((u) => `• ${u.name} — ${u.email} (${roleLabel[u.role] ?? u.role})`),
+      '',
+      `💰 Monto por instalación: $${amountUsd.toFixed(2)} (Bs ${amountBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} a la tasa del día)`,
+    ];
+    if (pagoMovil?.banco || pagoMovil?.telefono) {
+      lines.push('', '📱 *Pago Móvil:*');
+      if (pagoMovil.banco) lines.push(`Banco: ${pagoMovil.banco}`);
+      if (pagoMovil.telefono) lines.push(`Teléfono: ${pagoMovil.telefono}`);
+      if (pagoMovil.cedula) lines.push(`Cédula/RIF: ${pagoMovil.cedula}`);
+      if (pagoMovil.titular) lines.push(`Titular: ${pagoMovil.titular}`);
+    }
+    lines.push('', '📸 Por favor responde este mensaje SOLO con la foto de tu comprobante de pago.');
+    const message = lines.join('\n');
+
+    const phoneDigits = formatVenezuelanWhatsappPhone(restaurant.whatsappPhone).replace(/\D/g, '');
+    const sent = await masterWhatsappBotService.sendMessage(phoneDigits, message);
+    await prisma.restaurant.update({ where: { id }, data: { installationNoticeSentAt: new Date() } });
+
+    return { sent, message };
   },
 };

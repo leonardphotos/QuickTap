@@ -27,6 +27,7 @@ import {
   masterPlatformSettingsRoutes,
   publicPlanContentRoutes,
   masterPlanContentRoutes,
+  masterMessageTemplatesRoutes,
 } from '../modules/platform-settings/platform-settings.routes';
 import masterRestaurantsRoutes from '../modules/master/master-restaurants.routes';
 import masterAdminsRoutes from '../modules/master/master-admins.routes';
@@ -118,6 +119,7 @@ router.use('/public/ramblay', publicRamblayRoutes);
 router.use('/master/promo-codes', masterPromoCodeRoutes);
 router.use('/master/payment-methods', masterPlatformSettingsRoutes);
 router.use('/master/plans', masterPlanContentRoutes);
+router.use('/master/message-templates', masterMessageTemplatesRoutes);
 router.use('/master/plan-requests', masterPlanRequestRoutes);
 router.use('/master/qr-nfc-requests', masterQrNfcRequestRoutes);
 router.use('/master/summary', masterSummaryRoutes);

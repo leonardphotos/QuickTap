@@ -52,3 +52,16 @@ export const updatePlanContentSchema = z.object({
 });
 
 export type UpdatePlanContentInput = z.infer<typeof updatePlanContentSchema>;
+
+/** Editor de mensajes del chatbot del master (Dashboard maestro → WhatsApp). Cada campo admite
+ * placeholders `{{variable}}` — ver DEFAULT_MESSAGE_TEMPLATES en platform-settings.service.ts
+ * para la lista de variables disponibles por mensaje. */
+export const updateMessageTemplatesSchema = z.object({
+  reminderMessage: z.string().min(1).max(2000).optional(),
+  proofReceivedMessage: z.string().min(1).max(1000).optional(),
+  paymentApprovedMessage: z.string().min(1).max(1000).optional(),
+  paymentRejectedMessage: z.string().min(1).max(1000).optional(),
+  welcomeMessage: z.string().min(1).max(1000).optional(),
+});
+
+export type UpdateMessageTemplatesInput = z.infer<typeof updateMessageTemplatesSchema>;

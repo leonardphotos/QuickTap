@@ -68,3 +68,11 @@ export const createAdditionalChargeSchema = z.object({
 });
 
 export type CreateAdditionalChargeInput = z.infer<typeof createAdditionalChargeSchema>;
+
+// Dashboard maestro → botón "Avisar sistema listo": monto de instalación en $ que se le informa
+// al restaurante por WhatsApp junto con sus credenciales y los datos de Pago Móvil de QuickTap.
+export const sendInstallationNoticeSchema = z.object({
+  amountUsd: z.coerce.number().positive('El monto debe ser mayor a 0.').max(100000),
+});
+
+export type SendInstallationNoticeInput = z.infer<typeof sendInstallationNoticeSchema>;

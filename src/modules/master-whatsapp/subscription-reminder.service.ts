@@ -1,7 +1,7 @@
 import { BillingCycle, SubscriptionPlan } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { formatVenezuelanWhatsappPhone } from '../../utils/whatsapp';
-import { platformSettingsService, PurchasablePlan } from '../platform-settings/platform-settings.service';
+import { platformSettingsService, PurchasablePlan, renderTemplate } from '../platform-settings/platform-settings.service';
 import { subscriptionPaymentVerificationService } from './subscription-payment-verification.service';
 import { masterWhatsappBotService } from './master-whatsapp-bot.service';
 
@@ -29,29 +29,32 @@ async function resolveMonthlyPrice(restaurant: {
   return null;
 }
 
-function buildReminderMessage(opts: {
+async function buildReminderMessage(opts: {
   restaurantName: string;
   periodEndLabel: string;
   amount: number | null;
   pagoMovil: { banco?: string; telefono?: string; cedula?: string; titular?: string } | null;
-}): string {
-  const lines = [
-    `⏰ *Recordatorio de pago — QuickTap*`,
-    '',
-    `Hola 👋 El plan de *${opts.restaurantName}* vence el ${opts.periodEndLabel}.`,
-  ];
-  lines.push(opts.amount != null ? `💰 Monto a cancelar: $${opts.amount.toFixed(2)}` : '💰 Escríbenos si tienes dudas sobre el monto a cancelar.');
+}): Promise<string> {
+  const amountLine =
+    opts.amount != null ? `💰 Monto a cancelar: $${opts.amount.toFixed(2)}` : '💰 Escríbenos si tienes dudas sobre el monto a cancelar.';
 
+  let pagoMovilBlock = '';
   if (opts.pagoMovil?.banco || opts.pagoMovil?.telefono) {
-    lines.push('', '📱 *Pago Móvil:*');
+    const lines = ['📱 *Pago Móvil:*'];
     if (opts.pagoMovil.banco) lines.push(`Banco: ${opts.pagoMovil.banco}`);
     if (opts.pagoMovil.telefono) lines.push(`Teléfono: ${opts.pagoMovil.telefono}`);
     if (opts.pagoMovil.cedula) lines.push(`Cédula/RIF: ${opts.pagoMovil.cedula}`);
     if (opts.pagoMovil.titular) lines.push(`Titular: ${opts.pagoMovil.titular}`);
+    pagoMovilBlock = lines.join('\n');
   }
 
-  lines.push('', '📸 Responde este mensaje con la foto de tu comprobante de pago para renovar tu plan automáticamente.');
-  return lines.join('\n');
+  const templates = await platformSettingsService.getMessageTemplates();
+  return renderTemplate(templates.reminderMessage, {
+    restaurantName: opts.restaurantName,
+    periodEndLabel: opts.periodEndLabel,
+    amountLine,
+    pagoMovilBlock,
+  });
 }
 
 /**
@@ -100,7 +103,7 @@ async function checkExpiring(): Promise<{ sent: number }> {
 
     const amount = await resolveMonthlyPrice(restaurant);
     const periodEndLabel = restaurant.periodEnd.toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' });
-    const message = buildReminderMessage({ restaurantName: restaurant.name, periodEndLabel, amount, pagoMovil: pagoMovil ?? null });
+    const message = await buildReminderMessage({ restaurantName: restaurant.name, periodEndLabel, amount, pagoMovil: pagoMovil ?? null });
 
     const ownerPhone = formatVenezuelanWhatsappPhone(restaurant.whatsappPhone).replace(/\D/g, '');
     const wasSent = await masterWhatsappBotService.sendMessage(ownerPhone, message);

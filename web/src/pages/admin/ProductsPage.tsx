@@ -10,6 +10,7 @@ import { TextureCard } from '@/components/ui/texture-card';
 import { ProductFormDialog } from '@/components/admin/ProductFormDialog';
 import { CategoryDialog } from '@/components/admin/CategoryDialog';
 import { ModifierCategoriesDialog } from '@/components/admin/ModifierCategoriesDialog';
+import { AddStockDialog } from '@/components/admin/AddStockDialog';
 
 /** Minúsculas y sin acentos, para que el buscador no dependa de cómo se tipeó. */
 function normalize(value: string | null | undefined): string {
@@ -241,6 +242,21 @@ export default function ProductsPage() {
           multiple
           className="hidden"
           onChange={handlePhotosFileChange}
+        />
+        <AddStockDialog
+          items={products.map((p) => ({
+            id: p.id,
+            name: p.name,
+            currentQuantity: p.stockControlEnabled ? (p.stockQuantity ?? 0) : 0,
+            unitLabel: 'unid.',
+          }))}
+          onAdd={async (id, delta) => {
+            const p = products.find((x) => x.id === id);
+            if (!p) return;
+            const current = p.stockControlEnabled ? (p.stockQuantity ?? 0) : 0;
+            await api.patch(`/products/${id}`, { stockControlEnabled: true, stockQuantity: current + delta });
+            load();
+          }}
         />
       </div>
 

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
-import { updatePaymentMethodsSchema, updatePlanContentSchema } from './platform-settings.dto';
+import { updateMessageTemplatesSchema, updatePaymentMethodsSchema, updatePlanContentSchema } from './platform-settings.dto';
 import { platformSettingsService } from './platform-settings.service';
 
 export const platformSettingsController = {
@@ -17,5 +17,12 @@ export const platformSettingsController = {
   updatePlanContent: asyncHandler(async (req: Request, res: Response) => {
     const input = updatePlanContentSchema.parse(req.body);
     res.json({ data: await platformSettingsService.updatePlanContent(input) });
+  }),
+  getMessageTemplates: asyncHandler(async (_req: Request, res: Response) => {
+    res.json({ data: await platformSettingsService.getMessageTemplates() });
+  }),
+  updateMessageTemplates: asyncHandler(async (req: Request, res: Response) => {
+    const input = updateMessageTemplatesSchema.parse(req.body);
+    res.json({ data: await platformSettingsService.updateMessageTemplates(input) });
   }),
 };

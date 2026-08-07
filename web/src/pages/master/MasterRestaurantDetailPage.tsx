@@ -46,6 +46,7 @@ interface RestaurantDetail {
   locked: boolean;
   daysRemaining: number;
   users: RestaurantUser[];
+  installationNoticeSentAt: string | null;
   _count: { products: number; tables: number; orders: number };
   recentOrders: {
     id: string;
@@ -97,6 +98,12 @@ export default function MasterRestaurantDetailPage() {
   const [fiscalUsername, setFiscalUsername] = useState('');
   const [fiscalPassword, setFiscalPassword] = useState('');
   const [impersonating, setImpersonating] = useState(false);
+  const [showReadyDialog, setShowReadyDialog] = useState(false);
+  const [readyAmountUsd, setReadyAmountUsd] = useState('');
+  const [readyRateBs, setReadyRateBs] = useState<number | null>(null);
+  const [sendingReady, setSendingReady] = useState(false);
+  const [readyError, setReadyError] = useState<string | null>(null);
+  const [readySent, setReadySent] = useState(false);
 
   function load() {
     masterApi.get(`/master/restaurants/${id}`).then((res) => {
@@ -148,6 +155,42 @@ export default function MasterRestaurantDetailPage() {
       setMessage(err.response?.data?.error ?? 'No se pudo entrar al panel de este restaurante.');
     } finally {
       setImpersonating(false);
+    }
+  }
+
+  async function openReadyDialog() {
+    setReadyError(null);
+    setReadySent(false);
+    setReadyAmountUsd('');
+    setShowReadyDialog(true);
+    try {
+      const { data } = await masterApi.get('/public/exchange-rate');
+      setReadyRateBs(data.data?.USD?.rateBs ? Number(data.data.USD.rateBs) : null);
+    } catch {
+      setReadyRateBs(null);
+    }
+  }
+
+  async function sendReadyNotice() {
+    const amountUsd = Number(readyAmountUsd);
+    if (!amountUsd || amountUsd <= 0) {
+      setReadyError('Escribe un monto válido.');
+      return;
+    }
+    setSendingReady(true);
+    setReadyError(null);
+    try {
+      const { data } = await masterApi.post(`/master/restaurants/${id}/installation-notice`, { amountUsd });
+      if (!data.data.sent) {
+        setReadyError('El bot de WhatsApp no está conectado — no se pudo enviar. Revisa Chatbot en el menú.');
+        return;
+      }
+      setReadySent(true);
+      load();
+    } catch (err: any) {
+      setReadyError(err.response?.data?.error ?? 'No se pudo enviar el aviso.');
+    } finally {
+      setSendingReady(false);
     }
   }
 
@@ -681,6 +724,78 @@ export default function MasterRestaurantDetailPage() {
 
       {showAddBranchDialog && (
         <AddBranchDialog busy={busy} onClose={() => setShowAddBranchDialog(false)} onCreate={createBranch} />
+      )}
+
+      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 flex items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold text-brand-950">Avisar sistema listo</p>
+          <p className="text-sm text-brand-950/60 font-light mt-1">
+            Manda por WhatsApp la lista de usuarios creados (correo y rol) más el monto de
+            instalación a cancelar, con el Pago Móvil de QuickTap.
+            {detail.installationNoticeSentAt && (
+              <span className="block text-xs text-emerald-700 mt-1">
+                Último aviso: {new Date(detail.installationNoticeSentAt).toLocaleString('es-VE')}.
+              </span>
+            )}
+          </p>
+        </div>
+        <TextureButton variant="brand" size="sm" className="!w-auto shrink-0" onClick={openReadyDialog}>
+          Avisar sistema listo
+        </TextureButton>
+      </div>
+
+      {showReadyDialog && (
+        <Dialog open onOpenChange={(o) => !o && setShowReadyDialog(false)}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Avisar sistema listo</DialogTitle>
+            </DialogHeader>
+            {readySent ? (
+              <div className="space-y-3">
+                <p className="text-sm text-emerald-700">Aviso enviado por WhatsApp.</p>
+                <TextureButton variant="minimal" size="default" onClick={() => setShowReadyDialog(false)}>
+                  Cerrar
+                </TextureButton>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-xs text-brand-950/50 font-light">
+                  Se enviará al WhatsApp del restaurante ({detail.whatsappPhone ?? 'sin número registrado'}) con la
+                  lista de {detail.users.length} usuario{detail.users.length === 1 ? '' : 's'} creado
+                  {detail.users.length === 1 ? '' : 's'}, el monto de instalación y el Pago Móvil de QuickTap.
+                </p>
+                <div>
+                  <p className="text-xs font-medium text-brand-950/50 mb-1.5">Monto de instalación ($)</p>
+                  <input
+                    autoFocus
+                    inputMode="decimal"
+                    value={readyAmountUsd}
+                    onChange={(e) => setReadyAmountUsd(e.target.value.replace(/[^0-9.]/g, ''))}
+                    placeholder="0.00"
+                    className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  />
+                  {readyAmountUsd && readyRateBs && Number(readyAmountUsd) > 0 && (
+                    <p className="text-xs text-brand-950/40 font-light mt-1.5">
+                      ≈ Bs {(Number(readyAmountUsd) * readyRateBs).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                      a la tasa del día (Bs {readyRateBs.toLocaleString('es-VE')})
+                    </p>
+                  )}
+                  {!readyRateBs && <p className="text-xs text-amber-600 font-light mt-1.5">No se pudo cargar la tasa del día.</p>}
+                </div>
+                {readyError && <p className="text-sm text-red-600">{readyError}</p>}
+                <TextureButton
+                  variant="brand"
+                  size="default"
+                  disabled={sendingReady || !detail.whatsappPhone}
+                  className="!w-auto disabled:opacity-50"
+                  onClick={sendReadyNotice}
+                >
+                  {sendingReady ? 'Enviando…' : 'Enviar por WhatsApp'}
+                </TextureButton>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       )}
 
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">

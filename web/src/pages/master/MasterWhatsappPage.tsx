@@ -13,6 +13,47 @@ interface StatusResponse {
   subscriptionVerifierPhone: string | null;
 }
 
+interface MessageTemplates {
+  reminderMessage: string;
+  proofReceivedMessage: string;
+  paymentApprovedMessage: string;
+  paymentRejectedMessage: string;
+  welcomeMessage: string;
+}
+
+const TEMPLATE_FIELDS: { key: keyof MessageTemplates; label: string; help: string; rows: number }[] = [
+  {
+    key: 'welcomeMessage',
+    label: 'Bienvenida al registrarse',
+    help: 'Variables: {{ownerName}} {{restaurantName}}',
+    rows: 5,
+  },
+  {
+    key: 'reminderMessage',
+    label: 'Recordatorio de renovación',
+    help: 'Variables: {{restaurantName}} {{periodEndLabel}} {{amountLine}} {{pagoMovilBlock}} — estas dos últimas ya vienen armadas (monto y datos de Pago Móvil), solo indica dónde va cada línea.',
+    rows: 6,
+  },
+  {
+    key: 'proofReceivedMessage',
+    label: 'Acuse al recibir el comprobante',
+    help: 'Sin variables.',
+    rows: 2,
+  },
+  {
+    key: 'paymentApprovedMessage',
+    label: 'Pago aprobado',
+    help: 'Variables: {{periodEndLabel}}',
+    rows: 3,
+  },
+  {
+    key: 'paymentRejectedMessage',
+    label: 'Pago rechazado',
+    help: 'Sin variables.',
+    rows: 2,
+  },
+];
+
 /**
  * Chatbot de WhatsApp de la PLATAFORMA (equipo QuickTap), distinto del que vincula cada
  * restaurante — ver master-whatsapp-bot.service.ts. Manda la bienvenida a cada restaurante
@@ -29,6 +70,38 @@ export default function MasterWhatsappPage() {
   const [savingVerifier, setSavingVerifier] = useState(false);
   const [verifierSaved, setVerifierSaved] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [templates, setTemplates] = useState<MessageTemplates | null>(null);
+  const [templatesDraft, setTemplatesDraft] = useState<MessageTemplates | null>(null);
+  const [savingTemplates, setSavingTemplates] = useState(false);
+  const [templatesSaved, setTemplatesSaved] = useState(false);
+  const [templatesError, setTemplatesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    masterApi.get('/master/message-templates').then((res) => {
+      setTemplates(res.data.data);
+      setTemplatesDraft(res.data.data);
+    });
+  }, []);
+
+  async function saveTemplates() {
+    if (!templatesDraft) return;
+    setSavingTemplates(true);
+    setTemplatesSaved(false);
+    setTemplatesError(null);
+    try {
+      const res = await masterApi.patch('/master/message-templates', templatesDraft);
+      setTemplates(res.data.data);
+      setTemplatesDraft(res.data.data);
+      setTemplatesSaved(true);
+      setTimeout(() => setTemplatesSaved(false), 3000);
+    } catch (err: any) {
+      setTemplatesError(err.response?.data?.error ?? 'No se pudieron guardar los mensajes.');
+    } finally {
+      setSavingTemplates(false);
+    }
+  }
+
+  const templatesChanged = templates && templatesDraft && JSON.stringify(templates) !== JSON.stringify(templatesDraft);
 
   async function loadStatus() {
     const res = await masterApi.get('/master/whatsapp/status');
@@ -170,6 +243,45 @@ export default function MasterWhatsappPage() {
           {verifierSaved && <span className="text-xs text-emerald-700">Guardado.</span>}
         </div>
       </div>
+
+      {templatesDraft && (
+        <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-5">
+          <div>
+            <p className="text-sm font-medium text-brand-950">Mensajes del chatbot</p>
+            <p className="text-xs text-brand-950/50 font-light mt-0.5">
+              Edita el texto de cada mensaje automático. Las variables entre llaves (<code>{'{{así}}'}</code>) se
+              reemplazan solas — no las borres, solo muévelas de línea si quieres.
+            </p>
+          </div>
+
+          {TEMPLATE_FIELDS.map((f) => (
+            <label key={f.key} className="block space-y-1.5">
+              <span className="text-xs font-medium text-brand-950/70">{f.label}</span>
+              <textarea
+                value={templatesDraft[f.key]}
+                onChange={(e) => setTemplatesDraft({ ...templatesDraft, [f.key]: e.target.value })}
+                rows={f.rows}
+                className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              />
+              <span className="block text-[11px] text-brand-950/40 font-light">{f.help}</span>
+            </label>
+          ))}
+
+          {templatesError && <p className="text-sm text-red-600">{templatesError}</p>}
+          <div className="flex items-center gap-2">
+            <TextureButton
+              variant="brand"
+              size="default"
+              className="!w-auto disabled:opacity-50"
+              disabled={savingTemplates || !templatesChanged}
+              onClick={saveTemplates}
+            >
+              {savingTemplates ? 'Guardando…' : 'Guardar mensajes'}
+            </TextureButton>
+            {templatesSaved && <span className="text-xs text-emerald-700">Guardado.</span>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

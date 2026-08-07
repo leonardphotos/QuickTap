@@ -401,6 +401,11 @@ model Restaurant {
   // avanza (renovación) y vuelve a caer a 3 días o menos.
   subscriptionReminderForPeriodEnd DateTime?
 
+  // Botón "Avisar sistema listo" del Dashboard maestro (ver master-restaurants.service.ts):
+  // cuándo se le mandó por WhatsApp el aviso de instalación completa + credenciales del equipo +
+  // monto a cancelar. Null = todavía no se le avisó. Solo informativo (se puede reenviar).
+  installationNoticeSentAt DateTime?
+
   subscriptionPaymentVerifications SubscriptionPaymentVerification[]
 
   // --- Sucursales (Plan Sucursales / Delivery Sucursales, tope de 5) ---
@@ -1735,6 +1740,10 @@ model PlatformSettings {
   // null = el recordatorio de pago se sigue mandando, pero no hay a quién reenviarle el
   // comprobante (el equipo QuickTap debe revisarlo a mano en Comprobantes).
   subscriptionVerifierPhone     String?
+  // Plantillas editables de los mensajes que manda el bot del master (recordatorio de pago,
+  // acuse de comprobante recibido, pago aprobado/rechazado, bienvenida) — parcial, se fusiona
+  // con los valores por defecto en platform-settings.service.ts (DEFAULT_MESSAGE_TEMPLATES).
+  messageTemplates              Json?
 
   updatedAt            DateTime @updatedAt
 

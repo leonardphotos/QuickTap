@@ -9,6 +9,7 @@ import type { Product } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
+import { AddStockDialog } from '@/components/admin/AddStockDialog';
 import { UNIT_LABELS, SUB_UNITS } from '@/utils/inventoryUnits';
 
 interface InventoryCategory {
@@ -717,6 +718,20 @@ function InsumosTab({
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {printSent && <span className="text-xs text-emerald-600 font-medium">Enviado a la estación de impresión</span>}
+          <AddStockDialog
+            items={(items ?? []).map((i) => ({
+              id: i.id,
+              name: i.name,
+              currentQuantity: Number(i.quantity),
+              unitLabel: UNIT_LABELS[i.unit] ?? i.unit,
+            }))}
+            onAdd={async (id, delta) => {
+              const item = items?.find((i) => i.id === id);
+              if (!item) return;
+              await api.patch(`/inventory/${id}`, { quantity: Number(item.quantity) + delta, locationScope });
+              onChanged();
+            }}
+          />
           <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={downloadingTemplate} onClick={downloadImportTemplate}>
             <FileSpreadsheet className="h-3.5 w-3.5" /> {downloadingTemplate ? 'Generando…' : 'Descargar plantilla'}
           </TextureButton>

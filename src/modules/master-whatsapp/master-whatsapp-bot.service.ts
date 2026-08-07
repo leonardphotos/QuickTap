@@ -15,6 +15,7 @@ import makeWASocket, {
 import { prisma } from '../../config/prisma';
 import { UPLOADS_DIR } from '../../middlewares/upload.middleware';
 import { subscriptionPaymentVerificationService } from './subscription-payment-verification.service';
+import { platformSettingsService, renderTemplate } from '../platform-settings/platform-settings.service';
 
 /**
  * ============================================================================
@@ -252,23 +253,22 @@ export const masterWhatsappBotService = {
       }
     }
 
-    await this.sendMessage(phoneDigits, '📥 Recibimos tu comprobante, estamos confirmando tu pago para renovar tu plan.');
+    const templates = await platformSettingsService.getMessageTemplates();
+    await this.sendMessage(phoneDigits, renderTemplate(templates.proofReceivedMessage, {}));
   },
 
   async routeVerifierReply(text: string): Promise<void> {
     const result = await subscriptionPaymentVerificationService.resolveVerifierReply(text);
     if (result.action === 'ignore' || !result.verification) return;
 
+    const templates = await platformSettingsService.getMessageTemplates();
     if (result.action === 'approve') {
       const { ownerPhone, restaurant } = await subscriptionPaymentVerificationService.approve(result.verification.id);
       const periodEndLabel = restaurant.periodEnd.toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' });
-      await this.sendMessage(
-        ownerPhone,
-        `✅ *Pago confirmado*\n\nTu plan en QuickTap fue renovado hasta el ${periodEndLabel}. ¡Gracias por seguir con nosotros! 🙌`,
-      );
+      await this.sendMessage(ownerPhone, renderTemplate(templates.paymentApprovedMessage, { periodEndLabel }));
     } else {
       const { ownerPhone } = await subscriptionPaymentVerificationService.reject(result.verification.id);
-      await this.sendMessage(ownerPhone, '⚠️ No pudimos confirmar tu pago. Por favor reenvía la foto de tu comprobante.');
+      await this.sendMessage(ownerPhone, renderTemplate(templates.paymentRejectedMessage, {}));
     }
     await this.advanceQueue();
   },

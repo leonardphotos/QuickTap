@@ -21,3 +21,9 @@ export const masterPlanContentRoutes = Router();
 masterPlanContentRoutes.use(platformAuthGuard);
 masterPlanContentRoutes.get('/', platformSettingsController.getPlanContent);
 masterPlanContentRoutes.patch('/', platformSettingsController.updatePlanContent);
+
+/** Base: /api/v1/master/message-templates — editor de mensajes del chatbot del master. */
+export const masterMessageTemplatesRoutes = Router();
+masterMessageTemplatesRoutes.use(platformAuthGuard);
+masterMessageTemplatesRoutes.get('/', platformSettingsController.getMessageTemplates);
+masterMessageTemplatesRoutes.patch('/', platformSettingsController.updateMessageTemplates);

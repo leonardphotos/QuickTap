@@ -20,6 +20,7 @@ router.get('/:id/additional-charges', masterRestaurantsController.listAdditional
 router.post('/:id/additional-charges', masterRestaurantsController.createAdditionalCharge);
 router.delete('/:id/additional-charges/:chargeId', masterRestaurantsController.removeAdditionalCharge);
 router.patch('/:id/users/:userId', masterRestaurantsController.updateUser);
+router.post('/:id/installation-notice', masterRestaurantsController.sendInstallationNotice);
 router.delete('/:id', masterRestaurantsController.remove);
 
 export default router;

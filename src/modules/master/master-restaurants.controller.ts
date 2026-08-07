@@ -8,6 +8,7 @@ import {
   extendDaysSchema,
   setCustomMonthlyPriceSchema,
   setIvaEnabledSchema,
+  sendInstallationNoticeSchema,
   setPeriodEndSchema,
   setSuspendedSchema,
   updateRestaurantUserSchema,
@@ -81,5 +82,10 @@ export const masterRestaurantsController = {
   /** Elimina el restaurante y todos sus datos. No se puede deshacer. */
   remove: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await masterRestaurantsService.remove(req.params.id) });
+  }),
+  /** Botón "Avisar sistema listo": credenciales del equipo + monto de instalación por WhatsApp. */
+  sendInstallationNotice: asyncHandler(async (req: Request, res: Response) => {
+    const { amountUsd } = sendInstallationNoticeSchema.parse(req.body);
+    res.json({ data: await masterRestaurantsService.sendInstallationNotice(req.params.id, amountUsd) });
   }),
 };

@@ -1,8 +1,55 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
-import { UpdatePaymentMethodsInput, UpdatePlanContentInput } from './platform-settings.dto';
+import { UpdateMessageTemplatesInput, UpdatePaymentMethodsInput, UpdatePlanContentInput } from './platform-settings.dto';
 
 const SINGLETON_ID = 'singleton';
+
+export interface MessageTemplates {
+  reminderMessage: string;
+  proofReceivedMessage: string;
+  paymentApprovedMessage: string;
+  paymentRejectedMessage: string;
+  welcomeMessage: string;
+}
+
+/**
+ * Textos por defecto de cada mensaje que manda el bot del master (Dashboard maestro →
+ * Chatbot → Mensajes). Editable parcialmente desde ahí; lo no editado sigue usando esto.
+ * Placeholders disponibles por mensaje (se reemplazan con renderTemplate más abajo):
+ * - reminderMessage: {{restaurantName}} {{periodEndLabel}} {{amountLine}} {{pagoMovilBlock}}
+ * - paymentApprovedMessage: {{periodEndLabel}}
+ * - welcomeMessage: {{ownerName}} {{restaurantName}}
+ * - proofReceivedMessage / paymentRejectedMessage: sin variables.
+ */
+export const DEFAULT_MESSAGE_TEMPLATES: MessageTemplates = {
+  reminderMessage: [
+    '⏰ *Recordatorio de pago — QuickTap*',
+    '',
+    'Hola 👋 El plan de *{{restaurantName}}* vence el {{periodEndLabel}}.',
+    '{{amountLine}}',
+    '{{pagoMovilBlock}}',
+    '📸 Responde este mensaje con la foto de tu comprobante de pago para renovar tu plan automáticamente.',
+  ].join('\n'),
+  proofReceivedMessage: '📥 Recibimos tu comprobante, estamos confirmando tu pago para renovar tu plan.',
+  paymentApprovedMessage: '✅ *Pago confirmado*\n\nTu plan en QuickTap fue renovado hasta el {{periodEndLabel}}. ¡Gracias por seguir con nosotros! 🙌',
+  paymentRejectedMessage: '⚠️ No pudimos confirmar tu pago. Por favor reenvía la foto de tu comprobante.',
+  welcomeMessage: [
+    '¡Hola {{ownerName}}! 👋 Bienvenido/a a *QuickTap.club* 🎉',
+    '',
+    'Tu cuenta para *{{restaurantName}}* ya está lista, con 15 días de prueba gratis y el plan más completo activado.',
+    '',
+    'Cualquier duda, escríbenos por este mismo chat. ¡Éxitos con tu negocio! 🚀',
+  ].join('\n'),
+};
+
+/** Sustituye `{{variable}}` en una plantilla — variable ausente del mapa se reemplaza por
+ * cadena vacía (así una línea condicional como {{pagoMovilBlock}} desaparece sola). */
+export function renderTemplate(template: string, vars: Record<string, string>): string {
+  return template
+    .replace(/\{\{(\w+)\}\}/g, (_, key: string) => vars[key] ?? '')
+    .replace(/\n{3,}/g, '\n\n') // evita huecos de líneas en blanco cuando un placeholder queda vacío
+    .trim();
+}
 
 export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE';
 export type PlanBillingCycle = 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL';
@@ -184,6 +231,24 @@ export const platformSettingsService = {
       where: { id: SINGLETON_ID },
       create: { id: SINGLETON_ID, planContent: mergedJson },
       update: { planContent: mergedJson },
+    });
+    return merged;
+  },
+
+  /** Mensajes del chatbot del master: defaults fusionados con lo editado desde el Dashboard maestro. */
+  async getMessageTemplates(): Promise<MessageTemplates> {
+    const row = await prisma.platformSettings.findUnique({ where: { id: SINGLETON_ID }, select: { messageTemplates: true } });
+    return { ...DEFAULT_MESSAGE_TEMPLATES, ...((row?.messageTemplates as Partial<MessageTemplates> | null) ?? {}) };
+  },
+
+  async updateMessageTemplates(input: UpdateMessageTemplatesInput): Promise<MessageTemplates> {
+    const current = await platformSettingsService.getMessageTemplates();
+    const merged: MessageTemplates = { ...current, ...input };
+    const mergedJson = merged as unknown as Prisma.InputJsonValue;
+    await prisma.platformSettings.upsert({
+      where: { id: SINGLETON_ID },
+      create: { id: SINGLETON_ID, messageTemplates: mergedJson },
+      update: { messageTemplates: mergedJson },
     });
     return merged;
   },
