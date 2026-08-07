@@ -91,11 +91,6 @@ const paymentMethodSchema = z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD
 // Todos menos Efectivo Bs/$ (que no dejan rastro que verificar).
 const METHODS_REQUIRING_REFERENCE = ['MOBILE_PAYMENT', 'ZELLE', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER'] as const;
 
-// Además de la referencia, estos exigen la FOTO del comprobante (mismos 5 que
-// PROOF_REQUIRED_PAYMENT_METHODS en src/utils/whatsapp.ts) — Punto de Venta queda fuera: no
-// tiene datos bancarios/QR que mostrar y el ticket impreso ya es su propio comprobante físico.
-const METHODS_REQUIRING_PROOF = ['MOBILE_PAYMENT', 'ZELLE', 'BINANCE', 'PAYPAL', 'TRANSFER'] as const;
-
 /** Checkout de delivery/pickup -> genera enlace de WhatsApp. Todo es obligatorio salvo la nota. */
 export const deliveryCheckoutSchema = z.object({
   mode: z.enum(['DELIVERY', 'PICKUP']).default('DELIVERY'),
@@ -168,7 +163,7 @@ export const recordPaymentSchema = z
     serviceChargeDiscountAmount: z.coerce.number().nonnegative().optional(),
     // Número de referencia (Pago Móvil/Zelle) o de ticket (Punto de venta). Obligatorio para esos métodos.
     referenceNumber: z.string().max(60).optional(),
-    // Foto del comprobante — obligatoria para METHODS_REQUIRING_PROOF (ver más abajo).
+    // Foto del comprobante — siempre opcional; el número de referencia alcanza para registrar el cobro.
     proofImageUrl: z.string().optional(),
     // Fraccionar por ítems: qué se está cobrando en este pago puntual (cantidad por OrderItem).
     items: z.array(z.object({ orderItemId: z.string().min(1), quantity: z.coerce.number().int().positive() })).optional(),
@@ -180,9 +175,6 @@ export const recordPaymentSchema = z
         message: data.method === 'CARD' ? 'Escribe el número de ticket.' : 'Escribe el número de referencia.',
         path: ['referenceNumber'],
       });
-    }
-    if (METHODS_REQUIRING_PROOF.includes(data.method as any) && !data.proofImageUrl) {
-      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Adjunta la foto del comprobante.', path: ['proofImageUrl'] });
     }
     if (!data.amountBase && !data.items?.length) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Escribe un monto o elige los ítems a cobrar.', path: ['amountBase'] });

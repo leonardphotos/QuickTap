@@ -28,8 +28,9 @@ const DEFAULT_PAYMENT_OPTIONS: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'CA
 // (order.dto.ts).
 const METHODS_REQUIRING_REFERENCE: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER'];
 
-// Además de la referencia, estos exigen la FOTO del comprobante — Punto de Venta queda fuera:
-// no tiene datos bancarios/QR que mostrar y el ticket impreso ya es su propio comprobante.
+// Además de la referencia, estos PUEDEN adjuntar la foto del comprobante — Punto de Venta
+// queda fuera: no tiene datos bancarios/QR que mostrar y el ticket impreso ya es su propio
+// comprobante. La foto es opcional: el número de referencia solo alcanza para registrar el cobro.
 const METHODS_REQUIRING_PROOF: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'BINANCE', 'PAYPAL', 'TRANSFER'];
 
 function referenceLabel(method: PaymentMethod): string {
@@ -256,10 +257,6 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
       setError(`Escribe el ${referenceLabel(method).toLowerCase()}.`);
       return;
     }
-    if (needsProof && !proofUrl) {
-      setError('Adjunta la foto del comprobante.');
-      return;
-    }
     setSending(true);
     setError(null);
     try {
@@ -276,7 +273,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
         serviceChargeDiscountPercent: serviceMode === 'percent' && servicePct > 0 ? servicePct : undefined,
         serviceChargeDiscountAmount: serviceMode === 'amount' && serviceAdjAmt > 0 ? serviceAdjAmt : undefined,
         referenceNumber: needsReference ? referenceNumber.trim() : undefined,
-        proofImageUrl: needsProof ? (proofUrl ?? undefined) : undefined,
+        proofImageUrl: needsProof ? proofUrl ?? undefined : undefined,
       });
       // El endpoint devuelve el pedido completo (no solo el pago nuevo). Se identifica el/los
       // pago(s) recién creados comparando contra los que ya conocíamos ANTES de este POST — así
@@ -561,7 +558,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     onClick={() => fileInputRef.current?.click()}
                   >
                     {uploadingProof ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                    {uploadingProof ? 'Subiendo…' : proofUrl ? 'Cambiar comprobante' : 'Adjuntar comprobante'}
+                    {uploadingProof ? 'Subiendo…' : proofUrl ? 'Cambiar comprobante' : 'Adjuntar comprobante (opcional)'}
                   </TextureButton>
                   <input
                     ref={fileInputRef}
