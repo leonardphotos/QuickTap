@@ -1,10 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Bike, Check, Clock, MapPin, Martini, ReceiptText, ScanLine, Search, SplitSquareHorizontal, Store, UtensilsCrossed } from 'lucide-react';
+import {
+  ArrowLeft,
+  Bike,
+  Check,
+  Clock,
+  MapPin,
+  Martini,
+  ScanLine,
+  Search,
+  SplitSquareHorizontal,
+  Store,
+  UtensilsCrossed,
+  X,
+} from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { CURRENCY_SYMBOLS, cartLineUnitPrice, formatBase, formatBs, formatModifierLabel, modifierSelectionKey } from '@/utils/format';
 import type { CartLine, Customer, FloorPlan, Product, TableSession } from '@/types';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { AddressAutocomplete, reverseGeocode } from '@/components/AddressAutocomplete';
 import { CustomerPicker } from './CustomerPicker';
@@ -81,9 +93,10 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   const [error, setError] = useState<string | null>(null);
   const [deliveryFeeBase, setDeliveryFeeBase] = useState<number | null>(null);
   const [quotingFee, setQuotingFee] = useState(false);
-  const [showComanda, setShowComanda] = useState(false);
   const [rateBs, setRateBs] = useState<string | null>(null);
   const [addingToId, setAddingToId] = useState<string | null>(null);
+  // En teléfono no cabe el panel lateral: la comanda se abre a pantalla completa desde la barra inferior.
+  const [cartOpen, setCartOpen] = useState(false);
 
   const [paymentIntent, setPaymentIntent] = useState<PaymentIntent | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -169,7 +182,6 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   const ivaBase = restaurant?.ivaEnabled ? subtotalBase * 0.16 : 0;
   const totalBase =
     subtotalBase + serviceChargeBase + ivaBase + (channel === 'DELIVERY' ? deliveryFeeBase ?? 0 : 0);
-  const hasCharges = restaurant?.serviceChargeEnabled || restaurant?.ivaEnabled || Boolean(deliveryFeeBase);
 
   // Cuentas de mesa abiertas, para "Añadir a mesa" (paso 1). El resto de canales (Delivery/Pickup/
   // Barra) se ofrecen en el paso "Clientes" (paso 3), como antes.
@@ -314,57 +326,206 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
     }
   }
 
+  const currentContextLabel =
+    channel !== 'DINE_IN'
+      ? CHANNEL_LABELS[channel]
+      : tableMode === 'ADD'
+        ? 'Añadir a mesa'
+        : selectedTable
+          ? `${selectedTable.zoneName ? `${selectedTable.zoneName} · ` : ''}Mesa ${selectedTable.number}`
+          : 'Nuevo pedido';
+
+  const stepDots = (
+    <div className="flex gap-1.5">
+      {([1, 2, 3] as Step[]).map((s) => (
+        <div
+          key={s}
+          className={`h-1.5 flex-1 rounded-full transition-colors ${
+            step === s ? 'bg-brand-500' : step > s ? 'bg-emerald-500' : 'bg-brand-950/10'
+          }`}
+        />
+      ))}
+    </div>
+  );
+
+  const cartLinesList =
+    lines.length === 0 ? (
+      <p className="text-center text-brand-950/40 text-[13px] font-light py-10">
+        Sin productos aún.
+        <br />
+        Toca un producto para añadirlo.
+      </p>
+    ) : (
+      <ul>
+        {lines.map((l, i) => {
+          const unitPrice = cartLineUnitPrice(l);
+          return (
+            <li key={i} className="flex items-center gap-2.5 py-2.5 border-b border-brand-950/10">
+              <div className="flex-1 min-w-0">
+                <p className="text-[12.5px] font-semibold text-brand-950 truncate">
+                  {l.quantity}x {l.product.name}
+                  {l.variantName && <span className="text-brand-950/50 font-normal"> ({l.variantName})</span>}
+                </p>
+                {l.selectedModifiers.length > 0 && (
+                  <p className="text-[11px] text-brand-950/50">{l.selectedModifiers.map(formatModifierLabel).join(', ')}</p>
+                )}
+                <p className="text-[11px] text-brand-950/40">{formatBase(unitPrice, symbol)} c/u</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  onClick={() => adjustLineAt(i, -1)}
+                  className="w-6 h-6 rounded-full border border-brand-950/20 flex items-center justify-center font-bold text-brand-950 text-xs"
+                >
+                  −
+                </button>
+                <span className="w-4 text-center text-xs font-bold">{l.quantity}</span>
+                <button
+                  onClick={() => adjustLineAt(i, 1)}
+                  className="w-6 h-6 rounded-full border border-brand-950/20 flex items-center justify-center font-bold text-brand-950 text-xs"
+                >
+                  +
+                </button>
+              </div>
+              <span className="text-[12.5px] font-bold text-brand-950 w-14 text-right shrink-0">
+                {formatBase(unitPrice * l.quantity, symbol)}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    );
+
+  const cartSummaryRows = (
+    <>
+      <div className="flex justify-between text-[12.5px] text-brand-950/60">
+        <span>Subtotal</span>
+        <span>{formatBase(subtotalBase, symbol)}</span>
+      </div>
+      {restaurant?.serviceChargeEnabled && (
+        <div className="flex justify-between text-[12.5px] text-brand-950/60">
+          <span>Servicio (10%)</span>
+          <span>{formatBase(serviceChargeBase, symbol)}</span>
+        </div>
+      )}
+      {restaurant?.ivaEnabled && (
+        <div className="flex justify-between text-[12.5px] text-brand-950/60">
+          <span>IVA (16%)</span>
+          <span>{formatBase(ivaBase, symbol)}</span>
+        </div>
+      )}
+      {channel === 'DELIVERY' && deliveryFeeBase != null && deliveryFeeBase > 0 && (
+        <div className="flex justify-between text-[12.5px] text-brand-950/60">
+          <span>Envío</span>
+          <span>{formatBase(deliveryFeeBase, symbol)}</span>
+        </div>
+      )}
+      {channel === 'DELIVERY' && quotingFee && <p className="text-[11px] text-brand-950/40">Calculando envío…</p>}
+      <div className="flex justify-between text-base font-bold text-brand-950 pt-1.5">
+        <span>Total</span>
+        <span>{formatBase(totalBase, symbol)}</span>
+      </div>
+      {rateBs && (
+        <div className="flex justify-between text-[11px] text-brand-950/40 -mt-1">
+          <span>Equivalente</span>
+          <span>{formatBs(totalBase, rateBs)}</span>
+        </div>
+      )}
+    </>
+  );
+
+  const actionButtons = (
+    <div className="flex gap-2 pt-2">
+      {step > 1 && (
+        <TextureButton variant="secondary" size="default" className="!w-auto" onClick={() => setStep((step - 1) as Step)}>
+          Atrás
+        </TextureButton>
+      )}
+      {step === 1 &&
+        (channel === 'DINE_IN' && tableMode === 'ADD' ? (
+          <p className="flex-1 text-center text-[11.5px] text-brand-950/40 font-light py-2.5">
+            Elige una cuenta para añadir estos productos.
+          </p>
+        ) : (
+          <TextureButton
+            variant="brand"
+            size="default"
+            disabled={lines.length === 0}
+            onClick={goToStep2}
+            className="flex-1 disabled:opacity-50"
+          >
+            Siguiente
+          </TextureButton>
+        ))}
+      {step === 2 && (
+        <TextureButton
+          variant="brand"
+          size="default"
+          className="flex-1 disabled:opacity-50"
+          disabled={!paymentIntent}
+          onClick={() => setStep(3)}
+        >
+          Siguiente
+        </TextureButton>
+      )}
+      {step === 3 && (
+        <TextureButton
+          variant="brand"
+          size="default"
+          className="flex-1 disabled:opacity-50"
+          disabled={sending}
+          onClick={submit}
+        >
+          {sending ? 'Creando…' : 'Crear pedido'}
+        </TextureButton>
+      )}
+    </div>
+  );
+
   return (
     <>
-      <Dialog open onOpenChange={(o) => !o && onClose()}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Crear pedido</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              {([1, 2, 3] as Step[]).map((s) => (
-                <div key={s} className="flex items-center gap-2 flex-1">
-                  <div
-                    className={`flex items-center justify-center h-6 w-6 rounded-full text-xs font-semibold shrink-0 ${
-                      step === s
-                        ? 'bg-brand-500 text-white'
-                        : step > s
-                          ? 'bg-emerald-500 text-white'
-                          : 'bg-brand-950/[0.08] text-brand-950/40'
-                    }`}
-                  >
-                    {step > s ? <Check className="h-3.5 w-3.5" /> : s}
-                  </div>
-                  <span className={`text-xs font-medium ${step === s ? 'text-brand-950' : 'text-brand-950/40'}`}>
-                    {STEP_LABELS[s]}
-                  </span>
-                  {s < 3 && <div className={`flex-1 h-px ${step > s ? 'bg-emerald-500' : 'bg-brand-950/10'}`} />}
-                </div>
+      <div className="fixed inset-0 z-50 bg-[#f4f6f9] flex flex-col">
+        {/* ---------- topline ---------- */}
+        <div className="px-4 md:px-5 py-3 border-b border-brand-950/10 bg-white shrink-0 space-y-2 md:space-y-0 md:flex md:items-center md:gap-3">
+          <div className="flex items-center gap-3 md:flex-1 md:min-w-0">
+            <button
+              type="button"
+              onClick={() => (step > 1 ? setStep((step - 1) as Step) : onClose())}
+              className="flex items-center justify-center h-9 w-9 rounded-xl border border-brand-950/10 text-brand-950 hover:bg-brand-950/5 shrink-0"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <div className="min-w-0">
+              <h1 className="text-base font-semibold text-brand-950 truncate">Crear pedido</h1>
+              <p className="text-xs text-brand-950/50 font-light truncate">
+                {STEP_LABELS[step]}
+                <span className="md:hidden"> · {currentContextLabel}</span>
+              </p>
+            </div>
+          </div>
+          {step === 1 && (
+            <div className="flex gap-1 bg-brand-950/[0.05] p-1 rounded-xl overflow-x-auto md:shrink-0">
+              {CHANNEL_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  onClick={() => setChannel(opt.value)}
+                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    channel === opt.value ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
+                  }`}
+                >
+                  <opt.icon className="h-3.5 w-3.5" /> {opt.label}
+                </button>
               ))}
             </div>
+          )}
+        </div>
 
+        <div className="flex-1 flex min-h-0">
+          {/* ---------- left: browse / steps ---------- */}
+          <div className="flex-1 overflow-y-auto p-5 min-w-0">
             {step === 1 && (
-              <>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {CHANNEL_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      onClick={() => setChannel(opt.value)}
-                      className={`flex flex-col items-center justify-center gap-1 rounded-xl border py-2.5 text-xs font-medium transition-colors ${
-                        channel === opt.value
-                          ? 'border-brand-500 bg-brand-500/5 text-brand-500'
-                          : 'border-brand-950/10 text-brand-950/60 hover:border-brand-950/20'
-                      }`}
-                    >
-                      <opt.icon className="h-4 w-4" /> {opt.label}
-                    </button>
-                  ))}
-                </div>
-
+              <div className="space-y-4">
                 {channel === 'DINE_IN' && (
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <div className="grid grid-cols-2 gap-1.5 max-w-xs">
                     <button
                       onClick={() => setTableMode('OPEN')}
                       className={`rounded-xl border py-2 text-xs font-medium transition-colors ${
@@ -389,7 +550,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                 )}
 
                 {channel === 'DINE_IN' && tableMode === 'OPEN' && (
-                  <>
+                  <div className="space-y-2 max-w-md">
                     <select
                       value={tableId}
                       onChange={(e) => {
@@ -441,11 +602,11 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                         </div>
                       </div>
                     )}
-                  </>
+                  </div>
                 )}
 
                 {channel !== 'DINE_IN' && (
-                  <div className="space-y-2">
+                  <div className="space-y-2 max-w-md">
                     {channel === 'DELIVERY' && (
                       <>
                         <AddressAutocomplete
@@ -490,14 +651,14 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                   </div>
                 )}
 
-                <div className="flex items-center gap-2 pt-1 border-t border-brand-950/10">
-                  <div className="relative flex-1 min-w-0">
+                <div className="flex items-center gap-2 sticky top-0 bg-[#f4f6f9] pt-1 pb-2 -mt-1 z-10">
+                  <div className="relative flex-1 min-w-0 max-w-sm">
                     <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-950/30" />
                     <input
                       value={productSearch}
                       onChange={(e) => setProductSearch(e.target.value)}
                       placeholder="Buscar en el menú…"
-                      className="w-full text-sm border border-brand-950/15 rounded-lg pl-8 pr-2.5 py-1.5"
+                      className="w-full text-sm bg-white border border-brand-950/10 rounded-xl pl-8 pr-2.5 py-2"
                     />
                   </div>
                   <button
@@ -505,7 +666,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                     onClick={() => setScanOpen(true)}
                     title="Escanear código de barras"
                     aria-label="Escanear código de barras"
-                    className="shrink-0 flex items-center justify-center h-[34px] w-[34px] rounded-lg border border-brand-950/15 text-brand-950/50 hover:bg-brand-950/5 hover:text-brand-950"
+                    className="shrink-0 flex items-center justify-center h-[38px] w-[38px] rounded-xl border border-brand-950/10 bg-white text-brand-950/50 hover:bg-brand-950/5 hover:text-brand-950"
                   >
                     <ScanLine className="h-4 w-4" />
                   </button>
@@ -513,8 +674,8 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                 <div className="flex gap-1.5 flex-wrap">
                   <button
                     onClick={() => setCategoryFilter(null)}
-                    className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                      !categoryFilter ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+                    className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+                      !categoryFilter ? 'bg-brand-950 text-white' : 'bg-white border border-brand-950/10 text-brand-950/50'
                     }`}
                   >
                     Todas
@@ -523,8 +684,8 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                     <button
                       key={c}
                       onClick={() => setCategoryFilter(c)}
-                      className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                        categoryFilter === c ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+                      className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+                        categoryFilter === c ? 'bg-brand-950 text-white' : 'bg-white border border-brand-950/10 text-brand-950/50'
                       }`}
                     >
                       {c}
@@ -532,57 +693,48 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                   ))}
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 max-h-[26rem] overflow-y-auto pt-1">
+                <div className="grid grid-cols-2 xl:grid-cols-3 gap-3.5 pt-1">
                   {filteredProducts.map((p) => {
                     const qty = lines.filter((l) => l.product.id === p.id).reduce((acc, l) => acc + l.quantity, 0);
                     return (
-                      <div
+                      <button
+                        type="button"
                         key={p.id}
-                        className={`rounded-xl border p-3 space-y-2 ${qty > 0 ? 'border-brand-400/50 bg-brand-500/5' : 'border-brand-950/10'}`}
+                        onClick={() => setOptionsProduct(p)}
+                        className={`text-left bg-white rounded-2xl border-2 overflow-hidden transition-colors hover:border-brand-500/40 ${
+                          qty > 0 ? 'border-brand-500' : 'border-transparent'
+                        }`}
                       >
                         {p.photoUrl ? (
-                          <img src={p.photoUrl} alt="" className="h-24 w-full rounded-lg object-cover" />
+                          <img src={p.photoUrl} alt="" className="h-24 w-full object-cover" />
                         ) : (
-                          <div className="h-24 w-full rounded-lg bg-brand-950/5" />
+                          <div className="h-24 w-full bg-brand-500/[0.06]" />
                         )}
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-brand-950 truncate">{p.name}</p>
-                          <p className="text-sm text-brand-950/50">{formatBase(p.price, symbol)}</p>
+                        <div className="px-3 py-2.5 space-y-1">
+                          <p className="text-xs font-semibold text-brand-950 leading-tight line-clamp-2">{p.name}</p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-bold text-brand-500">{formatBase(p.price, symbol)}</span>
+                            {qty > 0 && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-brand-500 text-white">
+                                {qty}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setOptionsProduct(p)}
-                          className="w-full flex items-center justify-center gap-1 rounded-lg border border-brand-500/40 text-brand-500 text-xs font-medium py-1.5"
-                        >
-                          {qty > 0 ? `${qty} agregado${qty > 1 ? 's' : ''} · Añadir más` : 'Añadir'}
-                        </button>
-                      </div>
+                      </button>
                     );
                   })}
                   {filteredProducts.length === 0 && (
-                    <p className="col-span-2 text-sm text-brand-950/40 font-light text-center py-4">
+                    <p className="col-span-full text-sm text-brand-950/40 font-light text-center py-4">
                       No hay productos que coincidan.
                     </p>
                   )}
                 </div>
 
-                {lines.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowComanda(true)}
-                    className="flex items-center gap-1.5 text-xs font-medium text-brand-500 hover:text-brand-400"
-                  >
-                    <ReceiptText className="h-3.5 w-3.5" />
-                    Ver comanda ({totalItems} {totalItems === 1 ? 'ítem' : 'ítems'}) · {formatBase(totalBase, symbol)}
-                  </button>
-                )}
-
-                {error && <p className="text-sm text-red-600">{error}</p>}
-
-                {channel === 'DINE_IN' && tableMode === 'ADD' ? (
-                  <div className="space-y-2 pt-2 border-t border-brand-950/10">
-                    <p className="text-sm font-medium text-brand-950/70">Elige la cuenta de mesa</p>
-                    <div className="relative">
+                {channel === 'DINE_IN' && tableMode === 'ADD' && (
+                  <div className="space-y-2 pt-3 border-t border-brand-950/10">
+                    <p className="text-sm font-medium text-brand-950/70">Elige la cuenta de mesa a la que añadir</p>
+                    <div className="relative max-w-md">
                       <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-950/30" />
                       <input
                         value={existingSearch}
@@ -591,7 +743,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                         className="w-full text-sm border border-brand-950/15 rounded-lg pl-8 pr-2.5 py-1.5"
                       />
                     </div>
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                    <div className="space-y-2 max-w-md">
                       {filteredAddTableOrders.length === 0 && (
                         <p className="text-sm text-brand-950/40 font-light text-center py-3">
                           No hay cuentas de mesa abiertas.
@@ -600,7 +752,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                       {filteredAddTableOrders.map((o) => (
                         <div
                           key={o.id}
-                          className="w-full flex items-center gap-2 rounded-xl border border-brand-950/10 px-3 py-2"
+                          className="w-full flex items-center gap-2 rounded-xl border border-brand-950/10 bg-white px-3 py-2"
                         >
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-brand-950">
@@ -622,23 +774,13 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                       ))}
                     </div>
                   </div>
-                ) : (
-                  <TextureButton
-                    variant="brand"
-                    size="default"
-                    disabled={lines.length === 0}
-                    onClick={goToStep2}
-                    className="disabled:opacity-50"
-                  >
-                    Siguiente
-                  </TextureButton>
                 )}
-              </>
+              </div>
             )}
 
             {step === 2 && (
-              <>
-                <div className="flex items-center justify-between text-sm bg-brand-950/[0.03] rounded-xl px-3 py-2.5">
+              <div className="max-w-md space-y-3">
+                <div className="flex items-center justify-between text-sm bg-white rounded-xl px-3 py-2.5">
                   <span className="text-brand-950/60">Total del pedido</span>
                   <span className="font-semibold text-brand-950">{formatBase(totalBase, symbol)}</span>
                 </div>
@@ -681,28 +823,11 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                     </div>
                   </button>
                 </div>
-
-                {error && <p className="text-sm text-red-600">{error}</p>}
-
-                <div className="flex gap-2">
-                  <TextureButton variant="secondary" size="default" className="!w-auto" onClick={() => setStep(1)}>
-                    Atrás
-                  </TextureButton>
-                  <TextureButton
-                    variant="brand"
-                    size="default"
-                    className="flex-1 disabled:opacity-50"
-                    disabled={!paymentIntent}
-                    onClick={() => setStep(3)}
-                  >
-                    Siguiente
-                  </TextureButton>
-                </div>
-              </>
+              </div>
             )}
 
             {step === 3 && (
-              <>
+              <div className="max-w-md space-y-3">
                 <div>
                   <p className="text-sm font-medium text-brand-950/70 mb-2">Cliente</p>
                   {selectedCustomer ? (
@@ -768,118 +893,66 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                     </div>
                   </div>
                 )}
-
-                {error && <p className="text-sm text-red-600">{error}</p>}
-
-                <div className="flex gap-2">
-                  <TextureButton variant="secondary" size="default" className="!w-auto" onClick={() => setStep(2)}>
-                    Atrás
-                  </TextureButton>
-                  <TextureButton
-                    variant="brand"
-                    size="default"
-                    className="flex-1 disabled:opacity-50"
-                    disabled={sending}
-                    onClick={submit}
-                  >
-                    {sending ? 'Creando…' : 'Crear pedido'}
-                  </TextureButton>
-                </div>
-              </>
+              </div>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
 
-      {showComanda && (
-        <Dialog open onOpenChange={(o) => !o && setShowComanda(false)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Comanda</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3">
-              <ul className="space-y-2 max-h-80 overflow-y-auto">
-                {lines.map((l, i) => {
-                  const unitPrice = cartLineUnitPrice(l);
-                  return (
-                    <li key={i} className="flex items-center justify-between gap-2 border-b border-brand-950/10 pb-2">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium text-brand-950 truncate">
-                          {l.product.name}
-                          {l.variantName && <span className="text-brand-950/50"> ({l.variantName})</span>}
-                        </p>
-                        {l.selectedModifiers.length > 0 && (
-                          <p className="text-xs text-brand-950/50">{l.selectedModifiers.map(formatModifierLabel).join(', ')}</p>
-                        )}
-                        <p className="text-xs text-brand-950/50">
-                          {formatBase(unitPrice, symbol)} c/u · {formatBase(unitPrice * l.quantity, symbol)}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button
-                          onClick={() => adjustLineAt(i, -1)}
-                          className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950"
-                        >
-                          −
-                        </button>
-                        <span className="w-5 text-center text-sm font-medium">{l.quantity}</span>
-                        <button
-                          onClick={() => adjustLineAt(i, 1)}
-                          className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950"
-                        >
-                          +
-                        </button>
-                      </div>
-                    </li>
-                  );
-                })}
-                {lines.length === 0 && (
-                  <p className="text-sm text-brand-950/40 font-light text-center py-4">No hay productos agregados.</p>
-                )}
-              </ul>
-              {hasCharges && (
-                <div className="text-xs text-brand-950/60 space-y-1 pt-2 border-t border-brand-950/10">
-                  <div className="flex justify-between">
-                    <span>Subtotal</span>
-                    <span>{formatBase(subtotalBase, symbol)}</span>
-                  </div>
-                  {restaurant?.serviceChargeEnabled && (
-                    <div className="flex justify-between">
-                      <span>Servicio (10%)</span>
-                      <span>{formatBase(serviceChargeBase, symbol)}</span>
-                    </div>
-                  )}
-                  {restaurant?.ivaEnabled && (
-                    <div className="flex justify-between">
-                      <span>IVA (16%)</span>
-                      <span>{formatBase(ivaBase, symbol)}</span>
-                    </div>
-                  )}
-                  {channel === 'DELIVERY' && deliveryFeeBase != null && deliveryFeeBase > 0 && (
-                    <div className="flex justify-between">
-                      <span>Envío</span>
-                      <span>{formatBase(deliveryFeeBase, symbol)}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-              {channel === 'DELIVERY' && quotingFee && <p className="text-xs text-brand-950/40">Calculando envío…</p>}
-              <div className="flex items-center justify-between text-sm font-semibold pt-1 border-t border-brand-950/10">
-                <span>Total</span>
-                <span>{formatBase(totalBase, symbol)}</span>
-              </div>
-              {rateBs && (
-                <div className="flex items-center justify-between text-xs text-brand-950/50 -mt-2">
-                  <span>Equivalente</span>
-                  <span>{formatBs(totalBase, rateBs)}</span>
-                </div>
-              )}
-              <TextureButton variant="secondary" size="default" onClick={() => setShowComanda(false)}>
-                Volver al menú
-              </TextureButton>
+          {/* ---------- right: cart panel (tablet/desktop) ---------- */}
+          <div className="hidden md:flex w-[360px] shrink-0 border-l border-brand-950/10 bg-white flex-col">
+            <div className="p-5 pb-3 border-b border-brand-950/10 space-y-2.5">
+              <p className="text-[15px] font-bold text-brand-950">{currentContextLabel}</p>
+              {stepDots}
             </div>
-          </DialogContent>
-        </Dialog>
+            <div className="flex-1 overflow-y-auto px-5">{cartLinesList}</div>
+            <div className="p-5 pt-3 border-t border-brand-950/10 space-y-1.5">
+              {cartSummaryRows}
+              {error && <p className="text-[12.5px] text-red-600 pt-1">{error}</p>}
+              {actionButtons}
+            </div>
+          </div>
+        </div>
+
+        {/* ---------- bottom bar (teléfono): resumen + acción ---------- */}
+        <div className="md:hidden shrink-0 border-t border-brand-950/10 bg-white px-4 py-3 space-y-1.5">
+          <button
+            type="button"
+            onClick={() => setCartOpen(true)}
+            className="w-full flex items-center justify-between rounded-xl bg-brand-950/[0.04] px-3 py-2"
+          >
+            <span className="text-[12.5px] font-semibold text-brand-950">
+              {totalItems === 0 ? 'Sin productos' : `${totalItems} ${totalItems === 1 ? 'ítem' : 'ítems'} · ver comanda`}
+            </span>
+            <span className="text-[13px] font-bold text-brand-950">{formatBase(totalBase, symbol)}</span>
+          </button>
+          {error && <p className="text-[12.5px] text-red-600">{error}</p>}
+          {actionButtons}
+        </div>
+      </div>
+
+      {/* ---------- comanda a pantalla completa (teléfono) ---------- */}
+      {cartOpen && (
+        <div className="md:hidden fixed inset-0 z-[60] bg-white flex flex-col">
+          <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-brand-950/10 shrink-0">
+            <div className="min-w-0">
+              <p className="text-[15px] font-bold text-brand-950 truncate">Comanda</p>
+              <p className="text-xs text-brand-950/50 font-light truncate">{currentContextLabel}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCartOpen(false)}
+              className="shrink-0 flex items-center justify-center h-9 w-9 rounded-xl border border-brand-950/10 text-brand-950"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-5">{cartLinesList}</div>
+          <div className="px-5 py-4 border-t border-brand-950/10 space-y-1.5 shrink-0">
+            {cartSummaryRows}
+            <TextureButton variant="secondary" size="default" className="mt-2" onClick={() => setCartOpen(false)}>
+              Volver al menú
+            </TextureButton>
+          </div>
+        </div>
       )}
 
       {optionsProduct && (
