@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, ExternalLink } from 'lucide-react';
+import { Menu, ExternalLink, Plus } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { canManageTeam, isAdminCashier } from '../../utils/roles';
 import { allowsBranches, daysRemaining, graceHoursRemaining, hasFeature } from '../../utils/subscription';
@@ -33,6 +33,8 @@ export default function DashboardPage() {
   const { user, restaurant } = useAuth();
   const [showTutorial, setShowTutorial] = useState(() => !!restaurant && !hasSeenOnboardingTutorial(restaurant.id));
   const [menuOpen, setMenuOpen] = useState(false);
+  // El diálogo lo monta LiveOrdersPanel; acá solo vive el botón que lo abre (ver más abajo).
+  const [createOrderOpen, setCreateOrderOpen] = useState(false);
 
   if (!restaurant) return null;
 
@@ -101,7 +103,22 @@ export default function DashboardPage() {
 
       <div className="flex flex-col items-center text-center lg:flex-row lg:items-start lg:text-left lg:gap-8">
         <div className="lg:w-72 lg:shrink-0 lg:sticky lg:top-24 flex flex-col items-center lg:items-stretch">
-          <a href={`/r/${restaurant.slug}`} target="_blank" rel="noopener noreferrer" className="mb-4 lg:self-start">
+          {/* Celular: "Crear pedido" es la acción principal del turno, así que va arriba de todo.
+              En escritorio este lugar lo sigue ocupando "Ver mi menú" — allí no hay cuadrícula de
+              accesos rápidos donde reubicarlo, y la cola de pedidos vive aparte en Comandas. */}
+          <button
+            onClick={() => setCreateOrderOpen(true)}
+            className="lg:hidden mb-4 w-full max-w-xs flex items-center justify-center gap-1.5 rounded-full bg-brand-500 hover:bg-brand-400 text-white text-sm font-semibold py-3 shadow-sm transition-colors"
+          >
+            <Plus className="h-4 w-4" strokeWidth={2.5} /> Crear pedido
+          </button>
+
+          <a
+            href={`/r/${restaurant.slug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden lg:block mb-4 lg:self-start"
+          >
             <TextureButton variant="minimal" size="sm" className="!w-auto">
               <ExternalLink className="h-3.5 w-3.5 mr-1.5" /> Ver mi menú
             </TextureButton>
@@ -124,6 +141,23 @@ export default function DashboardPage() {
                     <span className="text-[11px] font-medium text-brand-950/70 leading-tight">{label}</span>
                   </Link>
                 ))}
+                {/* El menú público no es una sección del panel (abre en otra pestaña), por eso
+                    va acá suelto y no dentro de dashboardSectionLinks. */}
+                <a
+                  href={`/r/${restaurant.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center gap-1.5 text-center"
+                >
+                  <span
+                    className={`flex h-12 w-12 items-center justify-center rounded-2xl ${
+                      SHORTCUT_COLORS[shortcuts.length % SHORTCUT_COLORS.length]
+                    }`}
+                  >
+                    <ExternalLink className="h-5 w-5" />
+                  </span>
+                  <span className="text-[11px] font-medium text-brand-950/70 leading-tight">Ver mi menú</span>
+                </a>
               </div>
             </div>
           )}
@@ -134,7 +168,11 @@ export default function DashboardPage() {
               ser el resto de "Resumen": pedidos de hoy de solo lectura, productos más
               vendidos e inventario por sucursal. */}
           <div className="lg:hidden">
-            <LiveOrdersPanel />
+            <LiveOrdersPanel
+              hideCreateButton
+              createOrderOpen={createOrderOpen}
+              onCreateOrderOpenChange={setCreateOrderOpen}
+            />
           </div>
           {isAdminCashier(user?.role, user?.cashierFullAccess) && (
             <div className="hidden lg:flex lg:flex-col lg:gap-5">

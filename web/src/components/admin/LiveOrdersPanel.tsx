@@ -207,6 +207,10 @@ interface LiveOrdersPanelProps {
   /** El dashboard de Mesero ya tiene su propio botón flotante "Crear pedido" (fijo abajo a la
    * izquierda, visible en todas sus pestañas) — se oculta este para no duplicarlo en Comandas. */
   hideCreateButton?: boolean;
+  /** Permite abrir "Crear pedido" desde un botón de fuera (el Dashboard lo tiene arriba, sobre
+   * "Ventas de hoy"). Si se pasa, el diálogo queda controlado por el padre; si no, se maneja acá. */
+  createOrderOpen?: boolean;
+  onCreateOrderOpenChange?: (open: boolean) => void;
 }
 
 // Cocina nunca acepta pedidos; Delivery/Pickup solo lo acepta Caja/Admin/Dueño
@@ -218,7 +222,11 @@ function canAcceptOrder(role: string | undefined, channel: LiveOrder['channel'],
 }
 
 /** Panel "Pedidos": todos los pedidos activos con Aceptar/Cancelar/Finalizar/Delivery. Va en el Dashboard. */
-export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {}) {
+export function LiveOrdersPanel({
+  hideCreateButton,
+  createOrderOpen: controlledCreateOrderOpen,
+  onCreateOrderOpenChange,
+}: LiveOrdersPanelProps = {}) {
   const { restaurant, user } = useAuth();
   const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
@@ -230,7 +238,9 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
   const [error, setError] = useState<string | null>(null);
   const [channelFilter, setChannelFilter] = useState<ChannelFilter | null>(null);
   const [editingOrder, setEditingOrder] = useState<LiveOrder | null>(null);
-  const [createOrderOpen, setCreateOrderOpen] = useState(false);
+  const [uncontrolledCreateOrderOpen, setUncontrolledCreateOrderOpen] = useState(false);
+  const createOrderOpen = controlledCreateOrderOpen ?? uncontrolledCreateOrderOpen;
+  const setCreateOrderOpen = onCreateOrderOpenChange ?? setUncontrolledCreateOrderOpen;
   const [paymentDialog, setPaymentDialog] = useState<{ order: LiveOrder; mode: 'full' | 'split' } | null>(null);
   const [comandaMenuFor, setComandaMenuFor] = useState<string | null>(null);
   const [printingId, setPrintingId] = useState<string | null>(null);
