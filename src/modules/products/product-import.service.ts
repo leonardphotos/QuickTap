@@ -33,6 +33,7 @@ const HEADERS = [
   'SKU',
   'Tiempo de preparación (min)',
   'Disponible (sí/no)',
+  'Stock',
 ] as const;
 
 /** Categoría de respaldo cuando el archivo no trae columna de categoría (o la trae vacía):
@@ -48,14 +49,24 @@ const COLUMN_SPEC = {
   name: ['nombre', 'producto', 'item', 'articulo', 'artículo', 'plato'],
   cost: ['costo', 'costo unitario'],
   sku: ['sku', 'codigo', 'código', 'cod'],
+  // Cantidad de "Control de stock simple" del producto (independiente del sistema de
+  // insumos/receta) — ver Product.stockControlEnabled/stockQuantity en schema.prisma.
+  stock: ['stock', 'cantidad en stock', 'cantidad', 'existencia', 'existencias'],
 };
+
+/** Primera letra en mayúscula, el resto del nombre tal cual lo escribieron (no fuerza el
+ * resto a minúsculas: respeta marcas o siglas como "BBQ Bacon"). */
+function capitalizeFirst(name: string): string {
+  if (!name) return name;
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
 
 function buildTemplate(): ExcelJS.Workbook {
   const workbook = new ExcelJS.Workbook();
   const sheet = workbook.addWorksheet('Productos');
   sheet.columns = HEADERS.map((header) => ({ header, width: 24 }));
   styleTemplateHeader(sheet);
-  sheet.addRow(['Hamburguesa Clásica', 'Hamburguesas', 6.5, 'Carne de res, queso y vegetales.', 2.4, 'HAM-01', 12, 'sí']);
+  sheet.addRow(['Hamburguesa Clásica', 'Hamburguesas', 6.5, 'Carne de res, queso y vegetales.', 2.4, 'HAM-01', 12, 'sí', 25]);
   return workbook;
 }
 
@@ -98,8 +109,9 @@ async function importFromExcel(
 
   for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber++) {
     const row = sheet.getRow(rowNumber);
-    const name = cellText(row, columns.name);
-    if (!name) continue; // fila sin nombre = fila vacía o de relleno, se ignora en silencio
+    const rawName = cellText(row, columns.name);
+    if (!rawName) continue; // fila sin nombre = fila vacía o de relleno, se ignora en silencio
+    const name = capitalizeFirst(rawName);
 
     // Solo se arma lo que el archivo realmente trae; el resto queda como estaba (o en su
     // default al crear) para que el restaurante lo complete después.
@@ -110,6 +122,7 @@ async function importFromExcel(
     const description = cellText(row, columns.description);
     const sku = cellText(row, columns.sku);
     const isAvailable = cellBoolean(row, columns.isAvailable);
+    const stock = cellNumber(row, columns.stock);
 
     // categoryId no entra acá: necesita un await para resolverse/crearse, se agrega abajo.
     const optionalFields: UpdateProductInput = {
@@ -119,6 +132,9 @@ async function importFromExcel(
       ...(description ? { description } : {}),
       ...(sku ? { sku } : {}),
       ...(isAvailable != null ? { isAvailable } : {}),
+      // La columna Stock activa el control de stock simple del producto (Product.
+      // stockControlEnabled/stockQuantity) y carga la cantidad tal cual viene en el archivo.
+      ...(stock != null ? { stockControlEnabled: true, stockQuantity: Math.round(stock) } : {}),
     };
 
     try {
