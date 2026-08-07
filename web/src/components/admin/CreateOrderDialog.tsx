@@ -66,6 +66,44 @@ const CHANNEL_LABELS: Record<Channel, string> = { DINE_IN: 'Mesa', DELIVERY: 'De
 
 const STEP_LABELS: Record<Step, string> = { 1: 'Menú', 2: 'Pago', 3: 'Clientes' };
 
+const PAYMENT_INTENT_OPTIONS: {
+  value: PaymentIntent;
+  label: string;
+  description: string;
+  icon: typeof Check;
+  iconClass: string;
+  activeClass: string;
+  hoverClass: string;
+}[] = [
+  {
+    value: 'FULL',
+    label: 'Pagar completo',
+    description: 'El cliente paga todo de una vez.',
+    icon: Check,
+    iconClass: 'text-emerald-600',
+    activeClass: 'border-emerald-500 bg-emerald-50',
+    hoverClass: 'hover:border-emerald-300',
+  },
+  {
+    value: 'SPLIT',
+    label: 'Pago fraccionado',
+    description: 'El cliente abona en varias partes.',
+    icon: SplitSquareHorizontal,
+    iconClass: 'text-brand-500',
+    activeClass: 'border-brand-500 bg-brand-500/5',
+    hoverClass: 'hover:border-brand-300',
+  },
+  {
+    value: 'DEBT',
+    label: 'Deuda',
+    description: 'Queda en cuentas por pagar, se cobra después.',
+    icon: Clock,
+    iconClass: 'text-amber-500',
+    activeClass: 'border-amber-500 bg-amber-50',
+    hoverClass: 'hover:border-amber-300',
+  },
+];
+
 /** "Crear pedido" desde el Dashboard: wizard de 3 pasos (Menú → Pago → Clientes). */
 export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelectExisting }: Props) {
   const { restaurant } = useAuth();
@@ -95,6 +133,8 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   const [quotingFee, setQuotingFee] = useState(false);
   const [rateBs, setRateBs] = useState<string | null>(null);
   const [addingToId, setAddingToId] = useState<string | null>(null);
+  // Modo "Añadir a mesa": cuenta abierta elegida en el desplegable (la acción vive en el panel).
+  const [addToOrderId, setAddToOrderId] = useState<string | null>(null);
   // En teléfono no cabe el panel lateral: la comanda se abre a pantalla completa desde la barra inferior.
   const [cartOpen, setCartOpen] = useState(false);
 
@@ -197,11 +237,6 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
       CHANNEL_LABELS[o.channel].toLowerCase().includes(query)
     );
   }
-
-  const filteredAddTableOrders = useMemo(() => {
-    const query = existingSearch.trim().toLowerCase();
-    return dineInExistingOrders.filter((o) => matchesSearch(o, query));
-  }, [dineInExistingOrders, existingSearch]);
 
   const filteredExistingOrders = useMemo(() => {
     const query = existingSearch.trim().toLowerCase();
@@ -442,9 +477,15 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
       )}
       {step === 1 &&
         (channel === 'DINE_IN' && tableMode === 'ADD' ? (
-          <p className="flex-1 text-center text-[11.5px] text-brand-950/40 font-light py-2.5">
-            Elige una cuenta para añadir estos productos.
-          </p>
+          <TextureButton
+            variant="brand"
+            size="default"
+            disabled={lines.length === 0 || !addToOrderId || addingToId !== null}
+            onClick={() => addToOrderId && addToExisting(addToOrderId)}
+            className="flex-1 disabled:opacity-50"
+          >
+            {addingToId ? 'Añadiendo…' : 'Agregar a la cuenta'}
+          </TextureButton>
         ) : (
           <TextureButton
             variant="brand"
@@ -525,10 +566,10 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
             {step === 1 && (
               <div className="space-y-4">
                 {channel === 'DINE_IN' && (
-                  <div className="grid grid-cols-2 gap-1.5 max-w-xs">
+                  <div className="grid grid-cols-2 gap-2 max-w-sm">
                     <button
                       onClick={() => setTableMode('OPEN')}
-                      className={`rounded-xl border py-2 text-xs font-medium transition-colors ${
+                      className={`rounded-xl border py-2.5 text-sm font-semibold transition-colors ${
                         tableMode === 'OPEN'
                           ? 'border-brand-500 bg-brand-500/5 text-brand-500'
                           : 'border-brand-950/10 text-brand-950/60 hover:border-brand-950/20'
@@ -538,7 +579,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                     </button>
                     <button
                       onClick={() => setTableMode('ADD')}
-                      className={`rounded-xl border py-2 text-xs font-medium transition-colors ${
+                      className={`rounded-xl border py-2.5 text-sm font-semibold transition-colors ${
                         tableMode === 'ADD'
                           ? 'border-brand-500 bg-brand-500/5 text-brand-500'
                           : 'border-brand-950/10 text-brand-950/60 hover:border-brand-950/20'
@@ -549,24 +590,45 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                   </div>
                 )}
 
+                {/* Abrir mesa: se muestran las mesas en tarjetas para ver de un vistazo cuáles
+                    están libres — antes era un desplegable, que obligaba a abrirlo para saberlo. */}
                 {channel === 'DINE_IN' && tableMode === 'OPEN' && (
-                  <div className="space-y-2 max-w-md">
-                    <select
-                      value={tableId}
-                      onChange={(e) => {
-                        setTableId(e.target.value);
-                        setAccountChoice(null);
-                      }}
-                      className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-                    >
-                      <option value="">{tables.length === 0 ? 'No hay mesas disponibles' : 'Selecciona una mesa…'}</option>
-                      {tables.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.zoneName ? `${t.zoneName} · ` : ''}Mesa {t.number}
-                          {t.sessions.length > 0 ? ` (${t.sessions.length} cuenta${t.sessions.length > 1 ? 's' : ''})` : ''}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="space-y-2">
+                    {tables.length === 0 ? (
+                      <p className="text-sm text-brand-950/40 font-light">No hay mesas disponibles.</p>
+                    ) : (
+                      <div className="grid grid-cols-3 sm:grid-cols-4 xl:grid-cols-6 gap-2">
+                        {tables.map((t) => {
+                          const busy = t.sessions.length > 0;
+                          const active = tableId === t.id;
+                          return (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => {
+                                setTableId(t.id);
+                                setAccountChoice(null);
+                              }}
+                              className={`rounded-xl border-2 px-2 py-2.5 text-left transition-colors ${
+                                active
+                                  ? 'border-brand-500 bg-brand-500/5'
+                                  : busy
+                                    ? 'border-amber-300/60 bg-amber-50/50 hover:border-amber-400'
+                                    : 'border-brand-950/10 bg-white hover:border-brand-500/40'
+                              }`}
+                            >
+                              <p className="text-sm font-bold text-brand-950 truncate">Mesa {t.number}</p>
+                              {t.zoneName && <p className="text-[10px] text-brand-950/40 truncate">{t.zoneName}</p>}
+                              <p
+                                className={`text-[10px] font-semibold mt-0.5 ${busy ? 'text-amber-600' : 'text-emerald-600'}`}
+                              >
+                                {busy ? `${t.sessions.length} cuenta${t.sessions.length > 1 ? 's' : ''}` : 'Libre'}
+                              </p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     {selectedTable && selectedTable.sessions.length > 0 && (
                       <div className="space-y-1.5">
@@ -602,6 +664,30 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                         </div>
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Añadir a mesa: acá sí conviene el desplegable — son solo las cuentas ya
+                    abiertas, y la acción final vive en el botón del panel de comanda. */}
+                {channel === 'DINE_IN' && tableMode === 'ADD' && (
+                  <div className="space-y-2 max-w-md">
+                    <select
+                      value={addToOrderId ?? ''}
+                      onChange={(e) => setAddToOrderId(e.target.value || null)}
+                      className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-2 bg-white"
+                    >
+                      <option value="">
+                        {dineInExistingOrders.length === 0
+                          ? 'No hay cuentas de mesa abiertas'
+                          : 'Elige la cuenta de mesa…'}
+                      </option>
+                      {dineInExistingOrders.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.table ? `Mesa ${o.table.number}` : 'Mesa'} · #{o.orderNumber}
+                          {o.customerName ? ` · ${o.customerName}` : ''}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 )}
 
@@ -731,168 +817,120 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                   )}
                 </div>
 
-                {channel === 'DINE_IN' && tableMode === 'ADD' && (
-                  <div className="space-y-2 pt-3 border-t border-brand-950/10">
-                    <p className="text-sm font-medium text-brand-950/70">Elige la cuenta de mesa a la que añadir</p>
-                    <div className="relative max-w-md">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-950/30" />
-                      <input
-                        value={existingSearch}
-                        onChange={(e) => setExistingSearch(e.target.value)}
-                        placeholder="Buscar por número, cliente o mesa…"
-                        className="w-full text-sm border border-brand-950/15 rounded-lg pl-8 pr-2.5 py-1.5"
-                      />
-                    </div>
-                    <div className="space-y-2 max-w-md">
-                      {filteredAddTableOrders.length === 0 && (
-                        <p className="text-sm text-brand-950/40 font-light text-center py-3">
-                          No hay cuentas de mesa abiertas.
-                        </p>
-                      )}
-                      {filteredAddTableOrders.map((o) => (
-                        <div
-                          key={o.id}
-                          className="w-full flex items-center gap-2 rounded-xl border border-brand-950/10 bg-white px-3 py-2"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-brand-950">
-                              #{o.orderNumber}
-                              {o.customerName && <span className="font-normal text-brand-950/60"> · {o.customerName}</span>}
-                            </p>
-                            <p className="text-xs text-brand-950/40">{o.table && `Mesa ${o.table.number}`}</p>
-                          </div>
-                          <TextureButton
-                            variant="secondary"
-                            size="sm"
-                            className="!w-auto shrink-0 disabled:opacity-40"
-                            disabled={lines.length === 0 || addingToId !== null}
-                            onClick={() => addToExisting(o.id)}
-                          >
-                            {addingToId === o.id ? 'Añadiendo…' : 'Agregar a la cuenta'}
-                          </TextureButton>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
             {step === 2 && (
-              <div className="max-w-md space-y-3">
-                <div className="flex items-center justify-between text-sm bg-white rounded-xl px-3 py-2.5">
-                  <span className="text-brand-950/60">Total del pedido</span>
-                  <span className="font-semibold text-brand-950">{formatBase(totalBase, symbol)}</span>
+              <div className="h-full flex flex-col justify-center gap-5 max-w-4xl mx-auto">
+                <div className="rounded-2xl bg-white px-6 py-6 text-center shrink-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-950/40">Total del pedido</p>
+                  <p className="text-5xl font-bold text-brand-950 mt-1.5">{formatBase(totalBase, symbol)}</p>
+                  {rateBs && <p className="text-lg font-medium text-brand-950/50 mt-1">{formatBs(totalBase, rateBs)}</p>}
                 </div>
 
-                <div className="space-y-2">
-                  <button
-                    onClick={() => setPaymentIntent('FULL')}
-                    className={`w-full flex items-center gap-3 rounded-xl border-2 p-3 text-left transition-colors ${
-                      paymentIntent === 'FULL' ? 'border-emerald-500 bg-emerald-50' : 'border-brand-950/10 hover:border-emerald-300'
-                    }`}
-                  >
-                    <Check className="h-5 w-5 text-emerald-600 shrink-0" />
-                    <div>
-                      <p className="text-sm font-semibold text-brand-950">Pagar completo</p>
-                      <p className="text-xs text-brand-950/50">El cliente paga todo de una vez.</p>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => setPaymentIntent('SPLIT')}
-                    className={`w-full flex items-center gap-3 rounded-xl border-2 p-3 text-left transition-colors ${
-                      paymentIntent === 'SPLIT' ? 'border-brand-500 bg-brand-500/5' : 'border-brand-950/10 hover:border-brand-300'
-                    }`}
-                  >
-                    <SplitSquareHorizontal className="h-5 w-5 text-brand-500 shrink-0" />
-                    <div>
-                      <p className="text-sm font-semibold text-brand-950">Pago fraccionado</p>
-                      <p className="text-xs text-brand-950/50">El cliente abona en varias partes.</p>
-                    </div>
-                  </button>
-                  <button
-                    onClick={() => setPaymentIntent('DEBT')}
-                    className={`w-full flex items-center gap-3 rounded-xl border-2 p-3 text-left transition-colors ${
-                      paymentIntent === 'DEBT' ? 'border-amber-500 bg-amber-50' : 'border-brand-950/10 hover:border-amber-300'
-                    }`}
-                  >
-                    <Clock className="h-5 w-5 text-amber-500 shrink-0" />
-                    <div>
-                      <p className="text-sm font-semibold text-brand-950">Deuda</p>
-                      <p className="text-xs text-brand-950/50">Queda en cuentas por pagar, se cobra después.</p>
-                    </div>
-                  </button>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:flex-1 sm:min-h-0 sm:max-h-72">
+                  {PAYMENT_INTENT_OPTIONS.map((opt) => {
+                    const active = paymentIntent === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        onClick={() => setPaymentIntent(opt.value)}
+                        className={`flex flex-col items-center justify-center text-center gap-3 rounded-2xl border-2 p-5 min-h-[10rem] transition-colors ${
+                          active ? opt.activeClass : `border-brand-950/10 bg-white ${opt.hoverClass}`
+                        }`}
+                      >
+                        <opt.icon className={`h-10 w-10 shrink-0 ${opt.iconClass}`} />
+                        <div>
+                          <p className="text-lg font-bold text-brand-950">{opt.label}</p>
+                          <p className="text-xs text-brand-950/50 mt-1">{opt.description}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
 
             {step === 3 && (
-              <div className="max-w-md space-y-3">
-                <div>
-                  <p className="text-sm font-medium text-brand-950/70 mb-2">Cliente</p>
-                  {selectedCustomer ? (
-                    <div className="flex items-center justify-between rounded-lg border border-brand-950/10 px-2.5 py-2">
-                      <div>
-                        <p className="text-sm font-medium text-brand-950">{selectedCustomer.name}</p>
-                        <p className="text-xs text-brand-950/50">{selectedCustomer.phone}</p>
-                      </div>
-                      <button
-                        onClick={() => setSelectedCustomer(null)}
-                        className="text-xs font-medium text-brand-500 hover:text-brand-600"
-                      >
-                        Cambiar
-                      </button>
-                    </div>
-                  ) : (
-                    <CustomerPicker onSelect={setSelectedCustomer} />
-                  )}
+              <div className="h-full flex flex-col justify-center gap-5 max-w-4xl mx-auto">
+                <div className="rounded-2xl bg-white px-6 py-6 text-center shrink-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-950/40">Total del pedido</p>
+                  <p className="text-5xl font-bold text-brand-950 mt-1.5">{formatBase(totalBase, symbol)}</p>
+                  {rateBs && <p className="text-lg font-medium text-brand-950/50 mt-1">{formatBs(totalBase, rateBs)}</p>}
                 </div>
 
-                {nonDineInExistingOrders.length > 0 && (
-                  <div className="space-y-2 pt-2 border-t border-brand-950/10">
-                    <p className="text-sm font-medium text-brand-950/70">O añade este pedido a una cuenta abierta</p>
-                    <div className="relative">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-950/30" />
-                      <input
-                        value={existingSearch}
-                        onChange={(e) => setExistingSearch(e.target.value)}
-                        placeholder="Buscar por número, cliente o mesa…"
-                        className="w-full text-sm border border-brand-950/15 rounded-lg pl-8 pr-2.5 py-1.5"
-                      />
-                    </div>
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {filteredExistingOrders.length === 0 && (
-                        <p className="text-sm text-brand-950/40 font-light text-center py-3">No se encontraron pedidos.</p>
-                      )}
-                      {filteredExistingOrders.map((o) => (
-                        <div
-                          key={o.id}
-                          className="w-full flex items-center gap-2 rounded-xl border border-brand-950/10 px-3 py-2 hover:border-brand-400/50 hover:bg-brand-950/[0.02] transition-colors"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-brand-950">
-                              #{o.orderNumber}
-                              {o.customerName && <span className="font-normal text-brand-950/60"> · {o.customerName}</span>}
-                            </p>
-                            <p className="text-xs text-brand-950/40">
-                              {CHANNEL_LABELS[o.channel]}
-                              {o.table && ` ${o.table.number}`}
-                            </p>
-                          </div>
-                          <TextureButton
-                            variant="secondary"
-                            size="sm"
-                            className="!w-auto shrink-0 disabled:opacity-40"
-                            disabled={addingToId !== null}
-                            onClick={() => addToExisting(o.id)}
-                          >
-                            {addingToId === o.id ? 'Añadiendo…' : 'Agregar a la cuenta'}
-                          </TextureButton>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:flex-1 lg:min-h-0 lg:max-h-96">
+                  <div className="rounded-2xl bg-white p-5 flex flex-col min-h-0">
+                    <p className="text-base font-bold text-brand-950 mb-3 shrink-0">Cliente</p>
+                    {selectedCustomer ? (
+                      <div className="flex items-center justify-between rounded-xl border border-brand-950/10 px-3 py-2.5">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-brand-950 truncate">{selectedCustomer.name}</p>
+                          <p className="text-xs text-brand-950/50 truncate">{selectedCustomer.phone}</p>
                         </div>
-                      ))}
-                    </div>
+                        <button
+                          onClick={() => setSelectedCustomer(null)}
+                          className="text-xs font-semibold text-brand-500 hover:text-brand-600 shrink-0 ml-2"
+                        >
+                          Cambiar
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex-1 min-h-0 overflow-y-auto">
+                        <CustomerPicker onSelect={setSelectedCustomer} />
+                      </div>
+                    )}
                   </div>
-                )}
+
+                  {nonDineInExistingOrders.length > 0 && (
+                    <div className="rounded-2xl bg-white p-5 flex flex-col min-h-0">
+                      <p className="text-base font-bold text-brand-950 shrink-0">O añade a una cuenta abierta</p>
+                      <p className="text-xs text-brand-950/50 font-light mt-0.5 mb-3 shrink-0">
+                        En vez de crear un pedido nuevo, suma estos productos a uno ya activo.
+                      </p>
+                      <div className="relative shrink-0 mb-2">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-950/30" />
+                        <input
+                          value={existingSearch}
+                          onChange={(e) => setExistingSearch(e.target.value)}
+                          placeholder="Buscar por número, cliente o mesa…"
+                          className="w-full text-sm border border-brand-950/15 rounded-lg pl-8 pr-2.5 py-2"
+                        />
+                      </div>
+                      <div className="flex-1 min-h-0 overflow-y-auto space-y-2">
+                        {filteredExistingOrders.length === 0 && (
+                          <p className="text-sm text-brand-950/40 font-light text-center py-3">No se encontraron pedidos.</p>
+                        )}
+                        {filteredExistingOrders.map((o) => (
+                          <div
+                            key={o.id}
+                            className="w-full flex items-center gap-2 rounded-xl border border-brand-950/10 px-3 py-2 hover:border-brand-400/50 hover:bg-brand-950/[0.02] transition-colors"
+                          >
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-brand-950">
+                                #{o.orderNumber}
+                                {o.customerName && <span className="font-normal text-brand-950/60"> · {o.customerName}</span>}
+                              </p>
+                              <p className="text-xs text-brand-950/40">
+                                {CHANNEL_LABELS[o.channel]}
+                                {o.table && ` ${o.table.number}`}
+                              </p>
+                            </div>
+                            <TextureButton
+                              variant="secondary"
+                              size="sm"
+                              className="!w-auto shrink-0 disabled:opacity-40"
+                              disabled={addingToId !== null}
+                              onClick={() => addToExisting(o.id)}
+                            >
+                              {addingToId === o.id ? 'Añadiendo…' : 'Agregar'}
+                            </TextureButton>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
