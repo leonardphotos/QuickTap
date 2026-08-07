@@ -8,6 +8,7 @@ import { formatBase } from '@/utils/format';
 import { ROLE_LABELS } from '@/utils/roles';
 import type { UserRole } from '@/types';
 import { CashSessionReceipt, PAYMENT_METHOD_LABELS, type CashSessionData, type CashSessionSummary } from './CashSessionReceipt';
+import { OpenComandasDialog } from './OpenComandasDialog';
 
 const PAYMENT_METHODS = ['CASH', 'MOBILE_PAYMENT', 'ZELLE', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER'];
 
@@ -34,6 +35,7 @@ export function CashSessionControl() {
 
   return (
     <>
+      <OpenComandasDialog />
       {!session && (
         <TextureButton variant="secondary" size="sm" className="!w-auto" onClick={() => setShowOpen(true)}>
           <Unlock className="h-3.5 w-3.5" /> Abrir Caja
