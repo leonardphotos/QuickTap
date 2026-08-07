@@ -284,7 +284,7 @@ export default function ProductsPage() {
       )}
 
       {filtered.length > 0 && (
-        <div className="-mb-4 flex items-center gap-3">
+        <div className="flex items-center gap-3">
           <label className="flex items-center gap-2 text-xs font-medium text-brand-950/60">
             <input
               type="checkbox"
