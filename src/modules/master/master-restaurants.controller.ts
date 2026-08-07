@@ -88,4 +88,10 @@ export const masterRestaurantsController = {
     const { amountUsd } = sendInstallationNoticeSchema.parse(req.body);
     res.json({ data: await masterRestaurantsService.sendInstallationNotice(req.params.id, amountUsd) });
   }),
+  /** Botón "Marcar como pagado" en Cobro: el cargo se pagó por su cuenta, sin renovar el plan. */
+  markAdditionalChargePaid: asyncHandler(async (req: Request, res: Response) => {
+    res.json({
+      data: await masterRestaurantsService.markAdditionalChargePaid(req.params.id, req.params.chargeId),
+    });
+  }),
 };

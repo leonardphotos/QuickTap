@@ -179,9 +179,25 @@ function StockTab() {
 
   return (
     <div className="space-y-5">
-      <p className="text-sm text-brand-950/60 font-light">
-        Activa el control de stock por producto: al llegar a 0 se marca como agotado en el menú público.
-      </p>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-sm text-brand-950/60 font-light">
+          Activa el control de stock por producto: al llegar a 0 se marca como agotado en el menú público.
+        </p>
+        <AddStockDialog
+          items={products.map((p) => ({
+            id: p.id,
+            name: p.name,
+            currentQuantity: p.stockControlEnabled ? (p.stockQuantity ?? 0) : 0,
+            unitLabel: 'unid.',
+          }))}
+          onAdd={async (id, delta) => {
+            const p = products.find((x) => x.id === id);
+            if (!p) return;
+            const current = p.stockControlEnabled ? (p.stockQuantity ?? 0) : 0;
+            await patchProduct(id, { stockControlEnabled: true, stockQuantity: current + delta });
+          }}
+        />
+      </div>
       {[...groups.entries()].map(([categoryName, group]) => (
         <div key={categoryName} className="space-y-2">
           <h3 className="text-xs font-semibold text-brand-950/50 uppercase tracking-wide px-1">{categoryName}</h3>

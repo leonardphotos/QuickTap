@@ -198,6 +198,16 @@ export const masterRestaurantsService = {
     return { deleted: true };
   },
 
+  /** Botón "Marcar como pagado" (Dashboard maestro → Cobro): el restaurante pagó este cargo
+   * puntual por su cuenta (ej. Pago Móvil directo, sin pasar por una renovación de plan) — se
+   * marca cobrado a mano para que no se le vuelva a sumar a la próxima mensualidad. */
+  async markAdditionalChargePaid(restaurantId: string, chargeId: string) {
+    const charge = await prisma.additionalCharge.findFirst({ where: { id: chargeId, restaurantId } });
+    if (!charge) throw notFound('Cargo no encontrado.');
+    if (charge.chargedAt) throw badRequest('Ese cargo ya estaba marcado como pagado.');
+    return prisma.additionalCharge.update({ where: { id: chargeId }, data: { chargedAt: new Date() } });
+  },
+
   /** Edita nombre/correo/contraseña de un usuario del restaurante (incluido el dueño). */
   async updateUser(restaurantId: string, userId: string, input: UpdateRestaurantUserInput) {
     const user = await prisma.user.findFirst({ where: { id: userId, restaurantId }, select: { id: true } });
@@ -263,8 +273,13 @@ export const masterRestaurantsService = {
    * Botón "Avisar sistema listo": le manda al WhatsApp del restaurante (1) la lista de usuarios
    * ya creados con su correo, y (2) el monto de instalación a cancelar (en $ y su equivalente en
    * Bs a la tasa del día) junto con el Pago Móvil de QuickTap, pidiéndole responder SOLO con la
-   * foto del comprobante. No crea ningún cargo/factura — es solo el aviso; el pago se revisa a
-   * mano como cualquier comprobante que llegue por WhatsApp.
+   * foto del comprobante.
+   *
+   * El monto de instalación queda registrado como un AdditionalCharge PENDIENTE (mismo modelo
+   * que "Cobro" en el Dashboard maestro): si el restaurante no lo cancela ahora, se suma solo a
+   * su próxima mensualidad (ver resolvePrice() en plan-request.service.ts, que ya lo hacía para
+   * cargos cargados desde ahí) y se marca cobrado automáticamente en ese momento. Reenviar este
+   * aviso actualiza el monto del mismo cargo en vez de duplicarlo.
    */
   async sendInstallationNotice(id: string, amountUsd: number) {
     const restaurant = await prisma.restaurant.findUnique({
@@ -278,8 +293,25 @@ export const masterRestaurantsService = {
     if (!restaurant) throw notFound('Restaurante no encontrado.');
     if (!restaurant.whatsappPhone) throw badRequest('Este restaurante no tiene un WhatsApp registrado.');
 
+    const INSTALLATION_CHARGE_DESCRIPTION = 'Instalación';
+    const existingInstallCharge = await prisma.additionalCharge.findFirst({
+      where: { restaurantId: id, description: INSTALLATION_CHARGE_DESCRIPTION, chargedAt: null },
+    });
+    if (existingInstallCharge) {
+      await prisma.additionalCharge.update({ where: { id: existingInstallCharge.id }, data: { amountUsd } });
+    } else {
+      await prisma.additionalCharge.create({
+        data: { restaurantId: id, amountUsd, description: INSTALLATION_CHARGE_DESCRIPTION },
+      });
+    }
+    const pendingCharges = await prisma.additionalCharge.findMany({
+      where: { restaurantId: id, chargedAt: null },
+      orderBy: { createdAt: 'asc' },
+    });
+    const totalUsd = pendingCharges.reduce((acc, c) => acc + Number(c.amountUsd), 0);
+
     const rate = await exchangeRateService.getRate('USD');
-    const amountBs = amountUsd * Number(rate.rateBs);
+    const totalBs = totalUsd * Number(rate.rateBs);
     const paymentMethods = await platformSettingsService.getPaymentMethods();
     const pagoMovil = (paymentMethods as { pagoMovil?: { banco?: string; telefono?: string; cedula?: string; titular?: string } })
       .pagoMovil;
@@ -302,7 +334,11 @@ export const masterRestaurantsService = {
       '👤 *Usuarios creados:*',
       ...restaurant.users.map((u) => `• ${u.name} — ${u.email} (${roleLabel[u.role] ?? u.role})`),
       '',
-      `💰 Monto por instalación: $${amountUsd.toFixed(2)} (Bs ${amountBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} a la tasa del día)`,
+      '💰 *Cargos pendientes:*',
+      ...pendingCharges.map((c) => `• ${c.description}: $${Number(c.amountUsd).toFixed(2)}`),
+      `Total a cancelar: $${totalUsd.toFixed(2)} (Bs ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} a la tasa del día)`,
+      '',
+      '⚠️ Si no cancelas ahora, este monto se suma a tu próxima mensualidad.',
     ];
     if (pagoMovil?.banco || pagoMovil?.telefono) {
       lines.push('', '📱 *Pago Móvil:*');

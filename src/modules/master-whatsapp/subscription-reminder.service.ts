@@ -32,11 +32,27 @@ async function resolveMonthlyPrice(restaurant: {
 async function buildReminderMessage(opts: {
   restaurantName: string;
   periodEndLabel: string;
-  amount: number | null;
+  monthlyAmount: number | null;
+  pendingCharges: { description: string; amountUsd: unknown }[];
   pagoMovil: { banco?: string; telefono?: string; cedula?: string; titular?: string } | null;
 }): Promise<string> {
+  const chargesTotal = opts.pendingCharges.reduce((acc, c) => acc + Number(c.amountUsd), 0);
+  const total = (opts.monthlyAmount ?? 0) + chargesTotal;
+
   const amountLine =
-    opts.amount != null ? `💰 Monto a cancelar: $${opts.amount.toFixed(2)}` : '💰 Escríbenos si tienes dudas sobre el monto a cancelar.';
+    opts.monthlyAmount != null
+      ? `💰 Monto a cancelar: $${total.toFixed(2)}${chargesTotal > 0 ? ` (mensualidad $${opts.monthlyAmount.toFixed(2)} + cargos pendientes)` : ''}`
+      : '💰 Escríbenos si tienes dudas sobre el monto a cancelar.';
+
+  // Cargos puntuales sin cobrar (ej. instalación, QR NFC) — si no se pagaron aparte, se suman acá
+  // a la próxima mensualidad; se marcan cobrados solos al aprobarse este mismo pago (ver
+  // applyActivation() en plan-request.service.ts).
+  let chargesBlock = '';
+  if (opts.pendingCharges.length > 0) {
+    const lines = ['🧾 *Cargos pendientes (incluidos en el monto de arriba):*'];
+    for (const c of opts.pendingCharges) lines.push(`• ${c.description}: $${Number(c.amountUsd).toFixed(2)}`);
+    chargesBlock = lines.join('\n');
+  }
 
   let pagoMovilBlock = '';
   if (opts.pagoMovil?.banco || opts.pagoMovil?.telefono) {
@@ -53,6 +69,7 @@ async function buildReminderMessage(opts: {
     restaurantName: opts.restaurantName,
     periodEndLabel: opts.periodEndLabel,
     amountLine,
+    chargesBlock,
     pagoMovilBlock,
   });
 }
@@ -102,8 +119,22 @@ async function checkExpiring(): Promise<{ sent: number }> {
     if (!restaurant.subscriptionPlan || !restaurant.whatsappPhone) continue;
 
     const amount = await resolveMonthlyPrice(restaurant);
+    // Cargos puntuales (instalación, QR NFC, etc.) que todavía no se cobraron en ninguna
+    // mensualidad — se muestran acá para que no se olviden hasta que el restaurante pague.
+    const pendingCharges = await prisma.additionalCharge.findMany({
+      where: { restaurantId: restaurant.id, chargedAt: null },
+      orderBy: { createdAt: 'asc' },
+      select: { description: true, amountUsd: true },
+    });
+    const chargesTotal = pendingCharges.reduce((acc, c) => acc + Number(c.amountUsd), 0);
     const periodEndLabel = restaurant.periodEnd.toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' });
-    const message = await buildReminderMessage({ restaurantName: restaurant.name, periodEndLabel, amount, pagoMovil: pagoMovil ?? null });
+    const message = await buildReminderMessage({
+      restaurantName: restaurant.name,
+      periodEndLabel,
+      monthlyAmount: amount,
+      pendingCharges,
+      pagoMovil: pagoMovil ?? null,
+    });
 
     const ownerPhone = formatVenezuelanWhatsappPhone(restaurant.whatsappPhone).replace(/\D/g, '');
     const wasSent = await masterWhatsappBotService.sendMessage(ownerPhone, message);
@@ -116,7 +147,7 @@ async function checkExpiring(): Promise<{ sent: number }> {
       ownerPhone,
       restaurant.subscriptionPlan,
       restaurant.billingCycle ?? 'MONTHLY',
-      amount ?? undefined,
+      amount != null ? amount + chargesTotal : undefined,
     );
     await prisma.restaurant.update({
       where: { id: restaurant.id },

@@ -19,6 +19,7 @@ router.patch('/:id/custom-price', masterRestaurantsController.setCustomMonthlyPr
 router.get('/:id/additional-charges', masterRestaurantsController.listAdditionalCharges);
 router.post('/:id/additional-charges', masterRestaurantsController.createAdditionalCharge);
 router.delete('/:id/additional-charges/:chargeId', masterRestaurantsController.removeAdditionalCharge);
+router.patch('/:id/additional-charges/:chargeId/mark-paid', masterRestaurantsController.markAdditionalChargePaid);
 router.patch('/:id/users/:userId', masterRestaurantsController.updateUser);
 router.post('/:id/installation-notice', masterRestaurantsController.sendInstallationNotice);
 router.delete('/:id', masterRestaurantsController.remove);

@@ -1157,6 +1157,18 @@ function AdditionalChargesBlock({ restaurantId }: { restaurantId: string }) {
     }
   }
 
+  /** El restaurante pagó este cargo por su cuenta (ej. Pago Móvil directo) — se marca cobrado
+   * a mano para que no se le vuelva a sumar solo en la próxima mensualidad. */
+  async function markPaid(chargeId: string) {
+    setError(null);
+    try {
+      await masterApi.patch(`/master/restaurants/${restaurantId}/additional-charges/${chargeId}/mark-paid`);
+      load();
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo marcar como pagado.');
+    }
+  }
+
   const pending = charges.filter((c) => !c.chargedAt);
   const charged = charges.filter((c) => c.chargedAt);
   const pendingTotal = pending.reduce((acc, c) => acc + Number(c.amountUsd), 0);
@@ -1165,8 +1177,9 @@ function AdditionalChargesBlock({ restaurantId }: { restaurantId: string }) {
     <div>
       <p className="text-sm font-medium text-brand-950/70 mb-2">Costos adicionales</p>
       <p className="text-xs text-brand-950/40 font-light mb-3">
-        Se suman a la próxima mensualidad. El restaurante los ve por separado, con su motivo y una
-        nota de que no son parte del cobro mensual.
+        Mientras estén pendientes, aparecen en el aviso de "Sistema listo" y en el recordatorio de
+        mensualidad por WhatsApp. Si el restaurante ya pagó por su cuenta, márcalo como pagado; si
+        no, se suman solos a la próxima mensualidad al aprobarse el pago.
       </p>
 
       <div className="flex flex-wrap items-end gap-3 mb-3">
@@ -1215,6 +1228,9 @@ function AdditionalChargesBlock({ restaurantId }: { restaurantId: string }) {
                 <span className="text-brand-950/80 min-w-0 truncate">{c.description}</span>
                 <span className="flex items-center gap-3 shrink-0">
                   <span className="font-medium text-brand-950">${Number(c.amountUsd).toFixed(2)}</span>
+                  <button onClick={() => markPaid(c.id)} className="text-xs text-emerald-700 hover:text-emerald-800 font-medium">
+                    Marcar como pagado
+                  </button>
                   <button onClick={() => remove(c.id)} className="text-xs text-red-600 hover:text-red-700">
                     Eliminar
                   </button>

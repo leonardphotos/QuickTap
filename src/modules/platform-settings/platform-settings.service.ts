@@ -16,7 +16,7 @@ export interface MessageTemplates {
  * Textos por defecto de cada mensaje que manda el bot del master (Dashboard maestro →
  * Chatbot → Mensajes). Editable parcialmente desde ahí; lo no editado sigue usando esto.
  * Placeholders disponibles por mensaje (se reemplazan con renderTemplate más abajo):
- * - reminderMessage: {{restaurantName}} {{periodEndLabel}} {{amountLine}} {{pagoMovilBlock}}
+ * - reminderMessage: {{restaurantName}} {{periodEndLabel}} {{amountLine}} {{chargesBlock}} {{pagoMovilBlock}}
  * - paymentApprovedMessage: {{periodEndLabel}}
  * - welcomeMessage: {{ownerName}} {{restaurantName}}
  * - proofReceivedMessage / paymentRejectedMessage: sin variables.
@@ -27,6 +27,7 @@ export const DEFAULT_MESSAGE_TEMPLATES: MessageTemplates = {
     '',
     'Hola 👋 El plan de *{{restaurantName}}* vence el {{periodEndLabel}}.',
     '{{amountLine}}',
+    '{{chargesBlock}}',
     '{{pagoMovilBlock}}',
     '📸 Responde este mensaje con la foto de tu comprobante de pago para renovar tu plan automáticamente.',
   ].join('\n'),

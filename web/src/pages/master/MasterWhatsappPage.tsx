@@ -31,7 +31,7 @@ const TEMPLATE_FIELDS: { key: keyof MessageTemplates; label: string; help: strin
   {
     key: 'reminderMessage',
     label: 'Recordatorio de renovación',
-    help: 'Variables: {{restaurantName}} {{periodEndLabel}} {{amountLine}} {{pagoMovilBlock}} — estas dos últimas ya vienen armadas (monto y datos de Pago Móvil), solo indica dónde va cada línea.',
+    help: 'Variables: {{restaurantName}} {{periodEndLabel}} {{amountLine}} {{chargesBlock}} {{pagoMovilBlock}} — estas ya vienen armadas (monto, cargos pendientes como instalación/QR NFC, y datos de Pago Móvil), solo indica dónde va cada línea.',
     rows: 6,
   },
   {
