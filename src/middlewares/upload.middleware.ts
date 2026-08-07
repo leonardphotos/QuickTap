@@ -72,7 +72,37 @@ function makeImageUpload(subdir: string, fieldName: string) {
   return makeUpload(subdir, fieldName, ALLOWED_MIME, EXT_BY_MIME, 3 * 1024 * 1024, 'Formato de imagen no soportado (usa JPG, PNG o WEBP).');
 }
 
+/** Variante de `makeUpload` para múltiples archivos a la vez (carga masiva de fotos de
+ * producto por nombre de archivo): mismo storage/validación, pero `.array()` en vez de
+ * `.single()`, y conserva `originalname` de cada archivo para poder emparejarlo después. */
+function makeImageUploadArray(subdir: string, fieldName: string, maxCount: number) {
+  const dir = path.join(UPLOADS_DIR, subdir);
+  fs.mkdirSync(dir, { recursive: true });
+
+  const storage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, dir),
+    filename: (_req, file, cb) => {
+      const ext = EXT_BY_MIME[file.mimetype] ?? path.extname(file.originalname) ?? '';
+      const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+      cb(null, unique);
+    },
+  });
+
+  return multer({
+    storage,
+    limits: { fileSize: 3 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      if (!ALLOWED_MIME.has(file.mimetype)) {
+        cb(badRequest('Formato de imagen no soportado (usa JPG, PNG o WEBP).'));
+        return;
+      }
+      cb(null, true);
+    },
+  }).array(fieldName, maxCount);
+}
+
 export const uploadProductPhoto = makeImageUpload('products', 'photo');
+export const uploadProductPhotosBulk = makeImageUploadArray('products', 'photos', 100);
 export const uploadInventoryPhoto = makeImageUpload('inventory', 'photo');
 export const uploadLogo = makeImageUpload('logos', 'photo');
 // QR de Pago Móvil (banco/Suiche 7B) que se muestra al cliente en pantalla al cobrar.
@@ -165,6 +195,35 @@ export function optimizeImage(maxWidth: number, maxHeight: number, quality = 80)
     const { size } = fs.statSync(tmpPath);
     fs.renameSync(tmpPath, filePath);
     req.file.size = size;
+    next();
+  });
+}
+
+/** Igual que `optimizeImage`, pero para `req.files` (subida masiva con `.array()`). */
+export function optimizeImages(maxWidth: number, maxHeight: number, quality = 80) {
+  return asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
+    const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+    if (!sharp || files.length === 0) return next();
+
+    for (const file of files) {
+      if (file.mimetype === 'application/pdf') continue;
+      const filePath = file.path;
+      const tmpPath = `${filePath}.tmp`;
+      let pipeline = sharp(filePath).rotate().resize(maxWidth, maxHeight, { fit: 'inside', withoutEnlargement: true });
+
+      if (file.mimetype === 'image/png') {
+        pipeline = pipeline.png({ compressionLevel: 9 });
+      } else if (file.mimetype === 'image/webp') {
+        pipeline = pipeline.webp({ quality });
+      } else {
+        pipeline = pipeline.jpeg({ quality, mozjpeg: true });
+      }
+
+      await pipeline.toFile(tmpPath);
+      const { size } = fs.statSync(tmpPath);
+      fs.renameSync(tmpPath, filePath);
+      file.size = size;
+    }
     next();
   });
 }

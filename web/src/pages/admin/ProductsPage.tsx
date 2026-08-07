@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { FileSpreadsheet, ListPlus, Pencil, Plus, Search, Tag, Trash2, Upload, X } from 'lucide-react';
+import { FileSpreadsheet, Images, ListPlus, Pencil, Plus, Search, Tag, Trash2, Upload, X } from 'lucide-react';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import type { Category, Kitchen, Product } from '../../types';
@@ -40,6 +40,13 @@ export default function ProductsPage() {
   const importInputRef = useRef<HTMLInputElement>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [uploadingPhotos, setUploadingPhotos] = useState(false);
+  const [photosResult, setPhotosResult] = useState<{
+    matched: { fileName: string; productName: string }[];
+    unmatched: string[];
+  } | null>(null);
+  const [photosError, setPhotosError] = useState<string | null>(null);
+  const photosInputRef = useRef<HTMLInputElement>(null);
 
   function load() {
     api.get('/products').then((res) => setProducts(res.data.data));
@@ -127,6 +134,26 @@ export default function ProductsPage() {
     }
   }
 
+  async function handlePhotosFileChange(e: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    e.target.value = '';
+    if (files.length === 0) return;
+    setUploadingPhotos(true);
+    setPhotosResult(null);
+    setPhotosError(null);
+    try {
+      const form = new FormData();
+      files.forEach((file) => form.append('photos', file));
+      const res = await api.post('/products/bulk-photos', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setPhotosResult(res.data.data);
+      load();
+    } catch (err: any) {
+      setPhotosError(err.response?.data?.error ?? 'No se pudieron subir las fotos.');
+    } finally {
+      setUploadingPhotos(false);
+    }
+  }
+
   // El filtro corre en memoria porque GET /products ya trae el catálogo completo
   // (sin paginar); ignora acentos para que "cesar" encuentre "César".
   const filtered = useMemo(() => {
@@ -198,9 +225,51 @@ export default function ProductsPage() {
           <Upload className="h-4 w-4" /> {importing ? 'Importando…' : 'Importar Excel'}
         </TextureButton>
         <input ref={importInputRef} type="file" accept=".xlsx" className="hidden" onChange={handleImportFileChange} />
+        <TextureButton
+          variant="minimal"
+          size="default"
+          className="!w-auto flex items-center gap-1.5 whitespace-nowrap"
+          disabled={uploadingPhotos}
+          onClick={() => photosInputRef.current?.click()}
+        >
+          <Images className="h-4 w-4" /> {uploadingPhotos ? 'Subiendo…' : 'Subir fotos por nombre'}
+        </TextureButton>
+        <input
+          ref={photosInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          multiple
+          className="hidden"
+          onChange={handlePhotosFileChange}
+        />
       </div>
 
       {importError && <p className="text-sm text-red-600">{importError}</p>}
+
+      {photosError && <p className="text-sm text-red-600">{photosError}</p>}
+
+      {photosResult && (
+        <div className="rounded-xl border border-brand-950/10 bg-white p-4 text-sm">
+          <p className="font-medium text-brand-950">
+            {photosResult.matched.length} foto{photosResult.matched.length === 1 ? '' : 's'} vinculada
+            {photosResult.matched.length === 1 ? '' : 's'}
+            {photosResult.unmatched.length > 0 && (
+              <span className="text-amber-600"> · {photosResult.unmatched.length} sin producto coincidente</span>
+            )}
+          </p>
+          <p className="mt-1 text-xs font-light text-brand-950/50">
+            Cada foto se vincula al producto cuyo nombre coincide con el nombre del archivo (sin la extensión, sin
+            importar mayúsculas ni acentos). Ej: "Hamburguesa Clásica.jpg" → producto "Hamburguesa Clásica".
+          </p>
+          {photosResult.unmatched.length > 0 && (
+            <ul className="mt-2 space-y-0.5 text-xs text-amber-700">
+              {photosResult.unmatched.map((name, i) => (
+                <li key={i}>"{name}" no coincide con ningún producto.</li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {importResult && (
         <div className="rounded-xl border border-brand-950/10 bg-white p-4 text-sm">

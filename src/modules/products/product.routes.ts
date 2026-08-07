@@ -1,7 +1,13 @@
 import { Router } from 'express';
 import { requireFeature, requireRole, tenantGuard } from '../../middlewares/auth.middleware';
 import { ADMIN_CASHIER_ROLES } from '../../utils/roles';
-import { optimizeImage, uploadProductPhoto, uploadSpreadsheet } from '../../middlewares/upload.middleware';
+import {
+  optimizeImage,
+  optimizeImages,
+  uploadProductPhoto,
+  uploadProductPhotosBulk,
+  uploadSpreadsheet,
+} from '../../middlewares/upload.middleware';
 import { productController } from './product.controller';
 import { productVariantController } from './product-variant.controller';
 
@@ -23,6 +29,9 @@ const mutate = requireRole(...ADMIN_CASHIER_ROLES);
 router.get('/', productController.list);
 router.post('/', mutate, productController.create);
 router.post('/upload-photo', mutate, uploadProductPhoto, optimizeImage(900, 900), productController.uploadPhoto);
+// Carga masiva de fotos: cada archivo se vincula al producto cuyo nombre coincida con el
+// nombre del archivo (sin extensión) — ver product-photo-bulk.service.ts.
+router.post('/bulk-photos', mutate, uploadProductPhotosBulk, optimizeImages(900, 900), productController.bulkUploadPhotos);
 router.get('/margin', mutate, requireFeature('administration'), productController.margin);
 
 // Carga masiva de productos por Excel: plantilla descargable + subida que crea/actualiza por

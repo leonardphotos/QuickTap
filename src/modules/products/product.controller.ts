@@ -4,6 +4,7 @@ import { badRequest } from '../../utils/http-error';
 import { bulkDeleteProductsSchema, createProductSchema, updateProductSchema } from './product.dto';
 import { productService } from './product.service';
 import { productImportService } from './product-import.service';
+import { productPhotoBulkService } from './product-photo-bulk.service';
 
 /** Controladores CRUD de productos (panel del restaurante). */
 export const productController = {
@@ -61,6 +62,13 @@ export const productController = {
   importExcel: asyncHandler(async (req: Request, res: Response) => {
     if (!req.file) throw badRequest('No se recibió ningún archivo.');
     const result = await productImportService.importFromExcel(req.restaurantId!, req.auth?.parentRestaurantId, req.file.buffer);
+    res.json({ data: result });
+  }),
+
+  bulkUploadPhotos: asyncHandler(async (req: Request, res: Response) => {
+    const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+    if (files.length === 0) throw badRequest('No se recibió ninguna foto.');
+    const result = await productPhotoBulkService.matchAndAssign(req.restaurantId!, files);
     res.json({ data: result });
   }),
 };
