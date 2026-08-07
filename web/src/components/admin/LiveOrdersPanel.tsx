@@ -211,9 +211,9 @@ interface LiveOrdersPanelProps {
 
 // Cocina nunca acepta pedidos; Delivery/Pickup solo lo acepta Caja/Admin/Dueño
 // (implica coordinar cobro/despacho antes de mandarlo a cocina).
-function canAcceptOrder(role: string | undefined, channel: LiveOrder['channel']): boolean {
+function canAcceptOrder(role: string | undefined, channel: LiveOrder['channel'], cashierFullAccess?: boolean): boolean {
   if (role === 'KITCHEN') return false;
-  if (channel === 'DELIVERY' || channel === 'PICKUP') return isAdminCashier(role as any);
+  if (channel === 'DELIVERY' || channel === 'PICKUP') return isAdminCashier(role as any, cashierFullAccess);
   return true;
 }
 
@@ -620,7 +620,7 @@ export function LiveOrdersPanel({ hideCreateButton }: LiveOrdersPanelProps = {})
                   disabled={
                     busyId === o.id ||
                     (o.status !== 'PENDING' && o.status !== 'NEEDS_CONFIRMATION') ||
-                    !canAcceptOrder(user?.role, o.channel)
+                    !canAcceptOrder(user?.role, o.channel, user?.cashierFullAccess)
                   }
                   title="Aceptar"
                   className={`flex flex-col items-center justify-center gap-1 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white ${actionBtnClass} transition-colors disabled:opacity-40`}

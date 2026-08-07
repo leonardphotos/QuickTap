@@ -41,7 +41,7 @@ export default function DashboardPage() {
   const daysLeft = daysRemaining(restaurant.periodEnd);
   const graceHours = graceHoursRemaining(restaurant.periodEnd);
 
-  const shortcuts = dashboardSectionLinks(user?.role, restaurant, user?.canAccessInventory);
+  const shortcuts = dashboardSectionLinks(user?.role, restaurant, user?.canAccessInventory, user?.cashierFullAccess);
 
   const expiryLabel =
     trialDaysLeft !== null
@@ -97,7 +97,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {isAdminCashier(user?.role) && <SalesDashboard />}
+      {isAdminCashier(user?.role, user?.cashierFullAccess) && <SalesDashboard />}
 
       <div className="flex flex-col items-center text-center lg:flex-row lg:items-start lg:text-left lg:gap-8">
         <div className="lg:w-72 lg:shrink-0 lg:sticky lg:top-24 flex flex-col items-center lg:items-stretch">
@@ -106,7 +106,7 @@ export default function DashboardPage() {
               <ExternalLink className="h-3.5 w-3.5 mr-1.5" /> Ver mi menú
             </TextureButton>
           </a>
-          {isAdminCashier(user?.role) && <DailySalesSummary />}
+          {isAdminCashier(user?.role, user?.cashierFullAccess) && <DailySalesSummary />}
 
           {/* Solo en celular: en escritorio ya está la barra lateral con estas mismas
               secciones, así que esta cuadrícula sería redundante ahí. */}
@@ -136,7 +136,7 @@ export default function DashboardPage() {
           <div className="lg:hidden">
             <LiveOrdersPanel />
           </div>
-          {isAdminCashier(user?.role) && (
+          {isAdminCashier(user?.role, user?.cashierFullAccess) && (
             <div className="hidden lg:flex lg:flex-col lg:gap-5">
               {hasFeature(restaurant, 'administration') && <TodayOrdersList />}
               {hasFeature(restaurant, 'administration') && <TopProductsCard />}

@@ -309,6 +309,7 @@ export const authService = {
         email: owner.email,
         role: owner.role,
         canAccessInventory: owner.canAccessInventory,
+        cashierFullAccess: owner.cashierFullAccess,
         hasLockPin: !!owner.lockPinHash,
       },
     };
@@ -440,6 +441,7 @@ export const authService = {
       email: string;
       role: string;
       canAccessInventory: boolean;
+      cashierFullAccess: boolean;
       lockPinHash: string | null;
       googleId: string | null;
     },
@@ -480,7 +482,15 @@ export const authService = {
   },
 
   async buildSession(
-    user: { id: string; name: string; email: string; role: string; canAccessInventory: boolean; lockPinHash: string | null },
+    user: {
+      id: string;
+      name: string;
+      email: string;
+      role: string;
+      canAccessInventory: boolean;
+      cashierFullAccess: boolean;
+      lockPinHash: string | null;
+    },
     restaurant: RestaurantRow,
   ) {
     const token = signToken({ userId: user.id, restaurantId: restaurant.id, role: user.role });
@@ -493,6 +503,7 @@ export const authService = {
         email: user.email,
         role: user.role,
         canAccessInventory: user.canAccessInventory,
+        cashierFullAccess: user.cashierFullAccess,
         hasLockPin: !!user.lockPinHash,
       },
     };
@@ -501,7 +512,7 @@ export const authService = {
   async me(restaurantId: string, userId: string) {
     const user = await prisma.user.findFirst({
       where: { id: userId, restaurantId },
-      select: { id: true, name: true, email: true, role: true, canAccessInventory: true, lockPinHash: true },
+      select: { id: true, name: true, email: true, role: true, canAccessInventory: true, cashierFullAccess: true, lockPinHash: true },
     });
     if (!user) throw unauthorized();
 
@@ -517,6 +528,7 @@ export const authService = {
         email: user.email,
         role: user.role,
         canAccessInventory: user.canAccessInventory,
+        cashierFullAccess: user.cashierFullAccess,
         hasLockPin: !!user.lockPinHash,
       },
       restaurant: restaurant ? await serializeRestaurant(restaurant) : null,

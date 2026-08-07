@@ -18,6 +18,9 @@ export const createStaffSchema = z.object({
   role: assignableRoleSchema,
   // Acceso a Inventario para Mesero/Cocina (los roles de acceso total ya lo tienen siempre).
   canAccessInventory: z.boolean().optional(),
+  // Solo aplica a Cajero: por defecto tiene el mismo acceso que Mesero (más abrir/cerrar caja y
+  // ver movimientos del día por método de pago) — esto le devuelve el acceso completo de antes.
+  cashierFullAccess: z.boolean().optional(),
   // Local Comercial: presta servicios (barbero/estilista) y se le acreditan en el reporte.
   isServiceProvider: z.boolean().optional(),
   // % que se lleva de lo que factura. 100 = se lo lleva todo; 0/null = sin comisión.
@@ -30,6 +33,7 @@ export const updateStaffSchema = z.object({
   role: assignableRoleSchema.optional(),
   isActive: z.boolean().optional(),
   canAccessInventory: z.boolean().optional(),
+  cashierFullAccess: z.boolean().optional(),
   isServiceProvider: z.boolean().optional(),
   commissionPercent: z.coerce.number().min(0).max(100).nullable().optional(),
   paymentMethodsConfig: paymentMethodsConfigSchema.nullable().optional(),

@@ -11,6 +11,8 @@ import { LowStockAlert } from '@/components/admin/LowStockAlert';
 import { HelpChatWidget } from '@/components/admin/HelpChatWidget';
 import { CreateOrderDialog } from '@/components/admin/CreateOrderDialog';
 import { PaymentDialog } from '@/components/admin/PaymentDialog';
+import { CashSessionControl } from '@/components/admin/CashSessionControl';
+import { TodayPaymentMethodsDialog } from '@/components/admin/TodayPaymentMethodsDialog';
 
 const TableOrdersPage = lazy(() => import('../TableOrdersPage'));
 const KitchenPage = lazy(() => import('../KitchenPage'));
@@ -104,6 +106,15 @@ export default function LandscapeStaffLayout() {
             <p className="text-xs font-light text-brand-950/45">{meta.subtitle}</p>
           </div>
           <div className="flex items-center gap-2.5">
+            {/* Cajero (sin acceso completo, único rol que llega acá aparte de Mesero) conserva
+                abrir/cerrar caja y ver los movimientos del día por método de pago, aunque no
+                vea Administración. */}
+            {user.role === 'CASHIER' && (
+              <>
+                <CashSessionControl />
+                <TodayPaymentMethodsDialog />
+              </>
+            )}
             <div className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1.5 text-[11.5px] font-semibold text-emerald-600">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" /> En vivo
             </div>

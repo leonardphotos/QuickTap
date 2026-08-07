@@ -27,7 +27,7 @@ export function NavMenuDrawer({ open, onClose }: { open: boolean; onClose: () =>
   // Las secciones del panel (Cocina, Delivery, Productos, etc.) ya viven en la
   // cuadrícula de "Accesos rápidos" del Dashboard y en la barra/dock de navegación —
   // este menú queda solo para Ajustes y lo secundario, para no duplicarlas.
-  const settingsLink = visibleNavLinks(user?.role, restaurant, user?.canAccessInventory).find(
+  const settingsLink = visibleNavLinks(user?.role, restaurant, user?.canAccessInventory, user?.cashierFullAccess).find(
     (l) => l.to === '/admin/settings',
   );
   const isTrialing = restaurant.subscriptionStatus === 'TRIALING';

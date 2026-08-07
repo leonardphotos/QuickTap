@@ -564,6 +564,12 @@ model User {
   // (OWNER/ADMIN/CASHIER/STAFF) siempre pueden entrar, sin importar esto.
   canAccessInventory Boolean @default(false)
 
+  // Cajero por defecto ahora tiene los mismos permisos que Mesero (más abrir/cerrar caja y ver
+  // movimientos del día por método de pago) — este flag, otorgado individualmente desde Ajustes
+  // → Equipo, le devuelve el acceso completo de antes (Administración, Productos, Mesas, etc.).
+  // No aplica a otros roles.
+  cashierFullAccess Boolean @default(false)
+
   // PIN de 4 dígitos (hasheado) de la Pantalla de bloqueo — personal, cada usuario
   // configura el suyo la primera vez que entra al panel (obligatorio, no se puede
   // omitir). Null = todavía no lo configuró; se le exige antes de poder usar el panel.

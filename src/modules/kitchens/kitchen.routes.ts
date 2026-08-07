@@ -1,12 +1,11 @@
 import { Router } from 'express';
-import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
-import { FULL_ACCESS_ROLES } from '../../utils/roles';
+import { requireRoleOrCashierFullAccess, tenantGuard } from '../../middlewares/auth.middleware';
 import { kitchenController } from './kitchen.controller';
 
 const router = Router();
 router.use(tenantGuard);
 
-const mutate = requireRole(...FULL_ACCESS_ROLES);
+const mutate = requireRoleOrCashierFullAccess('OWNER', 'ADMIN', 'STAFF');
 
 router.get('/', kitchenController.list);
 router.post('/', mutate, kitchenController.create);

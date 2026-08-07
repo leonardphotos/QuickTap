@@ -1,13 +1,12 @@
 import { Router } from 'express';
-import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
-import { FULL_ACCESS_ROLES } from '../../utils/roles';
+import { requireRoleOrCashierFullAccess, tenantGuard } from '../../middlewares/auth.middleware';
 import { deliveryCourierController } from './delivery-courier.controller';
 
 /** Base: /api/v1/delivery-couriers — "Equipo de Delivery" (Ajustes). */
 const router = Router();
 router.use(tenantGuard);
 
-const mutate = requireRole(...FULL_ACCESS_ROLES);
+const mutate = requireRoleOrCashierFullAccess('OWNER', 'ADMIN', 'STAFF');
 
 router.get('/', deliveryCourierController.list);
 router.post('/', mutate, deliveryCourierController.create);

@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
-import { FULL_ACCESS_ROLES, TEAM_MANAGER_ROLES } from '../../utils/roles';
+import { requireRole, requireRoleOrCashierFullAccess, tenantGuard } from '../../middlewares/auth.middleware';
+import { TEAM_MANAGER_ROLES } from '../../utils/roles';
 import { optimizeImage, uploadCoverImage, uploadFullscreenImage, uploadLogo, uploadPaymentQr } from '../../middlewares/upload.middleware';
 import { restaurantController } from './restaurant.controller';
 
@@ -8,7 +8,7 @@ import { restaurantController } from './restaurant.controller';
 const router = Router();
 router.use(tenantGuard);
 
-const mutate = requireRole(...FULL_ACCESS_ROLES);
+const mutate = requireRoleOrCashierFullAccess('OWNER', 'ADMIN', 'STAFF');
 
 router.patch('/', mutate, restaurantController.update);
 router.patch('/welcome-seen', restaurantController.markWelcomeSeen);

@@ -269,6 +269,8 @@ export interface StaffMember {
   role: UserRole;
   isActive: boolean;
   canAccessInventory: boolean;
+  /** Solo aplica a rol Cajero — ver AuthUser.cashierFullAccess. */
+  cashierFullAccess: boolean;
   /** Local Comercial: presta servicios (barbero/estilista) — aparece en "Atendido por" del POS. */
   isServiceProvider?: boolean;
   /** % que se lleva de lo que factura. Null/0 = sin comisión. */

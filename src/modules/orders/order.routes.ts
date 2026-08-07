@@ -1,7 +1,6 @@
 import { Router } from 'express';
-import { requireFeature, requireRole, tenantGuard } from '../../middlewares/auth.middleware';
+import { requireFeature, requireRole, requireRoleOrCashierFullAccess, tenantGuard } from '../../middlewares/auth.middleware';
 import { optimizeImage, uploadOrderPaymentProof } from '../../middlewares/upload.middleware';
-import { ADMIN_CASHIER_ROLES } from '../../utils/roles';
 import { orderController } from './order.controller';
 
 /**
@@ -12,8 +11,12 @@ const router = Router();
 
 router.use(tenantGuard);
 
-// "Movimientos del día" y Administración: solo dueño/admin/cajero (Personal/Mesero/Cocina/Pantalla no ven estos datos).
-const adminOnly = requireRole(...ADMIN_CASHIER_ROLES);
+// Administración (Resumen/Estadísticas/Historial/etc.): dueño/admin, o cajero con acceso
+// completo — por defecto Cajero ya NO ve esto (Personal/Mesero/Cocina/Pantalla tampoco).
+const adminOnly = requireRoleOrCashierFullAccess('OWNER', 'ADMIN');
+// "Movimientos del día por método de pago": la otra habilidad que Cajero conserva siempre,
+// sin depender del flag.
+const paymentMethodsAccess = requireRole('OWNER', 'ADMIN', 'CASHIER');
 
 router.get('/kitchen', orderController.kitchenQueue);
 router.get('/delivery', orderController.deliveryQueue);
@@ -29,7 +32,7 @@ router.get('/reports/products', adminOnly, requireFeature('administration'), ord
 router.get('/reports/couriers', adminOnly, requireFeature('administration'), orderController.courierReport);
 router.get(
   '/reports/payment-methods',
-  adminOnly,
+  paymentMethodsAccess,
   requireFeature('administration'),
   orderController.paymentMethodReport,
 );

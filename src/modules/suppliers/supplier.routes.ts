@@ -1,11 +1,10 @@
 import { Router } from 'express';
-import { requireFeature, requireRole, tenantGuard } from '../../middlewares/auth.middleware';
-import { ADMIN_CASHIER_ROLES } from '../../utils/roles';
+import { requireFeature, requireRoleOrCashierFullAccess, tenantGuard } from '../../middlewares/auth.middleware';
 import { supplierController } from './supplier.controller';
 
 const router = Router();
 router.use(tenantGuard);
-router.use(requireRole(...ADMIN_CASHIER_ROLES));
+router.use(requireRoleOrCashierFullAccess('OWNER', 'ADMIN'));
 router.use(requireFeature('administration'));
 
 router.get('/', supplierController.list);

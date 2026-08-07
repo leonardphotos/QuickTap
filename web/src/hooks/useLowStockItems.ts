@@ -15,9 +15,14 @@ export interface LowStockItem {
 
 /** Insumos en (o por debajo de) su stock mínimo, en vivo — para el aviso de "se está agotando"
  * en Caja/Administrador/Dueño y en el Mesero al que se le asignó acceso a Inventario. */
-export function useLowStockItems(role: UserRole | null | undefined, canAccessInventory: boolean | undefined): LowStockItem[] {
+export function useLowStockItems(
+  role: UserRole | null | undefined,
+  canAccessInventory: boolean | undefined,
+  cashierFullAccess?: boolean,
+): LowStockItem[] {
   const [items, setItems] = useState<LowStockItem[]>([]);
-  const canSee = isAdminCashier(role) || (role === 'WAITER' && !!canAccessInventory);
+  const canSee =
+    isAdminCashier(role, cashierFullAccess) || ((role === 'WAITER' || role === 'CASHIER') && !!canAccessInventory);
 
   useEffect(() => {
     if (!canSee) {

@@ -1,6 +1,5 @@
 import { Router } from 'express';
-import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
-import { FULL_ACCESS_ROLES } from '../../utils/roles';
+import { requireRoleOrCashierFullAccess, tenantGuard } from '../../middlewares/auth.middleware';
 import { uploadPhotoToMemory } from '../../middlewares/upload.middleware';
 import { aiPhotoController } from './ai-photo.controller';
 
@@ -10,7 +9,7 @@ import { aiPhotoController } from './ai-photo.controller';
  * blanco con IA" del formulario de productos.
  */
 const router = Router();
-router.use(tenantGuard, requireRole(...FULL_ACCESS_ROLES));
+router.use(tenantGuard, requireRoleOrCashierFullAccess('OWNER', 'ADMIN', 'STAFF'));
 
 router.post('/enhance', uploadPhotoToMemory, aiPhotoController.enhance);
 router.post('/white-background', uploadPhotoToMemory, aiPhotoController.whiteBackground);

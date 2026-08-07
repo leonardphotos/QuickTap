@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "cashierFullAccess" BOOLEAN NOT NULL DEFAULT false;

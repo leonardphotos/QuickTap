@@ -1,14 +1,13 @@
 import { Router } from 'express';
-import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
-import { ADMIN_CASHIER_ROLES } from '../../utils/roles';
+import { requireRoleOrCashierFullAccess, tenantGuard } from '../../middlewares/auth.middleware';
 import { tableController } from './table.controller';
 
 const router = Router();
 router.use(tenantGuard);
 
 // GET / y /floor-plan quedan abiertos: la toma de pedidos (mesero/personal) necesita listar
-// las mesas. Solo crear/editar/borrar mesas es de dueño/admin/cajero.
-const mutate = requireRole(...ADMIN_CASHIER_ROLES);
+// las mesas. Solo crear/editar/borrar mesas es de dueño/admin (o cajero con acceso completo).
+const mutate = requireRoleOrCashierFullAccess('OWNER', 'ADMIN');
 
 router.get('/', tableController.list);
 router.get('/floor-plan', tableController.floorPlan);

@@ -9,7 +9,14 @@ import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } 
 import { PasswordInput } from '@/components/ui/password-input';
 import { AssignTablesDialog } from '@/components/admin/AssignTablesDialog';
 
-const emptyForm = { name: '', email: '', password: '', role: 'WAITER' as UserRole, canAccessInventory: false };
+const emptyForm = {
+  name: '',
+  email: '',
+  password: '',
+  role: 'WAITER' as UserRole,
+  canAccessInventory: false,
+  cashierFullAccess: false,
+};
 
 const INVENTORY_ELIGIBLE_ROLES: UserRole[] = ['WAITER', 'KITCHEN'];
 
@@ -21,9 +28,12 @@ export function TeamSection() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editDraft, setEditDraft] = useState<{ role: UserRole; isActive: boolean; canAccessInventory: boolean } | null>(
-    null,
-  );
+  const [editDraft, setEditDraft] = useState<{
+    role: UserRole;
+    isActive: boolean;
+    canAccessInventory: boolean;
+    cashierFullAccess: boolean;
+  } | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [assigningTablesFor, setAssigningTablesFor] = useState<StaffMember | null>(null);
 
@@ -56,7 +66,7 @@ export function TeamSection() {
 
   function startEdit(s: StaffMember) {
     setEditingId(s.id);
-    setEditDraft({ role: s.role, isActive: s.isActive, canAccessInventory: s.canAccessInventory });
+    setEditDraft({ role: s.role, isActive: s.isActive, canAccessInventory: s.canAccessInventory, cashierFullAccess: s.cashierFullAccess });
   }
 
   async function saveEdit(id: string) {
@@ -130,6 +140,18 @@ export function TeamSection() {
               Dar acceso a Inventario
             </label>
           )}
+          {form.role === 'CASHIER' && (
+            <label className="flex items-center gap-2 text-sm text-brand-950/70 sm:col-span-2">
+              <input
+                type="checkbox"
+                checked={form.cashierFullAccess}
+                onChange={(e) => setForm({ ...form, cashierFullAccess: e.target.checked })}
+                className="h-4 w-4 rounded border-brand-950/20"
+              />
+              Dar acceso completo (Administración, Productos, Mesas…) — sin esto, el Cajero solo ve lo mismo que
+              Mesero, más abrir/cerrar caja y los movimientos del día por método de pago.
+            </label>
+          )}
           {error && <p className="text-sm text-red-600 sm:col-span-2">{error}</p>}
           <TextureButton
             variant="brand"
@@ -174,6 +196,17 @@ export function TeamSection() {
                     Dar acceso a Inventario
                   </label>
                 )}
+                {editDraft.role === 'CASHIER' && (
+                  <label className="flex items-center gap-2 text-xs text-brand-950/70">
+                    <input
+                      type="checkbox"
+                      checked={editDraft.cashierFullAccess}
+                      onChange={(e) => setEditDraft({ ...editDraft, cashierFullAccess: e.target.checked })}
+                      className="h-4 w-4 rounded border-brand-950/20"
+                    />
+                    Dar acceso completo (Administración, Productos, Mesas…)
+                  </label>
+                )}
                 <label className="flex items-center gap-2 text-xs text-brand-950/70">
                   <input
                     type="checkbox"
@@ -214,6 +247,7 @@ export function TeamSection() {
                   <p className="text-xs text-brand-950/40 truncate">
                     {s.email} · {ROLE_LABELS[s.role]}
                     {INVENTORY_ELIGIBLE_ROLES.includes(s.role) && s.canAccessInventory && ' · Inventario'}
+                    {s.role === 'CASHIER' && s.cashierFullAccess && ' · Acceso completo'}
                   </p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">

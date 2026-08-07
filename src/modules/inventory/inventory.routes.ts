@@ -1,7 +1,5 @@
 import { Router } from 'express';
-import { requireFeature, requireInventoryAccess, tenantGuard } from '../../middlewares/auth.middleware';
-import { requireRole } from '../../middlewares/auth.middleware';
-import { FULL_ACCESS_ROLES } from '../../utils/roles';
+import { requireFeature, requireInventoryAccess, requireRoleOrCashierFullAccess, tenantGuard } from '../../middlewares/auth.middleware';
 import { uploadInventoryPhoto, uploadSpreadsheet, optimizeImage } from '../../middlewares/upload.middleware';
 import { inventoryController } from './inventory.controller';
 import { inventoryCategoryController } from './inventory-category.controller';
@@ -18,7 +16,7 @@ import { recipeController } from './recipe.controller';
 const router = Router();
 router.use(tenantGuard);
 
-const mutate = requireRole(...FULL_ACCESS_ROLES);
+const mutate = requireRoleOrCashierFullAccess('OWNER', 'ADMIN', 'STAFF');
 
 // Categorías de insumos / stock de productos.
 router.get('/categories', requireFeature('inventoryBasic'), requireInventoryAccess, inventoryCategoryController.list);

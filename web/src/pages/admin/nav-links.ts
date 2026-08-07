@@ -84,10 +84,13 @@ export function visibleNavLinks(
   role: UserRole | null | undefined,
   restaurant?: NavRestaurant | null,
   canAccessInventory?: boolean,
+  cashierFullAccess?: boolean,
 ): AdminNavLink[] {
   if (isScreenRole(role)) return [];
   let links = ADMIN_NAV_LINKS;
-  const isRestricted = !!(role && RESTRICTED_ROLES.includes(role));
+  // Cajero sin acceso completo cuenta como restringido (mismo nav que Mesero) — con el flag
+  // activo se comporta como el resto de este archivo (isAdminCashier de abajo).
+  const isRestricted = !!(role && (RESTRICTED_ROLES.includes(role) || (role === 'CASHIER' && !cashierFullAccess)));
   if (isRestricted) {
     links = links.filter((l) => RESTRICTED_VISIBLE.has(l.to));
     if (canAccessInventory && restaurant && (hasFeature(restaurant, 'inventoryBasic') || hasFeature(restaurant, 'inventoryRecipe'))) {
@@ -97,18 +100,20 @@ export function visibleNavLinks(
   if (isDeliveryTierPlan(restaurant?.subscriptionPlan)) {
     links = links.filter((l) => !DELIVERY_HIDDEN.has(l.to));
   }
-  if (!isRestricted && !isAdminCashier(role)) {
+  if (!isRestricted && !isAdminCashier(role, cashierFullAccess)) {
     links = links.filter((l) => !STAFF_HIDDEN.has(l.to));
   }
   if (!isRestricted && restaurant) {
     const extra: AdminNavLink[] = [];
-    if (isAdminCashier(role)) extra.push(RESERVATIONS_NAV_LINK, QUOTES_NAV_LINK);
-    if (isAdminCashier(role) && hasFeature(restaurant, 'administration')) extra.push(ADMINISTRATION_NAV_LINK, EXPENSES_NAV_LINK);
+    if (isAdminCashier(role, cashierFullAccess)) extra.push(RESERVATIONS_NAV_LINK, QUOTES_NAV_LINK);
+    if (isAdminCashier(role, cashierFullAccess) && hasFeature(restaurant, 'administration')) {
+      extra.push(ADMINISTRATION_NAV_LINK, EXPENSES_NAV_LINK);
+    }
     if (hasFeature(restaurant, 'inventoryBasic') || hasFeature(restaurant, 'inventoryRecipe')) {
       extra.push(INVENTORY_NAV_LINK);
     }
     // Solo visible desde la sede principal: una sucursal no puede tener sus propias sucursales.
-    if (isAdminCashier(role) && !restaurant.parentRestaurantId && allowsBranches(restaurant.subscriptionPlan)) {
+    if (isAdminCashier(role, cashierFullAccess) && !restaurant.parentRestaurantId && allowsBranches(restaurant.subscriptionPlan)) {
       extra.push(SUCURSALES_NAV_LINK);
     }
     if (extra.length > 0) {
@@ -126,8 +131,9 @@ export function dashboardSectionLinks(
   role: UserRole | null | undefined,
   restaurant?: NavRestaurant | null,
   canAccessInventory?: boolean,
+  cashierFullAccess?: boolean,
 ): AdminNavLink[] {
-  return visibleNavLinks(role, restaurant, canAccessInventory).filter(
+  return visibleNavLinks(role, restaurant, canAccessInventory, cashierFullAccess).filter(
     (l) => l.to !== '/admin/settings' && l.to !== '/admin' && l.to !== '/admin/comandas',
   );
 }

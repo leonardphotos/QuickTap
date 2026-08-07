@@ -59,8 +59,8 @@ export function NewOrderAlert({ onNavigate }: Props) {
           user.role === 'SCREEN' ||
           (fresh.placedByUser?.id !== user.id &&
             (isDeliveryOrPickup
-              ? isAdminCashier(user.role)
-              : isAdminCashier(user.role) ||
+              ? isAdminCashier(user.role, user.cashierFullAccess)
+              : isAdminCashier(user.role, user.cashierFullAccess) ||
                 fresh.acceptedByUserId === user.id ||
                 (fresh.table?.assignedWaiterId
                   ? fresh.table.assignedWaiterId === user.id

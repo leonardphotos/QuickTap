@@ -7,11 +7,11 @@ import type { UserRole } from '@/types';
 
 /** Cantidad de reservas PENDING en vivo, para prender en rojo el acceso directo a Reservas
  * desde cualquier pantalla del panel (dock flotante y barra superior). */
-export function usePendingReservationsCount(role: UserRole | null | undefined): number {
+export function usePendingReservationsCount(role: UserRole | null | undefined, cashierFullAccess?: boolean): number {
   const [count, setCount] = useState(0);
 
   useEffect(() => {
-    if (!isAdminCashier(role)) {
+    if (!isAdminCashier(role, cashierFullAccess)) {
       setCount(0);
       return;
     }
@@ -37,7 +37,7 @@ export function usePendingReservationsCount(role: UserRole | null | undefined): 
       cancelled = true;
       socket.disconnect();
     };
-  }, [role]);
+  }, [role, cashierFullAccess]);
 
   return count;
 }

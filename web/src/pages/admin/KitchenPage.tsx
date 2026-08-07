@@ -58,7 +58,7 @@ function buildLanes(orders: OrderView[], kitchens: Kitchen[]): Lane[] {
 
 export default function KitchenPage() {
   const { user } = useAuth();
-  const canManage = hasFullAccess(user?.role);
+  const canManage = hasFullAccess(user?.role, user?.cashierFullAccess);
   const [orders, setOrders] = useState<OrderView[]>([]);
   const [kitchens, setKitchens] = useState<Kitchen[]>([]);
   const [connected, setConnected] = useState(false);
@@ -218,7 +218,7 @@ export default function KitchenPage() {
                       // PENDING acá siempre es delivery/pickup recién llegado del cliente: solo
                       // Caja/Admin/Dueño lo puede aceptar (implica coordinar cobro/despacho).
                       // Cocina/Mesero solo ven que está esperando, sin poder tocarlo.
-                      isAdminCashier(user?.role) ? (
+                      isAdminCashier(user?.role, user?.cashierFullAccess) ? (
                         <button
                           onClick={() => acceptOrder(ticket.order.id)}
                           className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-medium py-2 transition-colors"

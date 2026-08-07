@@ -1,12 +1,11 @@
 import { Router } from 'express';
-import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
-import { ADMIN_CASHIER_ROLES } from '../../utils/roles';
+import { requireRoleOrCashierFullAccess, tenantGuard } from '../../middlewares/auth.middleware';
 import { modifierCategoryController } from './modifier-category.controller';
 
 /** Base: /api/v1/modifier-categories — gestión de "Modificadores" desde Productos. */
 const router = Router();
 router.use(tenantGuard);
-router.use(requireRole(...ADMIN_CASHIER_ROLES));
+router.use(requireRoleOrCashierFullAccess('OWNER', 'ADMIN'));
 
 router.get('/', modifierCategoryController.list);
 router.post('/', modifierCategoryController.create);

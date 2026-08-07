@@ -117,9 +117,10 @@ export function requirePremiumPlan(req: Request, _res: Response, next: NextFunct
 }
 
 /**
- * Inventario para roles restringidos (Mesero/Cocina): los de acceso total
- * (OWNER/ADMIN/CASHIER/STAFF) siempre pasan; el resto necesita el permiso
- * individual `canAccessInventory` otorgado desde Ajustes → Equipo.
+ * Inventario para roles restringidos (Mesero/Cocina/Cajero sin acceso completo): los de acceso
+ * total (OWNER/ADMIN/STAFF) siempre pasan; el resto necesita el permiso individual
+ * `canAccessInventory` otorgado desde Ajustes → Equipo (un Cajero con `cashierFullAccess` pasa
+ * igual, por eso ese flag también cuenta acá — ver `requireRoleOrCashierFullAccess`).
  * Debe montarse DESPUÉS de `tenantGuard`.
  */
 export function requireInventoryAccess(req: Request, _res: Response, next: NextFunction) {
@@ -128,14 +129,47 @@ export function requireInventoryAccess(req: Request, _res: Response, next: NextF
     return;
   }
   prisma.user
-    .findUnique({ where: { id: req.auth?.userId }, select: { canAccessInventory: true } })
+    .findUnique({ where: { id: req.auth?.userId }, select: { canAccessInventory: true, cashierFullAccess: true } })
     .then((user) => {
-      if (!user?.canAccessInventory) {
+      if (!user?.canAccessInventory && !user?.cashierFullAccess) {
         throw forbidden('No tienes acceso a Inventario.');
       }
       next();
     })
     .catch(next);
+}
+
+/**
+ * Igual que `requireRole`, pero un Cajero con `User.cashierFullAccess` (otorgado individualmente
+ * desde Ajustes → Equipo, mismo patrón que `requireInventoryAccess`) pasa igual que si tuviera
+ * uno de los `roles` indicados. Por defecto un Cajero YA NO está en ADMIN_CASHIER_ROLES/
+ * FULL_ACCESS_ROLES (tiene el mismo acceso que Mesero) — este flag es la forma de devolverle el
+ * acceso completo de antes en las rutas que antes lo incluían. Debe montarse DESPUÉS de `tenantGuard`.
+ */
+export function requireRoleOrCashierFullAccess(...roles: string[]) {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    if (!req.auth) {
+      next(forbidden('No tienes permiso para realizar esta acción.'));
+      return;
+    }
+    if (roles.includes(req.auth.role)) {
+      next();
+      return;
+    }
+    if (req.auth.role !== 'CASHIER') {
+      next(forbidden('No tienes permiso para realizar esta acción.'));
+      return;
+    }
+    prisma.user
+      .findUnique({ where: { id: req.auth.userId }, select: { cashierFullAccess: true } })
+      .then((user) => {
+        if (!user?.cashierFullAccess) {
+          throw forbidden('No tienes permiso para realizar esta acción.');
+        }
+        next();
+      })
+      .catch(next);
+  };
 }
 
 /**

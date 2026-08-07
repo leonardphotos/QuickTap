@@ -6,6 +6,8 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { Toast } from '@/components/ui/toast';
 import { NavMenuDrawer } from '@/components/admin/NavMenuDrawer';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
+import { CashSessionControl } from '@/components/admin/CashSessionControl';
+import { TodayPaymentMethodsDialog } from '@/components/admin/TodayPaymentMethodsDialog';
 import { LowStockAlert } from '@/components/admin/LowStockAlert';
 import { NewOrderAlert } from '@/components/admin/NewOrderAlert';
 import { OrderReadyToast } from '@/components/admin/OrderReadyToast';
@@ -32,8 +34,8 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const { copy, toastMessage } = useCopyToast();
   const [menuOpen, setMenuOpen] = useState(false);
-  const pendingReservations = usePendingReservationsCount(user?.role);
-  const lowStockItems = useLowStockItems(user?.role, user?.canAccessInventory);
+  const pendingReservations = usePendingReservationsCount(user?.role, user?.cashierFullAccess);
+  const lowStockItems = useLowStockItems(user?.role, user?.canAccessInventory, user?.cashierFullAccess);
   const lockScreen = useLockScreen();
   const isLandscapeTablet = useIsLandscapeTablet();
 
@@ -84,7 +86,7 @@ export default function AdminLayout() {
     return <ShopLayout />;
   }
 
-  if (!canAccessPath(user.role, pathname, user.canAccessInventory)) {
+  if (!canAccessPath(user.role, pathname, user.canAccessInventory, user.cashierFullAccess)) {
     return <Navigate to={defaultPathFor(user.role)} replace />;
   }
 
@@ -117,11 +119,12 @@ export default function AdminLayout() {
     );
   }
 
-  // Tablet real en horizontal (Mesero o Cajero): sidebar de iconos + POS en vez del layout
-  // móvil de siempre — ver useIsLandscapeTablet/LandscapeStaffLayout. Dueño/Admin en tablet
-  // horizontal siguen viendo el panel de escritorio completo (no tiene sentido limitarlos a
-  // 4 pestañas). Mismo criterio de "reemplaza el Outlet normal" que WaiterLayout debajo.
-  if (isLandscapeTablet && (user.role === 'WAITER' || user.role === 'CASHIER')) {
+  // Tablet real en horizontal (Mesero, o Cajero SIN acceso completo): sidebar de iconos + POS en
+  // vez del layout móvil de siempre — ver useIsLandscapeTablet/LandscapeStaffLayout. Dueño/Admin
+  // (y Cajero con acceso completo) en tablet horizontal siguen viendo el panel de escritorio
+  // completo (no tiene sentido limitarlos a 4 pestañas). Mismo criterio de "reemplaza el Outlet
+  // normal" que WaiterLayout debajo.
+  if (isLandscapeTablet && (user.role === 'WAITER' || (user.role === 'CASHIER' && !user.cashierFullAccess))) {
     return <LandscapeStaffLayout />;
   }
 
@@ -133,15 +136,16 @@ export default function AdminLayout() {
   }
 
   // Mismo criterio que nav-links.ts: canAccessInventory solo aplica a roles restringidos
-  // (Mesero/Cocina no llegan aquí salvo Cocina); Dueño/Admin/Cajero ven Inventario si el
-  // plan lo incluye, sin depender de ese flag por-usuario.
+  // (Mesero/Cocina, y Cajero sin acceso completo); Dueño/Admin/Cajero-con-acceso-completo ven
+  // Inventario si el plan lo incluye, sin depender de ese flag por-usuario.
+  const cashierRestricted = user.role === 'CASHIER' && !user.cashierFullAccess;
   const canSeeInventory =
-    (!RESTRICTED_ROLES.includes(user.role) || user.canAccessInventory) &&
+    ((!RESTRICTED_ROLES.includes(user.role) && !cashierRestricted) || user.canAccessInventory) &&
     (hasFeature(restaurant, 'inventoryBasic') || hasFeature(restaurant, 'inventoryRecipe'));
   const daysLeft = daysRemaining(restaurant.periodEnd);
   const graceHours = graceHoursRemaining(restaurant.periodEnd);
   const showExpirationWarning = daysLeft <= 3;
-  const navLinks = visibleNavLinks(user.role, restaurant, user.canAccessInventory);
+  const navLinks = visibleNavLinks(user.role, restaurant, user.canAccessInventory, user.cashierFullAccess);
 
   return (
     <div className="min-h-screen bg-[#fafafa]">
@@ -163,13 +167,22 @@ export default function AdminLayout() {
       <AdminSidebar
         navLinks={navLinks}
         pendingReservations={pendingReservations}
-        lowStockItems={isAdminCashier(user.role) ? lowStockItems : []}
+        lowStockItems={isAdminCashier(user.role, user.cashierFullAccess) ? lowStockItems : []}
         onShare={() => copy(`${window.location.origin}/r/${restaurant.slug}`, 'Enlace copiado')}
         onOpenMenu={() => setMenuOpen(true)}
       />
 
       <div className="lg:pl-[264px]">
         <main className="max-w-5xl lg:max-w-7xl mx-auto px-6 lg:px-8 pt-10 lg:pt-8 pb-28 lg:pb-12">
+          {/* Cajero SIN acceso completo no ve Administración en absoluto (ver canAccessPath) —
+              abrir/cerrar caja y ver movimientos del día por método de pago son las dos
+              habilidades que conserva igual, así que van sueltas acá arriba en vez de perderse. */}
+          {user.role === 'CASHIER' && !user.cashierFullAccess && (
+            <div className="flex flex-wrap items-center gap-2 mb-6">
+              <CashSessionControl />
+              <TodayPaymentMethodsDialog />
+            </div>
+          )}
           <Outlet />
         </main>
       </div>
@@ -196,7 +209,7 @@ export default function AdminLayout() {
           >
             <Share2 className="h-5 w-5 text-brand-950/70" />
           </TextureButton>
-          {isAdminCashier(user.role) && (
+          {isAdminCashier(user.role, user.cashierFullAccess) && (
             <Link to="/admin/reservations" className="relative" aria-label="Reservas">
               <div
                 className={`flex items-center justify-center h-11 w-11 rounded-full transition-colors ${
@@ -219,7 +232,7 @@ export default function AdminLayout() {
               <TextureButton variant="icon" size="icon" className="!h-11 !w-11" aria-label="Inventario">
                 <Boxes className="h-5 w-5 text-brand-950/70" />
               </TextureButton>
-              {isAdminCashier(user.role) && lowStockItems.length > 0 && (
+              {isAdminCashier(user.role, user.cashierFullAccess) && lowStockItems.length > 0 && (
                 <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
                   {lowStockItems.length}
                 </span>
@@ -243,7 +256,7 @@ export default function AdminLayout() {
       {user.role === 'CASHIER' && <OrderReadyToast />}
       {/* Pedido nuevo que espera aceptación (mesa del cliente, o delivery/pickup): Caja/Admin/
           Dueño lo ven aquí para poder aceptarlo aunque estén con otro diálogo abierto. */}
-      {isAdminCashier(user.role) && <NewOrderAlert onNavigate={() => navigate('/admin')} />}
+      {isAdminCashier(user.role, user.cashierFullAccess) && <NewOrderAlert onNavigate={() => navigate('/admin')} />}
     </div>
   );
 }

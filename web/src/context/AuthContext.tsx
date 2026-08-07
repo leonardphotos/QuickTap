@@ -9,6 +9,9 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   canAccessInventory: boolean;
+  /** Solo aplica a rol Cajero: otorgado desde Ajustes → Equipo, le devuelve el acceso completo
+   * de antes (por defecto Cajero tiene el mismo acceso que Mesero + caja/movimientos del día). */
+  cashierFullAccess: boolean;
   /** true si ya configuró su PIN de 4 dígitos de la Pantalla de bloqueo (obligatorio). */
   hasLockPin: boolean;
 }
