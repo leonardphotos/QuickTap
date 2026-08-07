@@ -1,7 +1,12 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest } from '../../utils/http-error';
-import { createInventoryItemSchema, listInventoryQuerySchema, updateInventoryItemSchema } from './inventory.dto';
+import {
+  bulkDeleteInventoryItemsSchema,
+  createInventoryItemSchema,
+  listInventoryQuerySchema,
+  updateInventoryItemSchema,
+} from './inventory.dto';
 import { inventoryService } from './inventory.service';
 import { inventoryImportService } from './inventory-import.service';
 
@@ -27,6 +32,10 @@ export const inventoryController = {
   }),
   remove: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await inventoryService.remove(req.restaurantId!, req.auth?.parentRestaurantId, req.params.id) });
+  }),
+  bulkRemove: asyncHandler(async (req: Request, res: Response) => {
+    const { ids } = bulkDeleteInventoryItemsSchema.parse(req.body);
+    res.json({ data: await inventoryService.bulkRemove(req.restaurantId!, req.auth?.parentRestaurantId, ids) });
   }),
   printList: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await inventoryService.printList(req.restaurantId!, req.auth?.parentRestaurantId) });

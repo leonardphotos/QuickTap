@@ -43,6 +43,7 @@ router.get('/', requireFeature('inventoryBasic'), requireInventoryAccess, invent
 router.post('/', requireFeature('inventoryBasic'), mutate, inventoryController.create);
 router.patch('/:id', requireFeature('inventoryBasic'), mutate, inventoryController.update);
 router.delete('/:id', requireFeature('inventoryBasic'), mutate, inventoryController.remove);
+router.post('/bulk-delete', requireFeature('inventoryBasic'), mutate, inventoryController.bulkRemove);
 router.post('/print-list', requireFeature('inventoryBasic'), requireInventoryAccess, inventoryController.printList);
 
 // Carga masiva de insumos por Excel: plantilla descargable + subida que crea/actualiza por nombre.

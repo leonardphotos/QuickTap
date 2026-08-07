@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { AlertTriangle, FileSpreadsheet, Plus, Printer, Upload, X } from 'lucide-react';
+import { AlertTriangle, FileSpreadsheet, Plus, Printer, Trash2, Upload, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { hasFeature } from '@/utils/subscription';
@@ -277,6 +277,8 @@ function InsumosTab({
     null,
   );
   const importInputRef = useRef<HTMLInputElement>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   // Interruptor del vínculo modificador -> insumo.
   const { refresh } = useAuth();
   const linkEnabled = !!restaurant?.modifierInventoryLinkEnabled;
@@ -421,6 +423,33 @@ function InsumosTab({
     await api.delete(`/inventory/${item.id}`);
     if (editingId === item.id) cancelEdit();
     onChanged();
+  }
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    const allIds = (items ?? []).map((i) => i.id);
+    setSelected((prev) => (prev.size === allIds.length ? new Set() : new Set(allIds)));
+  }
+
+  async function bulkRemove() {
+    if (selected.size === 0) return;
+    if (!confirm(`¿Eliminar ${selected.size} insumo${selected.size === 1 ? '' : 's'} seleccionado${selected.size === 1 ? '' : 's'}?`)) return;
+    setBulkDeleting(true);
+    try {
+      await api.post('/inventory/bulk-delete', { ids: Array.from(selected) });
+      setSelected(new Set());
+      onChanged();
+    } finally {
+      setBulkDeleting(false);
+    }
   }
 
   return (
@@ -658,7 +687,34 @@ function InsumosTab({
       </form>
 
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-brand-950">Insumos</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-sm font-semibold text-brand-950">Insumos</h2>
+          {!!items?.length && (
+            <label className="flex items-center gap-1.5 text-xs font-medium text-brand-950/60">
+              <input
+                type="checkbox"
+                checked={selected.size > 0 && selected.size === items.length}
+                ref={(el) => {
+                  if (el) el.indeterminate = selected.size > 0 && selected.size < items.length;
+                }}
+                onChange={toggleSelectAll}
+                className="h-4 w-4 rounded border-brand-950/30 text-brand-500 focus:ring-brand-400"
+              />
+              Seleccionar todo
+            </label>
+          )}
+          {selected.size > 0 && (
+            <TextureButton
+              variant="minimal"
+              size="sm"
+              className="!w-auto flex items-center gap-1.5 whitespace-nowrap !text-red-600"
+              disabled={bulkDeleting}
+              onClick={bulkRemove}
+            >
+              <Trash2 className="h-3.5 w-3.5" /> {bulkDeleting ? 'Borrando…' : `Eliminar ${selected.size}`}
+            </TextureButton>
+          )}
+        </div>
         <div className="flex items-center gap-2 flex-wrap">
           {printSent && <span className="text-xs text-emerald-600 font-medium">Enviado a la estación de impresión</span>}
           <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={downloadingTemplate} onClick={downloadImportTemplate}>
@@ -724,6 +780,12 @@ function InsumosTab({
               const barColor = low ? 'bg-red-500' : ratio < 0.75 ? 'bg-amber-500' : 'bg-emerald-500';
               return (
                 <div key={item.id} className="flex items-center justify-between gap-3 px-5 py-4">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(item.id)}
+                    onChange={() => toggleSelected(item.id)}
+                    className="h-4 w-4 shrink-0 rounded border-brand-950/30 text-brand-500 focus:ring-brand-400"
+                  />
                   {item.photoUrl ? (
                     <img src={item.photoUrl} alt="" className="h-10 w-10 rounded-lg object-cover shrink-0" />
                   ) : (

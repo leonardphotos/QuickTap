@@ -162,6 +162,20 @@ export const productService = {
     return { deleted: true };
   },
 
+  /** Borrado masivo: solo borra los ids que realmente pertenecen a este restaurantId
+   * (mismo aislamiento que remove()), ignorando en silencio los que no. */
+  async bulkRemove(restaurantId: string, ids: string[]) {
+    const owned = await prisma.product.findMany({
+      where: { id: { in: ids }, restaurantId },
+      select: { id: true },
+    });
+    const ownedIds = owned.map((p) => p.id);
+    if (ownedIds.length > 0) {
+      await prisma.product.deleteMany({ where: { id: { in: ownedIds } } });
+    }
+    return { deleted: ownedIds.length };
+  },
+
   /** Administración → Margen de utilidad: costo efectivo (receta o manual) vs. precio, por producto. */
   async listWithMargin(restaurantId: string) {
     const [products, recipeSums] = await Promise.all([

@@ -30,6 +30,8 @@ router.get('/margin', mutate, requireFeature('administration'), productControlle
 router.get('/import-template', mutate, productController.downloadImportTemplate);
 router.post('/import', mutate, uploadSpreadsheet, productController.importExcel);
 
+router.post('/bulk-delete', mutate, productController.bulkRemove);
+
 router.get('/:id', productController.getOne);
 router.patch('/:id', mutate, productController.update);
 router.delete('/:id', mutate, productController.remove);

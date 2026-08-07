@@ -1,5 +1,10 @@
 import { z } from 'zod';
 
+export const bulkDeleteProductsSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, 'Selecciona al menos un producto.'),
+});
+export type BulkDeleteProductsInput = z.infer<typeof bulkDeleteProductsSchema>;
+
 /** Validación de entrada para crear/actualizar productos. */
 export const createProductSchema = z.object({
   categoryId: z.string().min(1, 'La categoría es obligatoria.'),

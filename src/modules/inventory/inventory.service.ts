@@ -136,6 +136,29 @@ export const inventoryService = {
     return { deleted: true };
   },
 
+  /** Borrado masivo: cada insumo puede tener un locationScope distinto (LOCAL/CASA_MATRIZ),
+   * así que se resuelve el restaurantId efectivo por insumo antes de borrar — no se puede
+   * hacer un deleteMany directo por restaurantId como en otros módulos. */
+  async bulkRemove(restaurantId: string, parentRestaurantId: string | null | undefined, ids: string[]) {
+    const items = await prisma.inventoryItem.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, restaurantId: true, locationScope: true },
+    });
+    const ownedIds: string[] = [];
+    for (const item of items) {
+      const effectiveId = await effectiveInventoryRestaurantId(
+        restaurantId,
+        parentRestaurantId,
+        item.locationScope as 'LOCAL' | 'CASA_MATRIZ',
+      );
+      if (item.restaurantId === effectiveId) ownedIds.push(item.id);
+    }
+    if (ownedIds.length > 0) {
+      await prisma.inventoryItem.deleteMany({ where: { id: { in: ownedIds } } });
+    }
+    return { deleted: ownedIds.length };
+  },
+
   /** Botón "Imprimir lista de insumos": envía la lista completa (con cantidad disponible) a la
    * estación de impresión, para saber qué falta comprar. Siempre los insumos LOCAL de la sede
    * que imprime (Casa Matriz no tiene estación de impresión propia). */

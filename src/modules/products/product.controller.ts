@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest } from '../../utils/http-error';
-import { createProductSchema, updateProductSchema } from './product.dto';
+import { bulkDeleteProductsSchema, createProductSchema, updateProductSchema } from './product.dto';
 import { productService } from './product.service';
 import { productImportService } from './product-import.service';
 
@@ -41,6 +41,12 @@ export const productController = {
 
   remove: asyncHandler(async (req: Request, res: Response) => {
     const result = await productService.remove(req.restaurantId!, req.params.id);
+    res.json({ data: result });
+  }),
+
+  bulkRemove: asyncHandler(async (req: Request, res: Response) => {
+    const { ids } = bulkDeleteProductsSchema.parse(req.body);
+    const result = await productService.bulkRemove(req.restaurantId!, ids);
     res.json({ data: result });
   }),
 

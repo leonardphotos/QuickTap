@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { FileSpreadsheet, ListPlus, Pencil, Plus, Search, Tag, Upload, X } from 'lucide-react';
+import { FileSpreadsheet, ListPlus, Pencil, Plus, Search, Tag, Trash2, Upload, X } from 'lucide-react';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import type { Category, Kitchen, Product } from '../../types';
@@ -38,6 +38,8 @@ export default function ProductsPage() {
   );
   const [importError, setImportError] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   function load() {
     api.get('/products').then((res) => setProducts(res.data.data));
@@ -56,6 +58,32 @@ export default function ProductsPage() {
     if (!confirm('¿Borrar este producto?')) return;
     await api.delete(`/products/${id}`);
     load();
+  }
+
+  function toggleSelected(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelected((prev) => (prev.size === filtered.length ? new Set() : new Set(filtered.map((p) => p.id))));
+  }
+
+  async function bulkRemove() {
+    if (selected.size === 0) return;
+    if (!confirm(`¿Borrar ${selected.size} producto${selected.size === 1 ? '' : 's'} seleccionado${selected.size === 1 ? '' : 's'}?`)) return;
+    setBulkDeleting(true);
+    try {
+      await api.post('/products/bulk-delete', { ids: Array.from(selected) });
+      setSelected(new Set());
+      load();
+    } finally {
+      setBulkDeleting(false);
+    }
   }
 
   function openCreate() {
@@ -255,11 +283,45 @@ export default function ProductsPage() {
         </p>
       )}
 
+      {filtered.length > 0 && (
+        <div className="-mb-4 flex items-center gap-3">
+          <label className="flex items-center gap-2 text-xs font-medium text-brand-950/60">
+            <input
+              type="checkbox"
+              checked={selected.size > 0 && selected.size === filtered.length}
+              ref={(el) => {
+                if (el) el.indeterminate = selected.size > 0 && selected.size < filtered.length;
+              }}
+              onChange={toggleSelectAll}
+              className="h-4 w-4 rounded border-brand-950/30 text-brand-500 focus:ring-brand-400"
+            />
+            Seleccionar todo
+          </label>
+          {selected.size > 0 && (
+            <TextureButton
+              variant="minimal"
+              size="sm"
+              className="!w-auto flex items-center gap-1.5 whitespace-nowrap !text-red-600"
+              disabled={bulkDeleting}
+              onClick={bulkRemove}
+            >
+              <Trash2 className="h-3.5 w-3.5" /> {bulkDeleting ? 'Borrando…' : `Borrar ${selected.size} seleccionado${selected.size === 1 ? '' : 's'}`}
+            </TextureButton>
+          )}
+        </div>
+      )}
+
       <TextureCard>
         <ul className="divide-y divide-brand-950/10">
           {filtered.map((p) => (
             <li key={p.id} className="flex items-center justify-between px-4 py-3 text-sm gap-3">
               <div className="flex items-center gap-3 min-w-0">
+                <input
+                  type="checkbox"
+                  checked={selected.has(p.id)}
+                  onChange={() => toggleSelected(p.id)}
+                  className="h-4 w-4 shrink-0 rounded border-brand-950/30 text-brand-500 focus:ring-brand-400"
+                />
                 {p.photoUrl ? (
                   <img src={p.photoUrl} alt="" className="h-10 w-10 rounded-lg object-cover shrink-0" />
                 ) : (

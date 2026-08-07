@@ -27,6 +27,11 @@ export const listInventoryQuerySchema = z.object({
   locationScope: z.enum(['LOCAL', 'CASA_MATRIZ']).optional().default('LOCAL'),
 });
 
+export const bulkDeleteInventoryItemsSchema = z.object({
+  ids: z.array(z.string().min(1)).min(1, 'Selecciona al menos un insumo.'),
+});
+
 export type CreateInventoryItemInput = z.infer<typeof createInventoryItemSchema>;
 export type UpdateInventoryItemInput = z.infer<typeof updateInventoryItemSchema>;
 export type ListInventoryQuery = z.infer<typeof listInventoryQuerySchema>;
+export type BulkDeleteInventoryItemsInput = z.infer<typeof bulkDeleteInventoryItemsSchema>;
