@@ -1,7 +1,8 @@
 {
   "name": "QuickTap.club",
   "short_name": "QuickTap",
-  "start_url": "/",
+  "start_url": "/admin/login",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0A1428",
   "theme_color": "#0A1428",

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
@@ -9,8 +9,14 @@ import { PasswordInput } from '@/components/ui/password-input';
 import AuthLayout from './AuthLayout';
 
 export default function LoginPage() {
-  const { login, loginWithGoogle } = useAuth();
+  const { login, loginWithGoogle, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+
+  // Con el acceso directo instalado (PWA), la app abre directo en /admin/login —
+  // si el navegador ya tiene sesión, salta la pantalla de login en vez de pedirla de nuevo.
+  useEffect(() => {
+    if (!authLoading && user) navigate('/admin', { replace: true });
+  }, [authLoading, user, navigate]);
   const rememberedEmail = getRememberedEmail();
   const [email, setEmail] = useState(rememberedEmail ?? '');
   const [password, setPassword] = useState('');
