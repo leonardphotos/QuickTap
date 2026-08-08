@@ -7,5 +7,6 @@ const router = Router();
 router.use(platformAuthGuard);
 
 router.get('/', masterSummaryController.get);
+router.get('/live', masterSummaryController.live);
 
 export default router;

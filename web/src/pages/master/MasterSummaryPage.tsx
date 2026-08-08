@@ -8,6 +8,7 @@ import { VpsCapacityBar } from '@/components/master/VpsCapacityBar';
 import { QuickTapRevenueDialog } from '@/components/master/QuickTapRevenueDialog';
 import { MaskedAmount } from '@/components/master/MaskedAmount';
 import { MoneyVisibilityToggle } from '@/components/master/MoneyVisibilityToggle';
+import { LiveOrdersCounter } from '@/components/master/LiveOrdersCounter';
 import { MASTER_CONFIG_LINKS, MASTER_OPERATION_LINKS } from './master-nav';
 
 // Colores rotativos para los tiles de "Accesos rápidos" — solo distinguen visualmente una sección
@@ -32,6 +33,7 @@ interface Summary {
   restaurantOwners: number;
   totalRestaurants: number;
   activeRestaurants: number;
+  ordersAllTime: number;
 }
 
 interface PlanRequestRow {
@@ -84,6 +86,8 @@ export default function MasterSummaryPage() {
   return (
     <div className="space-y-10">
       <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Resumen</h1>
+
+      <LiveOrdersCounter initial={summary.ordersAllTime} />
 
       {/* 1. Accesos rápidos — lo primero, para saltar a cualquier sección sin buscar en la barra. */}
       <section>
