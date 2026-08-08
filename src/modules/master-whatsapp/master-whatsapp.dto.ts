@@ -15,3 +15,12 @@ export const sendMasterWhatsappMessageSchema = z.object({
 });
 
 export type SendMasterWhatsappMessageInput = z.infer<typeof sendMasterWhatsappMessageSchema>;
+
+/** Difusión de un mismo mensaje a varios números — ej. avisar una actualización a todos los
+ * restaurantes. Se encola entera de una vez y se procesa sola (ver broadcast() en el servicio). */
+export const broadcastMasterWhatsappMessageSchema = z.object({
+  phones: z.array(z.string().min(6).max(30)).min(1).max(500),
+  message: z.string().min(1).max(4000),
+});
+
+export type BroadcastMasterWhatsappMessageInput = z.infer<typeof broadcastMasterWhatsappMessageSchema>;

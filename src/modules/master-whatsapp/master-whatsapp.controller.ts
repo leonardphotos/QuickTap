@@ -2,7 +2,11 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { prisma } from '../../config/prisma';
 import { formatVenezuelanWhatsappPhone } from '../../utils/whatsapp';
-import { sendMasterWhatsappMessageSchema, updateMasterWhatsappSettingsSchema } from './master-whatsapp.dto';
+import {
+  broadcastMasterWhatsappMessageSchema,
+  sendMasterWhatsappMessageSchema,
+  updateMasterWhatsappSettingsSchema,
+} from './master-whatsapp.dto';
 import { masterWhatsappBotService } from './master-whatsapp-bot.service';
 
 const SINGLETON_ID = 'singleton';
@@ -52,5 +56,15 @@ export const masterWhatsappController = {
     const phoneDigits = formatVenezuelanWhatsappPhone(input.phone).replace(/\D/g, '');
     const sent = await masterWhatsappBotService.sendMessage(phoneDigits, input.message);
     res.json({ data: { sent } });
+  }),
+
+  // No espera a que termine de mandar todos — la cola interna de sendMessage() los procesa
+  // sola, uno a la vez con ~30s aleatorios entre cada uno, sin que el llamador tenga que
+  // supervisarlo (ver broadcast() en el servicio).
+  broadcast: asyncHandler(async (req: Request, res: Response) => {
+    const input = broadcastMasterWhatsappMessageSchema.parse(req.body);
+    const phones = input.phones.map((p) => formatVenezuelanWhatsappPhone(p).replace(/\D/g, ''));
+    masterWhatsappBotService.broadcast(phones, input.message);
+    res.status(202).json({ data: { queued: phones.length } });
   }),
 };

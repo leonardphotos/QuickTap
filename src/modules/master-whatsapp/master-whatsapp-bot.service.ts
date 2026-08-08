@@ -340,6 +340,16 @@ export const masterWhatsappBotService = {
     });
   },
 
+  /** Encola un mismo mensaje para varios números de una sola vez — ej. un anuncio a todos los
+   * restaurantes. No espera a que termine: cada envío pasa por la misma cola de sendMessage()
+   * (uno a la vez, ~30s aleatorios entre cada uno), así que el llamador no tiene que ir
+   * disparando uno por uno con esperas manuales — la cola se procesa sola en segundo plano. */
+  broadcast(phones: string[], message: string): void {
+    for (const phone of phones) {
+      this.sendMessage(phone, message).catch(() => undefined);
+    }
+  },
+
   async sendImage(phone: string | null | undefined, image: Buffer, caption?: string): Promise<boolean> {
     if (!phone) return false;
     return enqueueOutbox(async () => {
