@@ -259,6 +259,27 @@ export default function MasterRestaurantDetailPage() {
     }
   }
 
+  // "Plan ilimitado": reutiliza el mismo endpoint de fecha exacta (PATCH .../period-end) con una
+  // fecha muy lejana en vez de inventar un estado "sin vencimiento" nuevo en el backend — el
+  // cálculo de bloqueo (subscription.ts) ya funciona por periodEnd + GRACE_HOURS, así que esto
+  // alcanza para que nunca se bloquee sin tocar esa lógica.
+  const UNLIMITED_DATE = '2099-12-31';
+
+  async function setUnlimited() {
+    if (!confirm('¿Poner este plan en "ilimitado" (vence en el año 2099)?')) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      await masterApi.patch(`/master/restaurants/${id}/period-end`, { periodEnd: UNLIMITED_DATE });
+      setMessage('Plan puesto en ilimitado (vence en 2099).');
+      load();
+    } catch (err: any) {
+      setMessage(err.response?.data?.error ?? 'No se pudo actualizar la fecha.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function applyExactPeriodEnd() {
     if (!exactPeriodEnd) return;
     setBusy(true);
@@ -532,15 +553,20 @@ export default function MasterRestaurantDetailPage() {
                   : `${detail.subscriptionStatus === 'TRIALING' ? 'En prueba' : `Plan ${detail.subscriptionPlan}`} · vence en ${detail.daysRemaining} día(s) (${new Date(detail.periodEnd).toLocaleDateString('es-VE')}).`}
             </p>
           </div>
-          <TextureButton
-            variant={detail.suspended ? 'brand' : 'destructive'}
-            size="sm"
-            disabled={busy}
-            className="!w-auto shrink-0"
-            onClick={toggleSuspended}
-          >
-            {detail.suspended ? 'Desbloquear cuenta' : 'Bloquear cuenta'}
-          </TextureButton>
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <TextureButton
+              variant={detail.suspended ? 'brand' : 'destructive'}
+              size="sm"
+              disabled={busy}
+              className="!w-auto"
+              onClick={toggleSuspended}
+            >
+              {detail.suspended ? 'Desbloquear cuenta' : 'Bloquear cuenta'}
+            </TextureButton>
+            <TextureButton variant="success" size="sm" disabled={busy} className="!w-auto" onClick={setUnlimited}>
+              Plan ilimitado
+            </TextureButton>
+          </div>
         </div>
 
         <div className="pt-1 border-t border-brand-950/[0.06]" />
