@@ -108,7 +108,7 @@ export default function DashboardPage() {
               accesos rápidos donde reubicarlo, y la cola de pedidos vive aparte en Comandas. */}
           <button
             onClick={() => setCreateOrderOpen(true)}
-            className="lg:hidden mb-4 w-full max-w-xs flex items-center justify-center gap-1.5 rounded-full bg-brand-500 hover:bg-brand-400 text-white text-sm font-semibold py-3 shadow-sm transition-colors"
+            className="lg:hidden mb-4 w-full max-w-xs flex items-center justify-center gap-1.5 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold py-3 shadow-sm transition-colors"
           >
             <Plus className="h-4 w-4" strokeWidth={2.5} /> Crear pedido
           </button>

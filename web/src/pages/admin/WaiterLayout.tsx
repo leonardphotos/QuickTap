@@ -182,7 +182,7 @@ export default function WaiterLayout() {
       {/* Botón flotante "Nuevo pedido": visible en cualquier pestaña, y el mesero lo puede
        * arrastrar a donde le quede más cómodo (la posición se recuerda en este dispositivo). */}
       <TextureButton
-        variant="brand"
+        variant="success"
         size="icon"
         onPointerDown={handleFabPointerDown}
         onPointerMove={handleFabPointerMove}

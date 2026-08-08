@@ -75,7 +75,11 @@ export default function LandscapeStaffLayout() {
               type="button"
               onClick={() => (item.id === 'crear' ? openCreateOrder() : setTab(item.id))}
               className={`flex w-16 flex-col items-center gap-1 rounded-2xl px-1 py-2.5 text-[10.5px] font-medium transition-colors ${
-                active ? 'bg-brand-500/20 text-white' : 'text-white/50 hover:text-white/80'
+                item.id === 'crear'
+                  ? 'text-emerald-400 hover:text-emerald-300'
+                  : active
+                    ? 'bg-brand-500/20 text-white'
+                    : 'text-white/50 hover:text-white/80'
               }`}
             >
               <item.icon className="h-[21px] w-[21px]" />

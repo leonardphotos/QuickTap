@@ -515,7 +515,7 @@ export function LiveOrdersPanel({
         </div>
         {!hideCreateButton && (
           <TextureButton
-            variant="brand"
+            variant="success"
             size="default"
             className="!w-auto flex items-center gap-1.5 shrink-0"
             onClick={() => setCreateOrderOpen(true)}
