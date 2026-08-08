@@ -89,42 +89,26 @@ export default function MasterSummaryPage() {
     <div className="space-y-10">
       <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Resumen</h1>
 
+      {/* 1. Pedidos procesados. */}
       <LiveOrdersCounter
         initial={summary.ordersAllTime}
         initialUsd={summary.ordersAllTimeUsd}
         initialBs={summary.ordersAllTimeBs}
       />
 
-      {/* 1. Accesos rápidos — lo primero, para saltar a cualquier sección sin buscar en la barra. */}
+      {/* 2. Capacidad del VPS. */}
       <section>
-        <h2 className="text-sm font-semibold text-brand-950/70 mb-3">Accesos rápidos</h2>
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
-          {SHORTCUTS.map((l, i) => {
-            const pending = pendingByPath[l.to];
-            return (
-              <Link
-                key={l.to}
-                to={l.to}
-                className="relative flex flex-col items-center gap-2 rounded-2xl border border-brand-950/[0.07] bg-white p-4 text-center shadow-sm transition-colors hover:border-brand-500/40"
-              >
-                <span
-                  className={`flex h-11 w-11 items-center justify-center rounded-2xl ${SHORTCUT_COLORS[i % SHORTCUT_COLORS.length]}`}
-                >
-                  <l.icon className="h-5 w-5" />
-                </span>
-                <span className="text-[11.5px] font-semibold leading-tight text-brand-950">{l.label}</span>
-                {pending !== undefined && pending > 0 && (
-                  <span className="absolute right-2 top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-500 px-1.5 text-[10px] font-bold text-white">
-                    {pending}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
-        </div>
+        <h2 className="text-sm font-semibold text-brand-950/70 mb-3">Capacidad del VPS</h2>
+        <VpsCapacityBar />
       </section>
 
-      {/* 2. Pendientes por atender — lo accionable va antes que lo informativo. */}
+      {/* 3. Salud del servidor. */}
+      <section>
+        <h2 className="text-sm font-semibold text-brand-950/70 mb-3">Salud del servidor</h2>
+        <ServerHealthCard />
+      </section>
+
+      {/* 4. Pendientes por atender. */}
       <section>
         <h2 className="text-sm font-semibold text-brand-950/70 mb-3">Pendientes por atender</h2>
         <div className="grid sm:grid-cols-2 gap-4">
@@ -164,7 +148,36 @@ export default function MasterSummaryPage() {
         </div>
       </section>
 
-      {/* 3. Ingresos — los dos bloques juntos bajo un solo encabezado y un solo interruptor de
+      {/* 5. Accesos rápidos. */}
+      <section>
+        <h2 className="text-sm font-semibold text-brand-950/70 mb-3">Accesos rápidos</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+          {SHORTCUTS.map((l, i) => {
+            const pending = pendingByPath[l.to];
+            return (
+              <Link
+                key={l.to}
+                to={l.to}
+                className="relative flex flex-col items-center gap-2 rounded-2xl border border-brand-950/[0.07] bg-white p-4 text-center shadow-sm transition-colors hover:border-brand-500/40"
+              >
+                <span
+                  className={`flex h-11 w-11 items-center justify-center rounded-2xl ${SHORTCUT_COLORS[i % SHORTCUT_COLORS.length]}`}
+                >
+                  <l.icon className="h-5 w-5" />
+                </span>
+                <span className="text-[11.5px] font-semibold leading-tight text-brand-950">{l.label}</span>
+                {pending !== undefined && pending > 0 && (
+                  <span className="absolute right-2 top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-500 px-1.5 text-[10px] font-bold text-white">
+                    {pending}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* 6. Ingresos — los dos bloques juntos bajo un solo encabezado y un solo interruptor de
              visibilidad (antes cada uno traía el suyo, repetido). */}
       <section>
         <div className="flex items-center gap-2 mb-3">
@@ -200,23 +213,13 @@ export default function MasterSummaryPage() {
         <QuickTapRevenueDialog onClose={() => setShowQuickTapDetail(false)} onChanged={loadSummary} />
       )}
 
-      {/* 4. Conteos generales. */}
+      {/* 7. Conteos generales. */}
       <section>
         <h2 className="text-sm font-semibold text-brand-950/70 mb-3">Locales</h2>
         <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 grid grid-cols-3 gap-4 text-center">
           <Stat label="Dueños de restaurante" value={summary.restaurantOwners} />
           <Stat label="Restaurantes activos" value={summary.activeRestaurants} />
           <Stat label="Restaurantes totales" value={summary.totalRestaurants} />
-        </div>
-      </section>
-
-      {/* 5. Infraestructura al final: es lo que menos se mira en el día a día — antes abría la
-             pantalla y empujaba lo accionable hacia abajo. */}
-      <section>
-        <h2 className="text-sm font-semibold text-brand-950/70 mb-3">Servidor</h2>
-        <div className="space-y-4">
-          <VpsCapacityBar />
-          <ServerHealthCard />
         </div>
       </section>
     </div>
