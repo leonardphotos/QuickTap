@@ -11,5 +11,6 @@ router.get('/status', masterWhatsappController.getStatus);
 router.post('/connect', masterWhatsappController.connect);
 router.post('/disconnect', masterWhatsappController.disconnect);
 router.patch('/settings', masterWhatsappController.updateSettings);
+router.post('/send', masterWhatsappController.sendMessage);
 
 export default router;

@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { prisma } from '../../config/prisma';
 import { formatVenezuelanWhatsappPhone } from '../../utils/whatsapp';
-import { updateMasterWhatsappSettingsSchema } from './master-whatsapp.dto';
+import { sendMasterWhatsappMessageSchema, updateMasterWhatsappSettingsSchema } from './master-whatsapp.dto';
 import { masterWhatsappBotService } from './master-whatsapp-bot.service';
 
 const SINGLETON_ID = 'singleton';
@@ -45,5 +45,12 @@ export const masterWhatsappController = {
       select: { subscriptionVerifierPhone: true },
     });
     res.json({ data: { subscriptionVerifierPhone: settings?.subscriptionVerifierPhone ?? null } });
+  }),
+
+  sendMessage: asyncHandler(async (req: Request, res: Response) => {
+    const input = sendMasterWhatsappMessageSchema.parse(req.body);
+    const phoneDigits = formatVenezuelanWhatsappPhone(input.phone).replace(/\D/g, '');
+    const sent = await masterWhatsappBotService.sendMessage(phoneDigits, input.message);
+    res.json({ data: { sent } });
   }),
 };
