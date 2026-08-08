@@ -365,7 +365,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
     channel !== 'DINE_IN'
       ? CHANNEL_LABELS[channel]
       : tableMode === 'ADD'
-        ? 'Añadir a mesa'
+        ? 'Abrir mesa'
         : selectedTable
           ? `${selectedTable.zoneName ? `${selectedTable.zoneName} · ` : ''}Mesa ${selectedTable.number}`
           : 'Nuevo pedido';
@@ -575,7 +575,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                           : 'border-brand-950/10 text-brand-950/60 hover:border-brand-950/20'
                       }`}
                     >
-                      Abrir mesa
+                      Añadir a mesa
                     </button>
                     <button
                       onClick={() => setTableMode('ADD')}
@@ -585,7 +585,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                           : 'border-brand-950/10 text-brand-950/60 hover:border-brand-950/20'
                       }`}
                     >
-                      Añadir a mesa
+                      Abrir mesa
                     </button>
                   </div>
                 )}
