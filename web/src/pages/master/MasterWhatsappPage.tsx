@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { MessageCircle } from 'lucide-react';
 import { masterApi } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
+import { AnnouncementsSection } from '@/components/master/AnnouncementsSection';
 
 type BotStatus = 'idle' | 'connecting' | 'qr' | 'connected' | 'disconnected';
 
@@ -282,6 +283,8 @@ export default function MasterWhatsappPage() {
           </div>
         </div>
       )}
+
+      <AnnouncementsSection />
     </div>
   );
 }

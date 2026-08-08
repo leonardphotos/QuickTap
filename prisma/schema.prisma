@@ -241,20 +241,20 @@ model Restaurant {
   // --- Chatbot de WhatsApp (vinculado por QR, ver whatsapp-bot.service.ts) ---
   // Interruptor maestro: si está apagado, no se manda ningún mensaje automático
   // aunque la sesión siga vinculada (permite pausar sin desvincular el número).
-  whatsappBotEnabled Boolean @default(false)
+  whatsappBotEnabled              Boolean @default(false)
   // Número vinculado tal como lo reporta la sesión de WhatsApp (solo informativo,
   // para mostrar "Conectado como +58..." en Ajustes) — no se usa para enviar.
-  whatsappBotConnectedNumber String?
+  whatsappBotConnectedNumber      String?
   // Qué eventos del ciclo de vida del pedido disparan un mensaje automático.
-  whatsappBotNotifyReceived Boolean @default(true)
-  whatsappBotNotifyReady    Boolean @default(true)
+  whatsappBotNotifyReceived       Boolean @default(true)
+  whatsappBotNotifyReady          Boolean @default(true)
   // Respuesta automática con el saludo + enlace del menú a cada mensaje de texto que escribe un
   // cliente (sin enfriamiento: en hora pico el restaurante prefiere que conteste rápido, aunque
   // sea el mismo contacto escribiendo varias veces — ver handleIncomingMessage en whatsapp-bot.service.ts).
-  whatsappBotWelcomeEnabled Boolean @default(true)
+  whatsappBotWelcomeEnabled       Boolean @default(true)
   // Placeholders disponibles: {{restaurant}}, {{link}}. Si es null, se usa
   // DEFAULT_WELCOME_TEMPLATE (whatsapp-bot.service.ts).
-  whatsappBotWelcomeMessage String?
+  whatsappBotWelcomeMessage       String?
   // Número (solo dígitos) al que el chatbot reenvía cada comprobante de pago (modo
   // PAYMENT_VERIFICATION) o el pedido completo (modo FULL_ORDER) de un pedido
   // delivery/pickup para que el propio restaurante lo revise y responda
@@ -266,7 +266,7 @@ model Restaurant {
   // pedido sin importar el método de pago, manda el pedido completo al número de
   // whatsappBotPaymentVerifierPhone y espera que el negocio confirme "Aprobado" a mano
   // (sin foto) antes de pasar a cocina. Solo aplica si whatsappBotEnabled.
-  whatsappOrderMode String @default("PAYMENT_VERIFICATION")
+  whatsappOrderMode               String  @default("PAYMENT_VERIFICATION")
 
   // --- Apariencia del menú público ---
   // Colores personalizados del menú público (fondo, botones, acentos, texto).
@@ -283,7 +283,7 @@ model Restaurant {
   // nadie del equipo vuelve a ver el teclado de PIN y tampoco se le exige crearlo;
   // los PIN ya configurados se conservan para cuando se vuelva a activar.
   // Arranca en `true` porque el bloqueo ya existía antes de este interruptor.
-  lockScreenEnabled Boolean @default(true)
+  lockScreenEnabled    Boolean @default(true)
   serviceChargeEnabled Boolean @default(false) // 10% de servicio
   // 16% de IVA. Solo lo activa el equipo QuickTap desde el Master Dashboard (no autoservicio
   // del restaurante), y solo si ya tiene `rif` registrado — ver master-restaurants.service.ts.
@@ -330,11 +330,11 @@ model Restaurant {
   // Al terminar de cobrar un pedido DELIVERY, abrir solo la ventana de
   // "Equipo de delivery" para que el cajero elija repartidor sin buscar el
   // pedido en la lista. No despacha nada por su cuenta.
-  deliveryAutoOpenOnPaid   Boolean @default(false)
+  deliveryAutoOpenOnPaid     Boolean @default(false)
   // Un paso más: elige el repartidor automáticamente (rotación por quien
   // lleva más tiempo sin recibir un pedido) y arma su WhatsApp, sin
   // preguntar. Tiene prioridad sobre deliveryAutoOpenOnPaid.
-  deliveryAutoAssignOnPaid Boolean @default(false)
+  deliveryAutoAssignOnPaid   Boolean @default(false)
   // Independiente de los dos de arriba: elige el repartidor automáticamente
   // (misma rotación por quien lleva más tiempo sin recibir un pedido) apenas
   // se ACEPTA un pedido DELIVERY, sin esperar a que se cobre. Si el pedido
@@ -356,15 +356,15 @@ model Restaurant {
   // --- Ajustes -> Pantalla: qué muestra el carrusel del rol SCREEN (ver ScreenPage.tsx) ---
   // "ALL" = todo el catálogo disponible; "CATEGORIES" = solo las categorías en
   // screenCategoryIds; "PRODUCTS" = solo los productos puntuales en screenProductIds.
-  screenDisplayMode String @default("ALL")
+  screenDisplayMode     String @default("ALL")
   // Arrays de ids como Json (mismo criterio que theme/paymentMethodsConfig en este modelo,
   // no hay precedente de String[] nativo acá) — solo se leen cuando screenDisplayMode los usa.
-  screenCategoryIds Json?
-  screenProductIds  Json?
+  screenCategoryIds     Json?
+  screenProductIds      Json?
   // Segundos que cada pantalla queda fija antes de rotar a la siguiente. Opciones fijas en la UI: 3/6/10/20.
-  screenPageIntervalSec Int @default(8)
+  screenPageIntervalSec Int    @default(8)
   // Productos por pantalla. Opciones fijas en la UI: 2/4/6.
-  screenItemsPerPage    Int @default(4)
+  screenItemsPerPage    Int    @default(4)
 
   // Código de 6 dígitos (hasheado, igual que TableSession.pinHash) que el Mesero
   // debe ingresar para eliminar una comanda. Solo lo crea/cambia Dueño/Admin desde
@@ -421,7 +421,7 @@ model Restaurant {
   // Grupo (sede principal + sucursales): "PER_BRANCH" = cada sede su propio stock (de
   // siempre); "SHARED" = una sola bolsa de stock para todas. Solo se cambia desde la
   // sede principal (ver restaurant.service.ts update()).
-  inventoryMode String @default("PER_BRANCH")
+  inventoryMode     String  @default("PER_BRANCH")
   // Activa la ventana "Casa Matriz" (segundo inventario, aparte del normal, para
   // distribuir a la sede principal y a las sucursales). Solo aplica en la sede
   // principal — no todos los clientes de Sucursales tienen una.
@@ -583,9 +583,9 @@ model User {
   // --- Personal que presta servicios (barberos, estilistas, manicuristas...) ---
   // Local Comercial: este usuario aparece en el selector "Atendido por" del POS y sus
   // servicios se le acreditan para el reporte por profesional.
-  isServiceProvider Boolean @default(false)
+  isServiceProvider    Boolean @default(false)
   // % que se lleva de lo que factura (ej. 50 = mitad para él, mitad para el local). Null = 0.
-  commissionPercent Float?
+  commissionPercent    Float?
   // Sus PROPIOS datos de cobro (mismo formato que Restaurant.paymentMethodsConfig): en una
   // barbería el cliente le paga directo al barbero a su Pago Móvil/Zelle, aunque la venta se
   // registre igual en el local. Null = se cobra con los datos del local.
@@ -714,13 +714,13 @@ model Product {
   promoPrice        Decimal?  @db.Decimal(12, 2)
   // "HH:mm" 24h, hora de Caracas. Null en cualquiera de los dos = sin restricción de hora.
   // Si promoEndTime < promoStartTime se interpreta como un rango que cruza la medianoche.
-  promoStartTime String?
-  promoEndTime   String?
+  promoStartTime    String?
+  promoEndTime      String?
   // 0=domingo..6=sábado (igual que Date#getDay()). Vacío = todos los días.
-  promoDaysOfWeek Int[]     @default([])
+  promoDaysOfWeek   Int[]     @default([])
   // Rango de fechas (inclusive, medianoche a medianoche hora de Caracas). Null = sin límite.
-  promoStartDate DateTime?
-  promoEndDate   DateTime?
+  promoStartDate    DateTime?
+  promoEndDate      DateTime?
 
   // Orden dentro de su categoría.
   priority Int @default(0)
@@ -828,8 +828,8 @@ model Modifier {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurant Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  category   ModifierCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  restaurant    Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category      ModifierCategory       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   // SetNull: si se borra el insumo, el modificador sigue vivo (solo deja de
   // descontar) — borrar un insumo no puede tumbar el menú.
   inventoryItem InventoryItem?         @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
@@ -1126,16 +1126,16 @@ model Order {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurant      Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  table           Table?           @relation(fields: [tableId], references: [id], onDelete: SetNull)
-  tableSession    TableSession?    @relation(fields: [tableSessionId], references: [id], onDelete: SetNull)
-  placedByUser    User?            @relation("OrderPlacedBy", fields: [placedByUserId], references: [id], onDelete: SetNull)
-  acceptedByUser  User?            @relation("OrderAcceptedBy", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
-  deliveryCourier DeliveryCourier? @relation(fields: [deliveryCourierId], references: [id], onDelete: SetNull)
-  items           OrderItem[]
-  payments        OrderPayment[]
+  restaurant          Restaurant                @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table               Table?                    @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  tableSession        TableSession?             @relation(fields: [tableSessionId], references: [id], onDelete: SetNull)
+  placedByUser        User?                     @relation("OrderPlacedBy", fields: [placedByUserId], references: [id], onDelete: SetNull)
+  acceptedByUser      User?                     @relation("OrderAcceptedBy", fields: [acceptedByUserId], references: [id], onDelete: SetNull)
+  deliveryCourier     DeliveryCourier?          @relation(fields: [deliveryCourierId], references: [id], onDelete: SetNull)
+  items               OrderItem[]
+  payments            OrderPayment[]
   // Plural: la factura (FA) y su eventual nota de crédito/débito (NC/ND).
-  fiscalInvoices  FiscalInvoice[]
+  fiscalInvoices      FiscalInvoice[]
   paymentVerification OrderPaymentVerification?
 
   @@unique([restaurantId, orderNumber])
@@ -1149,24 +1149,24 @@ model Order {
 // de Pedidos. Un pedido puede tener varios (pago fraccionado en distintos
 // métodos); lo pagado se compara contra totalBase para saber el saldo.
 model OrderPayment {
-  id              String        @id @default(cuid())
-  orderId         String
-  amountBase      Decimal       @db.Decimal(12, 2)
-  method          PaymentMethod
+  id                           String        @id @default(cuid())
+  orderId                      String
+  amountBase                   Decimal       @db.Decimal(12, 2)
+  method                       PaymentMethod
   // Descuento aplicado a este pago puntual (no al pedido completo, porque
   // pagos fraccionados distintos pueden llevar descuentos distintos).
-  discountPercent Decimal?      @db.Decimal(5, 2)
-  discountBase    Decimal?      @db.Decimal(12, 2)
+  discountPercent              Decimal?      @db.Decimal(5, 2)
+  discountBase                 Decimal?      @db.Decimal(12, 2)
   // Ajuste puntual al cargo de servicio de ESTE cobro (perdona parte/todo el servicio de este
   // pago) — mismo criterio que discountPercent/discountBase, nunca toca Order.serviceChargeBase.
-  serviceChargeDiscountPercent Decimal? @db.Decimal(5, 2)
-  serviceChargeDiscountBase    Decimal? @db.Decimal(12, 2)
+  serviceChargeDiscountPercent Decimal?      @db.Decimal(5, 2)
+  serviceChargeDiscountBase    Decimal?      @db.Decimal(12, 2)
   // Número de referencia/comprobante (Pago Móvil, Zelle) o de ticket (Punto de venta).
-  referenceNumber String?
+  referenceNumber              String?
   // Foto del comprobante (Pago Móvil/Zelle/Binance/PayPal/Transferencia) — obligatoria para
   // esos métodos al cobrar desde el panel (ver METHODS_REQUIRING_PROOF en order.dto.ts).
-  proofImageUrl String?
-  createdAt       DateTime      @default(now())
+  proofImageUrl                String?
+  createdAt                    DateTime      @default(now())
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
@@ -1196,9 +1196,9 @@ enum OrderPaymentVerificationStatus {
 // para métodos de pago que requieren comprobante (ver PROOF_REQUIRED_PAYMENT_METHODS en
 // src/utils/whatsapp.ts).
 model OrderPaymentVerification {
-  id           String @id @default(cuid())
-  orderId      String @unique
-  restaurantId String
+  id            String @id @default(cuid())
+  orderId       String @unique
+  restaurantId  String
   // Teléfono del cliente normalizado a solo dígitos con código de país (mismo criterio que
   // formatVenezuelanWhatsappPhone), para poder compararlo dígito a dígito contra el JID de
   // WhatsApp de un mensaje entrante.
@@ -1269,7 +1269,7 @@ model FiscalInvoicingConfig {
 // Unidigital. status pasa PENDING (enviado, esperando N° de control, que
 // tarda 1-5 min) -> ISSUED (con controlNumber) -> FAILED / VOIDED.
 model FiscalInvoice {
-  id String @id @default(cuid())
+  id           String @id @default(cuid())
   // NO es único por pedido: un mismo pedido puede tener su factura (FA) y
   // después una nota de crédito (NC) o de débito (ND) que la corrige. La
   // unicidad real es por (pedido, tipo de documento) — ver @@unique abajo.
@@ -1323,12 +1323,12 @@ model FiscalInvoice {
 // de quién hizo qué sobre un documento fiscal, y cuándo). Solo se inserta —
 // nunca se actualiza ni se borra desde el código de la aplicación.
 model FiscalAuditLog {
-  id           String @id @default(cuid())
+  id           String  @id @default(cuid())
   restaurantId String
   // Puede ser null cuando el evento es previo a existir la factura (ej.
   // ISSUE_ATTEMPT que falló antes de poder crear la fila).
-  invoiceId String?
-  orderId   String?
+  invoiceId    String?
+  orderId      String?
 
   // "ISSUE_ATTEMPT" | "ISSUED" | "ISSUE_FAILED" | "CONTROL_NUMBER_ASSIGNED"
   // | "VOID_REQUESTED" | "VOIDED" | "CREDIT_NOTE_ISSUED" | "MODIFY_BLOCKED"
@@ -1579,7 +1579,7 @@ model PlanRequest {
 
   createdAt DateTime @default(now())
 
-  restaurant Restaurant?           @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
+  restaurant Restaurant?          @relation(fields: [restaurantId], references: [id], onDelete: SetNull)
   // Abonos del "pago fraccionado" (solo pago manual): cada uno con su propio
   // monto/método/comprobante, hasta cubrir priceUsd — ver plan-request.service.ts.
   // Vacío para una solicitud de pago único de siempre.
@@ -1649,9 +1649,9 @@ model Quote {
   note          String?
 
   // [{ name, qty, unitPrice }] — snapshot de lo cotizado, no referencias vivas al catálogo.
-  items      Json
-  totalBase  Decimal  @db.Decimal(12, 2)
-  currency   Currency
+  items     Json
+  totalBase Decimal  @db.Decimal(12, 2)
+  currency  Currency
 
   // Se llena cuando el cliente aprueba y el presupuesto se convierte en una venta real —
   // Order.id para restaurantes, ShopSale.id para Locales Comerciales (un solo campo de texto
@@ -1712,17 +1712,17 @@ model PromoCode {
 // Configuración global (no por restaurante) de la plataforma: datos de pago
 // mostrados en la pasarela manual. Fila única, JSON flexible.
 model PlatformSettings {
-  id                   String   @id @default("singleton")
+  id                   String  @id @default("singleton")
   paymentMethods       Json?
   // Interruptores globales de la pasarela de pago (landing + billing autenticado).
   // Si se apagan ambos, PaymentForm no deja pagar hasta que se reactive uno.
-  ramblayEnabled       Boolean  @default(true)
-  manualPaymentEnabled Boolean  @default(true)
+  ramblayEnabled       Boolean @default(true)
+  manualPaymentEnabled Boolean @default(true)
   // Interruptor global de los botones "Mejorar con IA" / "Fondo blanco con IA"
   // (ai-photo-service, facturado con una sola API key de Gemini pagada por
   // QuickTap, no por restaurante) — apagarlo bloquea ambos botones en todos
   // los restaurantes y locales a la vez.
-  aiPhotoEnabled       Boolean  @default(true)
+  aiPhotoEnabled       Boolean @default(true)
   // Precios/descripción editables por plan desde el Dashboard maestro. Parcial
   // (solo los planes que el master haya tocado); se fusiona con los valores
   // por defecto en platform-settings.service.ts al leer.
@@ -1745,7 +1745,7 @@ model PlatformSettings {
   // con los valores por defecto en platform-settings.service.ts (DEFAULT_MESSAGE_TEMPLATES).
   messageTemplates              Json?
 
-  updatedAt            DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 
   @@map("platform_settings")
 }
@@ -1764,7 +1764,7 @@ enum SubscriptionPaymentVerificationStatus {
 // puede haber UNA fila en AWAITING_VERIFIER a la vez (acá para toda la plataforma, no por
 // restaurante, porque hay un solo número verificador) — así "Aprobado" nunca es ambiguo.
 model SubscriptionPaymentVerification {
-  id           String @id @default(cuid())
+  id           String     @id @default(cuid())
   restaurantId String
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
@@ -1778,7 +1778,7 @@ model SubscriptionPaymentVerification {
   billingCycle BillingCycle
   // Monto informado en el recordatorio (referencia — la renovación real usa nextPeriodEnd()
   // sobre plan/billingCycle, nunca este monto, igual criterio que PlanRequest).
-  amountUsd    Decimal? @db.Decimal(10, 2)
+  amountUsd    Decimal?         @db.Decimal(10, 2)
 
   proofImageUrl         String?
   proofReceivedAt       DateTime?
@@ -1812,6 +1812,31 @@ model PlatformAdmin {
   createdAt    DateTime          @default(now())
 
   @@map("platform_admins")
+}
+
+/// Borrador/aviso de actualización del equipo QuickTap, editable desde el dashboard master antes
+/// de mandarlo por el chatbot de la plataforma (ver src/modules/master-whatsapp/). El flujo es
+/// crear -> revisar/editar el texto -> "Enviar", que dispara masterWhatsappBotService.broadcast()
+/// solo a los restaurantes/locales activos que coincidan con targetBusinessType.
+model PlatformAnnouncement {
+  id                 String             @id @default(cuid())
+  message            String
+  // null = manda a restaurantes y locales por igual.
+  targetBusinessType BusinessType?
+  status             AnnouncementStatus @default(DRAFT)
+  sentAt             DateTime?
+  // Cuántos números se encolaron al mandar — congelado en el momento del envío, no se recalcula.
+  sentCount          Int?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@index([status, createdAt])
+  @@map("platform_announcements")
+}
+
+enum AnnouncementStatus {
+  DRAFT
+  SENT
 }
 
 // ----------------------------------------------------------------------------
@@ -1856,10 +1881,10 @@ model InventoryItem {
   // --- Envase (envase/caja/bolsa) ---
   // No nulo = este insumo está disponible para vincularse como envase de un producto
   // (Product.packagingItemId), sin importar en qué InventoryCategory esté archivado.
-  packagingType  String?
+  packagingType String?
   // Precio que se le cobra al cliente por 1 unidad de este envase (distinto de
   // pricePerUnitBase, que es costo). Solo tiene efecto cuando packagingType no es null.
-  salePriceBase  Decimal? @db.Decimal(12, 2)
+  salePriceBase Decimal? @db.Decimal(12, 2)
 
   // "LOCAL" (de siempre) = insumo normal de esta sede; "CASA_MATRIZ" = vive en la
   // ventana aparte de Casa Matriz (solo existe en la sede principal, ver
@@ -1889,7 +1914,7 @@ model InventoryItem {
 // (igual criterio que Order congela productName): el historial no debe cambiar si el
 // insumo o la sede se renombran/borran después.
 model InventoryTransfer {
-  id   String @id @default(cuid())
+  id      String @id @default(cuid())
   // Id de la sede principal del grupo (self o parentRestaurantId) — ancla el
   // historial a un grupo entero sin importar desde qué sede se consulte.
   groupId String
@@ -2020,21 +2045,21 @@ model ShopProduct {
   // de ancho × alto y se le cobra el ANCHO COMPLETO del rollo del que se corta, porque el
   // sobrante a lo ancho no se reaprovecha (ver web/.../shop/printPricing.ts). Con este modo,
   // `price` y `cost` pasan a ser por m² en vez de por unidad.
-  pricingMode     String  @default("UNIT")
+  pricingMode String @default("UNIT")
   // Anchos de rollo disponibles en metros, ej. [1.06, 1.37, 1.6, 1.84] para banner. Solo
   // aplica con pricingMode = 'AREA_ROLL'.
-  rollWidths      Json?
+  rollWidths  Json?
   // Largo del rollo en metros (típicamente 50) — se usa para derivar el costo por m² a partir
   // de lo que costó el rollo entero, que es como el dueño compra el material.
-  rollLengthM     Float?
+  rollLengthM Float?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurant Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  variants   ShopProductVariant[]
+  restaurant      Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  variants        ShopProductVariant[]
   // Insumos que consume este producto cuando es un servicio (ver ShopServiceSupply).
-  serviceSupplies ShopServiceSupply[] @relation("ShopServiceSupplyService")
+  serviceSupplies ShopServiceSupply[]  @relation("ShopServiceSupplyService")
 
   @@index([restaurantId])
   @@map("shop_products")
@@ -2083,7 +2108,7 @@ model ShopSale {
   // Null = todavía tiene saldo pendiente.
   settledAt DateTime?
 
-  restaurant Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurant Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   items      ShopSaleItem[]
   payments   ShopSalePayment[]
 
@@ -2114,23 +2139,23 @@ model ShopSaleItem {
 
   // Informativo, sin relación FK — el resto de los campos ya snapshotea todo lo necesario
   // para mostrar/devolver la venta aunque el producto original cambie o se borre.
-  productId    String?
-  v1           String
-  v2           String
-  name         String
-  category     String?
-  qty          Float
-  price        Float
-  cost         Float
-  soldByWeight Boolean @default(false)
+  productId         String?
+  v1                String
+  v2                String
+  name              String
+  category          String?
+  qty               Float
+  price             Float
+  cost              Float
+  soldByWeight      Boolean @default(false)
   // Detalle congelado de la línea, para que el recibo y el historial sigan explicando de dónde
   // salió la cantidad. Hoy lo usa la impresión de gran formato: "1,20 × 0,80 m · rollo 1,37" —
   // sin esto, la venta solo diría "1,096" y nadie podría reconstruir qué se imprimió.
-  detail       String?
+  detail            String?
   // Cuánto descontar del stock cuando NO coincide con `qty`. En impresión de gran formato `qty`
   // son los m² que se COBRAN (1,096) pero del rollo se consumen metros LINEALES (0,80): sin este
   // campo se descontaría el número equivocado. Null = descontar `qty`, como el resto del catálogo.
-  stockQty     Float?
+  stockQty          Float?
   // Profesional que prestó ESTE servicio (barbero/estilista). Por línea y no por venta: un
   // mismo ticket puede llevar el corte de un barbero y un producto vendido sin nadie detrás.
   // Sin relación FK: si el usuario se borra, la venta histórica no se toca (igual que productId).
