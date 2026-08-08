@@ -206,6 +206,8 @@ export interface Product {
   packagingMode?: 'NONE' | 'FIXED' | 'INVENTORY';
   packagingFeeBase?: string | null;
   packagingItemId?: string | null;
+  /** Solo en GET /products: precio del insumo vinculado, para calcular el envase en modo INVENTORY. */
+  packagingItem?: { salePriceBase: string | null } | null;
   isStar: boolean;
   isPromo: boolean;
   isHouseSpecial: boolean;

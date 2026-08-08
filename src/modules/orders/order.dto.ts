@@ -54,6 +54,10 @@ export const manualOrderSchema = z
     // Ubicación GPS del cliente (autocompletar dirección o "usar mi ubicación actual").
     customerLat: z.number().min(-90).max(90).optional(),
     customerLng: z.number().min(-180).max(180).optional(),
+    // Envío escrito a mano por el staff (canal DELIVERY). Solo se acepta acá, en la creación
+    // desde el panel: en el checkout público el monto SIEMPRE lo calcula el servidor, si no el
+    // propio comensal podría ponerse el envío en 0.
+    deliveryFeeBase: z.number().min(0).max(100000).optional(),
     // Cliente elegido del directorio (wizard "Crear pedido" → paso Clientes).
     customerId: z.string().optional(),
     // Cómo se piensa cobrar este pedido nuevo (wizard → paso Pago). 'DEBT' marca awaitingPayment

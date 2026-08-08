@@ -84,6 +84,7 @@ function mapOrderToDocument(
     serviceChargeBase: { toNumber: () => number };
     ivaBase: { toNumber: () => number };
     deliveryFeeBase: { toNumber: () => number };
+    envaseFeeBase: { toNumber: () => number };
     totalBase: { toNumber: () => number };
     tipBase: { toNumber: () => number };
     exchangeRate: { toNumber: () => number };
@@ -104,14 +105,15 @@ function mapOrderToDocument(
   const productsSubtotal = order.subtotalBase.toNumber();
   const serviceCharge = order.serviceChargeBase.toNumber();
   const deliveryFee = order.deliveryFeeBase.toNumber();
+  const envaseFee = order.envaseFeeBase.toNumber();
   const taxAmount = order.ivaBase.toNumber();
   const total = order.totalBase.toNumber();
   const tip = order.tipBase.toNumber();
 
-  // El cargo por servicio y el delivery SÍ forman parte del total cobrado, así
-  // que tienen que viajar como líneas del documento. Antes se omitían y el
-  // documento no cuadraba (Subtotal + IVA != Total), lo que el validador de la
-  // imprenta rechaza y deja la contabilidad descuadrada.
+  // El cargo por servicio, el delivery y el envase SÍ forman parte del total
+  // cobrado, así que tienen que viajar como líneas del documento. Antes se
+  // omitían y el documento no cuadraba (Subtotal + IVA != Total), lo que el
+  // validador de la imprenta rechaza y deja la contabilidad descuadrada.
   const extraLines: { Description: string; Quantity: number; UnitPrice: number; Total: number }[] = [];
   if (serviceCharge > 0) {
     extraLines.push({ Description: 'Cargo por servicio (10%)', Quantity: 1, UnitPrice: serviceCharge, Total: serviceCharge });
@@ -119,10 +121,13 @@ function mapOrderToDocument(
   if (deliveryFee > 0) {
     extraLines.push({ Description: 'Servicio de delivery', Quantity: 1, UnitPrice: deliveryFee, Total: deliveryFee });
   }
+  if (envaseFee > 0) {
+    extraLines.push({ Description: 'Envase', Quantity: 1, UnitPrice: envaseFee, Total: envaseFee });
+  }
 
   // Base imponible declarada = todo lo gravado que suma al total, sin el IVA.
   // Debe cumplir: TaxBase + TaxAmount + IGTF == GrandTotal - Tip.
-  const taxBase = productsSubtotal + serviceCharge + deliveryFee;
+  const taxBase = productsSubtotal + serviceCharge + deliveryFee + envaseFee;
 
   // IGTF: solo sobre la porción efectivamente pagada en divisa/cripto, y solo
   // si el contador del restaurante lo activó con su alícuota vigente.

@@ -66,6 +66,14 @@ const CHANNEL_LABELS: Record<Channel, string> = { DINE_IN: 'Mesa', DELIVERY: 'De
 
 const STEP_LABELS: Record<Step, string> = { 1: 'Menú', 2: 'Pago', 3: 'Clientes' };
 
+/** Cargo por envase de UNA unidad del producto — misma regla que computeEnvaseFee del backend:
+ * FIXED usa el precio propio, INVENTORY el del insumo vinculado, NONE no cobra. */
+function unitPackagingFee(product: Product): number {
+  if (product.packagingMode === 'FIXED') return Number(product.packagingFeeBase ?? 0);
+  if (product.packagingMode === 'INVENTORY') return Number(product.packagingItem?.salePriceBase ?? 0);
+  return 0;
+}
+
 /** "12 min" / "1h 05min" desde que se abrió la cuenta — para las tarjetas de mesa. */
 function elapsedSince(iso: string) {
   const mins = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
@@ -140,6 +148,9 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   const [error, setError] = useState<string | null>(null);
   const [deliveryFeeBase, setDeliveryFeeBase] = useState<number | null>(null);
   const [quotingFee, setQuotingFee] = useState(false);
+  // Envío escrito a mano: null = usar la cotización automática. Se guarda como texto para no
+  // pelear con el input mientras se escribe (ej. "3." o campo vacío a medio borrar).
+  const [manualFeeText, setManualFeeText] = useState<string | null>(null);
   const [rateBs, setRateBs] = useState<string | null>(null);
   const [addingToId, setAddingToId] = useState<string | null>(null);
   // En teléfono no cabe el panel lateral: la comanda se abre a pantalla completa desde la barra inferior.
@@ -196,6 +207,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   }, []);
 
   // Cotiza el envío en vivo apenas hay una ubicación de entrega, igual que el checkout público.
+  // No pisa el monto si el cajero ya lo escribió a mano (manualFee !== null).
   useEffect(() => {
     if (channel !== 'DELIVERY' || !addressCoords || !restaurant) {
       setDeliveryFeeBase(null);
@@ -227,8 +239,20 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   const subtotalBase = lines.reduce((acc, l) => acc + cartLineUnitPrice(l) * l.quantity, 0);
   const serviceChargeBase = restaurant?.serviceChargeEnabled ? subtotalBase * 0.1 : 0;
   const ivaBase = restaurant?.ivaEnabled ? subtotalBase * 0.16 : 0;
-  const totalBase =
-    subtotalBase + serviceChargeBase + ivaBase + (channel === 'DELIVERY' ? deliveryFeeBase ?? 0 : 0);
+
+  // El envío que se va a cobrar: el escrito a mano si lo hay, si no la cotización automática.
+  const manualFee = manualFeeText !== null && manualFeeText.trim() !== '' ? Number(manualFeeText) : null;
+  const effectiveDeliveryFee =
+    channel === 'DELIVERY' ? (manualFee != null && Number.isFinite(manualFee) ? manualFee : deliveryFeeBase ?? 0) : 0;
+
+  // Envase (envase/caja/bolsa por producto): el servidor lo cobra en Delivery y Pickup, así que
+  // el total de acá tiene que incluirlo o el cajero ve menos de lo que se termina cobrando.
+  const envaseFeeBase =
+    channel === 'DELIVERY' || channel === 'PICKUP'
+      ? lines.reduce((acc, l) => acc + unitPackagingFee(l.product) * l.quantity, 0)
+      : 0;
+
+  const totalBase = subtotalBase + serviceChargeBase + ivaBase + effectiveDeliveryFee + envaseFeeBase;
 
   // Cuentas abiertas de canales sin mesa (Delivery/Pickup/Barra), ofrecidas en el paso "Clientes" (paso 3).
   const nonDineInExistingOrders = useMemo(() => existingOrders.filter((o) => o.channel !== 'DINE_IN'), [existingOrders]);
@@ -329,6 +353,8 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
         customerAddress: channel === 'DELIVERY' ? customerAddress || selectedCustomer?.address || undefined : undefined,
         customerLat: channel === 'DELIVERY' ? addressCoords?.lat : undefined,
         customerLng: channel === 'DELIVERY' ? addressCoords?.lng : undefined,
+        // Solo se manda si el cajero lo escribió: si no, el servidor lo cotiza como siempre.
+        deliveryFeeBase: channel === 'DELIVERY' && manualFee != null ? manualFee : undefined,
         customerNote: customerNote.trim() || undefined,
         customerId: selectedCustomer?.id,
         paymentIntent,
@@ -455,10 +481,16 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
           <span>{formatBase(ivaBase, symbol)}</span>
         </div>
       )}
-      {channel === 'DELIVERY' && deliveryFeeBase != null && deliveryFeeBase > 0 && (
+      {channel === 'DELIVERY' && effectiveDeliveryFee > 0 && (
         <div className="flex justify-between text-[12.5px] text-brand-950/60">
-          <span>Envío</span>
-          <span>{formatBase(deliveryFeeBase, symbol)}</span>
+          <span>Envío{manualFee != null ? ' (manual)' : ''}</span>
+          <span>{formatBase(effectiveDeliveryFee, symbol)}</span>
+        </div>
+      )}
+      {envaseFeeBase > 0 && (
+        <div className="flex justify-between text-[12.5px] text-brand-950/60">
+          <span>Envase</span>
+          <span>{formatBase(envaseFeeBase, symbol)}</span>
         </div>
       )}
       {channel === 'DELIVERY' && quotingFee && <p className="text-[11px] text-brand-950/40">Calculando envío…</p>}
@@ -740,6 +772,43 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                           )}
                         </div>
                         {locationError && <p className="text-xs text-red-600 -mt-1">{locationError}</p>}
+
+                        {/* Envío a mano: para pedidos por teléfono (sin GPS), direcciones fuera
+                            de toda zona, o restaurantes que nunca configuraron tarifas — casos
+                            donde el cálculo automático da 0 y no había forma de corregirlo. */}
+                        <div className="rounded-xl border border-brand-950/10 bg-white px-3 py-2.5 space-y-1.5">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-semibold text-brand-950">Costo de envío</span>
+                            {quotingFee && <span className="text-[11px] text-brand-950/40">Calculando…</span>}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-brand-950/50">{symbol}</span>
+                            <input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={manualFeeText ?? (deliveryFeeBase ?? 0).toFixed(2)}
+                              onChange={(e) => setManualFeeText(e.target.value)}
+                              className="w-28 text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                            />
+                            {manualFeeText !== null && (
+                              <button
+                                type="button"
+                                onClick={() => setManualFeeText(null)}
+                                className="text-xs font-medium text-brand-500 hover:text-brand-400"
+                              >
+                                Volver al automático
+                              </button>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-brand-950/40 font-light">
+                            {manualFeeText !== null
+                              ? 'Monto fijado a mano — se cobra este, no el calculado.'
+                              : addressCoords
+                                ? 'Calculado según la ubicación. Puedes escribirlo a mano si no aplica.'
+                                : 'Sin ubicación no se puede calcular: escríbelo a mano si cobras envío.'}
+                          </p>
+                        </div>
                       </>
                     )}
                     <input

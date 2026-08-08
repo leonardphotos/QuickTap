@@ -773,7 +773,13 @@ export const orderService = {
       input.channel === 'DELIVERY' && input.customerLat != null && input.customerLng != null
         ? { lat: input.customerLat, lng: input.customerLng }
         : null;
-    const deliveryFeeBase = await computeDeliveryFee({ id: restaurantId, ...restaurant }, customerPoint);
+    // El staff puede escribir el envío a mano (pedido por teléfono sin GPS, dirección fuera de
+    // toda zona, o restaurante que nunca configuró tarifas). Si viene, manda sobre el cálculo
+    // automático; si no, se cotiza como siempre.
+    const deliveryFeeIsManual = input.channel === 'DELIVERY' && input.deliveryFeeBase != null;
+    const deliveryFeeBase = deliveryFeeIsManual
+      ? round2(toDecimal(input.deliveryFeeBase!))
+      : await computeDeliveryFee({ id: restaurantId, ...restaurant }, customerPoint);
     const envaseFeeBase = await computeEnvaseFee(restaurantId, input.channel, input.items);
     const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(deliveryFeeBase).add(envaseFeeBase));
     const totalBs = baseToBs(totalBase, rate.rateBs);
@@ -877,6 +883,7 @@ export const orderService = {
                 serviceChargeBase,
                 ivaBase,
                 deliveryFeeBase,
+                deliveryFeeManual: deliveryFeeIsManual,
                 envaseFeeBase,
                 totalBase,
                 exchangeRate: rate.rateBs,
@@ -1345,7 +1352,47 @@ export const orderService = {
       throw badRequest('No se puede editar un pedido ya finalizado o cancelado.');
     }
 
-    const updated = await prisma.order.update({ where: { id: orderId }, data: input });
+    // Mover la ubicación de un delivery cambia lo que cuesta llevarlo: si la dirección pasa a
+    // otra zona (o a otra distancia) hay que recotizar y rehacer el total. Sin esto el pedido se
+    // quedaba con el envío de la dirección vieja — el restaurante perdía la diferencia al alejarse
+    // y le cobraba de más al cliente al acercarse. El envío manual (deliveryFeeManual) se respeta:
+    // si alguien lo fijó a mano, mover el pin no se lo pisa.
+    const movedLocation =
+      existing.channel === 'DELIVERY' &&
+      !existing.deliveryFeeManual &&
+      (input.customerLat !== undefined || input.customerLng !== undefined);
+
+    let recalculated: { deliveryFeeBase: Prisma.Decimal; totalBase: Prisma.Decimal; totalBs: Prisma.Decimal } | null = null;
+    if (movedLocation) {
+      const restaurant = await prisma.restaurant.findUnique({
+        where: { id: restaurantId },
+        select: {
+          id: true,
+          deliveryPricingMode: true,
+          deliveryOriginLat: true,
+          deliveryOriginLng: true,
+          deliveryBaseFee: true,
+          deliveryPricePerKm: true,
+        },
+      });
+      const lat = input.customerLat ?? existing.customerLat;
+      const lng = input.customerLng ?? existing.customerLng;
+      const customerPoint = lat != null && lng != null ? { lat, lng } : null;
+      const deliveryFeeBase = await computeDeliveryFee(restaurant!, customerPoint);
+      const totalBase = round2(
+        existing.subtotalBase
+          .add(existing.serviceChargeBase)
+          .add(existing.ivaBase)
+          .add(deliveryFeeBase)
+          .add(existing.envaseFeeBase),
+      );
+      recalculated = { deliveryFeeBase, totalBase, totalBs: baseToBs(totalBase, existing.exchangeRate) };
+    }
+
+    const updated = await prisma.order.update({
+      where: { id: orderId },
+      data: { ...input, ...(recalculated ?? {}) },
+    });
     emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: updated.status });
     return updated;
   },
@@ -1431,6 +1478,10 @@ export const orderService = {
           customerLat,
           customerLng,
           deliveryFeeBase,
+          // Cambiar de canal siempre recotiza el envío, así que deja de ser un monto manual —
+          // si no, un pedido que fue a Pickup y volvió a Delivery quedaría marcado como manual
+          // con un monto que en realidad calculó el sistema.
+          deliveryFeeManual: false,
           envaseFeeBase,
           totalBase,
           totalBs,

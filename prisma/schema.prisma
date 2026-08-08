@@ -1086,6 +1086,10 @@ model Order {
   // Costo de envío calculado en el checkout de delivery (por distancia o por
   // zona). Sí forma parte de totalBase/totalBs, a diferencia de la propina.
   deliveryFeeBase   Decimal  @default(0) @db.Decimal(12, 2)
+  // El envío lo escribió el staff a mano al crear el pedido (panel), en vez de salir del
+  // cálculo por zona/distancia. Sirve para no pisárselo después: al mover la dirección del
+  // cliente el envío se recotiza solo si NO fue manual (ver updateCustomer).
+  deliveryFeeManual Boolean  @default(false)
   // Cargo por envase (envase/caja/bolsa) de los productos del pedido. Solo se
   // calcula para canal DELIVERY/PICKUP (nunca DINE_IN/BAR) — ver Product.packagingMode.
   envaseFeeBase     Decimal  @default(0) @db.Decimal(12, 2)

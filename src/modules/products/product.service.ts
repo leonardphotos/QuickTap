@@ -73,6 +73,9 @@ export const productService = {
       include: {
         category: { select: { id: true, name: true } },
         variants: { orderBy: [{ priority: 'asc' }, { name: 'asc' }] },
+        // Precio del envase vinculado (packagingMode INVENTORY): sin esto el panel no puede
+        // mostrar el cargo por envase que el servidor sí cobra en Delivery/Pickup.
+        packagingItem: { select: { salePriceBase: true } },
         ...PRODUCT_MODIFIER_INCLUDE,
       },
     });
