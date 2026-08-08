@@ -66,6 +66,15 @@ const CHANNEL_LABELS: Record<Channel, string> = { DINE_IN: 'Mesa', DELIVERY: 'De
 
 const STEP_LABELS: Record<Step, string> = { 1: 'Menú', 2: 'Pago', 3: 'Clientes' };
 
+/** "12 min" / "1h 05min" desde que se abrió la cuenta — para las tarjetas de mesa. */
+function elapsedSince(iso: string) {
+  const mins = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return `${h}h ${String(m).padStart(2, '0')}min`;
+}
+
 const PAYMENT_INTENT_OPTIONS: {
   value: PaymentIntent;
   label: string;
@@ -133,8 +142,6 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   const [quotingFee, setQuotingFee] = useState(false);
   const [rateBs, setRateBs] = useState<string | null>(null);
   const [addingToId, setAddingToId] = useState<string | null>(null);
-  // Modo "Añadir a mesa": cuenta abierta elegida en el desplegable (la acción vive en el panel).
-  const [addToOrderId, setAddToOrderId] = useState<string | null>(null);
   // En teléfono no cabe el panel lateral: la comanda se abre a pantalla completa desde la barra inferior.
   const [cartOpen, setCartOpen] = useState(false);
 
@@ -223,9 +230,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   const totalBase =
     subtotalBase + serviceChargeBase + ivaBase + (channel === 'DELIVERY' ? deliveryFeeBase ?? 0 : 0);
 
-  // Cuentas de mesa abiertas, para "Añadir a mesa" (paso 1). El resto de canales (Delivery/Pickup/
-  // Barra) se ofrecen en el paso "Clientes" (paso 3), como antes.
-  const dineInExistingOrders = useMemo(() => existingOrders.filter((o) => o.channel === 'DINE_IN'), [existingOrders]);
+  // Cuentas abiertas de canales sin mesa (Delivery/Pickup/Barra), ofrecidas en el paso "Clientes" (paso 3).
   const nonDineInExistingOrders = useMemo(() => existingOrders.filter((o) => o.channel !== 'DINE_IN'), [existingOrders]);
 
   function matchesSearch(o: ExistingOrderOption, query: string) {
@@ -262,6 +267,8 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
 
   /** Ajusta la cantidad de una línea específica por índice (necesario porque un mismo producto puede tener varias líneas con distinta variante/modificadores). */
   const selectedTable = tables.find((t) => t.id === tableId);
+  // "Abrir mesa": solo mesas sin ninguna cuenta activa, para arrancar una cuenta nueva.
+  const freeTables = useMemo(() => tables.filter((t) => t.sessions.length === 0), [tables]);
 
   function adjustLineAt(index: number, delta: number) {
     setLines((prev) => {
@@ -278,7 +285,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
       setError('Agrega al menos un producto.');
       return;
     }
-    if (channel === 'DINE_IN' && tableMode === 'OPEN' && !tableId) {
+    if (channel === 'DINE_IN' && !tableId) {
       setError('Selecciona una mesa.');
       return;
     }
@@ -475,28 +482,17 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
           Atrás
         </TextureButton>
       )}
-      {step === 1 &&
-        (channel === 'DINE_IN' && tableMode === 'ADD' ? (
-          <TextureButton
-            variant="brand"
-            size="default"
-            disabled={lines.length === 0 || !addToOrderId || addingToId !== null}
-            onClick={() => addToOrderId && addToExisting(addToOrderId)}
-            className="flex-1 disabled:opacity-50"
-          >
-            {addingToId ? 'Añadiendo…' : 'Agregar a la cuenta'}
-          </TextureButton>
-        ) : (
-          <TextureButton
-            variant="brand"
-            size="default"
-            disabled={lines.length === 0}
-            onClick={goToStep2}
-            className="flex-1 disabled:opacity-50"
-          >
-            Siguiente
-          </TextureButton>
-        ))}
+      {step === 1 && (
+        <TextureButton
+          variant="brand"
+          size="default"
+          disabled={lines.length === 0}
+          onClick={goToStep2}
+          className="flex-1 disabled:opacity-50"
+        >
+          Siguiente
+        </TextureButton>
+      )}
       {step === 2 && (
         <TextureButton
           variant="brand"
@@ -590,8 +586,9 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                   </div>
                 )}
 
-                {/* Abrir mesa: se muestran las mesas en tarjetas para ver de un vistazo cuáles
-                    están libres — antes era un desplegable, que obligaba a abrirlo para saberlo. */}
+                {/* Añadir a mesa: se muestran TODAS las mesas en tarjetas — las libres para
+                    abrir una cuenta nueva, y las ocupadas con cliente + tiempo abierto para
+                    decidir de un vistazo a cuál añadir. */}
                 {channel === 'DINE_IN' && tableMode === 'OPEN' && (
                   <div className="space-y-2">
                     {tables.length === 0 ? (
@@ -601,6 +598,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                         {tables.map((t) => {
                           const busy = t.sessions.length > 0;
                           const active = tableId === t.id;
+                          const firstSession = t.sessions[0];
                           return (
                             <button
                               key={t.id}
@@ -619,11 +617,19 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                             >
                               <p className="text-sm font-bold text-brand-950 truncate">Mesa {t.number}</p>
                               {t.zoneName && <p className="text-[10px] text-brand-950/40 truncate">{t.zoneName}</p>}
-                              <p
-                                className={`text-[10px] font-semibold mt-0.5 ${busy ? 'text-amber-600' : 'text-emerald-600'}`}
-                              >
-                                {busy ? `${t.sessions.length} cuenta${t.sessions.length > 1 ? 's' : ''}` : 'Libre'}
-                              </p>
+                              {busy && firstSession ? (
+                                <>
+                                  <p className="text-[10px] font-semibold text-amber-600 truncate mt-0.5">
+                                    {firstSession.customerName || 'Sin nombre'}
+                                  </p>
+                                  <p className="text-[10px] text-amber-600/70">
+                                    {elapsedSince(firstSession.openedAt)}
+                                    {t.sessions.length > 1 ? ` · ${t.sessions.length} cuentas` : ''}
+                                  </p>
+                                </>
+                              ) : (
+                                <p className="text-[10px] font-semibold mt-0.5 text-emerald-600">Libre</p>
+                              )}
                             </button>
                           );
                         })}
@@ -667,27 +673,35 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                   </div>
                 )}
 
-                {/* Añadir a mesa: acá sí conviene el desplegable — son solo las cuentas ya
-                    abiertas, y la acción final vive en el botón del panel de comanda. */}
+                {/* Abrir mesa: mismas tarjetas que "Añadir a mesa", pero solo las libres —
+                    esta pantalla es exclusivamente para arrancar una cuenta nueva. */}
                 {channel === 'DINE_IN' && tableMode === 'ADD' && (
-                  <div className="space-y-2 max-w-md">
-                    <select
-                      value={addToOrderId ?? ''}
-                      onChange={(e) => setAddToOrderId(e.target.value || null)}
-                      className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-2 bg-white"
-                    >
-                      <option value="">
-                        {dineInExistingOrders.length === 0
-                          ? 'No hay cuentas de mesa abiertas'
-                          : 'Elige la cuenta de mesa…'}
-                      </option>
-                      {dineInExistingOrders.map((o) => (
-                        <option key={o.id} value={o.id}>
-                          {o.table ? `Mesa ${o.table.number}` : 'Mesa'} · #{o.orderNumber}
-                          {o.customerName ? ` · ${o.customerName}` : ''}
-                        </option>
-                      ))}
-                    </select>
+                  <div className="space-y-2">
+                    {freeTables.length === 0 ? (
+                      <p className="text-sm text-brand-950/40 font-light">Sin mesas disponibles.</p>
+                    ) : (
+                      <div className="grid grid-cols-3 sm:grid-cols-4 xl:grid-cols-6 gap-2">
+                        {freeTables.map((t) => {
+                          const active = tableId === t.id;
+                          return (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => setTableId(t.id)}
+                              className={`rounded-xl border-2 px-2 py-2.5 text-left transition-colors ${
+                                active
+                                  ? 'border-brand-500 bg-brand-500/5'
+                                  : 'border-brand-950/10 bg-white hover:border-brand-500/40'
+                              }`}
+                            >
+                              <p className="text-sm font-bold text-brand-950 truncate">Mesa {t.number}</p>
+                              {t.zoneName && <p className="text-[10px] text-brand-950/40 truncate">{t.zoneName}</p>}
+                              <p className="text-[10px] font-semibold mt-0.5 text-emerald-600">Libre</p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -779,7 +793,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                   ))}
                 </div>
 
-                <div className="grid grid-cols-2 xl:grid-cols-3 gap-3.5 pt-1">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5 pt-1">
                   {filteredProducts.map((p) => {
                     const qty = lines.filter((l) => l.product.id === p.id).reduce((acc, l) => acc + l.quantity, 0);
                     return (
@@ -792,9 +806,11 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                         }`}
                       >
                         {p.photoUrl ? (
-                          <img src={p.photoUrl} alt="" className="h-24 w-full object-cover" />
+                          <div className="aspect-square w-full bg-brand-500/[0.04] flex items-center justify-center">
+                            <img src={p.photoUrl} alt="" className="h-full w-full object-contain" />
+                          </div>
                         ) : (
-                          <div className="h-24 w-full bg-brand-500/[0.06]" />
+                          <div className="aspect-square w-full bg-brand-500/[0.06]" />
                         )}
                         <div className="px-3 py-2.5 space-y-1">
                           <p className="text-xs font-semibold text-brand-950 leading-tight line-clamp-2">{p.name}</p>
