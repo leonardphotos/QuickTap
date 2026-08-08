@@ -8,6 +8,23 @@ import { VpsCapacityBar } from '@/components/master/VpsCapacityBar';
 import { QuickTapRevenueDialog } from '@/components/master/QuickTapRevenueDialog';
 import { MaskedAmount } from '@/components/master/MaskedAmount';
 import { MoneyVisibilityToggle } from '@/components/master/MoneyVisibilityToggle';
+import { MASTER_CONFIG_LINKS, MASTER_OPERATION_LINKS } from './master-nav';
+
+// Colores rotativos para los tiles de "Accesos rápidos" — solo distinguen visualmente una sección
+// de otra, no tienen significado propio (mismo criterio que el panel del restaurante).
+const SHORTCUT_COLORS = [
+  'bg-brand-500/10 text-brand-600',
+  'bg-emerald-100 text-emerald-700',
+  'bg-amber-100 text-amber-700',
+  'bg-sky-100 text-sky-700',
+  'bg-violet-100 text-violet-700',
+  'bg-rose-100 text-rose-700',
+  'bg-teal-100 text-teal-700',
+  'bg-orange-100 text-orange-700',
+];
+
+// El Resumen ya es la pantalla actual: no tiene sentido como acceso rápido a sí misma.
+const SHORTCUTS = [...MASTER_OPERATION_LINKS.filter((l) => l.to !== '/master/summary'), ...MASTER_CONFIG_LINKS];
 
 interface Summary {
   month: { revenueBs: string; revenueUsd: string };
@@ -56,56 +73,50 @@ export default function MasterSummaryPage() {
     masterApi.get('/master/qr-nfc-requests', { params: { status: 'PENDING' } }).then((res) => setQrNfc(res.data.data));
   }, []);
 
+  // Contador por destino, para que el tile avise sin tener que entrar a mirar.
+  const pendingByPath: Record<string, number | undefined> = {
+    '/master/proofs': proofs?.length,
+    '/master/qrnfc-requests': qrNfc?.length,
+  };
+
   if (!summary) return <p className="text-brand-950/50 font-light">Cargando…</p>;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
       <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Resumen</h1>
 
-      <VpsCapacityBar />
-
-      <ServerHealthCard />
-
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <p className="text-sm font-medium text-brand-950/70">Ingreso general de restaurantes</p>
-          <MoneyVisibilityToggle />
+      {/* 1. Accesos rápidos — lo primero, para saltar a cualquier sección sin buscar en la barra. */}
+      <section>
+        <h2 className="text-sm font-semibold text-brand-950/70 mb-3">Accesos rápidos</h2>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
+          {SHORTCUTS.map((l, i) => {
+            const pending = pendingByPath[l.to];
+            return (
+              <Link
+                key={l.to}
+                to={l.to}
+                className="relative flex flex-col items-center gap-2 rounded-2xl border border-brand-950/[0.07] bg-white p-4 text-center shadow-sm transition-colors hover:border-brand-500/40"
+              >
+                <span
+                  className={`flex h-11 w-11 items-center justify-center rounded-2xl ${SHORTCUT_COLORS[i % SHORTCUT_COLORS.length]}`}
+                >
+                  <l.icon className="h-5 w-5" />
+                </span>
+                <span className="text-[11.5px] font-semibold leading-tight text-brand-950">{l.label}</span>
+                {pending !== undefined && pending > 0 && (
+                  <span className="absolute right-2 top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-500 px-1.5 text-[10px] font-bold text-white">
+                    {pending}
+                  </span>
+                )}
+              </Link>
+            );
+          })}
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <RevenueCard label="En bolívares" value={formatBsAbsolute(summary.month.revenueBs)} />
-          <RevenueCard label="En dólares (restaurantes en USD)" value={formatBase(summary.month.revenueUsd, '$')} />
-        </div>
-      </div>
+      </section>
 
-      <div>
-        <div className="flex items-center gap-2 mb-3">
-          <button
-            onClick={() => setShowQuickTapDetail(true)}
-            className="flex items-center gap-1.5 text-sm font-medium text-brand-950/70 hover:text-brand-500 transition-colors"
-          >
-            Ingresos de QuickTap
-            <span className="text-xs font-normal text-brand-950/40">— ver detalle</span>
-          </button>
-          <MoneyVisibilityToggle />
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <RevenueCard label="En bolívares" value={formatBsAbsolute(summary.quickTap.revenueBs)} />
-          <RevenueCard label="En dólares" value={formatBase(summary.quickTap.revenueUsd, '$')} />
-        </div>
-      </div>
-
-      {showQuickTapDetail && (
-        <QuickTapRevenueDialog onClose={() => setShowQuickTapDetail(false)} onChanged={loadSummary} />
-      )}
-
-      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 grid grid-cols-3 gap-4 text-center">
-        <Stat label="Dueños de restaurante" value={summary.restaurantOwners} />
-        <Stat label="Restaurantes activos" value={summary.activeRestaurants} />
-        <Stat label="Restaurantes totales" value={summary.totalRestaurants} />
-      </div>
-
-      <div>
-        <p className="text-sm font-medium text-brand-950/70 mb-3">Pendientes por atender</p>
+      {/* 2. Pendientes por atender — lo accionable va antes que lo informativo. */}
+      <section>
+        <h2 className="text-sm font-semibold text-brand-950/70 mb-3">Pendientes por atender</h2>
         <div className="grid sm:grid-cols-2 gap-4">
           <PendingCard
             title="Comprobantes de pago"
@@ -141,7 +152,63 @@ export default function MasterSummaryPage() {
             emptyLabel="Sin solicitudes pendientes."
           />
         </div>
-      </div>
+      </section>
+
+      {/* 3. Ingresos — los dos bloques juntos bajo un solo encabezado y un solo interruptor de
+             visibilidad (antes cada uno traía el suyo, repetido). */}
+      <section>
+        <div className="flex items-center gap-2 mb-3">
+          <h2 className="text-sm font-semibold text-brand-950/70">Ingresos del mes</h2>
+          <MoneyVisibilityToggle />
+        </div>
+        <div className="grid lg:grid-cols-2 gap-4">
+          <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand-950/40 mb-3">De los restaurantes</p>
+            <div className="grid grid-cols-2 gap-4">
+              <RevenueFigure label="En bolívares" value={formatBsAbsolute(summary.month.revenueBs)} />
+              <RevenueFigure label="En dólares" value={formatBase(summary.month.revenueUsd, '$')} />
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5">
+            <button
+              onClick={() => setShowQuickTapDetail(true)}
+              className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-brand-950/40 transition-colors hover:text-brand-500"
+            >
+              De QuickTap
+              <span className="text-[10px] font-medium normal-case tracking-normal text-brand-500">ver detalle</span>
+            </button>
+            <div className="grid grid-cols-2 gap-4">
+              <RevenueFigure label="En bolívares" value={formatBsAbsolute(summary.quickTap.revenueBs)} />
+              <RevenueFigure label="En dólares" value={formatBase(summary.quickTap.revenueUsd, '$')} />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {showQuickTapDetail && (
+        <QuickTapRevenueDialog onClose={() => setShowQuickTapDetail(false)} onChanged={loadSummary} />
+      )}
+
+      {/* 4. Conteos generales. */}
+      <section>
+        <h2 className="text-sm font-semibold text-brand-950/70 mb-3">Locales</h2>
+        <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 grid grid-cols-3 gap-4 text-center">
+          <Stat label="Dueños de restaurante" value={summary.restaurantOwners} />
+          <Stat label="Restaurantes activos" value={summary.activeRestaurants} />
+          <Stat label="Restaurantes totales" value={summary.totalRestaurants} />
+        </div>
+      </section>
+
+      {/* 5. Infraestructura al final: es lo que menos se mira en el día a día — antes abría la
+             pantalla y empujaba lo accionable hacia abajo. */}
+      <section>
+        <h2 className="text-sm font-semibold text-brand-950/70 mb-3">Servidor</h2>
+        <div className="space-y-4">
+          <VpsCapacityBar />
+          <ServerHealthCard />
+        </div>
+      </section>
     </div>
   );
 }
@@ -188,9 +255,9 @@ function PendingCard({
   );
 }
 
-function RevenueCard({ label, value }: { label: string; value: string }) {
+function RevenueFigure({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
+    <div>
       <p className="text-2xl font-semibold text-brand-950">
         <MaskedAmount value={value} />
       </p>
