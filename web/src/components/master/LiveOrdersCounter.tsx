@@ -93,29 +93,37 @@ export function LiveOrdersCounter({
         </span>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-end gap-x-10 gap-y-3">
+      {/* items-start + leading-none en las dos cifras grandes: así comparten línea base aunque la
+          columna de la derecha lleve una línea más abajo (los Bs). Con items-end se alineaban por
+          abajo y el número de pedidos quedaba hundido respecto al monto. */}
+      <div className="mt-4 flex flex-wrap items-start gap-x-10 gap-y-4">
         <div className="min-w-0">
           <p
-            className={`text-5xl font-bold tabular-nums transition-colors duration-500 ${
+            className={`text-5xl font-bold leading-none tabular-nums transition-colors duration-500 ${
               justChanged ? 'text-emerald-300' : 'text-white'
             }`}
           >
             {shown.toLocaleString('es-VE')}
           </p>
-          <p className="mt-1 text-xs font-light text-white/45">pedidos</p>
+          <p className="mt-2.5 text-xs font-light text-white/45">pedidos</p>
         </div>
 
-        <div className="min-w-0 border-l border-white/10 pl-10">
-          <p className="text-5xl font-bold tabular-nums text-white">
+        {/* El separador solo cuando las dos cifras van lado a lado: al apilarse en pantalla
+            angosta, una línea vertical a la izquierda del bloque queda suelta y sin sentido. */}
+        <div className="min-w-0 sm:self-stretch sm:border-l sm:border-white/10 sm:pl-10">
+          <p className="text-5xl font-bold leading-none tabular-nums text-white">
             ${Number(totalUsd).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
-          <p className="mt-0.5 text-lg font-semibold tabular-nums text-white/70">{formatBsAbsolute(totalBs)}</p>
-          <p className="mt-1 text-xs font-light text-white/45">facturado — el $ es equivalente a la tasa de hoy</p>
+          <p className="mt-2.5 text-lg font-semibold leading-none tabular-nums text-white/70">
+            {formatBsAbsolute(totalBs)}
+          </p>
+          <p className="mt-2 text-xs font-light text-white/45">facturado</p>
         </div>
       </div>
 
-      <p className="mt-3 text-xs font-light text-white/45">
-        Total desde que arrancó QuickTap, en todos los locales. No cuenta la cuenta demo.
+      <p className="mt-4 text-xs font-light text-white/45">
+        Total desde que arrancó QuickTap, en todos los locales. No cuenta la cuenta demo. El monto en $ es el
+        equivalente a la tasa de hoy.
       </p>
     </div>
   );
