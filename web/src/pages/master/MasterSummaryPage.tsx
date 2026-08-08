@@ -34,6 +34,8 @@ interface Summary {
   totalRestaurants: number;
   activeRestaurants: number;
   ordersAllTime: number;
+  ordersAllTimeUsd: string;
+  ordersAllTimeBs: string;
 }
 
 interface PlanRequestRow {
@@ -87,7 +89,11 @@ export default function MasterSummaryPage() {
     <div className="space-y-10">
       <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Resumen</h1>
 
-      <LiveOrdersCounter initial={summary.ordersAllTime} />
+      <LiveOrdersCounter
+        initial={summary.ordersAllTime}
+        initialUsd={summary.ordersAllTimeUsd}
+        initialBs={summary.ordersAllTimeBs}
+      />
 
       {/* 1. Accesos rápidos — lo primero, para saltar a cualquier sección sin buscar en la barra. */}
       <section>
