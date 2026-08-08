@@ -1,5 +1,5 @@
 import { Request } from 'express';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 
 /** /auth/login, /auth/register: hasta 20 intentos cada 15 min por IP — deja pasar un
  * usuario real que se equivoca de contraseña varias veces, pero frena fuerza bruta. */
@@ -31,6 +31,10 @@ export const lockPinRateLimit = rateLimit({
   limit: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req: Request) => req.auth?.userId ?? req.ip ?? 'unknown',
+  // req.ip crudo rompe la normalización de IPv6 (una misma IP puede escribirse de varias formas
+  // válidas) — express-rate-limit trae ipKeyGenerator() justo para eso en el caso de respaldo
+  // (no debería usarse casi nunca: esta ruta siempre pasa por authGuard antes, así que req.auth
+  // ya viene seteado salvo un bug en otra parte).
+  keyGenerator: (req: Request) => req.auth?.userId ?? ipKeyGenerator(req.ip ?? 'unknown'),
   message: { error: 'Demasiados intentos. Espera unos minutos e intenta de nuevo.' },
 });
