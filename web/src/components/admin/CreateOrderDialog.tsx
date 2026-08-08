@@ -837,7 +837,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
             )}
 
             {step === 2 && (
-              <div className="h-full flex flex-col justify-center gap-5 max-w-4xl mx-auto">
+              <div className="min-h-full flex flex-col justify-center gap-5 max-w-4xl mx-auto">
                 <div className="rounded-2xl bg-white px-6 py-6 text-center shrink-0">
                   <p className="text-xs font-semibold uppercase tracking-wide text-brand-950/40">Total del pedido</p>
                   <p className="text-5xl font-bold text-brand-950 mt-1.5">{formatBase(totalBase, symbol)}</p>
@@ -868,7 +868,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
             )}
 
             {step === 3 && (
-              <div className="h-full flex flex-col justify-center gap-5 max-w-4xl mx-auto">
+              <div className="min-h-full flex flex-col justify-center gap-5 max-w-4xl mx-auto">
                 <div className="rounded-2xl bg-white px-6 py-6 text-center shrink-0">
                   <p className="text-xs font-semibold uppercase tracking-wide text-brand-950/40">Total del pedido</p>
                   <p className="text-5xl font-bold text-brand-950 mt-1.5">{formatBase(totalBase, symbol)}</p>
