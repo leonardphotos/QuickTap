@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireFeature, requireRole, requireRoleOrCashierFullAccess, tenantGuard } from '../../middlewares/auth.middleware';
+import { optimizeImage, uploadExpenseReceipt } from '../../middlewares/upload.middleware';
 import { movementController } from './movement.controller';
 
 /** Base: /api/v1/movements — botón "Añadir movimiento" en Administración → Resumen. */
@@ -13,6 +14,7 @@ router.use(requireFeature('administration'));
 router.get('/', requireRole('OWNER', 'ADMIN', 'CASHIER'), movementController.list);
 const mutate = requireRoleOrCashierFullAccess('OWNER', 'ADMIN');
 router.post('/', mutate, movementController.create);
+router.post('/upload-receipt', mutate, uploadExpenseReceipt, optimizeImage(1400, 1400), movementController.uploadReceipt);
 router.delete('/:id', mutate, movementController.remove);
 router.patch('/:id/mark-paid', mutate, movementController.markCreditPaid);
 

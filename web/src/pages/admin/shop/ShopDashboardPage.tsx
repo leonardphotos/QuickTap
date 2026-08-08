@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { api } from '@/api/client';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import {
   CalendarClock,
@@ -13,6 +14,7 @@ import {
   Ticket,
   CalendarRange,
   PackageX,
+  Wallet,
   Clock,
   FileText,
   type LucideIcon,
@@ -20,7 +22,24 @@ import {
 import type { ShopScreen } from './ShopLayout';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
-import { ExpenseFormDialog } from '@/components/admin/ExpenseFormDialog';
+import { CATEGORY_LABELS, ExpenseFormDialog, type ExpenseCategory } from '@/components/admin/ExpenseFormDialog';
+
+/** Gasto del local tal como lo devuelve GET /movements (solo los campos que se pintan acá). */
+interface ShopExpense {
+  id: string;
+  type: 'INCOME' | 'EXPENSE';
+  amountBase: string;
+  description: string;
+  category: ExpenseCategory | null;
+  supplier: { id: string; name: string } | null;
+  isCredit: boolean;
+  creditPaidAt: string | null;
+  createdAt: string;
+  expenseDate: string | null;
+  referenceNumber: string | null;
+  receiptImageUrl: string | null;
+  spentByName: string | null;
+}
 import { shopMoneyFormatters } from './shopFormat';
 import {
   daysUntilExpiry,
@@ -123,6 +142,26 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
   // Buscador de "Ventas recientes" por número de referencia — con texto, busca en TODAS las
   // ventas (no solo las últimas 8) para poder ubicar un cobro puntual.
   const [salesSearch, setSalesSearch] = useState('');
+  // Gastos del local (Movement type=EXPENSE). Sin esto el egreso se guardaba pero no aparecía
+  // en ningún lado del panel: quedaba registrado a ciegas.
+  const [expenses, setExpenses] = useState<ShopExpense[]>([]);
+  const [gastosMes, setGastosMes] = useState(0);
+
+  function loadExpenses() {
+    api
+      .get('/movements', { params: { range: 'month' } })
+      .then((res) => {
+        const data = res.data.data;
+        setExpenses((data.movements ?? []).filter((m: ShopExpense) => m.type === 'EXPENSE'));
+        setGastosMes(Number(data.totalExpense ?? 0));
+      })
+      .catch(() => {
+        setExpenses([]);
+        setGastosMes(0);
+      });
+  }
+
+  useEffect(loadExpenses, []);
   // Nombres del equipo, para poder rotular el reporte por profesional (las ventas solo guardan el id).
   // Las ventas solo guardan el id del profesional; el nombre sale del equipo cargado en la sesión.
   const providerNames = Object.fromEntries(providers.map((p) => [p.id, p.name]));
@@ -245,6 +284,9 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
         <Metric label="Ventas (últimos 30 días)" value={money(ventasMes)} sub={moneyBs(ventasMes)} icon={CalendarRange} color="sky" />
         {canSeeMoney && (
           <Metric label="Utilidad (últimos 30 días)" value={money(utilidadMes)} sub={moneyBs(utilidadMes)} icon={TrendingUp} color="emerald" />
+        )}
+        {canSeeMoney && (
+          <Metric label="Gastos (últimos 30 días)" value={money(gastosMes)} sub={moneyBs(gastosMes)} icon={Wallet} color="amber" />
         )}
         <Metric label="Alertas de stock" value={String(alertProducts.length)} icon={PackageX} color="amber" />
         <Metric label="Próximos a vencer" value={String(expiringProducts.length)} icon={Clock} color="rose" />
@@ -437,6 +479,64 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
         )}
       </div>
 
+      {canSeeMoney && (
+        <div className="rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-5">
+          <div className="flex items-center justify-between gap-3 mb-3.5">
+            <h3 className="text-[15px] font-bold text-brand-950">Gastos de los últimos 30 días</h3>
+            <TextureButton
+              variant="secondary"
+              size="sm"
+              className="!w-auto flex items-center gap-1.5 !text-amber-600"
+              onClick={() => setShowExpenseDialog(true)}
+            >
+              <Plus className="h-3.5 w-3.5" /> Añadir gasto
+            </TextureButton>
+          </div>
+          {expenses.length === 0 ? (
+            <p className="text-sm text-brand-950/40 text-center py-6">Sin gastos registrados.</p>
+          ) : (
+            <div className="flex flex-col">
+              {expenses.slice(0, 10).map((m) => (
+                <div
+                  key={m.id}
+                  className="flex items-center justify-between gap-3 py-2.5 border-b border-brand-950/[0.05] last:border-b-0"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-brand-950 truncate">
+                      {m.description}
+                      {m.category ? <span className="text-brand-950/50"> · {CATEGORY_LABELS[m.category]}</span> : ''}
+                    </p>
+                    <p className="text-xs text-brand-950/40 truncate">
+                      {new Date(m.expenseDate ?? m.createdAt).toLocaleDateString('es-VE', {
+                        day: '2-digit',
+                        month: 'short',
+                      })}
+                      {m.spentByName ? ` · ${m.spentByName}` : ''}
+                      {m.supplier ? ` · ${m.supplier.name}` : ''}
+                      {m.referenceNumber ? ` · Ref. ${m.referenceNumber}` : ''}
+                      {m.isCredit && !m.creditPaidAt ? ' · a crédito' : ''}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {m.receiptImageUrl && (
+                      <a
+                        href={m.receiptImageUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs font-medium text-brand-500 hover:text-brand-600"
+                      >
+                        Recibo
+                      </a>
+                    )}
+                    <span className="text-sm font-bold text-amber-600">−{money(Number(m.amountBase))}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-5">
         <h3 className="text-[15px] font-bold text-brand-950 mb-3.5">Compras a proveedores recientes</h3>
         {recentPurchases.length === 0 ? (
@@ -561,7 +661,13 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
       </Dialog>
 
       {showExpenseDialog && (
-        <ExpenseFormDialog onClose={() => setShowExpenseDialog(false)} onCreated={() => setShowExpenseDialog(false)} />
+        <ExpenseFormDialog
+          onClose={() => setShowExpenseDialog(false)}
+          onCreated={() => {
+            setShowExpenseDialog(false);
+            loadExpenses(); // el gasto nuevo tiene que verse de una vez en la lista y en el total
+          }}
+        />
       )}
 
       <Dialog open={showIncomeByMethod} onOpenChange={setShowIncomeByMethod}>

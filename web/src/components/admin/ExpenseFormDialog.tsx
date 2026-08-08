@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/api/client';
+import { useAuth } from '@/context/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { SupplierPicker } from './SupplierPicker';
@@ -15,6 +16,10 @@ export type ExpenseCategory =
   | 'TRANSPORT'
   | 'MAINTENANCE'
   | 'FURNITURE'
+  | 'FUEL'
+  | 'TRAVEL'
+  | 'MEALS'
+  | 'LODGING'
   | 'OTHER';
 
 export const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
@@ -24,10 +29,29 @@ export const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   PAYROLL: 'Nómina',
   ADMINISTRATIVE: 'Gastos administrativos',
   MARKETING: 'Mercadeo y Publicidad',
-  TRANSPORT: 'Transporte',
+  TRANSPORT: 'Transporte (fletes, taxis)',
   MAINTENANCE: 'Mantenimiento',
   FURNITURE: 'Muebles',
+  FUEL: 'Combustible / gasolina',
+  TRAVEL: 'Viáticos y viajes',
+  MEALS: 'Comidas',
+  LODGING: 'Hospedaje / hotel',
   OTHER: 'Otros',
+};
+
+/** Categorías de gasto de operación/viaje: para estas, el formulario ofrece de una vez los
+ * campos de soporte (quién lo gastó, recibo) en vez de tenerlos escondidos. */
+const FIELD_TRIP_CATEGORIES = new Set<ExpenseCategory>(['FUEL', 'TRAVEL', 'MEALS', 'LODGING', 'TRANSPORT']);
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  CASH: 'Efectivo Bs',
+  CASH_USD: 'Efectivo $',
+  MOBILE_PAYMENT: 'Pago Móvil',
+  TRANSFER: 'Transferencia',
+  CARD: 'Tarjeta / punto',
+  ZELLE: 'Zelle',
+  BINANCE: 'Binance',
+  PAYPAL: 'PayPal',
 };
 
 interface InventoryOption {
@@ -40,6 +64,11 @@ interface InventoryOption {
  * inventario. Compartido entre el Dashboard ("Añadir egreso") y el módulo de Gastos,
  * para que todo egreso quede siempre vinculado a la misma sección. */
 export function ExpenseFormDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { restaurant } = useAuth();
+  // El reabastecimiento descuenta contra InventoryItem (insumos de restaurante). Un local
+  // comercial maneja su stock en ShopProduct, así que ahí ese bloque no aplica: mostraría una
+  // lista vacía y, si se llenara, tocaría un inventario que el local no usa.
+  const supportsRestock = restaurant?.businessType !== 'SHOP';
   const [amount, setAmount] = useState('');
   const [amountCurrency, setAmountCurrency] = useState<'BASE' | 'BS'>('BASE');
   const [description, setDescription] = useState('');
@@ -53,6 +82,30 @@ export function ExpenseFormDialog({ onClose, onCreated }: { onClose: () => void;
   const [isCredit, setIsCredit] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // --- Soporte del gasto ---
+  const [paymentMethod, setPaymentMethod] = useState('');
+  const [expenseDate, setExpenseDate] = useState('');
+  const [referenceNumber, setReferenceNumber] = useState('');
+  const [spentByName, setSpentByName] = useState('');
+  const [receiptImageUrl, setReceiptImageUrl] = useState('');
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
+
+  const isFieldTrip = category !== '' && FIELD_TRIP_CATEGORIES.has(category);
+
+  async function uploadReceipt(file: File) {
+    setUploadingReceipt(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append('photo', file);
+      const res = await api.post('/movements/upload-receipt', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setReceiptImageUrl(res.data.data.url);
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo subir el recibo.');
+    } finally {
+      setUploadingReceipt(false);
+    }
+  }
 
   useEffect(() => {
     if (isRestock && inventoryItems.length === 0) {
@@ -87,6 +140,11 @@ export function ExpenseFormDialog({ onClose, onCreated }: { onClose: () => void;
         inventoryItemId: isRestock ? inventoryItemId : undefined,
         inventoryQuantity: isRestock ? Number(inventoryQuantity) : undefined,
         isCredit,
+        paymentMethod: paymentMethod || undefined,
+        expenseDate: expenseDate || undefined,
+        referenceNumber: referenceNumber.trim() || undefined,
+        spentByName: spentByName.trim() || undefined,
+        receiptImageUrl: receiptImageUrl || undefined,
       });
       onCreated();
     } catch (e: any) {
@@ -166,6 +224,95 @@ export function ExpenseFormDialog({ onClose, onCreated }: { onClose: () => void;
               </select>
             </div>
 
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <p className="text-xs font-medium text-brand-950/50 mb-1.5">¿Con qué se pagó?</p>
+                <select
+                  value={paymentMethod}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                >
+                  <option value="">Sin especificar</option>
+                  {Object.entries(PAYMENT_METHOD_LABELS).map(([v, label]) => (
+                    <option key={v} value={v}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-brand-950/50 mb-1.5">Fecha del gasto</p>
+                <input
+                  type="date"
+                  value={expenseDate}
+                  onChange={(e) => setExpenseDate(e.target.value)}
+                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                />
+              </div>
+            </div>
+            <p className="text-[11px] text-brand-950/40 font-light -mt-1">
+              Deja la fecha vacía si el gasto es de hoy.
+            </p>
+
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <p className="text-xs font-medium text-brand-950/50 mb-1.5">Nº de factura o referencia</p>
+                <input
+                  value={referenceNumber}
+                  onChange={(e) => setReferenceNumber(e.target.value)}
+                  placeholder="Opcional"
+                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-brand-950/50 mb-1.5">
+                  ¿Quién lo gastó?{isFieldTrip ? '' : ' (opcional)'}
+                </p>
+                <input
+                  value={spentByName}
+                  onChange={(e) => setSpentByName(e.target.value)}
+                  placeholder={isFieldTrip ? 'Ej: chofer, vendedor…' : 'Opcional'}
+                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                />
+              </div>
+            </div>
+
+            {/* Recibo: en gastos de viaje es el soporte que se pierde y sin el cual no hay
+                cómo justificar el egreso, por eso se destaca en esas categorías. */}
+            <div className={`rounded-lg border px-2.5 py-2 ${isFieldTrip ? 'border-brand-500/30 bg-brand-500/[0.04]' : 'border-brand-950/10'}`}>
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-brand-950/70">
+                  {receiptImageUrl ? '✓ Recibo adjunto' : uploadingReceipt ? 'Subiendo…' : 'Foto del recibo'}
+                </span>
+                {receiptImageUrl ? (
+                  <button
+                    type="button"
+                    onClick={() => setReceiptImageUrl('')}
+                    className="text-xs font-medium text-red-600 hover:text-red-700 shrink-0"
+                  >
+                    Quitar
+                  </button>
+                ) : (
+                  <label className="text-xs font-medium text-brand-500 hover:text-brand-600 shrink-0 cursor-pointer">
+                    Adjuntar
+                    <input
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) uploadReceipt(f);
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
+              {receiptImageUrl && (
+                <img src={receiptImageUrl} alt="Recibo" className="mt-2 max-h-32 rounded-md border border-brand-950/10" />
+              )}
+            </div>
+
             <div className="flex items-center justify-between rounded-lg border border-brand-950/10 px-2.5 py-2">
               <span className="text-sm text-brand-950/70">
                 {supplier ? `Proveedor: ${supplier.name}` : 'Sin proveedor'}
@@ -179,11 +326,13 @@ export function ExpenseFormDialog({ onClose, onCreated }: { onClose: () => void;
               </button>
             </div>
 
-            <label className="flex items-center gap-1.5 text-sm">
-              <input type="checkbox" checked={isRestock} onChange={(e) => setIsRestock(e.target.checked)} />
-              ¿Es reabastecimiento de inventario?
-            </label>
-            {isRestock && (
+            {supportsRestock && (
+              <label className="flex items-center gap-1.5 text-sm">
+                <input type="checkbox" checked={isRestock} onChange={(e) => setIsRestock(e.target.checked)} />
+                ¿Es reabastecimiento de inventario?
+              </label>
+            )}
+            {supportsRestock && isRestock && (
               <div className="grid grid-cols-2 gap-2 pl-5">
                 <select
                   value={inventoryItemId}

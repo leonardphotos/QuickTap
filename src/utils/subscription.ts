@@ -129,6 +129,10 @@ export function hasFeature(restaurant: FeatureCheckRestaurant, feature: FeatureF
   // igual que Premium (mantenido por compatibilidad con restaurantes ya activados en él).
   // Sucursales trae exactamente los mismos beneficios que Pro, más sucursales.
   if (isFullTierPlan(restaurant.subscriptionPlan)) return true;
+  // QuickTap Shop tiene un plan único: no hay nada a lo que mejorar, así que su plan incluye
+  // todo lo que el local necesita. Sin esto, el botón "Añadir egreso" de Locales respondía 403
+  // (Gastos y Proveedores viven en rutas marcadas como 'administration').
+  if (restaurant.subscriptionPlan === 'SHOP') return true;
   if (restaurant.subscriptionPlan === 'CUSTOM') return Boolean(restaurant[CUSTOM_FLAG_FIELD[feature]]);
   return false;
 }

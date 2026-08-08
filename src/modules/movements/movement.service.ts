@@ -40,6 +40,12 @@ export const movementService = {
           inventoryItemId: input.inventoryItemId,
           inventoryQuantity: input.inventoryQuantity,
           isCredit: input.isCredit,
+          // Se guarda a mediodía para que el gasto no se corra de día al mostrarlo en otra
+          // zona horaria (a las 00:00 UTC, en Venezuela caería el día anterior).
+          expenseDate: input.expenseDate ? new Date(`${input.expenseDate}T12:00:00`) : undefined,
+          referenceNumber: input.referenceNumber,
+          receiptImageUrl: input.receiptImageUrl,
+          spentByName: input.spentByName,
         },
         include: { createdByUser: { select: { name: true } }, supplier: true, inventoryItem: true },
       });
@@ -103,6 +109,11 @@ export const movementService = {
         creditPaidAt: m.creditPaidAt,
         createdByName: m.createdByUser?.name ?? null,
         createdAt: m.createdAt,
+        // Soporte del gasto (ver createMovementSchema): fecha real, referencia, recibo y quién gastó.
+        expenseDate: m.expenseDate,
+        referenceNumber: m.referenceNumber,
+        receiptImageUrl: m.receiptImageUrl,
+        spentByName: m.spentByName,
       })),
     };
   },

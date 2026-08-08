@@ -10,6 +10,10 @@ const EXPENSE_CATEGORIES = [
   'TRANSPORT',
   'MAINTENANCE',
   'FURNITURE',
+  'FUEL',
+  'TRAVEL',
+  'MEALS',
+  'LODGING',
   'OTHER',
 ] as const;
 
@@ -46,6 +50,15 @@ export const createMovementSchema = z
     inventoryQuantity: z.coerce.number().positive().optional(),
     // Gasto tomado a crédito con el proveedor: queda pendiente por pagar.
     isCredit: z.boolean().optional().default(false),
+    // --- Soporte del gasto (opcionales; pensados para gastos de operación/viaje) ---
+    // Fecha real del gasto si no es hoy (factura de hace unos días). Solo la fecha, sin hora.
+    expenseDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida.')
+      .optional(),
+    referenceNumber: z.string().max(60).optional(),
+    receiptImageUrl: z.string().max(300).optional(),
+    spentByName: z.string().max(120).optional(),
   })
   .refine((v) => !v.inventoryItemId || v.inventoryQuantity != null, {
     message: 'Indica la cantidad recibida del insumo.',

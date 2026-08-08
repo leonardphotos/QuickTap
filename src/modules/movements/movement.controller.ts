@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
+import { badRequest } from '../../utils/http-error';
 import { createMovementSchema, movementQuerySchema } from './movement.dto';
 import { movementService } from './movement.service';
 
@@ -17,5 +18,10 @@ export const movementController = {
   }),
   markCreditPaid: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await movementService.markCreditPaid(req.restaurantId!, req.params.id) });
+  }),
+  /** POST /api/v1/movements/upload-receipt — foto del recibo del gasto. */
+  uploadReceipt: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw badRequest('No se recibió ningún archivo.');
+    res.status(201).json({ data: { url: `/uploads/expense-receipts/${req.file.filename}` } });
   }),
 };

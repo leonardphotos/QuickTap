@@ -63,6 +63,9 @@ export function hasFeature(restaurant: FeatureCheckRestaurant | null | undefined
   if (!restaurant) return false;
   // Sucursales trae exactamente los mismos beneficios que Pro, más sucursales.
   if (isFullTierPlan(restaurant.subscriptionPlan)) return true;
+  // QuickTap Shop: plan único, incluye todo lo que el local necesita (ver el mismo caso en
+  // src/utils/subscription.ts del backend — los dos tienen que decir lo mismo).
+  if (restaurant.subscriptionPlan === 'SHOP') return true;
   if (restaurant.subscriptionPlan === 'CUSTOM') return Boolean(restaurant[CUSTOM_FLAG_FIELD[feature]]);
   return false;
 }

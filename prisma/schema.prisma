@@ -61,9 +61,15 @@ enum ExpenseCategory {
   PAYROLL // Nómina
   ADMINISTRATIVE // Gastos administrativos
   MARKETING // Mercadeo y Publicidad
-  TRANSPORT // Transporte
+  TRANSPORT // Transporte (fletes, encomiendas, taxis)
   MAINTENANCE // Mantenimiento
   FURNITURE // Muebles
+  // --- Gastos de operación/viaje: se llevan igual que los de arriba, pero se separan
+  // para que el reporte por categoría no los mezcle todos en "Transporte" u "Otros". ---
+  FUEL // Combustible / gasolina
+  TRAVEL // Viáticos y viajes
+  MEALS // Comidas
+  LODGING // Hospedaje / hotel
   OTHER // Otros
 }
 
@@ -1368,6 +1374,8 @@ model Movement {
 
   // --- Botón "Añadir ingreso" (solo aplica cuando type = INCOME) ---
   incomeCategory IncomeCategory?
+  // Con qué se recibió (INCOME) o con qué se pagó (EXPENSE) — en gastos sirve para cuadrar
+  // la caja: no es lo mismo pagar la gasolina en efectivo que por transferencia.
   paymentMethod  PaymentMethod?
 
   // --- Módulo de Gastos (todos opcionales; no afectan ingresos/propinas) ---
@@ -1383,6 +1391,17 @@ model Movement {
   // o no — esto solo lleva el seguimiento de si ya se le pagó al proveedor.
   isCredit          Boolean          @default(false)
   creditPaidAt      DateTime?
+  // Fecha real del gasto cuando no es hoy (factura de hace unos días que se carga después).
+  // Null = vale createdAt. El balance del período usa esta fecha si está, para que el gasto
+  // caiga en el día que ocurrió y no en el que alguien lo escribió.
+  expenseDate       DateTime?
+  // Nº de factura/recibo/referencia de la transferencia, para conciliar con el soporte físico.
+  referenceNumber   String?
+  // Foto del recibo (gasolinera, hotel, restaurante). Clave en gastos de viaje: el soporte
+  // se pierde y sin él no hay cómo justificar el egreso.
+  receiptImageUrl   String?
+  // Quién hizo el gasto, cuando no fue quien lo registra (ej. el chofer que cargó gasolina).
+  spentByName       String?
 
   restaurant    Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   createdByUser User?          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
