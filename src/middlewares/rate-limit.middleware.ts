@@ -1,3 +1,4 @@
+import { Request } from 'express';
 import rateLimit from 'express-rate-limit';
 
 /** /auth/login, /auth/register: hasta 20 intentos cada 15 min por IP — deja pasar un
@@ -18,5 +19,18 @@ export const passwordResetRateLimit = rateLimit({
   limit: 5,
   standardHeaders: true,
   legacyHeaders: false,
+  message: { error: 'Demasiados intentos. Espera unos minutos e intenta de nuevo.' },
+});
+
+/** /auth/verify-lock-pin: el PIN de la pantalla de bloqueo es de solo 4 dígitos (10.000
+ * combinaciones) — sin límite, cualquiera con el JWT ya válido (dispositivo compartido, token
+ * filtrado) lo fuerza-bruta en segundos. Se limita por usuario (no por IP): el JWT ya identifica
+ * a quién, y así no se puede esquivar cambiando de IP mientras se reusa el mismo token. */
+export const lockPinRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => req.auth?.userId ?? req.ip ?? 'unknown',
   message: { error: 'Demasiados intentos. Espera unos minutos e intenta de nuevo.' },
 });

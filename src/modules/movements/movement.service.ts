@@ -17,6 +17,14 @@ export const movementService = {
       amountBase = bsToBase(input.amountBase, rate.rateBs);
     }
 
+    // El proveedor es opcional, pero si viene tiene que ser de este restaurante — si no se
+    // valida, un id de proveedor de otro restaurante queda enlazado igual (y su nombre/
+    // teléfono/RIF se filtran de vuelta en list()/getById() vía el include de abajo).
+    if (input.supplierId) {
+      const supplier = await prisma.supplier.findFirst({ where: { id: input.supplierId, restaurantId } });
+      if (!supplier) throw notFound('El proveedor no existe o no pertenece a este restaurante.');
+    }
+
     return prisma.$transaction(async (tx) => {
       const movement = await tx.movement.create({
         data: {

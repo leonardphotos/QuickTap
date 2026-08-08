@@ -13,9 +13,19 @@ function required(name: string): string {
   return value;
 }
 
+const isProd = process.env.NODE_ENV === 'production';
+
+// Sin CORS_ORIGINS configurado, app.ts cae a `origin: true` (refleja cualquier origen) para no
+// romper `npm run dev` sin configuración extra. Eso es aceptable en local, pero en producción
+// sería aceptar credenciales desde cualquier sitio — mismo criterio de "falla rápido" que
+// JWT_SECRET/DATABASE_URL, así nunca queda desplegado por accidente sin restringir el origen.
+if (isProd && !process.env.CORS_ORIGINS?.trim()) {
+  throw new Error('Falta la variable de entorno requerida en producción: CORS_ORIGINS');
+}
+
 export const env = {
   nodeEnv: process.env.NODE_ENV ?? 'development',
-  isProd: process.env.NODE_ENV === 'production',
+  isProd,
   port: Number(process.env.PORT ?? 4000),
 
   databaseUrl: required('DATABASE_URL'),

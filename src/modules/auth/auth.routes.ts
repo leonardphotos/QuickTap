@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authGuard } from '../../middlewares/auth.middleware';
-import { authRateLimit, passwordResetRateLimit } from '../../middlewares/rate-limit.middleware';
+import { authRateLimit, lockPinRateLimit, passwordResetRateLimit } from '../../middlewares/rate-limit.middleware';
 import { authController } from './auth.controller';
 
 /** Base: /api/v1/auth */
@@ -14,7 +14,7 @@ router.post('/reset-password', passwordResetRateLimit, authController.resetPassw
 router.get('/me', authGuard, authController.me);
 // Pantalla de bloqueo: cada usuario (cualquier rol) gestiona su propio PIN de 4 dígitos.
 router.patch('/lock-pin', authGuard, authController.setLockPin);
-router.post('/verify-lock-pin', authGuard, authController.verifyLockPin);
+router.post('/verify-lock-pin', authGuard, lockPinRateLimit, authController.verifyLockPin);
 // Sin authGuard a propósito: navigator.sendBeacon (cierre de pestaña) no puede mandar
 // headers, así que el token viaja en el body — auth.controller.logout lo valida a mano.
 router.post('/logout', authController.logout);

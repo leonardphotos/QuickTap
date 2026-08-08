@@ -256,8 +256,17 @@ export const shopService = {
 
       // Descuenta stock de cada variante vendida (best-effort por productId+v1+v2 — si el
       // producto ya no existe o el id era temporal del frontend, la venta queda igual registrada).
+      // productId viene del cliente: antes de tocar stock hay que confirmar que ese producto es
+      // de ESTE restaurante — si no, un id de otro tenant (adivinado o filtrado) podría usarse
+      // para descontarle/vaciarle el stock a un local ajeno sin tocar sus propios datos.
+      const requestedProductIds = [...new Set(input.items.map((it) => it.productId).filter((v): v is string => !!v))];
+      const ownedProducts = requestedProductIds.length
+        ? await tx.shopProduct.findMany({ where: { id: { in: requestedProductIds }, restaurantId }, select: { id: true } })
+        : [];
+      const ownedProductIds = new Set(ownedProducts.map((p) => p.id));
+
       for (const item of input.items) {
-        if (!item.productId) continue;
+        if (!item.productId || !ownedProductIds.has(item.productId)) continue;
         // stockQty manda cuando existe: en impresión de gran formato del rollo se consumen
         // metros lineales (0,80), no los m² que se le cobran al cliente (1,096).
         await tx.shopProductVariant.updateMany({
@@ -271,7 +280,7 @@ export const shopService = {
 
       // Piso en 0 (updateMany con decrement puede dejar negativo si había menos stock del esperado).
       await tx.shopProductVariant.updateMany({
-        where: { productId: { in: input.items.map((it) => it.productId).filter((v): v is string => !!v) }, stock: { lt: 0 } },
+        where: { productId: { in: [...ownedProductIds] }, stock: { lt: 0 } },
         data: { stock: 0 },
       });
 
@@ -285,8 +294,17 @@ export const shopService = {
     if (sale.returned) throw badRequest('Esta venta ya fue devuelta.');
 
     return prisma.$transaction(async (tx) => {
+      // Mismo chequeo de pertenencia que en recordSale — sale.items ya venía de una venta de
+      // este restaurante, pero el productId que guarda cada línea es el que mandó el cliente al
+      // vender, así que igual puede apuntar a un producto de otro tenant si no se validó antes.
+      const requestedProductIds = [...new Set(sale.items.map((it) => it.productId).filter((v): v is string => !!v))];
+      const ownedProducts = requestedProductIds.length
+        ? await tx.shopProduct.findMany({ where: { id: { in: requestedProductIds }, restaurantId }, select: { id: true } })
+        : [];
+      const ownedProductIds = new Set(ownedProducts.map((p) => p.id));
+
       for (const item of sale.items) {
-        if (!item.productId) continue;
+        if (!item.productId || !ownedProductIds.has(item.productId)) continue;
         // Se devuelve exactamente lo que se descontó al vender (ver recordSale).
         await tx.shopProductVariant.updateMany({
           where: { productId: item.productId, v1: item.v1, v2: item.v2 },
