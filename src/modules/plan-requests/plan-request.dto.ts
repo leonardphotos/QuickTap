@@ -92,7 +92,7 @@ export type UpdatePlanRequestInput = z.infer<typeof updatePlanRequestSchema>;
 // (planes legados, quedan disponibles acá únicamente para gestionar a los restaurantes
 // que ya los tenían contratados — no se ofrecen a clientes nuevos).
 export const activateRestaurantSchema = z.object({
-  plan: z.enum(['DELIVERY', 'PRO', 'ELITE', 'SUCURSALES', 'DELIVERY_SUCURSALES', 'SHOP']),
+  plan: z.enum(['DELIVERY', 'PRO', 'ELITE', 'SUCURSALES', 'DELIVERY_SUCURSALES', 'SHOP', 'CLUB']),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL']),
 });
 

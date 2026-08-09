@@ -1,5 +1,6 @@
 import { NextFunction, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
+import { BusinessType } from '@prisma/client';
 import { env } from '../config/env';
 import { prisma } from '../config/prisma';
 import { forbidden, HttpError, unauthorized } from '../utils/http-error';
@@ -220,6 +221,28 @@ export function requireFeature(feature: FeatureFlag) {
       .then((restaurant) => {
         if (!restaurant || !hasFeature(restaurant, feature)) {
           throw forbidden('Esta función no está disponible en tu plan actual.');
+        }
+        next();
+      })
+      .catch(next);
+  };
+}
+
+/**
+ * Restringe una ruta a un vertical de negocio. Debe montarse DESPUÉS de `tenantGuard`.
+ *
+ * No es una barrera de seguridad entre inquilinos —el `restaurantId` siempre sale del
+ * token, así que un restaurante que llame a estas rutas solo vería sus propios datos
+ * (vacíos)—, sino de higiene: evita que un panel equivocado escriba en tablas de otro
+ * vertical y deja el error claro en vez de un 200 sin sentido.
+ */
+export function requireBusinessType(...types: BusinessType[]) {
+  return (req: Request, _res: Response, next: NextFunction) => {
+    prisma.restaurant
+      .findUnique({ where: { id: req.restaurantId }, select: { businessType: true } })
+      .then((restaurant) => {
+        if (!restaurant || !types.includes(restaurant.businessType)) {
+          throw forbidden('Esta sección no corresponde a tu tipo de negocio.');
         }
         next();
       })

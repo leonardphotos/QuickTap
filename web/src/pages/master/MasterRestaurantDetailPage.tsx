@@ -29,7 +29,7 @@ interface RestaurantDetail {
   id: string;
   slug: string;
   name: string;
-  businessType: 'RESTAURANT' | 'SHOP';
+  businessType: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB';
   whatsappPhone: string | null;
   rif: string | null;
   ivaEnabled: boolean;

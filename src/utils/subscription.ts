@@ -89,6 +89,19 @@ const CUSTOM_FLAG_FIELD: Record<FeatureFlag, keyof FeatureCheckRestaurant> = {
   accountsPayable: 'customAccountsPayable',
 };
 
+/**
+ * Plan con el que arranca la prueba de 15 días según el vertical. Cada vertical
+ * que no es restaurante tiene un plan único (no hay nada a lo que mejorar), así
+ * que se le asigna directo; el restaurante arranca en el más completo para que
+ * pruebe TODO el producto antes de elegir. Vive aquí y no repetido en
+ * auth.service porque se usa en los dos caminos de registro (normal y Google).
+ */
+export function trialPlanFor(businessType?: string | null): 'SHOP' | 'CLUB' | 'ELITE' {
+  if (businessType === 'SHOP') return 'SHOP';
+  if (businessType === 'SPORTS_CLUB') return 'CLUB';
+  return 'ELITE';
+}
+
 /** Planes "completos" (todos los beneficios de Administración/Inventario/etc.), con o sin sucursales. */
 export function isFullTierPlan(plan?: string | null): boolean {
   return plan === 'PRO' || plan === 'PREMIUM' || plan === 'SUCURSALES' || plan === 'ELITE';
@@ -129,10 +142,10 @@ export function hasFeature(restaurant: FeatureCheckRestaurant, feature: FeatureF
   // igual que Premium (mantenido por compatibilidad con restaurantes ya activados en él).
   // Sucursales trae exactamente los mismos beneficios que Pro, más sucursales.
   if (isFullTierPlan(restaurant.subscriptionPlan)) return true;
-  // QuickTap Shop tiene un plan único: no hay nada a lo que mejorar, así que su plan incluye
-  // todo lo que el local necesita. Sin esto, el botón "Añadir egreso" de Locales respondía 403
-  // (Gastos y Proveedores viven en rutas marcadas como 'administration').
-  if (restaurant.subscriptionPlan === 'SHOP') return true;
+  // QuickTap Shop y QuickTap Club tienen un plan único: no hay nada a lo que mejorar, así que
+  // su plan incluye todo lo que el negocio necesita. Sin esto, el botón "Añadir egreso"
+  // respondía 403 (Gastos y Proveedores viven en rutas marcadas como 'administration').
+  if (restaurant.subscriptionPlan === 'SHOP' || restaurant.subscriptionPlan === 'CLUB') return true;
   if (restaurant.subscriptionPlan === 'CUSTOM') return Boolean(restaurant[CUSTOM_FLAG_FIELD[feature]]);
   return false;
 }

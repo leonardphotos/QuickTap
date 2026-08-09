@@ -107,11 +107,13 @@ enum Currency {
 }
 
 // Vertical de negocio del tenant. RESTAURANT es el producto original (mesas/comandas/cocina);
-// SHOP es el vertical de retail (POS por SKU/variantes, inventario, sin mesas ni cocina) —
+// SHOP es el vertical de retail (POS por SKU/variantes, inventario, sin mesas ni cocina);
+// SPORTS_CLUB es el vertical de clubes deportivos (canchas reservables por franja horaria) —
 // ver AdminLayout, que renderiza un panel completamente distinto según este campo.
 enum BusinessType {
   RESTAURANT
   SHOP
+  SPORTS_CLUB
 }
 
 enum PaymentMethod {
@@ -148,6 +150,7 @@ enum SubscriptionPlan {
   DELIVERY_SUCURSALES // [Legado, ya no se ofrece] Plan Solo Delivery + hasta 5 sucursales
   ELITE // Todos los beneficios de Pro + sucursales ilimitadas + soporte prioritario
   SHOP // Plan único de QuickTap Shop (businessType SHOP — Locales Comerciales)
+  CLUB // Plan único de QuickTap Club (businessType SPORTS_CLUB — Canchas)
 }
 
 enum BillingCycle {
@@ -502,6 +505,13 @@ model Restaurant {
   shopCategories       ShopCategory[]
   shopSubcategories    ShopSubcategory[]
   shopServiceSupplies  ShopServiceSupply[]
+
+  // --- QuickTap Club (businessType = SPORTS_CLUB): canchas y reservas por franja
+  // horaria, sin relación con Table/Order — ver web/src/pages/admin/club/. ---
+  clubCourts    ClubCourt[]
+  clubSchedules ClubSchedule[]
+  clubBlocks    ClubCourtBlock[]
+  clubBookings  ClubBooking[]
 
   @@index([parentRestaurantId])
   @@map("restaurants")
@@ -1448,7 +1458,9 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  // Historial de cancha del jugador (vertical SPORTS_CLUB).
+  clubBookings ClubBooking[]
 
   @@unique([restaurantId, phone])
   @@index([restaurantId, name])
@@ -2311,4 +2323,161 @@ model ShopSubcategory {
 
   @@unique([restaurantId, category, name])
   @@map("shop_subcategories")
+}
+
+// ============================================================================
+//  QUICKTAP CLUB (businessType = SPORTS_CLUB) — Canchas de pádel y clubes
+//  deportivos. Reservas por franja horaria, con precio de hora pico/valle.
+//  Sin relación con Table/Order/Reservation: aquello es del vertical restaurante
+//  y no sabe de duraciones ni de solapamientos.
+// ============================================================================
+
+enum ClubSport {
+  PADEL
+  TENIS
+  FUTBOL
+  BASQUET
+  OTRO
+}
+
+// Qué ocupa la cancha. Reservas, mantenimiento, clases y torneos comparten UNA
+// sola tabla a propósito: así una única restricción de exclusión los protege a
+// todos entre sí (un bloqueo por lluvia no puede pisar una reserva ya hecha), y
+// el calendario se arma con una sola consulta.
+enum ClubBlockKind {
+  BOOKING // Reserva de un jugador
+  MAINTENANCE // Bloqueo técnico (cristales, lluvia, cambio de red)
+  CLASS // Clase de academia
+  TOURNAMENT // Partido de torneo
+}
+
+enum ClubBlockStatus {
+  ACTIVE
+  CANCELLED
+}
+
+enum ClubBookingStatus {
+  PENDING_PAYMENT // Reservada, aún sin cobrar
+  CONFIRMED // Pagada (total o parcialmente, según la política del club)
+  COMPLETED // Jugada: hubo check-in y ya pasó la hora
+  CANCELLED
+  NO_SHOW // No se presentó: pasó la hora sin check-in
+}
+
+model ClubCourt {
+  id           String    @id @default(cuid())
+  restaurantId String
+  name         String // "Cancha 1", "Central"
+  sport        ClubSport @default(PADEL)
+  indoor       Boolean   @default(false)
+  active       Boolean   @default(true)
+  sortOrder    Int       @default(0)
+  createdAt    DateTime  @default(now())
+
+  restaurant Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  schedules  ClubSchedule[]
+  blocks     ClubCourtBlock[]
+
+  @@index([restaurantId, active])
+  @@map("club_courts")
+}
+
+// Franja de apertura con su precio. La "hora pico" no es un campo aparte: es
+// simplemente otra franja del mismo día con otro precio (18:00-22:00 más cara
+// que 08:00-14:00). `courtId` null = la franja aplica a todas las canchas.
+model ClubSchedule {
+  id           String  @id @default(cuid())
+  restaurantId String
+  courtId      String?
+
+  weekday   Int // 0 = domingo … 6 = sábado
+  startTime String // "HH:mm" hora local del club
+  endTime   String // "HH:mm" — exclusivo
+
+  // Duración de la franja reservable. Un club suele vender 60 y 90 min; se
+  // cargan como dos horarios distintos sobre el mismo tramo si hace falta.
+  slotMinutes Int @default(90)
+
+  priceBase Decimal @db.Decimal(12, 2)
+  isPeak    Boolean @default(false)
+  active    Boolean @default(true)
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  court      ClubCourt? @relation(fields: [courtId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, weekday])
+  @@index([courtId])
+  @@map("club_schedules")
+}
+
+// Tabla central del calendario. El intervalo es SEMIABIERTO [startsAt, endsAt):
+// una reserva 18:00-19:00 y otra 19:00-20:00 NO se solapan.
+//
+// El doble booking se previene con una restricción EXCLUDE de PostgreSQL sobre
+// (courtId, tstzrange) filtrada a status <> 'CANCELLED' — ver la migración. Una
+// validación en el servicio no basta: dos jugadores que reservan en el mismo
+// segundo pasan ambos la comprobación y ambos insertan.
+model ClubCourtBlock {
+  id           String @id @default(cuid())
+  restaurantId String
+  courtId      String
+
+  kind   ClubBlockKind
+  status ClubBlockStatus @default(ACTIVE)
+
+  startsAt DateTime
+  endsAt   DateTime
+
+  note      String? // Motivo del mantenimiento, nombre del torneo, etc.
+  createdAt DateTime @default(now())
+
+  restaurant Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  court      ClubCourt    @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  booking    ClubBooking?
+
+  @@index([restaurantId, startsAt])
+  @@index([courtId, startsAt])
+  @@map("club_court_blocks")
+}
+
+model ClubBooking {
+  id           String @id @default(cuid())
+  restaurantId String
+  blockId      String @unique
+
+  // El jugador que reserva. `customerId` ata la reserva al CRM (historial de
+  // consumo); nombre y teléfono se copian igual para que la reserva se sostenga
+  // sola aunque el cliente se borre.
+  customerId  String?
+  playerName  String
+  playerPhone String
+
+  // Congelados al reservar, como en Order: si mañana sube la tasa o el precio de
+  // la hora pico, una reserva ya hecha no cambia de precio.
+  totalBase    Decimal @db.Decimal(12, 2)
+  exchangeRate Decimal @db.Decimal(12, 4)
+  totalBs      Decimal @db.Decimal(14, 2)
+
+  // Cuántos jugadores van a dividir el pago (Fase 3). Se guarda desde el inicio
+  // porque define el reparto de céntimos y no debe cambiar tras cobrar.
+  playerCount Int @default(4)
+
+  status ClubBookingStatus @default(PENDING_PAYMENT)
+
+  // Token opaco del QR de acceso — mismo patrón que Table.qrToken: no codifica
+  // datos de la reserva, solo identifica. El servidor resuelve y valida.
+  accessToken String @unique
+
+  checkedInAt DateTime? // Lo marca el escáner de recepción
+  cancelledAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  restaurant Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  block      ClubCourtBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  customer   Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId, status])
+  @@index([restaurantId, createdAt])
+  @@index([customerId])
+  @@map("club_bookings")
 }

@@ -50,6 +50,7 @@ import { publicRamblayRoutes } from '../modules/ramblay/ramblay.routes';
 import branchRoutes from '../modules/branches/branch.routes';
 import aiPhotoRoutes from '../modules/ai-photo/ai-photo.routes';
 import shopRoutes from '../modules/shop/shop.routes';
+import clubRoutes, { publicClubRoutes } from '../modules/club/club.routes';
 import { tenantFiscalInvoicingRoutes, masterFiscalInvoicingRoutes } from '../modules/fiscal-invoicing/fiscal-invoicing.routes';
 
 /**
@@ -100,6 +101,7 @@ router.use('/reservations', tenantReservationRoutes);
 router.use('/branches', branchRoutes);
 router.use('/ai-photo', aiPhotoRoutes);
 router.use('/shop', shopRoutes);
+router.use('/club', clubRoutes);
 router.use('/fiscal-invoicing', tenantFiscalInvoicingRoutes);
 
 // --- Público ---
@@ -115,6 +117,8 @@ router.use('/public/payment-methods', publicPlatformSettingsRoutes);
 router.use('/public/plans', publicPlanContentRoutes);
 router.use('/public/reservations', publicReservationRoutes);
 router.use('/public/ramblay', publicRamblayRoutes);
+// Página del jugador del club: disponibilidad y reserva, resueltas por slug.
+router.use('/public/club', publicClubRoutes);
 
 // --- Dashboard maestro (equipo de QuickTap, ve todos los restaurantes) ---
 router.use('/master/promo-codes', masterPromoCodeRoutes);

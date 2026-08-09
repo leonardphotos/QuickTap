@@ -31,6 +31,28 @@ export function hourCaracas(date: Date): number {
   return new Date(date.getTime() - CARACAS_OFFSET_MS).getUTCHours();
 }
 
+/**
+ * Instante UTC de una fecha ("YYYY-MM-DD") + hora local ("HH:mm") de Caracas.
+ * Es el inverso de `caracasPartsOf`. Lo usa el vertical de canchas: el club
+ * define sus horarios en hora local y las reservas se guardan en UTC.
+ */
+export function atTimeCaracas(dateStr: string, hhmm: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const [hh, mi] = hhmm.split(':').map(Number);
+  return new Date(Date.UTC(y, m - 1, d, hh, mi, 0, 0) + CARACAS_OFFSET_MS);
+}
+
+/** Fecha "YYYY-MM-DD", hora "HH:mm" y día de la semana de un instante UTC, en hora de Caracas. */
+export function caracasPartsOf(date: Date): { dateStr: string; hhmm: string; dayOfWeek: number } {
+  const shifted = new Date(date.getTime() - CARACAS_OFFSET_MS);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return {
+    dateStr: `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`,
+    hhmm: `${pad(shifted.getUTCHours())}:${pad(shifted.getUTCMinutes())}`,
+    dayOfWeek: shifted.getUTCDay(),
+  };
+}
+
 /** Instante UTC que corresponde a la medianoche del lunes de "esta semana" en hora de Caracas. */
 export function startOfWeekCaracas(): Date {
   const shifted = new Date(Date.now() - CARACAS_OFFSET_MS);

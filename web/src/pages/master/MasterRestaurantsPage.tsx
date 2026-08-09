@@ -6,7 +6,7 @@ interface MasterRestaurant {
   id: string;
   slug: string;
   name: string;
-  businessType: 'RESTAURANT' | 'SHOP';
+  businessType: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB';
   isActive: boolean;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';
   subscriptionPlan: string | null;
@@ -20,7 +20,7 @@ interface MasterRestaurant {
 
 export default function MasterRestaurantsPage() {
   const [restaurants, setRestaurants] = useState<MasterRestaurant[] | null>(null);
-  const [vertical, setVertical] = useState<'RESTAURANT' | 'SHOP'>('RESTAURANT');
+  const [vertical, setVertical] = useState<'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB'>('RESTAURANT');
 
   useEffect(() => {
     masterApi.get('/master/restaurants').then((res) => setRestaurants(res.data.data));

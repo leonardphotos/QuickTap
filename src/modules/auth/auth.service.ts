@@ -6,7 +6,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
 import { badRequest, conflict, unauthorized } from '../../utils/http-error';
-import { isLockedAsync, trialPeriodEnd } from '../../utils/subscription';
+import { isLockedAsync, trialPeriodEnd, trialPlanFor } from '../../utils/subscription';
 import { sendMail } from '../../utils/mailer';
 import { CURRENCY_SYMBOLS } from '../../utils/money';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
@@ -125,7 +125,7 @@ type RestaurantRow = {
   name: string;
   description: string | null;
   logoUrl: string | null;
-  businessType: 'RESTAURANT' | 'SHOP';
+  businessType: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB';
   shopRubro: string | null;
   whatsappPhone: string | null;
   whatsappOrderMessageTemplate: string | null;
@@ -279,11 +279,11 @@ export const authService = {
         baseCurrency: input.baseCurrency,
         periodEnd: trialPeriodEnd(),
         // Los 15 días de prueba arrancan con el plan más completo ya asignado (Elite en
-        // restaurantes, Shop en locales comerciales) para que el dueño pruebe TODO el
-        // producto —incluida Sucursales— antes de elegir/pagar un plan en Facturación.
-        // BillingPage sigue mostrando "Activar plan" igual, porque eso depende de
-        // subscriptionStatus (TRIALING), no de qué plan tenga asignado.
-        subscriptionPlan: input.businessType === 'SHOP' ? 'SHOP' : 'ELITE',
+        // restaurantes, el plan único del vertical en los demás) para que el dueño pruebe
+        // TODO el producto —incluida Sucursales— antes de elegir/pagar un plan en
+        // Facturación. BillingPage sigue mostrando "Activar plan" igual, porque eso depende
+        // de subscriptionStatus (TRIALING), no de qué plan tenga asignado.
+        subscriptionPlan: trialPlanFor(input.businessType),
         users: {
           create: {
             email: input.email,
@@ -383,7 +383,7 @@ export const authService = {
           periodEnd: trialPeriodEnd(),
           // Ver el mismo comentario en register(): arranca la prueba con el plan más
           // completo ya asignado.
-          subscriptionPlan: input.registration.businessType === 'SHOP' ? 'SHOP' : 'ELITE',
+          subscriptionPlan: trialPlanFor(input.registration.businessType),
           users: {
             create: {
               email: google.email,

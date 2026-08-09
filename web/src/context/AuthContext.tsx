@@ -24,7 +24,7 @@ export interface AuthRestaurant {
   logoUrl?: string | null;
   /** Vertical de negocio elegido al registrarse (ver /empezar). SHOP renderiza un panel
    * completamente distinto (ver AdminLayout -> ShopLayout), no editable desde Ajustes. */
-  businessType: 'RESTAURANT' | 'SHOP';
+  businessType: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB';
   /** Rubro de retail (indexa web/src/data/shopRubros.ts) cuando businessType = SHOP. */
   shopRubro?: string | null;
   whatsappPhone?: string | null;
@@ -105,7 +105,7 @@ interface AuthState {
     password: string;
     whatsappPhone?: string;
     baseCurrency?: Currency;
-    businessType?: 'RESTAURANT' | 'SHOP';
+    businessType?: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB';
     shopRubro?: string;
   }) => Promise<void>;
   logout: () => void;
@@ -120,7 +120,7 @@ interface AuthState {
       slug: string;
       whatsappPhone?: string;
       baseCurrency?: Currency;
-      businessType?: 'RESTAURANT' | 'SHOP';
+      businessType?: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB';
       shopRubro?: string;
     },
   ) => Promise<{ needsRegistration: true; email: string; name: string } | { needsRegistration?: undefined }>;
@@ -201,7 +201,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string;
     whatsappPhone?: string;
     baseCurrency?: Currency;
-    businessType?: 'RESTAURANT' | 'SHOP';
+    businessType?: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB';
     shopRubro?: string;
   }) {
     const { data } = await api.post('/auth/register', input);
@@ -219,7 +219,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       slug: string;
       whatsappPhone?: string;
       baseCurrency?: Currency;
-      businessType?: 'RESTAURANT' | 'SHOP';
+      businessType?: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB';
       shopRubro?: string;
     },
   ) {

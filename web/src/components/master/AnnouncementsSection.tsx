@@ -3,7 +3,7 @@ import { Megaphone, Send, Trash2 } from 'lucide-react';
 import { masterApi } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 
-type BusinessType = 'RESTAURANT' | 'SHOP';
+type BusinessType = 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB';
 
 interface Announcement {
   id: string;

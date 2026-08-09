@@ -43,6 +43,9 @@ export const SocketEvents = {
   WHATSAPP_BOT_QR: 'whatsapp-bot:qr', // nuevo código QR para vincular (Ajustes -> WhatsApp)
   WHATSAPP_BOT_STATUS: 'whatsapp-bot:status', // cambió el estado de la sesión (conectando/conectado/desconectado)
   PAYMENT_VERIFICATION_TIMEOUT: 'payment-verification:timeout', // el verificador de pagos no respondió a tiempo -> revisar el pedido a mano
+  CLUB_BOOKING_NEW: 'club:booking-new', // reserva de cancha nueva -> refrescar el calendario de recepción
+  CLUB_BOOKING_UPDATED: 'club:booking-updated', // check-in, cancelación o cambio de estado de una reserva
+  CLUB_CALENDAR_CHANGED: 'club:calendar-changed', // bloqueo de mantenimiento creado/quitado -> recargar el calendario
 } as const;
 
 export function initSockets(server: HttpServer): IOServer {
