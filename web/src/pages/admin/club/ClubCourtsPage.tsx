@@ -6,16 +6,7 @@ import { formatBase } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Toast } from '@/components/ui/toast';
 import { useToast } from '@/hooks/useToast';
-import {
-  clubApi,
-  COURT_TYPE_LABELS,
-  SPORT_LABELS,
-  WEEKDAY_LABELS,
-  type ClubCourt,
-  type ClubCourtType,
-  type ClubSchedule,
-  type ClubSport,
-} from './clubApi';
+import { clubApi, COURT_TYPE_LABELS, WEEKDAY_LABELS, type ClubCourt, type ClubCourtType, type ClubSchedule } from './clubApi';
 
 interface Props {
   restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate'>;
@@ -163,9 +154,7 @@ function CourtCard({ court, onSaved, onRemoved }: { court: ClubCourt; onSaved: (
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="truncate font-bold text-brand-950">{court.name}</p>
-            <p className="text-[12px] font-light text-brand-950/45">
-              {SPORT_LABELS[court.sport]} · {COURT_TYPE_LABELS[court.courtType]}
-            </p>
+            <p className="text-[12px] font-light text-brand-950/45">{COURT_TYPE_LABELS[court.courtType]}</p>
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <button
@@ -251,9 +240,11 @@ function CourtTypePicker({ value, onChange }: { value: ClubCourtType; onChange: 
   );
 }
 
+/** Sin selector de deporte: este vertical es exclusivo de canchas de pádel, así
+ * que el sport queda fijo en 'PADEL' — nada que elegir ni que pueda quedar mal
+ * configurado. */
 function NewCourtForm({ onSaved }: { onSaved: () => void }) {
   const [name, setName] = useState('');
-  const [sport, setSport] = useState<ClubSport>('PADEL');
   const [courtType, setCourtType] = useState<ClubCourtType>('LIBRE');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -263,7 +254,7 @@ function NewCourtForm({ onSaved }: { onSaved: () => void }) {
     setSaving(true);
     setError(null);
     try {
-      await clubApi.createCourt({ name: name.trim(), sport, courtType });
+      await clubApi.createCourt({ name: name.trim(), sport: 'PADEL', courtType });
       setName('');
       setCourtType('LIBRE');
       onSaved();
@@ -276,7 +267,7 @@ function NewCourtForm({ onSaved }: { onSaved: () => void }) {
 
   return (
     <form onSubmit={submit} className="rounded-2xl border border-brand-950/[0.06] bg-white p-4 shadow-sm">
-      <p className="mb-3 text-[15px] font-bold text-brand-950">Agregar cancha</p>
+      <p className="mb-3 text-[15px] font-bold text-brand-950">Agregar cancha de pádel</p>
       <div className="flex flex-wrap items-end gap-3">
         <div className="min-w-[180px] flex-1">
           <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Nombre</label>
@@ -287,20 +278,6 @@ function NewCourtForm({ onSaved }: { onSaved: () => void }) {
             placeholder="Cancha 1"
             className="w-full rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
           />
-        </div>
-        <div>
-          <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Deporte</label>
-          <select
-            value={sport}
-            onChange={(e) => setSport(e.target.value as ClubSport)}
-            className="rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
-          >
-            {Object.entries(SPORT_LABELS).map(([k, v]) => (
-              <option key={k} value={k}>
-                {v}
-              </option>
-            ))}
-          </select>
         </div>
         <div>
           <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Tipo</label>
