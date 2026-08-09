@@ -1,12 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { formatBase } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Toast } from '@/components/ui/toast';
 import { useToast } from '@/hooks/useToast';
-import { clubApi, SPORT_LABELS, WEEKDAY_LABELS, type ClubCourt, type ClubSchedule, type ClubSport } from './clubApi';
+import {
+  clubApi,
+  COURT_TYPE_LABELS,
+  SPORT_LABELS,
+  WEEKDAY_LABELS,
+  type ClubCourt,
+  type ClubCourtType,
+  type ClubSchedule,
+  type ClubSport,
+} from './clubApi';
 
 interface Props {
   restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate'>;
@@ -46,28 +55,12 @@ export default function ClubCourtsPage({ restaurant }: Props) {
         )}
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {courts?.filter((c) => c.active).map((court) => (
-            <div key={court.id} className="rounded-2xl border border-brand-950/[0.06] bg-white p-4 shadow-sm">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="font-bold text-brand-950 truncate">{court.name}</p>
-                  <p className="text-[12px] text-brand-950/45 font-light">
-                    {SPORT_LABELS[court.sport]}
-                    {court.indoor ? ' · Techada' : ''}
-                  </p>
-                </div>
-                <button
-                  onClick={async () => {
-                    await clubApi.deleteCourt(court.id);
-                    load();
-                    show('Cancha desactivada.');
-                  }}
-                  className="shrink-0 text-brand-950/30 hover:text-rose-600"
-                  aria-label="Desactivar cancha"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
+            <CourtCard
+              key={court.id}
+              court={court}
+              onSaved={() => { load(); show('Cancha actualizada.'); }}
+              onRemoved={() => { load(); show('Cancha desactivada.'); }}
+            />
           ))}
         </div>
       </section>
@@ -125,58 +118,200 @@ export default function ClubCourtsPage({ restaurant }: Props) {
   );
 }
 
+/** Tarjeta de una cancha, editable en el sitio: renombrar y cambiar el tipo son
+ * las dos cosas que de verdad cambian con el tiempo (se le pone techo a una
+ * cancha, se renumeran). Sin `window.confirm`: en la tablet/PWA no siempre
+ * aparece, así que la baja se confirma dentro de la misma tarjeta. */
+function CourtCard({ court, onSaved, onRemoved }: { court: ClubCourt; onSaved: () => void; onRemoved: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [name, setName] = useState(court.name);
+  const [courtType, setCourtType] = useState<ClubCourtType>(court.courtType);
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    setBusy(true);
+    try {
+      await clubApi.updateCourt(court.id, { name: name.trim(), courtType });
+      setEditing(false);
+      onSaved();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-brand-950/[0.06] bg-white p-4 shadow-sm">
+      {editing ? (
+        <div className="space-y-2.5">
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+          />
+          <CourtTypePicker value={courtType} onChange={setCourtType} />
+          <div className="flex gap-2">
+            <TextureButton onClick={save} disabled={busy || !name.trim()} className="!w-auto">
+              Guardar
+            </TextureButton>
+            <TextureButton variant="minimal" onClick={() => setEditing(false)} className="!w-auto">
+              Cancelar
+            </TextureButton>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="truncate font-bold text-brand-950">{court.name}</p>
+            <p className="text-[12px] font-light text-brand-950/45">
+              {SPORT_LABELS[court.sport]} · {COURT_TYPE_LABELS[court.courtType]}
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            <button
+              onClick={() => setEditing(true)}
+              className="rounded-lg p-1.5 text-brand-950/30 hover:text-brand-950"
+              aria-label={`Editar ${court.name}`}
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setConfirming(true)}
+              className="rounded-lg p-1.5 text-brand-950/30 hover:text-rose-600"
+              aria-label={`Desactivar ${court.name}`}
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {confirming && (
+        <div className="mt-3 rounded-xl bg-rose-50 p-3">
+          <p className="text-[13px] font-medium text-rose-900">
+            ¿Desactivar esta cancha? Deja de aceptar reservas; sus reservas viejas se conservan.
+          </p>
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  await clubApi.deleteCourt(court.id);
+                  onRemoved();
+                } finally {
+                  setBusy(false);
+                  setConfirming(false);
+                }
+              }}
+              disabled={busy}
+              className="rounded-lg bg-rose-600 px-3 py-1.5 text-[13px] font-semibold text-white disabled:opacity-40"
+            >
+              Sí, desactivar
+            </button>
+            <button
+              onClick={() => setConfirming(false)}
+              className="rounded-lg px-3 py-1.5 text-[13px] font-medium text-brand-950/60"
+            >
+              No
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const COURT_TYPE_HINTS: Record<ClubCourtType, string> = {
+  LIBRE: 'Al aire libre',
+  TECHADA: 'Con techo, laterales abiertos',
+  INDOOR: 'Cerrada por completo',
+};
+
+/** Tres opciones excluyentes: un grupo de botones se lee mucho mejor que un
+ * select en una tablet, que es donde se configura esto casi siempre. */
+function CourtTypePicker({ value, onChange }: { value: ClubCourtType; onChange: (v: ClubCourtType) => void }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {(Object.keys(COURT_TYPE_LABELS) as ClubCourtType[]).map((t) => (
+        <button
+          key={t}
+          type="button"
+          onClick={() => onChange(t)}
+          title={COURT_TYPE_HINTS[t]}
+          className={
+            value === t
+              ? 'rounded-xl bg-brand-950 px-3.5 py-2 text-[13px] font-semibold text-white'
+              : 'rounded-xl bg-brand-950/[0.05] px-3.5 py-2 text-[13px] font-medium text-brand-950/60 hover:bg-brand-950/[0.08]'
+          }
+        >
+          {COURT_TYPE_LABELS[t]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function NewCourtForm({ onSaved }: { onSaved: () => void }) {
   const [name, setName] = useState('');
   const [sport, setSport] = useState<ClubSport>('PADEL');
-  const [indoor, setIndoor] = useState(false);
+  const [courtType, setCourtType] = useState<ClubCourtType>('LIBRE');
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setSaving(true);
+    setError(null);
     try {
-      await clubApi.createCourt({ name: name.trim(), sport, indoor });
+      await clubApi.createCourt({ name: name.trim(), sport, courtType });
       setName('');
+      setCourtType('LIBRE');
       onSaved();
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo crear la cancha.');
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-wrap items-end gap-3 rounded-2xl border border-brand-950/[0.06] bg-white p-4 shadow-sm">
-      <div className="min-w-[180px] flex-1">
-        <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Nombre</label>
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          required
-          placeholder="Cancha 1"
-          className="w-full rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
-        />
+    <form onSubmit={submit} className="rounded-2xl border border-brand-950/[0.06] bg-white p-4 shadow-sm">
+      <p className="mb-3 text-[15px] font-bold text-brand-950">Agregar cancha</p>
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="min-w-[180px] flex-1">
+          <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Nombre</label>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            placeholder="Cancha 1"
+            className="w-full rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+          />
+        </div>
+        <div>
+          <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Deporte</label>
+          <select
+            value={sport}
+            onChange={(e) => setSport(e.target.value as ClubSport)}
+            className="rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+          >
+            {Object.entries(SPORT_LABELS).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Tipo</label>
+          <CourtTypePicker value={courtType} onChange={setCourtType} />
+        </div>
+        <TextureButton type="submit" disabled={saving || !name.trim()} className="!w-auto">
+          <Plus className="h-4 w-4" />
+          Agregar
+        </TextureButton>
       </div>
-      <div>
-        <label className="mb-1 block text-[13px] font-medium text-brand-950/60">Deporte</label>
-        <select
-          value={sport}
-          onChange={(e) => setSport(e.target.value as ClubSport)}
-          className="rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
-        >
-          {Object.entries(SPORT_LABELS).map(([k, v]) => (
-            <option key={k} value={k}>
-              {v}
-            </option>
-          ))}
-        </select>
-      </div>
-      <label className="flex items-center gap-2 pb-2 text-[13px] font-medium text-brand-950/60">
-        <input type="checkbox" checked={indoor} onChange={(e) => setIndoor(e.target.checked)} />
-        Techada
-      </label>
-      <TextureButton type="submit" disabled={saving || !name.trim()} className="!w-auto">
-        <Plus className="h-4 w-4" />
-        Agregar
-      </TextureButton>
+      {error && <p className="mt-2 text-[13px] font-medium text-rose-600">{error}</p>}
     </form>
   );
 }

@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import {
   BOOKING_STATUS_LABELS,
   clubApi,
+  COURT_TYPE_LABELS,
   humanDate,
   shiftDate,
   todayCaracas,
@@ -89,7 +90,9 @@ export default function ClubCourtDetailPage({ courtId, restaurant, canBook, onBa
         </button>
         <div className="min-w-0">
           <h1 className="truncate text-[20px] font-bold tracking-tight text-brand-950">{court?.name ?? 'Cancha'}</h1>
-          {court?.indoor && <p className="text-[12px] font-light text-brand-950/45">Techada</p>}
+          {court && court.courtType !== 'LIBRE' && (
+            <p className="text-[12px] font-light text-brand-950/45">{COURT_TYPE_LABELS[court.courtType]}</p>
+          )}
         </div>
         {canBook && (
           <button

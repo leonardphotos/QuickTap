@@ -4,7 +4,7 @@ export interface PublicCourt {
   id: string;
   name: string;
   sport: string;
-  indoor: boolean;
+  courtType: 'LIBRE' | 'TECHADA' | 'INDOOR';
 }
 
 export interface PublicClub {
@@ -146,6 +146,14 @@ export function clubGradient(theme: PublicClub['theme']): React.CSSProperties {
       ${base} 48%,
       color-mix(in oklab, ${base} 62%, black) 100%)`,
   };
+}
+
+/** Etiqueta del tipo de cancha para el jugador. "Libre" no se muestra: es lo
+ * normal y no aporta nada; techada o indoor sí cambian la decisión si llueve. */
+export function courtTypeLabel(courtType: 'LIBRE' | 'TECHADA' | 'INDOOR'): string | null {
+  if (courtType === 'TECHADA') return 'Techada';
+  if (courtType === 'INDOOR') return 'Indoor';
+  return null;
 }
 
 /** Minutos a "1h 20m" / "45m" — más legible que 80 minutos sueltos. */

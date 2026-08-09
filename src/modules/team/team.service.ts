@@ -17,8 +17,27 @@ const STAFF_SELECT = {
   isServiceProvider: true,
   commissionPercent: true,
   paymentMethodsConfig: true,
+  clubCourtId: true,
+  clubCourt: { select: { id: true, name: true } },
   createdAt: true,
 } as const;
+
+/** Una tablet de cancha sin cancha asignada no sabe qué QR aceptar, así que se
+ * exige al crearla. En cualquier otro rol el campo no aplica y se ignora. */
+async function resolveClubCourtId(restaurantId: string, role: string, clubCourtId?: string | null) {
+  if (role !== 'CANCHA') return null;
+  if (!clubCourtId) throw badRequest('Elige a qué cancha va montada esta tablet.');
+  return assertCourtOfTenant(restaurantId, clubCourtId);
+}
+
+async function assertCourtOfTenant(restaurantId: string, clubCourtId: string) {
+  const court = await prisma.clubCourt.findFirst({
+    where: { id: clubCourtId, restaurantId, active: true },
+    select: { id: true },
+  });
+  if (!court) throw badRequest('Esa cancha no existe o no pertenece a este club.');
+  return court.id;
+}
 
 export const teamService = {
   async list(restaurantId: string) {
@@ -58,6 +77,7 @@ export const teamService = {
         isServiceProvider: input.isServiceProvider ?? false,
         commissionPercent: input.commissionPercent ?? null,
         paymentMethodsConfig: (input.paymentMethodsConfig ?? undefined) as Prisma.InputJsonValue | undefined,
+        clubCourtId: await resolveClubCourtId(restaurantId, input.role, input.clubCourtId),
       },
       select: STAFF_SELECT,
     });
@@ -67,11 +87,14 @@ export const teamService = {
     await this.assertManageable(restaurantId, id);
     // paymentMethodsConfig es una columna Json: para borrarla hay que mandar Prisma.DbNull, no
     // null a secas (null en un campo Json significa "no tocar" en el tipado de Prisma).
-    const { paymentMethodsConfig, ...rest } = input;
+    const { paymentMethodsConfig, clubCourtId, ...rest } = input;
     return prisma.user.update({
       where: { id },
       data: {
         ...rest,
+        ...(clubCourtId !== undefined
+          ? { clubCourtId: clubCourtId ? await assertCourtOfTenant(restaurantId, clubCourtId) : null }
+          : {}),
         ...(paymentMethodsConfig !== undefined
           ? { paymentMethodsConfig: paymentMethodsConfig === null ? Prisma.DbNull : (paymentMethodsConfig as Prisma.InputJsonValue) }
           : {}),

@@ -7,6 +7,7 @@ import { PaymentMethodsSection } from '@/components/admin/PaymentMethodsSection'
 import { LockScreenSettingsSection } from '@/components/admin/LockScreenSettingsSection';
 import { canManageTeam } from '@/utils/roles';
 import { ClubBrandingSection } from './ClubBrandingSection';
+import ClubCourtsPage from './ClubCourtsPage';
 import { ClubKitchenLinkSection } from './ClubKitchenLinkSection';
 import { ClubTabletsSection } from './ClubTabletsSection';
 
@@ -48,6 +49,17 @@ export default function ClubSettingsPage() {
       </TextureCard>
 
       <RestaurantInfoSection />
+
+      {/* Canchas y horarios: sin esto el club no puede recibir una sola reserva,
+          así que va antes que cualquier otro ajuste. */}
+      {canManageTeam(user.role) && (
+        <TextureCard>
+          <TextureCardContent className="py-5">
+            <ClubCourtsPage restaurant={restaurant} />
+          </TextureCardContent>
+        </TextureCard>
+      )}
+
       <ClubBrandingSection />
       {canManageTeam(user.role) && <ClubKitchenLinkSection />}
       {canManageTeam(user.role) && <ClubTabletsSection />}

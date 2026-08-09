@@ -84,7 +84,7 @@ async function main() {
   // --- Canchas ---
   const court1 = await prisma.clubCourt.create({ data: { restaurantId: restaurant.id, name: 'Cancha 1', sport: 'PADEL', sortOrder: 0 } });
   const court2 = await prisma.clubCourt.create({ data: { restaurantId: restaurant.id, name: 'Cancha 2', sport: 'PADEL', sortOrder: 1 } });
-  const court3 = await prisma.clubCourt.create({ data: { restaurantId: restaurant.id, name: 'Cancha Central', sport: 'PADEL', indoor: true, sortOrder: 2 } });
+  const court3 = await prisma.clubCourt.create({ data: { restaurantId: restaurant.id, name: 'Cancha Central', sport: 'PADEL', courtType: 'TECHADA', sortOrder: 2 } });
   const courts = [court1, court2, court3];
   console.log('3 canchas creadas (Cancha 1, Cancha 2, Cancha Central techada).');
 

@@ -3,7 +3,7 @@ import { ChevronRight, Clock, CreditCard, ShoppingBag, SplitSquareHorizontal, Us
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { formatBase } from '@/utils/format';
 import { cn } from '@/lib/utils';
-import { clubApi, type ClubBooking, type PanelCourt } from './clubApi';
+import { clubApi, COURT_TYPE_LABELS, type ClubBooking, type PanelCourt } from './clubApi';
 import { card, CourtIllustration } from './clubStyle';
 import { ClubPaymentDialog } from './ClubPaymentDialog';
 
@@ -137,8 +137,10 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt, canPay }: 
                     {!c.busy ? 'Libre' : isBooking ? '● En juego' : 'Cerrada'}
                   </span>
                 </div>
-                {c.court.indoor && (
-                  <span className="absolute bottom-2.5 left-3 text-[10px] font-medium text-brand-950/45">Techada</span>
+                {c.court.courtType !== 'LIBRE' && (
+                  <span className="absolute bottom-2.5 left-3 text-[10px] font-medium text-brand-950/45">
+                    {COURT_TYPE_LABELS[c.court.courtType]}
+                  </span>
                 )}
               </div>
 

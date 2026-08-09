@@ -53,6 +53,7 @@ import shopRoutes from '../modules/shop/shop.routes';
 import clubRoutes, { publicClubRoutes } from '../modules/club/club.routes';
 import clubLinkRoutes from '../modules/club-link/club-link.routes';
 import clubTabletRoutes from '../modules/club-tablet/club-tablet.routes';
+import clubTournamentRoutes from '../modules/club-tournament/club-tournament.routes';
 import { tenantFiscalInvoicingRoutes, masterFiscalInvoicingRoutes } from '../modules/fiscal-invoicing/fiscal-invoicing.routes';
 
 /**
@@ -108,6 +109,8 @@ router.use('/club', clubRoutes);
 router.use('/club-link', clubLinkRoutes);
 // Tablet fija de la cancha (rol CANCHA): el jugador escanea su QR y pide desde ahí.
 router.use('/club-tablet', clubTabletRoutes);
+// Torneos sociales (Americano/Mexicano) que se corren desde la tablet.
+router.use('/club-tournament', clubTournamentRoutes);
 router.use('/fiscal-invoicing', tenantFiscalInvoicingRoutes);
 
 // --- Público ---

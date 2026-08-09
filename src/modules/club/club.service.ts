@@ -695,7 +695,7 @@ export const clubService = {
     const courts = await prisma.clubCourt.findMany({
       where: { restaurantId: restaurant.id, active: true },
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-      select: { id: true, name: true, sport: true, indoor: true },
+      select: { id: true, name: true, sport: true, courtType: true },
     });
     return {
       club: {
@@ -729,7 +729,7 @@ export const clubService = {
       prisma.clubCourt.findMany({
         where: { restaurantId: restaurant.id, active: true },
         orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-        select: { id: true, name: true, sport: true, indoor: true },
+        select: { id: true, name: true, sport: true, courtType: true },
       }),
       prisma.clubCourtBlock.findMany({
         where: { restaurantId: restaurant.id, status: 'ACTIVE', endsAt: { gt: now }, startsAt: { lt: dayEnd } },

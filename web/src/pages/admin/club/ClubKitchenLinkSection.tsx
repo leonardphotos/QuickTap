@@ -17,6 +17,9 @@ export function ClubKitchenLinkSection() {
   const [loaded, setLoaded] = useState(false);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
+  // Confirmación dentro de la tarjeta: `window.confirm` no aparece en la app
+  // instalada ni en algunos navegadores de tablet, y el botón parece muerto.
+  const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -48,13 +51,13 @@ export function ClubKitchenLinkSection() {
 
   async function unlink() {
     if (!linked) return;
-    if (!window.confirm(`¿Desvincular "${linked.name}"? Sus productos dejarán de verse en las tablets.`)) return;
     setBusy(true);
     setError(null);
     setMessage(null);
     try {
       await clubLinkApi.unlinkFromClub();
       setLinked(null);
+      setConfirming(false);
       setMessage('Restaurante desvinculado.');
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No se pudo desvincular.');
@@ -91,12 +94,35 @@ export function ClubKitchenLinkSection() {
               <p className="text-xs font-light text-emerald-800/70">Recibe los pedidos de tus canchas</p>
             </div>
             <button
-              onClick={unlink}
+              onClick={() => setConfirming(true)}
               disabled={busy}
               className="flex shrink-0 items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-brand-950/70 transition-colors hover:text-red-600 disabled:opacity-40"
             >
               <Unlink className="h-3.5 w-3.5" /> Desvincular
             </button>
+          </div>
+        )}
+
+        {confirming && linked && (
+          <div className="rounded-2xl bg-red-50 p-4">
+            <p className="text-sm font-medium text-red-900">
+              ¿Desvincular "{linked.name}"? Sus productos dejarán de verse en las tablets de las canchas.
+            </p>
+            <div className="mt-2.5 flex gap-2">
+              <button
+                onClick={unlink}
+                disabled={busy}
+                className="rounded-lg bg-red-600 px-3.5 py-2 text-[13px] font-semibold text-white disabled:opacity-40"
+              >
+                Sí, desvincular
+              </button>
+              <button
+                onClick={() => setConfirming(false)}
+                className="rounded-lg px-3.5 py-2 text-[13px] font-medium text-brand-950/60"
+              >
+                Cancelar
+              </button>
+            </div>
           </div>
         )}
 

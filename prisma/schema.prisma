@@ -522,6 +522,7 @@ model Restaurant {
   clubLinkAsClub         ClubRestaurantLink?  @relation("ClubRestaurantLinkClub")
   clubLinksAsKitchen     ClubRestaurantLink[] @relation("ClubRestaurantLinkRestaurant")
   clubTabOrdersToPrepare ClubTabOrder[]       @relation("ClubTabOrderKitchen")
+  clubTournaments        ClubTournament[]
 
   @@index([parentRestaurantId])
   @@map("restaurants")
@@ -590,6 +591,11 @@ model User {
   resetCodeExpiresAt DateTime?
   resetCodeAttempts  Int       @default(0)
 
+  // Tablet de cancha (rol CANCHA): a qué cancha está atornillada. El QR que se
+  // escane en ella tiene que ser de una reserva DE ESA cancha — ver club-tablet.
+  // Null en cualquier otro rol.
+  clubCourtId String?
+
   // Acceso a Inventario para roles restringidos (Mesero/Cocina), otorgado
   // individualmente desde Ajustes → Equipo. Los roles de acceso total
   // (OWNER/ADMIN/CASHIER/STAFF) siempre pueden entrar, sin importar esto.
@@ -618,6 +624,7 @@ model User {
   paymentMethodsConfig Json?
 
   restaurant         Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  clubCourt          ClubCourt?    @relation("UserClubCourt", fields: [clubCourtId], references: [id], onDelete: SetNull)
   placedOrders       Order[]       @relation("OrderPlacedBy")
   acceptedOrders     Order[]       @relation("OrderAcceptedBy")
   assignedTables     Table[]       @relation("TableAssignedWaiter")
@@ -2374,19 +2381,29 @@ enum ClubBookingStatus {
   NO_SHOW // No se presentó: pasó la hora sin check-in
 }
 
+/// Cómo está cerrada la cancha. Cambia el precio y la experiencia (se juega con
+/// lluvia o no), así que el jugador lo ve en el enlace público.
+enum ClubCourtType {
+  LIBRE // al aire libre, sin techo
+  TECHADA // techo sobre la pista, laterales abiertos
+  INDOOR // cerrada por completo
+}
+
 model ClubCourt {
-  id           String    @id @default(cuid())
+  id           String        @id @default(cuid())
   restaurantId String
   name         String // "Cancha 1", "Central"
-  sport        ClubSport @default(PADEL)
-  indoor       Boolean   @default(false)
-  active       Boolean   @default(true)
-  sortOrder    Int       @default(0)
-  createdAt    DateTime  @default(now())
+  sport        ClubSport     @default(PADEL)
+  courtType    ClubCourtType @default(LIBRE)
+  active       Boolean       @default(true)
+  sortOrder    Int           @default(0)
+  createdAt    DateTime      @default(now())
 
   restaurant Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   schedules  ClubSchedule[]
   blocks     ClubCourtBlock[]
+  /// Tablets fijas montadas en esta cancha (rol CANCHA).
+  tablets    User[]           @relation("UserClubCourt")
 
   @@index([restaurantId, active])
   @@map("club_courts")
@@ -2642,4 +2659,102 @@ model ClubTabItem {
 
   @@index([tabOrderId])
   @@map("club_tab_items")
+}
+
+// ============================================================================
+//  Torneos sociales de pádel (Americano / Mexicano)
+// ============================================================================
+//  Un torneo social no es un cuadro de eliminatorias: los jugadores compiten
+//  INDIVIDUALMENTE y cambian de pareja en cada ronda. Los puntos que anota tu
+//  pareja son tuyos, y la clasificación es la suma de todo lo que anotaste.
+//
+//  Americano: las parejas rotan buscando que juegues con y contra todo el
+//  mundo — los cruces salen de un reparto equitativo (ver generateAmericano).
+//  Mexicano: los cruces salen de la tabla de posiciones de la ronda anterior
+//  (1º+4º vs 2º+3º), así que los que van ganando siempre se enfrentan entre sí.
+//
+//  Se corre desde la tablet de la cancha, que es donde están los jugadores.
+// ============================================================================
+
+enum ClubTournamentFormat {
+  AMERICANO
+  MEXICANO
+}
+
+enum ClubTournamentStatus {
+  RUNNING
+  FINISHED
+}
+
+/// Cómo se decide que un partido terminó.
+enum ClubTournamentScoring {
+  POINTS // se juega hasta repartir `pointsPerMatch` puntos entre los dos equipos
+  TIME // se juega `minutesPerRound` minutos y vale el marcador que quede
+}
+
+model ClubTournament {
+  id              String                @id @default(cuid())
+  restaurantId    String
+  name            String
+  format          ClubTournamentFormat
+  scoring         ClubTournamentScoring @default(POINTS)
+  /// Puntos que se reparten en cada partido (modo POINTS). Ej: 24 → 16-8, 13-11…
+  pointsPerMatch  Int                   @default(24)
+  /// Duración de cada ronda en minutos (modo TIME).
+  minutesPerRound Int                   @default(15)
+  /// Canchas donde se juega, en orden. Se congelan los nombres: el torneo es de
+  /// una tarde y renombrar una cancha después no debe reescribir su historia.
+  courtNames      Json
+  status          ClubTournamentStatus  @default(RUNNING)
+  /// Última ronda generada. 0 = todavía ninguna.
+  currentRound    Int                   @default(0)
+  createdAt       DateTime              @default(now())
+  finishedAt      DateTime?
+
+  restaurant Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  players    ClubTournamentPlayer[]
+  matches    ClubTournamentMatch[]
+
+  @@index([restaurantId, status])
+  @@map("club_tournaments")
+}
+
+model ClubTournamentPlayer {
+  id           String @id @default(cuid())
+  tournamentId String
+  name         String
+  sortOrder    Int    @default(0)
+
+  tournament ClubTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@index([tournamentId])
+  @@map("club_tournament_players")
+}
+
+/// Un partido de una ronda: dos parejas, una cancha y un marcador.
+/// Los cuatro jugadores se guardan sueltos (no hay entidad "pareja") porque la
+/// pareja solo existe durante este partido — en la ronda siguiente se deshace.
+model ClubTournamentMatch {
+  id           String @id @default(cuid())
+  tournamentId String
+  round        Int
+  /// Nombre de la cancha donde se juega, congelado (ver courtNames).
+  courtName    String
+
+  teamAPlayer1Id String
+  teamAPlayer2Id String
+  teamBPlayer1Id String
+  teamBPlayer2Id String
+
+  /// Null = todavía no se cargó el resultado.
+  scoreA Int?
+  scoreB Int?
+
+  createdAt DateTime  @default(now())
+  playedAt  DateTime?
+
+  tournament ClubTournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+
+  @@index([tournamentId, round])
+  @@map("club_tournament_matches")
 }

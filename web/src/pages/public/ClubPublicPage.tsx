@@ -9,6 +9,7 @@ import {
   clubGradient,
   clubPublicApi,
   dateParts,
+  courtTypeLabel,
   hhmmOf,
   humanDate,
   humanMinutes,
@@ -280,7 +281,9 @@ function LiveScreen({
               <button onClick={() => onToggle(c.court.id)} className="w-full p-5 text-left">
                 <div className="flex items-center gap-2">
                   <span className="text-[16px] font-bold">{c.court.name}</span>
-                  {c.court.indoor && <span className="text-[11px] font-medium text-white/50">Techada</span>}
+                  {courtTypeLabel(c.court.courtType) && (
+                    <span className="text-[11px] font-medium text-white/50">{courtTypeLabel(c.court.courtType)}</span>
+                  )}
                   <span
                     className={cn(
                       'ml-auto rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide',
@@ -418,7 +421,9 @@ function CalendarScreen({
             <section key={court.id}>
               <h2 className="mb-2.5 flex items-center gap-2 text-[15px] font-bold">
                 {court.name}
-                {court.indoor && <span className="text-[11px] font-medium text-white/45">Techada</span>}
+                {courtTypeLabel(court.courtType) && (
+                  <span className="text-[11px] font-medium text-white/45">{courtTypeLabel(court.courtType)}</span>
+                )}
               </h2>
               <div className="grid grid-cols-3 gap-2">
                 {free.map((s) => (

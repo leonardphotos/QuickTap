@@ -3,13 +3,15 @@ import type { PaymentMethod } from '@/types';
 
 export type ClubSport = 'PADEL' | 'TENIS' | 'FUTBOL' | 'BASQUET' | 'OTRO';
 export type ClubBlockKind = 'BOOKING' | 'MAINTENANCE' | 'CLASS' | 'TOURNAMENT';
+/** Cómo está cerrada la cancha: al aire libre, con techo, o cerrada por completo. */
+export type ClubCourtType = 'LIBRE' | 'TECHADA' | 'INDOOR';
 export type ClubBookingStatus = 'PENDING_PAYMENT' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
 
 export interface ClubCourt {
   id: string;
   name: string;
   sport: ClubSport;
-  indoor: boolean;
+  courtType: ClubCourtType;
   active: boolean;
   sortOrder: number;
 }
@@ -132,7 +134,7 @@ export const clubApi = {
   panelCourts: () => api.get<{ data: { now: string; courts: PanelCourt[] } }>('/club/panel-courts').then((r) => r.data.data),
 
   listCourts: () => api.get<{ data: ClubCourt[] }>('/club/courts').then((r) => r.data.data),
-  createCourt: (body: { name: string; sport?: ClubSport; indoor?: boolean; sortOrder?: number }) =>
+  createCourt: (body: { name: string; sport?: ClubSport; courtType?: ClubCourtType; sortOrder?: number }) =>
     api.post<{ data: ClubCourt }>('/club/courts', body).then((r) => r.data.data),
   updateCourt: (id: string, body: Partial<ClubCourt>) =>
     api.patch<{ data: ClubCourt }>(`/club/courts/${id}`, body).then((r) => r.data.data),
@@ -201,6 +203,11 @@ export const SPORT_LABELS: Record<ClubSport, string> = {
   FUTBOL: 'Fútbol',
   BASQUET: 'Básquet',
   OTRO: 'Otro',
+};
+export const COURT_TYPE_LABELS: Record<ClubCourtType, string> = {
+  LIBRE: 'Libre',
+  TECHADA: 'Techada',
+  INDOOR: 'Indoor',
 };
 export const BOOKING_STATUS_LABELS: Record<ClubBookingStatus, string> = {
   PENDING_PAYMENT: 'Por cobrar',

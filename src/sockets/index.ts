@@ -48,6 +48,7 @@ export const SocketEvents = {
   CLUB_CALENDAR_CHANGED: 'club:calendar-changed', // bloqueo de mantenimiento creado/quitado -> recargar el calendario
   CLUB_TAB_ORDER_NEW: 'club:tab-order-new', // pedido desde la tablet de una cancha -> cola del restaurante vinculado y Caja del club
   CLUB_TAB_ORDER_UPDATED: 'club:tab-order-updated', // el restaurante lo aceptó/entregó/canceló
+  CLUB_TOURNAMENT_UPDATED: 'club:tournament-updated', // ronda nueva o resultado cargado -> refrescar tabla de posiciones
 } as const;
 
 export function initSockets(server: HttpServer): IOServer {

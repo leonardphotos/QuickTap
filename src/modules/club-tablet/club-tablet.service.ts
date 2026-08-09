@@ -24,6 +24,13 @@ function consumoOf(tabOrders: { totalBase: Prisma.Decimal; status: string }[]): 
   );
 }
 
+/** La cancha a la que está atornillada esta tablet. Dueño/Admin/Cajero entran sin
+ * cancha asignada (prueban la pantalla desde el panel) y no se les filtra. */
+async function tabletCourtIdOf(userId: string): Promise<string | null> {
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true, clubCourtId: true } });
+  return user?.role === 'CANCHA' ? user.clubCourtId : null;
+}
+
 async function loadSession(clubId: string, accessToken: string) {
   const booking = await prisma.clubBooking.findUnique({
     where: { accessToken },
@@ -52,8 +59,18 @@ export const clubTabletService = {
    * que la pantalla necesita: a quién saludar, cuánto tiempo queda y qué lleva
    * consumido.
    */
-  async getSession(clubId: string, accessToken: string) {
+  async getSession(clubId: string, userId: string, accessToken: string) {
     const booking = await loadSession(clubId, accessToken);
+
+    // La tablet de la Cancha 2 no abre el QR de una reserva de la Cancha 1: el
+    // jugador se llevaría los pedidos a la cancha equivocada.
+    const tabletCourtId = await tabletCourtIdOf(userId);
+    if (tabletCourtId && booking.block.courtId !== tabletCourtId) {
+      const own = await prisma.clubCourt.findUnique({ where: { id: tabletCourtId }, select: { name: true } });
+      throw badRequest(
+        `Esta reserva es de ${booking.block.court.name}. Esta tablet es de ${own?.name ?? 'otra cancha'}.`,
+      );
+    }
 
     const now = Date.now();
     const startsAt = booking.block.startsAt.getTime();
@@ -161,8 +178,14 @@ export const clubTabletService = {
    * El jugador manda su pedido desde la cancha. Los precios se resuelven acá
    * (nunca se confía en el cliente) y el total se congela, igual que en Order.
    */
-  async createOrder(clubId: string, input: CreateTabOrderInput) {
+  async createOrder(clubId: string, userId: string, input: CreateTabOrderInput) {
     const booking = await loadSession(clubId, input.accessToken);
+
+    const tabletCourtId = await tabletCourtIdOf(userId);
+    if (tabletCourtId && booking.block.courtId !== tabletCourtId) {
+      throw badRequest('Esta reserva no es de esta cancha.');
+    }
+
     if (Date.now() > booking.block.endsAt.getTime()) {
       throw badRequest('Tu tiempo de cancha terminó. Pasa por caja para cerrar tu cuenta.');
     }

@@ -27,7 +27,9 @@ const admin = requireRole('OWNER', 'ADMIN');
 // Reservar, cancelar y hacer check-in lo hace recepción en el día a día.
 const reception = requireRole('OWNER', 'ADMIN', 'CASHIER');
 
-router.get('/courts', staff, clubController.listCourts);
+// La tablet de la cancha también necesita la lista para armar un torneo (elegir
+// en qué canchas se juega). Son solo nombres, sin nada sensible.
+router.get('/courts', requireRole('OWNER', 'ADMIN', 'CASHIER', 'WAITER', 'CANCHA'), clubController.listCourts);
 router.post('/courts', admin, clubController.createCourt);
 router.patch('/courts/:id', admin, clubController.updateCourt);
 router.delete('/courts/:id', admin, clubController.deleteCourt);

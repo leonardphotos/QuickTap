@@ -26,6 +26,9 @@ export const createStaffSchema = z.object({
   // % que se lleva de lo que factura. 100 = se lo lleva todo; 0/null = sin comisión.
   commissionPercent: z.coerce.number().min(0).max(100).nullable().optional(),
   paymentMethodsConfig: paymentMethodsConfigSchema.nullable().optional(),
+  // Tablet de cancha (rol CANCHA): a qué cancha queda atornillada. El QR que se
+  // escanee ahí tiene que ser de una reserva DE ESA cancha.
+  clubCourtId: z.string().cuid().nullable().optional(),
 });
 
 export const updateStaffSchema = z.object({
@@ -37,6 +40,7 @@ export const updateStaffSchema = z.object({
   isServiceProvider: z.boolean().optional(),
   commissionPercent: z.coerce.number().min(0).max(100).nullable().optional(),
   paymentMethodsConfig: paymentMethodsConfigSchema.nullable().optional(),
+  clubCourtId: z.string().cuid().nullable().optional(),
 });
 
 export const assignTablesSchema = z.object({

@@ -15,7 +15,7 @@ interface Ticket {
   accessToken: string;
   checkedInAt: string | null;
   requestedExtras: { id: string; name: string; quantity: number }[] | null;
-  block: { startsAt: string; endsAt: string; court: { name: string; indoor: boolean } };
+  block: { startsAt: string; endsAt: string; court: { name: string; courtType: 'LIBRE' | 'TECHADA' | 'INDOOR' } };
   restaurant: { name: string; slug: string; logoUrl: string | null; theme: PublicClub['theme'] };
 }
 

@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Clock, Minus, Plus, QrCode, RotateCcw, ShoppingBag, Wallet, X } from 'lucide-react';
+import { Check, Clock, Minus, Plus, QrCode, RotateCcw, ShoppingBag, Trophy, Wallet, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useBarcodeCamera } from '@/hooks/useBarcodeCamera';
 import { formatBase } from '@/utils/format';
 import { clubGradient } from '@/pages/public/clubPublic';
 import { cn } from '@/lib/utils';
 import { clubTabletApi, type TabletCatalogItem, type TabletSession } from './clubTabletApi';
+import { clubApi } from './clubApi';
+import ClubTournamentScreen from './ClubTournamentScreen';
 
 /** La pantalla solo tiene sentido acostada: es una tablet fija en la pared de la cancha. */
 const LANDSCAPE_QUERY = '(orientation: landscape)';
 
-type Screen = 'idle' | 'scanning' | 'menu' | 'closing';
+type Screen = 'idle' | 'scanning' | 'menu' | 'closing' | 'torneo';
 
 function useIsLandscape(): boolean {
   const [ok, setOk] = useState(() => window.matchMedia(LANDSCAPE_QUERY).matches);
@@ -50,6 +52,15 @@ export default function ClubTabletPage() {
   const [sending, setSending] = useState(false);
   const [justSent, setJustSent] = useState(false);
   const [category, setCategory] = useState<string>('todo');
+  // Canchas del club: el torneo necesita saber en cuáles se puede jugar.
+  const [courtNames, setCourtNames] = useState<string[]>([]);
+
+  useEffect(() => {
+    clubApi
+      .listCourts()
+      .then((cs) => setCourtNames(cs.filter((c) => c.active).map((c) => c.name)))
+      .catch(() => setCourtNames([]));
+  }, []);
 
   const money = useCallback(
     (v: string | number) => formatBase(Number(v), restaurant?.currencySymbol ?? '$'),
@@ -178,6 +189,11 @@ export default function ClubTabletPage() {
     );
   }
 
+  // ------------------------------------------------------------------- Torneo
+  if (screen === 'torneo') {
+    return <ClubTournamentScreen courtNames={courtNames} onExit={() => setScreen('idle')} />;
+  }
+
   // ------------------------------------------------------------------ Acceder
   if (screen === 'idle' || screen === 'scanning') {
     return (
@@ -189,8 +205,8 @@ export default function ClubTabletPage() {
         )}
 
         <div className="text-center">
-          <p className="text-4xl font-bold tracking-tight text-white">¿Listos para pedir?</p>
-          <p className="mt-2 text-lg font-light text-white/75">Escanea el QR de tu reserva y pide desde la cancha.</p>
+          <p className="text-4xl font-bold tracking-tight text-white">¿Listos para jugar?</p>
+          <p className="mt-2 text-lg font-light text-white/75">Escanea el QR de tu reserva para comenzar a jugar</p>
         </div>
 
         <button
@@ -202,6 +218,16 @@ export default function ClubTabletPage() {
         >
           <QrCode className="h-7 w-7" />
           Acceder
+        </button>
+
+        {/* Secundario y separado: "Acceder" sigue siendo LA acción de esta
+            pantalla; el torneo lo abre quien organiza, no el jugador que llega. */}
+        <button
+          onClick={() => setScreen('torneo')}
+          className="flex items-center gap-2 rounded-full bg-white/15 px-7 py-3.5 text-base font-semibold text-white backdrop-blur-md transition-colors hover:bg-white/25"
+        >
+          <Trophy className="h-5 w-5" />
+          Torneo
         </button>
 
         {error && (

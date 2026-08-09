@@ -9,7 +9,7 @@ const dateStr = z.string().regex(YYYYMMDD, 'La fecha debe tener formato YYYY-MM-
 export const createCourtSchema = z.object({
   name: z.string().min(1).max(60),
   sport: z.enum(['PADEL', 'TENIS', 'FUTBOL', 'BASQUET', 'OTRO']).optional().default('PADEL'),
-  indoor: z.boolean().optional().default(false),
+  courtType: z.enum(['LIBRE', 'TECHADA', 'INDOOR']).optional().default('LIBRE'),
   sortOrder: z.number().int().min(0).max(999).optional(),
 });
 export const updateCourtSchema = createCourtSchema.partial().extend({

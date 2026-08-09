@@ -33,6 +33,9 @@ export function ClubLinkSection() {
   const { refresh } = useAuth();
   const [state, setState] = useState<RestaurantLinkState | null>(null);
   const [busy, setBusy] = useState(false);
+  // Confirmación dentro de la fila: `window.confirm` no aparece en la app
+  // instalada ni en algunos navegadores de tablet.
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -65,8 +68,7 @@ export function ClubLinkSection() {
     }
   }
 
-  async function unlink(clubId: string, name: string) {
-    if (!window.confirm(`¿Desvincular "${name}"? Dejarás de recibir los pedidos de sus canchas.`)) return;
+  async function unlink(clubId: string) {
     setBusy(true);
     setError(null);
     setMessage(null);
@@ -75,6 +77,7 @@ export function ClubLinkSection() {
       load();
       // La pestaña "Canchas" depende de si queda algún club vinculado.
       await refresh();
+      setConfirmingId(null);
       setMessage('Club desvinculado.');
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No se pudo desvincular.');
@@ -135,10 +138,8 @@ export function ClubLinkSection() {
             <p className="text-sm font-semibold text-brand-950">Canchas vinculadas</p>
             <ul className="mt-2 space-y-2">
               {state.clubs.map((c) => (
-                <li
-                  key={c.id}
-                  className="flex items-center gap-3 rounded-xl border border-brand-950/[0.07] bg-white px-3 py-2.5"
-                >
+                <li key={c.id} className="rounded-xl border border-brand-950/[0.07] bg-white px-3 py-2.5">
+                  <div className="flex items-center gap-3">
                   {c.logoUrl ? (
                     <img src={c.logoUrl} alt="" className="h-8 w-8 shrink-0 rounded-lg object-cover" />
                   ) : (
@@ -151,13 +152,37 @@ export function ClubLinkSection() {
                     <p className="text-xs font-light text-brand-950/45">/{c.slug}</p>
                   </div>
                   <button
-                    onClick={() => unlink(c.id, c.name)}
+                    onClick={() => setConfirmingId(c.id)}
                     disabled={busy}
                     className="shrink-0 rounded-lg p-2 text-brand-950/35 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
                     aria-label={`Desvincular ${c.name}`}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
+                  </div>
+
+                  {confirmingId === c.id && (
+                    <div className="mt-2.5 rounded-lg bg-red-50 p-3">
+                      <p className="text-[13px] font-medium text-red-900">
+                        ¿Desvincular "{c.name}"? Dejarás de recibir los pedidos de sus canchas.
+                      </p>
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          onClick={() => unlink(c.id)}
+                          disabled={busy}
+                          className="rounded-lg bg-red-600 px-3 py-1.5 text-[13px] font-semibold text-white disabled:opacity-40"
+                        >
+                          Sí, desvincular
+                        </button>
+                        <button
+                          onClick={() => setConfirmingId(null)}
+                          className="rounded-lg px-3 py-1.5 text-[13px] font-medium text-brand-950/60"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
