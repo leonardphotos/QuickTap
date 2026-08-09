@@ -101,7 +101,7 @@ export default function RegisterPage() {
 
   return (
     <AuthLayout
-      title={isShop ? 'Registra tu local comercial' : 'Registra tu local'}
+      title={isShop ? 'Registra tu local comercial' : isClub ? 'Registra tu cancha' : 'Registra tu local'}
       footer={
         <p className="text-sm text-brand-950/60 font-light">
           ¿Ya tienes cuenta?{' '}
@@ -155,7 +155,7 @@ export default function RegisterPage() {
       )}
       <form onSubmit={onSubmit} className="space-y-4">
         <Field
-          label={isShop ? 'Nombre del negocio' : 'Nombre del restaurante'}
+          label={isShop ? 'Nombre del negocio' : isClub ? 'Nombre de la cancha' : 'Nombre del restaurante'}
           value={restaurantName}
           onChange={setRestaurantName}
         />
@@ -163,7 +163,7 @@ export default function RegisterPage() {
           label="Nombre de usuario"
           value={slug}
           onChange={(v) => setSlug(v.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
-          placeholder="mi-restaurante"
+          placeholder={isClub ? 'mi-club' : 'mi-restaurante'}
         />
         <label className="block text-sm">
           <span className="text-brand-950/70">WhatsApp</span>
