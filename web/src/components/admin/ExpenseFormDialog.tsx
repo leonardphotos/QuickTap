@@ -66,9 +66,9 @@ interface InventoryOption {
 export function ExpenseFormDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const { restaurant } = useAuth();
   // El reabastecimiento descuenta contra InventoryItem (insumos de restaurante). Un local
-  // comercial maneja su stock en ShopProduct, así que ahí ese bloque no aplica: mostraría una
-  // lista vacía y, si se llenara, tocaría un inventario que el local no usa.
-  const supportsRestock = restaurant?.businessType !== 'SHOP';
+  // comercial y un club manejan su stock en ShopProduct, así que ahí ese bloque no aplica:
+  // mostraría una lista vacía y, si se llenara, tocaría un inventario que no usan.
+  const supportsRestock = restaurant?.businessType !== 'SHOP' && restaurant?.businessType !== 'SPORTS_CLUB';
   const [amount, setAmount] = useState('');
   const [amountCurrency, setAmountCurrency] = useState<'BASE' | 'BS'>('BASE');
   const [description, setDescription] = useState('');

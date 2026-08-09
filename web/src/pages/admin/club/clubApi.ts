@@ -72,7 +72,38 @@ export interface ClubCalendar {
   blocks: ClubBlock[];
 }
 
+/** Lo que ve recepción al entrar: qué pasa ahora mismo en cada cancha. */
+export interface PanelCourt {
+  court: ClubCourt;
+  busy: boolean;
+  current: {
+    blockId: string;
+    kind: ClubBlockKind;
+    startsAt: string;
+    endsAt: string;
+    playedMinutes: number;
+    remainingMinutes: number;
+    totalMinutes: number;
+    note: string | null;
+    booking: {
+      id: string;
+      playerName: string;
+      playerPhone: string;
+      playerCount: number;
+      status: ClubBookingStatus;
+      checkedInAt: string | null;
+      totalBase: string;
+      requestedExtras: { id: string; name: string; quantity: number }[] | null;
+    } | null;
+    /** Ventas fiadas sin saldar del jugador que está en cancha. */
+    openTab: { count: number; balance: number } | null;
+  } | null;
+  next: { kind: ClubBlockKind; startsAt: string; endsAt: string; note: string | null; playerName: string | null } | null;
+}
+
 export const clubApi = {
+  panelCourts: () => api.get<{ data: { now: string; courts: PanelCourt[] } }>('/club/panel-courts').then((r) => r.data.data),
+
   listCourts: () => api.get<{ data: ClubCourt[] }>('/club/courts').then((r) => r.data.data),
   createCourt: (body: { name: string; sport?: ClubSport; indoor?: boolean; sortOrder?: number }) =>
     api.post<{ data: ClubCourt }>('/club/courts', body).then((r) => r.data.data),

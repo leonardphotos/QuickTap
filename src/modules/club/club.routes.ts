@@ -36,6 +36,7 @@ router.post('/schedules', admin, clubController.createSchedule);
 router.patch('/schedules/:id', admin, clubController.updateSchedule);
 router.delete('/schedules/:id', admin, clubController.deleteSchedule);
 
+router.get('/panel-courts', staff, clubController.panelCourts);
 router.get('/calendar', staff, clubController.calendar);
 router.get('/availability', staff, clubController.availability);
 

@@ -458,6 +458,118 @@ export const clubService = {
     return { date, courts, blocks };
   },
 
+  /**
+   * Estado de las canchas para el panel de recepción.
+   *
+   * Se parece a `getLiveStatus` (público) pero no es lo mismo: aquí sí va el
+   * nombre completo del jugador y, sobre todo, si tiene cuenta abierta en la
+   * tienda — que es lo que evita que alguien se vaya del club debiendo el agua.
+   *
+   * La cuenta se cruza por teléfono contra ShopSale, igual que hace el resto del
+   * sistema para identificar a un cliente (Customer es único por teléfono). No
+   * hay FK entre la reserva y la venta a propósito: la tienda ya existía y es
+   * compartida con el vertical de Locales.
+   */
+  async getPanelCourts(restaurantId: string) {
+    await this.settlePastBookings(restaurantId);
+    const now = new Date();
+    const { dateStr } = caracasPartsOf(now);
+    const dayEnd = new Date(atTimeCaracas(dateStr, '00:00').getTime() + 86_400_000);
+
+    const [courts, blocks] = await Promise.all([
+      prisma.clubCourt.findMany({
+        where: { restaurantId, active: true },
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+      }),
+      prisma.clubCourtBlock.findMany({
+        where: { restaurantId, status: 'ACTIVE', endsAt: { gt: now }, startsAt: { lt: dayEnd } },
+        orderBy: { startsAt: 'asc' },
+        include: { booking: true },
+      }),
+    ]);
+
+    // Un solo golpe a la tienda para todos los jugadores en cancha, en vez de
+    // una consulta por cancha.
+    const phones = blocks
+      .filter((b) => b.startsAt <= now && b.endsAt > now)
+      .map((b) => b.booking?.playerPhone)
+      .filter((p): p is string => !!p);
+
+    const openSales = phones.length
+      ? await prisma.shopSale.findMany({
+          where: {
+            restaurantId,
+            returned: false,
+            settledAt: null,
+            creditTerms: { not: null },
+            customerPhone: { in: phones },
+          },
+          select: { customerPhone: true, total: true, amountPaidNow: true, payments: { select: { amount: true } } },
+        })
+      : [];
+
+    const owedByPhone = new Map<string, { count: number; balance: number }>();
+    for (const sale of openSales) {
+      if (!sale.customerPhone) continue;
+      const paid = (sale.amountPaidNow ?? 0) + sale.payments.reduce((acc, p) => acc + p.amount, 0);
+      const balance = Math.max(0, sale.total - paid);
+      const prev = owedByPhone.get(sale.customerPhone) ?? { count: 0, balance: 0 };
+      owedByPhone.set(sale.customerPhone, { count: prev.count + 1, balance: prev.balance + balance });
+    }
+
+    const minutesBetween = (a: Date, b: Date) => Math.max(0, Math.round((b.getTime() - a.getTime()) / 60_000));
+
+    return {
+      now,
+      courts: courts.map((court) => {
+        const mine = blocks.filter((b) => b.courtId === court.id);
+        const current = mine.find((b) => b.startsAt <= now && b.endsAt > now) ?? null;
+        const next = mine.find((b) => b.startsAt >= (current?.endsAt ?? now)) ?? null;
+        const phone = current?.booking?.playerPhone;
+        const tab = phone ? owedByPhone.get(phone) : undefined;
+
+        return {
+          court,
+          busy: !!current,
+          current: current
+            ? {
+                blockId: current.id,
+                kind: current.kind,
+                startsAt: current.startsAt,
+                endsAt: current.endsAt,
+                playedMinutes: minutesBetween(current.startsAt, now),
+                remainingMinutes: minutesBetween(now, current.endsAt),
+                totalMinutes: minutesBetween(current.startsAt, current.endsAt),
+                note: current.note,
+                booking: current.booking
+                  ? {
+                      id: current.booking.id,
+                      playerName: current.booking.playerName,
+                      playerPhone: current.booking.playerPhone,
+                      playerCount: current.booking.playerCount,
+                      status: current.booking.status,
+                      checkedInAt: current.booking.checkedInAt,
+                      totalBase: current.booking.totalBase.toString(),
+                      requestedExtras: current.booking.requestedExtras,
+                    }
+                  : null,
+                openTab: tab ? { count: tab.count, balance: tab.balance } : null,
+              }
+            : null,
+          next: next
+            ? {
+                kind: next.kind,
+                startsAt: next.startsAt,
+                endsAt: next.endsAt,
+                note: next.note,
+                playerName: next.booking?.playerName ?? null,
+              }
+            : null,
+        };
+      }),
+    };
+  },
+
   // ------------------------------------------------------- Rutas públicas
   async getPublicClub(slug: string) {
     const restaurant = await resolveRestaurantBySlug(slug);

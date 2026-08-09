@@ -51,6 +51,9 @@ export const clubController = {
     const { date } = calendarQuerySchema.parse(req.query);
     res.json({ data: await clubService.getCalendar(req.restaurantId!, date) });
   }),
+  panelCourts: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await clubService.getPanelCourts(req.restaurantId!) });
+  }),
   availability: asyncHandler(async (req: Request, res: Response) => {
     const { date, courtId } = availabilityQuerySchema.parse(req.query);
     res.json({ data: await clubService.getAvailability(req.restaurantId!, date, courtId) });
