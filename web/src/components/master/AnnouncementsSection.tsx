@@ -16,9 +16,10 @@ interface Announcement {
 }
 
 const TARGET_LABELS: Record<'ALL' | BusinessType, string> = {
-  ALL: 'Restaurantes y locales',
+  ALL: 'Todos los negocios',
   RESTAURANT: 'Solo restaurantes',
   SHOP: 'Solo locales comerciales',
+  SPORTS_CLUB: 'Solo clubes de canchas',
 };
 
 /**

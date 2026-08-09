@@ -33,6 +33,8 @@ const QuotesPage = lazy(() => import('./pages/admin/QuotesPage'));
 const ComandaKioskPage = lazy(() => import('./pages/admin/ComandaKioskPage'));
 const NumeroPage = lazy(() => import('./pages/admin/NumeroPage'));
 const WelcomePage = lazy(() => import('./pages/admin/WelcomePage'));
+const ClubPublicPage = lazy(() => import('./pages/public/ClubPublicPage'));
+const ClubTicketPage = lazy(() => import('./pages/public/ClubTicketPage'));
 const MasterLoginPage = lazy(() => import('./pages/master/MasterLoginPage'));
 const MasterLayout = lazy(() => import('./pages/master/MasterLayout'));
 const MasterRestaurantsPage = lazy(() => import('./pages/master/MasterRestaurantsPage'));
@@ -75,6 +77,10 @@ export default function App() {
 
             {/* Menú público (QR de mesa o link general para delivery/pickup) */}
             <Route path="/r/:slug" element={<MenuPage />} />
+
+            {/* Club deportivo: reserva del jugador y su QR de acceso, sin cuenta. */}
+            <Route path="/club/:slug" element={<ClubPublicPage />} />
+            <Route path="/acceso/:accessToken" element={<ClubTicketPage />} />
 
             {/* Panel del restaurante */}
             <Route path="/admin/login" element={<LoginPage />} />

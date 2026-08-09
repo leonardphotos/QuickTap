@@ -21,9 +21,10 @@ export default function RegisterPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  // Presencia de estos dos params = viene del flujo "Locales Comerciales" (ver StartRegisterPage
-  // -> ShopRubroPage). Sin ellos, el registro se comporta exactamente igual que siempre.
+  // Presencia de estos params = viene de un vertical distinto al de siempre (ver
+  // StartRegisterPage). Sin ellos, el registro se comporta exactamente igual que antes.
   const isShop = searchParams.get('businessType') === 'shop';
+  const isClub = searchParams.get('businessType') === 'club';
   const shopRubroId = searchParams.get('rubro');
   const shopRubro = isShop ? getShopRubro(shopRubroId) : undefined;
   // Viene de "Continuar con Google" en /admin/login sin cuenta todavía (ver LoginPage.tsx):
@@ -71,7 +72,7 @@ export default function RegisterPage() {
           slug,
           whatsappPhone: whatsappPhone || undefined,
           baseCurrency,
-          businessType: isShop ? 'SHOP' : 'RESTAURANT',
+          businessType: isShop ? 'SHOP' : isClub ? 'SPORTS_CLUB' : 'RESTAURANT',
           shopRubro: isShop ? (shopRubroId ?? undefined) : undefined,
         });
         if (result.needsRegistration) return; // no debería pasar en esta rama, pero por las dudas no navega
@@ -84,7 +85,7 @@ export default function RegisterPage() {
           ownerName,
           email,
           password,
-          businessType: isShop ? 'SHOP' : 'RESTAURANT',
+          businessType: isShop ? 'SHOP' : isClub ? 'SPORTS_CLUB' : 'RESTAURANT',
           shopRubro: isShop ? (shopRubroId ?? undefined) : undefined,
         });
       }

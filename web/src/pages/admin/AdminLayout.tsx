@@ -27,6 +27,7 @@ const LandscapeStaffLayout = lazy(() => import('./landscape/LandscapeStaffLayout
 const ComandaKioskPage = lazy(() => import('./ComandaKioskPage'));
 const NumeroPage = lazy(() => import('./NumeroPage'));
 const ShopLayout = lazy(() => import('./shop/ShopLayout'));
+const ClubLayout = lazy(() => import('./club/ClubLayout'));
 
 export default function AdminLayout() {
   const { user, restaurant, loading, logout } = useAuth();
@@ -84,6 +85,12 @@ export default function AdminLayout() {
   // propia navegación interna (Panel administrativo / Venta / Inventario).
   if (restaurant.businessType === 'SHOP') {
     return <ShopLayout />;
+  }
+
+  // Club deportivo (canchas): mismo criterio que Locales — panel propio, con su
+  // navegación interna (Calendario / Reservas / Acceso / Canchas).
+  if (restaurant.businessType === 'SPORTS_CLUB') {
+    return <ClubLayout />;
   }
 
   if (!canAccessPath(user.role, pathname, user.canAccessInventory, user.cashierFullAccess)) {
