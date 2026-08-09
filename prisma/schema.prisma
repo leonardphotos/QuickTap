@@ -2446,11 +2446,14 @@ model ClubBooking {
   blockId      String @unique
 
   // El jugador que reserva. `customerId` ata la reserva al CRM (historial de
-  // consumo); nombre y teléfono se copian igual para que la reserva se sostenga
-  // sola aunque el cliente se borre.
-  customerId  String?
-  playerName  String
-  playerPhone String
+  // consumo); nombre, teléfono y cédula se copian igual para que la reserva se
+  // sostenga sola aunque el cliente se borre.
+  customerId     String?
+  playerName     String
+  playerPhone    String
+  // Obligatoria cuando reserva el jugador desde la web; opcional cuando la carga
+  // recepción, porque por teléfono no siempre la dan y no debe trabar el mostrador.
+  playerIdNumber String?
 
   // Congelados al reservar, como en Order: si mañana sube la tasa o el precio de
   // la hora pico, una reserva ya hecha no cambia de precio.
@@ -2461,6 +2464,12 @@ model ClubBooking {
   // Cuántos jugadores van a dividir el pago (Fase 3). Se guarda desde el inicio
   // porque define el reparto de céntimos y no debe cambiar tras cobrar.
   playerCount Int @default(4)
+
+  // Extras que el jugador pidió tener listos al llegar (agua, pelotas, alquiler
+  // de pala). Snapshot JSON a propósito: todavía NO está vinculado al catálogo
+  // real de la tienda (ShopProduct), así que no tiene precio ni descuenta stock
+  // — es una nota para recepción. Al vincularlo pasará a cobrarse de verdad.
+  requestedExtras Json?
 
   status ClubBookingStatus @default(PENDING_PAYMENT)
 

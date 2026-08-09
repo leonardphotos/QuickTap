@@ -18,6 +18,7 @@ interface Props {
 export default function BookSlotDialog({ date, courtId, courtName, slot, priceLabel, onClose, onSaved }: Props) {
   const [playerName, setPlayerName] = useState('');
   const [playerPhone, setPlayerPhone] = useState('');
+  const [playerIdNumber, setPlayerIdNumber] = useState('');
   const [playerCount, setPlayerCount] = useState(4);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -38,6 +39,7 @@ export default function BookSlotDialog({ date, courtId, courtName, slot, priceLa
         durationMinutes,
         playerName: playerName.trim(),
         playerPhone: playerPhone.trim(),
+        playerIdNumber: playerIdNumber.trim() || undefined,
         playerCount,
       });
       onSaved();
@@ -84,6 +86,21 @@ export default function BookSlotDialog({ date, courtId, courtName, slot, priceLa
             />
             <p className="mt-1 text-[11px] text-brand-950/40 font-light">
               Con el teléfono se arma el historial del jugador y, más adelante, el pago dividido.
+            </p>
+          </div>
+          <div>
+            <label className="mb-1 block text-[13px] font-medium text-brand-950/60">
+              Cédula <span className="font-light text-brand-950/35">(opcional)</span>
+            </label>
+            <input
+              value={playerIdNumber}
+              onChange={(e) => setPlayerIdNumber(e.target.value)}
+              maxLength={20}
+              placeholder="V-12345678"
+              className="w-full rounded-xl border border-brand-950/10 px-3 py-2 text-[14px] outline-none focus:border-brand-400"
+            />
+            <p className="mt-1 text-[11px] text-brand-950/40 font-light">
+              El jugador sí la da al reservar por la web; por teléfono no siempre, y no debe trabar el mostrador.
             </p>
           </div>
           <div>

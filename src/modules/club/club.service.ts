@@ -6,6 +6,7 @@ import { atTimeCaracas, caracasPartsOf } from '../../utils/timezone';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { customerService } from '../customers/customer.service';
 import { emitToKitchen, SocketEvents } from '../../sockets';
+import { CURRENCY_SYMBOLS } from '../../utils/money';
 import type {
   CreateBookingInput,
   CreateCourtInput,
@@ -42,7 +43,16 @@ function minutesToHhmm(total: number): string {
 async function resolveRestaurantBySlug(slug: string) {
   const restaurant = await prisma.restaurant.findUnique({
     where: { slug },
-    select: { id: true, name: true, slug: true, isActive: true, businessType: true, baseCurrency: true, logoUrl: true },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      isActive: true,
+      businessType: true,
+      baseCurrency: true,
+      logoUrl: true,
+      theme: true,
+    },
   });
   if (!restaurant || !restaurant.isActive || restaurant.businessType !== 'SPORTS_CLUB') {
     throw notFound('Este club no existe o no está disponible.');
@@ -241,7 +251,11 @@ export const clubService = {
     const totalBase = new Prisma.Decimal(slot.priceBase);
     const totalBs = totalBase.mul(rate.rateBs);
 
-    await customerService.upsertFromOrder(restaurantId, { name: input.playerName, phone: input.playerPhone });
+    await customerService.upsertFromOrder(restaurantId, {
+      name: input.playerName,
+      phone: input.playerPhone,
+      idNumber: input.playerIdNumber,
+    });
     const customer = await prisma.customer.findUnique({
       where: { restaurantId_phone: { restaurantId, phone: input.playerPhone } },
       select: { id: true },
@@ -259,7 +273,9 @@ export const clubService = {
             customerId: customer?.id ?? null,
             playerName: input.playerName,
             playerPhone: input.playerPhone,
+            playerIdNumber: input.playerIdNumber ?? null,
             playerCount: input.playerCount,
+            requestedExtras: input.requestedExtras?.length ? input.requestedExtras : Prisma.DbNull,
             totalBase,
             exchangeRate: rate.rateBs,
             totalBs,
@@ -319,7 +335,11 @@ export const clubService = {
   async getByAccessToken(accessToken: string) {
     const booking = await prisma.clubBooking.findUnique({
       where: { accessToken },
-      include: { block: { include: { court: true } }, restaurant: { select: { name: true, slug: true, logoUrl: true } } },
+      include: {
+        block: { include: { court: true } },
+        // El ticket se pinta con los colores del club, igual que la portada.
+        restaurant: { select: { name: true, slug: true, logoUrl: true, theme: true } },
+      },
     });
     if (!booking) throw notFound('Esta reserva no existe.');
     return booking;
@@ -446,7 +466,93 @@ export const clubService = {
       orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
       select: { id: true, name: true, sport: true, indoor: true },
     });
-    return { club: { name: restaurant.name, slug: restaurant.slug, logoUrl: restaurant.logoUrl }, courts };
+    return {
+      club: {
+        name: restaurant.name,
+        slug: restaurant.slug,
+        logoUrl: restaurant.logoUrl,
+        // La portada se pinta con los colores del club, no con un azul fijo:
+        // un club de marca verde no debería verse forzado a otra paleta.
+        theme: restaurant.theme,
+        currencySymbol: CURRENCY_SYMBOLS[restaurant.baseCurrency],
+      },
+      courts,
+    };
+  },
+
+  /**
+   * Qué está pasando ahora mismo en cada cancha: la pantalla "Jugar hoy".
+   *
+   * `current` es el bloque que contiene el instante actual (con cuánto lleva y
+   * cuánto le queda) y `next` el siguiente bloque encadenado, para responder la
+   * pregunta que de verdad importa al llegar sin reserva: "¿me puedo quedar
+   * cuando terminen?". Se mira solo hasta el fin del día del club.
+   */
+  async getLiveStatus(slug: string) {
+    const restaurant = await resolveRestaurantBySlug(slug);
+    const now = new Date();
+    const { dateStr } = caracasPartsOf(now);
+    const dayEnd = new Date(atTimeCaracas(dateStr, '00:00').getTime() + 86_400_000);
+
+    const [courts, blocks] = await Promise.all([
+      prisma.clubCourt.findMany({
+        where: { restaurantId: restaurant.id, active: true },
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+        select: { id: true, name: true, sport: true, indoor: true },
+      }),
+      prisma.clubCourtBlock.findMany({
+        where: { restaurantId: restaurant.id, status: 'ACTIVE', endsAt: { gt: now }, startsAt: { lt: dayEnd } },
+        orderBy: { startsAt: 'asc' },
+        select: {
+          courtId: true,
+          kind: true,
+          startsAt: true,
+          endsAt: true,
+          note: true,
+          booking: { select: { playerName: true } },
+        },
+      }),
+    ]);
+
+    const minutesBetween = (a: Date, b: Date) => Math.max(0, Math.round((b.getTime() - a.getTime()) / 60_000));
+
+    return {
+      now,
+      courts: courts.map((court) => {
+        const mine = blocks.filter((b) => b.courtId === court.id);
+        const current = mine.find((b) => b.startsAt <= now && b.endsAt > now) ?? null;
+        // El siguiente arranca después del actual; si la cancha está libre, es el
+        // próximo del día.
+        const next = mine.find((b) => b.startsAt >= (current?.endsAt ?? now)) ?? null;
+
+        return {
+          court,
+          busy: !!current,
+          current: current
+            ? {
+                kind: current.kind,
+                startsAt: current.startsAt,
+                endsAt: current.endsAt,
+                playedMinutes: minutesBetween(current.startsAt, now),
+                remainingMinutes: minutesBetween(now, current.endsAt),
+                // Solo el nombre de pila: la pantalla es pública y no hace falta
+                // exponer el apellido completo de quien está jugando.
+                playerFirstName: current.booking?.playerName?.split(' ')[0] ?? null,
+                note: current.note,
+              }
+            : null,
+          next: next
+            ? {
+                kind: next.kind,
+                startsAt: next.startsAt,
+                endsAt: next.endsAt,
+                playerFirstName: next.booking?.playerName?.split(' ')[0] ?? null,
+                note: next.note,
+              }
+            : null,
+        };
+      }),
+    };
   },
 
   async getPublicAvailability(slug: string, date: string, courtId?: string) {

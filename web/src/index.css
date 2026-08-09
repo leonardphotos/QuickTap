@@ -74,6 +74,14 @@
      (no una librería JS) a propósito: el contenido tiene que quedar SIEMPRE visible al
      terminar, sin depender de que ningún estado de React dispare la transición. */
   --animate-menu-slide-in: menu-slide-in 500ms ease-in-out;
+  /* Confirmación de reserva del club: la pelota cae, rebota y se transforma en el
+     check. Van en CSS puro y no con una librería para que el estado final quede
+     visible aunque la animación no llegue a correr (mismo criterio que el carrusel). */
+  --animate-ball-drop: ball-drop 1100ms cubic-bezier(0.5, 0, 0.5, 1) forwards;
+  --animate-ball-morph: ball-morph 320ms ease-in 1100ms forwards;
+  --animate-check-pop: check-pop 420ms var(--ease-out-strong) 1320ms both;
+  --animate-check-draw: check-draw 420ms ease-out 1500ms both;
+  --animate-rise: rise 380ms var(--ease-out-strong) both;
 }
 
 @keyframes menu-slide-in {
@@ -161,4 +169,85 @@ body {
   font-weight: 300;
   background-color: #f8f7fb;
   color: var(--color-brand-950);
+}
+
+/* --- Confirmación de reserva del club (ver ClubBookingSuccess.tsx) --- */
+
+/* La pelota entra desde arriba, se aplasta al tocar el piso y rebota una vez.
+   El aplastado (scaleY) es lo que la hace leer como pelota y no como un disco. */
+@keyframes ball-drop {
+  0% {
+    transform: translateY(-160px) scale(1);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  48% {
+    transform: translateY(0) scale(1.08, 0.86);
+  }
+  64% {
+    transform: translateY(-42px) scale(0.97, 1.05);
+  }
+  82% {
+    transform: translateY(0) scale(1.04, 0.94);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes ball-morph {
+  to {
+    transform: scale(0.55) rotate(25deg);
+    opacity: 0;
+  }
+}
+
+@keyframes check-pop {
+  from {
+    opacity: 0;
+    scale: 0.5;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@keyframes check-draw {
+  from {
+    stroke-dashoffset: 34;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Quien pidió menos movimiento ve el resultado, no el recorrido. */
+@media (prefers-reduced-motion: reduce) {
+  .club-ball,
+  .club-check,
+  .club-check path,
+  .club-rise {
+    animation: none !important;
+    opacity: 1;
+    transform: none;
+    stroke-dashoffset: 0;
+  }
+  .club-ball {
+    display: none;
+  }
 }

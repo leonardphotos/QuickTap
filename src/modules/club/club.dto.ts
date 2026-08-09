@@ -48,6 +48,18 @@ export const availabilityQuerySchema = z.object({
   courtId: z.string().cuid().optional(),
 });
 
+/**
+ * Extra que el jugador pide tener listo al llegar. Se guarda como snapshot y NO
+ * se cobra: todavía no está vinculado al catálogo real de la tienda, así que un
+ * precio aquí sería inventado. La forma imita la de ShopProduct para que
+ * vincularlo después sea cambiar el origen de los datos, no rehacer el modelo.
+ */
+const requestedExtraSchema = z.object({
+  id: z.string().min(1).max(60),
+  name: z.string().min(1).max(120),
+  quantity: z.number().int().min(1).max(20),
+});
+
 /** Reserva creada desde el panel (recepción) o desde la página pública del jugador. */
 export const createBookingSchema = z.object({
   courtId: z.string().cuid(),
@@ -58,7 +70,11 @@ export const createBookingSchema = z.object({
   durationMinutes: z.number().int().min(30).max(240),
   playerName: z.string().min(1).max(120),
   playerPhone: z.string().min(7).max(25),
+  // Opcional en el esquema porque recepción no siempre la tiene; la página del
+  // jugador la exige en su propio formulario.
+  playerIdNumber: z.string().min(4).max(20).optional(),
   playerCount: z.number().int().min(1).max(8).optional().default(4),
+  requestedExtras: z.array(requestedExtraSchema).max(20).optional(),
 });
 
 /** Bloqueo técnico: limpieza de cristales, lluvia, cambio de red. */

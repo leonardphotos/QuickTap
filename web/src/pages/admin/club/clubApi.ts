@@ -105,6 +105,7 @@ export const clubApi = {
     durationMinutes: number;
     playerName: string;
     playerPhone: string;
+    playerIdNumber?: string;
     playerCount?: number;
   }) => api.post<{ data: ClubBooking }>('/club/bookings', body).then((r) => r.data.data),
   cancelBooking: (id: string) => api.patch<{ data: ClubBooking }>(`/club/bookings/${id}/cancel`).then((r) => r.data.data),

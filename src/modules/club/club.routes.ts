@@ -8,6 +8,7 @@ import { clubController } from './club.controller';
  */
 export const publicClubRoutes = Router();
 publicClubRoutes.get('/:slug', clubController.publicClub);
+publicClubRoutes.get('/:slug/live', clubController.publicLive);
 publicClubRoutes.get('/:slug/availability', clubController.publicAvailability);
 publicClubRoutes.post('/:slug/bookings', clubController.publicCreateBooking);
 // La reserva del jugador se consulta con el token opaco del QR, sin sesión.

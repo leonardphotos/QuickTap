@@ -85,6 +85,9 @@ export const clubController = {
   publicClub: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await clubService.getPublicClub(req.params.slug) });
   }),
+  publicLive: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await clubService.getLiveStatus(req.params.slug) });
+  }),
   publicAvailability: asyncHandler(async (req: Request, res: Response) => {
     const { date, courtId } = availabilityQuerySchema.parse(req.query);
     res.json({ data: await clubService.getPublicAvailability(req.params.slug, date, courtId) });
