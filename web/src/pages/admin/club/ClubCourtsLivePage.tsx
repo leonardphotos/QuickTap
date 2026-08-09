@@ -1,14 +1,40 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronRight, Clock, ShoppingBag, Users } from 'lucide-react';
+import { ChevronRight, Clock, CreditCard, ShoppingBag, SplitSquareHorizontal, Users } from 'lucide-react';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { formatBase } from '@/utils/format';
 import { cn } from '@/lib/utils';
-import { clubApi, type PanelCourt } from './clubApi';
+import { clubApi, type ClubBooking, type PanelCourt } from './clubApi';
 import { card, CourtIllustration } from './clubStyle';
+import { ClubPaymentDialog } from './ClubPaymentDialog';
 
 interface Props {
   restaurant: Pick<AuthRestaurant, 'currencySymbol'>;
   onOpenCourt: (courtId: string) => void;
+  canPay: boolean;
+}
+
+/** El booking embebido en PanelCourt.current no trae `block`/`accessToken` — se arma
+ * un ClubBooking mínimo con lo que la Caja necesita para cobrar, usando la cancha y
+ * el horario que ya conoce PanelCourt. */
+function toPayable(c: PanelCourt): ClubBooking | null {
+  if (!c.current?.booking) return null;
+  const b = c.current.booking;
+  return {
+    id: b.id,
+    playerName: b.playerName,
+    playerPhone: b.playerPhone,
+    playerCount: b.playerCount,
+    totalBase: b.totalBase,
+    totalBs: b.totalBs,
+    paidBase: b.paidBase,
+    balanceBase: b.balanceBase,
+    status: b.status,
+    awaitingPayment: b.awaitingPayment,
+    accessToken: '',
+    checkedInAt: b.checkedInAt,
+    createdAt: '',
+    block: { startsAt: c.current.startsAt, endsAt: c.current.endsAt, court: c.court },
+  };
 }
 
 function humanMinutes(min: number): string {
@@ -26,8 +52,10 @@ function hhmm(iso: string): string {
  * Lo primero que ve recepción: el estado real de la cancha ahora mismo. El
  * relleno de la ilustración es la parte jugada, para leerlo sin contar minutos.
  */
-export default function ClubCourtsLivePage({ restaurant, onOpenCourt }: Props) {
+export default function ClubCourtsLivePage({ restaurant, onOpenCourt, canPay }: Props) {
   const [courts, setCourts] = useState<PanelCourt[] | null>(null);
+  const [payment, setPayment] = useState<{ booking: ClubBooking; mode: 'full' | 'split' } | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
   const load = useCallback(() => {
     clubApi.panelCourts().then((d) => setCourts(d.courts)).catch(() => setCourts([]));
@@ -39,6 +67,16 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt }: Props) {
     const t = setInterval(load, 30_000);
     return () => clearInterval(t);
   }, [load]);
+
+  async function toggleAwaitingPayment(b: ClubBooking) {
+    setBusyId(b.id);
+    try {
+      await clubApi.setAwaitingPayment(b.id, !b.awaitingPayment);
+      load();
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   const money = (n: number) => formatBase(n, restaurant.currencySymbol);
   const playing = courts?.filter((c) => c.busy).length ?? 0;
@@ -73,12 +111,12 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt }: Props) {
           const progress = cur && cur.totalMinutes > 0 ? cur.playedMinutes / cur.totalMinutes : 0;
           const isBooking = cur?.kind === 'BOOKING';
 
+          const payable = toPayable(c);
+          const settled = payable ? Number(payable.balanceBase) <= 0.01 : true;
+
           return (
-            <button
-              key={c.court.id}
-              onClick={() => onOpenCourt(c.court.id)}
-              className={cn(card, 'overflow-hidden text-left transition-colors hover:border-brand-400')}
-            >
+            <div key={c.court.id} className={cn(card, 'overflow-hidden transition-colors hover:border-brand-400')}>
+            <button onClick={() => onOpenCourt(c.court.id)} className="block w-full text-left">
               {/* Ilustración de la cancha, con la parte jugada rellena. */}
               <div className="relative h-24 w-full">
                 <CourtIllustration progress={progress} idle={!c.busy} />
@@ -158,9 +196,66 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt }: Props) {
                 </div>
               </div>
             </button>
+
+            {/* Caja: mismos 3 botones que Pedidos (Pagar/Fraccionado/Deuda), mismo
+                componente de cobro (métodos, datos bancarios, QR de Pago Móvil). Fuera
+                del <button> de arriba para no anidar botones. */}
+            {canPay && isBooking && payable && (
+              <div className="border-t border-brand-950/[0.06] px-4 pb-4 pt-3">
+                {settled ? (
+                  <p className="text-[12px] font-semibold text-emerald-600">✓ Pagado</p>
+                ) : (
+                  <>
+                    {Number(payable.paidBase) > 0 && (
+                      <p className="mb-1.5 text-[11px] font-light text-brand-950/40">
+                        Pagado {money(Number(payable.paidBase))} de {money(Number(payable.totalBase))} · falta{' '}
+                        {money(Number(payable.balanceBase))}
+                      </p>
+                    )}
+                    <div className="grid grid-cols-3 gap-1.5">
+                      <button
+                        onClick={() => setPayment({ booking: payable, mode: 'full' })}
+                        className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 py-2.5 text-[11px] font-medium text-brand-950/70 transition-colors hover:bg-brand-950/[0.03]"
+                      >
+                        <CreditCard className="h-4 w-4" /> Pagar
+                      </button>
+                      <button
+                        onClick={() => setPayment({ booking: payable, mode: 'split' })}
+                        className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 py-2.5 text-[11px] font-medium text-brand-950/70 transition-colors hover:bg-brand-950/[0.03]"
+                      >
+                        <SplitSquareHorizontal className="h-4 w-4" /> Fraccionado
+                      </button>
+                      <button
+                        onClick={() => toggleAwaitingPayment(payable)}
+                        disabled={busyId === payable.id}
+                        className={cn(
+                          'flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 text-[11px] font-medium text-white transition-colors disabled:opacity-40',
+                          payable.awaitingPayment ? 'bg-amber-600 hover:bg-amber-700' : 'bg-amber-500 hover:bg-amber-600',
+                        )}
+                      >
+                        <Clock className="h-4 w-4" /> {payable.awaitingPayment ? 'Pendiente' : 'Deuda'}
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+            </div>
           );
         })}
       </div>
+
+      {payment && (
+        <ClubPaymentDialog
+          booking={payment.booking}
+          mode={payment.mode}
+          onClose={() => {
+            setPayment(null);
+            load();
+          }}
+          onPaid={() => load()}
+        />
+      )}
     </div>
   );
 }

@@ -2473,6 +2473,11 @@ model ClubBooking {
 
   status ClubBookingStatus @default(PENDING_PAYMENT)
 
+  // Cta. abierta / "Deuda" (botón de Caja) — recepción marca que sabe que esto se debe y le hace
+  // seguimiento, igual que Order.awaitingPayment. No implica nada sobre cuánto se ha cobrado:
+  // eso vive en `payments`, esto es solo la bandera de seguimiento.
+  awaitingPayment Boolean @default(false)
+
   // Token opaco del QR de acceso — mismo patrón que Table.qrToken: no codifica
   // datos de la reserva, solo identifica. El servidor resuelve y valida.
   accessToken String @unique
@@ -2481,12 +2486,33 @@ model ClubBooking {
   cancelledAt DateTime?
   createdAt   DateTime  @default(now())
 
-  restaurant Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  block      ClubCourtBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
-  customer   Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  restaurant Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  block      ClubCourtBlock       @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  customer   Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  payments   ClubBookingPayment[]
 
   @@index([restaurantId, status])
   @@index([restaurantId, createdAt])
   @@index([customerId])
   @@map("club_bookings")
+}
+
+// Cobro de la Caja de canchas — mismo patrón que OrderPayment: varios pagos por
+// reserva (pago completo, o fraccionado entre los jugadores), cada uno con su
+// propio método/referencia/comprobante. Sin descuento ni ajuste de servicio (a
+// diferencia de OrderPayment): una reserva es una sola línea, no hay ítems ni
+// cargo de servicio que ajustar puntualmente.
+model ClubBookingPayment {
+  id              String        @id @default(cuid())
+  bookingId       String
+  amountBase      Decimal       @db.Decimal(12, 2)
+  method          PaymentMethod
+  referenceNumber String?
+  proofImageUrl   String?
+  createdAt       DateTime      @default(now())
+
+  booking ClubBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@map("club_booking_payments")
 }

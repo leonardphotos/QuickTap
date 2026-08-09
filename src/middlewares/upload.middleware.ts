@@ -118,6 +118,8 @@ export const uploadPlanPaymentProof = makeImageUpload('plan-payment-proofs', 'ph
 // Comprobante de pago de una comanda (botón "Cobrar" del panel de Pedidos/Mesero) — ver
 // order.service.ts addPayment.
 export const uploadOrderPaymentProof = makeImageUpload('order-payment-proofs', 'photo');
+// Comprobante de pago de una reserva de cancha (botón "Caja" en Canchas) — ver club.service.ts addBookingPayment.
+export const uploadClubPaymentProof = makeImageUpload('club-payment-proofs', 'photo');
 // Imagen de "Modo Cartelera" (pantalla completa del menú público). Estas
 // imágenes suelen ser piezas verticales grandes; `optimizeImage` de abajo
 // se encarga de bajarlas a un tamaño razonable para celular.

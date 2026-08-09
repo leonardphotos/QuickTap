@@ -6,13 +6,14 @@ import { atTimeCaracas, caracasPartsOf } from '../../utils/timezone';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { customerService } from '../customers/customer.service';
 import { emitToKitchen, SocketEvents } from '../../sockets';
-import { CURRENCY_SYMBOLS } from '../../utils/money';
+import { CURRENCY_SYMBOLS, round2, toDecimal } from '../../utils/money';
 import type {
   CreateBookingInput,
   CreateCourtInput,
   CreateMaintenanceInput,
   CreateScheduleInput,
   ListBookingsQuery,
+  RecordBookingPaymentInput,
   UpdateCourtInput,
   UpdateScheduleInput,
 } from './club.dto';
@@ -38,6 +39,18 @@ function minutesToHhmm(total: number): string {
   const h = Math.floor(total / 60);
   const m = total % 60;
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+/** Adjunta paidBase/balanceBase a una reserva que trae `payments` incluidos — la
+ * Caja (Pagar/Fraccionado/Deuda) y el ticket QR lo necesitan para saber cuánto
+ * falta cobrar. Sin descuentos ni ajuste de servicio (a diferencia de Order): la
+ * reserva es una sola línea. */
+function withBookingMoney<T extends { totalBase: Prisma.Decimal; payments: { amountBase: Prisma.Decimal }[] }>(
+  booking: T,
+) {
+  const paidBase = round2(booking.payments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0)));
+  const balanceBase = round2(Prisma.Decimal.max(0, booking.totalBase.sub(paidBase)));
+  return { ...booking, paidBase: paidBase.toFixed(2), balanceBase: balanceBase.toFixed(2) };
 }
 
 async function resolveRestaurantBySlug(slug: string) {
@@ -286,7 +299,10 @@ export const clubService = {
       });
 
       emitToKitchen(restaurantId, SocketEvents.CLUB_BOOKING_NEW, { id: booking.id });
-      return booking;
+      // Recién creada, sin pagos: paidBase 0 / balanceBase = totalBase — misma forma
+      // que devuelve el resto de endpoints, para que el cliente no tenga que
+      // distinguir "reserva recién creada" de "reserva ya existente".
+      return withBookingMoney({ ...booking, payments: [] });
     } catch (err) {
       // La restricción de la base de datos ganó la carrera: otro jugador reservó
       // ese mismo hueco entre nuestra consulta y nuestro INSERT.
@@ -304,12 +320,13 @@ export const clubService = {
       const dayStart = atTimeCaracas(query.date, '00:00');
       where.block = { startsAt: { gte: dayStart, lt: new Date(dayStart.getTime() + 86_400_000) } };
     }
-    return prisma.clubBooking.findMany({
+    const bookings = await prisma.clubBooking.findMany({
       where,
-      include: { block: { include: { court: true } } },
+      include: { block: { include: { court: true } }, payments: { orderBy: { createdAt: 'asc' } } },
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
+    return bookings.map(withBookingMoney);
   },
 
   async cancelBooking(restaurantId: string, id: string) {
@@ -323,11 +340,72 @@ export const clubService = {
       return tx.clubBooking.update({
         where: { id },
         data: { status: 'CANCELLED', cancelledAt: new Date() },
-        include: { block: { include: { court: true } } },
+        include: { block: { include: { court: true } }, payments: { orderBy: { createdAt: 'asc' } } },
       });
     });
     emitToKitchen(restaurantId, SocketEvents.CLUB_BOOKING_UPDATED, { id });
-    return updated;
+    return withBookingMoney(updated);
+  },
+
+  // ---------------------------------------------------------------- Caja
+  /**
+   * "Pagar" / "Pago fraccionado" (botón Caja en Canchas) — mismo criterio que
+   * Order.addPayment: valida que el monto no exceda el saldo, y si con este
+   * cobro la reserva queda saldada, apaga `awaitingPayment` sola (ya no hay
+   * nada que recepción tenga que seguir vigilando).
+   */
+  async addBookingPayment(restaurantId: string, bookingId: string, input: RecordBookingPaymentInput) {
+    return prisma.$transaction(async (tx) => {
+      const booking = await tx.clubBooking.findFirst({
+        where: { id: bookingId, restaurantId },
+        include: { payments: true },
+      });
+      if (!booking) throw notFound('Reserva no encontrada.');
+      if (booking.status === 'CANCELLED') throw badRequest('No se puede registrar un cobro en una reserva cancelada.');
+
+      const alreadyPaid = booking.payments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0));
+      const balance = round2(booking.totalBase.sub(alreadyPaid));
+      const amountBase = toDecimal(input.amountBase);
+      if (amountBase.gt(balance.add(0.01))) {
+        throw badRequest(`El monto no puede superar el saldo pendiente (${balance.toFixed(2)}).`);
+      }
+
+      await tx.clubBookingPayment.create({
+        data: {
+          bookingId,
+          amountBase,
+          method: input.method,
+          referenceNumber: input.referenceNumber,
+          proofImageUrl: input.proofImageUrl,
+        },
+      });
+
+      const settled = round2(alreadyPaid.add(amountBase));
+      const fullyPaid = settled.gte(booking.totalBase);
+      const updated = await tx.clubBooking.update({
+        where: { id: bookingId },
+        data: fullyPaid ? { awaitingPayment: false } : {},
+        include: { block: { include: { court: true } }, payments: { orderBy: { createdAt: 'asc' } } },
+      });
+      return withBookingMoney(updated);
+    }).then((booking) => {
+      emitToKitchen(restaurantId, SocketEvents.CLUB_BOOKING_UPDATED, { id: bookingId });
+      return booking;
+    });
+  },
+
+  /** "Deuda" (botón Caja en Canchas) — recepción marca que sabe que se debe, sin
+   * registrar ningún cobro. Mismo botón "Cta. abierta"/"Pendiente" de Pedidos. */
+  async setBookingAwaitingPayment(restaurantId: string, bookingId: string, awaitingPayment: boolean) {
+    const booking = await prisma.clubBooking.findFirst({ where: { id: bookingId, restaurantId }, select: { id: true } });
+    if (!booking) throw notFound('Reserva no encontrada.');
+    const updated = await prisma.clubBooking.update({
+      where: { id: bookingId },
+      data: { awaitingPayment },
+      include: { block: { include: { court: true } }, payments: { orderBy: { createdAt: 'asc' } } },
+    });
+    emitToKitchen(restaurantId, SocketEvents.CLUB_BOOKING_UPDATED, { id: bookingId });
+    return withBookingMoney(updated);
   },
 
   // ------------------------------------------------------ QR de acceso
@@ -337,12 +415,13 @@ export const clubService = {
       where: { accessToken },
       include: {
         block: { include: { court: true } },
+        payments: { orderBy: { createdAt: 'asc' } },
         // El ticket se pinta con los colores del club, igual que la portada.
         restaurant: { select: { name: true, slug: true, logoUrl: true, theme: true } },
       },
     });
     if (!booking) throw notFound('Esta reserva no existe.');
-    return booking;
+    return withBookingMoney(booking);
   },
 
   /**
@@ -484,7 +563,7 @@ export const clubService = {
       prisma.clubCourtBlock.findMany({
         where: { restaurantId, status: 'ACTIVE', endsAt: { gt: now }, startsAt: { lt: dayEnd } },
         orderBy: { startsAt: 'asc' },
-        include: { booking: true },
+        include: { booking: { include: { payments: true } } },
       }),
     ]);
 
@@ -527,6 +606,7 @@ export const clubService = {
         const next = mine.find((b) => b.startsAt >= (current?.endsAt ?? now)) ?? null;
         const phone = current?.booking?.playerPhone;
         const tab = phone ? owedByPhone.get(phone) : undefined;
+        const bookingMoney = current?.booking ? withBookingMoney(current.booking) : null;
 
         return {
           court,
@@ -549,8 +629,12 @@ export const clubService = {
                       playerCount: current.booking.playerCount,
                       status: current.booking.status,
                       checkedInAt: current.booking.checkedInAt,
+                      awaitingPayment: current.booking.awaitingPayment,
                       totalBase: current.booking.totalBase.toString(),
+                      totalBs: current.booking.totalBs.toString(),
                       requestedExtras: current.booking.requestedExtras,
+                      paidBase: bookingMoney!.paidBase,
+                      balanceBase: bookingMoney!.balanceBase,
                     }
                   : null,
                 openTab: tab ? { count: tab.count, balance: tab.balance } : null,

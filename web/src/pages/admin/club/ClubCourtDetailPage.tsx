@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, Wrench } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, CreditCard, SplitSquareHorizontal, Wrench } from 'lucide-react';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { formatBase } from '@/utils/format';
 import { Toast } from '@/components/ui/toast';
@@ -19,6 +19,7 @@ import {
 import { card } from './clubStyle';
 import BookSlotDialog from './BookSlotDialog';
 import MaintenanceDialog from './MaintenanceDialog';
+import { ClubPaymentDialog } from './ClubPaymentDialog';
 
 interface Props {
   courtId: string;
@@ -43,6 +44,8 @@ export default function ClubCourtDetailPage({ courtId, restaurant, canBook, onBa
   const [bookings, setBookings] = useState<ClubBooking[] | null>(null);
   const [booking, setBooking] = useState<ClubSlot | null>(null);
   const [maintenance, setMaintenance] = useState(false);
+  const [payment, setPayment] = useState<{ booking: ClubBooking; mode: 'full' | 'split' } | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const { show, toastMessage } = useToast();
 
   const load = useCallback(() => {
@@ -63,6 +66,16 @@ export default function ClubCourtDetailPage({ courtId, restaurant, canBook, onBa
     new Date(iso).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Caracas' });
 
   const free = avail?.slots.filter((s) => s.available) ?? [];
+
+  async function toggleAwaitingPayment(b: ClubBooking) {
+    setBusyId(b.id);
+    try {
+      await clubApi.setAwaitingPayment(b.id, !b.awaitingPayment);
+      load();
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -122,37 +135,86 @@ export default function ClubCourtDetailPage({ courtId, restaurant, canBook, onBa
           </p>
         )}
         <div className="space-y-2">
-          {bookings?.map((b) => (
-            <div key={b.id} className={cn(card, 'flex flex-wrap items-center gap-x-3 gap-y-1.5 p-3.5')}>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-[14px] font-semibold text-brand-950">{b.playerName}</p>
-                <p className="text-[12px] font-light text-brand-950/45">
-                  {b.block ? `${hhmm(b.block.startsAt)}–${hhmm(b.block.endsAt)}` : '—'} · {b.playerPhone}
-                </p>
-              </div>
-              <span
-                className={cn(
-                  'shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold',
-                  STATUS_TONE[b.status] ?? 'bg-brand-950/[0.06] text-brand-950',
+          {bookings?.map((b) => {
+            const balance = Number(b.balanceBase);
+            const settled = balance <= 0.01;
+            const cancelable = b.status !== 'CANCELLED' && b.status !== 'COMPLETED' && b.status !== 'NO_SHOW';
+            return (
+              <div key={b.id} className={cn(card, 'p-3.5')}>
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[14px] font-semibold text-brand-950">{b.playerName}</p>
+                    <p className="text-[12px] font-light text-brand-950/45">
+                      {b.block ? `${hhmm(b.block.startsAt)}–${hhmm(b.block.endsAt)}` : '—'} · {b.playerPhone}
+                    </p>
+                  </div>
+                  <span
+                    className={cn(
+                      'shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold',
+                      STATUS_TONE[b.status] ?? 'bg-brand-950/[0.06] text-brand-950',
+                    )}
+                  >
+                    {BOOKING_STATUS_LABELS[b.status]}
+                  </span>
+                  <p className="shrink-0 text-[14px] font-bold text-brand-950">{money(b.totalBase)}</p>
+                  {canBook && cancelable && (
+                    <button
+                      onClick={async () => {
+                        await clubApi.cancelBooking(b.id);
+                        load();
+                        show('Reserva cancelada.');
+                      }}
+                      className="shrink-0 text-[12px] font-medium text-brand-950/40 hover:text-rose-600"
+                    >
+                      Cancelar
+                    </button>
+                  )}
+                </div>
+
+                {/* Caja: mismos 3 botones que Pedidos (Pagar/Fraccionado/Deuda), mismo
+                    componente de cobro (métodos, datos bancarios, QR de Pago Móvil). */}
+                {canBook && cancelable && (
+                  <div className="mt-2.5 border-t border-brand-950/[0.06] pt-2.5">
+                    {settled ? (
+                      <p className="text-[12px] font-semibold text-emerald-600">✓ Pagado</p>
+                    ) : (
+                      <>
+                        {Number(b.paidBase) > 0 && (
+                          <p className="mb-1.5 text-[11px] font-light text-brand-950/40">
+                            Pagado {money(b.paidBase)} de {money(b.totalBase)} · falta {money(b.balanceBase)}
+                          </p>
+                        )}
+                        <div className="grid grid-cols-3 gap-1.5">
+                          <button
+                            onClick={() => setPayment({ booking: b, mode: 'full' })}
+                            className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 py-2.5 text-[11px] font-medium text-brand-950/70 transition-colors hover:bg-brand-950/[0.03]"
+                          >
+                            <CreditCard className="h-4 w-4" /> Pagar
+                          </button>
+                          <button
+                            onClick={() => setPayment({ booking: b, mode: 'split' })}
+                            className="flex flex-col items-center justify-center gap-1 rounded-xl border border-brand-950/15 py-2.5 text-[11px] font-medium text-brand-950/70 transition-colors hover:bg-brand-950/[0.03]"
+                          >
+                            <SplitSquareHorizontal className="h-4 w-4" /> Fraccionado
+                          </button>
+                          <button
+                            onClick={() => toggleAwaitingPayment(b)}
+                            disabled={busyId === b.id}
+                            className={cn(
+                              'flex flex-col items-center justify-center gap-1 rounded-xl py-2.5 text-[11px] font-medium text-white transition-colors disabled:opacity-40',
+                              b.awaitingPayment ? 'bg-amber-600 hover:bg-amber-700' : 'bg-amber-500 hover:bg-amber-600',
+                            )}
+                          >
+                            <Clock className="h-4 w-4" /> {b.awaitingPayment ? 'Pendiente' : 'Deuda'}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 )}
-              >
-                {BOOKING_STATUS_LABELS[b.status]}
-              </span>
-              <p className="shrink-0 text-[14px] font-bold text-brand-950">{money(b.totalBase)}</p>
-              {canBook && b.status !== 'CANCELLED' && b.status !== 'COMPLETED' && b.status !== 'NO_SHOW' && (
-                <button
-                  onClick={async () => {
-                    await clubApi.cancelBooking(b.id);
-                    load();
-                    show('Reserva cancelada.');
-                  }}
-                  className="shrink-0 text-[12px] font-medium text-brand-950/40 hover:text-rose-600"
-                >
-                  Cancelar
-                </button>
-              )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -212,6 +274,18 @@ export default function ClubCourtDetailPage({ courtId, restaurant, canBook, onBa
             load();
             show('Cancha bloqueada.');
           }}
+        />
+      )}
+
+      {payment && (
+        <ClubPaymentDialog
+          booking={payment.booking}
+          mode={payment.mode}
+          onClose={() => {
+            setPayment(null);
+            load();
+          }}
+          onPaid={() => load()}
         />
       )}
 

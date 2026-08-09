@@ -1,4 +1,5 @@
 import { api } from '@/api/client';
+import type { PaymentMethod } from '@/types';
 
 export type ClubSport = 'PADEL' | 'TENIS' | 'FUTBOL' | 'BASQUET' | 'OTRO';
 export type ClubBlockKind = 'BOOKING' | 'MAINTENANCE' | 'CLASS' | 'TOURNAMENT';
@@ -42,6 +43,16 @@ export interface ClubAvailability {
   slots: ClubSlot[];
 }
 
+/** Un cobro de la Caja (Pagar/Fraccionado) — mismo patrón que un pago de comanda. */
+export interface ClubBookingPayment {
+  id: string;
+  amountBase: string;
+  method: PaymentMethod;
+  referenceNumber: string | null;
+  proofImageUrl: string | null;
+  createdAt: string;
+}
+
 export interface ClubBooking {
   id: string;
   playerName: string;
@@ -49,10 +60,15 @@ export interface ClubBooking {
   playerCount: number;
   totalBase: string;
   totalBs: string;
+  // Derivados de `payments` en el servidor — nunca se recalculan en el cliente.
+  paidBase: string;
+  balanceBase: string;
   status: ClubBookingStatus;
+  awaitingPayment: boolean;
   accessToken: string;
   checkedInAt: string | null;
   createdAt: string;
+  payments?: ClubBookingPayment[];
   block?: { startsAt: string; endsAt: string; court: ClubCourt };
 }
 
@@ -92,7 +108,11 @@ export interface PanelCourt {
       playerCount: number;
       status: ClubBookingStatus;
       checkedInAt: string | null;
+      awaitingPayment: boolean;
       totalBase: string;
+      totalBs: string;
+      paidBase: string;
+      balanceBase: string;
       requestedExtras: { id: string; name: string; quantity: number }[] | null;
     } | null;
     /** Ventas fiadas sin saldar del jugador que está en cancha. */
@@ -144,6 +164,23 @@ export const clubApi = {
     api
       .post<{ data: { booking: ClubBooking; alreadyCheckedIn: boolean } }>(`/club/bookings/check-in/${accessToken}`)
       .then((r) => r.data.data),
+
+  // Caja: Pagar / Pago fraccionado / Deuda.
+  addBookingPayment: (
+    id: string,
+    body: { amountBase: number; method: PaymentMethod; referenceNumber?: string; proofImageUrl?: string },
+  ) => api.post<{ data: ClubBooking }>(`/club/bookings/${id}/payments`, body).then((r) => r.data.data),
+  setAwaitingPayment: (id: string, awaitingPayment: boolean) =>
+    api.patch<{ data: ClubBooking }>(`/club/bookings/${id}/awaiting-payment`, { awaitingPayment }).then((r) => r.data.data),
+  uploadPaymentProof: (file: File) => {
+    const form = new FormData();
+    form.append('photo', file);
+    return api
+      .post<{ data: { url: string } }>('/club/upload-payment-proof', form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data.data.url);
+  },
 
   createMaintenance: (body: { courtId: string; date: string; startTime: string; endTime: string; note: string }) =>
     api.post<{ data: ClubBlock }>('/club/maintenance', body).then((r) => r.data.data),

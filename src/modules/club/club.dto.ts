@@ -95,6 +95,35 @@ export const calendarQuerySchema = z.object({
   date: dateStr,
 });
 
+const paymentMethodSchema = z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER']);
+
+// Métodos que requieren capturar un número de referencia/comprobante (Punto de venta = "ticket").
+// Todos menos Efectivo Bs/$ — mismo criterio que order.dto.ts (METHODS_REQUIRING_REFERENCE).
+const METHODS_REQUIRING_REFERENCE = ['MOBILE_PAYMENT', 'ZELLE', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER'] as const;
+
+/** Botón "Caja" en Canchas: Pagar (mode=full) o Pago fraccionado (mode=split), mismo esquema. */
+export const recordBookingPaymentSchema = z
+  .object({
+    amountBase: z.coerce.number().positive().max(1000000),
+    method: paymentMethodSchema,
+    referenceNumber: z.string().max(60).optional(),
+    proofImageUrl: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (METHODS_REQUIRING_REFERENCE.includes(data.method as any) && !data.referenceNumber?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: data.method === 'CARD' ? 'Escribe el número de ticket.' : 'Escribe el número de referencia.',
+        path: ['referenceNumber'],
+      });
+    }
+  });
+
+/** "Deuda" en Canchas: recepción marca que sabe que esto se debe, sin registrar cobro. */
+export const setBookingAwaitingPaymentSchema = z.object({
+  awaitingPayment: z.coerce.boolean().optional().default(true),
+});
+
 export type CreateCourtInput = z.infer<typeof createCourtSchema>;
 export type UpdateCourtInput = z.infer<typeof updateCourtSchema>;
 export type CreateScheduleInput = z.infer<typeof createScheduleSchema>;
@@ -103,3 +132,5 @@ export type AvailabilityQuery = z.infer<typeof availabilityQuerySchema>;
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 export type CreateMaintenanceInput = z.infer<typeof createMaintenanceSchema>;
 export type ListBookingsQuery = z.infer<typeof listBookingsQuerySchema>;
+export type RecordBookingPaymentInput = z.infer<typeof recordBookingPaymentSchema>;
+export type SetBookingAwaitingPaymentInput = z.infer<typeof setBookingAwaitingPaymentSchema>;

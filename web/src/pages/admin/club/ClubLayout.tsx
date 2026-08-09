@@ -95,7 +95,11 @@ export default function ClubLayout() {
                 onBack={() => setOpenCourtId(null)}
               />
             ) : (
-              <ClubCourtsLivePage restaurant={restaurant} onOpenCourt={setOpenCourtId} />
+              <ClubCourtsLivePage
+                restaurant={restaurant}
+                onOpenCourt={setOpenCourtId}
+                canPay={isAdmin || user.role === 'CASHIER'}
+              />
             ))}
           {active === 'tienda' && <ClubStorePage restaurant={restaurant} canSeeMoney={isAdmin || user.role === 'CASHIER'} />}
           {active === 'admin' && <ClubAdminPage restaurant={restaurant} canSeeMoney={isAdmin} />}

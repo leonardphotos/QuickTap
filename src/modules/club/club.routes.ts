@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireBusinessType, requireRole, tenantGuard } from '../../middlewares/auth.middleware';
+import { optimizeImage, uploadClubPaymentProof } from '../../middlewares/upload.middleware';
 import { clubController } from './club.controller';
 
 /**
@@ -44,6 +45,17 @@ router.get('/bookings', staff, clubController.listBookings);
 router.post('/bookings', reception, clubController.createBooking);
 router.patch('/bookings/:id/cancel', reception, clubController.cancelBooking);
 router.post('/bookings/check-in/:accessToken', reception, clubController.checkIn);
+
+// Caja: Pagar / Pago fraccionado / Deuda.
+router.post('/bookings/:id/payments', reception, clubController.addBookingPayment);
+router.patch('/bookings/:id/awaiting-payment', reception, clubController.setBookingAwaitingPayment);
+router.post(
+  '/upload-payment-proof',
+  reception,
+  uploadClubPaymentProof,
+  optimizeImage(1200, 1200),
+  clubController.uploadPaymentProof,
+);
 
 router.post('/maintenance', reception, clubController.createMaintenance);
 router.delete('/blocks/:id', reception, clubController.removeBlock);

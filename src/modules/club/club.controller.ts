@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
+import { badRequest } from '../../utils/http-error';
 import {
   availabilityQuerySchema,
   calendarQuerySchema,
@@ -8,6 +9,8 @@ import {
   createMaintenanceSchema,
   createScheduleSchema,
   listBookingsQuerySchema,
+  recordBookingPaymentSchema,
+  setBookingAwaitingPaymentSchema,
   updateCourtSchema,
   updateScheduleSchema,
 } from './club.dto';
@@ -73,6 +76,20 @@ export const clubController = {
   }),
   checkIn: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await clubService.checkIn(req.restaurantId!, req.params.accessToken) });
+  }),
+
+  // Caja (Pagar / Pago fraccionado / Deuda)
+  addBookingPayment: asyncHandler(async (req: Request, res: Response) => {
+    const input = recordBookingPaymentSchema.parse(req.body);
+    res.status(201).json({ data: await clubService.addBookingPayment(req.restaurantId!, req.params.id, input) });
+  }),
+  setBookingAwaitingPayment: asyncHandler(async (req: Request, res: Response) => {
+    const input = setBookingAwaitingPaymentSchema.parse(req.body);
+    res.json({ data: await clubService.setBookingAwaitingPayment(req.restaurantId!, req.params.id, input.awaitingPayment) });
+  }),
+  uploadPaymentProof: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw badRequest('No se recibió ningún archivo.');
+    res.status(201).json({ data: { url: `/uploads/club-payment-proofs/${req.file.filename}` } });
   }),
 
   // Mantenimiento
