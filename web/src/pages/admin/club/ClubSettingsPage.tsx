@@ -6,6 +6,7 @@ import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection'
 import { PaymentMethodsSection } from '@/components/admin/PaymentMethodsSection';
 import { LockScreenSettingsSection } from '@/components/admin/LockScreenSettingsSection';
 import { canManageTeam } from '@/utils/roles';
+import { ClubBrandingSection } from './ClubBrandingSection';
 
 /**
  * Ajustes del club. Reutiliza las mismas secciones generales del panel de
@@ -45,6 +46,7 @@ export default function ClubSettingsPage() {
       </TextureCard>
 
       <RestaurantInfoSection />
+      <ClubBrandingSection />
       <PaymentMethodsSection descriptionOverride="Elige qué métodos aceptas al cobrar una reserva, y sus datos para que tus jugadores sepan a dónde pagar." />
       {canManageTeam(user.role) && <LockScreenSettingsSection />}
 

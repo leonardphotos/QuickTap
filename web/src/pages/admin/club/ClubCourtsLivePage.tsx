@@ -4,7 +4,7 @@ import type { AuthRestaurant } from '@/context/AuthContext';
 import { formatBase } from '@/utils/format';
 import { cn } from '@/lib/utils';
 import { clubApi, type PanelCourt } from './clubApi';
-import { CourtIllustration, glass } from './clubStyle';
+import { card, CourtIllustration } from './clubStyle';
 
 interface Props {
   restaurant: Pick<AuthRestaurant, 'currencySymbol'>;
@@ -46,20 +46,20 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt }: Props) {
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h1 className="text-[24px] font-bold tracking-tight text-white">Canchas</h1>
+        <h1 className="text-[20px] font-bold text-brand-950 tracking-tight">Canchas</h1>
         {courts && courts.length > 0 && (
-          <p className="mt-0.5 text-[13px] font-light text-white/65">
+          <p className="mt-0.5 text-[13px] font-light text-brand-950/50">
             {playing} de {courts.length} en juego ahora
           </p>
         )}
       </div>
 
-      {courts === null && <p className="font-light text-white/50">Cargando…</p>}
+      {courts === null && <p className="font-light text-brand-950/40">Cargando…</p>}
 
       {courts?.length === 0 && (
-        <div className={cn(glass, 'p-8 text-center')}>
-          <p className="font-semibold text-white">Todavía no tienes canchas</p>
-          <p className="mt-1 text-[13px] font-light text-white/60">
+        <div className={cn(card, 'p-8 text-center')}>
+          <p className="font-semibold text-brand-950">Todavía no tienes canchas</p>
+          <p className="mt-1 text-[13px] font-light text-brand-950/50">
             Créalas en Ajustes para empezar a recibir reservas.
           </p>
         </div>
@@ -77,28 +77,28 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt }: Props) {
             <button
               key={c.court.id}
               onClick={() => onOpenCourt(c.court.id)}
-              className={cn(glass, 'overflow-hidden text-left transition-colors hover:bg-white/25')}
+              className={cn(card, 'overflow-hidden text-left transition-colors hover:border-brand-400')}
             >
               {/* Ilustración de la cancha, con la parte jugada rellena. */}
               <div className="relative h-24 w-full">
                 <CourtIllustration progress={progress} idle={!c.busy} />
                 <div className="absolute inset-0 flex items-start justify-between p-3">
-                  <span className="text-[15px] font-bold text-white drop-shadow">{c.court.name}</span>
+                  <span className="text-[15px] font-bold text-brand-950">{c.court.name}</span>
                   <span
                     className={cn(
                       'rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide',
                       !c.busy
-                        ? 'bg-emerald-400 text-emerald-950'
+                        ? 'bg-emerald-100 text-emerald-700'
                         : isBooking
-                          ? 'bg-white text-brand-950'
-                          : 'bg-white/25 text-white',
+                          ? 'bg-brand-950 text-white'
+                          : 'bg-brand-950/10 text-brand-950/60',
                     )}
                   >
                     {!c.busy ? 'Libre' : isBooking ? '● En juego' : 'Cerrada'}
                   </span>
                 </div>
                 {c.court.indoor && (
-                  <span className="absolute bottom-2.5 left-3 text-[10px] font-medium text-white/60">Techada</span>
+                  <span className="absolute bottom-2.5 left-3 text-[10px] font-medium text-brand-950/45">Techada</span>
                 )}
               </div>
 
@@ -106,48 +106,46 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt }: Props) {
                 {isBooking && cur ? (
                   <>
                     <div className="flex items-baseline justify-between gap-2">
-                      <p className="truncate text-[15px] font-bold text-white">
+                      <p className="truncate text-[15px] font-bold text-brand-950">
                         {cur.booking?.playerName ?? 'Sin nombre'}
                       </p>
                       {cur.booking && (
-                        <span className="flex shrink-0 items-center gap-1 text-[12px] font-medium text-white/60">
+                        <span className="flex shrink-0 items-center gap-1 text-[12px] font-medium text-brand-950/50">
                           <Users className="h-3.5 w-3.5" />
                           {cur.booking.playerCount}
                         </span>
                       )}
                     </div>
 
-                    <div className="mt-3 flex items-center justify-between rounded-2xl bg-white/12 px-3.5 py-2.5">
+                    <div className="mt-3 flex items-center justify-between rounded-2xl bg-brand-950/[0.04] px-3.5 py-2.5">
                       <Figure value={humanMinutes(cur.playedMinutes)} label="jugados" />
                       <div className="text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wide text-white/50">termina</p>
-                        <p className="text-[13px] font-bold text-white">{hhmm(cur.endsAt)}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-brand-950/40">termina</p>
+                        <p className="text-[13px] font-bold text-brand-950">{hhmm(cur.endsAt)}</p>
                       </div>
                       <Figure value={humanMinutes(cur.remainingMinutes)} label="restante" align="right" />
                     </div>
 
                     {/* Lo que evita que alguien se vaya debiendo el agua. */}
                     {cur.openTab ? (
-                      <div className="mt-2.5 flex items-center gap-2 rounded-2xl bg-amber-400/25 px-3.5 py-2.5">
-                        <ShoppingBag className="h-4 w-4 shrink-0 text-amber-200" />
-                        <span className="text-[12px] font-semibold text-white">
-                          Cuenta abierta en tienda
-                        </span>
-                        <span className="ml-auto text-[14px] font-bold text-white">{money(cur.openTab.balance)}</span>
+                      <div className="mt-2.5 flex items-center gap-2 rounded-2xl bg-amber-100 px-3.5 py-2.5">
+                        <ShoppingBag className="h-4 w-4 shrink-0 text-amber-600" />
+                        <span className="text-[12px] font-semibold text-amber-900">Cuenta abierta en tienda</span>
+                        <span className="ml-auto text-[14px] font-bold text-amber-900">{money(cur.openTab.balance)}</span>
                       </div>
                     ) : (
-                      <p className="mt-2.5 text-[12px] font-light text-white/45">Sin cuenta abierta en tienda</p>
+                      <p className="mt-2.5 text-[12px] font-light text-brand-950/35">Sin cuenta abierta en tienda</p>
                     )}
                   </>
                 ) : c.busy && cur ? (
-                  <p className="text-[13px] font-light text-white/70">
+                  <p className="text-[13px] font-light text-brand-950/60">
                     {cur.note ?? 'No disponible'} · hasta {hhmm(cur.endsAt)}
                   </p>
                 ) : (
-                  <p className="text-[13px] font-light text-white/55">Nadie jugando ahora</p>
+                  <p className="text-[13px] font-light text-brand-950/45">Nadie jugando ahora</p>
                 )}
 
-                <div className="mt-3 flex items-center gap-1.5 border-t border-white/15 pt-3 text-[12px] font-light text-white/60">
+                <div className="mt-3 flex items-center gap-1.5 border-t border-brand-950/[0.06] pt-3 text-[12px] font-light text-brand-950/50">
                   <Clock className="h-3.5 w-3.5 shrink-0" />
                   <span className="truncate">
                     {c.next
@@ -156,7 +154,7 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt }: Props) {
                         ? 'Libre al terminar'
                         : 'Sin reservas por delante hoy'}
                   </span>
-                  <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-white/40" />
+                  <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-brand-950/30" />
                 </div>
               </div>
             </button>
@@ -170,8 +168,8 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt }: Props) {
 function Figure({ value, label, align }: { value: string; label: string; align?: 'right' }) {
   return (
     <div className={align === 'right' ? 'text-right' : ''}>
-      <p className="text-[19px] font-bold leading-none tracking-tight text-white">{value}</p>
-      <p className="mt-1 text-[11px] font-medium text-white/50">{label}</p>
+      <p className="text-[19px] font-bold leading-none tracking-tight text-brand-950">{value}</p>
+      <p className="mt-1 text-[11px] font-medium text-brand-950/40">{label}</p>
     </div>
   );
 }

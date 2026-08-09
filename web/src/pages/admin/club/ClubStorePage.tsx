@@ -9,7 +9,7 @@ import { Toast } from '@/components/ui/toast';
 import { useToast } from '@/hooks/useToast';
 import { cn } from '@/lib/utils';
 import { clubStoreApi, isLow, stockOf, STORE_PAYMENT_METHODS, type StoreProduct } from './clubStoreApi';
-import { glass } from './clubStyle';
+import { card } from './clubStyle';
 
 interface Props {
   restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate'>;
@@ -67,14 +67,14 @@ export default function ClubStorePage({ restaurant, canSeeMoney }: Props) {
     <div className="flex flex-col gap-5 pb-32">
       <div className="flex items-center gap-3">
         <div>
-          <h1 className="text-[24px] font-bold tracking-tight text-white">Tienda</h1>
-          <p className="mt-0.5 text-[13px] font-light text-white/65">
+          <h1 className="text-[20px] font-bold tracking-tight text-brand-950">Tienda</h1>
+          <p className="mt-0.5 text-[13px] font-light text-brand-950/50">
             {products?.length ?? 0} productos · {lowStock.length} por reponer
           </p>
         </div>
         <button
           onClick={() => setNewProduct(true)}
-          className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-[13px] font-bold text-brand-950 shadow-lg"
+          className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full bg-brand-500 px-3.5 py-2 text-[13px] font-bold text-white shadow-sm hover:bg-brand-500/90"
         >
           <Plus className="h-4 w-4" />
           Producto
@@ -82,11 +82,11 @@ export default function ClubStorePage({ restaurant, canSeeMoney }: Props) {
       </div>
 
       {lowStock.length > 0 && (
-        <div className={cn(glass, 'flex items-start gap-3 border-amber-300/40 bg-amber-400/20 p-4')}>
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-200" />
+        <div className="flex items-start gap-3 rounded-3xl border border-amber-200 bg-amber-50 p-4">
+          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
           <div className="min-w-0">
-            <p className="text-[14px] font-bold text-white">Stock bajo</p>
-            <p className="text-[13px] font-light text-white/70">
+            <p className="text-[14px] font-bold text-amber-900">Stock bajo</p>
+            <p className="text-[13px] font-light text-amber-800">
               {lowStock.map((p) => `${p.name} (${stockOf(p)})`).join(' · ')}
             </p>
           </div>
@@ -94,21 +94,21 @@ export default function ClubStorePage({ restaurant, canSeeMoney }: Props) {
       )}
 
       <div className="relative">
-        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/45" />
+        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-950/35" />
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Buscar producto…"
-          className="w-full rounded-2xl border border-white/25 bg-white/15 py-3 pl-11 pr-4 text-[15px] text-white placeholder:text-white/40 outline-none backdrop-blur-xl focus:border-white/60"
+          className="w-full rounded-2xl border border-brand-950/10 bg-white py-3 pl-11 pr-4 text-[15px] text-brand-950 placeholder:text-brand-950/35 outline-none focus:border-brand-400"
         />
       </div>
 
-      {products === null && <p className="font-light text-white/50">Cargando…</p>}
+      {products === null && <p className="font-light text-brand-950/40">Cargando…</p>}
       {products?.length === 0 && (
-        <div className={cn(glass, 'p-8 text-center')}>
-          <Package className="mx-auto h-8 w-8 text-white/40" />
-          <p className="mt-3 font-semibold text-white">Tu tienda está vacía</p>
-          <p className="mt-1 text-[13px] font-light text-white/60">
+        <div className={cn(card, 'p-8 text-center')}>
+          <Package className="mx-auto h-8 w-8 text-brand-950/25" />
+          <p className="mt-3 font-semibold text-brand-950">Tu tienda está vacía</p>
+          <p className="mt-1 text-[13px] font-light text-brand-950/50">
             Agrega agua, pelotas o lo que vendas en el mostrador.
           </p>
         </div>
@@ -119,20 +119,20 @@ export default function ClubStorePage({ restaurant, canSeeMoney }: Props) {
           const stock = stockOf(p);
           const inCart = cart.find((l) => l.product.id === p.id)?.qty ?? 0;
           return (
-            <div key={p.id} className={cn(glass, 'flex items-center gap-3 p-3.5')}>
+            <div key={p.id} className={cn(card, 'flex items-center gap-3 p-3.5')}>
               <button onClick={() => addToCart(p)} className="min-w-0 flex-1 text-left">
-                <p className="truncate text-[15px] font-semibold text-white">{p.name}</p>
-                <p className="text-[12px] font-light text-white/55">
+                <p className="truncate text-[15px] font-semibold text-brand-950">{p.name}</p>
+                <p className="text-[12px] font-light text-brand-950/45">
                   {canSeeMoney ? `${money(p.price)} · ` : ''}
-                  <span className={stock <= p.minStock ? 'font-semibold text-amber-200' : ''}>{stock} en stock</span>
+                  <span className={stock <= p.minStock ? 'font-semibold text-amber-600' : ''}>{stock} en stock</span>
                 </p>
               </button>
 
               {inCart > 0 ? (
-                <div className="flex shrink-0 items-center gap-1 rounded-full bg-white p-1 text-brand-950">
+                <div className="flex shrink-0 items-center gap-1 rounded-full bg-brand-950/[0.05] p-1 text-brand-950">
                   <button
                     onClick={() => setQty(p.id, inCart - 1)}
-                    className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-brand-950/[0.06]"
+                    className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-brand-950/[0.08]"
                     aria-label={`Quitar ${p.name}`}
                   >
                     <Minus className="h-3.5 w-3.5" />
@@ -140,7 +140,7 @@ export default function ClubStorePage({ restaurant, canSeeMoney }: Props) {
                   <span className="w-5 text-center text-[14px] font-bold">{inCart}</span>
                   <button
                     onClick={() => addToCart(p)}
-                    className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-brand-950/[0.06]"
+                    className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-brand-950/[0.08]"
                     aria-label={`Agregar ${p.name}`}
                   >
                     <Plus className="h-3.5 w-3.5" />
@@ -149,7 +149,7 @@ export default function ClubStorePage({ restaurant, canSeeMoney }: Props) {
               ) : (
                 <button
                   onClick={() => setRestocking(p)}
-                  className="shrink-0 rounded-full bg-white/15 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-white/25"
+                  className="shrink-0 rounded-full bg-brand-950/[0.05] px-3 py-1.5 text-[12px] font-semibold text-brand-950 hover:bg-brand-950/[0.08]"
                 >
                   Reponer
                 </button>
@@ -164,9 +164,9 @@ export default function ClubStorePage({ restaurant, canSeeMoney }: Props) {
         <div className="fixed inset-x-0 bottom-24 z-30 px-5 lg:bottom-6">
           <button
             onClick={() => setCheckout(true)}
-            className="mx-auto flex w-full max-w-lg items-center gap-3 rounded-full bg-white px-5 py-4 text-brand-950 shadow-2xl"
+            className="mx-auto flex w-full max-w-lg items-center gap-3 rounded-full bg-brand-950 px-5 py-4 text-white shadow-2xl shadow-brand-950/25"
           >
-            <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-brand-950 px-2 text-[12px] font-bold text-white">
+            <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-white/20 px-2 text-[12px] font-bold">
               {cart.reduce((a, l) => a + l.qty, 0)}
             </span>
             <span className="text-[15px] font-bold">Cobrar</span>

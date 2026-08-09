@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { ExpenseFormDialog } from '@/components/admin/ExpenseFormDialog';
 import { clubApi, todayCaracas, type ClubBooking } from './clubApi';
 import { clubStoreApi, type StoreSale } from './clubStoreApi';
-import { glass } from './clubStyle';
+import { card } from './clubStyle';
 
 interface Props {
   restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate'>;
@@ -31,6 +31,13 @@ interface MovementsResponse {
   totalIncome: string;
   movements: Movement[];
 }
+
+const METRIC_COLORS: Record<string, string> = {
+  court: 'bg-brand-500/10 text-brand-600',
+  store: 'bg-violet-100 text-violet-700',
+  total: 'bg-emerald-100 text-emerald-700',
+  expense: 'bg-amber-100 text-amber-700',
+};
 
 /** Dónde entra y sale el dinero del club: canchas, tienda y gastos. */
 export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
@@ -66,9 +73,9 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
 
   if (!canSeeMoney) {
     return (
-      <div className={cn(glass, 'p-8 text-center')}>
-        <p className="font-semibold text-white">Solo para administración</p>
-        <p className="mt-1 text-[13px] font-light text-white/60">Pídele acceso al dueño del club.</p>
+      <div className={cn(card, 'p-8 text-center')}>
+        <p className="font-semibold text-brand-950">Solo para administración</p>
+        <p className="mt-1 text-[13px] font-light text-brand-950/50">Pídele acceso al dueño del club.</p>
       </div>
     );
   }
@@ -76,10 +83,10 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center gap-3">
-        <h1 className="text-[24px] font-bold tracking-tight text-white">Administración</h1>
+        <h1 className="text-[20px] font-bold tracking-tight text-brand-950">Administración</h1>
         <button
           onClick={() => setExpenseOpen(true)}
-          className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full bg-white px-3.5 py-2 text-[13px] font-bold text-brand-950 shadow-lg"
+          className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full bg-brand-500 px-3.5 py-2 text-[13px] font-bold text-white shadow-sm hover:bg-brand-500/90"
         >
           <Receipt className="h-4 w-4" />
           Gasto
@@ -89,51 +96,60 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
       <div className="grid grid-cols-2 gap-3">
         <Metric
           icon={CalendarCheck}
+          color={METRIC_COLORS.court}
           label="Canchas hoy"
           value={money(courtsIncome)}
           sub={`${courtsToday.length} reservas`}
         />
         <Metric
           icon={ShoppingBag}
+          color={METRIC_COLORS.store}
           label="Tienda hoy"
           value={money(storeIncome)}
           sub={`${storeToday.length} ventas`}
         />
         <Metric
           icon={TrendingUp}
+          color={METRIC_COLORS.total}
           label="Total hoy"
           value={money(courtsIncome + storeIncome)}
           sub={moneyBs(courtsIncome + storeIncome) ?? ''}
         />
-        <Metric icon={Wallet} label="Gastos del mes" value={money(expensesMonth)} sub={`${movements.length} movimientos`} />
+        <Metric
+          icon={Wallet}
+          color={METRIC_COLORS.expense}
+          label="Gastos del mes"
+          value={money(expensesMonth)}
+          sub={`${movements.length} movimientos`}
+        />
       </div>
 
       {openTabs.length > 0 && (
         <section>
-          <h2 className="mb-2.5 text-[14px] font-bold text-white">Cuentas abiertas en tienda</h2>
-          <div className={cn(glass, 'divide-y divide-white/10 overflow-hidden')}>
+          <h2 className="mb-2.5 text-[14px] font-bold text-brand-950">Cuentas abiertas en tienda</h2>
+          <div className={cn(card, 'divide-y divide-brand-950/[0.06] overflow-hidden')}>
             {openTabs.slice(0, 8).map((s) => (
               <div key={s.id} className="flex items-center gap-3 p-3.5">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[14px] font-semibold text-white">{s.customerName ?? 'Sin nombre'}</p>
-                  <p className="text-[12px] font-light text-white/55">
+                  <p className="truncate text-[14px] font-semibold text-brand-950">{s.customerName ?? 'Sin nombre'}</p>
+                  <p className="text-[12px] font-light text-brand-950/45">
                     {s.items?.map((i) => `${i.qty}× ${i.name}`).join(', ') || '—'}
                   </p>
                 </div>
-                <p className="shrink-0 text-[14px] font-bold text-white">{money(s.total)}</p>
+                <p className="shrink-0 text-[14px] font-bold text-brand-950">{money(s.total)}</p>
               </div>
             ))}
-            <div className="flex items-center justify-between bg-amber-400/15 p-3.5">
-              <span className="text-[13px] font-semibold text-white">Total por cobrar</span>
-              <span className="text-[15px] font-bold text-white">{money(openTabsTotal)}</span>
+            <div className="flex items-center justify-between bg-amber-50 p-3.5">
+              <span className="text-[13px] font-semibold text-amber-900">Total por cobrar</span>
+              <span className="text-[15px] font-bold text-amber-900">{money(openTabsTotal)}</span>
             </div>
           </div>
         </section>
       )}
 
       <section>
-        <h2 className="mb-2.5 text-[14px] font-bold text-white">Hoy en canchas</h2>
-        <div className={cn(glass, 'grid grid-cols-3 gap-3 p-5 text-center')}>
+        <h2 className="mb-2.5 text-[14px] font-bold text-brand-950">Hoy en canchas</h2>
+        <div className={cn(card, 'grid grid-cols-3 gap-3 p-5 text-center')}>
           <Stat value={courtsToday.filter((b) => b.status === 'COMPLETED').length} label="jugadas" />
           <Stat value={courtsToday.filter((b) => b.status === 'CONFIRMED' || b.status === 'PENDING_PAYMENT').length} label="por jugar" />
           <Stat value={noShows} label="ausencias" tone={noShows > 0 ? 'warn' : undefined} />
@@ -141,23 +157,23 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
       </section>
 
       <section>
-        <h2 className="mb-2.5 text-[14px] font-bold text-white">Últimos gastos</h2>
+        <h2 className="mb-2.5 text-[14px] font-bold text-brand-950">Últimos gastos</h2>
         {movements.filter((m) => m.type === 'EXPENSE').length === 0 ? (
-          <p className={cn(glass, 'p-5 text-center text-[13px] font-light text-white/55')}>Sin gastos registrados.</p>
+          <p className={cn(card, 'p-5 text-center text-[13px] font-light text-brand-950/45')}>Sin gastos registrados.</p>
         ) : (
-          <div className={cn(glass, 'divide-y divide-white/10 overflow-hidden')}>
+          <div className={cn(card, 'divide-y divide-brand-950/[0.06] overflow-hidden')}>
             {movements
               .filter((m) => m.type === 'EXPENSE')
               .slice(0, 6)
               .map((m) => (
                 <div key={m.id} className="flex items-center gap-3 p-3.5">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[14px] font-medium text-white">{m.description}</p>
-                    <p className="text-[12px] font-light text-white/50">
+                    <p className="truncate text-[14px] font-medium text-brand-950">{m.description}</p>
+                    <p className="text-[12px] font-light text-brand-950/40">
                       {new Date(m.createdAt).toLocaleDateString('es-VE', { day: '2-digit', month: 'short' })}
                     </p>
                   </div>
-                  <p className="shrink-0 text-[14px] font-bold text-white">−{money(Number(m.amountBase))}</p>
+                  <p className="shrink-0 text-[14px] font-bold text-brand-950">−{money(Number(m.amountBase))}</p>
                 </div>
               ))}
           </div>
@@ -182,23 +198,25 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
 
 function Metric({
   icon: Icon,
+  color,
   label,
   value,
   sub,
 }: {
   icon: typeof Wallet;
+  color: string;
   label: string;
   value: string;
   sub?: string;
 }) {
   return (
-    <div className={cn(glass, 'p-4')}>
-      <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20">
-        <Icon className="h-4.5 w-4.5 text-white" />
+    <div className={cn(card, 'p-4')}>
+      <div className={cn('flex h-9 w-9 items-center justify-center rounded-xl', color)}>
+        <Icon className="h-4.5 w-4.5" />
       </div>
-      <p className="mt-3 text-[19px] font-bold leading-none tracking-tight text-white">{value}</p>
-      <p className="mt-1.5 text-[12px] font-medium text-white/60">{label}</p>
-      {sub && <p className="text-[11px] font-light text-white/40">{sub}</p>}
+      <p className="mt-3 text-[19px] font-bold leading-none tracking-tight text-brand-950">{value}</p>
+      <p className="mt-1.5 text-[12px] font-medium text-brand-950/50">{label}</p>
+      {sub && <p className="text-[11px] font-light text-brand-950/35">{sub}</p>}
     </div>
   );
 }
@@ -206,10 +224,10 @@ function Metric({
 function Stat({ value, label, tone }: { value: number; label: string; tone?: 'warn' }) {
   return (
     <div>
-      <p className={cn('text-[22px] font-bold tracking-tight', tone === 'warn' ? 'text-amber-200' : 'text-white')}>
+      <p className={cn('text-[22px] font-bold tracking-tight', tone === 'warn' ? 'text-amber-600' : 'text-brand-950')}>
         {value}
       </p>
-      <p className="text-[12px] font-light text-white/55">{label}</p>
+      <p className="text-[12px] font-light text-brand-950/45">{label}</p>
     </div>
   );
 }
