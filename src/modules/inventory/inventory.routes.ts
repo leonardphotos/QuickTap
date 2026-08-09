@@ -36,6 +36,10 @@ router.post(
 // Insumos marcados como envase (para el picker de "Vincular con stock" en Productos).
 router.get('/packaging', requireFeature('inventoryBasic'), requireInventoryAccess, inventoryController.listPackaging);
 
+// Alertas de inventario: qué está por vencerse y qué está por agotarse, insumos
+// y productos juntos. Solo lectura, así que basta con requireInventoryAccess.
+router.get('/alerts', requireFeature('inventoryBasic'), requireInventoryAccess, inventoryController.alerts);
+
 // Insumos "normales": stock directo por insumo.
 router.get('/', requireFeature('inventoryBasic'), requireInventoryAccess, inventoryController.list);
 router.post('/', requireFeature('inventoryBasic'), mutate, inventoryController.create);

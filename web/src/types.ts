@@ -209,6 +209,10 @@ export interface Product {
   /** Control de stock simple por producto. null/false = sin control (siempre disponible). */
   stockControlEnabled?: boolean;
   stockQuantity?: number | null;
+  /** A partir de cuántas unidades avisar "por agotarse" (Inventario → Alertas). */
+  stockMinQuantity?: number | null;
+  /** Fecha de caducidad "YYYY-MM-DD" (hora de Caracas). Ver web/src/utils/expiry.ts. */
+  expiryDate?: string | null;
   /** Calculado en el backend: stockControlEnabled && stockQuantity<=0. Distinto de isAvailable (manual). */
   stockDepleted?: boolean;
   // Envase: solo se cobra en pedidos DELIVERY/PICKUP. "FIXED" usa packagingFeeBase propio;

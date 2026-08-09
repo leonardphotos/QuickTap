@@ -4,7 +4,8 @@ import { notFound } from '../../utils/http-error';
 import { bsToBase, round2, toDecimal } from '../../utils/money';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { emitToKitchen, SocketEvents } from '../../sockets';
-import { CreateInventoryItemInput, UpdateInventoryItemInput } from './inventory.dto';
+import { caracasPartsOf } from '../../utils/timezone';
+import { CreateInventoryItemInput, InventoryAlertsQuery, UpdateInventoryItemInput } from './inventory.dto';
 import { inventoryCategoryService } from './inventory-category.service';
 import { effectiveInventoryRestaurantId } from './inventory-scope';
 
@@ -27,6 +28,24 @@ async function resolvePricePerUnit(
     priceBase = bsToBase(price, rate.rateBs);
   }
   return priceBase.div(quantity).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
+}
+
+
+/** Suma días a una fecha "YYYY-MM-DD" sin salir del calendario (nada de husos). */
+function addDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const next = new Date(Date.UTC(y, m - 1, d + days));
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${next.getUTCFullYear()}-${pad(next.getUTCMonth() + 1)}-${pad(next.getUTCDate())}`;
+}
+
+/** Días que faltan para `dateStr` desde hoy (negativo = ya venció). */
+function daysUntil(today: string, dateStr: string): number {
+  const toUtc = (s: string) => {
+    const [y, m, d] = s.split('-').map(Number);
+    return Date.UTC(y, m - 1, d);
+  };
+  return Math.round((toUtc(dateStr) - toUtc(today)) / 86_400_000);
 }
 
 /** Insumos de inventario (solo plan Premium). Aislado por restaurantId como el resto del
@@ -120,6 +139,122 @@ export const inventoryService = {
     }
 
     return item;
+  },
+
+
+  /**
+   * Alertas de inventario: lo que está por vencerse y lo que está por agotarse,
+   * mezclando insumos y productos en una sola respuesta.
+   *
+   * Se calcula acá y no en el cliente porque la pestaña de Insumos no tiene
+   * cargados los productos (ni al revés), y porque comparar fechas "YYYY-MM-DD"
+   * contra el hoy de Caracas es justo el tipo de cosa que se rompe en el
+   * navegador de un dispositivo con otro huso horario.
+   */
+  async alerts(
+    restaurantId: string,
+    parentRestaurantId: string | null | undefined,
+    query: InventoryAlertsQuery,
+  ) {
+    const effectiveId = await effectiveInventoryRestaurantId(restaurantId, parentRestaurantId, query.locationScope);
+    const today = caracasPartsOf(new Date()).dateStr;
+    const limit = addDays(today, query.days);
+
+    const [items, products] = await Promise.all([
+      prisma.inventoryItem.findMany({
+        where: { restaurantId: effectiveId, locationScope: query.locationScope },
+        include: { category: { select: { name: true } } },
+        orderBy: { name: 'asc' },
+      }),
+      // Los productos son siempre de la sede en sesión (no se comparten entre
+      // sedes como los insumos), y en la ventana de Casa Matriz no existen.
+      query.locationScope === 'LOCAL'
+        ? prisma.product.findMany({
+            where: { restaurantId },
+            include: { category: { select: { name: true } } },
+            orderBy: { name: 'asc' },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const expiring = [
+      ...items
+        .filter((i) => i.expiryDate && i.expiryDate <= limit)
+        .map((i) => ({
+          kind: 'INSUMO' as const,
+          id: i.id,
+          name: i.name,
+          categoryName: i.category?.name ?? null,
+          photoUrl: i.photoUrl,
+          expiryDate: i.expiryDate!,
+          daysLeft: daysUntil(today, i.expiryDate!),
+          quantity: i.quantity.toString(),
+          unit: i.unit,
+        })),
+      ...products
+        .filter((p) => p.expiryDate && p.expiryDate <= limit)
+        .map((p) => ({
+          kind: 'PRODUCTO' as const,
+          id: p.id,
+          name: p.name,
+          categoryName: p.category?.name ?? null,
+          photoUrl: p.photoUrl,
+          expiryDate: p.expiryDate!,
+          daysLeft: daysUntil(today, p.expiryDate!),
+          quantity: p.stockControlEnabled ? String(p.stockQuantity ?? 0) : null,
+          unit: 'unidad',
+        })),
+    ].sort((a, b) => a.expiryDate.localeCompare(b.expiryDate) || a.name.localeCompare(b.name));
+
+    const lowStock = [
+      ...items
+        .map((i) => {
+          const qty = Number(i.quantity);
+          const min = Number(i.minQuantity);
+          // Agotado manda sobre "por agotarse" aunque no haya mínimo cargado.
+          const status = qty <= 0 ? ('OUT' as const) : qty < min ? ('LOW' as const) : null;
+          if (!status) return null;
+          return {
+            kind: 'INSUMO' as const,
+            id: i.id,
+            name: i.name,
+            categoryName: i.category?.name ?? null,
+            photoUrl: i.photoUrl,
+            status,
+            quantity: i.quantity.toString(),
+            minQuantity: i.minQuantity.toString(),
+            unit: i.unit,
+          };
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null),
+      ...products
+        .map((p) => {
+          // Sin control de stock no hay nada que avisar: el producto siempre está.
+          if (!p.stockControlEnabled) return null;
+          const qty = p.stockQuantity ?? 0;
+          const min = p.stockMinQuantity ?? 0;
+          const status = qty <= 0 ? ('OUT' as const) : min > 0 && qty <= min ? ('LOW' as const) : null;
+          if (!status) return null;
+          return {
+            kind: 'PRODUCTO' as const,
+            id: p.id,
+            name: p.name,
+            categoryName: p.category?.name ?? null,
+            photoUrl: p.photoUrl,
+            status,
+            quantity: String(qty),
+            minQuantity: String(min),
+            unit: 'unidad',
+          };
+        })
+        .filter((x): x is NonNullable<typeof x> => x !== null),
+    ].sort(
+      (a, b) =>
+        // Primero lo que ya no queda, después lo que está por acabarse.
+        (a.status === b.status ? 0 : a.status === 'OUT' ? -1 : 1) || a.name.localeCompare(b.name),
+    );
+
+    return { today, days: query.days, expiring, lowStock };
   },
 
   async remove(restaurantId: string, parentRestaurantId: string | null | undefined, id: string) {

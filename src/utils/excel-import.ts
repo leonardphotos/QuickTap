@@ -92,6 +92,40 @@ export function cellText(row: ExcelJS.Row, column: number | undefined): string {
 }
 
 /**
+ * Fecha de una celda como "YYYY-MM-DD", tolerando lo que escribe la gente:
+ * una fecha real de Excel, "2026-08-09", "09/08/2026" o "9-8-2026".
+ *
+ * Una fecha de Excel llega como Date en UTC: se leen sus componentes UTC y no
+ * los locales, o una fecha del día 9 se guardaría como 8 en husos negativos.
+ * Devuelve undefined si la celda está vacía o no se entiende.
+ */
+export function cellDate(row: ExcelJS.Row, column: number | undefined): string | undefined {
+  if (!column) return undefined;
+  const raw = row.getCell(column).value;
+  if (raw == null) return undefined;
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+  if (raw instanceof Date) {
+    return `${raw.getUTCFullYear()}-${pad(raw.getUTCMonth() + 1)}-${pad(raw.getUTCDate())}`;
+  }
+
+  const text = cellText(row, column);
+  if (!text) return undefined;
+
+  const iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (iso) return `${iso[1]}-${pad(Number(iso[2]))}-${pad(Number(iso[3]))}`;
+
+  // Formato local: día primero, que es como se escribe en Venezuela.
+  const local = text.match(/^(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{2,4})$/);
+  if (local) {
+    const year = local[3].length === 2 ? `20${local[3]}` : local[3];
+    return `${year}-${pad(Number(local[2]))}-${pad(Number(local[1]))}`;
+  }
+
+  return undefined;
+}
+
+/**
  * Número de una celda, tolerando el formato que escribe la gente: "1.234,56", "$ 12,50",
  * "12 kg". Devuelve undefined si la celda está vacía o no tiene ningún número reconocible —
  * quien llama decide si eso es un error o un valor por defecto.

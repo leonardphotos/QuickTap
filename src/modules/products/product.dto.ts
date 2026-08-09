@@ -30,6 +30,16 @@ export const createProductSchema = z.object({
   // Control de stock simple por producto. stockQuantity null = sin control de stock.
   stockControlEnabled: z.boolean().optional().default(false),
   stockQuantity: z.coerce.number().int().min(0).nullable().optional(),
+  // A partir de cuántas unidades avisar "por agotarse" (Inventario → Alertas).
+  stockMinQuantity: z.coerce.number().int().min(0).nullable().optional(),
+  // Fecha de caducidad "YYYY-MM-DD" (hora de Caracas). Cadena vacía = se borra.
+  expiryDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha de caducidad debe tener formato YYYY-MM-DD.')
+    .or(z.literal(''))
+    .transform((v) => (v === '' ? null : v))
+    .nullable()
+    .optional(),
 
   // Envase: solo se cobra en pedidos DELIVERY/PICKUP. "FIXED" usa packagingFeeBase;
   // "INVENTORY" usa el precio de venta del insumo vinculado (packagingItemId).

@@ -116,6 +116,8 @@ export const productService = {
         sku: input.sku,
         stockControlEnabled: input.stockControlEnabled,
         stockQuantity: input.stockQuantity,
+        stockMinQuantity: input.stockMinQuantity,
+        expiryDate: input.expiryDate,
         packagingMode: input.packagingMode,
         packagingFeeBase: input.packagingFeeBase,
         packagingItemId: input.packagingItemId,

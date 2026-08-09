@@ -1,12 +1,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest } from '../../utils/http-error';
-import {
-  bulkDeleteInventoryItemsSchema,
-  createInventoryItemSchema,
-  listInventoryQuerySchema,
-  updateInventoryItemSchema,
-} from './inventory.dto';
+import { bulkDeleteInventoryItemsSchema, createInventoryItemSchema, inventoryAlertsQuerySchema, listInventoryQuerySchema, updateInventoryItemSchema } from './inventory.dto';
 import { inventoryService } from './inventory.service';
 import { inventoryImportService } from './inventory-import.service';
 
@@ -18,6 +13,10 @@ export const inventoryController = {
   list: asyncHandler(async (req: Request, res: Response) => {
     const { locationScope } = listInventoryQuerySchema.parse(req.query);
     res.json({ data: await inventoryService.list(req.restaurantId!, req.auth?.parentRestaurantId, locationScope) });
+  }),
+  alerts: asyncHandler(async (req: Request, res: Response) => {
+    const query = inventoryAlertsQuerySchema.parse(req.query);
+    res.json({ data: await inventoryService.alerts(req.restaurantId!, req.auth?.parentRestaurantId, query) });
   }),
   listPackaging: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await inventoryService.listPackaging(req.restaurantId!, req.auth?.parentRestaurantId) });

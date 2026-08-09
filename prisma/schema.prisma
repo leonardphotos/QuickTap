@@ -722,6 +722,11 @@ model Product {
   // stockQuantity null = sin control de stock; en 0 el producto se muestra agotado en el menú público.
   stockControlEnabled Boolean @default(false)
   stockQuantity       Int?
+  // A partir de cuántas unidades avisar "por agotarse" (Inventario → Alertas).
+  // Null/0 = solo avisa cuando llega a 0. Equivale a InventoryItem.minQuantity.
+  stockMinQuantity    Int?
+  // Fecha de caducidad, "YYYY-MM-DD" en hora de Caracas — ver InventoryItem.expiryDate.
+  expiryDate          String?
 
   // --- Envase (envase/caja/bolsa) ---
   // Cargo que se suma al total del pedido SOLO cuando el canal es DELIVERY o PICKUP
@@ -1929,6 +1934,12 @@ model InventoryItem {
   // Se recalcula al cargar un precio + cantidad desde el formulario de
   // insumos, y alimenta el cálculo automático del costo de receta.
   pricePerUnitBase Decimal? @db.Decimal(14, 4)
+
+  // Fecha de caducidad del lote en stock, "YYYY-MM-DD" en hora de Caracas.
+  // String y no DateTime a propósito: guardado como fecha UTC, un insumo que
+  // vence "el 3" se leería como el 2 en Venezuela (UTC-4). Mismo criterio que
+  // ShopProduct.expiryDate. Null = no caduca o no se lleva el control.
+  expiryDate String?
 
   // --- Envase (envase/caja/bolsa) ---
   // No nulo = este insumo está disponible para vincularse como envase de un producto

@@ -1,7 +1,7 @@
 import ExcelJS from 'exceljs';
 import { prisma } from '../../config/prisma';
 import { badRequest } from '../../utils/http-error';
-import { cellNumber, cellText, ImportResult, normalizeHeader, resolveColumns, styleTemplateHeader } from '../../utils/excel-import';
+import { ImportResult, cellDate, cellNumber, cellText, normalizeHeader, resolveColumns, styleTemplateHeader } from '../../utils/excel-import';
 import { effectiveInventoryRestaurantId } from './inventory-scope';
 import { inventoryService } from './inventory.service';
 import { CreateInventoryItemInput } from './inventory.dto';
@@ -15,7 +15,15 @@ import { CreateInventoryItemInput } from './inventory.dto';
  * posición: el archivo puede traer columnas de más, en otro orden, o con otro título.
  */
 
-const HEADERS = ['Nombre', 'Unidad (kg/lt/ml/unidad)', 'Cantidad', 'Cantidad mínima', 'Costo', 'Categoría'] as const;
+const HEADERS = [
+  'Nombre',
+  'Unidad (kg/lt/ml/unidad)',
+  'Cantidad',
+  'Cantidad mínima',
+  'Costo',
+  'Categoría',
+  'Caducidad (AAAA-MM-DD)',
+] as const;
 
 /** Sinónimos aceptados por columna. El primero de cada lista es el de la plantilla oficial. */
 const COLUMN_SPEC = {
@@ -25,6 +33,7 @@ const COLUMN_SPEC = {
   quantity: ['cantidad', 'stock', 'existencia', 'existencias'],
   price: ['costo', 'precio', 'costo unitario', 'precio unitario'],
   category: ['categoria', 'categoría', 'rubro', 'grupo'],
+  expiryDate: ['caducidad (aaaa-mm-dd)', 'caducidad', 'vencimiento', 'fecha de vencimiento', 'vence', 'expiracion', 'expiración'],
 };
 
 /**
@@ -50,7 +59,7 @@ function buildTemplate(): ExcelJS.Workbook {
   const sheet = workbook.addWorksheet('Insumos');
   sheet.columns = HEADERS.map((header) => ({ header, width: 22 }));
   styleTemplateHeader(sheet);
-  sheet.addRow(['Pan de hamburguesa', 'unidad', 100, 10, 15, 'Panadería']);
+  sheet.addRow(['Pan de hamburguesa', 'unidad', 100, 10, 15, 'Panadería', '2026-12-31']);
   return workbook;
 }
 
@@ -93,6 +102,7 @@ async function importFromExcel(
     const minQuantity = cellNumber(row, columns.minQuantity) ?? 0;
     const price = cellNumber(row, columns.price);
     const categoryName = cellText(row, columns.category);
+    const expiry = cellDate(row, columns.expiryDate);
 
     let categoryId: string | undefined;
     if (categoryName) {
@@ -113,6 +123,9 @@ async function importFromExcel(
       price,
       priceCurrency: 'BASE',
       categoryId: categoryId ?? null,
+      // undefined (columna ausente o vacía) deja la fecha que ya tenía el insumo;
+      // solo se pisa cuando la planilla trae una fecha de verdad.
+      expiryDate: expiry,
       locationScope: 'LOCAL',
     };
 

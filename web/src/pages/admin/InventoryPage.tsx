@@ -10,6 +10,8 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
 import { AddStockDialog } from '@/components/admin/AddStockDialog';
+import { InventoryAlertsTab } from '@/components/admin/InventoryAlertsTab';
+import { EXPIRY_CLASS, expiryLabel, expiryStatus } from '@/utils/expiry';
 import { UNIT_LABELS, SUB_UNITS } from '@/utils/inventoryUnits';
 
 interface InventoryCategory {
@@ -31,6 +33,8 @@ interface InventoryItem {
   // Envase: no nulo = este insumo se puede vincular como envase de un producto.
   packagingType?: 'ENVASE' | 'CAJA' | 'BOLSA' | null;
   salePriceBase?: string | null;
+  /** "YYYY-MM-DD" o null. Ver web/src/utils/expiry.ts. */
+  expiryDate?: string | null;
 }
 
 const PACKAGING_TYPE_LABELS: Record<string, string> = { ENVASE: 'Envase', CAJA: 'Caja', BOLSA: 'Bolsa' };
@@ -48,6 +52,7 @@ const emptyForm = {
   isPackaging: false,
   packagingType: 'ENVASE' as 'ENVASE' | 'CAJA' | 'BOLSA',
   salePrice: '',
+  expiryDate: '',
 };
 
 /** Inventario: insumos con stock directo ("normal", Pro+), o por receta vinculada al producto (solo Premium). */
@@ -62,6 +67,7 @@ export default function InventoryPage() {
     { id: 'insumos', label: 'Insumos (normal)' },
     ...(canRecipes ? [{ id: 'recetas', label: 'Recetas' }] : []),
     { id: 'stock', label: 'Stock de productos' },
+    { id: 'alertas', label: 'Alertas' },
     ...(showCasaMatriz ? [{ id: 'casa-matriz', label: 'Casa Matriz' }] : []),
     { id: 'transferencias', label: 'Transferencia de insumos' },
   ] as const;
@@ -127,6 +133,7 @@ export default function InventoryPage() {
       )}
       {tab === 'recetas' && canRecipes && <RecetasTab insumos={items ?? []} />}
       {tab === 'stock' && <StockTab />}
+      {tab === 'alertas' && <InventoryAlertsTab />}
       {tab === 'casa-matriz' && (
         <InsumosTab
           locationScope="CASA_MATRIZ"
@@ -146,6 +153,25 @@ export default function InventoryPage() {
 //  Stock de productos: contador simple por producto (independiente de insumos/receta),
 //  disponible para todos los planes.
 // -----------------------------------------------------------------------------
+
+
+/** Tres estados, iguales a los de Inventario → Alertas: sin existencias, por
+ * agotarse (por debajo del mínimo cargado) o con stock sano. */
+function stockLabel(p: Product): string {
+  const qty = p.stockQuantity ?? 0;
+  const min = p.stockMinQuantity ?? 0;
+  if (qty <= 0) return 'Agotado';
+  if (min > 0 && qty <= min) return 'Por agotarse';
+  return 'En stock';
+}
+
+function stockClass(p: Product): string {
+  const qty = p.stockQuantity ?? 0;
+  const min = p.stockMinQuantity ?? 0;
+  if (qty <= 0) return 'bg-red-100 text-red-700';
+  if (min > 0 && qty <= min) return 'bg-amber-100 text-amber-700';
+  return 'bg-emerald-100 text-emerald-700';
+}
 
 function StockTab() {
   const [products, setProducts] = useState<Product[] | null>(null);
@@ -227,26 +253,52 @@ function StockTab() {
                     </label>
                   </div>
                 </div>
-                {p.stockControlEnabled && (
-                  <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
+                  {/* La caducidad no depende del control de stock: un producto puede
+                      caducar aunque no se lleve la cuenta de cuántos quedan. */}
+                  <label className="flex flex-col items-end text-[10px] text-brand-950/45">
+                    Caduca
                     <input
-                      type="number"
-                      min="0"
-                      step="1"
-                      defaultValue={p.stockQuantity ?? 0}
+                      type="date"
+                      defaultValue={p.expiryDate ?? ''}
                       disabled={savingId === p.id}
-                      onBlur={(e) => patchProduct(p.id, { stockControlEnabled: true, stockQuantity: Number(e.target.value) || 0 })}
-                      className="w-20 border border-brand-950/15 rounded-lg px-2 py-1 text-sm text-right"
+                      onChange={(e) => patchProduct(p.id, { expiryDate: e.target.value })}
+                      className="mt-0.5 border border-brand-950/15 rounded-lg px-2 py-1 text-xs text-brand-950"
                     />
-                    <span
-                      className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
-                        (p.stockQuantity ?? 0) <= 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
-                      }`}
-                    >
-                      {(p.stockQuantity ?? 0) <= 0 ? 'Agotado' : 'En stock'}
-                    </span>
-                  </div>
-                )}
+                  </label>
+
+                  {p.stockControlEnabled && (
+                    <>
+                      <label className="flex flex-col items-end text-[10px] text-brand-950/45">
+                        Quedan
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          defaultValue={p.stockQuantity ?? 0}
+                          disabled={savingId === p.id}
+                          onBlur={(e) => patchProduct(p.id, { stockControlEnabled: true, stockQuantity: Number(e.target.value) || 0 })}
+                          className="mt-0.5 w-20 border border-brand-950/15 rounded-lg px-2 py-1 text-sm text-right"
+                        />
+                      </label>
+                      <label className="flex flex-col items-end text-[10px] text-brand-950/45">
+                        Mínimo
+                        <input
+                          type="number"
+                          min="0"
+                          step="1"
+                          defaultValue={p.stockMinQuantity ?? 0}
+                          disabled={savingId === p.id}
+                          onBlur={(e) => patchProduct(p.id, { stockMinQuantity: Number(e.target.value) || 0 })}
+                          className="mt-0.5 w-16 border border-brand-950/15 rounded-lg px-2 py-1 text-sm text-right"
+                        />
+                      </label>
+                      <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${stockClass(p)}`}>
+                        {stockLabel(p)}
+                      </span>
+                    </>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
@@ -391,6 +443,7 @@ function InsumosTab({
       isPackaging: !!item.packagingType,
       packagingType: item.packagingType ?? 'ENVASE',
       salePrice: item.salePriceBase ?? '',
+      expiryDate: item.expiryDate ?? '',
     });
   }
 
@@ -419,6 +472,8 @@ function InsumosTab({
         categoryId: form.categoryId || null,
         packagingType: form.isPackaging ? form.packagingType : null,
         salePrice: form.isPackaging ? Number(form.salePrice) || 0 : null,
+        // Cadena vacía = el backend la interpreta como "borrar la fecha".
+        expiryDate: form.expiryDate,
         locationScope,
       };
       if (editingId) {
@@ -618,6 +673,15 @@ function InsumosTab({
               type="number"
               step="0.01"
               min="0"
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            />
+          </label>
+          <label className="block text-sm sm:col-span-2">
+            <span className="text-brand-950/70">Fecha de caducidad (opcional)</span>
+            <input
+              value={form.expiryDate}
+              onChange={(e) => setForm({ ...form, expiryDate: e.target.value })}
+              type="date"
               className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
             />
           </label>
@@ -833,6 +897,14 @@ function InsumosTab({
                       {item.packagingType && (
                         <span className="text-[10px] font-medium uppercase tracking-wide text-brand-500 bg-brand-500/10 rounded-full px-2 py-0.5">
                           {PACKAGING_TYPE_LABELS[item.packagingType]}
+                        </span>
+                      )}
+                      {/* Solo se muestra cuando ya importa: un lote que vence dentro de meses no aporta ruido. */}
+                      {item.expiryDate && expiryStatus(item.expiryDate) !== 'OK' && (
+                        <span
+                          className={`text-[10px] font-bold rounded-full px-2 py-0.5 ${EXPIRY_CLASS[expiryStatus(item.expiryDate)]}`}
+                        >
+                          {expiryLabel(item.expiryDate)}
                         </span>
                       )}
                     </p>

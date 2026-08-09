@@ -44,6 +44,8 @@ const emptyForm = {
   sku: '',
   stockControlEnabled: false,
   stockQuantity: '',
+  stockMinQuantity: '',
+  expiryDate: '',
   packagingMode: 'NONE' as 'NONE' | 'FIXED' | 'INVENTORY',
   packagingFeeBase: '',
   packagingItemId: '',
@@ -102,6 +104,8 @@ export function ProductFormDialog({
         sku: product.sku ?? '',
         stockControlEnabled: product.stockControlEnabled ?? false,
         stockQuantity: product.stockQuantity != null ? String(product.stockQuantity) : '',
+        stockMinQuantity: product.stockMinQuantity != null ? String(product.stockMinQuantity) : '',
+        expiryDate: product.expiryDate ?? '',
         packagingMode: product.packagingMode ?? 'NONE',
         packagingFeeBase: product.packagingFeeBase ?? '',
         packagingItemId: product.packagingItemId ?? '',
@@ -158,6 +162,9 @@ export function ProductFormDialog({
         sku: form.sku.trim() || null,
         stockControlEnabled: form.stockControlEnabled,
         stockQuantity: form.stockControlEnabled ? Number(form.stockQuantity) || 0 : null,
+        stockMinQuantity: form.stockControlEnabled ? Number(form.stockMinQuantity) || 0 : null,
+        // Cadena vacía = el backend la interpreta como "borrar la fecha".
+        expiryDate: form.expiryDate,
         packagingMode: form.packagingMode,
         packagingFeeBase: form.packagingMode === 'FIXED' ? Number(form.packagingFeeBase) || 0 : null,
         packagingItemId: form.packagingMode === 'INVENTORY' ? form.packagingItemId || null : null,
@@ -548,16 +555,45 @@ export function ProductFormDialog({
           </div>
 
           {form.stockControlEnabled && (
-            <input
-              value={form.stockQuantity}
-              onChange={(e) => setForm({ ...form, stockQuantity: e.target.value.replace(/[^0-9]/g, '') })}
-              placeholder="Cantidad en stock"
-              type="number"
-              step="1"
-              min="0"
-              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-            />
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block text-sm">
+                <span className="text-brand-950/70">Cantidad en stock</span>
+                <input
+                  value={form.stockQuantity}
+                  onChange={(e) => setForm({ ...form, stockQuantity: e.target.value.replace(/[^0-9]/g, '') })}
+                  placeholder="0"
+                  type="number"
+                  step="1"
+                  min="0"
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                />
+              </label>
+              <label className="block text-sm">
+                <span className="text-brand-950/70">Avisar al llegar a</span>
+                <input
+                  value={form.stockMinQuantity}
+                  onChange={(e) => setForm({ ...form, stockMinQuantity: e.target.value.replace(/[^0-9]/g, '') })}
+                  placeholder="0"
+                  type="number"
+                  step="1"
+                  min="0"
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                />
+              </label>
+            </div>
           )}
+
+          {/* Independiente del control de stock: un producto puede caducar aunque
+              no se lleve la cuenta de cuántos quedan. */}
+          <label className="block text-sm">
+            <span className="text-brand-950/70">Fecha de caducidad (opcional)</span>
+            <input
+              value={form.expiryDate}
+              onChange={(e) => setForm({ ...form, expiryDate: e.target.value })}
+              type="date"
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            />
+          </label>
 
           <div className="rounded-xl border border-brand-950/10 p-4 space-y-3">
             <p className="text-sm font-medium text-brand-950">
