@@ -19,12 +19,25 @@ export const KIOSK_ROLES: UserRole[] = ['COMANDA'];
 // Numero: pantalla de solo lectura junto al mostrador, solo avisos de "listo"
 // de Autoservicio (Comanda) y Pickup.
 export const NUMERO_ROLES: UserRole[] = ['NUMERO'];
+// Cancha: tablet fija en una cancha de un club. El jugador escanea el QR de su
+// reserva y pide desde ahí; lo consumido se cobra en la Caja del club.
+export const CANCHA_ROLES: UserRole[] = ['CANCHA'];
 export const TEAM_MANAGER_ROLES: UserRole[] = ['OWNER', 'ADMIN'];
 // Quién puede condonar/descontar saldo al cobrar (campo "Descuento %" en Pagar/Pago fraccionado).
 export const DISCOUNT_ROLES: UserRole[] = ['OWNER', 'ADMIN'];
-export const ASSIGNABLE_TEAM_ROLES: UserRole[] = ['ADMIN', 'CASHIER', 'WAITER', 'KITCHEN', 'SCREEN', 'COMANDA', 'NUMERO'];
-// Roles a los que aplica la Pantalla de bloqueo — se excluyen SCREEN/COMANDA/NUMERO
-// (dispositivos compartidos: TV de cocina, kiosco de autoservicio, ticker de "listo").
+export const ASSIGNABLE_TEAM_ROLES: UserRole[] = [
+  'ADMIN',
+  'CASHIER',
+  'WAITER',
+  'KITCHEN',
+  'SCREEN',
+  'COMANDA',
+  'NUMERO',
+  'CANCHA',
+];
+// Roles a los que aplica la Pantalla de bloqueo — se excluyen SCREEN/COMANDA/NUMERO/CANCHA
+// (dispositivos compartidos: TV de cocina, kiosco de autoservicio, ticker de "listo",
+// tablet de la cancha).
 export const LOCK_SCREEN_ROLES: UserRole[] = ['OWNER', 'ADMIN', 'CASHIER', 'STAFF', 'WAITER', 'KITCHEN'];
 export const DEFAULT_LOCK_SCREEN_MINUTES = 5;
 
@@ -38,6 +51,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   SCREEN: 'Pantalla',
   COMANDA: 'Comanda',
   NUMERO: 'Numero',
+  CANCHA: 'Cancha',
 };
 
 // Rutas visibles según el rol. "*" habilita todas las rutas del admin.
@@ -82,6 +96,11 @@ export function isKioskRole(role?: UserRole | null): boolean {
 export function isNumeroRole(role?: UserRole | null): boolean {
   if (!role) return false;
   return NUMERO_ROLES.includes(role);
+}
+
+export function isCanchaRole(role?: UserRole | null): boolean {
+  if (!role) return false;
+  return CANCHA_ROLES.includes(role);
 }
 
 export function canManageTeam(role?: UserRole | null): boolean {

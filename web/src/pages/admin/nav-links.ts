@@ -4,6 +4,7 @@ import {
   Building2,
   CalendarDays,
   ChefHat,
+  CircleDot,
   CircleDollarSign,
   ClipboardList,
   FileText,
@@ -64,6 +65,9 @@ export const SUCURSALES_NAV_LINK: AdminNavLink = { to: '/admin/sucursales', labe
 export const RESERVATIONS_NAV_LINK: AdminNavLink = { to: '/admin/reservations', label: 'Reservas', icon: CalendarDays };
 // Presupuestos/cotizaciones: un total para aprobar sin cobrar ni tocar cocina todavía.
 export const QUOTES_NAV_LINK: AdminNavLink = { to: '/admin/quotes', label: 'Cotizaciones', icon: FileText };
+// Pedidos que llegan desde las canchas de un club vinculado (Ajustes → Vincular canchas).
+// Solo aparece si hay al menos un club vinculado (Restaurant.linkedClubs).
+export const CLUB_ORDERS_NAV_LINK: AdminNavLink = { to: '/admin/canchas', label: 'Canchas', icon: CircleDot };
 
 const RESTRICTED_VISIBLE = new Set(['/admin/comandas', '/admin/kitchen', '/admin/table-orders']);
 // Plan Solo Delivery: sin mesas, así que estas pestañas no aportan nada.
@@ -78,6 +82,8 @@ interface NavRestaurant {
   customInventoryRecipe?: boolean;
   customAccountsPayable?: boolean;
   parentRestaurantId?: string | null;
+  /** Cuántos clubes deportivos le mandan sus pedidos a este restaurante. */
+  linkedClubs?: number;
 }
 
 export function visibleNavLinks(
@@ -99,6 +105,13 @@ export function visibleNavLinks(
   }
   if (isDeliveryTierPlan(restaurant?.subscriptionPlan)) {
     links = links.filter((l) => !DELIVERY_HIDDEN.has(l.to));
+  }
+  // "Canchas" va justo al lado de Delivery: las dos son colas de pedidos que
+  // salen del local. Solo existe si algún club canjeó el código de vinculación.
+  if (!isRestricted && (restaurant?.linkedClubs ?? 0) > 0) {
+    const deliveryIndex = links.findIndex((l) => l.to === '/admin/delivery');
+    const at = deliveryIndex >= 0 ? deliveryIndex + 1 : links.length;
+    links = [...links.slice(0, at), CLUB_ORDERS_NAV_LINK, ...links.slice(at)];
   }
   if (!isRestricted && !isAdminCashier(role, cashierFullAccess)) {
     links = links.filter((l) => !STAFF_HIDDEN.has(l.to));

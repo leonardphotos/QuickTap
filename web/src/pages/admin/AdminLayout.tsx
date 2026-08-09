@@ -18,7 +18,16 @@ import { usePendingReservationsCount } from '../../hooks/usePendingReservations'
 import { useLowStockItems } from '../../hooks/useLowStockItems';
 import { useLockScreen } from '../../hooks/useLockScreen';
 import { useIsLandscapeTablet } from '../../hooks/useIsLandscapeTablet';
-import { RESTRICTED_ROLES, canAccessPath, defaultPathFor, isAdminCashier, isKioskRole, isNumeroRole, isScreenRole } from '../../utils/roles';
+import {
+  RESTRICTED_ROLES,
+  canAccessPath,
+  defaultPathFor,
+  isAdminCashier,
+  isCanchaRole,
+  isKioskRole,
+  isNumeroRole,
+  isScreenRole,
+} from '../../utils/roles';
 import { daysRemaining, graceHoursRemaining, hasFeature } from '../../utils/subscription';
 import { visibleNavLinks } from './nav-links';
 
@@ -28,6 +37,7 @@ const ComandaKioskPage = lazy(() => import('./ComandaKioskPage'));
 const NumeroPage = lazy(() => import('./NumeroPage'));
 const ShopLayout = lazy(() => import('./shop/ShopLayout'));
 const ClubLayout = lazy(() => import('./club/ClubLayout'));
+const ClubTabletPage = lazy(() => import('./club/ClubTabletPage'));
 
 export default function AdminLayout() {
   const { user, restaurant, loading, logout } = useAuth();
@@ -90,6 +100,11 @@ export default function AdminLayout() {
   // Club deportivo (canchas): mismo criterio que Locales — panel propio, con su
   // navegación interna (Calendario / Reservas / Acceso / Canchas).
   if (restaurant.businessType === 'SPORTS_CLUB') {
+    // Tablet fija de una cancha: kiosco a pantalla completa, sin nada del panel.
+    // Va antes que ClubLayout porque este rol no tiene panel que mostrar.
+    if (isCanchaRole(user.role)) {
+      return <ClubTabletPage />;
+    }
     return <ClubLayout />;
   }
 

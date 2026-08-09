@@ -37,13 +37,27 @@ export const TEAM_MANAGER_ROLES = ['OWNER', 'ADMIN'] as const;
 // (campo "Descuento %" en Pagar/Pago fraccionado). Cajero/Mesero no pueden.
 export const DISCOUNT_ROLES = ['OWNER', 'ADMIN'] as const;
 
+// Cancha: tablet fija en una cancha de un club deportivo. El jugador escanea el
+// QR de su reserva y pide desde ahí; lo consumido se suma a su cuenta y se cobra
+// en la Caja del club. Solo existe en tenants SPORTS_CLUB.
+export const CANCHA_ROLES = ['CANCHA'] as const;
+
 // Roles asignables desde la UI de Equipo (OWNER/STAFF no se asignan ahí).
-export const ASSIGNABLE_TEAM_ROLES = ['ADMIN', 'CASHIER', 'WAITER', 'KITCHEN', 'SCREEN', 'COMANDA', 'NUMERO'] as const;
+export const ASSIGNABLE_TEAM_ROLES = [
+  'ADMIN',
+  'CASHIER',
+  'WAITER',
+  'KITCHEN',
+  'SCREEN',
+  'COMANDA',
+  'NUMERO',
+  'CANCHA',
+] as const;
 
 // Roles a los que aplica la Pantalla de bloqueo (PIN de 4 dígitos). Se excluyen
-// SCREEN/COMANDA/NUMERO porque son dispositivos compartidos de un solo uso (TV de cocina,
-// kiosco de autoservicio, ticker de "listo") — bloquearlos periódicamente interrumpiría a
-// clientes/pantallas públicas en vez de proteger la sesión de un miembro del equipo.
+// SCREEN/COMANDA/NUMERO/CANCHA porque son dispositivos compartidos de un solo uso (TV de cocina,
+// kiosco de autoservicio, ticker de "listo", tablet de la cancha) — bloquearlos periódicamente
+// interrumpiría a clientes/pantallas públicas en vez de proteger la sesión de un miembro del equipo.
 export const LOCK_SCREEN_ROLES = ['OWNER', 'ADMIN', 'CASHIER', 'STAFF', 'WAITER', 'KITCHEN'] as const;
 
 // Minutos de inactividad por defecto cuando el rol no tiene un valor propio en

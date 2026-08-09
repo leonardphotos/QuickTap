@@ -185,6 +185,14 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
     exchangeRate = null;
   }
 
+  // Un restaurante solo ve la pestaña "Canchas" si de verdad tiene algún club
+  // vinculado (ver ClubRestaurantLink). Consulta aparte para no tocar el select
+  // de RestaurantRow, que comparten login / registro / /auth/me.
+  const linkedClubs =
+    restaurant.businessType === 'SPORTS_CLUB'
+      ? 0
+      : await prisma.clubRestaurantLink.count({ where: { restaurantId: restaurant.id } });
+
   return {
     id: restaurant.id,
     slug: restaurant.slug,
@@ -239,6 +247,7 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
     pendingWelcomePlan: restaurant.pendingWelcomePlan,
     hasDeleteOrderPin: !!restaurant.deleteOrderPinHash,
     lockScreenIntervals: (restaurant.lockScreenIntervals as Record<string, number>) ?? {},
+    linkedClubs,
     locked: await isLockedAsync(restaurant),
   };
 }

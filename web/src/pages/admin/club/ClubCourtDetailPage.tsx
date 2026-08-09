@@ -156,7 +156,14 @@ export default function ClubCourtDetailPage({ courtId, restaurant, canBook, onBa
                   >
                     {BOOKING_STATUS_LABELS[b.status]}
                   </span>
-                  <p className="shrink-0 text-[14px] font-bold text-brand-950">{money(b.totalBase)}</p>
+                  <div className="shrink-0 text-right">
+                    <p className="text-[14px] font-bold text-brand-950">{money(b.dueBase)}</p>
+                    {Number(b.consumoBase) > 0 && (
+                      <p className="text-[10px] font-light text-brand-950/45">
+                        cancha {money(b.totalBase)} + consumo {money(b.consumoBase)}
+                      </p>
+                    )}
+                  </div>
                   {canBook && cancelable && (
                     <button
                       onClick={async () => {
@@ -181,7 +188,7 @@ export default function ClubCourtDetailPage({ courtId, restaurant, canBook, onBa
                       <>
                         {Number(b.paidBase) > 0 && (
                           <p className="mb-1.5 text-[11px] font-light text-brand-950/40">
-                            Pagado {money(b.paidBase)} de {money(b.totalBase)} · falta {money(b.balanceBase)}
+                            Pagado {money(b.paidBase)} de {money(b.dueBase)} · falta {money(b.balanceBase)}
                           </p>
                         )}
                         <div className="grid grid-cols-3 gap-1.5">

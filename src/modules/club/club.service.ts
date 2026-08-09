@@ -41,16 +41,43 @@ function minutesToHhmm(total: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-/** Adjunta paidBase/balanceBase a una reserva que trae `payments` incluidos — la
- * Caja (Pagar/Fraccionado/Deuda) y el ticket QR lo necesitan para saber cuánto
- * falta cobrar. Sin descuentos ni ajuste de servicio (a diferencia de Order): la
- * reserva es una sola línea. */
-function withBookingMoney<T extends { totalBase: Prisma.Decimal; payments: { amountBase: Prisma.Decimal }[] }>(
-  booking: T,
-) {
+/** Todo lo que la reserva incluye para efectos de dinero: la cancha, más lo que
+ * el jugador fue pidiendo desde la tablet. Las tres consultas que cobran tienen
+ * que traer las dos cosas o el saldo sale mal. */
+const bookingMoneyInclude = {
+  payments: { orderBy: { createdAt: 'asc' } },
+  tabOrders: { where: { status: { not: 'CANCELLED' } }, include: { items: true } },
+} satisfies Prisma.ClubBookingInclude;
+
+/** Adjunta consumo/total/pagado/saldo a una reserva que trae `payments` (y, si
+ * corresponde, `tabOrders`) incluidos — la Caja (Pagar/Fraccionado/Deuda) y el
+ * ticket QR lo necesitan para saber cuánto falta cobrar.
+ *
+ * `dueBase` = cancha + consumo de la tablet. El consumo se cobra acá y no en el
+ * restaurante vinculado: a él le llega la comanda para preparar, no la venta.
+ * Sin descuentos ni ajuste de servicio (a diferencia de Order). */
+function withBookingMoney<
+  T extends {
+    totalBase: Prisma.Decimal;
+    payments: { amountBase: Prisma.Decimal }[];
+    tabOrders?: { totalBase: Prisma.Decimal; status: string }[];
+  },
+>(booking: T) {
+  const consumoBase = round2(
+    (booking.tabOrders ?? [])
+      .filter((o) => o.status !== 'CANCELLED')
+      .reduce((acc, o) => acc.add(o.totalBase), toDecimal(0)),
+  );
+  const dueBase = round2(booking.totalBase.add(consumoBase));
   const paidBase = round2(booking.payments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0)));
-  const balanceBase = round2(Prisma.Decimal.max(0, booking.totalBase.sub(paidBase)));
-  return { ...booking, paidBase: paidBase.toFixed(2), balanceBase: balanceBase.toFixed(2) };
+  const balanceBase = round2(Prisma.Decimal.max(0, dueBase.sub(paidBase)));
+  return {
+    ...booking,
+    consumoBase: consumoBase.toFixed(2),
+    dueBase: dueBase.toFixed(2),
+    paidBase: paidBase.toFixed(2),
+    balanceBase: balanceBase.toFixed(2),
+  };
 }
 
 async function resolveRestaurantBySlug(slug: string) {
@@ -322,7 +349,7 @@ export const clubService = {
     }
     const bookings = await prisma.clubBooking.findMany({
       where,
-      include: { block: { include: { court: true } }, payments: { orderBy: { createdAt: 'asc' } } },
+      include: { block: { include: { court: true } }, ...bookingMoneyInclude },
       orderBy: { createdAt: 'desc' },
       take: 200,
     });
@@ -340,7 +367,7 @@ export const clubService = {
       return tx.clubBooking.update({
         where: { id },
         data: { status: 'CANCELLED', cancelledAt: new Date() },
-        include: { block: { include: { court: true } }, payments: { orderBy: { createdAt: 'asc' } } },
+        include: { block: { include: { court: true } }, ...bookingMoneyInclude },
       });
     });
     emitToKitchen(restaurantId, SocketEvents.CLUB_BOOKING_UPDATED, { id });
@@ -358,13 +385,17 @@ export const clubService = {
     return prisma.$transaction(async (tx) => {
       const booking = await tx.clubBooking.findFirst({
         where: { id: bookingId, restaurantId },
-        include: { payments: true },
+        include: bookingMoneyInclude,
       });
       if (!booking) throw notFound('Reserva no encontrada.');
       if (booking.status === 'CANCELLED') throw badRequest('No se puede registrar un cobro en una reserva cancelada.');
 
+      // El tope es cancha + consumo de la tablet, no solo la cancha: si el
+      // jugador pidió dos aguas, recepción tiene que poder cobrarlas acá.
+      const consumo = booking.tabOrders.reduce((acc, o) => acc.add(o.totalBase), toDecimal(0));
+      const due = round2(booking.totalBase.add(consumo));
       const alreadyPaid = booking.payments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0));
-      const balance = round2(booking.totalBase.sub(alreadyPaid));
+      const balance = round2(due.sub(alreadyPaid));
       const amountBase = toDecimal(input.amountBase);
       if (amountBase.gt(balance.add(0.01))) {
         throw badRequest(`El monto no puede superar el saldo pendiente (${balance.toFixed(2)}).`);
@@ -381,11 +412,11 @@ export const clubService = {
       });
 
       const settled = round2(alreadyPaid.add(amountBase));
-      const fullyPaid = settled.gte(booking.totalBase);
+      const fullyPaid = settled.gte(due);
       const updated = await tx.clubBooking.update({
         where: { id: bookingId },
         data: fullyPaid ? { awaitingPayment: false } : {},
-        include: { block: { include: { court: true } }, payments: { orderBy: { createdAt: 'asc' } } },
+        include: { block: { include: { court: true } }, ...bookingMoneyInclude },
       });
       return withBookingMoney(updated);
     }).then((booking) => {
@@ -402,7 +433,7 @@ export const clubService = {
     const updated = await prisma.clubBooking.update({
       where: { id: bookingId },
       data: { awaitingPayment },
-      include: { block: { include: { court: true } }, payments: { orderBy: { createdAt: 'asc' } } },
+      include: { block: { include: { court: true } }, ...bookingMoneyInclude },
     });
     emitToKitchen(restaurantId, SocketEvents.CLUB_BOOKING_UPDATED, { id: bookingId });
     return withBookingMoney(updated);
@@ -415,7 +446,7 @@ export const clubService = {
       where: { accessToken },
       include: {
         block: { include: { court: true } },
-        payments: { orderBy: { createdAt: 'asc' } },
+        ...bookingMoneyInclude,
         // El ticket se pinta con los colores del club, igual que la portada.
         restaurant: { select: { name: true, slug: true, logoUrl: true, theme: true } },
       },
@@ -563,7 +594,7 @@ export const clubService = {
       prisma.clubCourtBlock.findMany({
         where: { restaurantId, status: 'ACTIVE', endsAt: { gt: now }, startsAt: { lt: dayEnd } },
         orderBy: { startsAt: 'asc' },
-        include: { booking: { include: { payments: true } } },
+        include: { booking: { include: bookingMoneyInclude } },
       }),
     ]);
 
@@ -633,6 +664,10 @@ export const clubService = {
                       totalBase: current.booking.totalBase.toString(),
                       totalBs: current.booking.totalBs.toString(),
                       requestedExtras: current.booking.requestedExtras,
+                      // Lo pedido desde la tablet de la cancha: se cobra en esta
+                      // misma Caja, así que el saldo ya lo trae sumado.
+                      consumoBase: bookingMoney!.consumoBase,
+                      dueBase: bookingMoney!.dueBase,
                       paidBase: bookingMoney!.paidBase,
                       balanceBase: bookingMoney!.balanceBase,
                     }

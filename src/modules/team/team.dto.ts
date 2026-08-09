@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 // Roles asignables desde la UI de Equipo (OWNER/STAFF no se asignan aquí).
-const assignableRoleSchema = z.enum(['ADMIN', 'CASHIER', 'WAITER', 'KITCHEN', 'SCREEN', 'COMANDA', 'NUMERO']);
+const assignableRoleSchema = z.enum(['ADMIN', 'CASHIER', 'WAITER', 'KITCHEN', 'SCREEN', 'COMANDA', 'NUMERO', 'CANCHA']);
 
 // Datos de cobro propios de un profesional (barbero/estilista) — mismo formato que
 // Restaurant.paymentMethodsConfig, para que el POS los pinte con el mismo componente.

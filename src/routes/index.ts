@@ -51,6 +51,8 @@ import branchRoutes from '../modules/branches/branch.routes';
 import aiPhotoRoutes from '../modules/ai-photo/ai-photo.routes';
 import shopRoutes from '../modules/shop/shop.routes';
 import clubRoutes, { publicClubRoutes } from '../modules/club/club.routes';
+import clubLinkRoutes from '../modules/club-link/club-link.routes';
+import clubTabletRoutes from '../modules/club-tablet/club-tablet.routes';
 import { tenantFiscalInvoicingRoutes, masterFiscalInvoicingRoutes } from '../modules/fiscal-invoicing/fiscal-invoicing.routes';
 
 /**
@@ -102,6 +104,10 @@ router.use('/branches', branchRoutes);
 router.use('/ai-photo', aiPhotoRoutes);
 router.use('/shop', shopRoutes);
 router.use('/club', clubRoutes);
+// Puente club <-> restaurante: el vínculo por código y la cola de comandas de las canchas.
+router.use('/club-link', clubLinkRoutes);
+// Tablet fija de la cancha (rol CANCHA): el jugador escanea su QR y pide desde ahí.
+router.use('/club-tablet', clubTabletRoutes);
 router.use('/fiscal-invoicing', tenantFiscalInvoicingRoutes);
 
 // --- Público ---

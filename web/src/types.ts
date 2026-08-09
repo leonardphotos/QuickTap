@@ -1,6 +1,16 @@
 export type Currency = 'USD' | 'EUR';
 
-export type UserRole = 'OWNER' | 'STAFF' | 'ADMIN' | 'CASHIER' | 'WAITER' | 'KITCHEN' | 'SCREEN' | 'COMANDA' | 'NUMERO';
+export type UserRole =
+  | 'OWNER'
+  | 'STAFF'
+  | 'ADMIN'
+  | 'CASHIER'
+  | 'WAITER'
+  | 'KITCHEN'
+  | 'SCREEN'
+  | 'COMANDA'
+  | 'NUMERO'
+  | 'CANCHA';
 
 export interface ExchangeRateInfo {
   rateBs: string;

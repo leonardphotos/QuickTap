@@ -60,7 +60,12 @@ export interface ClubBooking {
   playerCount: number;
   totalBase: string;
   totalBs: string;
-  // Derivados de `payments` en el servidor — nunca se recalculan en el cliente.
+  // Derivados en el servidor de `payments` + los pedidos hechos desde la tablet
+  // de la cancha — nunca se recalculan en el cliente.
+  /** Lo pedido desde la tablet (comida, bebida, tienda). */
+  consumoBase: string;
+  /** Cancha + consumo: lo que hay que cobrar en total. */
+  dueBase: string;
   paidBase: string;
   balanceBase: string;
   status: ClubBookingStatus;
@@ -111,6 +116,8 @@ export interface PanelCourt {
       awaitingPayment: boolean;
       totalBase: string;
       totalBs: string;
+      consumoBase: string;
+      dueBase: string;
       paidBase: string;
       balanceBase: string;
       requestedExtras: { id: string; name: string; quantity: number }[] | null;

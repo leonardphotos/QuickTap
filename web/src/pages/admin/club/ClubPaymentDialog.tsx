@@ -185,6 +185,14 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
               <span className="text-brand-950/40">Equivalente</span>
               <span className="text-brand-950/50">{formatBsAbsolute(booking.totalBs)}</span>
             </div>
+            {/* Lo que el jugador pidió desde la tablet de la cancha: se cobra
+                acá junto con la hora, no en el restaurante que lo preparó. */}
+            {Number(booking.consumoBase) > 0 && (
+              <div className="flex items-center justify-between border-t border-brand-950/[0.06] pt-1.5 text-sm">
+                <span className="text-brand-950/60">Consumo en cancha</span>
+                <span className="font-semibold text-brand-950">{formatBase(booking.consumoBase, symbol)}</span>
+              </div>
+            )}
           </div>
 
           {paidBase > 0 && (

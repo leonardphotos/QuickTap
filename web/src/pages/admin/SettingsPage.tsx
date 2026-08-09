@@ -25,6 +25,7 @@ import { TeamSection } from '@/components/admin/TeamSection';
 import { ThemeSection } from '@/components/admin/ThemeSection';
 import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection';
 import { DesktopShortcutSection } from '@/components/admin/DesktopShortcutSection';
+import { ClubLinkSection } from '@/components/admin/ClubLinkSection';
 import { WhatsappMessageSection } from '@/components/admin/WhatsappMessageSection';
 import { WhatsappBotSection } from '@/components/admin/WhatsappBotSection';
 import { CheckoutSettingsSection } from '@/components/admin/CheckoutSettingsSection';
@@ -252,6 +253,7 @@ export default function SettingsPage() {
         <RestaurantInfoSection />
         <DesktopShortcutSection />
         <ScheduleSection />
+        {isManager && <FullWidth><ClubLinkSection /></FullWidth>}
       </SettingsCategory>
 
       <SettingsCategory id="whatsapp" title="WhatsApp" icon={<MessageCircle className="h-4 w-4" />} open={openCategory === 'whatsapp'} onToggle={toggleCategory}>

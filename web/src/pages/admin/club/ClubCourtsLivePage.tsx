@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronRight, Clock, CreditCard, ShoppingBag, SplitSquareHorizontal, Users } from 'lucide-react';
+import { ChevronRight, Clock, CreditCard, ShoppingBag, SplitSquareHorizontal, Users, Utensils } from 'lucide-react';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { formatBase } from '@/utils/format';
 import { cn } from '@/lib/utils';
@@ -26,6 +26,8 @@ function toPayable(c: PanelCourt): ClubBooking | null {
     playerCount: b.playerCount,
     totalBase: b.totalBase,
     totalBs: b.totalBs,
+    consumoBase: b.consumoBase,
+    dueBase: b.dueBase,
     paidBase: b.paidBase,
     balanceBase: b.balanceBase,
     status: b.status,
@@ -174,6 +176,18 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt, canPay }: 
                     ) : (
                       <p className="mt-2.5 text-[12px] font-light text-brand-950/35">Sin cuenta abierta en tienda</p>
                     )}
+
+                    {/* Lo pedido desde la tablet de la cancha. Va aparte de la
+                        cuenta de tienda: esto ya está sumado a la reserva. */}
+                    {cur.booking && Number(cur.booking.consumoBase) > 0 && (
+                      <div className="mt-2 flex items-center gap-2 rounded-2xl bg-brand-500/[0.08] px-3.5 py-2.5">
+                        <Utensils className="h-4 w-4 shrink-0 text-brand-500" />
+                        <span className="text-[12px] font-semibold text-brand-950/70">Consumo en cancha</span>
+                        <span className="ml-auto text-[14px] font-bold text-brand-950">
+                          {money(Number(cur.booking.consumoBase))}
+                        </span>
+                      </div>
+                    )}
                   </>
                 ) : c.busy && cur ? (
                   <p className="text-[13px] font-light text-brand-950/60">
@@ -208,7 +222,7 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt, canPay }: 
                   <>
                     {Number(payable.paidBase) > 0 && (
                       <p className="mb-1.5 text-[11px] font-light text-brand-950/40">
-                        Pagado {money(Number(payable.paidBase))} de {money(Number(payable.totalBase))} · falta{' '}
+                        Pagado {money(Number(payable.paidBase))} de {money(Number(payable.dueBase))} · falta{' '}
                         {money(Number(payable.balanceBase))}
                       </p>
                     )}

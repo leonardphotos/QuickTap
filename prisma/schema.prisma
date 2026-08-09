@@ -34,6 +34,7 @@ enum UserRole {
   SCREEN // Pantalla (vista horizontal de Mesas + Cocina, para un monitor/TV)
   COMANDA // Kiosco de autoservicio (tablet en modo tótem, el cliente pide sin mesero)
   NUMERO // Pantalla que solo muestra avisos de "listo" de Autoservicio/Pickup (mostrador)
+  CANCHA // Tablet fija en una cancha (club deportivo): el jugador escanea su QR y pide desde ahí
 }
 
 enum TableSessionStatus {
@@ -512,6 +513,15 @@ model Restaurant {
   clubSchedules ClubSchedule[]
   clubBlocks    ClubCourtBlock[]
   clubBookings  ClubBooking[]
+  clubTabOrders ClubTabOrder[]   @relation("ClubTabOrderClub")
+
+  // --- Vínculo club ↔ restaurante: el club terceriza la cocina/barra en un
+  // restaurante de QuickTap, que recibe las comandas de las canchas. Los dos
+  // lados son un Restaurant, de ahí los nombres explícitos de relación. ---
+  clubLinkCodes          ClubLinkCode[]       @relation("ClubLinkCodeRestaurant")
+  clubLinkAsClub         ClubRestaurantLink?  @relation("ClubRestaurantLinkClub")
+  clubLinksAsKitchen     ClubRestaurantLink[] @relation("ClubRestaurantLinkRestaurant")
+  clubTabOrdersToPrepare ClubTabOrder[]       @relation("ClubTabOrderKitchen")
 
   @@index([parentRestaurantId])
   @@map("restaurants")
@@ -2490,6 +2500,9 @@ model ClubBooking {
   block      ClubCourtBlock       @relation(fields: [blockId], references: [id], onDelete: Cascade)
   customer   Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
   payments   ClubBookingPayment[]
+  // Lo que el jugador fue pidiendo desde la tablet de la cancha. Se cobra junto
+  // con la cancha en la misma Caja — ver `withBookingMoney` en club.service.ts.
+  tabOrders  ClubTabOrder[]
 
   @@index([restaurantId, status])
   @@index([restaurantId, createdAt])
@@ -2515,4 +2528,118 @@ model ClubBookingPayment {
 
   @@index([bookingId])
   @@map("club_booking_payments")
+}
+
+// ============================================================================
+//  Vínculo club ↔ restaurante y consumo en cancha
+// ============================================================================
+//  Un club deportivo casi nunca cocina: terceriza la barra/cocina en un
+//  restaurante vecino que ya usa QuickTap. El restaurante genera un código en
+//  sus Ajustes, el club lo canjea en los suyos, y a partir de ahí las comandas
+//  que los jugadores piden desde la tablet de la cancha le llegan al
+//  restaurante con el nombre de la cancha haciendo de "mesa".
+//
+//  El dinero NO cambia de tenant: el consumo se suma a la reserva y se cobra en
+//  la Caja del club, junto con la cancha. Al restaurante le llega la comanda
+//  para preparar y llevar, no una venta.
+// ============================================================================
+
+/// Código de un solo uso que el restaurante genera para que un club se vincule.
+/// Vive 1 hora (ver CLUB_LINK_CODE_TTL_MINUTES en club-link.service.ts).
+model ClubLinkCode {
+  id           String    @id @default(cuid())
+  restaurantId String
+  code         String    @unique
+  expiresAt    DateTime
+  usedAt       DateTime?
+  usedByClubId String?
+  createdAt    DateTime  @default(now())
+
+  restaurant Restaurant @relation("ClubLinkCodeRestaurant", fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, expiresAt])
+  @@map("club_link_codes")
+}
+
+/// Vínculo activo. Un club tiene un solo restaurante que le prepara los pedidos
+/// (de ahí el @unique en clubId); un restaurante sí puede atender varios clubes.
+model ClubRestaurantLink {
+  id           String   @id @default(cuid())
+  clubId       String   @unique
+  restaurantId String
+  createdAt    DateTime @default(now())
+
+  club       Restaurant @relation("ClubRestaurantLinkClub", fields: [clubId], references: [id], onDelete: Cascade)
+  restaurant Restaurant @relation("ClubRestaurantLinkRestaurant", fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+  @@map("club_restaurant_links")
+}
+
+enum ClubTabOrderStatus {
+  PENDING // recién pedido desde la tablet
+  PREPARING // el restaurante lo aceptó
+  DELIVERED // ya se llevó a la cancha
+  CANCELLED
+}
+
+enum ClubTabItemSource {
+  CLUB_STORE // ShopProduct del propio club (descuenta stock)
+  RESTAURANT // Product del restaurante vinculado (genera comanda, no toca stock del club)
+}
+
+/// Un pedido hecho desde la tablet de la cancha. Vive en el tenant del CLUB
+/// (`restaurantId`), porque ahí es donde se cobra. `kitchenRestaurantId` es el
+/// restaurante vinculado que debe prepararlo: lo resuelve el servidor desde
+/// ClubRestaurantLink, nunca llega del cliente.
+model ClubTabOrder {
+  id           String             @id @default(cuid())
+  restaurantId String
+  bookingId    String
+  /// Snapshot del nombre de la cancha ("Cancha 2") — es la "mesa" que ve el
+  /// restaurante para saber a dónde llevar los productos. Congelado a propósito:
+  /// si luego renombran la cancha, la comanda vieja no debe cambiar.
+  courtName    String
+  status       ClubTabOrderStatus @default(PENDING)
+
+  totalBase    Decimal @db.Decimal(12, 2)
+  exchangeRate Decimal @db.Decimal(12, 4)
+  totalBs      Decimal @db.Decimal(14, 2)
+
+  kitchenRestaurantId String?
+  deliveredAt         DateTime?
+  createdAt           DateTime  @default(now())
+
+  restaurant Restaurant    @relation("ClubTabOrderClub", fields: [restaurantId], references: [id], onDelete: Cascade)
+  kitchen    Restaurant?   @relation("ClubTabOrderKitchen", fields: [kitchenRestaurantId], references: [id], onDelete: SetNull)
+  booking    ClubBooking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  items      ClubTabItem[]
+
+  @@index([restaurantId, status])
+  @@index([bookingId])
+  @@index([kitchenRestaurantId, status])
+  @@map("club_tab_orders")
+}
+
+/// Línea de un pedido de cancha. Congela nombre y precio al momento del pedido,
+/// igual que OrderItem — el catálogo puede cambiar después.
+model ClubTabItem {
+  id              String            @id @default(cuid())
+  tabOrderId      String
+  source          ClubTabItemSource
+  /// ShopProduct.id o Product.id según `source`. Informativo, sin FK: el producto
+  /// del restaurante vive en otro tenant y puede borrarse.
+  sourceProductId String?
+  /// Variante del ShopProduct a descontar (los productos de la tienda del club
+  /// se crean con una única variante "Unidad" — ver clubStoreApi.ts).
+  variantV1       String?
+  productName     String
+  unitPrice       Decimal           @db.Decimal(12, 2)
+  quantity        Int               @default(1)
+  lineTotal       Decimal           @db.Decimal(12, 2)
+
+  order ClubTabOrder @relation(fields: [tabOrderId], references: [id], onDelete: Cascade)
+
+  @@index([tabOrderId])
+  @@map("club_tab_items")
 }

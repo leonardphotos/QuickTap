@@ -33,6 +33,9 @@ export interface AuthRestaurant {
   currencySymbol: string;
   exchangeRate: ExchangeRateInfo | null;
   theme?: RestaurantTheme | null;
+  /** Cuántos clubes deportivos vinculados le mandan pedidos de sus canchas. En 0
+   * (lo normal) la pestaña "Canchas" no existe — ver nav-links.ts. */
+  linkedClubs: number;
   /** Entorno Demo Efímero: cuenta de demostración, se resetea sola al cerrar sesión. */
   isDemo: boolean;
   /** Modo administrador activado (código de 4 dígitos en Ajustes): exime del reset automático. */

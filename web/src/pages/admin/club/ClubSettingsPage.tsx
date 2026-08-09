@@ -7,6 +7,8 @@ import { PaymentMethodsSection } from '@/components/admin/PaymentMethodsSection'
 import { LockScreenSettingsSection } from '@/components/admin/LockScreenSettingsSection';
 import { canManageTeam } from '@/utils/roles';
 import { ClubBrandingSection } from './ClubBrandingSection';
+import { ClubKitchenLinkSection } from './ClubKitchenLinkSection';
+import { ClubTabletsSection } from './ClubTabletsSection';
 
 /**
  * Ajustes del club. Reutiliza las mismas secciones generales del panel de
@@ -47,6 +49,8 @@ export default function ClubSettingsPage() {
 
       <RestaurantInfoSection />
       <ClubBrandingSection />
+      {canManageTeam(user.role) && <ClubKitchenLinkSection />}
+      {canManageTeam(user.role) && <ClubTabletsSection />}
       <PaymentMethodsSection descriptionOverride="Elige qué métodos aceptas al cobrar una reserva, y sus datos para que tus jugadores sepan a dónde pagar." />
       {canManageTeam(user.role) && <LockScreenSettingsSection />}
 

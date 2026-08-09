@@ -18,6 +18,7 @@ const DashboardPage = lazy(() => import('./pages/admin/DashboardPage'));
 const ComandasPage = lazy(() => import('./pages/admin/ComandasPage'));
 const KitchenPage = lazy(() => import('./pages/admin/KitchenPage'));
 const DeliveryPage = lazy(() => import('./pages/admin/DeliveryPage'));
+const ClubOrdersPage = lazy(() => import('./pages/admin/ClubOrdersPage'));
 const ProductsPage = lazy(() => import('./pages/admin/ProductsPage'));
 const TablesPage = lazy(() => import('./pages/admin/TablesPage'));
 const TableOrdersPage = lazy(() => import('./pages/admin/TableOrdersPage'));
@@ -98,6 +99,8 @@ export default function App() {
               <Route path="comandas" element={<ComandasPage />} />
               <Route path="kitchen" element={<KitchenPage />} />
               <Route path="delivery" element={<DeliveryPage />} />
+              {/* Pedidos que llegan desde las canchas de un club vinculado. */}
+              <Route path="canchas" element={<ClubOrdersPage />} />
               <Route path="products" element={<ProductsPage />} />
               <Route path="tables" element={<TablesPage />} />
               <Route path="table-orders" element={<TableOrdersPage />} />
