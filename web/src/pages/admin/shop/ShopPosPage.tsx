@@ -6,6 +6,7 @@ import type { AuthRestaurant } from '@/context/AuthContext';
 import { useAuth } from '@/context/AuthContext';
 import type { StaffMember } from '@/types';
 import { useToast } from '@/hooks/useToast';
+import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
 import { sendWhatsappOrOpen } from '@/utils/sendWhatsapp';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -128,6 +129,10 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const [qsCost, setQsCost] = useState('');
   const [qsPrice, setQsPrice] = useState('');
   const [qsPaymentMethod, setQsPaymentMethod] = useState('');
+  // Foto del artículo que se está vendiendo: se toma acá, en el mostrador y con
+  // el producto en la mano, que es el único momento en que se tiene delante.
+  // Viaja hasta el alta en Inventario para que no quede un producto sin imagen.
+  const [qsPhotoUrl, setQsPhotoUrl] = useState<string | null>(null);
   const [qsSaving, setQsSaving] = useState(false);
   // La pantalla de Pago Móvil (QR/monto/referencia/comprobante) es la MISMA que usa el cobro
   // normal del carrito — esta bandera le dice a esa pantalla y a confirmPagoMovil que, al
@@ -135,9 +140,13 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const [qsPendingPayment, setQsPendingPayment] = useState(false);
   // Tras registrar la venta, se ofrece cargarla al catálogo — así el dueño va armando su
   // inventario sobre la marcha, en vez de tener que cargarlo todo antes de poder vender.
-  const [addToInventoryPrompt, setAddToInventoryPrompt] = useState<{ name: string; category: string; cost: number; price: number } | null>(
-    null,
-  );
+  const [addToInventoryPrompt, setAddToInventoryPrompt] = useState<{
+    name: string;
+    category: string;
+    cost: number;
+    price: number;
+    photoUrl: string | null;
+  } | null>(null);
   const [addingToInventory, setAddingToInventory] = useState(false);
 
   const [adhocOpen, setAdhocOpen] = useState(false);
@@ -342,6 +351,7 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
     setQsCost('');
     setQsPrice('');
     setQsPaymentMethod(paymentMethodOptions[0]?.label ?? 'Efectivo Bs');
+    setQsPhotoUrl(null);
     setQuickSaleOpen(true);
   }
 
@@ -370,7 +380,7 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
       quickSale({ name, category, cost, price, paymentMethod: qsPaymentMethod });
       setQuickSaleOpen(false);
       // Se pregunta aparte (no bloquea el cobro) si quiere sumarlo al catálogo para la próxima.
-      setAddToInventoryPrompt({ name, category, cost, price });
+      setAddToInventoryPrompt({ name, category, cost, price, photoUrl: qsPhotoUrl });
     } finally {
       setQsSaving(false);
     }
@@ -390,11 +400,17 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
         price: addToInventoryPrompt.price,
         cost: addToInventoryPrompt.cost,
         minStock: 0,
-        // Arranca sin stock: no hay unidades reales cargadas todavía, solo el registro del
-        // producto — el dueño carga la cantidad real (y la foto) después desde Inventario.
+        // La foto viene de la propia venta, así el producto entra al catálogo ya
+        // identificable. Arranca sin stock: todavía no hay unidades cargadas,
+        // solo el registro del producto.
+        photoUrl: addToInventoryPrompt.photoUrl ?? undefined,
         variants: [{ v1: 'Único', v2: '', stock: 0 }],
       });
-      show('Agregado a Inventario — carga la foto y el stock cuando puedas.');
+      show(
+        addToInventoryPrompt.photoUrl
+          ? 'Agregado a Inventario con su foto — carga el stock cuando puedas.'
+          : 'Agregado a Inventario — carga la foto y el stock cuando puedas.',
+      );
     } finally {
       setAddingToInventory(false);
       setAddToInventoryPrompt(null);
@@ -534,7 +550,7 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
       quickSale({ name, category, cost, price, paymentMethod: 'Pago Móvil', paymentMeta: meta });
       setPagoMovilOpen(false);
       setQsPendingPayment(false);
-      setAddToInventoryPrompt({ name, category, cost, price });
+      setAddToInventoryPrompt({ name, category, cost, price, photoUrl: qsPhotoUrl });
       return;
     }
 
@@ -1378,10 +1394,18 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
             agregarlo al catálogo para la próxima vez.
           </p>
           <div className="flex flex-col gap-3">
+            <PhotoUploadField
+              value={qsPhotoUrl}
+              onChange={setQsPhotoUrl}
+              label="Foto del artículo (opcional)"
+              helpText="Si después lo agregas al inventario, entra con esta foto."
+              uploadUrl="/shop/products/upload-photo"
+              shape="square"
+              aiEnabled
+            />
             <div>
               <label className="text-xs font-semibold text-brand-950/60 mb-1 block">Nombre</label>
               <input
-                autoFocus
                 value={qsName}
                 onChange={(e) => setQsName(e.target.value)}
                 placeholder="Ej: Corte de cabello"
@@ -1477,8 +1501,9 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
             eliges directo de la lista, sin volver a escribirlo.
           </p>
           <p className="text-xs text-brand-950/45">
-            Queda con el nombre, la categoría, el costo y el precio que acabas de cargar, y sin stock —
-            solo entra a completar la foto y la cantidad disponible desde Inventario cuando puedas.
+            {addToInventoryPrompt?.photoUrl
+              ? 'Queda con la foto, el nombre, la categoría, el costo y el precio que acabas de cargar, y sin stock — solo entra a poner la cantidad disponible desde Inventario cuando puedas.'
+              : 'Queda con el nombre, la categoría, el costo y el precio que acabas de cargar, y sin stock — solo entra a completar la foto y la cantidad disponible desde Inventario cuando puedas.'}
           </p>
           <DialogFooter>
             <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setAddToInventoryPrompt(null)}>
