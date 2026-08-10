@@ -1165,6 +1165,12 @@ model Order {
   // → Cuentas por pagar. Planes Pro/Premium (o CUSTOM con el adicional).
   awaitingPayment Boolean @default(false)
 
+  // Se sella al cerrar caja: la comanda ya quedó saldada en ese turno y sale de la
+  // pantalla de Pedidos para no arrastrar el turno anterior. No borra nada — el
+  // pedido sigue completo en Administración. Las que aún deben algo NO se sellan,
+  // así la deuda queda a la vista hasta que se cobre.
+  clearedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

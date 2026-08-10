@@ -264,6 +264,9 @@ export function LiveOrdersPanel({
     const socket: Socket = io('/', { auth: { token: getToken() } });
     socket.on('order:new', load);
     socket.on('order:updated', load);
+    // Cierre de caja: las comandas saldadas del turno salieron de la lista, así que
+    // el panel abierto en otra pantalla no se queda mostrando el turno anterior.
+    socket.on('orders:cleared', load);
     socket.on('payment-verification:timeout', () => {
       show('El verificador de pagos no respondió a tiempo — revisa el comprobante manualmente.');
     });

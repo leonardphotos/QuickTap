@@ -1726,10 +1726,15 @@ export const orderService = {
   /**
    * Todos los pedidos activos (no servidos ni cancelados), de cualquier
    * canal, para el panel "Pedidos" del Dashboard del restaurante.
+   *
+   * `clearedAt: null` deja fuera las comandas que ya se saldaron en un turno
+   * cerrado (ver cash-session.service.ts): el turno nuevo arranca con la
+   * pantalla limpia y solo con lo que quedó por cobrar. Siguen completas en
+   * Administración, no se borra nada.
    */
   async listLiveOrders(restaurantId: string) {
     return prisma.order.findMany({
-      where: { restaurantId, status: { notIn: ['SERVED', 'CANCELLED'] } },
+      where: { restaurantId, status: { notIn: ['SERVED', 'CANCELLED'] }, clearedAt: null },
       orderBy: { createdAt: 'desc' },
       include: {
         items: { include: { modifiers: true } },

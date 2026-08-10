@@ -32,6 +32,7 @@ export function tableRoom(tableId: string): string {
 export const SocketEvents = {
   ORDER_NEW: 'order:new', // comanda nueva -> imprimir
   ORDER_UPDATED: 'order:updated', // cambio de estado
+  ORDERS_CLEARED: 'orders:cleared', // cierre de caja: las comandas saldadas salieron de la pantalla
   ORDER_READY: 'order:ready', // aviso público para el cliente de la mesa
   ORDER_READY_STAFF: 'order:ready-staff', // aviso al staff (Caja/Numero) de que un pedido quedó listo
   TABLE_SERVICE_REQUEST: 'table:service-request', // comensal llama al mesero / pide la cuenta

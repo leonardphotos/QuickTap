@@ -1,7 +1,8 @@
-import { PaymentMethod } from '@prisma/client';
+import { PaymentMethod, Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { round2, toDecimal } from '../../utils/money';
 import { badRequest, notFound } from '../../utils/http-error';
+import { emitToKitchen, SocketEvents } from '../../sockets';
 import { OpenCashSessionInput } from './cash-session.dto';
 
 const PAYMENT_METHODS = Object.values(PaymentMethod);
@@ -61,6 +62,48 @@ async function computeSummary(restaurantId: string, since: Date) {
   };
 }
 
+/**
+ * Al cerrar caja, saca de la pantalla de Pedidos las comandas del turno que ya
+ * quedaron saldadas, y deja las que aún deben algo: el cajero del turno siguiente
+ * abre con la pantalla limpia y solo con lo que hay por cobrar.
+ *
+ * No borra ni cancela nada — solo sella `clearedAt`; el pedido completo sigue en
+ * Administración. Una comanda sin ningún pago cuenta como deuda y se queda: es
+ * plata sin cobrar, justo lo que no se debe perder de vista.
+ */
+async function clearSettledOrders(tx: Prisma.TransactionClient, restaurantId: string, closedAt: Date) {
+  const candidates = await tx.order.findMany({
+    where: {
+      restaurantId,
+      clearedAt: null,
+      status: { notIn: ['SERVED', 'CANCELLED'] },
+      awaitingPayment: false,
+      createdAt: { lte: closedAt },
+    },
+    select: {
+      id: true,
+      totalBase: true,
+      payments: { select: { amountBase: true, discountBase: true, serviceChargeDiscountBase: true } },
+    },
+  });
+
+  // Mismo criterio de saldo que addPayment (order.service.ts): descuento y ajuste
+  // de servicio perdonan parte de la deuda, así que cuentan como saldado.
+  const settledIds = candidates
+    .filter((o) => {
+      const paid = o.payments.reduce(
+        (acc, p) => acc.add(p.amountBase).add(p.discountBase ?? 0).add(p.serviceChargeDiscountBase ?? 0),
+        toDecimal(0),
+      );
+      return round2(o.totalBase.sub(paid)).lte(0.01);
+    })
+    .map((o) => o.id);
+
+  if (settledIds.length === 0) return 0;
+  await tx.order.updateMany({ where: { id: { in: settledIds } }, data: { clearedAt: closedAt } });
+  return settledIds.length;
+}
+
 export const cashSessionService = {
   async getCurrent(restaurantId: string) {
     return prisma.cashSession.findFirst({
@@ -92,7 +135,7 @@ export const cashSessionService = {
 
   /** Botón "Confirmar cierre": congela el resumen del turno y asigna el número de cierre. */
   async close(restaurantId: string, id: string, userId: string | undefined) {
-    return prisma.$transaction(async (tx) => {
+    const { closed, clearedCount } = await prisma.$transaction(async (tx) => {
       const session = await tx.cashSession.findFirst({ where: { id, restaurantId, status: 'OPEN' } });
       if (!session) throw notFound('Caja abierta no encontrada.');
 
@@ -103,19 +146,30 @@ export const cashSessionService = {
         orderBy: { closeNumber: 'desc' },
       });
       const closeNumber = (last?.closeNumber ?? 0) + 1;
+      const closedAt = new Date();
 
-      return tx.cashSession.update({
+      const clearedCount = await clearSettledOrders(tx, restaurantId, closedAt);
+
+      const closed = await tx.cashSession.update({
         where: { id: session.id },
         data: {
           status: 'CLOSED',
           closedByUserId: userId,
-          closedAt: new Date(),
+          closedAt,
           closeNumber,
           closingSummary: summary,
         },
         include: { openedByUser: { select: { name: true, role: true } }, closedByUser: { select: { name: true, role: true } } },
       });
+
+      return { closed, clearedCount };
     });
+
+    // Fuera de la transacción: los paneles abiertos (Pedidos, cocina) recargan solos
+    // en vez de quedarse mostrando comandas que ya salieron de la pantalla.
+    if (clearedCount > 0) emitToKitchen(restaurantId, SocketEvents.ORDERS_CLEARED, { clearedCount });
+
+    return closed;
   },
 
   async getById(restaurantId: string, id: string) {
