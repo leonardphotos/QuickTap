@@ -7,7 +7,7 @@ import { PlatformLoginInput } from './platform-auth.dto';
 import { PlatformAuthPayload } from '../../middlewares/platform-auth.middleware';
 
 function signToken(payload: PlatformAuthPayload) {
-  return jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn } as jwt.SignOptions);
+  return jwt.sign(payload, env.jwtSecret, { expiresIn: env.platformJwtExpiresIn } as jwt.SignOptions);
 }
 
 export const platformAuthService = {

@@ -32,6 +32,9 @@ export const env = {
 
   jwtSecret: required('JWT_SECRET'),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '7d',
+  // El token del panel máster (equipo QuickTap, ve todos los restaurantes) tiene más poder que
+  // uno de mesero/cajero — dura menos por defecto para acotar la ventana si se filtra.
+  platformJwtExpiresIn: process.env.PLATFORM_JWT_EXPIRES_IN ?? '12h',
 
   // URL pública del sitio (para redirects de vuelta desde checkouts externos, ej. Ramblay).
   appUrl: process.env.APP_URL ?? 'https://quicktap.club',

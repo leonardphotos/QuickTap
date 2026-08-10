@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireBusinessType, requireRole, tenantGuard } from '../../middlewares/auth.middleware';
+import { publicBookingRateLimit } from '../../middlewares/rate-limit.middleware';
 import { optimizeImage, uploadClubPaymentProof } from '../../middlewares/upload.middleware';
 import { clubController } from './club.controller';
 
@@ -12,7 +13,7 @@ publicClubRoutes.get('/:slug', clubController.publicClub);
 publicClubRoutes.get('/:slug/live', clubController.publicLive);
 publicClubRoutes.get('/:slug/availability', clubController.publicAvailability);
 publicClubRoutes.get('/:slug/products', clubController.publicProducts);
-publicClubRoutes.post('/:slug/bookings', clubController.publicCreateBooking);
+publicClubRoutes.post('/:slug/bookings', publicBookingRateLimit, clubController.publicCreateBooking);
 // La reserva del jugador se consulta con el token opaco del QR, sin sesión.
 publicClubRoutes.get('/bookings/token/:accessToken', clubController.publicBookingByToken);
 

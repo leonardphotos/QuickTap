@@ -22,6 +22,18 @@ export const passwordResetRateLimit = rateLimit({
   message: { error: 'Demasiados intentos. Espera unos minutos e intenta de nuevo.' },
 });
 
+/** Checkout/reserva/booking públicos (comensal o jugador, sin cuenta): checkout dine-in/delivery,
+ * reserva de mesa y reserva de cancha. Límite más alto que login porque varios clientes reales
+ * pueden compartir la misma IP (wifi del local, NAT de operador), pero igual frena un script
+ * creando pedidos o reservas falsas en bucle. */
+export const publicBookingRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas solicitudes. Espera unos minutos e intenta de nuevo.' },
+});
+
 /** /auth/verify-lock-pin: el PIN de la pantalla de bloqueo es de solo 4 dígitos (10.000
  * combinaciones) — sin límite, cualquiera con el JWT ya válido (dispositivo compartido, token
  * filtrado) lo fuerza-bruta en segundos. Se limita por usuario (no por IP): el JWT ya identifica

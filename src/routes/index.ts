@@ -55,6 +55,7 @@ import clubLinkRoutes from '../modules/club-link/club-link.routes';
 import clubTabletRoutes from '../modules/club-tablet/club-tablet.routes';
 import clubTournamentRoutes from '../modules/club-tournament/club-tournament.routes';
 import { tenantFiscalInvoicingRoutes, masterFiscalInvoicingRoutes } from '../modules/fiscal-invoicing/fiscal-invoicing.routes';
+import { publicBookingRateLimit } from '../middlewares/rate-limit.middleware';
 
 /**
  * Enrutador raíz de la API v1.
@@ -115,8 +116,8 @@ router.use('/fiscal-invoicing', tenantFiscalInvoicingRoutes);
 
 // --- Público ---
 router.use('/public', menuRoutes);
-router.post('/public/checkout/dine-in', orderController.checkoutDineIn);
-router.post('/public/checkout/delivery/:slug', orderController.checkoutDelivery);
+router.post('/public/checkout/dine-in', publicBookingRateLimit, orderController.checkoutDineIn);
+router.post('/public/checkout/delivery/:slug', publicBookingRateLimit, orderController.checkoutDelivery);
 router.get('/public/checkout/delivery/:slug/quote', orderController.deliveryQuote);
 // Tasa BCV para la landing (precios de planes en $ y Bs): es un dato global, no de un restaurante.
 router.get('/public/exchange-rate', exchangeRateController.summary);
