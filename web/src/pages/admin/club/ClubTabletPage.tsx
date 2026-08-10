@@ -368,7 +368,7 @@ export default function ClubTabletPage() {
           {countdown.text}
         </p>
 
-        <div className="mt-10 flex w-full max-w-2xl gap-4">
+        <div className="mt-10 flex gap-6">
           <PortadaAction
             icon={<Trophy className="h-7 w-7" />}
             title="Torneo"
@@ -650,9 +650,9 @@ function PortadaAction({
   return (
     <button
       onClick={onClick}
-      className="flex flex-1 flex-col items-center gap-3 py-6 transition-transform active:scale-[0.97]"
+      className="flex flex-col items-center gap-3 py-6 transition-transform active:scale-[0.97]"
     >
-      <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 text-white backdrop-blur-xl transition-colors hover:bg-white/25">
+      <span className="flex h-20 w-28 items-center justify-center rounded-xl bg-white/15 text-white backdrop-blur-xl transition-colors hover:bg-white/25">
         {icon}
       </span>
       <span className="text-xl font-bold text-white">{title}</span>
