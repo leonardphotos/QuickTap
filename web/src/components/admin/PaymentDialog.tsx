@@ -16,6 +16,7 @@ import type { PaymentMethod } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { PaymentChargePanel } from '@/components/admin/PaymentChargePanel';
+import { PaymentClientScreen } from '@/components/admin/PaymentClientScreen';
 import type { LiveOrder, LiveOrderPayment } from './LiveOrdersPanel';
 
 export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
@@ -111,6 +112,8 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paidNow, setPaidNow] = useState<number | null>(null);
+  // Pantalla a pantalla completa que ve el cliente tras elegir método (ver PaymentClientScreen).
+  const [clientScreenOpen, setClientScreenOpen] = useState(false);
   const [showPrintPrompt, setShowPrintPrompt] = useState(false);
   const [printing, setPrinting] = useState(false);
   // Pagos registrados durante esta sesión del diálogo (para el desglose final, junto a order.payments).
@@ -162,6 +165,53 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   // usado también para el bloque de QR/Bs de Pago Móvil.
   const amountToCharge =
     mode === 'split' && splitBy === 'items' ? itemsSubtotal : mode === 'split' ? Number(amount) || 0 : discountedBalance;
+
+  /** Elegir método abre la pantalla del cliente (QR + detalle + monto) antes de los
+   *  campos de caja. Efectivo y Punto de Venta no: no hay QR ni datos que mostrarle
+   *  al cliente, el cobro es en el mostrador. */
+  function selectMethod(next: PaymentMethod) {
+    setMethod(next);
+    setError(null);
+    if (METHODS_ALLOWING_PROOF.includes(next)) setClientScreenOpen(true);
+  }
+
+  const detailLines = order.items.map(
+    (it) => `${it.quantity}x ${it.productName}${it.variantName ? ` (${it.variantName})` : ''}`,
+  );
+
+  // Datos de cobro del método (correo de Zelle, cuenta, teléfono…): los ve tanto el
+  // cajero en el diálogo como el cliente en la pantalla completa — sin ellos no puede
+  // pagar un método que no lleva QR.
+  const paymentDetailsBlock = selectedDetails ? (
+    <div className="text-xs text-brand-950/60 bg-brand-950/[0.03] rounded-lg px-2.5 py-2 space-y-1">
+      {(Object.keys(PAYMENT_FIELD_LABELS) as (keyof typeof PAYMENT_FIELD_LABELS)[])
+        .filter((f) => selectedDetails[f as keyof typeof selectedDetails])
+        .map((f) => {
+          const value = String(selectedDetails[f as keyof typeof selectedDetails]);
+          return (
+            <div key={f} className="flex items-center justify-between gap-2">
+              <p className="truncate">
+                <span className="text-brand-950/40">{PAYMENT_FIELD_LABELS[f]}:</span> {value}
+              </p>
+              <button
+                type="button"
+                onClick={() => copyField(f, value)}
+                aria-label={`Copiar ${PAYMENT_FIELD_LABELS[f]}`}
+                className="shrink-0 flex items-center gap-1 text-brand-500 hover:text-brand-400 font-medium"
+              >
+                {copiedField === f ? (
+                  <>
+                    <Check className="h-3 w-3" /> Copiado
+                  </>
+                ) : (
+                  <Copy className="h-3 w-3" />
+                )}
+              </button>
+            </div>
+          );
+        })}
+    </div>
+  ) : null;
 
   // En modo 'split' por monto, cambiar cualquiera de los dos ajustes recalcula el abono
   // sugerido — en modo 'full' el monto a cobrar ya se muestra calculado (discountedBalance),
@@ -319,6 +369,24 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   // guardamos localmente para no depender de esa carrera). Se filtra por id para no duplicarlo.
   const allPayments = [...order.payments, ...sessionPayments.filter((sp) => !order.payments.some((p) => p.id === sp.id))];
 
+  if (clientScreenOpen) {
+    return (
+      <PaymentClientScreen
+        method={method}
+        methodLabel={PAYMENT_LABELS[method]}
+        qrImageUrl={qrImageUrl}
+        amountBase={amountToCharge}
+        symbol={symbol}
+        rateBs={restaurant?.exchangeRate?.rateBs}
+        detailTitle={`Detalle del pedido (${order.items.length} ${order.items.length === 1 ? 'ítem' : 'ítems'})`}
+        detailLines={detailLines}
+        details={paymentDetailsBlock}
+        onNext={() => setClientScreenOpen(false)}
+        onBack={() => setClientScreenOpen(false)}
+      />
+    );
+  }
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       {/* Con QR el diálogo se ensancha: el código ocupa una columna entera y el monto
@@ -469,7 +537,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                   {paymentOptions.map((o) => (
                     <button
                       key={o}
-                      onClick={() => setMethod(o)}
+                      onClick={() => selectMethod(o)}
                       className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
                         method === o ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
                       }`}
@@ -487,37 +555,19 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                 symbol={symbol}
                 rateBs={restaurant?.exchangeRate?.rateBs}
               >
-                {selectedDetails && (
-                  <div className="text-xs text-brand-950/60 bg-brand-950/[0.03] rounded-lg px-2.5 py-2 space-y-1">
-                    {(Object.keys(PAYMENT_FIELD_LABELS) as (keyof typeof PAYMENT_FIELD_LABELS)[])
-                      .filter((f) => selectedDetails[f as keyof typeof selectedDetails])
-                      .map((f) => {
-                        const value = String(selectedDetails[f as keyof typeof selectedDetails]);
-                        return (
-                          <div key={f} className="flex items-center justify-between gap-2">
-                            <p className="truncate">
-                              <span className="text-brand-950/40">{PAYMENT_FIELD_LABELS[f]}:</span> {value}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => copyField(f, value)}
-                              aria-label={`Copiar ${PAYMENT_FIELD_LABELS[f]}`}
-                              className="shrink-0 flex items-center gap-1 text-brand-500 hover:text-brand-400 font-medium"
-                            >
-                              {copiedField === f ? (
-                                <>
-                                  <Check className="h-3 w-3" /> Copiado
-                                </>
-                              ) : (
-                                <Copy className="h-3 w-3" />
-                              )}
-                            </button>
-                          </div>
-                        );
-                      })}
-                  </div>
-                )}
+                {paymentDetailsBlock}
               </PaymentChargePanel>
+
+              {/* Para volver a mostrarle el QR al cliente sin tener que reelegir el método. */}
+              {(qrImageUrl || paymentDetailsBlock) && (
+                <button
+                  type="button"
+                  onClick={() => setClientScreenOpen(true)}
+                  className="-mt-1 text-xs font-medium text-brand-500 hover:text-brand-400"
+                >
+                  Mostrar al cliente en pantalla completa
+                </button>
+              )}
 
               {needsReference && (
                 <div>

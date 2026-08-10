@@ -15,6 +15,7 @@ import {
 } from '@/utils/payments';
 import { useToast } from '@/hooks/useToast';
 import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
+import { PaymentClientScreen } from '@/components/admin/PaymentClientScreen';
 import { sendWhatsappOrOpen } from '@/utils/sendWhatsapp';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -194,6 +195,8 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   // Binance, PayPal, Transferencia y Punto de Venta pasan por la misma para capturar su
   // referencia o comprobante (efectivo sigue cerrando de una, no deja rastro que pedir).
   const [pmMethodKey, setPmMethodKey] = useState<PaymentMethodKey>('MOBILE_PAYMENT');
+  // Pantalla completa que ve el cliente antes de que el cajero cargue referencia/comprobante.
+  const [clientScreenOpen, setClientScreenOpen] = useState(false);
   const [pmReference, setPmReference] = useState('');
   const [pmProofUrl, setPmProofUrl] = useState<string | null>(null);
   const [pmUploadingProof, setPmUploadingProof] = useState(false);
@@ -392,7 +395,8 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
       setPmProofUrl(null);
       setPmProofError(null);
       setQsPendingPayment(true);
-      setPagoMovilOpen(true);
+      if (METHODS_ALLOWING_PROOF.includes(qsMethodKey)) setClientScreenOpen(true);
+      else setPagoMovilOpen(true);
       return;
     }
 
@@ -526,7 +530,11 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
       setPmReference('');
       setPmProofUrl(null);
       setPmProofError(null);
-      setPagoMovilOpen(true);
+      // Primero lo que ve el cliente (QR + detalle + monto); al tocar "Siguiente" pasa
+      // a los campos de caja. Punto de Venta salta ese paso: no hay QR ni datos que
+      // mostrarle, solo el ticket del datáfono.
+      if (METHODS_ALLOWING_PROOF.includes(methodKey)) setClientScreenOpen(true);
+      else setPagoMovilOpen(true);
       return;
     }
     const sale = finalizeSale(method, null);
@@ -1065,6 +1073,32 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* ---------- Pantalla del cliente (antes de los campos de caja) ---------- */}
+      {clientScreenOpen && (
+        <PaymentClientScreen
+          method={pmMethodKey}
+          methodLabel={pmMethodLabel}
+          qrImageUrl={qrImageUrl}
+          amountBase={pmTargetAmount}
+          symbol={restaurant.currencySymbol}
+          rateBs={restaurant.exchangeRate?.rateBs}
+          detailTitle={qsPendingPayment ? 'Detalle de la venta' : `Detalle de la venta (${cartItemCount} ítems)`}
+          detailLines={
+            qsPendingPayment
+              ? [qsName.trim() || 'Venta rápida']
+              : cart.map((c) => `${c.soldByWeight || c.unitLabel ? c.qty : `${c.qty}x`} ${c.name}`)
+          }
+          onNext={() => {
+            setClientScreenOpen(false);
+            setPagoMovilOpen(true);
+          }}
+          onBack={() => {
+            setClientScreenOpen(false);
+            closePagoMovil();
+          }}
+        />
+      )}
 
       {/* ---------- Pago móvil ---------- */}
       <Dialog open={pagoMovilOpen} onOpenChange={(o) => (o ? setPagoMovilOpen(true) : closePagoMovil())}>

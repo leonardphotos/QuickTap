@@ -14,6 +14,7 @@ import type { PaymentMethod } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { PaymentChargePanel } from '@/components/admin/PaymentChargePanel';
+import { PaymentClientScreen } from '@/components/admin/PaymentClientScreen';
 import { clubApi, type ClubBooking, type ClubBookingPayment } from './clubApi';
 
 // Mismas etiquetas y reglas que el cobro de comandas (PaymentDialog.tsx) — es
@@ -89,6 +90,8 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
   const [proofError, setProofError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  // Pantalla a pantalla completa que ve el jugador tras elegir método (ver PaymentClientScreen).
+  const [clientScreenOpen, setClientScreenOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paidNow, setPaidNow] = useState<number | null>(null);
@@ -99,6 +102,54 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
   const needsProof = METHODS_ALLOWING_PROOF.includes(method);
   const amountToCharge = mode === 'split' ? Number(amount) || 0 : balanceBase;
   const qrImageUrl = METHODS_WITH_QR.includes(method) ? selectedDetails?.qrImageUrl ?? null : null;
+
+  /** Elegir método abre la pantalla del jugador (QR + detalle + monto) antes de los
+   *  campos de caja. Efectivo y Punto de Venta no: no hay QR ni datos que mostrarle,
+   *  el cobro es en el mostrador. */
+  function selectMethod(next: PaymentMethod) {
+    setMethod(next);
+    setError(null);
+    if (METHODS_ALLOWING_PROOF.includes(next)) setClientScreenOpen(true);
+  }
+
+  // Qué está pagando: la hora de cancha y, si pidió algo desde la tablet, su consumo.
+  const detailLines = [
+    `${booking.block?.court.name ?? 'Cancha'} · ${formatBase(booking.totalBase, symbol)}`,
+    ...(Number(booking.consumoBase) > 0 ? [`Consumo en cancha · ${formatBase(booking.consumoBase, symbol)}`] : []),
+  ];
+
+  // Datos de cobro del método (correo de Zelle, cuenta, teléfono…): los ve tanto el
+  // cajero en el diálogo como el jugador en la pantalla completa.
+  const paymentDetailsBlock = selectedDetails ? (
+    <div className="space-y-1 rounded-lg bg-brand-950/[0.03] px-2.5 py-2 text-xs text-brand-950/60">
+      {(Object.keys(PAYMENT_FIELD_LABELS) as (keyof typeof PAYMENT_FIELD_LABELS)[])
+        .filter((f) => selectedDetails[f as keyof typeof selectedDetails])
+        .map((f) => {
+          const value = String(selectedDetails[f as keyof typeof selectedDetails]);
+          return (
+            <div key={f} className="flex items-center justify-between gap-2">
+              <p className="truncate">
+                <span className="text-brand-950/40">{PAYMENT_FIELD_LABELS[f]}:</span> {value}
+              </p>
+              <button
+                type="button"
+                onClick={() => copyField(f, value)}
+                aria-label={`Copiar ${PAYMENT_FIELD_LABELS[f]}`}
+                className="flex shrink-0 items-center gap-1 font-medium text-brand-500 hover:text-brand-400"
+              >
+                {copiedField === f ? (
+                  <>
+                    <Check className="h-3 w-3" /> Copiado
+                  </>
+                ) : (
+                  <Copy className="h-3 w-3" />
+                )}
+              </button>
+            </div>
+          );
+        })}
+    </div>
+  ) : null;
 
   async function copyField(key: string, value: string) {
     try {
@@ -161,6 +212,24 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
   }
 
   const remainingAfter = paidNow != null ? Number(latestBooking.balanceBase) : balanceBase;
+
+  if (clientScreenOpen) {
+    return (
+      <PaymentClientScreen
+        method={method}
+        methodLabel={PAYMENT_LABELS[method]}
+        qrImageUrl={qrImageUrl}
+        amountBase={amountToCharge}
+        symbol={symbol}
+        rateBs={restaurant?.exchangeRate?.rateBs}
+        detailTitle="Detalle de la reserva"
+        detailLines={detailLines}
+        details={paymentDetailsBlock}
+        onNext={() => setClientScreenOpen(false)}
+        onBack={() => setClientScreenOpen(false)}
+      />
+    );
+  }
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
@@ -255,7 +324,7 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
                   {paymentOptions.map((o) => (
                     <button
                       key={o}
-                      onClick={() => setMethod(o)}
+                      onClick={() => selectMethod(o)}
                       className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
                         method === o ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
                       }`}
@@ -273,37 +342,19 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
                 symbol={symbol}
                 rateBs={restaurant?.exchangeRate?.rateBs}
               >
-                {selectedDetails && (
-                  <div className="space-y-1 rounded-lg bg-brand-950/[0.03] px-2.5 py-2 text-xs text-brand-950/60">
-                    {(Object.keys(PAYMENT_FIELD_LABELS) as (keyof typeof PAYMENT_FIELD_LABELS)[])
-                      .filter((f) => selectedDetails[f as keyof typeof selectedDetails])
-                      .map((f) => {
-                        const value = String(selectedDetails[f as keyof typeof selectedDetails]);
-                        return (
-                          <div key={f} className="flex items-center justify-between gap-2">
-                            <p className="truncate">
-                              <span className="text-brand-950/40">{PAYMENT_FIELD_LABELS[f]}:</span> {value}
-                            </p>
-                            <button
-                              type="button"
-                              onClick={() => copyField(f, value)}
-                              aria-label={`Copiar ${PAYMENT_FIELD_LABELS[f]}`}
-                              className="flex shrink-0 items-center gap-1 font-medium text-brand-500 hover:text-brand-400"
-                            >
-                              {copiedField === f ? (
-                                <>
-                                  <Check className="h-3 w-3" /> Copiado
-                                </>
-                              ) : (
-                                <Copy className="h-3 w-3" />
-                              )}
-                            </button>
-                          </div>
-                        );
-                      })}
-                  </div>
-                )}
+                {paymentDetailsBlock}
               </PaymentChargePanel>
+
+              {/* Para volver a mostrarle el QR al jugador sin tener que reelegir el método. */}
+              {(qrImageUrl || paymentDetailsBlock) && (
+                <button
+                  type="button"
+                  onClick={() => setClientScreenOpen(true)}
+                  className="-mt-1 text-xs font-medium text-brand-500 hover:text-brand-400"
+                >
+                  Mostrar al cliente en pantalla completa
+                </button>
+              )}
 
               {needsReference && (
                 <div>
