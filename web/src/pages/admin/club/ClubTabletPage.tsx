@@ -239,16 +239,6 @@ export default function ClubTabletPage() {
           Acceder
         </button>
 
-        {/* Secundario y separado: "Acceder" sigue siendo LA acción de esta
-            pantalla; el torneo lo abre quien organiza, no el jugador que llega. */}
-        <button
-          onClick={() => openTournament()}
-          className="flex items-center gap-2 rounded-full bg-white/15 px-7 py-3.5 text-base font-semibold text-white backdrop-blur-md transition-colors hover:bg-white/25"
-        >
-          <Trophy className="h-5 w-5" />
-          Torneo
-        </button>
-
         {error && (
           <p className="max-w-md rounded-2xl bg-black/25 px-5 py-3 text-center text-white">{error}</p>
         )}
