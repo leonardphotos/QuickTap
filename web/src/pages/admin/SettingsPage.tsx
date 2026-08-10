@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import type { ReactNode } from 'react';
 import {
   Building2,
   ChevronDown,
@@ -21,6 +20,7 @@ import { canManageTeam } from '../../utils/roles';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { FullWidth, SettingsCategory, scrollToSettingsCategory } from '@/components/admin/SettingsCategory';
 import { TeamSection } from '@/components/admin/TeamSection';
 import { ThemeSection } from '@/components/admin/ThemeSection';
 import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection';
@@ -52,68 +52,6 @@ interface RateInfo {
 }
 
 const CURRENCY_LABELS: Record<Currency, string> = { USD: 'Dólares ($)', EUR: 'Euros (€)' };
-
-/**
- * Categoría de Ajustes: título + ícono, con su contenido colapsado/expandido según
- * `open` — la propia cabecera también es clickeable, además del menú desplegable de
- * arriba. La animación de "desplegado fluido" usa el truco de CSS grid-template-rows
- * 0fr → 1fr (en vez de max-height/JS), que anima limpio sin medir el alto del contenido.
- */
-function SettingsCategory({
-  id,
-  title,
-  icon,
-  open,
-  onToggle,
-  children,
-}: {
-  id: string;
-  title: string;
-  icon: ReactNode;
-  open: boolean;
-  onToggle: (id: string) => void;
-  children: ReactNode;
-}) {
-  return (
-    <section className="mb-3 last:mb-0" id={`ajustes-${id}`}>
-      <button
-        type="button"
-        onClick={() => onToggle(id)}
-        className={`w-full flex items-center gap-2.5 text-left rounded-2xl px-4 py-3.5 transition-colors ${
-          open ? 'bg-brand-500/[0.06]' : 'hover:bg-brand-950/[0.03]'
-        }`}
-      >
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-brand-500">
-          {icon}
-        </span>
-        <span className="text-base font-semibold text-brand-950 flex-1">{title}</span>
-        <ChevronDown
-          className={`h-4 w-4 text-brand-950/40 transition-transform duration-300 ${open ? 'rotate-180' : ''}`}
-        />
-      </button>
-      <div
-        className={`grid transition-[grid-template-rows] duration-300 ease-out-strong ${
-          open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
-        }`}
-      >
-        <div className="overflow-hidden">
-          <div
-            className={`grid grid-cols-1 lg:grid-cols-2 gap-5 items-start px-1 pt-4 pb-2 transition-opacity duration-300 ${
-              open ? 'opacity-100 delay-100' : 'opacity-0'
-            }`}
-          >
-            {children}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/** Tarjeta que ocupa las dos columnas de la grilla (mapas, selector de colores, tablas anchas). */
-function FullWidth({ children }: { children: ReactNode }) {
-  return <div className="lg:col-span-2">{children}</div>;
-}
 
 export default function SettingsPage() {
   const { user, restaurant, refresh } = useAuth();
@@ -211,9 +149,7 @@ export default function SettingsPage() {
 
   function selectCategory(id: string) {
     setOpenCategory(id);
-    requestAnimationFrame(() => {
-      document.getElementById(`ajustes-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
+    scrollToSettingsCategory(id);
   }
 
   function toggleCategory(id: string) {

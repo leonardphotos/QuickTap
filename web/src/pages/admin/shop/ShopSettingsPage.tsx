@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { ArrowLeft, LogOut } from 'lucide-react';
+import { ArrowLeft, Building2, ChevronDown, LogOut, ShieldCheck, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/api/client';
 import type { Currency } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard, TextureCardContent, TextureCardHeader, TextureCardTitle } from '@/components/ui/texture-card';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { FullWidth, SettingsCategory, scrollToSettingsCategory } from '@/components/admin/SettingsCategory';
 import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection';
 import { PaymentMethodsSection } from '@/components/admin/PaymentMethodsSection';
 import { ScheduleSection } from '@/components/admin/ScheduleSection';
@@ -68,36 +70,130 @@ function CurrencySection() {
 }
 
 /**
- * Ajustes de QuickTap Shop: mismas secciones generales que el panel de restaurante (datos del
- * negocio, moneda, métodos de pago, horario) reutilizando los mismos componentes — son
- * genéricos, no asumen nada de mesas/cocina/delivery — menos las opciones que sí son solo de
- * restaurante (mensaje de WhatsApp de comanda, PIN de comandas, impresión de tickets de cocina,
- * zonas de delivery, Modo Cartelera). "Cerrar sesión" vive acá en vez de en la barra superior.
+ * Ajustes de QuickTap Shop, agrupados en categorías colapsables (mismo patrón
+ * que Ajustes de restaurante y de Club, ver SettingsCategory.tsx) con un salto
+ * rápido arriba — antes era una fila de ~7 tarjetas sueltas sin ningún acceso
+ * directo a la que se necesitaba.
+ *
+ * Reutiliza las mismas secciones generales del panel de restaurante (datos del
+ * negocio, moneda, métodos de pago, horario) — son genéricas, no asumen nada de
+ * mesas/cocina/delivery — menos las que sí son solo de restaurante (mensaje de
+ * WhatsApp de comanda, PIN de comandas, impresión de tickets de cocina, zonas de
+ * delivery, Modo Cartelera). "Cerrar sesión" vive acá en vez de en la barra
+ * superior.
  */
 export default function ShopSettingsPage({ onBack }: Props) {
   const { user, logout } = useAuth();
   const canManageTeam = user?.role === 'OWNER' || user?.role === 'ADMIN';
 
+  const CATEGORIES = [
+    { id: 'negocio', title: 'Negocio', icon: <Building2 className="h-4 w-4" /> },
+    { id: 'pagos', title: 'Pagos', icon: <Wallet className="h-4 w-4" /> },
+    canManageTeam
+      ? { id: 'equipo', title: 'Equipo y seguridad', icon: <ShieldCheck className="h-4 w-4" /> }
+      : { id: 'seguridad', title: 'Seguridad', icon: <ShieldCheck className="h-4 w-4" /> },
+  ];
+
+  // Vacío = todas las categorías cerradas al entrar a Ajustes.
+  const [openCategory, setOpenCategory] = useState('');
+
+  function selectCategory(id: string) {
+    setOpenCategory(id);
+    scrollToSettingsCategory(id);
+  }
+
+  function toggleCategory(id: string) {
+    setOpenCategory((current) => (current === id ? '' : id));
+  }
+
+  const currentCategory = CATEGORIES.find((c) => c.id === openCategory);
+
   return (
-    <div className="flex flex-col gap-5 max-w-2xl">
+    <div className="max-w-2xl">
       <button
         type="button"
         onClick={onBack}
-        className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-950/60 hover:text-brand-950 self-start"
+        className="mb-3 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-950/60 hover:text-brand-950 self-start"
       >
         <ArrowLeft className="h-4 w-4" /> Volver al panel
       </button>
-      <h1 className="text-xl font-bold text-brand-950">Ajustes</h1>
 
-      <RestaurantInfoSection />
-      <CurrencySection />
-      <PaymentMethodsSection descriptionOverride="Elige qué métodos aceptas al cobrar en Venta, y sus datos para que tus clientes sepan a dónde pagar." />
-      <ScheduleSection />
-      {canManageTeam && <ShopTeamSection />}
-      {canManageTeam && <SalesHistoryExportSection />}
-      <LockScreenSettingsSection />
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-bold text-brand-950">Ajustes</h1>
 
-      <TextureCard>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex items-center gap-2 rounded-full border border-brand-950/10 bg-white px-4 py-2 text-sm font-medium text-brand-950 shadow-sm hover:bg-brand-950/[0.03]"
+            >
+              {currentCategory?.icon}
+              {currentCategory?.title ?? 'Elige una categoría'}
+              <ChevronDown className="h-3.5 w-3.5 text-brand-950/40" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {CATEGORIES.map((c) => (
+              <DropdownMenuItem key={c.id} onClick={() => selectCategory(c.id)}>
+                {c.icon}
+                {c.title}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      <SettingsCategory
+        id="negocio"
+        title="Negocio"
+        icon={<Building2 className="h-4 w-4" />}
+        open={openCategory === 'negocio'}
+        onToggle={toggleCategory}
+      >
+        <RestaurantInfoSection />
+        <CurrencySection />
+        <FullWidth>
+          <ScheduleSection />
+        </FullWidth>
+      </SettingsCategory>
+
+      <SettingsCategory
+        id="pagos"
+        title="Pagos"
+        icon={<Wallet className="h-4 w-4" />}
+        open={openCategory === 'pagos'}
+        onToggle={toggleCategory}
+      >
+        <FullWidth>
+          <PaymentMethodsSection descriptionOverride="Elige qué métodos aceptas al cobrar en Venta, y sus datos para que tus clientes sepan a dónde pagar." />
+        </FullWidth>
+      </SettingsCategory>
+
+      {canManageTeam ? (
+        <SettingsCategory
+          id="equipo"
+          title="Equipo y seguridad"
+          icon={<ShieldCheck className="h-4 w-4" />}
+          open={openCategory === 'equipo'}
+          onToggle={toggleCategory}
+        >
+          <ShopTeamSection />
+          <SalesHistoryExportSection />
+          <LockScreenSettingsSection />
+        </SettingsCategory>
+      ) : (
+        <SettingsCategory
+          id="seguridad"
+          title="Seguridad"
+          icon={<ShieldCheck className="h-4 w-4" />}
+          open={openCategory === 'seguridad'}
+          onToggle={toggleCategory}
+        >
+          <LockScreenSettingsSection />
+        </SettingsCategory>
+      )}
+
+      <TextureCard className="mt-3">
         <TextureCardContent className="flex items-center justify-between gap-4 py-5">
           <div>
             <p className="text-sm font-semibold text-brand-950">Cerrar sesión</p>
