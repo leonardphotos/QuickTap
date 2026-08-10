@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { ArrowLeft } from 'lucide-react';
 import { formatBase, formatBs } from '@/utils/format';
 import { USD_FIRST_METHODS } from '@/utils/payments';
@@ -48,8 +49,12 @@ export function PaymentClientScreen({
   const baseLabel = formatBase(amountBase, symbol);
   const bsLabel = rateBs ? formatBs(amountBase, rateBs) : null;
 
-  return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-white">
+  // Va en un portal al <body> y por encima de z-[1100] (el de Dialog, ver ui/dialog.tsx):
+  // el cobro se abre desde el diálogo de "Editar pedido", que si no queda tapando esta
+  // pantalla. `pointerEvents: auto` es necesario porque Radix apaga los clics del body
+  // mientras hay un diálogo abierto, y esto vive fuera de su contenido.
+  return createPortal(
+    <div className="fixed inset-0 z-[1200] flex flex-col bg-white" style={{ pointerEvents: 'auto' }}>
       <div className="flex shrink-0 items-center gap-3 px-5 py-4 sm:px-8">
         <button
           type="button"
@@ -111,6 +116,7 @@ export function PaymentClientScreen({
           Siguiente
         </TextureButton>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
