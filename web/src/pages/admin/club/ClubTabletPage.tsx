@@ -589,15 +589,28 @@ function Chip({ label, active, onClick }: { label: string; active: boolean; onCl
  * una tablet atornillada a la pared con la cámara rota dejaría al jugador sin
  * forma de entrar. Vive acá dentro y no en la pantalla de inicio, que tiene que
  * seguir siendo un solo botón.
+ *
+ * Usa la cámara frontal ('user'): la tablet está fija en la pared, así que la
+ * trasera apunta a la pared y el jugador acerca su QR a la de adelante.
  */
 function FullscreenScanner({ onClose, onDecoded }: { onClose: () => void; onDecoded: (v: string) => void }) {
-  const { videoRef, cameraError } = useBarcodeCamera(true, onDecoded);
+  const { videoRef, cameraError } = useBarcodeCamera(true, onDecoded, 'user');
   const [manual, setManual] = useState('');
   const [typing, setTyping] = useState(false);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black">
-      <video ref={videoRef} className="absolute inset-0 h-full w-full object-cover" muted autoPlay playsInline />
+      {/* Espejado como cualquier cámara frontal: sin esto, mover el QR a la
+          derecha lo mueve a la izquierda en pantalla y apuntar se vuelve un
+          rompecabezas. Solo afecta a la vista previa — zxing decodifica el
+          stream original, no el elemento con el transform. */}
+      <video
+        ref={videoRef}
+        className="absolute inset-0 h-full w-full -scale-x-100 object-cover"
+        muted
+        autoPlay
+        playsInline
+      />
 
       {!cameraError && !typing && (
         <div className="pointer-events-none relative flex flex-col items-center gap-6">

@@ -9,8 +9,16 @@ import type { IScannerControls } from '@zxing/browser';
  * inconsistente al reabrir el mismo lector una segunda vez — eso es lo que causaba el cuadro en
  * negro al volver a abrir el escáner. También limpia `video.srcObject` explícitamente al cerrar
  * y llama `.play()` a mano, por si el navegador no arranca el autoplay solo tras asignar el stream.
+ *
+ * `facingMode` por defecto es la cámara trasera, que es la que se apunta a un código con un
+ * equipo en la mano. La tablet de la cancha pide `'user'`: está atornillada a la pared, así que
+ * el jugador acerca su QR a la cámara frontal, la única que le queda de frente.
  */
-export function useBarcodeCamera(open: boolean, onDecode: (code: string) => void) {
+export function useBarcodeCamera(
+  open: boolean,
+  onDecode: (code: string) => void,
+  facingMode: 'environment' | 'user' = 'environment',
+) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
   const onDecodeRef = useRef(onDecode);
@@ -25,7 +33,7 @@ export function useBarcodeCamera(open: boolean, onDecode: (code: string) => void
     const videoEl = videoRef.current;
 
     reader
-      .decodeFromConstraints({ video: { facingMode: 'environment' } }, videoEl ?? undefined, (result) => {
+      .decodeFromConstraints({ video: { facingMode } }, videoEl ?? undefined, (result) => {
         if (cancelled || !result) return;
         onDecodeRef.current(result.getText().trim());
       })
@@ -48,7 +56,7 @@ export function useBarcodeCamera(open: boolean, onDecode: (code: string) => void
       if (videoEl) videoEl.srcObject = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  }, [open, facingMode]);
 
   return { videoRef, cameraError };
 }
