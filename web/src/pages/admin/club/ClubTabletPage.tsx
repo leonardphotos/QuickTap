@@ -372,7 +372,6 @@ export default function ClubTabletPage() {
           <PortadaAction
             icon={<Trophy className="h-7 w-7" />}
             title="Torneo"
-            hint="Arma un americano"
             onClick={() =>
               openTournament({
                 players: session.booking.tournamentPlayerNames ?? [],
@@ -380,12 +379,7 @@ export default function ClubTabletPage() {
               })
             }
           />
-          <PortadaAction
-            icon={<ShoppingBag className="h-7 w-7" />}
-            title="Tienda"
-            hint="Pide a la cancha"
-            onClick={() => setScreen('menu')}
-          />
+          <PortadaAction icon={<ShoppingBag className="h-7 w-7" />} title="Tienda" onClick={() => setScreen('menu')} />
         </div>
 
         <p className="mt-7 text-sm font-light text-white/55">
@@ -642,26 +636,26 @@ function TabletPortada({
 }
 
 /** Botón grande de la portada de sesión (Torneo / Tienda). Los dos pesan igual:
- * en una tablet de pared no hay una acción "principal" entre las dos. */
+ * en una tablet de pared no hay una acción "principal" entre las dos. Sin
+ * borde: solo el ícono en su círculo y el nombre, nada de tarjeta alrededor. */
 function PortadaAction({
   icon,
   title,
-  hint,
   onClick,
 }: {
   icon: React.ReactNode;
   title: string;
-  hint: string;
   onClick: () => void;
 }) {
   return (
     <button
       onClick={onClick}
-      className="flex flex-1 flex-col items-center gap-2 rounded-3xl border border-white/25 bg-white/15 px-6 py-6 backdrop-blur-xl transition-all hover:bg-white/25 active:scale-[0.98]"
+      className="flex flex-1 flex-col items-center gap-3 py-6 transition-transform active:scale-[0.97]"
     >
-      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 text-white">{icon}</span>
+      <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white/15 text-white backdrop-blur-xl transition-colors hover:bg-white/25">
+        {icon}
+      </span>
       <span className="text-xl font-bold text-white">{title}</span>
-      <span className="text-[13px] font-light text-white/60">{hint}</span>
     </button>
   );
 }
