@@ -366,27 +366,28 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   // guardamos localmente para no depender de esa carrera). Se filtra por id para no duplicarlo.
   const allPayments = [...order.payments, ...sessionPayments.filter((sp) => !order.payments.some((p) => p.id === sp.id))];
 
-  if (clientScreenOpen) {
-    return (
-      <PaymentClientScreen
-        method={method}
-        methodLabel={PAYMENT_LABELS[method]}
-        qrImageUrl={qrImageUrl}
-        amountBase={amountToCharge}
-        symbol={symbol}
-        rateBs={restaurant?.exchangeRate?.rateBs}
-        detailTitle={`Detalle del pedido (${order.items.length} ${order.items.length === 1 ? 'ítem' : 'ítems'})`}
-        detailLines={detailLines}
-        details={paymentDetailsBlock}
-        onNext={() => setClientScreenOpen(false)}
-        onBack={() => setClientScreenOpen(false)}
-      />
-    );
-  }
-
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+    <>
+      {/* Se monta ENCIMA del diálogo, no en su lugar: si se devolviera esta pantalla en vez
+          del <Dialog>, Radix lo desmontaría y al cerrarla se perdía todo el cobro en curso. */}
+      {clientScreenOpen && (
+        <PaymentClientScreen
+          method={method}
+          methodLabel={PAYMENT_LABELS[method]}
+          qrImageUrl={qrImageUrl}
+          amountBase={amountToCharge}
+          symbol={symbol}
+          rateBs={restaurant?.exchangeRate?.rateBs}
+          detailTitle={`Detalle del pedido (${order.items.length} ${order.items.length === 1 ? 'ítem' : 'ítems'})`}
+          detailLines={detailLines}
+          details={paymentDetailsBlock}
+          onNext={() => setClientScreenOpen(false)}
+          onBack={() => setClientScreenOpen(false)}
+        />
+      )}
+
+      <Dialog open onOpenChange={(o) => !o && onClose()}>
+        <DialogContent>
         <DialogHeader className={showPrintPrompt || paidNow != null ? undefined : 'flex-row items-center gap-2 pr-6'}>
           {/* Botón de retorno: solo antes de registrar el pago, para que el cajero pueda
               salir y elegir otra modalidad (Pago/Fraccionado/Deuda) si el cliente cambia de
@@ -731,7 +732,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                 {(qrImageUrl || paymentDetailsBlock) && (
                   <TextureButton
                     variant="minimal"
-                    size="sm"
+                    size="default"
                     className="mt-2 w-full justify-center"
                     onClick={() => setClientScreenOpen(true)}
                   >
@@ -749,7 +750,8 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
             </>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

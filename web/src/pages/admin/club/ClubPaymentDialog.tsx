@@ -210,27 +210,28 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
 
   const remainingAfter = paidNow != null ? Number(latestBooking.balanceBase) : balanceBase;
 
-  if (clientScreenOpen) {
-    return (
-      <PaymentClientScreen
-        method={method}
-        methodLabel={PAYMENT_LABELS[method]}
-        qrImageUrl={qrImageUrl}
-        amountBase={amountToCharge}
-        symbol={symbol}
-        rateBs={restaurant?.exchangeRate?.rateBs}
-        detailTitle="Detalle de la reserva"
-        detailLines={detailLines}
-        details={paymentDetailsBlock}
-        onNext={() => setClientScreenOpen(false)}
-        onBack={() => setClientScreenOpen(false)}
-      />
-    );
-  }
-
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+    <>
+      {/* Se monta ENCIMA del diálogo, no en su lugar: si se devolviera esta pantalla en vez
+          del <Dialog>, Radix lo desmontaría y al cerrarla se perdía todo el cobro en curso. */}
+      {clientScreenOpen && (
+        <PaymentClientScreen
+          method={method}
+          methodLabel={PAYMENT_LABELS[method]}
+          qrImageUrl={qrImageUrl}
+          amountBase={amountToCharge}
+          symbol={symbol}
+          rateBs={restaurant?.exchangeRate?.rateBs}
+          detailTitle="Detalle de la reserva"
+          detailLines={detailLines}
+          details={paymentDetailsBlock}
+          onNext={() => setClientScreenOpen(false)}
+          onBack={() => setClientScreenOpen(false)}
+        />
+      )}
+
+      <Dialog open onOpenChange={(o) => !o && onClose()}>
+        <DialogContent>
         <DialogHeader className={paidNow != null ? undefined : 'flex-row items-center gap-2 pr-6'}>
           {paidNow == null && (
             <button
@@ -397,7 +398,7 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
                 {(qrImageUrl || paymentDetailsBlock) && (
                   <TextureButton
                     variant="minimal"
-                    size="sm"
+                    size="default"
                     className="mt-2 w-full justify-center"
                     onClick={() => setClientScreenOpen(true)}
                   >
@@ -415,7 +416,8 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
             </>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

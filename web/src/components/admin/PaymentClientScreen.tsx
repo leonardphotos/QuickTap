@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { ArrowLeft } from 'lucide-react';
 import { formatBase, formatBs } from '@/utils/format';
 import { USD_FIRST_METHODS } from '@/utils/payments';
-import { TextureButton } from '@/components/ui/texture-button';
 import type { PaymentMethod } from '@/types';
 
 interface Props {
@@ -111,10 +110,14 @@ export function PaymentClientScreen({
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-brand-950/10 px-5 py-4 sm:px-10">
-        <TextureButton variant="brand" size="default" onClick={onNext} className="mx-auto !w-full max-w-lg justify-center">
-          Siguiente
-        </TextureButton>
+      <div className="flex shrink-0 justify-center border-t border-brand-950/10 px-5 py-4 sm:px-10">
+        <button
+          type="button"
+          onClick={onNext}
+          className="w-full max-w-lg rounded-full bg-emerald-600 px-6 py-3.5 text-[15px] font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-400/50"
+        >
+          Listo
+        </button>
       </div>
     </div>,
     document.body,
