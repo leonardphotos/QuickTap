@@ -231,7 +231,15 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
       )}
 
       <Dialog open onOpenChange={(o) => !o && onClose()}>
-        <DialogContent>
+        {/* Con la pantalla del cliente encima, cualquier clic en ella cae "fuera" del diálogo
+            y Radix lo cerraría, perdiendo el cobro en curso. Mientras esté abierta, el diálogo
+            ignora los clics de afuera y el Escape. */}
+        <DialogContent
+          onPointerDownOutside={(e) => clientScreenOpen && e.preventDefault()}
+          onInteractOutside={(e) => clientScreenOpen && e.preventDefault()}
+          onFocusOutside={(e) => clientScreenOpen && e.preventDefault()}
+          onEscapeKeyDown={(e) => clientScreenOpen && e.preventDefault()}
+        >
         <DialogHeader className={paidNow != null ? undefined : 'flex-row items-center gap-2 pr-6'}>
           {paidNow == null && (
             <button

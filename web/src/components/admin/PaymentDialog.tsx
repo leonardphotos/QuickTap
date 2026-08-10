@@ -387,7 +387,15 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
       )}
 
       <Dialog open onOpenChange={(o) => !o && onClose()}>
-        <DialogContent>
+        {/* Con la pantalla del cliente encima, cualquier clic en ella cae "fuera" del diálogo
+            y Radix lo cerraría — el cajero volvía a Editar pedido y perdía el cobro. Mientras
+            esa pantalla esté abierta, el diálogo ignora los clics de afuera y el Escape. */}
+        <DialogContent
+          onPointerDownOutside={(e) => clientScreenOpen && e.preventDefault()}
+          onInteractOutside={(e) => clientScreenOpen && e.preventDefault()}
+          onFocusOutside={(e) => clientScreenOpen && e.preventDefault()}
+          onEscapeKeyDown={(e) => clientScreenOpen && e.preventDefault()}
+        >
         <DialogHeader className={showPrintPrompt || paidNow != null ? undefined : 'flex-row items-center gap-2 pr-6'}>
           {/* Botón de retorno: solo antes de registrar el pago, para que el cajero pueda
               salir y elegir otra modalidad (Pago/Fraccionado/Deuda) si el cliente cambia de

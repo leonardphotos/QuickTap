@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft } from 'lucide-react';
 import { formatBase, formatBs } from '@/utils/format';
@@ -44,6 +44,21 @@ export function PaymentClientScreen({
   onNext,
   onBack,
 }: Props) {
+  // Escape cierra ESTA pantalla y devuelve al cobro. Se captura antes de que llegue al
+  // diálogo de Pagar, que si no se cerraría también y perdería el cobro en curso.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      // stopImmediatePropagation, no solo stopPropagation: Radix escucha el Escape en el
+      // mismo document, así que hay que cortar también los otros listeners de ese nodo.
+      e.stopImmediatePropagation();
+      onBack();
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [onBack]);
+
   const usdFirst = USD_FIRST_METHODS.includes(method);
   const baseLabel = formatBase(amountBase, symbol);
   const bsLabel = rateBs ? formatBs(amountBase, rateBs) : null;

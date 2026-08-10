@@ -1114,7 +1114,15 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
 
       {/* ---------- Pago móvil ---------- */}
       <Dialog open={pagoMovilOpen} onOpenChange={(o) => (o ? setPagoMovilOpen(true) : closePagoMovil())}>
-        <DialogContent className="text-center w-[calc(100vw-2rem)] max-w-md sm:w-full max-h-[94vh] p-7 sm:p-9 gap-5">
+        <DialogContent
+          className="text-center w-[calc(100vw-2rem)] max-w-md sm:w-full max-h-[94vh] p-7 sm:p-9 gap-5"
+          // Con la pantalla del cliente encima, sus clics caen "fuera" del diálogo y Radix lo
+          // cerraría, perdiendo el cobro en curso.
+          onPointerDownOutside={(e) => clientScreenOpen && e.preventDefault()}
+          onInteractOutside={(e) => clientScreenOpen && e.preventDefault()}
+          onFocusOutside={(e) => clientScreenOpen && e.preventDefault()}
+          onEscapeKeyDown={(e) => clientScreenOpen && e.preventDefault()}
+        >
           {/* El QR y los datos de cobro NO van acá: ocupan media pantalla y el cliente no lee
               este diálogo. Se los enseña con "Mostrar datos" (pantalla completa) y acá queda
               solo lo que carga el cajero: monto, referencia y comprobante. */}
