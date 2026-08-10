@@ -2,10 +2,18 @@ import { useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { ArrowLeft, Camera, Check, Copy, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, formatBase, formatBs, formatBsAbsolute } from '@/utils/format';
+import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
+import {
+  METHODS_ALLOWING_PROOF,
+  METHODS_REQUIRING_PROOF_OR_REFERENCE,
+  METHODS_WITH_QR,
+  paymentDocumentError,
+  referenceLabel,
+} from '@/utils/payments';
 import type { PaymentMethod } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
+import { PaymentChargePanel } from '@/components/admin/PaymentChargePanel';
 import { clubApi, type ClubBooking, type ClubBookingPayment } from './clubApi';
 
 // Mismas etiquetas y reglas que el cobro de comandas (PaymentDialog.tsx) — es
@@ -22,12 +30,6 @@ export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
 };
 
 const DEFAULT_PAYMENT_OPTIONS: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD'];
-const METHODS_REQUIRING_REFERENCE: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER'];
-const METHODS_REQUIRING_PROOF: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'BINANCE', 'PAYPAL', 'TRANSFER'];
-
-function referenceLabel(method: PaymentMethod): string {
-  return method === 'CARD' ? 'Número de ticket' : 'Número de referencia';
-}
 
 const PAYMENT_FIELD_LABELS: Record<string, string> = {
   banco: 'Banco',
@@ -93,9 +95,10 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
   const [latestBooking, setLatestBooking] = useState(booking);
 
   const selectedDetails = paymentConfig?.[method];
-  const needsReference = METHODS_REQUIRING_REFERENCE.includes(method);
-  const needsProof = METHODS_REQUIRING_PROOF.includes(method);
+  const needsReference = METHODS_REQUIRING_PROOF_OR_REFERENCE.includes(method);
+  const needsProof = METHODS_ALLOWING_PROOF.includes(method);
   const amountToCharge = mode === 'split' ? Number(amount) || 0 : balanceBase;
+  const qrImageUrl = METHODS_WITH_QR.includes(method) ? selectedDetails?.qrImageUrl ?? null : null;
 
   async function copyField(key: string, value: string) {
     try {
@@ -133,8 +136,9 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
       setError(`El monto no puede superar el saldo pendiente (${formatBase(balanceBase, symbol)}).`);
       return;
     }
-    if (needsReference && !referenceNumber.trim()) {
-      setError(`Escribe el ${referenceLabel(method).toLowerCase()}.`);
+    const docError = paymentDocumentError(method, referenceNumber, proofUrl);
+    if (docError) {
+      setError(docError);
       return;
     }
     setSending(true);
@@ -160,7 +164,9 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+      {/* Con QR el diálogo se ensancha: el código ocupa una columna entera y el monto
+          necesita la otra sin quedar apretado contra el borde. */}
+      <DialogContent className={qrImageUrl && paidNow == null ? 'max-w-2xl' : undefined}>
         <DialogHeader className={paidNow != null ? undefined : 'flex-row items-center gap-2 pr-6'}>
           {paidNow == null && (
             <button
@@ -260,66 +266,51 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
                 </div>
               </div>
 
-              {method === 'MOBILE_PAYMENT' && (
-                <div className="space-y-2 text-center">
-                  {restaurant?.paymentMethodsConfig?.MOBILE_PAYMENT?.qrImageUrl && (
-                    <img
-                      src={restaurant.paymentMethodsConfig.MOBILE_PAYMENT.qrImageUrl}
-                      alt="QR de Pago Móvil"
-                      className="mx-auto aspect-square w-full max-w-[220px] rounded-2xl border border-brand-950/10 object-contain"
-                    />
-                  )}
-                  <div>
-                    <p className="text-xs font-semibold text-brand-950/50">Monto a cobrar</p>
-                    <div className="mt-1 text-3xl font-extrabold leading-none tracking-tight text-emerald-600">
-                      {restaurant?.exchangeRate
-                        ? formatBs(amountToCharge, restaurant.exchangeRate.rateBs)
-                        : formatBase(amountToCharge, symbol)}
-                    </div>
-                    {restaurant?.exchangeRate && (
-                      <p className="mt-1.5 text-xs font-medium text-brand-950/50">
-                        {formatBase(amountToCharge, symbol)} &nbsp;x&nbsp; Bs{Number(restaurant.exchangeRate.rateBs).toFixed(2)}{' '}
-                        (tasa del día)
-                      </p>
-                    )}
+              <PaymentChargePanel
+                method={method}
+                qrImageUrl={qrImageUrl}
+                amountBase={amountToCharge}
+                symbol={symbol}
+                rateBs={restaurant?.exchangeRate?.rateBs}
+              >
+                {selectedDetails && (
+                  <div className="space-y-1 rounded-lg bg-brand-950/[0.03] px-2.5 py-2 text-xs text-brand-950/60">
+                    {(Object.keys(PAYMENT_FIELD_LABELS) as (keyof typeof PAYMENT_FIELD_LABELS)[])
+                      .filter((f) => selectedDetails[f as keyof typeof selectedDetails])
+                      .map((f) => {
+                        const value = String(selectedDetails[f as keyof typeof selectedDetails]);
+                        return (
+                          <div key={f} className="flex items-center justify-between gap-2">
+                            <p className="truncate">
+                              <span className="text-brand-950/40">{PAYMENT_FIELD_LABELS[f]}:</span> {value}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => copyField(f, value)}
+                              aria-label={`Copiar ${PAYMENT_FIELD_LABELS[f]}`}
+                              className="flex shrink-0 items-center gap-1 font-medium text-brand-500 hover:text-brand-400"
+                            >
+                              {copiedField === f ? (
+                                <>
+                                  <Check className="h-3 w-3" /> Copiado
+                                </>
+                              ) : (
+                                <Copy className="h-3 w-3" />
+                              )}
+                            </button>
+                          </div>
+                        );
+                      })}
                   </div>
-                </div>
-              )}
-
-              {selectedDetails && (
-                <div className="space-y-1 rounded-lg bg-brand-950/[0.03] px-2.5 py-2 text-xs text-brand-950/60">
-                  {(Object.keys(PAYMENT_FIELD_LABELS) as (keyof typeof PAYMENT_FIELD_LABELS)[])
-                    .filter((f) => selectedDetails[f as keyof typeof selectedDetails])
-                    .map((f) => {
-                      const value = String(selectedDetails[f as keyof typeof selectedDetails]);
-                      return (
-                        <div key={f} className="flex items-center justify-between gap-2">
-                          <p className="truncate">
-                            <span className="text-brand-950/40">{PAYMENT_FIELD_LABELS[f]}:</span> {value}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => copyField(f, value)}
-                            aria-label={`Copiar ${PAYMENT_FIELD_LABELS[f]}`}
-                            className="flex shrink-0 items-center gap-1 font-medium text-brand-500 hover:text-brand-400"
-                          >
-                            {copiedField === f ? (
-                              <>
-                                <Check className="h-3 w-3" /> Copiado
-                              </>
-                            ) : (
-                              <Copy className="h-3 w-3" />
-                            )}
-                          </button>
-                        </div>
-                      );
-                    })}
-                </div>
-              )}
+                )}
+              </PaymentChargePanel>
 
               {needsReference && (
                 <div>
-                  <p className="mb-1.5 text-xs font-medium text-brand-950/50">{referenceLabel(method)}</p>
+                  <p className="mb-1.5 text-xs font-medium text-brand-950/50">
+                    {referenceLabel(method)}
+                    {needsProof && <span className="text-brand-950/40"> — o adjunta el comprobante abajo</span>}
+                  </p>
                   <input
                     value={referenceNumber}
                     onChange={(e) => setReferenceNumber(e.target.value)}
@@ -339,7 +330,7 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
                     onClick={() => fileInputRef.current?.click()}
                   >
                     {uploadingProof ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                    {uploadingProof ? 'Subiendo…' : proofUrl ? 'Cambiar comprobante' : 'Adjuntar comprobante (opcional)'}
+                    {uploadingProof ? 'Subiendo…' : proofUrl ? 'Cambiar comprobante' : 'Adjuntar comprobante'}
                   </TextureButton>
                   <input
                     ref={fileInputRef}

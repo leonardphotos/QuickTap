@@ -55,6 +55,14 @@ const METHODS: MethodDef[] = [
   { key: 'CARD', label: 'Punto de Venta', fields: [] },
 ];
 
+// Métodos que se cobran mostrando un QR para escanear. El resto no tiene QR que enseñar
+// (efectivo, punto de venta) o se paga con datos escritos (transferencia, PayPal).
+const QR_LABELS: Partial<Record<PaymentMethodKey, string>> = {
+  MOBILE_PAYMENT: 'QR de Pago Móvil (banco / Suiche 7B)',
+  ZELLE: 'QR de Zelle',
+  BINANCE: 'QR de Binance',
+};
+
 interface Props {
   /** Reemplaza el copy por defecto (pensado para el checkout de delivery/pickup del restaurante)
    * cuando este componente se reutiliza en un contexto distinto, ej. QuickTap Shop. */
@@ -136,15 +144,15 @@ export function PaymentMethodsSection({ descriptionOverride }: Props = {}) {
                   </div>
                 )}
 
-                {enabled && m.key === 'MOBILE_PAYMENT' && (
+                {enabled && QR_LABELS[m.key] && (
                   <div className="mt-3 max-w-[180px]">
                     <PhotoUploadField
-                      value={config.MOBILE_PAYMENT?.qrImageUrl ?? null}
-                      onChange={(url) => setField('MOBILE_PAYMENT', 'qrImageUrl', url ?? '')}
-                      label="QR de Pago Móvil (banco / Suiche 7B)"
+                      value={config[m.key]?.qrImageUrl ?? null}
+                      onChange={(url) => setField(m.key, 'qrImageUrl', url ?? '')}
+                      label={QR_LABELS[m.key]!}
                       uploadUrl="/restaurant/upload-payment-qr"
                       shape="square"
-                      helpText="Se muestra a tus clientes al cobrar por Pago Móvil"
+                      helpText={`Se muestra a tus clientes al cobrar por ${m.label}`}
                     />
                   </div>
                 )}

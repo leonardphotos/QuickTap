@@ -106,9 +106,13 @@ export const calendarQuerySchema = z.object({
 
 const paymentMethodSchema = z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER']);
 
-// Métodos que requieren capturar un número de referencia/comprobante (Punto de venta = "ticket").
-// Todos menos Efectivo Bs/$ — mismo criterio que order.dto.ts (METHODS_REQUIRING_REFERENCE).
-const METHODS_REQUIRING_REFERENCE = ['MOBILE_PAYMENT', 'ZELLE', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER'] as const;
+// Métodos que dejan rastro verificable y exigen referencia o comprobante (Punto de venta = "ticket").
+// Todos menos Efectivo Bs/$ — mismo criterio que order.dto.ts (METHODS_REQUIRING_PROOF_OR_REFERENCE).
+const METHODS_REQUIRING_PROOF_OR_REFERENCE = ['MOBILE_PAYMENT', 'ZELLE', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER'] as const;
+
+// De esos, los que además pueden adjuntar foto. Punto de Venta no: su ticket impreso ya es el comprobante,
+// así que para CARD el número sigue siendo la única forma de cumplir.
+const METHODS_ALLOWING_PROOF = ['MOBILE_PAYMENT', 'ZELLE', 'BINANCE', 'PAYPAL', 'TRANSFER'] as const;
 
 /** Botón "Caja" en Canchas: Pagar (mode=full) o Pago fraccionado (mode=split), mismo esquema. */
 export const recordBookingPaymentSchema = z
@@ -119,13 +123,17 @@ export const recordBookingPaymentSchema = z
     proofImageUrl: z.string().optional(),
   })
   .superRefine((data, ctx) => {
-    if (METHODS_REQUIRING_REFERENCE.includes(data.method as any) && !data.referenceNumber?.trim()) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: data.method === 'CARD' ? 'Escribe el número de ticket.' : 'Escribe el número de referencia.',
-        path: ['referenceNumber'],
-      });
-    }
+    // Basta con uno de los dos: quien tiene la captura no siempre transcribe el número, y
+    // quien anota el número no siempre guarda la captura. Exigir ambos trancaba la caja.
+    if (!METHODS_REQUIRING_PROOF_OR_REFERENCE.includes(data.method as any)) return;
+    if (data.referenceNumber?.trim() || data.proofImageUrl?.trim()) return;
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: METHODS_ALLOWING_PROOF.includes(data.method as any)
+        ? 'Escribe el número de referencia o adjunta el comprobante.'
+        : 'Escribe el número de ticket.',
+      path: ['referenceNumber'],
+    });
   });
 
 /** "Deuda" en Canchas: recepción marca que sabe que esto se debe, sin registrar cobro. */

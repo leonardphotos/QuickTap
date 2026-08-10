@@ -57,7 +57,7 @@ export interface PaymentMethodFields {
   id?: string;
   cuenta?: string;
   rif?: string;
-  /** Solo Pago Móvil: QR (banco/Suiche 7B) que se muestra al cliente al cobrar. */
+  /** QR que el cliente escanea al cobrar: Pago Móvil (banco/Suiche 7B), Zelle y Binance. */
   qrImageUrl?: string;
 }
 

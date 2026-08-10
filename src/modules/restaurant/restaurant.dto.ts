@@ -46,7 +46,8 @@ const paymentMethodFieldsSchema = z.object({
   id: z.string().max(80).optional(),
   cuenta: z.string().max(40).optional(),
   rif: z.string().max(30).optional(),
-  // Solo Pago Móvil: QR (banco/Suiche 7B) que se muestra al cliente en pantalla al cobrar.
+  // QR que se muestra al cliente en pantalla al cobrar, para que lo escanee: Pago Móvil
+  // (banco/Suiche 7B), Zelle y Binance. Los demás métodos no lo usan.
   qrImageUrl: z.string().min(1).optional(),
 });
 

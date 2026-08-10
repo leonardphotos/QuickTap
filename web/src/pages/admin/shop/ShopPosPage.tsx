@@ -4,7 +4,15 @@ import { Camera, CheckCircle2, ClipboardList, Loader2, MessageCircle, Minus, Plu
 import { api } from '@/api/client';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { useAuth } from '@/context/AuthContext';
-import type { StaffMember } from '@/types';
+import type { PaymentMethodKey, StaffMember } from '@/types';
+import {
+  METHODS_ALLOWING_PROOF,
+  METHODS_REQUIRING_PROOF_OR_REFERENCE,
+  METHODS_WITH_QR,
+  USD_FIRST_METHODS,
+  paymentDocumentError,
+  referenceLabel,
+} from '@/utils/payments';
 import { useToast } from '@/hooks/useToast';
 import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
 import { sendWhatsappOrOpen } from '@/utils/sendWhatsapp';
@@ -104,7 +112,7 @@ type PaymentMethod = string;
 
 /** Mismas claves/orden que PaymentMethodsSection.tsx (Ajustes) — el método de pago que se
  * ofrece al cobrar es exactamente el que el dueño activó ahí, no una lista fija. */
-const PAYMENT_METHOD_META: { key: keyof NonNullable<AuthRestaurant['paymentMethodsConfig']>; label: string }[] = [
+const PAYMENT_METHOD_META: { key: PaymentMethodKey; label: string }[] = [
   { key: 'CASH', label: 'Efectivo Bs' },
   { key: 'CASH_USD', label: 'Efectivo $' },
   { key: 'MOBILE_PAYMENT', label: 'Pago Móvil' },
@@ -182,6 +190,10 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const [saleMode, setSaleMode] = useState<SaleMode>({ kind: 'direct' });
   const [paymethodOpen, setPaymethodOpen] = useState(false);
   const [pagoMovilOpen, setPagoMovilOpen] = useState(false);
+  // Qué método se está cobrando en esa pantalla. Antes era siempre Pago Móvil; ahora Zelle,
+  // Binance, PayPal, Transferencia y Punto de Venta pasan por la misma para capturar su
+  // referencia o comprobante (efectivo sigue cerrando de una, no deja rastro que pedir).
+  const [pmMethodKey, setPmMethodKey] = useState<PaymentMethodKey>('MOBILE_PAYMENT');
   const [pmReference, setPmReference] = useState('');
   const [pmProofUrl, setPmProofUrl] = useState<string | null>(null);
   const [pmUploadingProof, setPmUploadingProof] = useState(false);
@@ -223,8 +235,14 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const payToConfig = qsPendingPayment ? restaurant.paymentMethodsConfig : (activeProvider?.paymentMethodsConfig ?? restaurant.paymentMethodsConfig);
   const payToName = !qsPendingPayment && activeProvider?.paymentMethodsConfig ? activeProvider.name : restaurant.name;
   const payToIsStaff = !qsPendingPayment && Boolean(activeProvider?.paymentMethodsConfig);
-  // El QR del local no aplica si el cobro va a la cuenta del barbero.
-  const qrImageUrl = payToIsStaff ? undefined : restaurant.paymentMethodsConfig?.MOBILE_PAYMENT?.qrImageUrl;
+  // El QR del local no aplica si el cobro va a la cuenta del barbero. Solo Pago Móvil, Zelle
+  // y Binance tienen QR que enseñar; el resto se paga con los datos escritos.
+  const qrImageUrl =
+    payToIsStaff || !METHODS_WITH_QR.includes(pmMethodKey)
+      ? undefined
+      : restaurant.paymentMethodsConfig?.[pmMethodKey]?.qrImageUrl;
+  const pmMethodLabel = PAYMENT_METHOD_META.find((m) => m.key === pmMethodKey)?.label ?? 'Pago Móvil';
+  const pmAllowsProof = METHODS_ALLOWING_PROOF.includes(pmMethodKey);
   // Solo se ofrecen al cobrar los métodos que el dueño activó en Ajustes > Métodos de pago —
   // si todavía no configuró ninguno, se cae a Efectivo Bs para no bloquear el cobro.
   // Los métodos que se ofrecen al cobrar son los del local MÁS los propios del barbero que
@@ -362,11 +380,14 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
     const cost = Number(qsCost.replace(',', '.')) || 0;
     if (!name || !(price > 0) || !qsPaymentMethod) return;
 
-    // Pago Móvil necesita su propia pantalla (QR, monto, referencia, comprobante) antes de poder
+    // Los métodos que dejan rastro (Pago Móvil, Zelle, Binance, PayPal, Transferencia, Punto de
+    // Venta) necesitan su propia pantalla (QR, monto, referencia, comprobante) antes de poder
     // cerrar el cobro — la misma que usa el checkout normal del carrito, ver pmTargetAmount/
     // payToConfig arriba y confirmPagoMovil más abajo.
-    if (qsPaymentMethod === 'Pago Móvil') {
+    const qsMethodKey = PAYMENT_METHOD_META.find((m) => m.label === qsPaymentMethod)?.key;
+    if (qsMethodKey && METHODS_REQUIRING_PROOF_OR_REFERENCE.includes(qsMethodKey)) {
       setQuickSaleOpen(false);
+      setPmMethodKey(qsMethodKey);
       setPmReference('');
       setPmProofUrl(null);
       setPmProofError(null);
@@ -499,7 +520,9 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
       setTicketSale(finalizeSale(method, null));
       return;
     }
-    if (method === 'Pago Móvil') {
+    const methodKey = PAYMENT_METHOD_META.find((m) => m.label === method)?.key;
+    if (methodKey && METHODS_REQUIRING_PROOF_OR_REFERENCE.includes(methodKey)) {
+      setPmMethodKey(methodKey);
       setPmReference('');
       setPmProofUrl(null);
       setPmProofError(null);
@@ -539,7 +562,8 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   }
 
   function confirmPagoMovil() {
-    if (!pmReference.trim()) return;
+    // Basta con la referencia O el comprobante — misma regla que el resto de las pasarelas.
+    if (paymentDocumentError(pmMethodKey, pmReference, pmProofUrl)) return;
     const meta: PaymentMeta = { reference: pmReference.trim(), hasProof: !!pmProofUrl, proofImageUrl: pmProofUrl ?? undefined };
 
     if (qsPendingPayment) {
@@ -547,14 +571,14 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
       const category = qsCategory.trim();
       const price = Number(qsPrice.replace(',', '.'));
       const cost = Number(qsCost.replace(',', '.')) || 0;
-      quickSale({ name, category, cost, price, paymentMethod: 'Pago Móvil', paymentMeta: meta });
+      quickSale({ name, category, cost, price, paymentMethod: pmMethodLabel, paymentMeta: meta });
       setPagoMovilOpen(false);
       setQsPendingPayment(false);
       setAddToInventoryPrompt({ name, category, cost, price, photoUrl: qsPhotoUrl });
       return;
     }
 
-    const sale = finalizeSale('Pago Móvil', meta);
+    const sale = finalizeSale(pmMethodLabel, meta);
     setPagoMovilOpen(false);
     setSuccessOpen(true);
     setTimeout(() => {
@@ -1044,80 +1068,128 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
 
       {/* ---------- Pago móvil ---------- */}
       <Dialog open={pagoMovilOpen} onOpenChange={(o) => (o ? setPagoMovilOpen(true) : closePagoMovil())}>
-        <DialogContent className="text-center max-w-md w-[calc(100vw-2rem)] sm:w-full max-h-[94vh] p-7 sm:p-9 gap-5">
-          {qrImageUrl && (
-            <img
-              src={qrImageUrl}
-              alt="QR de Pago Móvil"
-              className="mx-auto w-full max-w-[340px] aspect-square object-contain rounded-2xl border border-brand-950/10"
-            />
-          )}
-          {(() => {
-            const pm = payToConfig?.MOBILE_PAYMENT;
-            if (!pm?.telefono && !pm?.cedula) return null;
-            return (
-              <div className="rounded-2xl border border-brand-950/10 bg-brand-950/[0.03] p-3.5 text-left">
-                <p className="text-[11px] font-bold uppercase tracking-wide text-brand-950/45">
-                  {payToIsStaff ? `Pagar a ${payToName}` : 'Pagar a'}
-                </p>
-                <div className="mt-1.5 space-y-0.5 text-sm text-brand-950">
-                  {pm.titular && <p className="font-semibold">{pm.titular}</p>}
-                  {pm.telefono && <p>{pm.telefono}</p>}
-                  {pm.banco && <p className="text-brand-950/60">{pm.banco}</p>}
-                  {pm.cedula && <p className="text-brand-950/60">{pm.cedula}</p>}
+        <DialogContent
+          className={`text-center w-[calc(100vw-2rem)] max-h-[94vh] p-7 sm:p-9 gap-5 ${qrImageUrl ? 'max-w-3xl sm:w-full' : 'max-w-md sm:w-full'}`}
+        >
+          {/* QR a la izquierda y monto/datos a la derecha: el QR es lo que el cliente apunta
+              con el teléfono, así que va grande y a un lado en vez de empujar el monto fuera
+              de pantalla. Sin QR (transferencia, punto de venta) queda la columna sola. */}
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:text-left">
+            {qrImageUrl && (
+              <img
+                src={qrImageUrl}
+                alt={`QR de ${pmMethodLabel}`}
+                className="mx-auto w-full max-w-[300px] aspect-square object-contain rounded-2xl border border-brand-950/10 sm:mx-0 sm:w-[300px] sm:shrink-0"
+              />
+            )}
+
+            <div className="min-w-0 flex-1 space-y-4">
+              {(() => {
+                const pm = payToConfig?.[pmMethodKey];
+                if (!pm?.telefono && !pm?.cedula && !pm?.correo && !pm?.id && !pm?.cuenta) return null;
+                return (
+                  <div className="rounded-2xl border border-brand-950/10 bg-brand-950/[0.03] p-3.5 text-left">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-brand-950/45">
+                      {payToIsStaff ? `Pagar a ${payToName}` : 'Pagar a'}
+                    </p>
+                    <div className="mt-1.5 space-y-0.5 text-sm text-brand-950">
+                      {pm.titular && <p className="font-semibold">{pm.titular}</p>}
+                      {pm.correo && <p>{pm.correo}</p>}
+                      {pm.id && <p>{pm.id}</p>}
+                      {pm.telefono && <p>{pm.telefono}</p>}
+                      {pm.cuenta && <p>{pm.cuenta}</p>}
+                      {pm.banco && <p className="text-brand-950/60">{pm.banco}</p>}
+                      {pm.cedula && <p className="text-brand-950/60">{pm.cedula}</p>}
+                    </div>
+                    {payToIsStaff && (
+                      <p className="mt-2 text-[11px] text-brand-950/45">
+                        Cuenta propia del profesional. La venta queda registrada igual en el local.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
+
+              {/* Zelle y Binance mueven dólares: manda el monto en $ y el Bs queda de referencia. */}
+              <div>
+                <p className="text-sm font-semibold text-brand-950/50">Monto a cancelar</p>
+                <div className="text-[40px] sm:text-[48px] font-extrabold text-emerald-600 leading-none tracking-tight mt-1">
+                  {USD_FIRST_METHODS.includes(pmMethodKey)
+                    ? money(pmTargetAmount)
+                    : moneyBs(pmTargetAmount) ?? money(pmTargetAmount)}
                 </div>
-                {payToIsStaff && (
-                  <p className="mt-2 text-[11px] text-brand-950/45">
-                    Cuenta propia del profesional. La venta queda registrada igual en el local.
+                {restaurant.exchangeRate && (
+                  <p className="text-[13.5px] font-semibold text-brand-950/50 mt-2">
+                    {USD_FIRST_METHODS.includes(pmMethodKey) ? (
+                      <>
+                        {moneyBs(pmTargetAmount)} &nbsp;(tasa del día)
+                      </>
+                    ) : (
+                      <>
+                        {money(pmTargetAmount)} &nbsp;x&nbsp; Bs{Number(restaurant.exchangeRate.rateBs).toFixed(2)} &nbsp;(tasa
+                        del día)
+                      </>
+                    )}
                   </p>
                 )}
               </div>
-            );
-          })()}
 
-          <div>
-            <p className="text-sm font-semibold text-brand-950/50">Monto a cancelar</p>
-            <div className="text-[40px] sm:text-[48px] font-extrabold text-emerald-600 leading-none tracking-tight mt-1">
-              {moneyBs(pmTargetAmount) ?? money(pmTargetAmount)}
+              <label className="block text-sm text-left">
+                <span className="text-brand-950/70">
+                  {referenceLabel(pmMethodKey)}
+                  {pmAllowsProof && <span className="text-brand-950/45"> — o adjunta el comprobante</span>}
+                </span>
+                <input
+                  value={pmReference}
+                  onChange={(e) => setPmReference(e.target.value)}
+                  placeholder="Ej: 001234"
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                />
+              </label>
+
+              {pmAllowsProof && (
+                <>
+                  <TextureButton
+                    variant="minimal"
+                    size="default"
+                    className="w-full justify-center"
+                    disabled={pmUploadingProof}
+                    onClick={() => pmFileInputRef.current?.click()}
+                  >
+                    {pmUploadingProof ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+                    {pmUploadingProof ? 'Subiendo…' : pmProofUrl ? 'Cambiar comprobante' : 'Adjuntar comprobante'}
+                  </TextureButton>
+                  <input
+                    ref={pmFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={handleProofFileChange}
+                  />
+                  {pmProofUrl && (
+                    <div className="flex items-center gap-2.5 justify-center sm:justify-start">
+                      <img src={pmProofUrl} alt="Comprobante" className="h-12 w-12 rounded-lg object-cover border border-brand-950/10" />
+                      <p className="text-[12px] font-semibold text-emerald-600">✓ Comprobante adjunto</p>
+                    </div>
+                  )}
+                  {pmProofError && <p className="text-[12px] font-semibold text-red-600">{pmProofError}</p>}
+                </>
+              )}
             </div>
-            {restaurant.exchangeRate && (
-              <p className="text-[13.5px] font-semibold text-brand-950/50 mt-2">
-                {money(pmTargetAmount)} &nbsp;x&nbsp; Bs{Number(restaurant.exchangeRate.rateBs).toFixed(2)} &nbsp;(tasa del día)
-              </p>
-            )}
           </div>
-          <label className="block text-sm text-left">
-            <span className="text-brand-950/70">Número de referencia</span>
-            <input
-              value={pmReference}
-              onChange={(e) => setPmReference(e.target.value)}
-              placeholder="Ej: 001234"
-              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-            />
-          </label>
-          <TextureButton
-            variant="minimal"
-            size="default"
-            className="w-full justify-center"
-            disabled={pmUploadingProof}
-            onClick={() => pmFileInputRef.current?.click()}
-          >
-            {pmUploadingProof ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-            {pmUploadingProof ? 'Subiendo…' : 'Adjuntar comprobante'}
-          </TextureButton>
-          <input ref={pmFileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleProofFileChange} />
-          {pmProofUrl && (
-            <div className="flex items-center gap-2.5 justify-center">
-              <img src={pmProofUrl} alt="Comprobante" className="h-12 w-12 rounded-lg object-cover border border-brand-950/10" />
-              <p className="text-[12px] font-semibold text-emerald-600">✓ Comprobante adjunto</p>
-            </div>
-          )}
-          {pmProofError && <p className="text-[12px] font-semibold text-red-600">{pmProofError}</p>}
+
           <DialogFooter>
             <TextureButton variant="minimal" size="default" className="!w-auto" onClick={closePagoMovil}>
               Cancelar
             </TextureButton>
-            <TextureButton variant="brand" size="default" className="!w-auto" disabled={!pmReference.trim()} onClick={confirmPagoMovil}>
+            <TextureButton
+              variant="brand"
+              size="default"
+              className="!w-auto"
+              disabled={Boolean(paymentDocumentError(pmMethodKey, pmReference, pmProofUrl))}
+              onClick={confirmPagoMovil}
+            >
               Listo
             </TextureButton>
           </DialogFooter>

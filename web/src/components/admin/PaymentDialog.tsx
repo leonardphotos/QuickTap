@@ -3,11 +3,19 @@ import type { ChangeEvent } from 'react';
 import { ArrowLeft, Camera, Check, Copy, Loader2 } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, formatBase, formatBs, formatBsAbsolute, formatModifierLabel } from '@/utils/format';
+import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute, formatModifierLabel } from '@/utils/format';
 import { canApplyDiscount } from '@/utils/roles';
+import {
+  METHODS_ALLOWING_PROOF,
+  METHODS_REQUIRING_PROOF_OR_REFERENCE,
+  METHODS_WITH_QR,
+  paymentDocumentError,
+  referenceLabel,
+} from '@/utils/payments';
 import type { PaymentMethod } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
+import { PaymentChargePanel } from '@/components/admin/PaymentChargePanel';
 import type { LiveOrder, LiveOrderPayment } from './LiveOrdersPanel';
 
 export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
@@ -23,19 +31,6 @@ export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
 
 const DEFAULT_PAYMENT_OPTIONS: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD'];
 
-// Métodos que exigen un número de referencia/comprobante al registrar el cobro. Todos menos
-// Efectivo Bs/$ (que no dejan rastro que verificar) — mismo criterio que el backend
-// (order.dto.ts).
-const METHODS_REQUIRING_REFERENCE: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER'];
-
-// Además de la referencia, estos PUEDEN adjuntar la foto del comprobante — Punto de Venta
-// queda fuera: no tiene datos bancarios/QR que mostrar y el ticket impreso ya es su propio
-// comprobante. La foto es opcional: el número de referencia solo alcanza para registrar el cobro.
-const METHODS_REQUIRING_PROOF: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'BINANCE', 'PAYPAL', 'TRANSFER'];
-
-function referenceLabel(method: PaymentMethod): string {
-  return method === 'CARD' ? 'Número de ticket' : 'Número de referencia';
-}
 
 const PAYMENT_FIELD_LABELS: Record<string, string> = {
   banco: 'Banco',
@@ -122,8 +117,9 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   const [sessionPayments, setSessionPayments] = useState<LiveOrderPayment[]>([]);
 
   const selectedDetails = paymentConfig?.[method];
-  const needsReference = METHODS_REQUIRING_REFERENCE.includes(method);
-  const needsProof = METHODS_REQUIRING_PROOF.includes(method);
+  const needsReference = METHODS_REQUIRING_PROOF_OR_REFERENCE.includes(method);
+  const needsProof = METHODS_ALLOWING_PROOF.includes(method);
+  const qrImageUrl = METHODS_WITH_QR.includes(method) ? selectedDetails?.qrImageUrl ?? null : null;
 
   function round2(n: number) {
     return Math.round(n * 100) / 100;
@@ -253,8 +249,9 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
       setError(`El monto no puede superar el saldo pendiente (${formatBase(balanceBase, symbol)}).`);
       return;
     }
-    if (needsReference && !referenceNumber.trim()) {
-      setError(`Escribe el ${referenceLabel(method).toLowerCase()}.`);
+    const docError = paymentDocumentError(method, referenceNumber, proofUrl);
+    if (docError) {
+      setError(docError);
       return;
     }
     setSending(true);
@@ -324,7 +321,9 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+      {/* Con QR el diálogo se ensancha: el código ocupa una columna entera y el monto
+          necesita la otra sin quedar apretado contra el borde. */}
+      <DialogContent className={qrImageUrl && paidNow == null && !showPrintPrompt ? 'max-w-2xl' : undefined}>
         <DialogHeader className={showPrintPrompt || paidNow != null ? undefined : 'flex-row items-center gap-2 pr-6'}>
           {/* Botón de retorno: solo antes de registrar el pago, para que el cajero pueda
               salir y elegir otra modalidad (Pago/Fraccionado/Deuda) si el cliente cambia de
@@ -481,64 +480,51 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                 </div>
               </div>
 
-              {method === 'MOBILE_PAYMENT' && (
-                <div className="text-center space-y-2">
-                  {restaurant?.paymentMethodsConfig?.MOBILE_PAYMENT?.qrImageUrl && (
-                    <img
-                      src={restaurant.paymentMethodsConfig.MOBILE_PAYMENT.qrImageUrl}
-                      alt="QR de Pago Móvil"
-                      className="mx-auto w-full max-w-[220px] aspect-square object-contain rounded-2xl border border-brand-950/10"
-                    />
-                  )}
-                  <div>
-                    <p className="text-xs font-semibold text-brand-950/50">Monto a cobrar</p>
-                    <div className="text-3xl font-extrabold text-emerald-600 leading-none tracking-tight mt-1">
-                      {restaurant?.exchangeRate ? formatBs(amountToCharge, restaurant.exchangeRate.rateBs) : formatBase(amountToCharge, symbol)}
-                    </div>
-                    {restaurant?.exchangeRate && (
-                      <p className="text-xs font-medium text-brand-950/50 mt-1.5">
-                        {formatBase(amountToCharge, symbol)} &nbsp;x&nbsp; Bs{Number(restaurant.exchangeRate.rateBs).toFixed(2)}{' '}
-                        (tasa del día)
-                      </p>
-                    )}
+              <PaymentChargePanel
+                method={method}
+                qrImageUrl={qrImageUrl}
+                amountBase={amountToCharge}
+                symbol={symbol}
+                rateBs={restaurant?.exchangeRate?.rateBs}
+              >
+                {selectedDetails && (
+                  <div className="text-xs text-brand-950/60 bg-brand-950/[0.03] rounded-lg px-2.5 py-2 space-y-1">
+                    {(Object.keys(PAYMENT_FIELD_LABELS) as (keyof typeof PAYMENT_FIELD_LABELS)[])
+                      .filter((f) => selectedDetails[f as keyof typeof selectedDetails])
+                      .map((f) => {
+                        const value = String(selectedDetails[f as keyof typeof selectedDetails]);
+                        return (
+                          <div key={f} className="flex items-center justify-between gap-2">
+                            <p className="truncate">
+                              <span className="text-brand-950/40">{PAYMENT_FIELD_LABELS[f]}:</span> {value}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => copyField(f, value)}
+                              aria-label={`Copiar ${PAYMENT_FIELD_LABELS[f]}`}
+                              className="shrink-0 flex items-center gap-1 text-brand-500 hover:text-brand-400 font-medium"
+                            >
+                              {copiedField === f ? (
+                                <>
+                                  <Check className="h-3 w-3" /> Copiado
+                                </>
+                              ) : (
+                                <Copy className="h-3 w-3" />
+                              )}
+                            </button>
+                          </div>
+                        );
+                      })}
                   </div>
-                </div>
-              )}
-
-              {selectedDetails && (
-                <div className="text-xs text-brand-950/60 bg-brand-950/[0.03] rounded-lg px-2.5 py-2 space-y-1">
-                  {(Object.keys(PAYMENT_FIELD_LABELS) as (keyof typeof PAYMENT_FIELD_LABELS)[])
-                    .filter((f) => selectedDetails[f as keyof typeof selectedDetails])
-                    .map((f) => {
-                      const value = String(selectedDetails[f as keyof typeof selectedDetails]);
-                      return (
-                        <div key={f} className="flex items-center justify-between gap-2">
-                          <p className="truncate">
-                            <span className="text-brand-950/40">{PAYMENT_FIELD_LABELS[f]}:</span> {value}
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => copyField(f, value)}
-                            aria-label={`Copiar ${PAYMENT_FIELD_LABELS[f]}`}
-                            className="shrink-0 flex items-center gap-1 text-brand-500 hover:text-brand-400 font-medium"
-                          >
-                            {copiedField === f ? (
-                              <>
-                                <Check className="h-3 w-3" /> Copiado
-                              </>
-                            ) : (
-                              <Copy className="h-3 w-3" />
-                            )}
-                          </button>
-                        </div>
-                      );
-                    })}
-                </div>
-              )}
+                )}
+              </PaymentChargePanel>
 
               {needsReference && (
                 <div>
-                  <p className="text-xs font-medium text-brand-950/50 mb-1.5">{referenceLabel(method)}</p>
+                  <p className="text-xs font-medium text-brand-950/50 mb-1.5">
+                    {referenceLabel(method)}
+                    {needsProof && <span className="text-brand-950/40"> — o adjunta el comprobante abajo</span>}
+                  </p>
                   <input
                     value={referenceNumber}
                     onChange={(e) => setReferenceNumber(e.target.value)}
@@ -558,7 +544,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     onClick={() => fileInputRef.current?.click()}
                   >
                     {uploadingProof ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                    {uploadingProof ? 'Subiendo…' : proofUrl ? 'Cambiar comprobante' : 'Adjuntar comprobante (opcional)'}
+                    {uploadingProof ? 'Subiendo…' : proofUrl ? 'Cambiar comprobante' : 'Adjuntar comprobante'}
                   </TextureButton>
                   <input
                     ref={fileInputRef}
