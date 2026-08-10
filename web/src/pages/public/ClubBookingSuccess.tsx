@@ -69,6 +69,10 @@ export default function ClubBookingSuccess({ courtName, dateLabel, timeLabel, on
           {courtName} · {timeLabel}
         </p>
         <p className="text-[14px] font-light capitalize text-club-text/60">{dateLabel}</p>
+        {/* Duda típica: "escaneé tarde, ¿me descuentan ese tiempo?" — sí. */}
+        <p className="mx-auto mt-4 max-w-xs rounded-2xl border border-white/25 bg-white/10 px-4 py-2.5 text-[12px] font-light text-club-text/70">
+          El tiempo corre desde la hora reservada, no desde que escanees el QR al llegar.
+        </p>
       </div>
 
       <button
