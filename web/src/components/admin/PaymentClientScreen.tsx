@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ArrowLeft } from 'lucide-react';
 import { formatBase, formatBs } from '@/utils/format';
@@ -44,6 +44,30 @@ export function PaymentClientScreen({
   onNext,
   onBack,
 }: Props) {
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * Ningún clic de esta pantalla puede llegar al `document`. Radix escucha ahí para cerrar
+   * los diálogos al tocar "afuera", y esta pantalla vive fuera de todos ellos: sin esto, un
+   * toque en "Listo" cerraba el cobro Y el "Editar pedido" que lo contiene, mandando al
+   * cajero de vuelta a la lista con todo perdido.
+   *
+   * Se corta en `body`, no en el contenedor propio: React registra los listeners de este
+   * portal justo ahí, así que cortar antes dejaría los botones muertos. En `body` React ya
+   * despachó su onClick (se registró primero, durante el commit) y solo se impide el último
+   * salto hasta `document`, que es donde escucha Radix. Nativo a propósito — el
+   * stopPropagation de React actúa sobre el evento sintético y el nativo seguiría subiendo.
+   */
+  useEffect(() => {
+    const stop = (e: Event) => {
+      const target = e.target as Node | null;
+      if (target && rootRef.current?.contains(target)) e.stopPropagation();
+    };
+    const events = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click', 'touchstart', 'focusin'];
+    events.forEach((type) => document.body.addEventListener(type, stop));
+    return () => events.forEach((type) => document.body.removeEventListener(type, stop));
+  }, []);
+
   // Escape cierra ESTA pantalla y devuelve al cobro. Se captura antes de que llegue al
   // diálogo de Pagar, que si no se cerraría también y perdería el cobro en curso.
   useEffect(() => {
@@ -68,7 +92,7 @@ export function PaymentClientScreen({
   // pantalla. `pointerEvents: auto` es necesario porque Radix apaga los clics del body
   // mientras hay un diálogo abierto, y esto vive fuera de su contenido.
   return createPortal(
-    <div className="fixed inset-0 z-[1200] flex flex-col bg-white" style={{ pointerEvents: 'auto' }}>
+    <div ref={rootRef} className="fixed inset-0 z-[1200] flex flex-col bg-white" style={{ pointerEvents: 'auto' }}>
       <div className="flex shrink-0 items-center gap-3 px-5 py-4 sm:px-8">
         <button
           type="button"
