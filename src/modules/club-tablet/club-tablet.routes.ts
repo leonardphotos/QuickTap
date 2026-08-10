@@ -19,6 +19,7 @@ router.use(requireBusinessType('SPORTS_CLUB'));
 
 const tablet = requireRole('OWNER', 'ADMIN', 'CASHIER', 'CANCHA');
 
+router.get('/court', tablet, clubTabletController.court);
 router.get('/session/:accessToken', tablet, clubTabletController.session);
 router.get('/catalog', tablet, clubTabletController.catalog);
 router.post('/orders', tablet, clubTabletController.createOrder);

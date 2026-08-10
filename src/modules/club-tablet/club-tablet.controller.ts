@@ -7,6 +7,9 @@ export const clubTabletController = {
   session: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await clubTabletService.getSession(req.restaurantId!, req.auth!.userId, req.params.accessToken) });
   }),
+  court: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await clubTabletService.getOwnCourt(req.restaurantId!, req.auth!.userId) });
+  }),
   catalog: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await clubTabletService.getCatalog(req.restaurantId!) });
   }),

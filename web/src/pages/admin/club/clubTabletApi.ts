@@ -8,6 +8,14 @@ import { api } from '@/api/client';
 
 export type TabletItemSource = 'CLUB_STORE' | 'RESTAURANT';
 
+/** La cancha donde está montada esta tablet. Null si quien entró no es una
+ * tablet de cancha (dueño/admin probando la pantalla desde el panel). */
+export interface TabletCourt {
+  id: string;
+  name: string;
+  courtType: 'LIBRE' | 'TECHADA' | 'INDOOR';
+}
+
 export interface TabletCatalogItem {
   source: TabletItemSource;
   id: string;
@@ -52,6 +60,7 @@ export interface TabletSession {
 }
 
 export const clubTabletApi = {
+  court: () => api.get<{ data: TabletCourt | null }>('/club-tablet/court').then((r) => r.data.data),
   session: (accessToken: string) =>
     api.get<{ data: TabletSession }>(`/club-tablet/session/${accessToken}`).then((r) => r.data.data),
   catalog: () =>

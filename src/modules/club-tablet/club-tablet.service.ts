@@ -120,6 +120,20 @@ export const clubTabletService = {
   },
 
   /**
+   * La cancha donde está montada esta tablet, para la portada de inicio.
+   * Dueño/Admin/Cajero entran sin cancha asignada (prueban la pantalla desde el
+   * panel) y reciben null: la portada cae al nombre del club.
+   */
+  async getOwnCourt(clubId: string, userId: string) {
+    const courtId = await tabletCourtIdOf(userId);
+    if (!courtId) return null;
+    return prisma.clubCourt.findFirst({
+      where: { id: courtId, restaurantId: clubId },
+      select: { id: true, name: true, courtType: true },
+    });
+  },
+
+  /**
    * Catálogo que ve el jugador: la tienda del club y el menú del restaurante
    * vinculado, en una sola lista. La lectura al otro tenant está autorizada por
    * el vínculo (ClubRestaurantLink), que es lo único que la habilita.

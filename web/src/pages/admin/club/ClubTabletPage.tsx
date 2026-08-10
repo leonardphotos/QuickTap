@@ -3,9 +3,9 @@ import { Check, Clock, Minus, Plus, QrCode, RotateCcw, ShoppingBag, Trophy, Wall
 import { useAuth } from '@/context/AuthContext';
 import { useBarcodeCamera } from '@/hooks/useBarcodeCamera';
 import { formatBase } from '@/utils/format';
-import { clubGradient } from '@/pages/public/clubPublic';
+import { clubGradient, courtTypeLabel } from '@/pages/public/clubPublic';
 import { cn } from '@/lib/utils';
-import { clubTabletApi, type TabletCatalogItem, type TabletSession } from './clubTabletApi';
+import { clubTabletApi, type TabletCatalogItem, type TabletCourt, type TabletSession } from './clubTabletApi';
 import { clubApi } from './clubApi';
 import ClubTournamentScreen from './ClubTournamentScreen';
 
@@ -30,6 +30,34 @@ function itemKey(i: { source: string; id: string }): string {
 }
 
 /**
+ * Reloj de pared de la portada. Usa la hora del propio dispositivo, no la de
+ * Caracas: la tablet está colgada en la cancha y tiene que coincidir con el
+ * reloj que el jugador ve al levantar la vista.
+ *
+ * Solo re-renderiza cuando cambia el minuto — se compara el texto ya formateado
+ * en vez de guardar el Date, para no repintar la pantalla 60 veces por minuto.
+ */
+function readClock(): { time: string; date: string } {
+  const now = new Date();
+  return {
+    time: now.toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: false }),
+    date: now.toLocaleDateString('es-VE', { weekday: 'long', day: 'numeric', month: 'long' }),
+  };
+}
+
+function useClock(): { time: string; date: string } {
+  const [clock, setClock] = useState(readClock);
+  useEffect(() => {
+    const t = setInterval(() => {
+      const next = readClock();
+      setClock((prev) => (prev.time === next.time && prev.date === next.date ? prev : next));
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+  return clock;
+}
+
+/**
  * Kiosco de la tablet de una cancha (rol CANCHA). Ciclo completo:
  *
  *   Acceder → escanear el QR de la reserva → "Bienvenido, <jugador>" + menú →
@@ -43,6 +71,7 @@ function itemKey(i: { source: string; id: string }): string {
 export default function ClubTabletPage() {
   const { restaurant, logout } = useAuth();
   const landscape = useIsLandscape();
+  const clock = useClock();
 
   const [screen, setScreen] = useState<Screen>('idle');
   const [session, setSession] = useState<TabletSession | null>(null);
@@ -54,6 +83,8 @@ export default function ClubTabletPage() {
   const [category, setCategory] = useState<string>('todo');
   // Canchas del club: el torneo necesita saber en cuáles se puede jugar.
   const [courtNames, setCourtNames] = useState<string[]>([]);
+  // La cancha de esta tablet: es el nombre grande de la portada.
+  const [court, setCourt] = useState<TabletCourt | null>(null);
   // Nombres/cancha con los que se abre el torneo: llegan de la reserva cuando el
   // jugador ya confirmó el Americano al reservar. Vacío = torneo en blanco.
   const [tournamentPrefill, setTournamentPrefill] = useState<{ players: string[]; court?: string } | null>(null);
@@ -66,6 +97,10 @@ export default function ClubTabletPage() {
       .listCourts()
       .then((cs) => setCourtNames(cs.filter((c) => c.active).map((c) => c.name)))
       .catch(() => setCourtNames([]));
+    clubTabletApi
+      .court()
+      .then(setCourt)
+      .catch(() => setCourt(null));
   }, []);
 
   const money = useCallback(
@@ -216,35 +251,77 @@ export default function ClubTabletPage() {
   // ------------------------------------------------------------------ Acceder
   if (screen === 'idle' || screen === 'scanning') {
     return (
-      <div className="relative flex min-h-screen flex-col items-center justify-center gap-8 p-10" style={brand}>
-        {restaurant?.logoUrl ? (
-          <img src={restaurant.logoUrl} alt="" className="h-20 w-20 rounded-2xl object-cover shadow-lg" />
-        ) : (
-          <p className="text-3xl font-bold text-white">{restaurant?.name}</p>
-        )}
+      <div className="relative flex min-h-screen flex-col overflow-hidden px-10 py-8" style={brand}>
+        {/* Halos y la cancha dibujada de fondo: dan profundidad sin robarle
+            protagonismo al nombre, que es lo único que se lee de lejos. */}
+        <div aria-hidden className="pointer-events-none absolute -left-40 -top-48 h-[30rem] w-[30rem] rounded-full bg-white/10 blur-3xl" />
+        <div aria-hidden className="pointer-events-none absolute -bottom-52 -right-32 h-[34rem] w-[34rem] rounded-full bg-black/20 blur-3xl" />
+        <CourtWatermark />
 
-        <div className="text-center">
-          <p className="text-4xl font-bold tracking-tight text-white">¿Listos para jugar?</p>
-          <p className="mt-2 text-lg font-light text-white/75">Escanea el QR de tu reserva para comenzar a jugar</p>
-        </div>
+        <header className="relative z-10 flex items-start justify-between gap-6">
+          <div className="flex min-w-0 items-center gap-3">
+            {restaurant?.logoUrl ? (
+              <img
+                src={restaurant.logoUrl}
+                alt=""
+                className="h-12 w-12 shrink-0 rounded-xl object-cover shadow-lg ring-1 ring-white/25"
+              />
+            ) : (
+              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/15 text-sm font-bold text-white ring-1 ring-white/25">
+                {restaurant?.name?.slice(0, 2).toUpperCase()}
+              </span>
+            )}
+            <div className="min-w-0">
+              <p className="truncate text-xl font-bold tracking-tight text-white">{restaurant?.name}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/45">Club deportivo</p>
+            </div>
+          </div>
 
-        <button
-          onClick={() => {
-            setError(null);
-            setScreen('scanning');
-          }}
-          className="flex items-center gap-3 rounded-full bg-white px-12 py-6 text-2xl font-bold text-brand-950 shadow-xl transition-transform active:scale-95"
-        >
-          <QrCode className="h-7 w-7" />
-          Acceder
-        </button>
+          <div className="shrink-0 text-right">
+            <p className="text-5xl font-bold leading-none tracking-tight tabular-nums text-white">{clock.time}</p>
+            {/* first-letter y no capitalize: en español va "domingo, 9 de agosto", no "9 De Agosto". */}
+            <p className="mt-1.5 text-[13px] font-light text-white/55 first-letter:uppercase">{clock.date}</p>
+          </div>
+        </header>
 
-        {error && (
-          <p className="max-w-md rounded-2xl bg-black/25 px-5 py-3 text-center text-white">{error}</p>
-        )}
+        <main className="relative z-10 flex flex-1 flex-col items-center justify-center text-center">
+          {court && courtTypeLabel(court.courtType) && (
+            <span className="mb-5 rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/75 backdrop-blur-md">
+              {courtTypeLabel(court.courtType)}
+            </span>
+          )}
+
+          {/* El nombre de la cancha es el héroe de la pantalla. Si quien entró no
+              es una tablet de cancha (dueño probando), cae al nombre del club. */}
+          <h1 className="text-[clamp(3.5rem,12vw,8rem)] font-bold leading-[0.92] tracking-tighter text-white drop-shadow-[0_4px_30px_rgba(0,0,0,0.35)]">
+            {court?.name ?? restaurant?.name}
+          </h1>
+
+          <div className="mt-7 h-px w-28 bg-gradient-to-r from-transparent via-white/50 to-transparent" />
+
+          <p className="mt-7 text-2xl font-semibold tracking-tight text-white">¿Listos para jugar?</p>
+          <p className="mt-1.5 text-base font-light text-white/60">
+            Escanea el QR de tu reserva para comenzar a jugar
+          </p>
+
+          <button
+            onClick={() => {
+              setError(null);
+              setScreen('scanning');
+            }}
+            className="mt-9 flex items-center gap-3 rounded-full bg-white px-14 py-5 text-xl font-bold text-brand-950 shadow-2xl transition-transform active:scale-95"
+          >
+            <QrCode className="h-6 w-6" />
+            Acceder
+          </button>
+
+          {error && (
+            <p className="mt-6 max-w-md rounded-2xl bg-black/30 px-5 py-3 text-white backdrop-blur-md">{error}</p>
+          )}
+        </main>
 
         {/* Discreto a propósito: es para el personal que monta la tablet, no para el jugador. */}
-        <button onClick={logout} className="absolute bottom-4 right-5 text-xs text-white/35">
+        <button onClick={logout} className="absolute bottom-4 right-5 z-10 text-xs text-white/30">
           Salir
         </button>
 
@@ -452,6 +529,31 @@ export default function ClubTabletPage() {
         </aside>
       </div>
     </div>
+  );
+}
+
+/**
+ * La cancha vista desde arriba, casi transparente, como marca de agua de la
+ * portada — mismo dibujo que la barra de progreso del enlace público, para que
+ * las dos pantallas se sientan del mismo producto.
+ */
+function CourtWatermark() {
+  return (
+    <svg
+      aria-hidden
+      viewBox="0 0 400 200"
+      preserveAspectRatio="xMidYMid slice"
+      className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.07]"
+    >
+      <g fill="none" stroke="white" strokeWidth="1.5">
+        <rect x="20" y="20" width="360" height="160" />
+        {/* Red al centro y líneas de servicio a los lados. */}
+        <line x1="200" y1="20" x2="200" y2="180" />
+        <line x1="80" y1="20" x2="80" y2="180" strokeWidth="1" />
+        <line x1="320" y1="20" x2="320" y2="180" strokeWidth="1" />
+        <line x1="80" y1="100" x2="320" y2="100" strokeWidth="1" />
+      </g>
+    </svg>
   );
 }
 
