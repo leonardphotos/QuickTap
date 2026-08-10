@@ -2509,6 +2509,12 @@ model ClubBooking {
   // — es una nota para recepción. Al vincularlo pasará a cobrarse de verdad.
   requestedExtras Json?
 
+  // Nombres de los jugadores cuando la reserva es de 6+ y el jugador confirmó que
+  // van a jugar un Americano/Mexicano al reservar. Snapshot de string[] — solo
+  // prellena ClubTournamentScreen en la tablet de la cancha, no crea el torneo
+  // solo: el personal lo arranca desde ahí con los nombres ya cargados.
+  tournamentPlayerNames Json?
+
   status ClubBookingStatus @default(PENDING_PAYMENT)
 
   // Cta. abierta / "Deuda" (botón de Caja) — recepción marca que sabe que esto se debe y le hace

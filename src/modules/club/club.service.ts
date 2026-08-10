@@ -5,6 +5,7 @@ import { badRequest, conflict, notFound } from '../../utils/http-error';
 import { atTimeCaracas, caracasPartsOf } from '../../utils/timezone';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { customerService } from '../customers/customer.service';
+import { clubTabletService } from '../club-tablet/club-tablet.service';
 import { emitToKitchen, SocketEvents } from '../../sockets';
 import { CURRENCY_SYMBOLS, round2, toDecimal } from '../../utils/money';
 import type {
@@ -316,6 +317,7 @@ export const clubService = {
             playerIdNumber: input.playerIdNumber ?? null,
             playerCount: input.playerCount,
             requestedExtras: input.requestedExtras?.length ? input.requestedExtras : Prisma.DbNull,
+            tournamentPlayerNames: input.tournamentPlayerNames?.length ? input.tournamentPlayerNames : Prisma.DbNull,
             totalBase,
             exchangeRate: rate.rateBs,
             totalBs,
@@ -794,5 +796,17 @@ export const clubService = {
   async createPublicBooking(slug: string, input: CreateBookingInput) {
     const restaurant = await resolveRestaurantBySlug(slug);
     return this.createBooking(restaurant.id, input);
+  },
+
+  /**
+   * Catálogo para "¿Quieres algo al llegar?": el mismo que ve el jugador ya en
+   * la tablet de la cancha (tienda del club + menú del restaurante vinculado,
+   * si tiene uno), para que pedirlo antes de llegar sea sobre productos reales
+   * y con precio, no una lista fija inventada.
+   */
+  async getPublicProducts(slug: string) {
+    const restaurant = await resolveRestaurantBySlug(slug);
+    const catalog = await clubTabletService.getCatalog(restaurant.id);
+    return catalog.items;
   },
 };

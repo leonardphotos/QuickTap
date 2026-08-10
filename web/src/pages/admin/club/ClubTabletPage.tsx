@@ -54,6 +54,12 @@ export default function ClubTabletPage() {
   const [category, setCategory] = useState<string>('todo');
   // Canchas del club: el torneo necesita saber en cuáles se puede jugar.
   const [courtNames, setCourtNames] = useState<string[]>([]);
+  // Nombres/cancha con los que se abre el torneo: llegan de la reserva cuando el
+  // jugador ya confirmó el Americano al reservar. Vacío = torneo en blanco.
+  const [tournamentPrefill, setTournamentPrefill] = useState<{ players: string[]; court?: string } | null>(null);
+  // A dónde volver al salir del torneo: si se abrió desde el menú de una sesión
+  // activa, hay que volver ahí y no perder al jugador que está en la cancha.
+  const [torneoReturnScreen, setTorneoReturnScreen] = useState<Screen>('idle');
 
   useEffect(() => {
     clubApi
@@ -87,6 +93,12 @@ export default function ClubTabletPage() {
       return null;
     }
   }, []);
+
+  function openTournament(prefill?: { players: string[]; court?: string }) {
+    setTournamentPrefill(prefill ?? null);
+    setTorneoReturnScreen(screen);
+    setScreen('torneo');
+  }
 
   async function openSession(rawToken: string) {
     const token = rawToken.trim().replace(/^.*\/acceso\//, '');
@@ -191,7 +203,14 @@ export default function ClubTabletPage() {
 
   // ------------------------------------------------------------------- Torneo
   if (screen === 'torneo') {
-    return <ClubTournamentScreen courtNames={courtNames} onExit={() => setScreen('idle')} />;
+    return (
+      <ClubTournamentScreen
+        courtNames={courtNames}
+        initialPlayers={tournamentPrefill?.players}
+        initialCourtName={tournamentPrefill?.court}
+        onExit={() => setScreen(torneoReturnScreen)}
+      />
+    );
   }
 
   // ------------------------------------------------------------------ Acceder
@@ -223,7 +242,7 @@ export default function ClubTabletPage() {
         {/* Secundario y separado: "Acceder" sigue siendo LA acción de esta
             pantalla; el torneo lo abre quien organiza, no el jugador que llega. */}
         <button
-          onClick={() => setScreen('torneo')}
+          onClick={() => openTournament()}
           className="flex items-center gap-2 rounded-full bg-white/15 px-7 py-3.5 text-base font-semibold text-white backdrop-blur-md transition-colors hover:bg-white/25"
         >
           <Trophy className="h-5 w-5" />
@@ -309,6 +328,16 @@ export default function ClubTabletPage() {
             <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">tu cuenta</p>
             <p className="text-xl font-bold">{money(session.money.dueBase)}</p>
           </div>
+          {session.booking.tournamentPlayerNames && session.booking.tournamentPlayerNames.length > 0 && (
+            <button
+              onClick={() =>
+                openTournament({ players: session.booking.tournamentPlayerNames!, court: session.booking.courtName })
+              }
+              className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-white/25"
+            >
+              <Trophy className="h-4 w-4" /> Torneo
+            </button>
+          )}
           <button
             onClick={reset}
             className="shrink-0 rounded-full bg-white/15 p-2.5 transition-colors hover:bg-white/25"

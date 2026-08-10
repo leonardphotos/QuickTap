@@ -50,15 +50,24 @@ export default function ClubPublicPage() {
   const [grid, setGrid] = useState<PublicAvailability[] | null>(null);
 
   const [picked, setPicked] = useState<Pick | null>(null);
+  const [products, setProducts] = useState<ClubExtra[] | null>(null);
   const [extras, setExtras] = useState<(ClubExtra & { quantity: number })[]>([]);
   // Llega al reservar y solo se usa al terminar la animación de confirmación.
   const [accessToken, setAccessToken] = useState('');
+
+  // Si el club no tiene nada cargado para pedir al llegar, la pantalla de
+  // extras ni se abre: se salta directo a los datos del jugador.
+  const hasProducts = !!products?.length;
 
   useEffect(() => {
     clubPublicApi
       .club(slug)
       .then((d) => setClub(d.club))
       .catch(() => setNotFound(true));
+    clubPublicApi
+      .products(slug)
+      .then(setProducts)
+      .catch(() => setProducts([]));
   }, [slug]);
 
   useClubTextColor(club?.theme?.text);
@@ -103,12 +112,18 @@ export default function ClubPublicPage() {
 
   function choose(courtId: string, courtName: string, d: string, slot: PublicSlot) {
     setPicked({ courtId, courtName, date: d, slot });
-    setScreen('extras');
+    setScreen(hasProducts ? 'extras' : 'details');
+  }
+
+  function backFromExtras() {
+    setScreen(picked?.date === todayCaracas() && openCourtId ? 'live' : 'calendar');
   }
 
   function back() {
-    if (screen === 'details') setScreen('extras');
-    else if (screen === 'extras') setScreen(picked?.date === todayCaracas() && openCourtId ? 'live' : 'calendar');
+    if (screen === 'details') {
+      if (hasProducts) setScreen('extras');
+      else backFromExtras();
+    } else if (screen === 'extras') backFromExtras();
     else setScreen('home');
   }
 
@@ -150,11 +165,13 @@ export default function ClubPublicPage() {
           />
         )}
 
-        {screen === 'extras' && picked && (
+        {screen === 'extras' && picked && hasProducts && (
           <ClubExtrasStep
+            products={products!}
             selected={extras}
             onChange={setExtras}
             onContinue={() => setScreen('details')}
+            symbol={symbol}
           />
         )}
 
@@ -298,14 +315,11 @@ function LiveScreen({
                 </div>
 
                 {c.current && c.current.kind === 'BOOKING' && (
-                  <div className="mt-4 flex items-center justify-between rounded-2xl bg-white/12 px-4 py-3">
-                    <Figure value={humanMinutes(c.current.playedMinutes)} label="jugados" />
-                    <div className="text-center">
-                      <p className="text-[10px] font-bold uppercase tracking-wide text-club-text/55">termina</p>
-                      <p className="text-[13px] font-bold">{hhmmOf(c.current.endsAt)}</p>
-                    </div>
-                    <Figure value={humanMinutes(c.current.remainingMinutes)} label="restante" align="right" />
-                  </div>
+                  <CourtProgressBar
+                    playedMinutes={c.current.playedMinutes}
+                    remainingMinutes={c.current.remainingMinutes}
+                    endsAt={c.current.endsAt}
+                  />
                 )}
 
                 {c.current && c.current.kind !== 'BOOKING' && (
@@ -351,11 +365,40 @@ function LiveScreen({
   );
 }
 
-function Figure({ value, label, align }: { value: string; label: string; align?: 'right' }) {
+/**
+ * El dibujo de la cancha (red al centro + líneas de servicio, vista desde
+ * arriba) hace de barra de progreso: el relleno de izquierda a derecha es lo
+ * jugado, lo que queda sin rellenar es lo que falta para terminar.
+ */
+function CourtProgressBar({
+  playedMinutes,
+  remainingMinutes,
+  endsAt,
+}: {
+  playedMinutes: number;
+  remainingMinutes: number;
+  endsAt: string;
+}) {
+  const total = playedMinutes + remainingMinutes;
+  const pct = total > 0 ? Math.min(100, Math.round((playedMinutes / total) * 100)) : 0;
+
   return (
-    <div className={align === 'right' ? 'text-right' : ''}>
-      <p className="text-[22px] font-bold leading-none tracking-tight">{value}</p>
-      <p className="mt-1 text-[11px] font-medium text-club-text/55">{label}</p>
+    <div className="mt-4 rounded-2xl bg-white/12 p-3.5">
+      <div className="flex items-center justify-between text-[11px] font-bold uppercase tracking-wide text-club-text/55">
+        <span>{humanMinutes(playedMinutes)} jugados</span>
+        <span>termina {hhmmOf(endsAt)}</span>
+        <span>{humanMinutes(remainingMinutes)} restante</span>
+      </div>
+      <div className="relative mt-2.5 h-9 overflow-hidden rounded-lg border border-white/30 bg-white/10">
+        <div
+          className="absolute inset-y-0 left-0 bg-emerald-400/70 transition-[width] duration-700 ease-out"
+          style={{ width: `${pct}%` }}
+        />
+        {/* Líneas de la cancha: red al centro y líneas de servicio a los lados. */}
+        <div className="pointer-events-none absolute inset-y-1 left-1/2 w-px -translate-x-1/2 bg-white/60" />
+        <div className="pointer-events-none absolute inset-y-2.5 left-1/4 w-px bg-white/30" />
+        <div className="pointer-events-none absolute inset-y-2.5 left-3/4 w-px bg-white/30" />
+      </div>
     </div>
   );
 }

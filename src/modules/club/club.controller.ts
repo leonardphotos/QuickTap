@@ -119,4 +119,8 @@ export const clubController = {
   publicBookingByToken: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await clubService.getByAccessToken(req.params.accessToken) });
   }),
+  publicProducts: asyncHandler(async (req: Request, res: Response) => {
+    res.set('Cache-Control', 'public, max-age=30');
+    res.json({ data: await clubService.getPublicProducts(req.params.slug) });
+  }),
 };

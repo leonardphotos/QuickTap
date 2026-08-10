@@ -25,6 +25,9 @@ export interface TabletSession {
     accessToken: string;
     playerName: string;
     playerCount: number;
+    // Si el jugador confirmó al reservar que iban a jugar un Americano/Mexicano,
+    // acá llegan los nombres para prellenar el torneo en esta tablet.
+    tournamentPlayerNames: string[] | null;
     courtName: string;
     startsAt: string;
     endsAt: string;

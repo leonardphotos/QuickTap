@@ -92,6 +92,9 @@ export const clubTabletService = {
         accessToken: booking.accessToken,
         playerName: booking.playerName,
         playerCount: booking.playerCount,
+        // Para prellenar el torneo desde esta pantalla si el jugador ya confirmó
+        // los nombres al reservar (ver createBookingSchema.tournamentPlayerNames).
+        tournamentPlayerNames: (booking.tournamentPlayerNames as string[] | null) ?? null,
         courtName: booking.block.court.name,
         startsAt: booking.block.startsAt,
         endsAt: booking.block.endsAt,

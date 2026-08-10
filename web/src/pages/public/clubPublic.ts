@@ -47,33 +47,28 @@ export interface LiveCourt {
   next: LiveBlock | null;
 }
 
-/** Extra que el jugador pide tener listo al llegar. */
+/**
+ * Extra real que el jugador puede pedir tener listo al llegar: el mismo
+ * catálogo que ve en la tablet de la cancha (tienda del club + menú del
+ * restaurante vinculado, si tiene uno), con precio de verdad.
+ */
 export interface ClubExtra {
+  source: 'CLUB_STORE' | 'RESTAURANT';
   id: string;
   name: string;
-  emoji: string;
+  category: string;
+  priceBase: string;
+  photoUrl: string | null;
+  /** Solo la tienda del club lleva stock; el menú del restaurante no. */
+  stock: number | null;
 }
-
-/**
- * Catálogo de sugerencias. Es una lista fija a propósito: todavía NO está
- * vinculada al catálogo real del club (ShopProduct), así que no lleva precio —
- * poner uno sería inventarlo. La forma (id/nombre) ya es la que tendrá al
- * vincularla, para que ese cambio sea de origen de datos y no de pantalla.
- */
-export const SUGGESTED_EXTRAS: ClubExtra[] = [
-  { id: 'agua', name: 'Agua mineral', emoji: '💧' },
-  { id: 'isotonica', name: 'Bebida isotónica', emoji: '🥤' },
-  { id: 'pelotas', name: 'Tubo de pelotas', emoji: '🎾' },
-  { id: 'pala', name: 'Alquiler de pala', emoji: '🏸' },
-  { id: 'barra', name: 'Barra energética', emoji: '🍫' },
-  { id: 'gorra', name: 'Gorra', emoji: '🧢' },
-];
 
 export const clubPublicApi = {
   club: (slug: string) => api.get(`/public/club/${slug}`).then((r) => r.data.data as { club: PublicClub; courts: PublicCourt[] }),
   live: (slug: string) => api.get(`/public/club/${slug}/live`).then((r) => r.data.data as { now: string; courts: LiveCourt[] }),
   availability: (slug: string, date: string) =>
     api.get(`/public/club/${slug}/availability`, { params: { date } }).then((r) => r.data.data as PublicAvailability[]),
+  products: (slug: string) => api.get(`/public/club/${slug}/products`).then((r) => r.data.data as ClubExtra[]),
   book: (
     slug: string,
     body: {
@@ -86,6 +81,7 @@ export const clubPublicApi = {
       playerIdNumber: string;
       playerCount: number;
       requestedExtras: { id: string; name: string; quantity: number }[];
+      tournamentPlayerNames?: string[];
     },
   ) => api.post(`/public/club/${slug}/bookings`, body).then((r) => r.data.data as { accessToken: string }),
 };

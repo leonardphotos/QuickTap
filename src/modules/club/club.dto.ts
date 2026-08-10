@@ -49,10 +49,10 @@ export const availabilityQuerySchema = z.object({
 });
 
 /**
- * Extra que el jugador pide tener listo al llegar. Se guarda como snapshot y NO
- * se cobra: todavía no está vinculado al catálogo real de la tienda, así que un
- * precio aquí sería inventado. La forma imita la de ShopProduct para que
- * vincularlo después sea cambiar el origen de los datos, no rehacer el modelo.
+ * Extra que el jugador pide tener listo al llegar (tienda del club o menú del
+ * restaurante vinculado, ver clubTabletService.getCatalog). Se guarda como
+ * snapshot y NO se cobra ni descuenta stock acá: es una nota para recepción,
+ * que cobra junto con la cancha cuando el jugador llega.
  */
 const requestedExtraSchema = z.object({
   id: z.string().min(1).max(60),
@@ -61,21 +61,30 @@ const requestedExtraSchema = z.object({
 });
 
 /** Reserva creada desde el panel (recepción) o desde la página pública del jugador. */
-export const createBookingSchema = z.object({
-  courtId: z.string().cuid(),
-  date: dateStr,
-  startTime: hhmm,
-  // Se manda explícita para que el servidor valide que el hueco pedido coincide
-  // con una franja real, en vez de confiar en una duración implícita.
-  durationMinutes: z.number().int().min(30).max(240),
-  playerName: z.string().min(1).max(120),
-  playerPhone: z.string().min(7).max(25),
-  // Opcional en el esquema porque recepción no siempre la tiene; la página del
-  // jugador la exige en su propio formulario.
-  playerIdNumber: z.string().min(4).max(20).optional(),
-  playerCount: z.number().int().min(1).max(8).optional().default(4),
-  requestedExtras: z.array(requestedExtraSchema).max(20).optional(),
-});
+export const createBookingSchema = z
+  .object({
+    courtId: z.string().cuid(),
+    date: dateStr,
+    startTime: hhmm,
+    // Se manda explícita para que el servidor valide que el hueco pedido coincide
+    // con una franja real, en vez de confiar en una duración implícita.
+    durationMinutes: z.number().int().min(30).max(240),
+    playerName: z.string().min(1).max(120),
+    playerPhone: z.string().min(7).max(25),
+    // Opcional en el esquema porque recepción no siempre la tiene; la página del
+    // jugador la exige en su propio formulario.
+    playerIdNumber: z.string().min(4).max(20).optional(),
+    playerCount: z.number().int().min(1).max(8).optional().default(4),
+    requestedExtras: z.array(requestedExtraSchema).max(20).optional(),
+    // Nombres de los jugadores cuando reservan 6+ y confirmaron que van a jugar
+    // un Americano/Mexicano: snapshot para prellenar el torneo en la tablet de
+    // la cancha, ver club-tablet.service.ts getSession.
+    tournamentPlayerNames: z.array(z.string().min(1).max(60)).min(6).max(8).optional(),
+  })
+  .refine((v) => !v.tournamentPlayerNames || v.tournamentPlayerNames.length <= v.playerCount, {
+    message: 'La cantidad de nombres no puede superar la cantidad de jugadores.',
+    path: ['tournamentPlayerNames'],
+  });
 
 /** Bloqueo técnico: limpieza de cristales, lluvia, cambio de red. */
 export const createMaintenanceSchema = z.object({

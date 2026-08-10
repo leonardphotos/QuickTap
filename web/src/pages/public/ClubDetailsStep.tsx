@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
+import { cn } from '@/lib/utils';
 import { clubPublicApi, humanDate, type ClubExtra, type PublicSlot } from './clubPublic';
 
 interface Props {
@@ -13,20 +14,54 @@ interface Props {
   onToken: (accessToken: string) => void;
 }
 
+/** Umbral a partir del cual tiene sentido preguntar por un Americano/Mexicano. */
+const AMERICANO_MIN_PLAYERS = 6;
+
 export default function ClubDetailsStep({ slug, picked, extras, symbol, onBooked, onTaken, onToken }: Props) {
   const [playerName, setPlayerName] = useState('');
   const [playerPhone, setPlayerPhone] = useState('');
   const [playerIdNumber, setPlayerIdNumber] = useState('');
   const [playerCount, setPlayerCount] = useState(4);
+  // null = todavía no contestó la pregunta del torneo.
+  const [americano, setAmericano] = useState<boolean | null>(null);
+  const [tournamentNames, setTournamentNames] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const showAmericanoQuestion = playerCount >= AMERICANO_MIN_PLAYERS;
+
+  // Si baja de 6 jugadores, la pregunta deja de tener sentido: se olvida lo contestado.
+  useEffect(() => {
+    if (!showAmericanoQuestion) {
+      setAmericano(null);
+      setTournamentNames([]);
+    }
+  }, [showAmericanoQuestion]);
+
+  // Un campo de nombre por jugador, sin perder lo ya escrito al ajustar la cantidad.
+  useEffect(() => {
+    if (americano !== true) return;
+    setTournamentNames((prev) => {
+      const next = prev.slice(0, playerCount);
+      while (next.length < playerCount) next.push('');
+      return next;
+    });
+  }, [americano, playerCount]);
+
+  const namesReady = americano !== true || tournamentNames.every((n) => n.trim().length > 0);
 
   const durationMinutes = Math.round(
     (new Date(picked.slot.endsAt).getTime() - new Date(picked.slot.startsAt).getTime()) / 60_000,
   );
 
+  const extrasTotal = extras.reduce((acc, e) => acc + Number(e.priceBase) * e.quantity, 0);
+
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (!namesReady) {
+      setError('Completa el nombre de todos los jugadores del Americano.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -40,6 +75,7 @@ export default function ClubDetailsStep({ slug, picked, extras, symbol, onBooked
         playerIdNumber: playerIdNumber.trim(),
         playerCount,
         requestedExtras: extras.map((e) => ({ id: e.id, name: e.name, quantity: e.quantity })),
+        tournamentPlayerNames: americano ? tournamentNames.map((n) => n.trim()) : undefined,
       });
       onToken(booking.accessToken);
       onBooked();
@@ -73,7 +109,8 @@ export default function ClubDetailsStep({ slug, picked, extras, symbol, onBooked
         </p>
         {extras.length > 0 && (
           <p className="mt-2 border-t border-white/15 pt-2 text-[12px] font-light text-club-text/60">
-            Para tener listo: {extras.map((e) => `${e.quantity}× ${e.name}`).join(', ')}
+            Para tener listo: {extras.map((e) => `${e.quantity}× ${e.name}`).join(', ')} · {symbol}
+            {extrasTotal.toFixed(2)}
           </p>
         )}
       </div>
@@ -105,6 +142,53 @@ export default function ClubDetailsStep({ slug, picked, extras, symbol, onBooked
               ))}
             </select>
           </label>
+
+          {showAmericanoQuestion && (
+            <div className="rounded-2xl border border-white/25 bg-white/10 p-3.5">
+              <p className="text-[13px] font-medium text-club-text/85">¿Jugarás un americano?</p>
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAmericano(true)}
+                  className={cn(
+                    'flex-1 rounded-xl py-2 text-[13px] font-bold transition-colors',
+                    americano === true ? 'bg-white text-brand-950' : 'bg-white/15 text-club-text hover:bg-white/25',
+                  )}
+                >
+                  Sí
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAmericano(false)}
+                  className={cn(
+                    'flex-1 rounded-xl py-2 text-[13px] font-bold transition-colors',
+                    americano === false ? 'bg-white text-brand-950' : 'bg-white/15 text-club-text hover:bg-white/25',
+                  )}
+                >
+                  No
+                </button>
+              </div>
+
+              {americano === true && (
+                <div className="mt-3 space-y-2">
+                  <p className="text-[12px] font-light text-club-text/60">
+                    Nombres de los {playerCount} jugadores, para tenerlos ya cargados en la cancha:
+                  </p>
+                  {tournamentNames.map((name, i) => (
+                    <input
+                      key={i}
+                      value={name}
+                      onChange={(e) =>
+                        setTournamentNames((prev) => prev.map((v, j) => (j === i ? e.target.value : v)))
+                      }
+                      placeholder={`Jugador ${i + 1}`}
+                      className="w-full rounded-xl border border-white/25 bg-white/15 px-3 py-2 text-[14px] text-club-text placeholder:text-club-text/40 outline-none focus:border-white/60"
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {error && (

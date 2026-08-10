@@ -15,6 +15,10 @@ interface Props {
   /** Canchas del club, para elegir en cuáles se juega. */
   courtNames: string[];
   onExit: () => void;
+  /** Nombres ya cargados desde la reserva (ver ClubTabletPage), para no reescribirlos en la cancha. */
+  initialPlayers?: string[];
+  /** Cancha de la reserva que abrió esta pantalla, preseleccionada si existe. */
+  initialCourtName?: string;
 }
 
 /**
@@ -25,7 +29,7 @@ interface Props {
  * cruces los arma el servidor (ver club-tournament.pairing.ts) — acá solo se
  * cargan los resultados.
  */
-export default function ClubTournamentScreen({ courtNames, onExit }: Props) {
+export default function ClubTournamentScreen({ courtNames, onExit, initialPlayers, initialCourtName }: Props) {
   const [tournament, setTournament] = useState<Tournament | null | undefined>(undefined);
   const [tab, setTab] = useState<'ronda' | 'tabla'>('ronda');
   const [busy, setBusy] = useState(false);
@@ -63,6 +67,8 @@ export default function ClubTournamentScreen({ courtNames, onExit }: Props) {
           courtNames={courtNames}
           busy={busy}
           error={error}
+          initialPlayers={initialPlayers}
+          initialCourtName={initialCourtName}
           onCreate={(body) => act(async () => setTournament(await clubTournamentApi.create(body)))}
         />
       </Shell>
@@ -369,11 +375,15 @@ function NewTournamentForm({
   courtNames,
   busy,
   error,
+  initialPlayers,
+  initialCourtName,
   onCreate,
 }: {
   courtNames: string[];
   busy: boolean;
   error: string | null;
+  initialPlayers?: string[];
+  initialCourtName?: string;
   onCreate: (body: {
     name: string;
     format: TournamentFormat;
@@ -389,8 +399,12 @@ function NewTournamentForm({
   const [scoring, setScoring] = useState<TournamentScoring>('POINTS');
   const [pointsPerMatch, setPointsPerMatch] = useState(24);
   const [minutesPerRound, setMinutesPerRound] = useState(15);
-  const [players, setPlayers] = useState<string[]>(['', '', '', '']);
-  const [courts, setCourts] = useState<string[]>(courtNames.slice(0, 1));
+  const [players, setPlayers] = useState<string[]>(
+    initialPlayers && initialPlayers.length > 0 ? initialPlayers : ['', '', '', ''],
+  );
+  const [courts, setCourts] = useState<string[]>(
+    initialCourtName && courtNames.includes(initialCourtName) ? [initialCourtName] : courtNames.slice(0, 1),
+  );
 
   const clean = useMemo(() => players.map((p) => p.trim()).filter(Boolean), [players]);
   const enough = clean.length >= 4 && clean.length >= courts.length * 4 && courts.length > 0;
@@ -509,6 +523,11 @@ function NewTournamentForm({
             <Plus className="h-3.5 w-3.5" /> 4 más
           </button>
         </div>
+        {initialPlayers && initialPlayers.length > 0 && (
+          <p className="mb-1.5 text-[12px] font-light text-emerald-600">
+            Cargados desde la reserva de la cancha — revísalos antes de empezar.
+          </p>
+        )}
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {players.map((p, i) => (
             <div key={i} className="flex items-center gap-1.5">
