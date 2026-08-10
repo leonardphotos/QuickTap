@@ -53,12 +53,23 @@ export default function MasterRestaurantsPage() {
           >
             Locales Comerciales ({restaurants.filter((r) => r.businessType === 'SHOP').length})
           </button>
+          <button
+            type="button"
+            onClick={() => setVertical('SPORTS_CLUB')}
+            className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
+              vertical === 'SPORTS_CLUB' ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950/80'
+            }`}
+          >
+            Canchas ({restaurants.filter((r) => r.businessType === 'SPORTS_CLUB').length})
+          </button>
         </div>
       </div>
 
       {filtered.length === 0 && (
         <p className="text-sm text-brand-950/40 font-light">
-          {vertical === 'RESTAURANT' ? 'Todavía no hay restaurantes.' : 'Todavía no hay locales comerciales.'}
+          {vertical === 'RESTAURANT' && 'Todavía no hay restaurantes.'}
+          {vertical === 'SHOP' && 'Todavía no hay locales comerciales.'}
+          {vertical === 'SPORTS_CLUB' && 'Todavía no hay clubes de canchas.'}
         </p>
       )}
 
