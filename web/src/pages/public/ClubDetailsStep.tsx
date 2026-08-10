@@ -66,13 +66,13 @@ export default function ClubDetailsStep({ slug, picked, extras, symbol, onBooked
         <p className="text-[15px] font-bold">
           {picked.courtName} · {picked.slot.startTime} a {picked.slot.endTime}
         </p>
-        <p className="text-[13px] font-light capitalize text-white/65">{humanDate(picked.date)}</p>
+        <p className="text-[13px] font-light capitalize text-club-text/65">{humanDate(picked.date)}</p>
         <p className="mt-1.5 text-[17px] font-bold">
           {symbol}
           {picked.slot.priceBase}
         </p>
         {extras.length > 0 && (
-          <p className="mt-2 border-t border-white/15 pt-2 text-[12px] font-light text-white/60">
+          <p className="mt-2 border-t border-white/15 pt-2 text-[12px] font-light text-club-text/60">
             Para tener listo: {extras.map((e) => `${e.quantity}× ${e.name}`).join(', ')}
           </p>
         )}
@@ -92,11 +92,11 @@ export default function ClubDetailsStep({ slug, picked, extras, symbol, onBooked
           <Field label="Cédula" value={playerIdNumber} onChange={setPlayerIdNumber} placeholder="V-12345678" />
 
           <label className="block">
-            <span className="mb-1.5 block text-[13px] font-medium text-white/70">¿Cuántos van a jugar?</span>
+            <span className="mb-1.5 block text-[13px] font-medium text-club-text/70">¿Cuántos van a jugar?</span>
             <select
               value={playerCount}
               onChange={(e) => setPlayerCount(Number(e.target.value))}
-              className="w-full rounded-2xl border border-white/25 bg-white/15 px-4 py-3 text-[15px] text-white outline-none backdrop-blur-xl focus:border-white/60"
+              className="w-full rounded-2xl border border-white/25 bg-white/15 px-4 py-3 text-[15px] text-club-text outline-none backdrop-blur-xl focus:border-white/60"
             >
               {[1, 2, 3, 4, 5, 6, 7, 8].map((n) => (
                 <option key={n} value={n} className="text-brand-950">
@@ -108,7 +108,7 @@ export default function ClubDetailsStep({ slug, picked, extras, symbol, onBooked
         </div>
 
         {error && (
-          <p className="mt-4 rounded-2xl bg-rose-500/25 p-3 text-[13px] font-medium text-white">{error}</p>
+          <p className="mt-4 rounded-2xl bg-rose-500/25 p-3 text-[13px] font-medium text-club-text">{error}</p>
         )}
 
         <div className="mt-auto pt-6">
@@ -119,7 +119,7 @@ export default function ClubDetailsStep({ slug, picked, extras, symbol, onBooked
           >
             {saving ? 'Reservando…' : 'Confirmar reserva'}
           </button>
-          <p className="mt-3 text-center text-[11px] font-light text-white/50">
+          <p className="mt-3 text-center text-[11px] font-light text-club-text/50">
             Pagas en el club al llegar.
           </p>
         </div>
@@ -141,12 +141,12 @@ function Field({
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'>) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[13px] font-medium text-white/70">{label}</span>
+      <span className="mb-1.5 block text-[13px] font-medium text-club-text/70">{label}</span>
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required
-        className="w-full rounded-2xl border border-white/25 bg-white/15 px-4 py-3 text-[15px] text-white placeholder:text-white/40 outline-none backdrop-blur-xl focus:border-white/60"
+        className="w-full rounded-2xl border border-white/25 bg-white/15 px-4 py-3 text-[15px] text-club-text placeholder:text-club-text/40 outline-none backdrop-blur-xl focus:border-white/60"
         {...rest}
       />
     </label>

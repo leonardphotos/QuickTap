@@ -15,6 +15,7 @@ import {
   humanMinutes,
   shiftDate,
   todayCaracas,
+  useClubTextColor,
   type ClubExtra,
   type LiveCourt,
   type PublicAvailability,
@@ -60,6 +61,8 @@ export default function ClubPublicPage() {
       .catch(() => setNotFound(true));
   }, [slug]);
 
+  useClubTextColor(club?.theme?.text);
+
   const loadLive = useCallback(() => {
     clubPublicApi.live(slug).then((d) => setLive(d.courts)).catch(() => setLive([]));
   }, [slug]);
@@ -90,7 +93,7 @@ export default function ClubPublicPage() {
   if (notFound) {
     return (
       <div className="grid min-h-screen place-items-center bg-[#0d1b2a] px-6">
-        <p className="text-center font-light text-white/60">Este club no existe o no está disponible.</p>
+        <p className="text-center font-light text-club-text/60">Este club no existe o no está disponible.</p>
       </div>
     );
   }
@@ -110,7 +113,7 @@ export default function ClubPublicPage() {
   }
 
   return (
-    <div className="min-h-screen text-white" style={bg}>
+    <div className="min-h-screen text-club-text" style={bg}>
       <div className="mx-auto flex min-h-screen max-w-lg flex-col px-5 pb-10 pt-[calc(1rem+env(safe-area-inset-top))]">
         {screen !== 'home' && screen !== 'done' && (
           <button
@@ -202,7 +205,7 @@ function Home({ club, onLive, onBook }: { club: PublicClub | null; onLive: () =>
           </div>
         )}
         <h1 className="mt-7 text-[34px] font-bold leading-tight tracking-tight">{club?.name ?? '…'}</h1>
-        <p className="mt-2 max-w-xs text-[15px] font-light text-white/70">
+        <p className="mt-2 max-w-xs text-[15px] font-light text-club-text/70">
           Mira qué canchas están libres ahora o reserva tu hora.
         </p>
       </div>
@@ -217,9 +220,9 @@ function Home({ club, onLive, onBook }: { club: PublicClub | null; onLive: () =>
           </span>
           <span className="flex-1">
             <span className="block text-[17px] font-bold">Jugar hoy</span>
-            <span className="block text-[13px] font-light text-white/65">Canchas libres y en juego ahora</span>
+            <span className="block text-[13px] font-light text-club-text/65">Canchas libres y en juego ahora</span>
           </span>
-          <ChevronRight className="h-5 w-5 shrink-0 text-white/60" />
+          <ChevronRight className="h-5 w-5 shrink-0 text-club-text/60" />
         </button>
 
         <button
@@ -260,11 +263,11 @@ function LiveScreen({
   return (
     <div className="flex-1">
       <h1 className="text-[26px] font-bold tracking-tight">Ahora en el club</h1>
-      <p className="mt-1 text-[13px] font-light text-white/65">Toca una cancha para ver sus horas libres de hoy.</p>
+      <p className="mt-1 text-[13px] font-light text-club-text/65">Toca una cancha para ver sus horas libres de hoy.</p>
 
-      {live === null && <p className="mt-6 font-light text-white/50">Cargando…</p>}
+      {live === null && <p className="mt-6 font-light text-club-text/50">Cargando…</p>}
       {live?.length === 0 && (
-        <p className="mt-6 rounded-3xl border border-dashed border-white/25 p-6 text-center text-[13px] font-light text-white/60">
+        <p className="mt-6 rounded-3xl border border-dashed border-white/25 p-6 text-center text-[13px] font-light text-club-text/60">
           Este club todavía no tiene canchas publicadas.
         </p>
       )}
@@ -282,12 +285,12 @@ function LiveScreen({
                 <div className="flex items-center gap-2">
                   <span className="text-[16px] font-bold">{c.court.name}</span>
                   {courtTypeLabel(c.court.courtType) && (
-                    <span className="text-[11px] font-medium text-white/50">{courtTypeLabel(c.court.courtType)}</span>
+                    <span className="text-[11px] font-medium text-club-text/50">{courtTypeLabel(c.court.courtType)}</span>
                   )}
                   <span
                     className={cn(
                       'ml-auto rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide',
-                      c.busy ? 'bg-white/20 text-white' : 'bg-emerald-400 text-emerald-950',
+                      c.busy ? 'bg-white/20 text-club-text' : 'bg-emerald-400 text-emerald-950',
                     )}
                   >
                     {c.busy ? (c.current?.kind === 'BOOKING' ? '● En juego' : 'Cerrada') : 'Libre'}
@@ -298,7 +301,7 @@ function LiveScreen({
                   <div className="mt-4 flex items-center justify-between rounded-2xl bg-white/12 px-4 py-3">
                     <Figure value={humanMinutes(c.current.playedMinutes)} label="jugados" />
                     <div className="text-center">
-                      <p className="text-[10px] font-bold uppercase tracking-wide text-white/55">termina</p>
+                      <p className="text-[10px] font-bold uppercase tracking-wide text-club-text/55">termina</p>
                       <p className="text-[13px] font-bold">{hhmmOf(c.current.endsAt)}</p>
                     </div>
                     <Figure value={humanMinutes(c.current.remainingMinutes)} label="restante" align="right" />
@@ -306,13 +309,13 @@ function LiveScreen({
                 )}
 
                 {c.current && c.current.kind !== 'BOOKING' && (
-                  <p className="mt-3 text-[13px] font-light text-white/70">
+                  <p className="mt-3 text-[13px] font-light text-club-text/70">
                     {c.current.note ?? 'No disponible'} · hasta {hhmmOf(c.current.endsAt)}
                   </p>
                 )}
 
                 {/* La pregunta que importa al llegar sin reserva. */}
-                <p className="mt-3 flex items-center gap-1.5 text-[12px] font-light text-white/60">
+                <p className="mt-3 flex items-center gap-1.5 text-[12px] font-light text-club-text/60">
                   <Clock className="h-3.5 w-3.5" />
                   {c.next
                     ? `Después: ${hhmmOf(c.next.startsAt)}${c.next.playerFirstName ? ` · ${c.next.playerFirstName}` : ''}`
@@ -326,7 +329,7 @@ function LiveScreen({
                 <div className="border-t border-white/15 bg-white/10 p-4">
                   {free.length === 0 ? (
                     <div className="text-center">
-                      <p className="text-[13px] font-light text-white/60">No quedan horas libres hoy en esta cancha.</p>
+                      <p className="text-[13px] font-light text-club-text/60">No quedan horas libres hoy en esta cancha.</p>
                       <button onClick={onGoCalendar} className="mt-2 text-[13px] font-bold underline">
                         Ver otros días
                       </button>
@@ -352,7 +355,7 @@ function Figure({ value, label, align }: { value: string; label: string; align?:
   return (
     <div className={align === 'right' ? 'text-right' : ''}>
       <p className="text-[22px] font-bold leading-none tracking-tight">{value}</p>
-      <p className="mt-1 text-[11px] font-medium text-white/55">{label}</p>
+      <p className="mt-1 text-[11px] font-medium text-club-text/55">{label}</p>
     </div>
   );
 }
@@ -389,14 +392,14 @@ function CalendarScreen({
               onClick={() => onDate(d)}
               className={cn(
                 'flex w-[58px] shrink-0 flex-col items-center rounded-2xl py-2.5 transition-colors',
-                active ? 'bg-white text-brand-950 shadow-lg' : 'bg-white/12 text-white hover:bg-white/20',
+                active ? 'bg-white text-brand-950 shadow-lg' : 'bg-white/12 text-club-text hover:bg-white/20',
               )}
             >
-              <span className={cn('text-[10px] font-semibold uppercase', active ? 'text-brand-950/50' : 'text-white/55')}>
+              <span className={cn('text-[10px] font-semibold uppercase', active ? 'text-brand-950/50' : 'text-club-text/55')}>
                 {p.weekday}
               </span>
               <span className="text-[19px] font-bold leading-tight">{p.day}</span>
-              <span className={cn('text-[10px] font-medium', active ? 'text-brand-950/45' : 'text-white/45')}>
+              <span className={cn('text-[10px] font-medium', active ? 'text-brand-950/45' : 'text-club-text/45')}>
                 {p.month}
               </span>
             </button>
@@ -404,11 +407,11 @@ function CalendarScreen({
         })}
       </div>
 
-      <p className="mt-3 text-[13px] font-light capitalize text-white/65">{humanDate(date)}</p>
+      <p className="mt-3 text-[13px] font-light capitalize text-club-text/65">{humanDate(date)}</p>
 
-      {grid === null && <p className="mt-6 font-light text-white/50">Cargando horarios…</p>}
+      {grid === null && <p className="mt-6 font-light text-club-text/50">Cargando horarios…</p>}
       {empty && (
-        <p className="mt-6 rounded-3xl border border-dashed border-white/25 p-6 text-center text-[13px] font-light text-white/60">
+        <p className="mt-6 rounded-3xl border border-dashed border-white/25 p-6 text-center text-[13px] font-light text-club-text/60">
           No quedan horarios libres este día. Prueba con otro.
         </p>
       )}
@@ -422,7 +425,7 @@ function CalendarScreen({
               <h2 className="mb-2.5 flex items-center gap-2 text-[15px] font-bold">
                 {court.name}
                 {courtTypeLabel(court.courtType) && (
-                  <span className="text-[11px] font-medium text-white/45">{courtTypeLabel(court.courtType)}</span>
+                  <span className="text-[11px] font-medium text-club-text/45">{courtTypeLabel(court.courtType)}</span>
                 )}
               </h2>
               <div className="grid grid-cols-3 gap-2">
@@ -450,7 +453,7 @@ function SlotButton({ slot, symbol, onClick }: { slot: PublicSlot; symbol: strin
       )}
     >
       <p className="text-[15px] font-bold leading-none">{slot.startTime}</p>
-      <p className="mt-1 text-[10px] font-medium text-white/55">a {slot.endTime}</p>
+      <p className="mt-1 text-[10px] font-medium text-club-text/55">a {slot.endTime}</p>
       <p className="mt-1.5 text-[13px] font-bold">
         {symbol}
         {slot.priceBase}

@@ -7,7 +7,7 @@ import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } 
 import { ColorPickerField } from '@/components/admin/ColorPickerField';
 import { clubGradient } from '@/pages/public/clubPublic';
 
-const DEFAULTS = { primary: '#0B6BCB', accent: '#0597F2' };
+const DEFAULTS = { primary: '#0B6BCB', accent: '#0597F2', text: '#FFFFFF' };
 
 /**
  * Color de marca del enlace público de reservas y del ticket QR (ver
@@ -61,13 +61,19 @@ export function ClubBrandingSection() {
             defaultValue={DEFAULTS.accent}
             onChange={(v) => setTheme((t) => ({ ...t, accent: v }))}
           />
+          <ColorPickerField
+            label="Color de fuente"
+            value={theme.text ?? ''}
+            defaultValue={DEFAULTS.text}
+            onChange={(v) => setTheme((t) => ({ ...t, text: v }))}
+          />
         </div>
 
         <div>
           <p className="mb-1.5 text-sm font-medium text-brand-950/70">Así se ve</p>
           <div
-            className="flex h-24 items-center justify-center rounded-2xl text-[13px] font-semibold text-white"
-            style={clubGradient(theme)}
+            className="flex h-24 items-center justify-center rounded-2xl text-[13px] font-semibold"
+            style={{ ...clubGradient(theme), color: theme.text || DEFAULTS.text }}
           >
             {restaurant?.name}
           </div>

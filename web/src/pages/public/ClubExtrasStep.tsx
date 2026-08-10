@@ -39,7 +39,7 @@ export default function ClubExtrasStep({ selected, onChange, onContinue }: Props
   return (
     <div className="flex flex-1 flex-col">
       <h1 className="text-[26px] font-bold tracking-tight">¿Quieres algo al llegar?</h1>
-      <p className="mt-1 text-[13px] font-light text-white/65">
+      <p className="mt-1 text-[13px] font-light text-club-text/65">
         Lo dejamos listo en recepción. Se paga en el club, no ahora.
       </p>
 

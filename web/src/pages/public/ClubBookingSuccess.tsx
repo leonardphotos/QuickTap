@@ -64,11 +64,11 @@ export default function ClubBookingSuccess({ courtName, dateLabel, timeLabel, on
       </div>
 
       <div className="club-rise mt-8" style={{ animation: 'var(--animate-rise)', animationDelay: '1700ms' }}>
-        <h2 className="text-[26px] font-bold tracking-tight text-white">¡Reserva lista!</h2>
-        <p className="mt-2 text-[15px] font-light text-white/80">
+        <h2 className="text-[26px] font-bold tracking-tight text-club-text">¡Reserva lista!</h2>
+        <p className="mt-2 text-[15px] font-light text-club-text/80">
           {courtName} · {timeLabel}
         </p>
-        <p className="text-[14px] font-light capitalize text-white/60">{dateLabel}</p>
+        <p className="text-[14px] font-light capitalize text-club-text/60">{dateLabel}</p>
       </div>
 
       <button

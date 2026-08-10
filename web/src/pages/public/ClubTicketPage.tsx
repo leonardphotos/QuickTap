@@ -3,7 +3,7 @@ import { useParams } from 'react-router-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { CheckCircle2 } from 'lucide-react';
 import { api } from '@/api/client';
-import { clubGradient, hhmmOf, type PublicClub } from './clubPublic';
+import { clubGradient, hhmmOf, useClubTextColor, type PublicClub } from './clubPublic';
 
 interface Ticket {
   playerName: string;
@@ -35,17 +35,19 @@ export default function ClubTicketPage() {
       .catch(() => setError(true));
   }, [accessToken]);
 
+  useClubTextColor(ticket?.restaurant.theme?.text);
+
   if (error) {
     return (
       <div className="grid min-h-screen place-items-center bg-[#0d1b2a] px-6">
-        <p className="text-center font-light text-white/60">No encontramos esta reserva.</p>
+        <p className="text-center font-light text-club-text/60">No encontramos esta reserva.</p>
       </div>
     );
   }
   if (!ticket) {
     return (
       <div className="grid min-h-screen place-items-center bg-[#0d1b2a] px-6">
-        <p className="font-light text-white/50">Cargando…</p>
+        <p className="font-light text-club-text/50">Cargando…</p>
       </div>
     );
   }
@@ -59,7 +61,7 @@ export default function ClubTicketPage() {
   const cancelled = ticket.status === 'CANCELLED';
 
   return (
-    <div className="min-h-screen px-5 py-8 text-white" style={clubGradient(ticket.restaurant.theme)}>
+    <div className="min-h-screen px-5 py-8 text-club-text" style={clubGradient(ticket.restaurant.theme)}>
       <div className="mx-auto max-w-sm">
         <div className="text-center">
           {ticket.restaurant.logoUrl && (
@@ -81,7 +83,7 @@ export default function ClubTicketPage() {
                 <div className="inline-block rounded-3xl bg-white p-4 shadow-xl">
                   <QRCodeSVG value={ticket.accessToken} size={168} fgColor="#001B43" />
                 </div>
-                <p className="mt-3 text-[12px] font-light text-white/65">
+                <p className="mt-3 text-[12px] font-light text-club-text/65">
                   Muestra este código en recepción al llegar.
                 </p>
               </>
@@ -104,7 +106,7 @@ export default function ClubTicketPage() {
 
             {ticket.requestedExtras && ticket.requestedExtras.length > 0 && (
               <div className="border-t border-white/15 pt-3">
-                <p className="text-[13px] font-medium text-white/55">Listo al llegar</p>
+                <p className="text-[13px] font-medium text-club-text/55">Listo al llegar</p>
                 <ul className="mt-1 space-y-0.5">
                   {ticket.requestedExtras.map((e) => (
                     <li key={e.id} className="text-[14px] font-semibold">
@@ -112,23 +114,23 @@ export default function ClubTicketPage() {
                     </li>
                   ))}
                 </ul>
-                <p className="mt-1 text-[11px] font-light text-white/45">Se paga en el club.</p>
+                <p className="mt-1 text-[11px] font-light text-club-text/45">Se paga en el club.</p>
               </div>
             )}
 
             <div className="border-t border-white/15 pt-3">
               <div className="flex items-baseline justify-between">
-                <span className="text-[13px] font-medium text-white/55">Cancha</span>
+                <span className="text-[13px] font-medium text-club-text/55">Cancha</span>
                 <span className="text-[19px] font-bold">${ticket.totalBase}</span>
               </div>
-              <p className="text-right text-[12px] font-light text-white/45">
+              <p className="text-right text-[12px] font-light text-club-text/45">
                 Bs {Number(ticket.totalBs).toLocaleString('es-VE', { maximumFractionDigits: 2 })}
               </p>
             </div>
           </div>
         </div>
 
-        <p className="mt-4 text-center text-[12px] font-light text-white/45">
+        <p className="mt-4 text-center text-[12px] font-light text-club-text/45">
           Guarda este enlace: es tu entrada a la cancha.
         </p>
       </div>
@@ -139,7 +141,7 @@ export default function ClubTicketPage() {
 function Row({ label, value, capitalize }: { label: string; value: string; capitalize?: boolean }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <span className="shrink-0 text-[13px] font-medium text-white/55">{label}</span>
+      <span className="shrink-0 text-[13px] font-medium text-club-text/55">{label}</span>
       <span className={`text-right text-[14px] font-semibold ${capitalize ? 'capitalize' : ''}`}>{value}</span>
     </div>
   );

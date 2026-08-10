@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { api } from '@/api/client';
 
 export interface PublicCourt {
@@ -11,7 +12,7 @@ export interface PublicClub {
   name: string;
   slug: string;
   logoUrl: string | null;
-  theme: { primary?: string; accent?: string } | null;
+  theme: { primary?: string; accent?: string; text?: string } | null;
   currencySymbol: string;
 }
 
@@ -130,6 +131,24 @@ export function hhmmOf(iso: string): string {
     minute: '2-digit',
     timeZone: 'America/Caracas',
   });
+}
+
+/**
+ * Aplica el color de fuente del club (Ajustes → Marca del enlace) como
+ * variable CSS en el <html>, no en un div local: Extras/Detalles/Confirmación
+ * son pantallas hijas de ClubPublicPage, y el ticket QR es otra página aparte
+ * — todas necesitan heredarlo desde un ancestro común de verdad. Mismo patrón
+ * que MenuPage.tsx usa para el menú público del restaurante.
+ */
+export function useClubTextColor(text: string | undefined): void {
+  useEffect(() => {
+    if (!text) return;
+    const root = document.documentElement;
+    root.style.setProperty('--color-club-text', text);
+    return () => {
+      root.style.removeProperty('--color-club-text');
+    };
+  }, [text]);
 }
 
 /**

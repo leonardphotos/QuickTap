@@ -27,6 +27,12 @@
   --color-brand-500: #056cf2;
   --color-brand-400: #0597f2;
 
+  /* Color de fuente del enlace público del Club (reservas + ticket QR) — ver
+     Ajustes → Marca del enlace. Blanco por defecto (fondo con degradado de
+     color); se sobreescribe en tiempo real por restaurante, mismo patrón que
+     --color-brand-950 en el menú público del restaurante (MenuPage.tsx). */
+  --color-club-text: #ffffff;
+
   /* Tokens semánticos de shadcn/Cult UI, mapeados a la paleta de marca. */
   --color-background: #ffffff;
   --color-foreground: var(--color-brand-950);
