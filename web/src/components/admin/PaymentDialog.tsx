@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { ArrowLeft, Camera, Check, Copy, Loader2 } from 'lucide-react';
+import { ArrowLeft, Camera, Check, Copy, Loader2, QrCode } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute, formatModifierLabel } from '@/utils/format';
@@ -15,7 +15,6 @@ import {
 import type { PaymentMethod } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
-import { PaymentChargePanel } from '@/components/admin/PaymentChargePanel';
 import { PaymentClientScreen } from '@/components/admin/PaymentClientScreen';
 import type { LiveOrder, LiveOrderPayment } from './LiveOrdersPanel';
 
@@ -166,13 +165,11 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   const amountToCharge =
     mode === 'split' && splitBy === 'items' ? itemsSubtotal : mode === 'split' ? Number(amount) || 0 : discountedBalance;
 
-  /** Elegir método abre la pantalla del cliente (QR + detalle + monto) antes de los
-   *  campos de caja. Efectivo y Punto de Venta no: no hay QR ni datos que mostrarle
-   *  al cliente, el cobro es en el mostrador. */
+  /** Elegir método no abre nada solo: el cajero decide cuándo enseñarle los datos al
+   *  cliente con el botón "Mostrar datos". */
   function selectMethod(next: PaymentMethod) {
     setMethod(next);
     setError(null);
-    if (METHODS_ALLOWING_PROOF.includes(next)) setClientScreenOpen(true);
   }
 
   const detailLines = order.items.map(
@@ -389,9 +386,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      {/* Con QR el diálogo se ensancha: el código ocupa una columna entera y el monto
-          necesita la otra sin quedar apretado contra el borde. */}
-      <DialogContent className={qrImageUrl && paidNow == null && !showPrintPrompt ? 'max-w-2xl' : undefined}>
+      <DialogContent>
         <DialogHeader className={showPrintPrompt || paidNow != null ? undefined : 'flex-row items-center gap-2 pr-6'}>
           {/* Botón de retorno: solo antes de registrar el pago, para que el cajero pueda
               salir y elegir otra modalidad (Pago/Fraccionado/Deuda) si el cliente cambia de
@@ -529,44 +524,6 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     </button>
                   ))}
                 </div>
-              )}
-
-              <div>
-                <p className="text-xs font-medium text-brand-950/50 mb-1.5">Método de pago</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {paymentOptions.map((o) => (
-                    <button
-                      key={o}
-                      onClick={() => selectMethod(o)}
-                      className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
-                        method === o ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
-                      }`}
-                    >
-                      {PAYMENT_LABELS[o]}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <PaymentChargePanel
-                method={method}
-                qrImageUrl={qrImageUrl}
-                amountBase={amountToCharge}
-                symbol={symbol}
-                rateBs={restaurant?.exchangeRate?.rateBs}
-              >
-                {paymentDetailsBlock}
-              </PaymentChargePanel>
-
-              {/* Para volver a mostrarle el QR al cliente sin tener que reelegir el método. */}
-              {(qrImageUrl || paymentDetailsBlock) && (
-                <button
-                  type="button"
-                  onClick={() => setClientScreenOpen(true)}
-                  className="-mt-1 text-xs font-medium text-brand-500 hover:text-brand-400"
-                >
-                  Mostrar al cliente en pantalla completa
-                </button>
               )}
 
               {needsReference && (
@@ -751,6 +708,38 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                   </div>
                 </div>
               )}
+
+              {/* Método y "Mostrar datos" van juntos y al final, pegados a "Registrar pago":
+                  el cajero elige cómo le pagan, se lo enseña al cliente en pantalla completa
+                  y recién entonces registra. El QR no va acá — ocupa media pantalla y el
+                  cliente no lee este diálogo, lo ve en la pantalla que abre el botón. */}
+              <div>
+                <p className="text-xs font-medium text-brand-950/50 mb-1.5">Método de pago</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {paymentOptions.map((o) => (
+                    <button
+                      key={o}
+                      onClick={() => selectMethod(o)}
+                      className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                        method === o ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+                      }`}
+                    >
+                      {PAYMENT_LABELS[o]}
+                    </button>
+                  ))}
+                </div>
+                {(qrImageUrl || paymentDetailsBlock) && (
+                  <TextureButton
+                    variant="minimal"
+                    size="sm"
+                    className="mt-2 w-full justify-center"
+                    onClick={() => setClientScreenOpen(true)}
+                  >
+                    <QrCode className="h-4 w-4" />
+                    Mostrar datos
+                  </TextureButton>
+                )}
+              </div>
 
               {error && <p className="text-sm text-red-600">{error}</p>}
 

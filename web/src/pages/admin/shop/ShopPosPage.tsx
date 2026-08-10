@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
-import { Camera, CheckCircle2, ClipboardList, Loader2, MessageCircle, Minus, Plus, PlusCircle, Printer, ScanLine, Search, ShoppingCart, Wrench, X } from 'lucide-react';
+import { Camera, CheckCircle2, ClipboardList, Loader2, MessageCircle, Minus, Plus, PlusCircle, Printer, QrCode, ScanLine, Search, ShoppingCart, Wrench, X } from 'lucide-react';
 import { api } from '@/api/client';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { useAuth } from '@/context/AuthContext';
@@ -395,8 +395,7 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
       setPmProofUrl(null);
       setPmProofError(null);
       setQsPendingPayment(true);
-      if (METHODS_ALLOWING_PROOF.includes(qsMethodKey)) setClientScreenOpen(true);
-      else setPagoMovilOpen(true);
+      setPagoMovilOpen(true);
       return;
     }
 
@@ -530,11 +529,7 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
       setPmReference('');
       setPmProofUrl(null);
       setPmProofError(null);
-      // Primero lo que ve el cliente (QR + detalle + monto); al tocar "Siguiente" pasa
-      // a los campos de caja. Punto de Venta salta ese paso: no hay QR ni datos que
-      // mostrarle, solo el ticket del datáfono.
-      if (METHODS_ALLOWING_PROOF.includes(methodKey)) setClientScreenOpen(true);
-      else setPagoMovilOpen(true);
+      setPagoMovilOpen(true);
       return;
     }
     const sale = finalizeSale(method, null);
@@ -1074,7 +1069,7 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
         </DialogContent>
       </Dialog>
 
-      {/* ---------- Pantalla del cliente (antes de los campos de caja) ---------- */}
+      {/* ---------- Pantalla del cliente (se abre desde "Mostrar datos") ---------- */}
       {clientScreenOpen && (
         <PaymentClientScreen
           method={pmMethodKey}
@@ -1089,61 +1084,42 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
               ? [qsName.trim() || 'Venta rápida']
               : cart.map((c) => `${c.soldByWeight || c.unitLabel ? c.qty : `${c.qty}x`} ${c.name}`)
           }
-          onNext={() => {
-            setClientScreenOpen(false);
-            setPagoMovilOpen(true);
-          }}
-          onBack={() => {
-            setClientScreenOpen(false);
-            closePagoMovil();
-          }}
+          details={
+            (() => {
+              const pm = payToConfig?.[pmMethodKey];
+              if (!pm?.telefono && !pm?.cedula && !pm?.correo && !pm?.id && !pm?.cuenta) return null;
+              return (
+                <div className="rounded-2xl border border-brand-950/10 bg-brand-950/[0.03] p-3.5 text-left">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-brand-950/45">
+                    {payToIsStaff ? `Pagar a ${payToName}` : 'Pagar a'}
+                  </p>
+                  <div className="mt-1.5 space-y-0.5 text-sm text-brand-950">
+                    {pm.titular && <p className="font-semibold">{pm.titular}</p>}
+                    {pm.correo && <p>{pm.correo}</p>}
+                    {pm.id && <p>{pm.id}</p>}
+                    {pm.telefono && <p>{pm.telefono}</p>}
+                    {pm.cuenta && <p>{pm.cuenta}</p>}
+                    {pm.banco && <p className="text-brand-950/60">{pm.banco}</p>}
+                    {pm.cedula && <p className="text-brand-950/60">{pm.cedula}</p>}
+                  </div>
+                </div>
+              );
+            })()
+          }
+          // Vuelve al diálogo de caja, que sigue abierto detrás, para cargar referencia/comprobante.
+          onNext={() => setClientScreenOpen(false)}
+          onBack={() => setClientScreenOpen(false)}
         />
       )}
 
       {/* ---------- Pago móvil ---------- */}
       <Dialog open={pagoMovilOpen} onOpenChange={(o) => (o ? setPagoMovilOpen(true) : closePagoMovil())}>
-        <DialogContent
-          className={`text-center w-[calc(100vw-2rem)] max-h-[94vh] p-7 sm:p-9 gap-5 ${qrImageUrl ? 'max-w-3xl sm:w-full' : 'max-w-md sm:w-full'}`}
-        >
-          {/* QR a la izquierda y monto/datos a la derecha: el QR es lo que el cliente apunta
-              con el teléfono, así que va grande y a un lado en vez de empujar el monto fuera
-              de pantalla. Sin QR (transferencia, punto de venta) queda la columna sola. */}
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:text-left">
-            {qrImageUrl && (
-              <img
-                src={qrImageUrl}
-                alt={`QR de ${pmMethodLabel}`}
-                className="mx-auto w-full max-w-[300px] aspect-square object-contain rounded-2xl border border-brand-950/10 sm:mx-0 sm:w-[300px] sm:shrink-0"
-              />
-            )}
-
+        <DialogContent className="text-center w-[calc(100vw-2rem)] max-w-md sm:w-full max-h-[94vh] p-7 sm:p-9 gap-5">
+          {/* El QR y los datos de cobro NO van acá: ocupan media pantalla y el cliente no lee
+              este diálogo. Se los enseña con "Mostrar datos" (pantalla completa) y acá queda
+              solo lo que carga el cajero: monto, referencia y comprobante. */}
+          <div className="flex flex-col gap-5 sm:text-left">
             <div className="min-w-0 flex-1 space-y-4">
-              {(() => {
-                const pm = payToConfig?.[pmMethodKey];
-                if (!pm?.telefono && !pm?.cedula && !pm?.correo && !pm?.id && !pm?.cuenta) return null;
-                return (
-                  <div className="rounded-2xl border border-brand-950/10 bg-brand-950/[0.03] p-3.5 text-left">
-                    <p className="text-[11px] font-bold uppercase tracking-wide text-brand-950/45">
-                      {payToIsStaff ? `Pagar a ${payToName}` : 'Pagar a'}
-                    </p>
-                    <div className="mt-1.5 space-y-0.5 text-sm text-brand-950">
-                      {pm.titular && <p className="font-semibold">{pm.titular}</p>}
-                      {pm.correo && <p>{pm.correo}</p>}
-                      {pm.id && <p>{pm.id}</p>}
-                      {pm.telefono && <p>{pm.telefono}</p>}
-                      {pm.cuenta && <p>{pm.cuenta}</p>}
-                      {pm.banco && <p className="text-brand-950/60">{pm.banco}</p>}
-                      {pm.cedula && <p className="text-brand-950/60">{pm.cedula}</p>}
-                    </div>
-                    {payToIsStaff && (
-                      <p className="mt-2 text-[11px] text-brand-950/45">
-                        Cuenta propia del profesional. La venta queda registrada igual en el local.
-                      </p>
-                    )}
-                  </div>
-                );
-              })()}
-
               {/* Zelle y Binance mueven dólares: manda el monto en $ y el Bs queda de referencia. */}
               <div>
                 <p className="text-sm font-semibold text-brand-950/50">Monto a cancelar</p>
@@ -1212,6 +1188,11 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
               )}
             </div>
           </div>
+
+          <TextureButton variant="minimal" size="default" className="w-full justify-center" onClick={() => setClientScreenOpen(true)}>
+            <QrCode className="h-4 w-4" />
+            Mostrar datos
+          </TextureButton>
 
           <DialogFooter>
             <TextureButton variant="minimal" size="default" className="!w-auto" onClick={closePagoMovil}>
