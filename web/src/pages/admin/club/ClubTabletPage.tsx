@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Check, Clock, Minus, Plus, QrCode, RotateCcw, ShoppingBag, Trophy, Wallet, X } from 'lucide-react';
+import { ArrowLeft, Check, Clock, Minus, Plus, QrCode, RotateCcw, ShoppingBag, Trophy, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useBarcodeCamera } from '@/hooks/useBarcodeCamera';
 import { formatBase } from '@/utils/format';
@@ -12,7 +12,7 @@ import ClubTournamentScreen from './ClubTournamentScreen';
 /** La pantalla solo tiene sentido acostada: es una tablet fija en la pared de la cancha. */
 const LANDSCAPE_QUERY = '(orientation: landscape)';
 
-type Screen = 'idle' | 'scanning' | 'menu' | 'closing' | 'torneo';
+type Screen = 'idle' | 'scanning' | 'sesion' | 'menu' | 'closing' | 'torneo';
 
 function useIsLandscape(): boolean {
   const [ok, setOk] = useState(() => window.matchMedia(LANDSCAPE_QUERY).matches);
@@ -58,11 +58,34 @@ function useClock(): { time: string; date: string } {
 }
 
 /**
+ * Cuenta regresiva de la reserva, al segundo. Se calcula contra `endsAt` en vez
+ * de contar hacia abajo desde los minutos que trae la sesión: así no se desfasa
+ * si la tablet se queda dormida un rato, y solo depende del reloj del equipo.
+ */
+function useCountdown(endsAt: string | undefined): { text: string; over: boolean } {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  if (!endsAt) return { text: '--:--', over: false };
+
+  const left = Math.floor((new Date(endsAt).getTime() - now) / 1000);
+  const total = Math.max(0, left);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return { text: h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${m}:${pad(s)}`, over: left <= 0 };
+}
+
+/**
  * Kiosco de la tablet de una cancha (rol CANCHA). Ciclo completo:
  *
- *   Acceder → escanear el QR de la reserva → "Bienvenido, <jugador>" + menú →
- *   pedir (se suma a su cuenta) → se acaba el tiempo → monto a cancelar y
- *   "pasa por caja" → Ok → vuelve a Acceder.
+ *   Acceder → escanear el QR de la reserva → portada de la sesión (cuánto tiempo
+ *   queda, con Torneo y Tienda) → pedir (se suma a su cuenta) → se acaba el
+ *   tiempo → monto a cancelar y "pasa por caja" → Ok → vuelve a Acceder.
  *
  * No cobra nada: lo pedido se le suma a la reserva y lo cobra recepción en la
  * Caja de Canchas. La tablet nunca cierra sesión sola — la cuenta del kiosco se
@@ -91,6 +114,8 @@ export default function ClubTabletPage() {
   // A dónde volver al salir del torneo: si se abrió desde el menú de una sesión
   // activa, hay que volver ahí y no perder al jugador que está en la cancha.
   const [torneoReturnScreen, setTorneoReturnScreen] = useState<Screen>('idle');
+
+  const countdown = useCountdown(session?.booking.endsAt);
 
   useEffect(() => {
     clubApi
@@ -143,28 +168,36 @@ export default function ClubTabletPage() {
       const [s, c] = await Promise.all([clubTabletApi.session(token), clubTabletApi.catalog()]);
       setSession(s);
       setCatalog(c.items);
-      setScreen(s.booking.finished ? 'closing' : 'menu');
+      setScreen(s.booking.finished ? 'closing' : 'sesion');
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No pudimos leer tu código. Intenta de nuevo.');
       setScreen('idle');
     }
   }
 
-  // Reloj de la sesión: cuando se acaba el tiempo, la pantalla pasa sola al
-  // cierre de cuenta — es justo lo que tiene que ver el jugador al terminar.
+  // Refresco del saldo mientras el jugador está en la cancha: cada pedido lo
+  // cambia, y el que hizo el pedido puede no ser el que está mirando la tablet.
   const tokenRef = useRef<string | null>(null);
   tokenRef.current = session?.booking.accessToken ?? null;
 
+  const inSession = screen === 'sesion' || screen === 'menu';
+
   useEffect(() => {
-    if (screen !== 'menu') return;
+    if (!inSession) return;
     const t = setInterval(async () => {
       const token = tokenRef.current;
       if (!token) return;
-      const s = await refreshSession(token);
-      if (s?.booking.finished) setScreen('closing');
+      await refreshSession(token);
     }, 20_000);
     return () => clearInterval(t);
-  }, [screen, refreshSession]);
+  }, [inSession, refreshSession]);
+
+  // Se acabó el tiempo: la pantalla pasa sola al cierre de cuenta, que es justo
+  // lo que el jugador tiene que ver al terminar. Lo dispara la cuenta regresiva
+  // y no el refresco, para que caiga en el segundo exacto y no hasta 20s después.
+  useEffect(() => {
+    if (inSession && countdown.over) setScreen('closing');
+  }, [inSession, countdown.over]);
 
   const categories = useMemo(() => {
     if (!catalog) return [];
@@ -251,79 +284,50 @@ export default function ClubTabletPage() {
   // ------------------------------------------------------------------ Acceder
   if (screen === 'idle' || screen === 'scanning') {
     return (
-      <div className="relative flex min-h-screen flex-col overflow-hidden px-10 py-8" style={brand}>
-        {/* Halos y la cancha dibujada de fondo: dan profundidad sin robarle
-            protagonismo al nombre, que es lo único que se lee de lejos. */}
-        <div aria-hidden className="pointer-events-none absolute -left-40 -top-48 h-[30rem] w-[30rem] rounded-full bg-white/10 blur-3xl" />
-        <div aria-hidden className="pointer-events-none absolute -bottom-52 -right-32 h-[34rem] w-[34rem] rounded-full bg-black/20 blur-3xl" />
-        <CourtWatermark />
-
-        <header className="relative z-10 flex items-start justify-between gap-6">
-          <div className="flex min-w-0 items-center gap-3">
-            {restaurant?.logoUrl ? (
-              <img
-                src={restaurant.logoUrl}
-                alt=""
-                className="h-12 w-12 shrink-0 rounded-xl object-cover shadow-lg ring-1 ring-white/25"
-              />
-            ) : (
-              <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/15 text-sm font-bold text-white ring-1 ring-white/25">
-                {restaurant?.name?.slice(0, 2).toUpperCase()}
-              </span>
-            )}
-            <div className="min-w-0">
-              <p className="truncate text-xl font-bold tracking-tight text-white">{restaurant?.name}</p>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/45">Club deportivo</p>
-            </div>
-          </div>
-
-          <div className="shrink-0 text-right">
-            <p className="text-5xl font-bold leading-none tracking-tight tabular-nums text-white">{clock.time}</p>
-            {/* first-letter y no capitalize: en español va "domingo, 9 de agosto", no "9 De Agosto". */}
-            <p className="mt-1.5 text-[13px] font-light text-white/55 first-letter:uppercase">{clock.date}</p>
-          </div>
-        </header>
-
-        <main className="relative z-10 flex flex-1 flex-col items-center justify-center text-center">
-          {court && courtTypeLabel(court.courtType) && (
-            <span className="mb-5 rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/75 backdrop-blur-md">
-              {courtTypeLabel(court.courtType)}
-            </span>
-          )}
-
-          {/* El nombre de la cancha es el héroe de la pantalla. Si quien entró no
-              es una tablet de cancha (dueño probando), cae al nombre del club. */}
-          <h1 className="text-[clamp(3.5rem,12vw,8rem)] font-bold leading-[0.92] tracking-tighter text-white drop-shadow-[0_4px_30px_rgba(0,0,0,0.35)]">
-            {court?.name ?? restaurant?.name}
-          </h1>
-
-          <div className="mt-7 h-px w-28 bg-gradient-to-r from-transparent via-white/50 to-transparent" />
-
-          <p className="mt-7 text-2xl font-semibold tracking-tight text-white">¿Listos para jugar?</p>
-          <p className="mt-1.5 text-base font-light text-white/60">
-            Escanea el QR de tu reserva para comenzar a jugar
-          </p>
-
-          <button
-            onClick={() => {
-              setError(null);
-              setScreen('scanning');
-            }}
-            className="mt-9 flex items-center gap-3 rounded-full bg-white px-14 py-5 text-xl font-bold text-brand-950 shadow-2xl transition-transform active:scale-95"
-          >
-            <QrCode className="h-6 w-6" />
-            Acceder
+      <TabletPortada
+        brand={brand}
+        restaurant={restaurant}
+        clock={clock}
+        /* Discreto a propósito: es para el personal que monta la tablet, no para el jugador. */
+        footer={
+          <button onClick={logout} className="absolute bottom-4 right-5 z-10 text-xs text-white/30">
+            Salir
           </button>
+        }
+      >
+        {court && courtTypeLabel(court.courtType) && (
+          <span className="mb-5 rounded-full border border-white/25 bg-white/10 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.2em] text-white/75 backdrop-blur-md">
+            {courtTypeLabel(court.courtType)}
+          </span>
+        )}
 
-          {error && (
-            <p className="mt-6 max-w-md rounded-2xl bg-black/30 px-5 py-3 text-white backdrop-blur-md">{error}</p>
-          )}
-        </main>
+        {/* El nombre de la cancha es el héroe de la pantalla. Si quien entró no
+            es una tablet de cancha (dueño probando), cae al nombre del club. */}
+        <h1 className="text-[clamp(3.5rem,12vw,8rem)] font-bold leading-[0.92] tracking-tighter text-white drop-shadow-[0_4px_30px_rgba(0,0,0,0.35)]">
+          {court?.name ?? restaurant?.name}
+        </h1>
 
-        {/* Discreto a propósito: es para el personal que monta la tablet, no para el jugador. */}
-        <button onClick={logout} className="absolute bottom-4 right-5 z-10 text-xs text-white/30">
-          Salir
+        <div className="mt-7 h-px w-28 bg-gradient-to-r from-transparent via-white/50 to-transparent" />
+
+        <p className="mt-7 text-2xl font-semibold tracking-tight text-white">¿Listos para jugar?</p>
+        <p className="mt-1.5 text-base font-light text-white/60">
+          Escanea el QR de tu reserva para comenzar a jugar
+        </p>
+
+        <button
+          onClick={() => {
+            setError(null);
+            setScreen('scanning');
+          }}
+          className="mt-9 flex items-center gap-3 rounded-full bg-white px-14 py-5 text-xl font-bold text-brand-950 shadow-2xl transition-transform active:scale-95"
+        >
+          <QrCode className="h-6 w-6" />
+          Acceder
         </button>
+
+        {error && (
+          <p className="mt-6 max-w-md rounded-2xl bg-black/30 px-5 py-3 text-white backdrop-blur-md">{error}</p>
+        )}
 
         {screen === 'scanning' && (
           <FullscreenScanner
@@ -334,7 +338,60 @@ export default function ClubTabletPage() {
             }}
           />
         )}
-      </div>
+      </TabletPortada>
+    );
+  }
+
+  // ------------------------------------------- Sesión abierta: cuánto le queda
+  if (screen === 'sesion' && session) {
+    return (
+      <TabletPortada
+        brand={brand}
+        restaurant={restaurant}
+        clock={clock}
+        footer={
+          <button onClick={reset} className="absolute bottom-4 right-5 z-10 text-xs text-white/30">
+            Terminar
+          </button>
+        }
+      >
+        <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-white/50">
+          Bienvenido, {session.booking.playerName.split(' ')[0]}
+        </p>
+        <h1 className="mt-3 text-[clamp(2rem,5.5vw,3.5rem)] font-bold leading-none tracking-tight text-white">
+          {session.booking.courtName}
+        </h1>
+
+        {/* El reloj de la partida es lo que el jugador mira de lejos sin acercarse. */}
+        <p className="mt-9 text-[11px] font-semibold uppercase tracking-[0.3em] text-white/50">te queda</p>
+        <p className="mt-1 text-[clamp(4rem,15vw,9.5rem)] font-bold leading-[0.9] tracking-tighter tabular-nums text-white drop-shadow-[0_4px_30px_rgba(0,0,0,0.35)]">
+          {countdown.text}
+        </p>
+
+        <div className="mt-10 flex w-full max-w-2xl gap-4">
+          <PortadaAction
+            icon={<Trophy className="h-7 w-7" />}
+            title="Torneo"
+            hint="Arma un americano"
+            onClick={() =>
+              openTournament({
+                players: session.booking.tournamentPlayerNames ?? [],
+                court: session.booking.courtName,
+              })
+            }
+          />
+          <PortadaAction
+            icon={<ShoppingBag className="h-7 w-7" />}
+            title="Tienda"
+            hint="Pide a la cancha"
+            onClick={() => setScreen('menu')}
+          />
+        </div>
+
+        <p className="mt-7 text-sm font-light text-white/55">
+          Tu cuenta: <span className="font-bold text-white">{money(session.money.dueBase)}</span>
+        </p>
+      </TabletPortada>
     );
   }
 
@@ -389,28 +446,19 @@ export default function ClubTabletPage() {
             <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-white/70">
               <Clock className="h-3.5 w-3.5" /> te queda
             </p>
-            <p className="text-xl font-bold">{session.booking.remainingMinutes} min</p>
+            <p className="text-xl font-bold tabular-nums">{countdown.text}</p>
           </div>
           <div className="shrink-0 rounded-2xl bg-white/15 px-4 py-2 text-center">
             <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">tu cuenta</p>
             <p className="text-xl font-bold">{money(session.money.dueBase)}</p>
           </div>
-          {session.booking.tournamentPlayerNames && session.booking.tournamentPlayerNames.length > 0 && (
-            <button
-              onClick={() =>
-                openTournament({ players: session.booking.tournamentPlayerNames!, court: session.booking.courtName })
-              }
-              className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/15 px-4 py-2.5 text-sm font-semibold transition-colors hover:bg-white/25"
-            >
-              <Trophy className="h-4 w-4" /> Torneo
-            </button>
-          )}
+          {/* Vuelve a la portada de la sesión, que es donde vive "Terminar". */}
           <button
-            onClick={reset}
+            onClick={() => setScreen('sesion')}
             className="shrink-0 rounded-full bg-white/15 p-2.5 transition-colors hover:bg-white/25"
-            aria-label="Terminar"
+            aria-label="Volver"
           >
-            <X className="h-5 w-5" />
+            <ArrowLeft className="h-5 w-5" />
           </button>
         </div>
       </header>
@@ -529,6 +577,92 @@ export default function ClubTabletPage() {
         </aside>
       </div>
     </div>
+  );
+}
+
+/**
+ * Chrome compartido de las dos portadas de la tablet — la de inicio y la de una
+ * sesión abierta: fondo con halos y la cancha dibujada, el club arriba a la
+ * izquierda y el reloj de pared arriba a la derecha. Lo del centro y el pie los
+ * pone cada pantalla, y así las dos se ven de la misma familia sin duplicar el
+ * fondo dos veces.
+ */
+function TabletPortada({
+  brand,
+  restaurant,
+  clock,
+  footer,
+  children,
+}: {
+  brand: React.CSSProperties;
+  restaurant: { name: string; logoUrl?: string | null } | null | undefined;
+  clock: { time: string; date: string };
+  footer?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="relative flex min-h-screen flex-col overflow-hidden px-10 py-8" style={brand}>
+      {/* Halos y la cancha dibujada de fondo: dan profundidad sin robarle
+          protagonismo a lo del centro, que es lo único que se lee de lejos. */}
+      <div aria-hidden className="pointer-events-none absolute -left-40 -top-48 h-[30rem] w-[30rem] rounded-full bg-white/10 blur-3xl" />
+      <div aria-hidden className="pointer-events-none absolute -bottom-52 -right-32 h-[34rem] w-[34rem] rounded-full bg-black/20 blur-3xl" />
+      <CourtWatermark />
+
+      <header className="relative z-10 flex items-start justify-between gap-6">
+        <div className="flex min-w-0 items-center gap-3">
+          {restaurant?.logoUrl ? (
+            <img
+              src={restaurant.logoUrl}
+              alt=""
+              className="h-12 w-12 shrink-0 rounded-xl object-cover shadow-lg ring-1 ring-white/25"
+            />
+          ) : (
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/15 text-sm font-bold text-white ring-1 ring-white/25">
+              {restaurant?.name?.slice(0, 2).toUpperCase()}
+            </span>
+          )}
+          <div className="min-w-0">
+            <p className="truncate text-xl font-bold tracking-tight text-white">{restaurant?.name}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.3em] text-white/45">Club deportivo</p>
+          </div>
+        </div>
+
+        <div className="shrink-0 text-right">
+          <p className="text-5xl font-bold leading-none tracking-tight tabular-nums text-white">{clock.time}</p>
+          {/* first-letter y no capitalize: en español va "domingo, 9 de agosto", no "9 De Agosto". */}
+          <p className="mt-1.5 text-[13px] font-light text-white/55 first-letter:uppercase">{clock.date}</p>
+        </div>
+      </header>
+
+      <main className="relative z-10 flex flex-1 flex-col items-center justify-center text-center">{children}</main>
+
+      {footer}
+    </div>
+  );
+}
+
+/** Botón grande de la portada de sesión (Torneo / Tienda). Los dos pesan igual:
+ * en una tablet de pared no hay una acción "principal" entre las dos. */
+function PortadaAction({
+  icon,
+  title,
+  hint,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  hint: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex flex-1 flex-col items-center gap-2 rounded-3xl border border-white/25 bg-white/15 px-6 py-6 backdrop-blur-xl transition-all hover:bg-white/25 active:scale-[0.98]"
+    >
+      <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 text-white">{icon}</span>
+      <span className="text-xl font-bold text-white">{title}</span>
+      <span className="text-[13px] font-light text-white/60">{hint}</span>
+    </button>
   );
 }
 
