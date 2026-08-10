@@ -510,6 +510,142 @@ async function deductPackagingStock(
   }
 }
 
+/**
+ * Devuelve al inventario lo que las cuatro `deduct*Stock` de arriba descontaron al marcar
+ * SERVED, cuando ese pedido se cancela o se borra después — sin esto, un pedido servido
+ * por error (o cancelado tras servirse) dejaba la existencia descontada para siempre, sin
+ * haberse vendido nada. Mismo criterio que movementService.remove() revirtiendo un
+ * reabastecimiento: usa `increment` (no hace falta clamp al subir), y como el descuento
+ * original sí se clampeaba en 0, un pedido que agotó el insumo por completo puede devolver
+ * de más — imprecisión aceptada, igual que en movement.service.ts.
+ */
+async function restoreRecipeStock(restaurantId: string, items: { productId: string | null; quantity: number }[]) {
+  const productIds = items.map((i) => i.productId).filter((id): id is string => Boolean(id));
+  if (productIds.length === 0) return;
+
+  const recipeLines = await prisma.recipeIngredient.findMany({
+    where: { restaurantId, productId: { in: productIds } },
+  });
+  if (recipeLines.length === 0) return;
+
+  const qtyByProduct = sumQuantityByProduct(items);
+  for (const line of recipeLines) {
+    const soldQty = qtyByProduct.get(line.productId) ?? 0;
+    if (soldQty <= 0) continue;
+    const used = toDecimal(line.quantity).mul(soldQty);
+    await prisma.inventoryItem
+      .update({ where: { id: line.inventoryItemId }, data: { quantity: { increment: used } } })
+      .catch(() => undefined); // el insumo pudo haberse borrado desde entonces
+  }
+}
+
+async function restoreModifierStock(
+  restaurantId: string,
+  items: { quantity: number; modifiers: { modifierId: string | null; quantity: number }[] }[],
+) {
+  const restaurant = await prisma.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { modifierInventoryLinkEnabled: true },
+  });
+  if (!restaurant?.modifierInventoryLinkEnabled) return;
+
+  const usedByInventoryItem = new Map<string, Prisma.Decimal>();
+  const modifierIds = [
+    ...new Set(items.flatMap((i) => i.modifiers.map((m) => m.modifierId).filter((id): id is string => Boolean(id)))),
+  ];
+  if (modifierIds.length === 0) return;
+
+  const modifiers = await prisma.modifier.findMany({
+    where: { id: { in: modifierIds }, restaurantId, inventoryItemId: { not: null } },
+    select: { id: true, inventoryItemId: true, inventoryQuantity: true },
+  });
+  if (modifiers.length === 0) return;
+  const byModifierId = new Map(modifiers.map((m) => [m.id, m]));
+
+  for (const item of items) {
+    for (const chosen of item.modifiers) {
+      if (!chosen.modifierId) continue;
+      const link = byModifierId.get(chosen.modifierId);
+      if (!link?.inventoryItemId || !link.inventoryQuantity) continue;
+      const used = toDecimal(link.inventoryQuantity).mul(chosen.quantity).mul(item.quantity);
+      const prev = usedByInventoryItem.get(link.inventoryItemId) ?? toDecimal(0);
+      usedByInventoryItem.set(link.inventoryItemId, prev.add(used));
+    }
+  }
+
+  for (const [inventoryItemId, used] of usedByInventoryItem) {
+    await prisma.inventoryItem
+      .update({ where: { id: inventoryItemId }, data: { quantity: { increment: used } } })
+      .catch(() => undefined);
+  }
+}
+
+async function restoreProductStock(restaurantId: string, items: { productId: string | null; quantity: number }[]) {
+  const productIds = items.map((i) => i.productId).filter((id): id is string => Boolean(id));
+  if (productIds.length === 0) return;
+
+  const products = await prisma.product.findMany({
+    where: { restaurantId, id: { in: productIds }, stockControlEnabled: true },
+    select: { id: true, stockQuantity: true },
+  });
+  if (products.length === 0) return;
+
+  const qtyByProduct = sumQuantityByProduct(items);
+  for (const product of products) {
+    const soldQty = qtyByProduct.get(product.id) ?? 0;
+    if (soldQty <= 0) continue;
+    await prisma.product.update({
+      where: { id: product.id },
+      data: { stockQuantity: (product.stockQuantity ?? 0) + soldQty },
+    });
+  }
+}
+
+async function restorePackagingStock(
+  restaurantId: string,
+  channel: OrderChannel,
+  items: { productId: string | null; quantity: number }[],
+) {
+  if (channel !== 'DELIVERY' && channel !== 'PICKUP') return;
+  const qtyByProduct = sumQuantityByProduct(items);
+  if (qtyByProduct.size === 0) return;
+
+  const products = await prisma.product.findMany({
+    where: {
+      id: { in: [...qtyByProduct.keys()] },
+      restaurantId,
+      packagingMode: 'INVENTORY',
+      packagingItemId: { not: null },
+    },
+    select: { id: true, packagingItemId: true },
+  });
+  if (products.length === 0) return;
+
+  const usedByItem = new Map<string, number>();
+  for (const p of products) {
+    const qty = qtyByProduct.get(p.id) ?? 0;
+    if (qty <= 0 || !p.packagingItemId) continue;
+    usedByItem.set(p.packagingItemId, (usedByItem.get(p.packagingItemId) ?? 0) + qty);
+  }
+
+  for (const [inventoryItemId, used] of usedByItem) {
+    await prisma.inventoryItem
+      .update({ where: { id: inventoryItemId }, data: { quantity: { increment: used } } })
+      .catch(() => undefined);
+  }
+}
+
+/** Corre las cuatro reversiones de una — llamarla cuando un pedido que ya estaba SERVED se cancela o se borra. */
+async function restoreServedOrderStock(
+  restaurantId: string,
+  order: { channel: OrderChannel; items: { productId: string | null; quantity: number; modifiers: { modifierId: string | null; quantity: number }[] }[] },
+) {
+  await restoreRecipeStock(restaurantId, order.items);
+  await restoreProductStock(restaurantId, order.items);
+  await restoreModifierStock(restaurantId, order.items);
+  await restorePackagingStock(restaurantId, order.channel, order.items);
+}
+
 /** Inicio del período usado por getSalesStats/getSalesStatsUserOrders (semana o mes en curso) — debe coincidir en ambos para que los totales no se desalineen. */
 /**
  * Emite el ORDER_UPDATED tras un pedido pasar a KITCHEN, sea por aceptación manual
@@ -1520,6 +1656,12 @@ export const orderService = {
       await deductPackagingStock(restaurantId, existing.channel, existing.items);
     }
 
+    // Se cancela un pedido que YA había sido servido (se descontó inventario y nunca se
+    // vendió de verdad): se devuelve, si no quedaba descontado para siempre sin razón.
+    if (status === 'CANCELLED' && statusChanged && existing.status === 'SERVED') {
+      await restoreServedOrderStock(restaurantId, existing);
+    }
+
     emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, {
       orderId: order.id,
       status: order.status,
@@ -1699,7 +1841,10 @@ export const orderService = {
         throw badRequest('Código incorrecto.');
       }
     }
-    const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });
+    const existing = await prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      include: { items: { include: { modifiers: true } } },
+    });
     if (!existing) throw notFound('Comanda no encontrada.');
 
     // Inalterabilidad fiscal: un pedido con documento fiscal emitido NO se puede
@@ -1716,6 +1861,13 @@ export const orderService = {
       throw conflict(
         'Este pedido ya tiene una factura fiscal emitida y no se puede eliminar. Para reversarlo hay que emitir una nota de crédito.',
       );
+    }
+
+    // Se borra un pedido que YA había sido servido (ver "Cancelar" en Pedidos en vivo, que
+    // en realidad borra): el inventario que se descontó al servirlo se devuelve, si no queda
+    // perdido para siempre por algo que nunca se cobró.
+    if (existing.status === 'SERVED') {
+      await restoreServedOrderStock(restaurantId, existing);
     }
 
     await prisma.order.delete({ where: { id: orderId } });
