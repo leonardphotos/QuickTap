@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { tenantGuard } from '../../middlewares/auth.middleware';
+import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
 import { optimizeImage, uploadShopProductPhoto, uploadShopPaymentProof } from '../../middlewares/upload.middleware';
 import { shopController } from './shop.controller';
 
@@ -11,6 +11,8 @@ router.get('/state', shopController.getState);
 
 router.post('/products', shopController.createProduct);
 router.patch('/products/:id', shopController.updateProduct);
+// Borrar producto es de administración: el cajero cobra, no depura el catálogo.
+router.delete('/products/:id', requireRole('OWNER', 'ADMIN'), shopController.deleteProduct);
 router.post('/products/upload-photo', uploadShopProductPhoto, optimizeImage(900, 900), shopController.uploadProductPhoto);
 router.post('/upload-payment-proof', uploadShopPaymentProof, optimizeImage(1200, 1200), shopController.uploadPaymentProof);
 

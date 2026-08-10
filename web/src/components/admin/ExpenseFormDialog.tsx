@@ -63,31 +63,61 @@ interface InventoryOption {
 /** "Agregar gasto": egreso con categoría, proveedor y reabastecimiento opcional de
  * inventario. Compartido entre el Dashboard ("Añadir egreso") y el módulo de Gastos,
  * para que todo egreso quede siempre vinculado a la misma sección. */
-export function ExpenseFormDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+/** Gasto ya cargado que se está corrigiendo (monto mal tipeado, categoría equivocada, factura
+ * que llegó después). Solo los campos que el formulario sabe reponer. */
+export interface EditableExpense {
+  id: string;
+  amountBase: string;
+  description: string;
+  category?: string | null;
+  supplier?: { id: string; name: string } | null;
+  paymentMethod?: string | null;
+  expenseDate?: string | null;
+  referenceNumber?: string | null;
+  spentByName?: string | null;
+  receiptImageUrl?: string | null;
+  isCredit?: boolean;
+}
+
+export function ExpenseFormDialog({
+  onClose,
+  onCreated,
+  expense,
+}: {
+  onClose: () => void;
+  onCreated: () => void;
+  /** Si viene, el diálogo edita ese gasto en vez de crear uno nuevo. */
+  expense?: EditableExpense;
+}) {
   const { restaurant } = useAuth();
+  const isEdit = !!expense;
   // El reabastecimiento descuenta contra InventoryItem (insumos de restaurante). Un local
   // comercial y un club manejan su stock en ShopProduct, así que ahí ese bloque no aplica:
   // mostraría una lista vacía y, si se llenara, tocaría un inventario que no usan.
   const supportsRestock = restaurant?.businessType !== 'SHOP' && restaurant?.businessType !== 'SPORTS_CLUB';
-  const [amount, setAmount] = useState('');
+  // Al editar se arranca con lo que ya tenía el gasto; el monto siempre en moneda base,
+  // que es como quedó guardado (la conversión desde Bs ya se aplicó al crearlo).
+  const [amount, setAmount] = useState(expense ? Number(expense.amountBase).toFixed(2) : '');
   const [amountCurrency, setAmountCurrency] = useState<'BASE' | 'BS'>('BASE');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<ExpenseCategory | ''>('');
-  const [supplier, setSupplier] = useState<Supplier | null>(null);
+  const [description, setDescription] = useState(expense?.description ?? '');
+  const [category, setCategory] = useState<ExpenseCategory | ''>((expense?.category as ExpenseCategory) ?? '');
+  const [supplier, setSupplier] = useState<Supplier | null>(
+    expense?.supplier ? ({ id: expense.supplier.id, name: expense.supplier.name } as Supplier) : null,
+  );
   const [showSupplierPicker, setShowSupplierPicker] = useState(false);
   const [isRestock, setIsRestock] = useState(false);
   const [inventoryItems, setInventoryItems] = useState<InventoryOption[]>([]);
   const [inventoryItemId, setInventoryItemId] = useState('');
   const [inventoryQuantity, setInventoryQuantity] = useState('');
-  const [isCredit, setIsCredit] = useState(false);
+  const [isCredit, setIsCredit] = useState(expense?.isCredit ?? false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // --- Soporte del gasto ---
-  const [paymentMethod, setPaymentMethod] = useState('');
-  const [expenseDate, setExpenseDate] = useState('');
-  const [referenceNumber, setReferenceNumber] = useState('');
-  const [spentByName, setSpentByName] = useState('');
-  const [receiptImageUrl, setReceiptImageUrl] = useState('');
+  const [paymentMethod, setPaymentMethod] = useState(expense?.paymentMethod ?? '');
+  const [expenseDate, setExpenseDate] = useState(expense?.expenseDate ? expense.expenseDate.slice(0, 10) : '');
+  const [referenceNumber, setReferenceNumber] = useState(expense?.referenceNumber ?? '');
+  const [spentByName, setSpentByName] = useState(expense?.spentByName ?? '');
+  const [receiptImageUrl, setReceiptImageUrl] = useState(expense?.receiptImageUrl ?? '');
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
 
   const isFieldTrip = category !== '' && FIELD_TRIP_CATEGORIES.has(category);
@@ -130,22 +160,25 @@ export function ExpenseFormDialog({ onClose, onCreated }: { onClose: () => void;
     setSaving(true);
     setError(null);
     try {
-      await api.post('/movements', {
-        type: 'EXPENSE',
+      // Al editar se manda null (no undefined) en lo que se vació, para que el backend lo
+      // limpie de verdad en vez de dejar el valor viejo.
+      const payload = {
         amountBase,
         amountCurrency,
         description: description.trim(),
-        category: category || undefined,
-        supplierId: supplier?.id,
-        inventoryItemId: isRestock ? inventoryItemId : undefined,
-        inventoryQuantity: isRestock ? Number(inventoryQuantity) : undefined,
+        category: category || (isEdit ? null : undefined),
+        supplierId: supplier?.id ?? (isEdit ? null : undefined),
+        inventoryItemId: isRestock ? inventoryItemId : isEdit ? null : undefined,
+        inventoryQuantity: isRestock ? Number(inventoryQuantity) : isEdit ? null : undefined,
         isCredit,
-        paymentMethod: paymentMethod || undefined,
-        expenseDate: expenseDate || undefined,
-        referenceNumber: referenceNumber.trim() || undefined,
-        spentByName: spentByName.trim() || undefined,
-        receiptImageUrl: receiptImageUrl || undefined,
-      });
+        paymentMethod: paymentMethod || (isEdit ? null : undefined),
+        expenseDate: expenseDate || (isEdit ? null : undefined),
+        referenceNumber: referenceNumber.trim() || (isEdit ? null : undefined),
+        spentByName: spentByName.trim() || (isEdit ? null : undefined),
+        receiptImageUrl: receiptImageUrl || (isEdit ? null : undefined),
+      };
+      if (isEdit) await api.patch(`/movements/${expense!.id}`, payload);
+      else await api.post('/movements', { type: 'EXPENSE', ...payload });
       onCreated();
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo guardar el gasto.');
@@ -158,7 +191,7 @@ export function ExpenseFormDialog({ onClose, onCreated }: { onClose: () => void;
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Agregar gasto</DialogTitle>
+          <DialogTitle>{isEdit ? 'Editar gasto' : 'Agregar gasto'}</DialogTitle>
         </DialogHeader>
 
         {showSupplierPicker ? (
@@ -363,7 +396,7 @@ export function ExpenseFormDialog({ onClose, onCreated }: { onClose: () => void;
             {error && <p className="text-sm text-red-600">{error}</p>}
 
             <TextureButton variant="brand" size="default" disabled={saving} onClick={submit} className="disabled:opacity-50">
-              {saving ? 'Guardando…' : 'Guardar gasto'}
+              {saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Guardar gasto'}
             </TextureButton>
           </div>
         )}

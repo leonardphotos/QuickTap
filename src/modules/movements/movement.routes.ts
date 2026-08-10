@@ -15,6 +15,7 @@ router.get('/', requireRole('OWNER', 'ADMIN', 'CASHIER'), movementController.lis
 const mutate = requireRoleOrCashierFullAccess('OWNER', 'ADMIN');
 router.post('/', mutate, movementController.create);
 router.post('/upload-receipt', mutate, uploadExpenseReceipt, optimizeImage(1400, 1400), movementController.uploadReceipt);
+router.patch('/:id', mutate, movementController.update);
 router.delete('/:id', mutate, movementController.remove);
 router.patch('/:id/mark-paid', mutate, movementController.markCreditPaid);
 

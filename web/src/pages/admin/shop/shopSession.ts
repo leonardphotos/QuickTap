@@ -821,6 +821,27 @@ export function useShopSession(initialCategories: string[] = []) {
     })();
   }
 
+  /**
+   * Saca un producto del inventario. El historial de ventas/compras no se toca: guarda su
+   * propio nombre y precio del momento, así que sigue cuadrando aunque el producto ya no exista.
+   * Si el borrado falla en el servidor, se repone en la lista para no mentirle al usuario.
+   */
+  function deleteProduct(id: string) {
+    const removed = products.find((p) => p.id === id);
+    setProducts((prev) => prev.filter((p) => p.id !== id));
+    setServiceSupplies((prev) => prev.filter((s) => s.serviceProductId !== id && s.supplyProductId !== id));
+
+    (async () => {
+      try {
+        const realId = await resolveServerProductId(id);
+        await shopApi.deleteProduct(realId);
+      } catch (err) {
+        console.error('No se pudo eliminar el producto en el servidor', err);
+        if (removed) setProducts((prev) => (prev.some((p) => p.id === id) ? prev : [...prev, removed]));
+      }
+    })();
+  }
+
   return {
     loading,
     products,
@@ -856,6 +877,7 @@ export function useShopSession(initialCategories: string[] = []) {
     adjustStock,
     addProduct,
     updateProduct,
+    deleteProduct,
   };
 }
 

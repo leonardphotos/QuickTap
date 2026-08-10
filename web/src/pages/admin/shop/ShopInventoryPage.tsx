@@ -1,7 +1,8 @@
 import { Fragment, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { ChevronDown, ClipboardList, FlaskConical, FolderPlus, Package, Pencil, Plus, ScanLine, Search, Sparkles, Truck, X } from 'lucide-react';
+import { ChevronDown, ClipboardList, FlaskConical, FolderPlus, Package, Pencil, Plus, ScanLine, Search, Sparkles, Trash2, Truck, X } from 'lucide-react';
 import type { AuthRestaurant } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
@@ -28,7 +29,11 @@ const STATUS_CLASS: Record<string, string> = {
 
 export default function ShopInventoryPage({ session, rubro, restaurant }: Props) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
-  const { products, sales, purchases, adjustments, registerPurchase, adjustStock, addProduct, updateProduct, categories, addCategory, subcategories, serviceSupplies, setServiceSupplies } = session;
+  const { products, sales, purchases, adjustments, registerPurchase, adjustStock, addProduct, updateProduct, deleteProduct, categories, addCategory, subcategories, serviceSupplies, setServiceSupplies } = session;
+  const { user } = useAuth();
+  // Depurar el catálogo es de administración: el cajero cobra, no borra productos.
+  const canDeleteProducts = user?.role === 'OWNER' || user?.role === 'ADMIN';
+  const [productToDelete, setProductToDelete] = useState<ShopProduct | null>(null);
 
   const [category, setCategory] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -645,6 +650,16 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                             >
                               <FlaskConical className="h-3.5 w-3.5" />
                             </button>
+                            {canDeleteProducts && (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); setProductToDelete(p); }}
+                                title="Eliminar producto"
+                                className="text-brand-950/30 hover:text-red-600"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1418,6 +1433,41 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
             </TextureButton>
             <TextureButton variant="brand" size="default" className="!w-auto" disabled={!newCatName.trim()} onClick={confirmNewCategory}>
               Crear categoría
+            </TextureButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ---------- Eliminar producto ---------- */}
+      <Dialog open={!!productToDelete} onOpenChange={(o) => !o && setProductToDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar producto</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-brand-950">
+              ¿Sacar <span className="font-semibold">{productToDelete?.name}</span> del inventario?
+            </p>
+            {/* La duda típica al borrar: "¿se me borran las ventas?". No. */}
+            <p className="rounded-xl bg-brand-950/[0.03] px-3 py-2.5 text-xs font-light text-brand-950/60">
+              Las ventas y compras que ya lo incluyen no se tocan: guardan su propio nombre y precio, así que los informes
+              siguen cuadrando. Solo desaparece del catálogo y deja de poder venderse.
+            </p>
+          </div>
+          <DialogFooter>
+            <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setProductToDelete(null)}>
+              Cancelar
+            </TextureButton>
+            <TextureButton
+              variant="destructive"
+              size="default"
+              className="!w-auto"
+              onClick={() => {
+                if (productToDelete) deleteProduct(productToDelete.id);
+                setProductToDelete(null);
+              }}
+            >
+              Eliminar
             </TextureButton>
           </DialogFooter>
         </DialogContent>

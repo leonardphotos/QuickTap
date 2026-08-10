@@ -65,6 +65,34 @@ export const createMovementSchema = z
     path: ['inventoryQuantity'],
   });
 
+/**
+ * Editar un gasto/ingreso ya cargado (monto equivocado, categoría equivocada, factura que
+ * llegó después). Mismos campos que al crear, todos opcionales — el tipo NO se puede cambiar:
+ * convertir un gasto en ingreso descuadraría los totales del período sin dejar rastro; para
+ * eso se borra y se carga de nuevo.
+ */
+export const updateMovementSchema = z.object({
+  amountBase: z.coerce.number().positive().max(1000000).optional(),
+  amountCurrency: z.enum(['BASE', 'BS']).optional().default('BASE'),
+  description: z.string().min(1, 'Escribe una descripción.').max(200).optional(),
+  incomeCategory: z.enum(INCOME_CATEGORIES).nullable().optional(),
+  paymentMethod: z.enum(PAYMENT_METHODS).nullable().optional(),
+  category: z.enum(EXPENSE_CATEGORIES).nullable().optional(),
+  supplierId: z.string().nullable().optional(),
+  // Reabastecimiento: cambiar insumo o cantidad revierte el anterior y aplica el nuevo.
+  inventoryItemId: z.string().nullable().optional(),
+  inventoryQuantity: z.coerce.number().positive().nullable().optional(),
+  isCredit: z.boolean().optional(),
+  expenseDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida.')
+    .nullable()
+    .optional(),
+  referenceNumber: z.string().max(60).nullable().optional(),
+  receiptImageUrl: z.string().max(300).nullable().optional(),
+  spentByName: z.string().max(120).nullable().optional(),
+});
+
 /** Filtro de rango, igual que el resto de Administración. */
 export const movementQuerySchema = z.object({
   range: z.enum(['day', 'week', 'month', 'year', 'all']).optional().default('day'),
@@ -74,4 +102,5 @@ export const movementQuerySchema = z.object({
 });
 
 export type CreateMovementInput = z.infer<typeof createMovementSchema>;
+export type UpdateMovementInput = z.infer<typeof updateMovementSchema>;
 export type MovementQuery = z.infer<typeof movementQuerySchema>;

@@ -149,6 +149,25 @@ export const shopService = {
     return product;
   },
 
+  /**
+   * Elimina un producto del inventario. El historial NO se pierde: ventas, compras y ajustes
+   * guardan `productId` como texto suelto (sin FK) más un snapshot del nombre y el precio,
+   * justo para que sobreviva a esto — ver el comentario en schema.prisma sobre ShopSaleItem.
+   * Se van en cascada sus variantes y los insumos que consume; aparte hay que limpiar a mano
+   * las recetas de OTROS productos que lo usaban como insumo, porque `supplyProductId`
+   * tampoco tiene FK y quedarían apuntando a un producto que ya no existe.
+   */
+  async deleteProduct(restaurantId: string, id: string) {
+    const existing = await prisma.shopProduct.findFirst({ where: { id, restaurantId }, select: { id: true, name: true } });
+    if (!existing) throw notFound('Producto no encontrado.');
+
+    return prisma.$transaction(async (tx) => {
+      const usedAsSupply = await tx.shopServiceSupply.deleteMany({ where: { supplyProductId: id } });
+      await tx.shopProduct.delete({ where: { id: existing.id } });
+      return { deleted: true, name: existing.name, removedFromRecipes: usedAsSupply.count };
+    });
+  },
+
   async ensureCategory(restaurantId: string, category: string, subcategory?: string) {
     const trimmed = category.trim();
     if (trimmed) {

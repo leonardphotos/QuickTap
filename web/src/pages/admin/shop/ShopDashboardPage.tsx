@@ -17,10 +17,12 @@ import {
   Wallet,
   Clock,
   FileText,
+  Pencil,
+  Trash2,
   type LucideIcon,
 } from 'lucide-react';
 import type { ShopScreen } from './ShopLayout';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { CATEGORY_LABELS, ExpenseFormDialog, type ExpenseCategory } from '@/components/admin/ExpenseFormDialog';
 
@@ -39,6 +41,7 @@ interface ShopExpense {
   referenceNumber: string | null;
   receiptImageUrl: string | null;
   spentByName: string | null;
+  paymentMethod: string | null;
 }
 import { shopMoneyFormatters } from './shopFormat';
 import {
@@ -138,6 +141,11 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
   const { products, sales, purchases, returnSale, providers } = session;
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [showExpenseDialog, setShowExpenseDialog] = useState(false);
+  // Corregir un gasto ya cargado (monto mal tipeado, categoría equivocada) sin tener que
+  // borrarlo y volver a escribirlo entero.
+  const [editingExpense, setEditingExpense] = useState<ShopExpense | null>(null);
+  const [expenseToDelete, setExpenseToDelete] = useState<ShopExpense | null>(null);
+  const [deletingExpense, setDeletingExpense] = useState(false);
   const [showIncomeByMethod, setShowIncomeByMethod] = useState(false);
   // Buscador de "Ventas recientes" por número de referencia — con texto, busca en TODAS las
   // ventas (no solo las últimas 8) para poder ubicar un cobro puntual.
@@ -529,6 +537,22 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
                       </a>
                     )}
                     <span className="text-sm font-bold text-amber-600">−{money(Number(m.amountBase))}</span>
+                    <button
+                      type="button"
+                      onClick={() => setEditingExpense(m)}
+                      title="Editar gasto"
+                      className="text-brand-950/30 hover:text-brand-500"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExpenseToDelete(m)}
+                      title="Eliminar gasto"
+                      className="text-brand-950/30 hover:text-red-600"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
                   </div>
                 </div>
               ))}
@@ -660,15 +684,57 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
         </DialogContent>
       </Dialog>
 
-      {showExpenseDialog && (
+      {(showExpenseDialog || editingExpense) && (
         <ExpenseFormDialog
-          onClose={() => setShowExpenseDialog(false)}
+          expense={editingExpense ?? undefined}
+          onClose={() => {
+            setShowExpenseDialog(false);
+            setEditingExpense(null);
+          }}
           onCreated={() => {
             setShowExpenseDialog(false);
-            loadExpenses(); // el gasto nuevo tiene que verse de una vez en la lista y en el total
+            setEditingExpense(null);
+            loadExpenses(); // el cambio tiene que verse de una vez en la lista y en el total
           }}
         />
       )}
+
+      {/* ---------- Eliminar gasto ---------- */}
+      <Dialog open={!!expenseToDelete} onOpenChange={(o) => !o && setExpenseToDelete(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar gasto</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-brand-950">
+            ¿Borrar <span className="font-semibold">{expenseToDelete?.description}</span> por{' '}
+            {expenseToDelete ? money(Number(expenseToDelete.amountBase)) : ''}? Deja de contar en los totales del período.
+          </p>
+          <DialogFooter>
+            <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setExpenseToDelete(null)}>
+              Cancelar
+            </TextureButton>
+            <TextureButton
+              variant="destructive"
+              size="default"
+              className="!w-auto"
+              disabled={deletingExpense}
+              onClick={async () => {
+                if (!expenseToDelete) return;
+                setDeletingExpense(true);
+                try {
+                  await api.delete(`/movements/${expenseToDelete.id}`);
+                  setExpenseToDelete(null);
+                  loadExpenses();
+                } finally {
+                  setDeletingExpense(false);
+                }
+              }}
+            >
+              {deletingExpense ? 'Borrando…' : 'Eliminar'}
+            </TextureButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={showIncomeByMethod} onOpenChange={setShowIncomeByMethod}>
         <DialogContent>

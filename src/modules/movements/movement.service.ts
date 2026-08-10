@@ -4,7 +4,7 @@ import { badRequest, notFound } from '../../utils/http-error';
 import { baseToBs, bsToBase, round2, toDecimal } from '../../utils/money';
 import { resolveDateFilter } from '../../utils/date-range';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
-import { CreateMovementInput, MovementQuery } from './movement.dto';
+import { CreateMovementInput, MovementQuery, UpdateMovementInput } from './movement.dto';
 
 export const movementService = {
   /** Botón "Añadir movimiento" / módulo de Gastos: ingreso/egreso manual, opcionalmente con
@@ -116,6 +116,84 @@ export const movementService = {
         spentByName: m.spentByName,
       })),
     };
+  },
+
+  /**
+   * Edita un movimiento ya cargado. Lo delicado es el reabastecimiento: si el gasto sumó
+   * existencia a un insumo, cambiar el insumo o la cantidad tiene que REVERTIR lo anterior
+   * antes de aplicar lo nuevo — si no, corregir un monto dejaría la existencia inflada,
+   * el mismo agujero que ya tapa remove(). Nunca baja de 0.
+   */
+  async update(restaurantId: string, id: string, input: UpdateMovementInput) {
+    const existing = await prisma.movement.findFirst({ where: { id, restaurantId } });
+    if (!existing) throw notFound('Movimiento no encontrado.');
+
+    if (input.supplierId) {
+      const supplier = await prisma.supplier.findFirst({ where: { id: input.supplierId, restaurantId } });
+      if (!supplier) throw notFound('El proveedor no existe o no pertenece a este restaurante.');
+    }
+
+    let amountBase: Prisma.Decimal | undefined;
+    if (input.amountBase != null) {
+      amountBase = toDecimal(input.amountBase);
+      if (input.amountCurrency === 'BS') {
+        const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { baseCurrency: true } });
+        const rate = await exchangeRateService.getRate(restaurant?.baseCurrency ?? 'USD', restaurantId);
+        amountBase = bsToBase(input.amountBase, rate.rateBs);
+      }
+    }
+
+    // `undefined` = no lo mandaron, se deja como está. `null` = lo están limpiando.
+    const nextItemId = input.inventoryItemId === undefined ? existing.inventoryItemId : input.inventoryItemId;
+    const nextQty = input.inventoryQuantity === undefined ? existing.inventoryQuantity : input.inventoryQuantity;
+
+    return prisma.$transaction(async (tx) => {
+      const restockChanged =
+        String(nextItemId ?? '') !== String(existing.inventoryItemId ?? '') ||
+        String(nextQty ?? '') !== String(existing.inventoryQuantity ?? '');
+
+      if (restockChanged) {
+        if (existing.inventoryItemId && existing.inventoryQuantity) {
+          const prev = await tx.inventoryItem.findFirst({ where: { id: existing.inventoryItemId, restaurantId } });
+          if (prev) {
+            await tx.inventoryItem.update({
+              where: { id: prev.id },
+              data: { quantity: Prisma.Decimal.max(0, toDecimal(prev.quantity).sub(existing.inventoryQuantity)) },
+            });
+          }
+        }
+        if (nextItemId && nextQty) {
+          const next = await tx.inventoryItem.findFirst({ where: { id: nextItemId, restaurantId } });
+          if (!next) throw notFound('El insumo no existe o no pertenece a este restaurante.');
+          await tx.inventoryItem.update({ where: { id: next.id }, data: { quantity: { increment: nextQty } } });
+        }
+      }
+
+      return tx.movement.update({
+        where: { id: existing.id },
+        data: {
+          amountBase,
+          description: input.description,
+          incomeCategory: input.incomeCategory,
+          paymentMethod: input.paymentMethod,
+          category: input.category,
+          supplierId: input.supplierId,
+          inventoryItemId: nextItemId,
+          inventoryQuantity: nextQty,
+          isCredit: input.isCredit,
+          expenseDate:
+            input.expenseDate === undefined
+              ? undefined
+              : input.expenseDate === null
+                ? null
+                : new Date(`${input.expenseDate}T12:00:00`),
+          referenceNumber: input.referenceNumber,
+          receiptImageUrl: input.receiptImageUrl,
+          spentByName: input.spentByName,
+        },
+        include: { createdByUser: { select: { name: true } }, supplier: true, inventoryItem: true },
+      });
+    });
   },
 
   /** Marca un gasto a crédito como ya pagado al proveedor. */

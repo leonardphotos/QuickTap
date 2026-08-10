@@ -140,6 +140,10 @@ export const shopApi = {
     return data.data;
   },
 
+  async deleteProduct(id: string): Promise<void> {
+    await api.delete(`/shop/products/${id}`);
+  },
+
   async setServiceSupplies(
     serviceProductId: string,
     supplies: { supplyProductId: string; supplyV1: string; supplyV2: string; quantity: number }[],

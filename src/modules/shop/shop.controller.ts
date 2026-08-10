@@ -32,6 +32,10 @@ export const shopController = {
     res.json({ data: await shopService.updateProduct(req.restaurantId!, req.params.id, input) });
   }),
 
+  deleteProduct: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await shopService.deleteProduct(req.restaurantId!, req.params.id) });
+  }),
+
   recordSale: asyncHandler(async (req: Request, res: Response) => {
     const input = createShopSaleSchema.parse(req.body);
     res.status(201).json({ data: await shopService.recordSale(req.restaurantId!, input) });

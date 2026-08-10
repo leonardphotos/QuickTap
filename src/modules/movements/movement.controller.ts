@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest } from '../../utils/http-error';
-import { createMovementSchema, movementQuerySchema } from './movement.dto';
+import { createMovementSchema, movementQuerySchema, updateMovementSchema } from './movement.dto';
 import { movementService } from './movement.service';
 
 export const movementController = {
@@ -12,6 +12,10 @@ export const movementController = {
   create: asyncHandler(async (req: Request, res: Response) => {
     const input = createMovementSchema.parse(req.body);
     res.status(201).json({ data: await movementService.create(req.restaurantId!, req.auth?.userId, input) });
+  }),
+  update: asyncHandler(async (req: Request, res: Response) => {
+    const input = updateMovementSchema.parse(req.body);
+    res.json({ data: await movementService.update(req.restaurantId!, req.params.id, input) });
   }),
   remove: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await movementService.remove(req.restaurantId!, req.params.id) });
