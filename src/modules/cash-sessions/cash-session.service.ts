@@ -1,4 +1,4 @@
-import { PaymentMethod, Prisma } from '@prisma/client';
+import { BusinessType, PaymentMethod, Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { round2, toDecimal } from '../../utils/money';
 import { badRequest, notFound } from '../../utils/http-error';
@@ -7,17 +7,103 @@ import { OpenCashSessionInput } from './cash-session.dto';
 
 const PAYMENT_METHODS = Object.values(PaymentMethod);
 
+/** Un cobro ya normalizado, venga de donde venga. Es lo que el arqueo suma.
+ * `method` en null = no se pudo atribuir a un método conocido (ver shopMethodToEnum). */
+interface CollectedPayment {
+  amountBase: Prisma.Decimal;
+  method: PaymentMethod | null;
+}
+
 /**
- * Movimiento del turno desde `openedAt` hasta ahora: ventas por método de
- * pago (`OrderPayment`) + movimientos manuales (`Movement`). Mismo patrón de
- * fetch + reduce que `movementService.list`, sin `groupBy` de Prisma.
+ * La tienda del club guarda el método como etiqueta suelta (ver STORE_PAYMENT_METHODS en
+ * clubStoreApi.ts) en vez del enum, así que hay que traducirlo para poder cuadrarlo con el
+ * resto. Lo que no se reconozca queda sin método: entra igual al total del turno — plata que
+ * entró es plata que entró — pero no se le carga a ninguna gaveta, porque adivinar cuál
+ * descuadraría el arqueo en vez de ayudarlo.
  */
-async function computeSummary(restaurantId: string, since: Date) {
-  const [payments, movements] = await Promise.all([
-    prisma.orderPayment.findMany({
+const SHOP_METHOD_LABELS: Record<string, PaymentMethod> = {
+  'efectivo bs': 'CASH',
+  'efectivo $': 'CASH_USD',
+  'pago móvil': 'MOBILE_PAYMENT',
+  'pago movil': 'MOBILE_PAYMENT',
+  'punto de venta': 'CARD',
+  zelle: 'ZELLE',
+  binance: 'BINANCE',
+  paypal: 'PAYPAL',
+  transferencia: 'TRANSFER',
+};
+
+function shopMethodToEnum(label: string | null): PaymentMethod | null {
+  if (!label) return null;
+  return SHOP_METHOD_LABELS[label.trim().toLowerCase()] ?? null;
+}
+
+/**
+ * De dónde sale la plata cobrada en el turno, según el vertical.
+ *
+ * El restaurante cobra por `OrderPayment` y ya. El CLUB no tiene pedidos: cobra las canchas
+ * en `ClubBookingPayment` y la barra en `ShopSale`/`ShopSalePayment` — tres tablas que no se
+ * hablan entre sí. Sin esto el arqueo de un club daba 0 en canchas, que es justo su negocio
+ * principal: contaba solo los movimientos manuales.
+ */
+async function collectPayments(
+  restaurantId: string,
+  businessType: BusinessType,
+  since: Date,
+): Promise<CollectedPayment[]> {
+  if (businessType !== 'SPORTS_CLUB') {
+    const rows = await prisma.orderPayment.findMany({
       where: { order: { restaurantId }, createdAt: { gte: since } },
       select: { amountBase: true, method: true },
+    });
+    return rows.map((p) => ({ amountBase: p.amountBase, method: p.method }));
+  }
+
+  const [courtPayments, storeSales, storeInstallments] = await Promise.all([
+    prisma.clubBookingPayment.findMany({
+      where: { booking: { restaurantId }, createdAt: { gte: since } },
+      select: { amountBase: true, method: true },
     }),
+    // Una venta devuelta no dejó plata en la caja. Y en una venta fiada solo entró el abono
+    // inicial (`amountPaidNow`); el resto llega después como ShopSalePayment.
+    prisma.shopSale.findMany({
+      where: { restaurantId, time: { gte: since }, returned: false },
+      select: { total: true, paymentMethod: true, creditTerms: true, amountPaidNow: true },
+    }),
+    prisma.shopSalePayment.findMany({
+      where: { shopSale: { restaurantId }, createdAt: { gte: since } },
+      select: { amount: true, method: true },
+    }),
+  ]);
+
+  const collected: CollectedPayment[] = courtPayments.map((p) => ({ amountBase: p.amountBase, method: p.method }));
+
+  for (const sale of storeSales) {
+    const amount = sale.creditTerms ? (sale.amountPaidNow ?? 0) : sale.total;
+    if (!amount || amount <= 0) continue;
+    collected.push({ amountBase: toDecimal(amount), method: shopMethodToEnum(sale.paymentMethod) });
+  }
+  for (const payment of storeInstallments) {
+    if (!payment.amount || payment.amount <= 0) continue;
+    collected.push({ amountBase: toDecimal(payment.amount), method: shopMethodToEnum(payment.method) });
+  }
+
+  return collected;
+}
+
+/**
+ * Movimiento del turno desde `openedAt` hasta ahora: lo cobrado por método de pago (según el
+ * vertical, ver collectPayments) + movimientos manuales (`Movement`). Mismo patrón de fetch +
+ * reduce que `movementService.list`, sin `groupBy` de Prisma.
+ */
+async function computeSummary(
+  restaurantId: string,
+  businessType: BusinessType,
+  since: Date,
+  openingBalances?: Record<string, unknown> | null,
+) {
+  const [payments, movements] = await Promise.all([
+    collectPayments(restaurantId, businessType, since),
     prisma.movement.findMany({
       where: { restaurantId, createdAt: { gte: since } },
       orderBy: { createdAt: 'desc' },
@@ -41,8 +127,24 @@ async function computeSummary(restaurantId: string, since: Date) {
     movements.filter((m) => m.type === 'EXPENSE').reduce((acc, m) => acc.add(m.amountBase), toDecimal(0)),
   );
 
+  // Lo que DEBERÍA haber por método al cerrar: lo declarado al abrir + lo cobrado + los
+  // movimientos manuales de ese método (un ingreso suma, un egreso resta). Es contra esto que
+  // se compara el conteo físico del arqueo. Un movimiento sin método cargado no se puede
+  // atribuir a ninguna gaveta, así que no entra acá (sí en el total neto del turno).
+  const expectedByMethod = Object.fromEntries(
+    PAYMENT_METHODS.map((method) => {
+      const opening = toDecimal(String((openingBalances as Record<string, string> | null | undefined)?.[method] ?? 0) || 0);
+      const collected = toDecimal(paymentsByMethod[method].amountBase);
+      const manual = movements
+        .filter((m) => m.paymentMethod === method)
+        .reduce((acc, m) => (m.type === 'INCOME' ? acc.add(m.amountBase) : acc.sub(m.amountBase)), toDecimal(0));
+      return [method, round2(opening.add(collected).add(manual)).toFixed(2)];
+    }),
+  );
+
   return {
     paymentsByMethod,
+    expectedByMethod,
     totalPayments: totalPayments.toFixed(2),
     movements: {
       totalIncome: totalIncome.toFixed(2),
@@ -104,6 +206,41 @@ async function clearSettledOrders(tx: Prisma.TransactionClient, restaurantId: st
   return settledIds.length;
 }
 
+/** El vertical decide de dónde salen los cobros del turno (ver collectPayments). */
+async function businessTypeOf(restaurantId: string): Promise<BusinessType> {
+  const row = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { businessType: true } });
+  return row?.businessType ?? 'RESTAURANT';
+}
+
+/**
+ * Sobrante/faltante por método: lo contado menos lo esperado. Solo se arma cuando el cajero
+ * de verdad contó — un cierre sin conteo sigue siendo válido y no inventa un descuadre de 0.
+ */
+function buildArqueo(
+  expectedByMethod: Record<string, string>,
+  countedBalances: Record<string, string> | null | undefined,
+) {
+  if (!countedBalances) return null;
+  const byMethod = Object.fromEntries(
+    PAYMENT_METHODS.map((method) => {
+      const expected = toDecimal(expectedByMethod[method] ?? 0);
+      const counted = toDecimal(String(countedBalances[method] ?? 0) || 0);
+      return [
+        method,
+        {
+          expected: expected.toFixed(2),
+          counted: counted.toFixed(2),
+          difference: round2(counted.sub(expected)).toFixed(2),
+        },
+      ];
+    }),
+  );
+  const totalDifference = round2(
+    PAYMENT_METHODS.reduce((acc, m) => acc.add(toDecimal(byMethod[m].difference)), toDecimal(0)),
+  );
+  return { byMethod, totalDifference: totalDifference.toFixed(2) };
+}
+
 export const cashSessionService = {
   async getCurrent(restaurantId: string) {
     return prisma.cashSession.findFirst({
@@ -130,16 +267,34 @@ export const cashSessionService = {
   async previewClose(restaurantId: string, id: string) {
     const session = await prisma.cashSession.findFirst({ where: { id, restaurantId, status: 'OPEN' } });
     if (!session) throw notFound('Caja abierta no encontrada.');
-    return { session, summary: await computeSummary(restaurantId, session.openedAt) };
+    const businessType = await businessTypeOf(restaurantId);
+    return {
+      session,
+      summary: await computeSummary(
+        restaurantId,
+        businessType,
+        session.openedAt,
+        session.openingBalances as Record<string, unknown> | null,
+      ),
+    };
   },
 
   /** Botón "Confirmar cierre": congela el resumen del turno y asigna el número de cierre. */
-  async close(restaurantId: string, id: string, userId: string | undefined) {
+  async close(restaurantId: string, id: string, userId: string | undefined, countedBalances?: Record<string, string> | null) {
+    const businessType = await businessTypeOf(restaurantId);
     const { closed, clearedCount } = await prisma.$transaction(async (tx) => {
       const session = await tx.cashSession.findFirst({ where: { id, restaurantId, status: 'OPEN' } });
       if (!session) throw notFound('Caja abierta no encontrada.');
 
-      const summary = await computeSummary(restaurantId, session.openedAt);
+      const base = await computeSummary(
+        restaurantId,
+        businessType,
+        session.openedAt,
+        session.openingBalances as Record<string, unknown> | null,
+      );
+      // El arqueo se congela DENTRO del snapshot: el recibo del cierre tiene que seguir
+      // mostrando el mismo descuadre aunque después se registren movimientos tardíos.
+      const summary = { ...base, arqueo: buildArqueo(base.expectedByMethod, countedBalances) };
 
       const last = await tx.cashSession.findFirst({
         where: { restaurantId, closeNumber: { not: null } },
@@ -158,6 +313,7 @@ export const cashSessionService = {
           closedAt,
           closeNumber,
           closingSummary: summary,
+          countedBalances: countedBalances ?? undefined,
         },
         include: { openedByUser: { select: { name: true, role: true } }, closedByUser: { select: { name: true, role: true } } },
       });

@@ -1541,6 +1541,13 @@ model CashSession {
   // Snapshot calculado al cerrar: ventas por método + movimientos + totales.
   closingSummary Json?
 
+  // --- Arqueo (conteo físico al cerrar) ---
+  // Lo que el cajero CONTÓ de verdad, por método de pago: Record<PaymentMethod, string>.
+  // Es opcional: el cierre de siempre (solo resumen del turno, sin contar) sigue siendo
+  // válido y deja esto en null. Cuando viene cargado, el snapshot congela también el
+  // sobrante/faltante contra lo esperado, que es lo que convierte el cierre en un arqueo.
+  countedBalances Json?
+
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   openedByUser User?      @relation("CashSessionOpenedBy", fields: [openedByUserId], references: [id], onDelete: SetNull)
   closedByUser User?      @relation("CashSessionClosedBy", fields: [closedByUserId], references: [id], onDelete: SetNull)

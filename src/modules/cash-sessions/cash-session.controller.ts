@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
-import { openCashSessionSchema } from './cash-session.dto';
+import { closeCashSessionSchema, openCashSessionSchema } from './cash-session.dto';
 import { cashSessionService } from './cash-session.service';
 
 export const cashSessionController = {
@@ -15,7 +15,12 @@ export const cashSessionController = {
     res.json({ data: await cashSessionService.previewClose(req.restaurantId!, req.params.id) });
   }),
   close: asyncHandler(async (req: Request, res: Response) => {
-    res.json({ data: await cashSessionService.close(req.restaurantId!, req.params.id, req.auth?.userId) });
+    // Body vacío = cierre de siempre, sin arqueo (ver closeCashSessionSchema).
+    const { countedBalances } = closeCashSessionSchema.parse(req.body ?? {});
+    const counted = countedBalances
+      ? Object.fromEntries(Object.entries(countedBalances).map(([m, v]) => [m, String(v)]))
+      : null;
+    res.json({ data: await cashSessionService.close(req.restaurantId!, req.params.id, req.auth?.userId, counted) });
   }),
   getById: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await cashSessionService.getById(req.restaurantId!, req.params.id) });

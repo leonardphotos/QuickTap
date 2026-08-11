@@ -8,7 +8,9 @@ import type { Currency, PaymentMethod, UserRole } from '@/types';
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   MOBILE_PAYMENT: 'Pago Móvil',
   ZELLE: 'Zelle',
-  CASH: 'Efectivo',
+  CASH: 'Efectivo Bs',
+  // Faltaba: el cierre mostraba "CASH_USD" crudo, y es un método que se usa a diario.
+  CASH_USD: 'Efectivo $',
   CARD: 'Punto de Venta',
   BINANCE: 'Binance',
   PAYPAL: 'PayPal',
@@ -17,6 +19,14 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
 
 export interface CashSessionSummary {
   paymentsByMethod: Record<string, { amountBase: string; count: number }>;
+  /** Lo que debería haber por método al cerrar: apertura + cobrado + movimientos manuales.
+   * Es contra esto que se compara el conteo físico del arqueo. */
+  expectedByMethod?: Record<string, string>;
+  /** Solo cuando el cajero contó de verdad (ver "Hacer arqueo" en CashSessionControl). */
+  arqueo?: {
+    byMethod: Record<string, { expected: string; counted: string; difference: string }>;
+    totalDifference: string;
+  } | null;
   totalPayments: string;
   movements: {
     totalIncome: string;
@@ -178,6 +188,49 @@ export const CashSessionReceipt = forwardRef<HTMLDivElement, Props>(({ session, 
                 <div style={rowGap}>
                   <span>Egresos</span>
                   <span>−{formatBase(summary.movements.totalExpense, symbol)}</span>
+                </div>
+              </div>
+            </>
+          )}
+
+          {summary.arqueo && (
+            <>
+              <p style={sectionLabel}>Arqueo (conteo físico)</p>
+              <div style={list}>
+                {Object.entries(summary.arqueo.byMethod)
+                  .filter(([, r]) => Number(r.expected) !== 0 || Number(r.counted) !== 0)
+                  .map(([method, r]) => (
+                    <div key={method} style={listRow}>
+                      <span>
+                        {PAYMENT_METHOD_LABELS[method] ?? method} · contado {formatBase(r.counted, symbol)} de{' '}
+                        {formatBase(r.expected, symbol)}
+                      </span>
+                      <span style={{ color: Number(r.difference) === 0 ? undefined : Number(r.difference) > 0 ? EMERALD_700 : RED_700 }}>
+                        {Number(r.difference) > 0 ? '+' : ''}
+                        {formatBase(r.difference, symbol)}
+                      </span>
+                    </div>
+                  ))}
+                <div style={subtotalRow}>
+                  <span>
+                    {Number(summary.arqueo.totalDifference) === 0
+                      ? 'Cuadra exacto'
+                      : Number(summary.arqueo.totalDifference) > 0
+                        ? 'Sobrante'
+                        : 'Faltante'}
+                  </span>
+                  <span
+                    style={{
+                      color:
+                        Number(summary.arqueo.totalDifference) === 0
+                          ? undefined
+                          : Number(summary.arqueo.totalDifference) > 0
+                            ? EMERALD_700
+                            : RED_700,
+                    }}
+                  >
+                    {formatBase(Math.abs(Number(summary.arqueo.totalDifference)), symbol)}
+                  </span>
                 </div>
               </div>
             </>

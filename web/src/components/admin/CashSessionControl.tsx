@@ -10,7 +10,9 @@ import type { UserRole } from '@/types';
 import { CashSessionReceipt, PAYMENT_METHOD_LABELS, type CashSessionData, type CashSessionSummary } from './CashSessionReceipt';
 import { OpenComandasDialog } from './OpenComandasDialog';
 
-const PAYMENT_METHODS = ['CASH', 'MOBILE_PAYMENT', 'ZELLE', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER'];
+// CASH_USD faltaba: sin él no había forma de declarar el efectivo en dólares al abrir, así que
+// al cerrar siempre aparecía como sobrante. Es el enum PaymentMethod completo (ver schema.prisma).
+const PAYMENT_METHODS = ['CASH', 'CASH_USD', 'MOBILE_PAYMENT', 'ZELLE', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER'];
 
 /** Botón "Abrir Caja" / "Cerrar Caja", visible en todas las pestañas de Administración. */
 export function CashSessionControl() {
@@ -145,8 +147,28 @@ function CloseCashDialog({
   const [closed, setClosed] = useState<CashSessionData | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Arqueo: lo que el cajero cuenta de verdad. Arranca apagado a propósito — el cierre de
+  // siempre (solo resumen, sin contar) sigue siendo válido y es un paso menos para quien no
+  // hace arqueo. Al encenderlo se compara contra lo esperado y se guarda el descuadre.
+  const [counting, setCounting] = useState(false);
+  const [counted, setCounted] = useState<Record<string, string>>({});
   const receiptRef = useRef<HTMLDivElement>(null);
   const symbol = currency === 'USD' ? '$' : '€';
+
+  /** Solo se cuentan los métodos donde el turno espera algo: pedirle al cajero que cuente
+   * ocho gavetas vacías es la forma más rápida de que deje de hacer el arqueo.
+   *
+   * Se ordena por PAYMENT_METHODS y no por el orden que trae el servidor (el del enum de
+   * Prisma): así el cajero ve las gavetas en el MISMO orden en que las declaró al abrir. */
+  const methodsToCount = preview
+    ? PAYMENT_METHODS.map((m) => [m, preview.expectedByMethod?.[m] ?? '0'] as const).filter(
+        ([, v]) => Number(v) !== 0,
+      )
+    : [];
+  const totalDifference = methodsToCount.reduce(
+    (acc, [m, expected]) => acc + ((Number(counted[m]) || 0) - Number(expected)),
+    0,
+  );
 
   useEffect(() => {
     api
@@ -160,7 +182,11 @@ function CloseCashDialog({
     setSaving(true);
     setError(null);
     try {
-      const res = await api.post(`/cash-sessions/${session.id}/close`);
+      const res = await api.post(`/cash-sessions/${session.id}/close`, {
+        countedBalances: counting
+          ? Object.fromEntries(methodsToCount.map(([m]) => [m, Number(counted[m]) || 0]))
+          : null,
+      });
       setClosed(res.data.data);
       onClosed();
     } catch (e: any) {
@@ -215,6 +241,81 @@ function CloseCashDialog({
                   <span>Total neto del turno</span>
                   <span>{formatBase(preview.totalNet, symbol)}</span>
                 </div>
+
+                {methodsToCount.length > 0 && (
+                  <div className="border-t border-brand-950/10 pt-3">
+                    <label className="flex items-start gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={counting}
+                        onChange={(e) => setCounting(e.target.checked)}
+                        className="mt-0.5 h-4 w-4 shrink-0 accent-brand-500"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-brand-950">Hacer arqueo</span>
+                        <span className="block text-xs font-light text-brand-950/50">
+                          Cuenta el dinero físico y compáralo con lo que debería haber.
+                        </span>
+                      </span>
+                    </label>
+
+                    {counting && (
+                      <div className="mt-3 space-y-2">
+                        {methodsToCount.map(([method, expected]) => {
+                          const diff = (Number(counted[method]) || 0) - Number(expected);
+                          return (
+                            <div key={method} className="flex items-center gap-2">
+                              <span className="flex-1 min-w-0 truncate text-sm text-brand-950/80">
+                                {PAYMENT_METHOD_LABELS[method] ?? method}
+                                <span className="text-brand-950/40 font-light"> · esperado {formatBase(expected, symbol)}</span>
+                              </span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={counted[method] ?? ''}
+                                onChange={(e) => setCounted((c) => ({ ...c, [method]: e.target.value }))}
+                                placeholder="0.00"
+                                className="w-24 shrink-0 rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                              />
+                              <span
+                                className={`w-16 shrink-0 text-right text-xs font-semibold ${
+                                  Math.abs(diff) < 0.005
+                                    ? 'text-brand-950/35'
+                                    : diff > 0
+                                      ? 'text-amber-600'
+                                      : 'text-red-600'
+                                }`}
+                              >
+                                {Math.abs(diff) < 0.005 ? '—' : `${diff > 0 ? '+' : ''}${diff.toFixed(2)}`}
+                              </span>
+                            </div>
+                          );
+                        })}
+                        <div className="flex justify-between border-t border-brand-950/[0.06] pt-2 text-sm font-semibold">
+                          <span className="text-brand-950">
+                            {Math.abs(totalDifference) < 0.005
+                              ? 'Cuadra exacto'
+                              : totalDifference > 0
+                                ? 'Sobra'
+                                : 'Falta'}
+                          </span>
+                          <span
+                            className={
+                              Math.abs(totalDifference) < 0.005
+                                ? 'text-emerald-600'
+                                : totalDifference > 0
+                                  ? 'text-amber-600'
+                                  : 'text-red-600'
+                            }
+                          >
+                            {Math.abs(totalDifference) < 0.005 ? '✓' : formatBase(Math.abs(totalDifference), symbol)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
 

@@ -7,6 +7,7 @@ import { Toast } from '@/components/ui/toast';
 import { useToast } from '@/hooks/useToast';
 import { cn } from '@/lib/utils';
 import { ExpenseFormDialog } from '@/components/admin/ExpenseFormDialog';
+import { CashSessionControl } from '@/components/admin/CashSessionControl';
 import { clubApi, todayCaracas, type ClubBooking } from './clubApi';
 import { clubStoreApi, type StoreSale } from './clubStoreApi';
 import { card } from './clubStyle';
@@ -82,15 +83,19 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-[20px] font-bold tracking-tight text-brand-950">Administración</h1>
-        <button
-          onClick={() => setExpenseOpen(true)}
-          className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full bg-brand-500 px-3.5 py-2 text-[13px] font-bold text-white shadow-sm hover:bg-brand-500/90"
-        >
-          <Receipt className="h-4 w-4" />
-          Gasto
-        </button>
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {/* Cuenta canchas + tienda del turno (ver collectPayments en cash-session.service.ts). */}
+          {canSeeMoney && <CashSessionControl />}
+          <button
+            onClick={() => setExpenseOpen(true)}
+            className="flex shrink-0 items-center gap-1.5 rounded-full bg-brand-500 px-3.5 py-2 text-[13px] font-bold text-white shadow-sm hover:bg-brand-500/90"
+          >
+            <Receipt className="h-4 w-4" />
+            Gasto
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
