@@ -8,6 +8,7 @@ import { useToast } from '@/hooks/useToast';
 import { cn } from '@/lib/utils';
 import { ExpenseFormDialog } from '@/components/admin/ExpenseFormDialog';
 import { CashSessionControl } from '@/components/admin/CashSessionControl';
+import ClubPayablesPage from './ClubPayablesPage';
 import { clubApi, todayCaracas, type ClubBooking } from './clubApi';
 import { clubStoreApi, type StoreSale } from './clubStoreApi';
 import { card } from './clubStyle';
@@ -46,6 +47,7 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
   const [sales, setSales] = useState<StoreSale[]>([]);
   const [ledger, setLedger] = useState<MovementsResponse | null>(null);
   const [expenseOpen, setExpenseOpen] = useState(false);
+  const [tab, setTab] = useState<'resumen' | 'cuentas'>('resumen');
   const { show, toastMessage } = useToast();
 
   const load = useCallback(() => {
@@ -98,6 +100,27 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
         </div>
       </div>
 
+      {/* Sub-pestañas: el dock del club ya está en su máximo de 5 iconos (ver ClubLayout),
+          así que lo administrativo nuevo vive acá adentro en vez de pedir otro icono. */}
+      <div className="flex items-center gap-1 self-start rounded-full bg-brand-950/[0.05] p-1">
+        {(['resumen', 'cuentas'] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            onClick={() => setTab(t)}
+            className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
+              tab === t ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
+            }`}
+          >
+            {t === 'resumen' ? 'Resumen' : 'Cuentas por pagar'}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'cuentas' && <ClubPayablesPage restaurant={restaurant} />}
+
+      {tab === 'resumen' && (
+      <>
       <div className="grid grid-cols-2 gap-3">
         <Metric
           icon={CalendarCheck}
@@ -184,6 +207,8 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
           </div>
         )}
       </section>
+      </>
+      )}
 
       {expenseOpen && (
         <ExpenseFormDialog

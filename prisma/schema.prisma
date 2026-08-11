@@ -502,6 +502,7 @@ model Restaurant {
   quotes                 Quote[]
   deliveryZones          DeliveryZone[]
   movements              Movement[]
+  paymentOrders          PaymentOrder[]
   cashSessions           CashSession[]
   suppliers              Supplier[]
   customers              Customer[]
@@ -647,6 +648,8 @@ model User {
   acceptedOrders     Order[]       @relation("OrderAcceptedBy")
   assignedTables     Table[]       @relation("TableAssignedWaiter")
   movements          Movement[]
+  paymentOrdersCreated PaymentOrder[] @relation("PaymentOrderCreatedBy")
+  paymentOrdersPaid    PaymentOrder[] @relation("PaymentOrderPaidBy")
   cashSessionsOpened CashSession[] @relation("CashSessionOpenedBy")
   cashSessionsClosed CashSession[] @relation("CashSessionClosedBy")
 
@@ -1454,6 +1457,9 @@ model Movement {
   // o no — esto solo lleva el seguimiento de si ya se le pagó al proveedor.
   isCredit          Boolean          @default(false)
   creditPaidAt      DateTime?
+  // Orden de pago que lo saldó (o que lo tiene incluido, si todavía está por autorizar).
+  // Null = deuda suelta, sin orden. Ver PaymentOrder.
+  paymentOrderId    String?
   // Fecha real del gasto cuando no es hoy (factura de hace unos días que se carga después).
   // Null = vale createdAt. El balance del período usa esta fecha si está, para que el gasto
   // caiga en el día que ocurrió y no en el que alguien lo escribió.
@@ -1470,10 +1476,63 @@ model Movement {
   createdByUser User?          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
   supplier      Supplier?      @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  // SetNull y no Cascade: anular una orden de pago no puede borrar el gasto — la deuda
+  // sigue existiendo, solo deja de estar dentro de esa orden.
+  paymentOrder  PaymentOrder?  @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
 
   @@index([restaurantId, createdAt])
   @@index([restaurantId, isCredit, creditPaidAt])
+  @@index([paymentOrderId])
   @@map("movements")
+}
+
+/// Estado de una orden de pago a proveedor.
+enum PaymentOrderStatus {
+  PENDING /// Emitida, esperando que se autorice/ejecute el pago.
+  PAID /// Pagada: sus gastos quedaron saldados (creditPaidAt).
+  CANCELLED /// Anulada: los gastos vuelven a quedar como deuda suelta.
+}
+
+/// Orden de pago a un proveedor: agrupa una o varias cuentas por pagar (gastos a crédito)
+/// en un solo documento con correlativo, para autorizar y registrar el pago de una vez.
+///
+/// Existe aparte de `Movement.creditPaidAt` porque marcar "pagado" gasto por gasto no deja
+/// rastro de CÓMO se pagó ni de que varias facturas se saldaron en una sola transferencia,
+/// que es justo lo que hay que poder mostrarle a un contador.
+model PaymentOrder {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  /// Correlativo por negocio, igual criterio que Order.orderNumber / CashSession.closeNumber.
+  orderNumber Int
+  supplierId  String?
+
+  status PaymentOrderStatus @default(PENDING)
+  /// Congelado al emitirla: la suma de los gastos incluidos en ese momento. No se recalcula
+  /// después, para que el documento diga siempre lo que se autorizó.
+  amountBase Decimal            @db.Decimal(12, 2)
+
+  /// Con qué se pagó y su referencia — se llenan al marcarla pagada.
+  paymentMethod   PaymentMethod?
+  referenceNumber String?
+  note            String?
+
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+  paidByUserId    String?
+  paidAt          DateTime?
+  cancelledAt     DateTime?
+
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  supplier      Supplier?  @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+  createdByUser User?      @relation("PaymentOrderCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  paidByUser    User?      @relation("PaymentOrderPaidBy", fields: [paidByUserId], references: [id], onDelete: SetNull)
+  /// Los gastos que esta orden salda.
+  movements     Movement[]
+
+  @@index([restaurantId, status])
+  @@index([restaurantId, orderNumber])
+  @@map("payment_orders")
 }
 
 // Proveedor al que se le compran insumos/servicios (módulo de Gastos).
@@ -1488,8 +1547,9 @@ model Supplier {
 
   createdAt DateTime @default(now())
 
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  movements  Movement[]
+  restaurant    Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  movements     Movement[]
+  paymentOrders PaymentOrder[]
 
   @@index([restaurantId])
   @@map("suppliers")
