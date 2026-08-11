@@ -2,7 +2,9 @@ import { BillingCycle, SubscriptionPlan } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { formatVenezuelanWhatsappPhone } from '../../utils/whatsapp';
+import { formatBs } from '../../utils/money';
 import { currencySymbolFor, platformSettingsService, PurchasablePlan, renderTemplate } from '../platform-settings/platform-settings.service';
+import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { subscriptionPaymentVerificationService } from './subscription-payment-verification.service';
 import { masterWhatsappBotService } from './master-whatsapp-bot.service';
 
@@ -37,13 +39,24 @@ async function buildReminderMessage(opts: {
   pendingCharges: { description: string; amountUsd: unknown }[];
   pagoMovil: { banco?: string; telefono?: string; cedula?: string; titular?: string } | null;
 }): Promise<string> {
-  const symbol = currencySymbolFor(await platformSettingsService.getSubscriptionCurrency());
+  const currency = await platformSettingsService.getSubscriptionCurrency();
+  const symbol = currencySymbolFor(currency);
   const chargesTotal = opts.pendingCharges.reduce((acc, c) => acc + Number(c.amountUsd), 0);
   const total = (opts.monthlyAmount ?? 0) + chargesTotal;
 
+  // Sin tasa cacheada el mensaje se manda igual, solo sin el equivalente en Bs — no vale la
+  // pena bloquear el cobro entero por un problema aparte (fuente BCV caída, etc.).
+  let rateBs: number | null = null;
+  try {
+    rateBs = Number((await exchangeRateService.getRate(currency)).rateBs);
+  } catch {
+    // sigue sin conversión
+  }
+  const bsFor = (amount: number) => (rateBs ? ` (${formatBs(amount * rateBs)})` : '');
+
   const amountLine =
     opts.monthlyAmount != null
-      ? `💰 Monto a cancelar: ${symbol}${total.toFixed(2)}${chargesTotal > 0 ? ` (mensualidad ${symbol}${opts.monthlyAmount.toFixed(2)} + cargos pendientes)` : ''}`
+      ? `💰 Monto a cancelar: ${symbol}${total.toFixed(2)}${bsFor(total)}${chargesTotal > 0 ? ` (mensualidad ${symbol}${opts.monthlyAmount.toFixed(2)} + cargos pendientes)` : ''}`
       : '💰 Escríbenos si tienes dudas sobre el monto a cancelar.';
 
   // Cargos puntuales sin cobrar (ej. instalación, QR NFC) — si no se pagaron aparte, se suman acá
@@ -52,7 +65,10 @@ async function buildReminderMessage(opts: {
   let chargesBlock = '';
   if (opts.pendingCharges.length > 0) {
     const lines = ['🧾 *Cargos pendientes (incluidos en el monto de arriba):*'];
-    for (const c of opts.pendingCharges) lines.push(`• ${c.description}: ${symbol}${Number(c.amountUsd).toFixed(2)}`);
+    for (const c of opts.pendingCharges) {
+      const amount = Number(c.amountUsd);
+      lines.push(`• ${c.description}: ${symbol}${amount.toFixed(2)}${bsFor(amount)}`);
+    }
     chargesBlock = lines.join('\n');
   }
 
