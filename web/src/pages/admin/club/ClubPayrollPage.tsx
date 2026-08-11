@@ -80,21 +80,21 @@ export default function ClubPayrollPage({ restaurant }: { restaurant: Pick<AuthR
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <div className="grid grid-cols-2 gap-3">
-        <div className={card}>
+        <div className={`${card} p-4`}>
           <p className="text-[22px] font-bold leading-tight text-brand-950">{employees.length}</p>
           <p className="text-[13px] font-semibold text-brand-950/70">En nómina</p>
         </div>
-        <div className={card}>
+        <div className={`${card} p-4`}>
           <p className="text-[22px] font-bold leading-tight text-brand-950">{formatBase(monthTotal, symbol)}</p>
           <p className="text-[13px] font-semibold text-brand-950/70">Pagado</p>
           <p className="text-[11px] font-light text-brand-950/40">últimos 30 días</p>
         </div>
       </div>
 
-      <div className={card}>
+      <div className={`${card} p-5`}>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-bold text-brand-950">Personal</p>
-          <TextureButton variant="brand" size="sm" className="!w-auto" onClick={() => setAdding(true)}>
+          <TextureButton variant="brand" size="default" className="!w-auto" onClick={() => setAdding(true)}>
             <Plus className="mr-1.5 h-3.5 w-3.5" />
             Agregar
           </TextureButton>
@@ -138,13 +138,13 @@ export default function ClubPayrollPage({ restaurant }: { restaurant: Pick<AuthR
                 )}
 
                 <div className="mt-2 flex items-center gap-2">
-                  <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={() => setPaying(e)}>
+                  <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setPaying(e)}>
                     <Wallet className="mr-1.5 h-3.5 w-3.5" />
                     Registrar pago
                   </TextureButton>
                   <button
                     onClick={() => deactivate(e)}
-                    className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-brand-950/45 hover:text-red-600"
+                    className="flex min-h-[34px] items-center gap-1 rounded-full px-3 text-xs font-medium text-brand-950/45 hover:text-red-600"
                   >
                     <UserMinus className="h-3.5 w-3.5" />
                     Quitar

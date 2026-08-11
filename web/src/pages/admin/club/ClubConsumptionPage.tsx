@@ -65,19 +65,21 @@ export default function ClubConsumptionPage({ restaurant }: { restaurant: Pick<A
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-center gap-1 self-start rounded-full bg-brand-950/[0.05] p-1">
-        {RANGES.map((r) => (
-          <button
-            key={r.days}
-            type="button"
-            onClick={() => setDays(r.days)}
-            className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
-              days === r.days ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
-            }`}
-          >
-            {r.label}
-          </button>
-        ))}
+      <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex w-max items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
+          {RANGES.map((r) => (
+            <button
+              key={r.days}
+              type="button"
+              onClick={() => setDays(r.days)}
+              className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[13px] font-semibold transition-colors ${
+                days === r.days ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {data.runningOut.length > 0 && (
@@ -121,7 +123,7 @@ export default function ClubConsumptionPage({ restaurant }: { restaurant: Pick<A
         </div>
       )}
 
-      <div className={card}>
+      <div className={`${card} p-5`}>
         <p className="text-sm font-bold text-brand-950">Lo que más se consume</p>
         <p className="mt-0.5 text-xs font-light text-brand-950/50">
           Suma la venta de mostrador y lo que se pide desde las canchas.

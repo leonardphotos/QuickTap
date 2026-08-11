@@ -131,7 +131,7 @@ export default function ClubPayablesPage({ restaurant }: { restaurant: Pick<Auth
     <div className="flex flex-col gap-5">
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <div className={card}>
+      <div className={`${card} p-5`}>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <p className="text-sm font-bold text-brand-950">Cuentas por pagar</p>
           <p className="text-sm font-bold text-brand-950">{formatBase(totalPending, symbol)}</p>
@@ -189,7 +189,7 @@ export default function ClubPayablesPage({ restaurant }: { restaurant: Pick<Auth
                 </p>
                 <TextureButton
                   variant="brand"
-                  size="sm"
+                  size="default"
                   disabled={busy}
                   className="!w-auto disabled:opacity-50"
                   onClick={createOrder}
@@ -203,7 +203,7 @@ export default function ClubPayablesPage({ restaurant }: { restaurant: Pick<Auth
         )}
       </div>
 
-      <div className={card}>
+      <div className={`${card} p-5`}>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <p className="text-sm font-bold text-brand-950">Órdenes de pago</p>
           {pendingOrders.length > 0 && (
@@ -254,7 +254,7 @@ export default function ClubPayablesPage({ restaurant }: { restaurant: Pick<Auth
                   <div className="mt-2.5 flex flex-wrap items-center gap-2">
                     <TextureButton
                       variant="brand"
-                      size="sm"
+                      size="default"
                       disabled={busy}
                       className="!w-auto disabled:opacity-50"
                       onClick={() => setPayingOrder(o)}
@@ -265,7 +265,7 @@ export default function ClubPayablesPage({ restaurant }: { restaurant: Pick<Auth
                     <button
                       disabled={busy}
                       onClick={() => cancelOrder(o)}
-                      className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium text-brand-950/45 hover:text-red-600 disabled:opacity-50"
+                      className="flex min-h-[34px] items-center gap-1 rounded-full px-3 text-xs font-medium text-brand-950/45 hover:text-red-600 disabled:opacity-50"
                     >
                       <X className="h-3.5 w-3.5" />
                       Anular

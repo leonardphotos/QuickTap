@@ -79,23 +79,25 @@ export default function ClubOccupancyPage({ restaurant }: { restaurant: Pick<Aut
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-center gap-1 self-start rounded-full bg-brand-950/[0.05] p-1">
-        {RANGES.map((r) => (
-          <button
-            key={r.days}
-            type="button"
-            onClick={() => setDays(r.days)}
-            className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
-              days === r.days ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
-            }`}
-          >
-            {r.label}
-          </button>
-        ))}
+      <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex w-max items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
+          {RANGES.map((r) => (
+            <button
+              key={r.days}
+              type="button"
+              onClick={() => setDays(r.days)}
+              className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[13px] font-semibold transition-colors ${
+                days === r.days ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {noCapacity ? (
-        <div className={card}>
+        <div className={`${card} p-5`}>
           <p className="py-6 text-center text-sm font-light text-brand-950/50">
             Todavía no tienes horarios cargados, así que no hay capacidad contra la cual medir la ocupación.
             Cárgalos en Ajustes → Canchas y horarios.
@@ -108,7 +110,7 @@ export default function ClubOccupancyPage({ restaurant }: { restaurant: Pick<Aut
             <Metric label="Reservas" value={String(data.totals.bookings)} sub={formatBase(data.totals.revenueBase, symbol)} />
           </div>
 
-          <div className={card}>
+          <div className={`${card} p-5`}>
             <p className="text-sm font-bold text-brand-950">Ocupación por día</p>
             <p className="mt-0.5 text-xs font-light text-brand-950/50">
               Qué porcentaje de las horas disponibles se vendió cada día.
@@ -148,7 +150,7 @@ export default function ClubOccupancyPage({ restaurant }: { restaurant: Pick<Aut
             </div>
           </div>
 
-          <div className={card}>
+          <div className={`${card} p-5`}>
             <p className="text-sm font-bold text-brand-950">Por cancha</p>
             <p className="mt-0.5 text-xs font-light text-brand-950/50">
               Cuál se está quedando vacía en el mismo período.
@@ -183,7 +185,7 @@ export default function ClubOccupancyPage({ restaurant }: { restaurant: Pick<Aut
 
 function Metric({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
-    <div className={card}>
+    <div className={`${card} p-4`}>
       <p className="text-[22px] font-bold leading-tight tracking-tight text-brand-950">{value}</p>
       <p className="text-[13px] font-semibold text-brand-950/70">{label}</p>
       <p className="text-[11px] font-light text-brand-950/40">{sub}</p>

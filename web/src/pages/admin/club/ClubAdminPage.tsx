@@ -114,20 +114,25 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
       </div>
 
       {/* Sub-pestañas: el dock del club ya está en su máximo de 5 iconos (ver ClubLayout),
-          así que lo administrativo nuevo vive acá adentro en vez de pedir otro icono. */}
-      <div className="flex items-center gap-1 self-start overflow-x-auto rounded-full bg-brand-950/[0.05] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {(['resumen', 'ocupacion', 'clientes', 'consumo', 'cuentas', 'nomina'] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
-              tab === t ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
-            }`}
-          >
-            {TAB_LABELS[t]}
-          </button>
-        ))}
+          así que lo administrativo nuevo vive acá adentro en vez de pedir otro icono.
+          El scroll va en un contenedor APARTE de la píldora: con `overflow-x-auto` sobre la
+          píldora misma nunca se activaba —al ser de ancho automático siempre "cabe"— y en su
+          lugar estiraba la página, que en un celular se podía arrastrar 245px de lado. */}
+      <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex w-max items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
+          {(['resumen', 'ocupacion', 'clientes', 'consumo', 'cuentas', 'nomina'] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTab(t)}
+              className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[13px] font-semibold transition-colors ${
+                tab === t ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
+              }`}
+            >
+              {TAB_LABELS[t]}
+            </button>
+          ))}
+        </div>
       </div>
 
       {tab === 'ocupacion' && <ClubOccupancyPage restaurant={restaurant} />}

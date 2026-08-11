@@ -54,35 +54,37 @@ export default function ClubCustomersPage({ restaurant }: { restaurant: Pick<Aut
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-center gap-1 self-start rounded-full bg-brand-950/[0.05] p-1">
-        {RANGES.map((r) => (
-          <button
-            key={r.days}
-            type="button"
-            onClick={() => setDays(r.days)}
-            className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
-              days === r.days ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
-            }`}
-          >
-            {r.label}
-          </button>
-        ))}
+      <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex w-max items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
+          {RANGES.map((r) => (
+            <button
+              key={r.days}
+              type="button"
+              onClick={() => setDays(r.days)}
+              className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[13px] font-semibold transition-colors ${
+                days === r.days ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
+              }`}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className={card}>
+        <div className={`${card} p-4`}>
           <p className="text-[22px] font-bold leading-tight text-brand-950">{data.totals.uniqueCustomers}</p>
           <p className="text-[13px] font-semibold text-brand-950/70">Jugadores distintos</p>
           <p className="text-[11px] font-light text-brand-950/40">{data.totals.bookings} reservas</p>
         </div>
-        <div className={card}>
+        <div className={`${card} p-4`}>
           <p className="text-[22px] font-bold leading-tight text-brand-950">{returnRate}%</p>
           <p className="text-[13px] font-semibold text-brand-950/70">Vuelven</p>
           <p className="text-[11px] font-light text-brand-950/40">{data.totals.returning} con más de una reserva</p>
         </div>
       </div>
 
-      <div className={card}>
+      <div className={`${card} p-5`}>
         <p className="text-sm font-bold text-brand-950">Clientes frecuentes</p>
         <p className="mt-0.5 text-xs font-light text-brand-950/50">
           Ordenados por cuántas veces reservaron en el período.
