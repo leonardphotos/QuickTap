@@ -132,4 +132,18 @@ export const clubController = {
     const days = Number.isFinite(raw) ? Math.min(90, Math.max(1, Math.trunc(raw))) : 14;
     res.json({ data: await clubStatsService.occupancy(req.restaurantId!, days) });
   }),
+
+  /** GET /club/stats/customers?days=90 — quién vuelve y cuánto deja. */
+  frequentCustomers: asyncHandler(async (req: Request, res: Response) => {
+    const raw = Number(req.query.days);
+    const days = Number.isFinite(raw) ? Math.min(365, Math.max(1, Math.trunc(raw))) : 90;
+    res.json({ data: await clubStatsService.frequentCustomers(req.restaurantId!, days) });
+  }),
+
+  /** GET /club/stats/consumption?days=30 — qué se consume más y qué está por acabarse. */
+  consumption: asyncHandler(async (req: Request, res: Response) => {
+    const raw = Number(req.query.days);
+    const days = Number.isFinite(raw) ? Math.min(180, Math.max(1, Math.trunc(raw))) : 30;
+    res.json({ data: await clubStatsService.consumption(req.restaurantId!, days) });
+  }),
 };

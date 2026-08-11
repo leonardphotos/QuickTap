@@ -37,6 +37,7 @@ import masterAnnouncementRoutes from '../modules/platform-announcements/platform
 import inventoryRoutes from '../modules/inventory/inventory.routes';
 import movementRoutes from '../modules/movements/movement.routes';
 import paymentOrderRoutes from '../modules/payment-orders/payment-order.routes';
+import payrollRoutes from '../modules/payroll/payroll.routes';
 import cashSessionRoutes from '../modules/cash-sessions/cash-session.routes';
 import deliveryCourierRoutes from '../modules/delivery-couriers/delivery-courier.routes';
 import deliveryZoneRoutes from '../modules/delivery-zones/delivery-zone.routes';
@@ -100,6 +101,7 @@ router.use('/qr-nfc-requests', tenantQrNfcRequestRoutes);
 router.use('/inventory', inventoryRoutes);
 router.use('/movements', movementRoutes);
 router.use('/payment-orders', paymentOrderRoutes);
+router.use('/payroll', payrollRoutes);
 router.use('/cash-sessions', cashSessionRoutes);
 router.use('/delivery-couriers', deliveryCourierRoutes);
 router.use('/delivery-zones', deliveryZoneRoutes);

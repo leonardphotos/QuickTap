@@ -168,4 +168,160 @@ async function occupancy(restaurantId: string, days: number) {
   };
 }
 
-export const clubStatsService = { occupancy };
+/**
+ * Clientes frecuentes: quién vuelve y cuánto deja. Se deriva de las reservas en vez de
+ * llevar contadores en `Customer` — un contador se desincroniza en cuanto alguien cancela o
+ * corrige una reserva, y acá el dato siempre sale de la fuente.
+ *
+ * Se agrupa por teléfono (no por `customerId`): un mismo jugador puede haber reservado
+ * antes de que existiera el directorio de clientes, y quedaría partido en dos.
+ */
+async function frequentCustomers(restaurantId: string, days: number, limit = 30) {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const bookings = await prisma.clubBooking.findMany({
+    where: { restaurantId, createdAt: { gte: since }, status: { not: 'CANCELLED' } },
+    select: {
+      playerName: true,
+      playerPhone: true,
+      totalBase: true,
+      createdAt: true,
+      status: true,
+      customerId: true,
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  const byKey = new Map<
+    string,
+    {
+      name: string;
+      phone: string | null;
+      customerId: string | null;
+      bookings: number;
+      noShows: number;
+      totalBase: number;
+      lastVisit: Date;
+    }
+  >();
+
+  for (const b of bookings) {
+    const key = b.playerPhone?.replace(/\D/g, '') || `name:${b.playerName.trim().toLowerCase()}`;
+    const prev = byKey.get(key);
+    if (prev) {
+      prev.bookings += 1;
+      prev.totalBase += Number(b.totalBase);
+      if (b.status === 'NO_SHOW') prev.noShows += 1;
+      if (b.createdAt > prev.lastVisit) prev.lastVisit = b.createdAt;
+      prev.customerId ??= b.customerId;
+    } else {
+      byKey.set(key, {
+        name: b.playerName,
+        phone: b.playerPhone,
+        customerId: b.customerId,
+        bookings: 1,
+        noShows: b.status === 'NO_SHOW' ? 1 : 0,
+        totalBase: Number(b.totalBase),
+        lastVisit: b.createdAt,
+      });
+    }
+  }
+
+  const customers = [...byKey.values()]
+    .sort((a, b) => b.bookings - a.bookings || b.totalBase - a.totalBase)
+    .slice(0, limit)
+    .map((c) => ({
+      ...c,
+      totalBase: round2(c.totalBase).toFixed(2),
+      avgTicketBase: round2(c.totalBase / c.bookings).toFixed(2),
+    }));
+
+  return {
+    customers,
+    totals: {
+      uniqueCustomers: byKey.size,
+      // Quién vuelve: es la señal de si el club retiene o solo capta gente nueva.
+      returning: [...byKey.values()].filter((c) => c.bookings > 1).length,
+      bookings: bookings.length,
+    },
+  };
+}
+
+/**
+ * Consumo del inventario del club (la barra/tienda) y qué está por acabarse.
+ *
+ * El stock baja por DOS caminos independientes: la venta de mostrador (ShopSale) y lo que
+ * los jugadores piden desde la tablet de la cancha (ClubTabItem). Mirar solo uno subestima
+ * el consumo justo de lo que más rota, que es lo que uno necesita reponer a tiempo.
+ */
+async function consumption(restaurantId: string, days: number) {
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+
+  const [saleItems, tabItems, products] = await Promise.all([
+    prisma.shopSaleItem.findMany({
+      where: { sale: { restaurantId, time: { gte: since }, returned: false } },
+      select: { productId: true, name: true, qty: true, price: true },
+    }),
+    prisma.clubTabItem.findMany({
+      where: { order: { restaurantId, createdAt: { gte: since }, status: { not: 'CANCELLED' } }, source: 'CLUB_STORE' },
+      select: { sourceProductId: true, productName: true, quantity: true, unitPrice: true },
+    }),
+    prisma.shopProduct.findMany({
+      where: { restaurantId },
+      select: { id: true, name: true, minStock: true, sku: true, variants: { select: { stock: true } } },
+    }),
+  ]);
+
+  const stockOf = new Map(products.map((p) => [p.id, p.variants.reduce((acc, v) => acc + v.stock, 0)]));
+  const byProduct = new Map<string, { productId: string | null; name: string; qty: number; revenue: number }>();
+
+  const add = (id: string | null, name: string, qty: number, revenue: number) => {
+    const key = id ?? `name:${name.toLowerCase()}`;
+    const prev = byProduct.get(key);
+    if (prev) {
+      prev.qty += qty;
+      prev.revenue += revenue;
+    } else {
+      byProduct.set(key, { productId: id, name, qty, revenue });
+    }
+  };
+
+  for (const it of saleItems) add(it.productId, it.name, it.qty, it.qty * it.price);
+  for (const it of tabItems) add(it.sourceProductId, it.productName, it.quantity, it.quantity * Number(it.unitPrice));
+
+  const top = [...byProduct.values()]
+    .map((p) => {
+      const stock = p.productId ? (stockOf.get(p.productId) ?? null) : null;
+      const perDay = p.qty / days;
+      return {
+        productId: p.productId,
+        name: p.name,
+        qty: round2(p.qty).toFixed(2),
+        revenueBase: round2(p.revenue).toFixed(2),
+        stock,
+        // Días que aguanta al ritmo actual. Null cuando no se puede saber (producto suelto
+        // sin id, o sin consumo) — es más honesto que inventar un número.
+        daysLeft: stock != null && perDay > 0 ? Math.floor(stock / perDay) : null,
+      };
+    })
+    .sort((a, b) => Number(b.qty) - Number(a.qty));
+
+  const product = new Map(products.map((p) => [p.id, p]));
+  const lowStock = products
+    .map((p) => ({ id: p.id, name: p.name, sku: p.sku, stock: p.variants.reduce((a, v) => a + v.stock, 0), minStock: p.minStock }))
+    .filter((p) => p.minStock > 0 && p.stock <= p.minStock)
+    .sort((a, b) => a.stock - b.stock);
+
+  return {
+    // Los 15 que más rotan: la lista completa no se lee y el resto casi nunca importa.
+    top: top.slice(0, 15),
+    // Lo que se acaba en menos de una semana al ritmo actual, aunque todavía no esté bajo mínimo.
+    runningOut: top
+      .filter((p) => p.daysLeft != null && p.daysLeft <= 7)
+      .sort((a, b) => (a.daysLeft ?? 0) - (b.daysLeft ?? 0))
+      .slice(0, 10),
+    lowStock: lowStock.slice(0, 15).map((p) => ({ ...p, exists: product.has(p.id) })),
+    days,
+  };
+}
+
+export const clubStatsService = { occupancy, frequentCustomers, consumption };

@@ -503,6 +503,8 @@ model Restaurant {
   deliveryZones          DeliveryZone[]
   movements              Movement[]
   paymentOrders          PaymentOrder[]
+  employees              Employee[]
+  employeePayments       EmployeePayment[]
   cashSessions           CashSession[]
   suppliers              Supplier[]
   customers              Customer[]
@@ -1484,6 +1486,63 @@ model Movement {
   @@index([restaurantId, isCredit, creditPaidAt])
   @@index([paymentOrderId])
   @@map("movements")
+}
+
+/// Personal en nómina. Es una lista aparte de `User` a propósito: en nómina entra gente que
+/// nunca toca el sistema (mantenimiento, limpieza, un profesor por horas), y al revés, un
+/// usuario del panel puede no estar en nómina. Mezclarlos obligaría a crear logins falsos.
+model Employee {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  name     String
+  /// Cargo, texto libre: cada negocio nombra distinto los suyos.
+  position String?
+  phone    String?
+  idNumber String?
+  /// Sueldo acordado, como referencia al pagar. No dispara nada solo: los pagos se
+  /// registran a mano (ver EmployeePayment), porque casi nunca coinciden exactos.
+  salaryBase Decimal? @db.Decimal(12, 2)
+
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  payments   EmployeePayment[]
+
+  @@index([restaurantId, active])
+  @@map("employees")
+}
+
+/// Un pago de nómina ya hecho. Cada uno genera además un `Movement` de tipo EXPENSE con
+/// categoría PAYROLL, para que la nómina pese en el balance y en el arqueo de caja como
+/// cualquier otro egreso — si no, el negocio se vería más rentable de lo que es.
+model EmployeePayment {
+  id           String @id @default(cuid())
+  restaurantId String
+  employeeId   String
+
+  amountBase Decimal        @db.Decimal(12, 2)
+  /// Qué período cubre, texto libre ("Agosto 2026", "1ra quincena"). Libre porque cada
+  /// negocio paga con su propio ritmo y encasillarlo obligaría a inventar reglas.
+  periodLabel String?
+  paymentMethod PaymentMethod?
+  note          String?
+
+  /// El gasto que generó. Sin relación FK: borrar el movimiento no debe borrar el
+  /// historial de que a esa persona se le pagó.
+  movementId String?
+
+  paidAt          DateTime @default(now())
+  createdByUserId String?
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  employee   Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, paidAt])
+  @@index([employeeId])
+  @@map("employee_payments")
 }
 
 /// Estado de una orden de pago a proveedor.

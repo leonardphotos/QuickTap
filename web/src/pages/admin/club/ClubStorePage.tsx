@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ScanBarcode } from 'lucide-react';
+import { ClubScanDialog } from './ClubScanDialog';
 import type { FormEvent } from 'react';
 import { AlertTriangle, Minus, Package, Plus, Search } from 'lucide-react';
 import type { AuthRestaurant } from '@/context/AuthContext';
@@ -25,6 +27,8 @@ export default function ClubStorePage({ restaurant, canSeeMoney }: Props) {
   const [checkout, setCheckout] = useState(false);
   const [newProduct, setNewProduct] = useState(false);
   const [restocking, setRestocking] = useState<StoreProduct | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
   const { show, toastMessage } = useToast();
 
   const load = useCallback(() => {
@@ -93,15 +97,26 @@ export default function ClubStorePage({ restaurant, canSeeMoney }: Props) {
         </div>
       )}
 
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-950/35" />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar producto…"
-          className="w-full rounded-2xl border border-brand-950/10 bg-white py-3 pl-11 pr-4 text-[15px] text-brand-950 placeholder:text-brand-950/35 outline-none focus:border-brand-400"
-        />
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-950/35" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar producto o código…"
+            className="w-full rounded-2xl border border-brand-950/10 bg-white py-3 pl-11 pr-4 text-[15px] text-brand-950 placeholder:text-brand-950/35 outline-none focus:border-brand-400"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => { setScanError(null); setScanning(true); }}
+          aria-label="Escanear código de barras"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-brand-950/10 bg-white text-brand-950/60 hover:text-brand-950"
+        >
+          <ScanBarcode className="h-5 w-5" />
+        </button>
       </div>
+      {scanError && <p className="text-sm text-red-600">{scanError}</p>}
 
       {products === null && <p className="font-light text-brand-950/40">Cargando…</p>}
       {products?.length === 0 && (
@@ -190,6 +205,17 @@ export default function ClubStorePage({ restaurant, canSeeMoney }: Props) {
           }}
         />
       )}
+
+      <ClubScanDialog
+        open={scanning}
+        products={products ?? []}
+        onClose={() => setScanning(false)}
+        onFound={(p) => {
+          setScanning(false);
+          // Escanear busca el producto, no lo vende solo: el cajero decide la cantidad.
+          setQuery(p.name);
+        }}
+      />
 
       {newProduct && (
         <NewProductDialog
@@ -372,6 +398,7 @@ function NewProductDialog({ onClose, onSaved }: { onClose: () => void; onSaved: 
   const [cost, setCost] = useState('');
   const [stock, setStock] = useState('');
   const [minStock, setMinStock] = useState('5');
+  const [sku, setSku] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -387,6 +414,7 @@ function NewProductDialog({ onClose, onSaved }: { onClose: () => void; onSaved: 
         cost: Number(cost || 0),
         minStock: Number(minStock || 0),
         stock: Number(stock || 0),
+        sku: sku.trim(),
       });
       onSaved();
     } catch (err: any) {
@@ -404,6 +432,7 @@ function NewProductDialog({ onClose, onSaved }: { onClose: () => void; onSaved: 
         <form onSubmit={submit} className="space-y-3">
           <Field label="Nombre" value={name} onChange={setName} placeholder="Agua mineral 600ml" required />
           <Field label="Categoría" value={category} onChange={setCategory} list="club-store-cats" />
+          <Field label="Código de barras" value={sku} onChange={setSku} placeholder="Escanéalo o escríbelo" />
           <datalist id="club-store-cats">
             {['Bebidas', 'Pelotas', 'Accesorios', 'Snacks', 'Alquiler'].map((c) => (
               <option key={c} value={c} />

@@ -22,6 +22,8 @@ export interface StoreProduct {
   price: number;
   cost: number;
   minStock: number;
+  /** Código de barras del producto. Se escanea para encontrarlo sin buscarlo a mano. */
+  sku: string;
   photoUrl: string | null;
   variants: StoreVariant[];
 }
@@ -48,6 +50,14 @@ export function isLow(p: StoreProduct): boolean {
   return stockOf(p) <= p.minStock;
 }
 
+/** Busca por código de barras. Compara sin distinguir mayúsculas ni espacios: los lectores
+ * a veces agregan un salto de línea o el código viene cargado con otro formato. */
+export function findBySku(products: StoreProduct[], code: string): StoreProduct | undefined {
+  const clean = code.trim().toLowerCase();
+  if (!clean) return undefined;
+  return products.find((p) => (p.sku ?? '').trim().toLowerCase() === clean);
+}
+
 export const clubStoreApi = {
   state: () =>
     api.get('/shop/state').then((r) => ({
@@ -63,6 +73,7 @@ export const clubStoreApi = {
     cost: number;
     minStock: number;
     stock: number;
+    sku?: string;
   }) =>
     api.post('/shop/products', {
       name: body.name,
@@ -70,6 +81,7 @@ export const clubStoreApi = {
       price: body.price,
       cost: body.cost,
       minStock: body.minStock,
+      sku: body.sku ?? '',
       // El club no maneja tallas ni colores: una sola variante "Unidad".
       variants: [{ v1: 'Unidad', v2: '', stock: body.stock }],
     }),

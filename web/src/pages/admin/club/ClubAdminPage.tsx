@@ -10,6 +10,9 @@ import { ExpenseFormDialog } from '@/components/admin/ExpenseFormDialog';
 import { CashSessionControl } from '@/components/admin/CashSessionControl';
 import ClubPayablesPage from './ClubPayablesPage';
 import ClubOccupancyPage from './ClubOccupancyPage';
+import ClubCustomersPage from './ClubCustomersPage';
+import ClubConsumptionPage from './ClubConsumptionPage';
+import ClubPayrollPage from './ClubPayrollPage';
 import { clubApi, todayCaracas, type ClubBooking } from './clubApi';
 import { clubStoreApi, type StoreSale } from './clubStoreApi';
 import { card } from './clubStyle';
@@ -35,6 +38,15 @@ interface MovementsResponse {
   movements: Movement[];
 }
 
+const TAB_LABELS: Record<string, string> = {
+  resumen: 'Resumen',
+  ocupacion: 'Ocupación',
+  clientes: 'Clientes',
+  consumo: 'Consumo',
+  cuentas: 'Cuentas por pagar',
+  nomina: 'Nómina',
+};
+
 const METRIC_COLORS: Record<string, string> = {
   court: 'bg-brand-500/10 text-brand-600',
   store: 'bg-violet-100 text-violet-700',
@@ -48,7 +60,7 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
   const [sales, setSales] = useState<StoreSale[]>([]);
   const [ledger, setLedger] = useState<MovementsResponse | null>(null);
   const [expenseOpen, setExpenseOpen] = useState(false);
-  const [tab, setTab] = useState<'resumen' | 'ocupacion' | 'cuentas'>('resumen');
+  const [tab, setTab] = useState<'resumen' | 'ocupacion' | 'clientes' | 'consumo' | 'cuentas' | 'nomina'>('resumen');
   const { show, toastMessage } = useToast();
 
   const load = useCallback(() => {
@@ -103,8 +115,8 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
 
       {/* Sub-pestañas: el dock del club ya está en su máximo de 5 iconos (ver ClubLayout),
           así que lo administrativo nuevo vive acá adentro en vez de pedir otro icono. */}
-      <div className="flex items-center gap-1 self-start rounded-full bg-brand-950/[0.05] p-1">
-        {(['resumen', 'ocupacion', 'cuentas'] as const).map((t) => (
+      <div className="flex items-center gap-1 self-start overflow-x-auto rounded-full bg-brand-950/[0.05] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {(['resumen', 'ocupacion', 'clientes', 'consumo', 'cuentas', 'nomina'] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -113,12 +125,15 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
               tab === t ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
             }`}
           >
-            {t === 'resumen' ? 'Resumen' : t === 'ocupacion' ? 'Ocupación' : 'Cuentas por pagar'}
+            {TAB_LABELS[t]}
           </button>
         ))}
       </div>
 
       {tab === 'ocupacion' && <ClubOccupancyPage restaurant={restaurant} />}
+      {tab === 'clientes' && <ClubCustomersPage restaurant={restaurant} />}
+      {tab === 'consumo' && <ClubConsumptionPage restaurant={restaurant} />}
+      {tab === 'nomina' && <ClubPayrollPage restaurant={restaurant} />}
       {tab === 'cuentas' && <ClubPayablesPage restaurant={restaurant} />}
 
       {tab === 'resumen' && (

@@ -43,6 +43,8 @@ router.delete('/schedules/:id', admin, clubController.deleteSchedule);
 
 // Ocupación: es información de gestión, no de operación diaria.
 router.get('/stats/occupancy', admin, clubController.occupancy);
+router.get('/stats/customers', admin, clubController.frequentCustomers);
+router.get('/stats/consumption', admin, clubController.consumption);
 
 router.get('/panel-courts', staff, clubController.panelCourts);
 router.get('/calendar', staff, clubController.calendar);
