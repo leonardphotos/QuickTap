@@ -35,6 +35,7 @@ interface RestaurantDetail {
   ivaEnabled: boolean;
   parentRestaurantId: string | null;
   customMonthlyPriceUsd: string | null;
+  billingPhone: string | null;
   branches: RestaurantBranch[];
   fiscalInvoicingConfig: { enabled: boolean; environment: string; username: string; updatedAt: string } | null;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';
@@ -94,6 +95,14 @@ export default function MasterRestaurantDetailPage() {
   const [editingUser, setEditingUser] = useState<RestaurantUser | null>(null);
   const [showAddBranchDialog, setShowAddBranchDialog] = useState(false);
   const [customPriceInput, setCustomPriceInput] = useState('');
+  const [billingPhoneInput, setBillingPhoneInput] = useState('');
+  const [billingMessage, setBillingMessage] = useState<string | null>(null);
+  const [sendingBilling, setSendingBilling] = useState(false);
+  // WhatsappPhoneInput arma su país + número local una sola vez, al montarse, y no vuelve a
+  // mirar `value`. Cada load() pisa billingPhoneInput con lo que hay guardado, así que sin
+  // remontarlo el recuadro seguiría mostrando lo tecleado mientras el estado ya es otro — y
+  // "Enviar cobro" se habilitaría creyendo que no hay cambios, mandando al número viejo.
+  const [billingPhoneFormVersion, setBillingPhoneFormVersion] = useState(0);
   const [fiscalEnvironment, setFiscalEnvironment] = useState<'QA' | 'PRODUCTION'>('QA');
   const [fiscalUsername, setFiscalUsername] = useState('');
   const [fiscalPassword, setFiscalPassword] = useState('');
@@ -116,6 +125,8 @@ export default function MasterRestaurantDetailPage() {
         setFiscalUsername(data.fiscalInvoicingConfig.username);
       }
       setCustomPriceInput(data.customMonthlyPriceUsd ?? '');
+      setBillingPhoneInput(data.billingPhone ?? '');
+      setBillingPhoneFormVersion((v) => v + 1);
     });
   }
 
@@ -332,6 +343,39 @@ export default function MasterRestaurantDetailPage() {
     }
   }
 
+  async function saveBillingPhone() {
+    setBusy(true);
+    setBillingMessage(null);
+    try {
+      await masterApi.patch(`/master/restaurants/${id}/billing-phone`, { billingPhone: billingPhoneInput });
+      setBillingMessage(billingPhoneInput ? 'Número de cobranza guardado.' : 'Número de cobranza borrado.');
+      load();
+    } catch (err: any) {
+      setBillingMessage(err.response?.data?.error ?? 'No se pudo guardar el número.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function sendBillingReminder() {
+    setSendingBilling(true);
+    setBillingMessage(null);
+    try {
+      const res = await masterApi.post(`/master/restaurants/${id}/subscription-reminder`);
+      const { sent, phone } = res.data.data as { sent: boolean; phone: string };
+      setBillingMessage(
+        sent
+          ? `Cobro enviado por WhatsApp a +${phone}.`
+          : `No se pudo entregar el mensaje a +${phone} — revisa que el chatbot de la plataforma esté conectado.`,
+      );
+      load();
+    } catch (err: any) {
+      setBillingMessage(err.response?.data?.error ?? 'No se pudo enviar el cobro.');
+    } finally {
+      setSendingBilling(false);
+    }
+  }
+
   async function createBranch(input: {
     name: string;
     whatsappPhone: string;
@@ -373,6 +417,9 @@ export default function MasterRestaurantDetailPage() {
   }
 
   if (!detail) return <p className="text-brand-950/50 font-light">Cargando…</p>;
+
+  // El input emite solo dígitos en formato internacional, igual que se guarda en la base.
+  const billingPhoneDirty = billingPhoneInput !== (detail.billingPhone ?? '');
 
   return (
     <div className="space-y-8 max-w-3xl">
@@ -695,6 +742,54 @@ export default function MasterRestaurantDetailPage() {
               {busy ? 'Guardando…' : 'Guardar precio'}
             </TextureButton>
           </div>
+        </div>
+
+        <div className="pt-1 border-t border-brand-950/[0.06]" />
+
+        <div>
+          <p className="text-sm font-medium text-brand-950/70 mb-2">Número de cobranza</p>
+          <p className="text-xs text-brand-950/40 font-light mb-2">
+            A este número el chatbot le manda el cobro de la mensualidad con los datos de pago y le
+            pide el comprobante. Se envía solo 3 días antes del vencimiento
+            {detail.subscriptionPlan
+              ? ` (${new Date(detail.periodEnd).toLocaleDateString('es-VE')})`
+              : ''}
+            , y con el botón lo mandas cuando quieras. Vacío = se cobra al WhatsApp del negocio
+            {detail.whatsappPhone ? ` (+${detail.whatsappPhone})` : ', que no tiene número registrado'}.
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="w-72">
+              <WhatsappPhoneInput
+                key={billingPhoneFormVersion}
+                value={billingPhoneInput}
+                onChange={setBillingPhoneInput}
+              />
+            </div>
+            <TextureButton
+              variant="minimal"
+              size="default"
+              disabled={busy}
+              className="!w-auto disabled:opacity-50"
+              onClick={saveBillingPhone}
+            >
+              {busy ? 'Guardando…' : 'Guardar número'}
+            </TextureButton>
+            <TextureButton
+              variant="brand"
+              size="default"
+              // Se manda al número YA guardado: con cambios sin guardar el cobro se iría al
+              // anterior sin que se note.
+              disabled={sendingBilling || billingPhoneDirty || (!detail.billingPhone && !detail.whatsappPhone)}
+              className="!w-auto disabled:opacity-50"
+              onClick={sendBillingReminder}
+            >
+              {sendingBilling ? 'Enviando…' : 'Enviar cobro'}
+            </TextureButton>
+          </div>
+          {billingPhoneDirty && (
+            <p className="text-xs text-amber-600 font-light mt-2">Guarda el número antes de enviar el cobro.</p>
+          )}
+          {billingMessage && <p className="text-sm text-brand-950/70 mt-2">{billingMessage}</p>}
         </div>
 
         <div className="pt-1 border-t border-brand-950/[0.06]" />

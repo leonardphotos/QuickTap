@@ -60,6 +60,21 @@ export const setCustomMonthlyPriceSchema = z.object({
 
 export type SetCustomMonthlyPriceInput = z.infer<typeof setCustomMonthlyPriceSchema>;
 
+/** Número de cobranza al que el chatbot maestro manda el recordatorio de mensualidad. Se guarda
+ * solo con dígitos, igual que whatsappPhone. Vacío = borrarlo y volver a cobrar al WhatsApp del
+ * negocio. */
+export const setBillingPhoneSchema = z.object({
+  billingPhone: z
+    .string()
+    .max(30)
+    .nullish()
+    .transform((v) => (v ?? '').replace(/\D/g, ''))
+    .refine((v) => v === '' || v.length >= 7, 'Número de cobranza inválido.')
+    .transform((v) => (v === '' ? null : v)),
+});
+
+export type SetBillingPhoneInput = z.infer<typeof setBillingPhoneSchema>;
+
 // Dashboard maestro → Cobro: cargo puntual que se suma a la próxima mensualidad
 // (setup, QR NFC, diseño…). Ver modelo AdditionalCharge.
 export const createAdditionalChargeSchema = z.object({

@@ -309,6 +309,13 @@ model Restaurant {
   // promocional se sigue aplicando encima, igual que sobre la tarifa pública.
   customMonthlyPriceUsd Decimal? @db.Decimal(10, 2)
 
+  // Número de cobranza: a dónde el chatbot maestro manda el recordatorio de mensualidad y los
+  // datos de pago (ver subscription-reminder.service.ts). Formato internacional sin "+". Es
+  // aparte de `whatsappPhone` a propósito — ese es el número público de atención al comensal,
+  // que muchas veces atiende un mesero; la cobranza va a quien realmente paga. Si está vacío se
+  // cae a `whatsappPhone`, que era el destino único antes de que existiera este campo.
+  billingPhone String?
+
   // --- Migración desde OlaClick (herramienta interna, panel master) ---
   // La API Key de OlaClick del restaurante viaja cifrada (AES-256-GCM, ver
   // master-olaclick-import.crypto.ts) y solo la usa el equipo QuickTap desde

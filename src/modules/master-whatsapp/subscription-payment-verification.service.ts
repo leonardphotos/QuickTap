@@ -39,6 +39,38 @@ async function create(
   });
 }
 
+/**
+ * Igual que create(), pero si ese restaurante ya tiene una verificación esperando comprobante
+ * la reutiliza (actualizando teléfono/plan/monto) en vez de abrir otra. Es lo que permite
+ * reenviar el cobro a mano desde el Dashboard maestro las veces que haga falta sin dejar filas
+ * AWAITING_PROOF sueltas que después compitan por el mismo comprobante.
+ */
+async function createOrRefresh(
+  restaurantId: string,
+  ownerPhone: string,
+  plan: SubscriptionPlan,
+  billingCycle: BillingCycle,
+  amountUsd?: number,
+) {
+  const existing = await prisma.subscriptionPaymentVerification.findFirst({
+    where: { restaurantId, status: 'AWAITING_PROOF' },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!existing) return create(restaurantId, ownerPhone, plan, billingCycle, amountUsd);
+
+  return prisma.subscriptionPaymentVerification.update({
+    where: { id: existing.id },
+    data: {
+      ownerPhone: normalizePhone(ownerPhone),
+      plan,
+      billingCycle,
+      // `?? null` y no `?? undefined`: si el monto dejó de poder calcularse, la fila tiene que
+      // quedar sin monto, no arrastrar el de la vez pasada.
+      amountUsd: amountUsd ?? null,
+    },
+  });
+}
+
 /** La verificación AWAITING_PROOF más reciente de ese teléfono (el dueño mandó una foto). */
 async function matchAwaitingProof(phoneDigits: string) {
   return prisma.subscriptionPaymentVerification.findFirst({
@@ -133,6 +165,7 @@ async function sweepTimeouts(timeoutMs: number) {
 
 export const subscriptionPaymentVerificationService = {
   create,
+  createOrRefresh,
   matchAwaitingProof,
   recordProofImage,
   resolveVerifierReply,

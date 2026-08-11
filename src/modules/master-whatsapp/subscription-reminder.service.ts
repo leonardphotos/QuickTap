@@ -1,5 +1,6 @@
 import { BillingCycle, SubscriptionPlan } from '@prisma/client';
 import { prisma } from '../../config/prisma';
+import { badRequest, notFound } from '../../utils/http-error';
 import { formatVenezuelanWhatsappPhone } from '../../utils/whatsapp';
 import { platformSettingsService, PurchasablePlan, renderTemplate } from '../platform-settings/platform-settings.service';
 import { subscriptionPaymentVerificationService } from './subscription-payment-verification.service';
@@ -74,11 +75,106 @@ async function buildReminderMessage(opts: {
   });
 }
 
+/** Lo que necesitan buildReminderMessage y el envío. Compartido por el barrido automático y
+ * por el botón "Enviar cobro" del Dashboard maestro, para que los dos manden exactamente el
+ * mismo mensaje al mismo número. */
+const REMINDER_SELECT = {
+  id: true,
+  name: true,
+  billingPhone: true,
+  whatsappPhone: true,
+  periodEnd: true,
+  subscriptionPlan: true,
+  billingCycle: true,
+  customMonthlyPriceUsd: true,
+} as const;
+
+type ReminderRestaurant = {
+  id: string;
+  name: string;
+  billingPhone: string | null;
+  whatsappPhone: string | null;
+  periodEnd: Date;
+  subscriptionPlan: SubscriptionPlan | null;
+  billingCycle: BillingCycle | null;
+  customMonthlyPriceUsd: unknown;
+};
+
+/** A dónde se cobra: el número de cobranza si está cargado, si no el WhatsApp del negocio
+ * (destino único antes de que existiera `billingPhone`). Devuelve solo dígitos. */
+function billingDestination(restaurant: { billingPhone: string | null; whatsappPhone: string | null }): string | null {
+  const raw = restaurant.billingPhone ?? restaurant.whatsappPhone;
+  if (!raw) return null;
+  return formatVenezuelanWhatsappPhone(raw).replace(/\D/g, '');
+}
+
+/**
+ * Arma y manda el recordatorio de mensualidad al número de cobranza, y deja abierta la
+ * verificación en AWAITING_PROOF para poder matchear el comprobante que llegue de vuelta.
+ *
+ * `markPeriod` separa los dos usos: el barrido automático marca siempre (es EL recordatorio de
+ * este vencimiento y no debe repetirse en cada tick), mientras que el botón manual solo marca
+ * si ya estamos dentro de la ventana de 3 días — un cobro adelantado a mano no debe consumir
+ * el recordatorio automático que todavía falta por mandar.
+ */
+async function sendReminderFor(
+  restaurant: ReminderRestaurant,
+  opts: { markPeriod: 'always' | 'ifWithinWindow' },
+): Promise<{ sent: boolean; phone: string }> {
+  const phone = billingDestination(restaurant);
+  if (!phone) throw badRequest('Este restaurante no tiene número de cobranza ni WhatsApp registrado.');
+  if (!restaurant.subscriptionPlan) throw badRequest('Este restaurante no tiene un plan activo que cobrar.');
+
+  const amount = await resolveMonthlyPrice(restaurant);
+  // Cargos puntuales (instalación, QR NFC, etc.) que todavía no se cobraron en ninguna
+  // mensualidad — se muestran acá para que no se olviden hasta que el restaurante pague.
+  const pendingCharges = await prisma.additionalCharge.findMany({
+    where: { restaurantId: restaurant.id, chargedAt: null },
+    orderBy: { createdAt: 'asc' },
+    select: { description: true, amountUsd: true },
+  });
+  const chargesTotal = pendingCharges.reduce((acc, c) => acc + Number(c.amountUsd), 0);
+  const periodEndLabel = restaurant.periodEnd.toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  const paymentMethods = await platformSettingsService.getPaymentMethods();
+  const pagoMovil = (paymentMethods as { pagoMovil?: { banco?: string; telefono?: string; cedula?: string; titular?: string } })
+    .pagoMovil;
+
+  const message = await buildReminderMessage({
+    restaurantName: restaurant.name,
+    periodEndLabel,
+    monthlyAmount: amount,
+    pendingCharges,
+    pagoMovil: pagoMovil ?? null,
+  });
+
+  const sent = await masterWhatsappBotService.sendMessage(phone, message);
+
+  // La verificación se abre aunque el envío falle (bot desconectado): dejar la fila lista evita
+  // que un comprobante que igual llegue por otra vía se pierda.
+  await subscriptionPaymentVerificationService.createOrRefresh(
+    restaurant.id,
+    phone,
+    restaurant.subscriptionPlan,
+    restaurant.billingCycle ?? 'MONTHLY',
+    amount != null ? amount + chargesTotal : undefined,
+  );
+
+  const withinWindow = restaurant.periodEnd.getTime() - Date.now() <= REMINDER_DAYS_BEFORE * 24 * 60 * 60 * 1000;
+  if (opts.markPeriod === 'always' || withinWindow) {
+    await prisma.restaurant.update({
+      where: { id: restaurant.id },
+      data: { subscriptionReminderForPeriodEnd: restaurant.periodEnd },
+    });
+  }
+
+  return { sent, phone };
+}
+
 /**
  * Barrido periódico (ver server.ts): manda el recordatorio de renovación a cada restaurante
- * cuyo `periodEnd` cae en 3 días o menos, y abre una SubscriptionPaymentVerification en
- * AWAITING_PROOF para poder matchear la foto que mande de vuelta. `subscriptionReminderForPeriodEnd`
- * evita reenviarlo en cada tick mientras siga siendo el mismo vencimiento.
+ * cuyo `periodEnd` cae en 3 días o menos. `subscriptionReminderForPeriodEnd` evita reenviarlo
+ * en cada tick mientras siga siendo el mismo vencimiento.
  */
 async function checkExpiring(): Promise<{ sent: number }> {
   const now = new Date();
@@ -88,19 +184,12 @@ async function checkExpiring(): Promise<{ sent: number }> {
     where: {
       isDemo: false,
       parentRestaurantId: null, // las sucursales no tienen suscripción propia (ver applyActivation)
-      whatsappPhone: { not: null },
+      // Alcanza con tener uno de los dos: billingDestination() se queda con el de cobranza y
+      // se cae al WhatsApp del negocio si no hay.
+      OR: [{ billingPhone: { not: null } }, { whatsappPhone: { not: null } }],
       periodEnd: { gt: now, lte: cutoff },
     },
-    select: {
-      id: true,
-      name: true,
-      whatsappPhone: true,
-      periodEnd: true,
-      subscriptionPlan: true,
-      billingCycle: true,
-      customMonthlyPriceUsd: true,
-      subscriptionReminderForPeriodEnd: true,
-    },
+    select: { ...REMINDER_SELECT, subscriptionReminderForPeriodEnd: true },
   });
 
   // Prisma no permite comparar dos columnas de la misma fila dentro de un where — se trae todo
@@ -108,55 +197,27 @@ async function checkExpiring(): Promise<{ sent: number }> {
   const pending = candidates.filter(
     (r) => !r.subscriptionReminderForPeriodEnd || r.subscriptionReminderForPeriodEnd.getTime() !== r.periodEnd.getTime(),
   );
-  if (pending.length === 0) return { sent: 0 };
-
-  const paymentMethods = await platformSettingsService.getPaymentMethods();
-  const pagoMovil = (paymentMethods as { pagoMovil?: { banco?: string; telefono?: string; cedula?: string; titular?: string } })
-    .pagoMovil;
 
   let sent = 0;
   for (const restaurant of pending) {
-    if (!restaurant.subscriptionPlan || !restaurant.whatsappPhone) continue;
-
-    const amount = await resolveMonthlyPrice(restaurant);
-    // Cargos puntuales (instalación, QR NFC, etc.) que todavía no se cobraron en ninguna
-    // mensualidad — se muestran acá para que no se olviden hasta que el restaurante pague.
-    const pendingCharges = await prisma.additionalCharge.findMany({
-      where: { restaurantId: restaurant.id, chargedAt: null },
-      orderBy: { createdAt: 'asc' },
-      select: { description: true, amountUsd: true },
-    });
-    const chargesTotal = pendingCharges.reduce((acc, c) => acc + Number(c.amountUsd), 0);
-    const periodEndLabel = restaurant.periodEnd.toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' });
-    const message = await buildReminderMessage({
-      restaurantName: restaurant.name,
-      periodEndLabel,
-      monthlyAmount: amount,
-      pendingCharges,
-      pagoMovil: pagoMovil ?? null,
-    });
-
-    const ownerPhone = formatVenezuelanWhatsappPhone(restaurant.whatsappPhone).replace(/\D/g, '');
-    const wasSent = await masterWhatsappBotService.sendMessage(ownerPhone, message);
-
-    // Se marca como "recordado" y se abre la verificación aunque el envío falle (bot
-    // desconectado): reintentar cada tick a un restaurante sin bot activo no logra nada, y
-    // dejar la fila lista evita que un comprobante que igual llegue por otra vía se pierda.
-    await subscriptionPaymentVerificationService.create(
-      restaurant.id,
-      ownerPhone,
-      restaurant.subscriptionPlan,
-      restaurant.billingCycle ?? 'MONTHLY',
-      amount != null ? amount + chargesTotal : undefined,
-    );
-    await prisma.restaurant.update({
-      where: { id: restaurant.id },
-      data: { subscriptionReminderForPeriodEnd: restaurant.periodEnd },
-    });
-    if (wasSent) sent += 1;
+    // Un restaurante sin plan o sin ningún teléfono no frena el barrido de los demás.
+    try {
+      const result = await sendReminderFor(restaurant, { markPeriod: 'always' });
+      if (result.sent) sent += 1;
+    } catch {
+      // Se reintenta en el próximo tick.
+    }
   }
 
   return { sent };
 }
 
-export const subscriptionReminderService = { checkExpiring };
+/** Botón "Enviar cobro" del Dashboard maestro → Cobro: manda el mismo mensaje del recordatorio
+ * automático, en el momento, sin esperar a la ventana de 3 días. */
+async function sendNow(restaurantId: string): Promise<{ sent: boolean; phone: string }> {
+  const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: REMINDER_SELECT });
+  if (!restaurant) throw notFound('Restaurante no encontrado.');
+  return sendReminderFor(restaurant, { markPeriod: 'ifWithinWindow' });
+}
+
+export const subscriptionReminderService = { checkExpiring, sendNow };

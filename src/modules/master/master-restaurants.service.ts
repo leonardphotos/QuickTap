@@ -10,6 +10,7 @@ import { signToken } from '../auth/auth.service';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { platformSettingsService } from '../platform-settings/platform-settings.service';
 import { masterWhatsappBotService } from '../master-whatsapp/master-whatsapp-bot.service';
+import { subscriptionReminderService } from '../master-whatsapp/subscription-reminder.service';
 import {
   CreateAdditionalChargeInput,
   CreateBranchForRestaurantInput,
@@ -167,6 +168,21 @@ export const masterRestaurantsService = {
     const existing = await prisma.restaurant.findUnique({ where: { id }, select: { id: true } });
     if (!existing) throw notFound('Restaurante no encontrado.');
     return prisma.restaurant.update({ where: { id }, data: { customMonthlyPriceUsd } });
+  },
+
+  /** Número de cobranza: a dónde el chatbot maestro manda el recordatorio de mensualidad y los
+   * datos de pago. null = se vuelve a cobrar al WhatsApp del negocio (ver
+   * subscription-reminder.service.ts#billingDestination). */
+  async setBillingPhone(id: string, billingPhone: string | null) {
+    const existing = await prisma.restaurant.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) throw notFound('Restaurante no encontrado.');
+    return prisma.restaurant.update({ where: { id }, data: { billingPhone } });
+  },
+
+  /** Botón "Enviar cobro" del bloque Cobro: manda ya el mismo mensaje de mensualidad que el
+   * chatbot manda solo cuando faltan 3 días para el vencimiento. */
+  async sendSubscriptionReminder(id: string) {
+    return subscriptionReminderService.sendNow(id);
   },
 
   /**

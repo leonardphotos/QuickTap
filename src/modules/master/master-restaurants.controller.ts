@@ -6,6 +6,7 @@ import {
   createAdditionalChargeSchema,
   createBranchForRestaurantSchema,
   extendDaysSchema,
+  setBillingPhoneSchema,
   setCustomMonthlyPriceSchema,
   setIvaEnabledSchema,
   sendInstallationNoticeSchema,
@@ -56,6 +57,15 @@ export const masterRestaurantsController = {
   setCustomMonthlyPrice: asyncHandler(async (req: Request, res: Response) => {
     const { customMonthlyPriceUsd } = setCustomMonthlyPriceSchema.parse(req.body);
     res.json({ data: await masterRestaurantsService.setCustomMonthlyPrice(req.params.id, customMonthlyPriceUsd) });
+  }),
+  /** PATCH /master/restaurants/:id/billing-phone — número al que se le cobra la mensualidad. */
+  setBillingPhone: asyncHandler(async (req: Request, res: Response) => {
+    const { billingPhone } = setBillingPhoneSchema.parse(req.body);
+    res.json({ data: await masterRestaurantsService.setBillingPhone(req.params.id, billingPhone) });
+  }),
+  /** POST /master/restaurants/:id/subscription-reminder — manda el cobro de la mensualidad ya. */
+  sendSubscriptionReminder: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await masterRestaurantsService.sendSubscriptionReminder(req.params.id) });
   }),
   /** GET /master/restaurants/:id/additional-charges — cargos aparte de la mensualidad. */
   listAdditionalCharges: asyncHandler(async (req: Request, res: Response) => {
