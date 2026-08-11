@@ -1,0 +1,164 @@
+import { Prisma } from '@prisma/client';
+import { round2, toDecimal } from '../../utils/money';
+
+/**
+ * Punto único de verdad para "cuánto cuesta 1 unidad base de X" (insumo o
+ * preparación), usado tanto por recetas (RecipeIngredient) como por
+ * preparaciones anidadas (PreparationIngredient) — evita duplicar la
+ * recursión insumo↔preparación en dos módulos distintos.
+ *
+ * "Unidad base" = kg/lt/unidad para un insumo, o la sub-unidad (gr/ml) en la
+ * que se declaran quantity/yieldQuantity en RecipeIngredient/Preparation.
+ */
+
+type TxClient = Prisma.TransactionClient;
+
+interface GraphItem {
+  id: string;
+  pricePerUnitBase: Prisma.Decimal | null;
+  yieldPercent: Prisma.Decimal;
+  correctionPercent: Prisma.Decimal;
+}
+
+interface GraphIngredientRef {
+  inventoryItemId: string | null;
+  componentPreparationId?: string | null;
+  preparationId?: string | null;
+  quantity: Prisma.Decimal;
+}
+
+interface GraphPreparation {
+  id: string;
+  yieldQuantity: Prisma.Decimal;
+  ingredients: GraphIngredientRef[];
+}
+
+export interface CostGraph {
+  items: Map<string, GraphItem>;
+  preparations: Map<string, GraphPreparation>;
+}
+
+/** Referencia genérica a "un insumo o una preparación" — misma forma que usan
+ * RecipeIngredient y PreparationIngredient (exactamente uno de los dos). */
+export interface IngredientRef {
+  inventoryItemId?: string | null;
+  preparationId?: string | null;
+}
+
+/** Carga en memoria todo el grafo de costeo del restaurante (insumos + preparaciones
+ * con sus ingredientes). Los catálogos de un restaurante son chicos (decenas a un par
+ * de cientos de filas), así que traer todo de una vez es más simple y más correcto que
+ * ir resolviendo dependencias fila por fila. */
+export async function buildCostGraph(tx: TxClient, restaurantId: string): Promise<CostGraph> {
+  const [items, preparations, preparationIngredients] = await Promise.all([
+    tx.inventoryItem.findMany({
+      where: { restaurantId },
+      select: { id: true, pricePerUnitBase: true, yieldPercent: true, correctionPercent: true },
+    }),
+    tx.preparation.findMany({ where: { restaurantId }, select: { id: true, yieldQuantity: true } }),
+    tx.preparationIngredient.findMany({
+      where: { restaurantId },
+      select: { preparationId: true, inventoryItemId: true, componentPreparationId: true, quantity: true },
+    }),
+  ]);
+
+  const preparationMap = new Map<string, GraphPreparation>();
+  for (const p of preparations) preparationMap.set(p.id, { id: p.id, yieldQuantity: p.yieldQuantity, ingredients: [] });
+  for (const pi of preparationIngredients) {
+    const prep = preparationMap.get(pi.preparationId);
+    if (prep) prep.ingredients.push({ inventoryItemId: pi.inventoryItemId, preparationId: pi.componentPreparationId, quantity: pi.quantity });
+  }
+
+  return { items: new Map(items.map((i) => [i.id, i])), preparations: preparationMap };
+}
+
+function costPerBaseUnitForItem(item: GraphItem): Prisma.Decimal {
+  if (!item.pricePerUnitBase) return toDecimal(0);
+  const corrected = item.pricePerUnitBase.mul(toDecimal(1).add(item.correctionPercent.div(100)));
+  const yieldFraction = item.yieldPercent.div(100);
+  if (yieldFraction.lessThanOrEqualTo(0)) return toDecimal(0);
+  return corrected.div(yieldFraction);
+}
+
+/** Costo por 1 unidad base del insumo o preparación referenciada. Recursivo para
+ * preparaciones anidadas, con guarda de ciclos (no debería ocurrir — se bloquea al
+ * guardar una preparación como su propio ingrediente — pero protege igual). */
+export function resolveCostPerBaseUnit(graph: CostGraph, ref: IngredientRef, seen: Set<string> = new Set()): Prisma.Decimal {
+  if (ref.inventoryItemId) {
+    const item = graph.items.get(ref.inventoryItemId);
+    return item ? costPerBaseUnitForItem(item) : toDecimal(0);
+  }
+  if (ref.preparationId) {
+    if (seen.has(ref.preparationId)) return toDecimal(0);
+    const prep = graph.preparations.get(ref.preparationId);
+    if (!prep || prep.yieldQuantity.lessThanOrEqualTo(0)) return toDecimal(0);
+    const nextSeen = new Set(seen).add(ref.preparationId);
+    const total = prep.ingredients.reduce(
+      (acc, ing) => acc.add(ing.quantity.mul(resolveCostPerBaseUnit(graph, ing, nextSeen))),
+      toDecimal(0),
+    );
+    return total.div(prep.yieldQuantity);
+  }
+  return toDecimal(0);
+}
+
+/** Recalcula y persiste (solo lo que cambió) el costBase de TODAS las líneas de
+ * preparación y de receta del restaurante, a partir de un grafo fresco. Se llama
+ * dentro de la misma transacción cuando cambia algo que puede afectar costos aguas
+ * abajo: precio/rendimiento/corrección de un insumo, o ingredientes/rendimiento de
+ * una preparación. Recalcular todo el grafo es deliberadamente más simple que
+ * rastrear dependencias finas — el tamaño de estos catálogos lo permite. */
+export async function recomputeDependentCosts(tx: TxClient, restaurantId: string): Promise<void> {
+  const graph = await buildCostGraph(tx, restaurantId);
+
+  const [preparationIngredients, recipeIngredients] = await Promise.all([
+    tx.preparationIngredient.findMany({ where: { restaurantId } }),
+    tx.recipeIngredient.findMany({ where: { restaurantId } }),
+  ]);
+
+  for (const pi of preparationIngredients) {
+    const perUnit = resolveCostPerBaseUnit(graph, { inventoryItemId: pi.inventoryItemId, preparationId: pi.componentPreparationId });
+    const costBase = perUnit.mul(pi.quantity).toDecimalPlaces(4, Prisma.Decimal.ROUND_HALF_UP);
+    if (!costBase.equals(pi.costBase)) {
+      await tx.preparationIngredient.update({ where: { id: pi.id }, data: { costBase } });
+    }
+  }
+
+  for (const ri of recipeIngredients) {
+    const perUnit = resolveCostPerBaseUnit(graph, { inventoryItemId: ri.inventoryItemId, preparationId: ri.preparationId });
+    const costBase = round2(perUnit.mul(ri.quantity));
+    if (!costBase.equals(ri.costBase)) {
+      await tx.recipeIngredient.update({ where: { id: ri.id }, data: { costBase } });
+    }
+  }
+}
+
+/**
+ * Resuelve "se consumió `multiplier` unidades base de este insumo/preparación" hasta
+ * sus insumos finales, acumulando en `acc` (Map inventoryItemId -> cantidad total).
+ * Usado por deductRecipeStock: una preparación no tiene stock propio, así que vender
+ * un plato que la usa debe descontar los insumos base que la componen.
+ */
+export function resolveConsumedInventoryItems(
+  graph: CostGraph,
+  ref: IngredientRef,
+  multiplier: Prisma.Decimal,
+  acc: Map<string, Prisma.Decimal> = new Map(),
+  seen: Set<string> = new Set(),
+): Map<string, Prisma.Decimal> {
+  if (ref.inventoryItemId) {
+    acc.set(ref.inventoryItemId, (acc.get(ref.inventoryItemId) ?? toDecimal(0)).add(multiplier));
+    return acc;
+  }
+  if (ref.preparationId) {
+    if (seen.has(ref.preparationId)) return acc;
+    const prep = graph.preparations.get(ref.preparationId);
+    if (!prep || prep.yieldQuantity.lessThanOrEqualTo(0)) return acc;
+    const nextSeen = new Set(seen).add(ref.preparationId);
+    const ratio = multiplier.div(prep.yieldQuantity);
+    for (const ing of prep.ingredients) {
+      resolveConsumedInventoryItems(graph, ing, ing.quantity.mul(ratio), acc, nextSeen);
+    }
+  }
+  return acc;
+}

@@ -1260,7 +1260,8 @@ function MarginTab() {
                 {formatBase(r.marginBase, symbol)}
               </p>
               <p className={`text-xs font-light ${Number(r.marginBase) < 0 ? 'text-red-500' : 'text-brand-950/50'}`}>
-                {r.marginPercent}% margen
+                {r.marginPercent}% margen ·{' '}
+                <span className={foodCostClass(r.marginPercent)}>{foodCostPercent(r.marginPercent)}% food cost</span>
               </p>
             </div>
           </div>
@@ -1268,6 +1269,16 @@ function MarginTab() {
       </div>
     </div>
   );
+}
+
+/** Food cost % = 100 − margen %, por definición (margen = precio − costo). Sin backend
+ * nuevo: se deriva directo del mismo marginPercent que ya devuelve /products/margin. */
+function foodCostPercent(marginPercent: string): string {
+  return (100 - Number(marginPercent)).toFixed(1);
+}
+function foodCostClass(marginPercent: string): string {
+  const fc = 100 - Number(marginPercent);
+  return fc <= 35 ? 'text-emerald-600 font-medium ' : fc <= 45 ? 'text-amber-600 font-medium ' : 'text-red-600 font-medium ';
 }
 
 // -----------------------------------------------------------------------------

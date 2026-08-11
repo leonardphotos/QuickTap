@@ -1,10 +1,17 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest } from '../../utils/http-error';
-import { createRecipeIngredientSchema, updateRecipeIngredientSchema } from './recipe.dto';
+import { createRecipeIngredientSchema, updateCascadeConfigSchema, updateRecipeIngredientSchema } from './recipe.dto';
 import { recipeService } from './recipe.service';
 
 export const recipeController = {
+  getCascade: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await recipeService.getCascade(req.restaurantId!, req.params.productId) });
+  }),
+  updateCascadeConfig: asyncHandler(async (req: Request, res: Response) => {
+    const input = updateCascadeConfigSchema.parse(req.body);
+    res.json({ data: await recipeService.updateCascadeConfig(req.restaurantId!, req.params.productId, input) });
+  }),
   listOverview: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await recipeService.listOverview(req.restaurantId!) });
   }),

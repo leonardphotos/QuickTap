@@ -223,15 +223,15 @@ model Restaurant {
   logoUrl     String?
 
   // --- Vertical de negocio (elegido al registrarse, no editable desde el panel) ---
-  businessType BusinessType @default(RESTAURANT)
+  businessType    BusinessType @default(RESTAURANT)
   // Rubro de retail elegido en el registro (ej: "zapateria", "panaderia") cuando
   // businessType = SHOP. Indexa el catálogo de ejemplo en web/src/data/shopRubros.ts.
   // Null para restaurantes.
-  shopRubro    String?
+  shopRubro       String?
   // Costo de envío de la tienda virtual del local, en su moneda base. Tarifa plana y no
   // zonas/distancia como el delivery del restaurante: un local despacha con su propio
   // motorizado y cobra lo mismo a todo el mundo. 0 = envío sin cargo.
-  shopDeliveryFee Decimal? @db.Decimal(10, 2)
+  shopDeliveryFee Decimal?     @db.Decimal(10, 2)
 
   // --- Configuración de moneda ---
   // Moneda en la que el restaurante coloca sus precios ($ o €).
@@ -479,33 +479,35 @@ model Restaurant {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  users                 User[]
-  categories            Category[]
-  kitchens              Kitchen[]
-  products              Product[]
-  tables                Table[]
-  orders                Order[]
-  zones                 Zone[]
-  tableSessions         TableSession[]
-  planRequests          PlanRequest[]
-  qrNfcRequests         QrNfcRequest[]
-  inventoryItems        InventoryItem[]
-  inventoryCategories   InventoryCategory[]
-  recipeIngredients     RecipeIngredient[]
-  deliveryCouriers      DeliveryCourier[]
-  additionalCharges     AdditionalCharge[]
-  quotes                Quote[]
-  deliveryZones         DeliveryZone[]
-  movements             Movement[]
-  cashSessions          CashSession[]
-  suppliers             Supplier[]
-  customers             Customer[]
-  modifierCategories    ModifierCategory[]
-  modifiers             Modifier[]
-  productVariants       ProductVariant[]
-  schedules             RestaurantSchedule[]
-  reservations          Reservation[]
-  fiscalInvoicingConfig FiscalInvoicingConfig?
+  users                  User[]
+  categories             Category[]
+  kitchens               Kitchen[]
+  products               Product[]
+  tables                 Table[]
+  orders                 Order[]
+  zones                  Zone[]
+  tableSessions          TableSession[]
+  planRequests           PlanRequest[]
+  qrNfcRequests          QrNfcRequest[]
+  inventoryItems         InventoryItem[]
+  inventoryCategories    InventoryCategory[]
+  recipeIngredients      RecipeIngredient[]
+  preparations           Preparation[]
+  preparationIngredients PreparationIngredient[]
+  deliveryCouriers       DeliveryCourier[]
+  additionalCharges      AdditionalCharge[]
+  quotes                 Quote[]
+  deliveryZones          DeliveryZone[]
+  movements              Movement[]
+  cashSessions           CashSession[]
+  suppliers              Supplier[]
+  customers              Customer[]
+  modifierCategories     ModifierCategory[]
+  modifiers              Modifier[]
+  productVariants        ProductVariant[]
+  schedules              RestaurantSchedule[]
+  reservations           Reservation[]
+  fiscalInvoicingConfig  FiscalInvoicingConfig?
 
   // --- QuickTap Shop (businessType = SHOP): catálogo/ventas/caja propios, sin relación con
   // Product/Order (esos son del vertical restaurante) — ver web/src/pages/admin/shop/. ---
@@ -724,6 +726,13 @@ model Product {
   // solo plan Premium); "MANUAL" = se usa costBase, cargado a mano junto al precio.
   costSource String   @default("MANUAL")
   costBase   Decimal? @db.Decimal(12, 2)
+
+  // Cascada de precio sugerido (Inventario → Recetas → "Precio sugerido"), solo tiene efecto
+  // si costSource = RECIPE. recipeBufferPercent = resguardo por fallas al emplatar sobre el
+  // costo de materia prima; recipeTargetFoodCostPercent = food cost objetivo con el que se
+  // sugiere un precio (costoConResguardo * 100 / este %). Ver recipe.service.ts#getCascade.
+  recipeBufferPercent         Decimal @default(10) @db.Decimal(5, 2)
+  recipeTargetFoodCostPercent Decimal @default(40) @db.Decimal(5, 2)
 
   // Disponibilidad para la venta.
   isAvailable Boolean @default(true)
@@ -1954,6 +1963,14 @@ model InventoryItem {
   // insumos, y alimenta el cálculo automático del costo de receta.
   pricePerUnitBase Decimal? @db.Decimal(14, 4)
 
+  // Qué porcentaje de este insumo queda realmente aprovechable tras merma o
+  // limpieza (ej. 90 = de 1 kg comprado solo 900 gr sirven). Colchón por
+  // fluctuación de precio del proveedor. Ambos ajustan pricePerUnitBase antes
+  // de costear una receta o preparación (ver src/modules/inventory/costing.ts)
+  // — 100/0 = comportamiento idéntico al de antes de agregar estos campos.
+  yieldPercent      Decimal @default(100) @db.Decimal(5, 2)
+  correctionPercent Decimal @default(0) @db.Decimal(5, 2)
+
   // Fecha de caducidad del lote en stock, "YYYY-MM-DD" en hora de Caracas.
   // String y no DateTime a propósito: guardado como fecha UTC, un insumo que
   // vence "el 3" se leería como el 2 en Venezuela (UTC-4). Mismo criterio que
@@ -1977,12 +1994,13 @@ model InventoryItem {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurant        Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  category          InventoryCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  restaurant        Restaurant              @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category          InventoryCategory?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   recipeLines       RecipeIngredient[]
+  preparationLines  PreparationIngredient[]
   modifiers         Modifier[]
   movements         Movement[]
-  packagingProducts Product[]          @relation("ProductPackaging")
+  packagingProducts Product[]               @relation("ProductPackaging")
 
   @@index([restaurantId])
   @@index([restaurantId, categoryId])
@@ -2019,31 +2037,100 @@ model InventoryTransfer {
   @@map("inventory_transfers")
 }
 
-// Línea de receta: cuánto de un insumo (InventoryItem) usa un producto del
-// menú por cada unidad vendida, y su costo. Vender el producto (al marcarlo
-// SERVED) descuenta esta cantidad del insumo automáticamente.
+// Línea de receta: cuánto de un insumo (InventoryItem) o de una preparación
+// (Preparation, ver más abajo) usa un producto del menú por cada unidad
+// vendida, y su costo. Exactamente uno de inventoryItemId/preparationId debe
+// estar presente (validado en recipe.dto.ts, no a nivel de DB). Vender el
+// producto (al marcarlo SERVED) descuenta insumo(s) base automáticamente —
+// si la línea apunta a una preparación, se resuelve recursivamente hasta sus
+// insumos (ver resolveConsumedInventoryItems en costing.ts).
 model RecipeIngredient {
-  id              String @id @default(cuid())
+  id              String  @id @default(cuid())
   restaurantId    String
   productId       String
-  inventoryItemId String
+  inventoryItemId String?
+  preparationId   String?
 
-  // Cantidad del insumo que usa una unidad del producto (misma unidad que el
-  // InventoryItem vinculado, ej: si el insumo está en "kg", aquí van kg).
+  // Cantidad usada por una unidad del producto, en la unidad base del insumo
+  // o preparación vinculada (ej: si el insumo está en "kg", aquí van kg).
   quantity Decimal @db.Decimal(12, 3)
-  // Costo de esa cantidad, en la moneda base del restaurante.
+  // Costo de esa cantidad, en la moneda base del restaurante. Snapshot
+  // recalculado por recomputeDependentCosts cuando cambia algo aguas arriba.
   costBase Decimal @db.Decimal(12, 2)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurant    Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  product       Product       @relation(fields: [productId], references: [id], onDelete: Cascade)
-  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  restaurant    Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  product       Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  preparation   Preparation?   @relation(fields: [preparationId], references: [id], onDelete: Restrict)
 
   @@index([restaurantId, productId])
   @@index([inventoryItemId])
+  @@index([preparationId])
   @@map("recipe_ingredients")
+}
+
+// Preparación (sub-receta): una base intermedia reutilizable entre platos
+// (fondo, salsa madre, masa) armada a partir de insumos y/o de otras
+// preparaciones. No tiene stock propio — es puramente un nodo de costeo; lo
+// que se descuenta al vender siempre son los InventoryItem que resuelve en
+// la base de esta cadena (ver PreparationIngredient y costing.ts).
+model Preparation {
+  id            String  @id @default(cuid())
+  restaurantId  String
+  name          String
+  // "kg" | "lt" — una preparación siempre se mide en peso/volumen, nunca "unidad".
+  unit          String
+  // Cuánto rinde esta preparación, en la unidad declarada arriba (kg/lt) — igual criterio
+  // que RecipeIngredient.quantity: gr/ml son solo la conveniencia de entrada en la UI,
+  // convertidos antes de guardar. Los insumos que entran pueden sumar más que esto (merma
+  // al cocinar), el costo total se reparte entre lo que realmente rinde.
+  yieldQuantity Decimal @db.Decimal(12, 3)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant    Restaurant              @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  ingredients   PreparationIngredient[] @relation("PreparationOwner")
+  usedInPreps   PreparationIngredient[] @relation("PreparationRef")
+  usedInRecipes RecipeIngredient[]
+
+  @@index([restaurantId])
+  @@map("preparations")
+}
+
+// Línea de ingrediente de una Preparation: apunta a un insumo o a OTRA
+// preparación (sub-receta anidada), nunca ambos — mismo criterio de
+// RecipeIngredient. onDelete: Restrict en componentPreparation evita borrar
+// una preparación que otra sigue usando (el service también valida antes,
+// con mensaje claro).
+model PreparationIngredient {
+  id                     String  @id @default(cuid())
+  restaurantId           String
+  preparationId          String
+  inventoryItemId        String?
+  componentPreparationId String?
+
+  // En la unidad propia del ingrediente referenciado (kg/lt/unidad si es insumo, kg/lt si
+  // es otra preparación) — gr/ml son solo la conveniencia de entrada en la UI.
+  quantity Decimal @db.Decimal(12, 3)
+  // Snapshot, mismo criterio que RecipeIngredient.costBase.
+  costBase Decimal @db.Decimal(12, 4)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant           Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  preparation          Preparation    @relation("PreparationOwner", fields: [preparationId], references: [id], onDelete: Cascade)
+  inventoryItem        InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  componentPreparation Preparation?   @relation("PreparationRef", fields: [componentPreparationId], references: [id], onDelete: Restrict)
+
+  @@index([restaurantId, preparationId])
+  @@index([inventoryItemId])
+  @@index([componentPreparationId])
+  @@map("preparation_ingredients")
 }
 
 // ----------------------------------------------------------------------------

@@ -27,6 +27,7 @@ import { tableSessionService } from '../table-sessions/table-session.service';
 import { fiscalInvoicingService } from '../fiscal-invoicing/fiscal-invoicing.service';
 import { writeFiscalAudit } from '../fiscal-invoicing/fiscal-invoicing.audit';
 import { customerService } from '../customers/customer.service';
+import { buildCostGraph, resolveConsumedInventoryItems } from '../inventory/costing';
 import {
   AddOrderItemInput,
   CartItemInput,
@@ -341,6 +342,26 @@ function sumQuantityByProduct(items: { productId: string | null; quantity: numbe
   return byProduct;
 }
 
+/** Une las líneas de receta vendidas con el grafo de costeo para saber, en definitiva,
+ * cuánto de cada INSUMO (nunca una preparación — no tiene stock propio) hay que
+ * descontar/devolver. Una preparación usada en 2 platos vendidos a la vez se resuelve
+ * correctamente sumando ambos consumos en el mismo Map antes de tocar la DB. */
+async function resolveRecipeInventoryDeltas(
+  restaurantId: string,
+  recipeLines: { productId: string; inventoryItemId: string | null; preparationId: string | null; quantity: Prisma.Decimal }[],
+  qtyByProduct: Map<string, number>,
+): Promise<Map<string, Prisma.Decimal>> {
+  const graph = await buildCostGraph(prisma, restaurantId);
+  const acc = new Map<string, Prisma.Decimal>();
+  for (const line of recipeLines) {
+    const soldQty = qtyByProduct.get(line.productId) ?? 0;
+    if (soldQty <= 0) continue;
+    const used = toDecimal(line.quantity).mul(soldQty);
+    resolveConsumedInventoryItems(graph, { inventoryItemId: line.inventoryItemId, preparationId: line.preparationId }, used, acc);
+  }
+  return acc;
+}
+
 async function deductRecipeStock(restaurantId: string, items: { productId: string | null; quantity: number }[]) {
   const productIds = items.map((i) => i.productId).filter((id): id is string => Boolean(id));
   if (productIds.length === 0) return;
@@ -351,14 +372,11 @@ async function deductRecipeStock(restaurantId: string, items: { productId: strin
   if (recipeLines.length === 0) return;
 
   const qtyByProduct = sumQuantityByProduct(items);
+  const deltas = await resolveRecipeInventoryDeltas(restaurantId, recipeLines, qtyByProduct);
   let deducted = false;
 
-  for (const line of recipeLines) {
-    const soldQty = qtyByProduct.get(line.productId) ?? 0;
-    if (soldQty <= 0) continue;
-    const used = toDecimal(line.quantity).mul(soldQty);
-
-    const item = await prisma.inventoryItem.findUnique({ where: { id: line.inventoryItemId } });
+  for (const [inventoryItemId, used] of deltas) {
+    const item = await prisma.inventoryItem.findUnique({ where: { id: inventoryItemId } });
     if (!item) continue;
     const nextQuantity = Prisma.Decimal.max(0, toDecimal(item.quantity).sub(used));
     await prisma.inventoryItem.update({ where: { id: item.id }, data: { quantity: nextQuantity } });
@@ -529,12 +547,10 @@ async function restoreRecipeStock(restaurantId: string, items: { productId: stri
   if (recipeLines.length === 0) return;
 
   const qtyByProduct = sumQuantityByProduct(items);
-  for (const line of recipeLines) {
-    const soldQty = qtyByProduct.get(line.productId) ?? 0;
-    if (soldQty <= 0) continue;
-    const used = toDecimal(line.quantity).mul(soldQty);
+  const deltas = await resolveRecipeInventoryDeltas(restaurantId, recipeLines, qtyByProduct);
+  for (const [inventoryItemId, used] of deltas) {
     await prisma.inventoryItem
-      .update({ where: { id: line.inventoryItemId }, data: { quantity: { increment: used } } })
+      .update({ where: { id: inventoryItemId }, data: { quantity: { increment: used } } })
       .catch(() => undefined); // el insumo pudo haberse borrado desde entonces
   }
 }

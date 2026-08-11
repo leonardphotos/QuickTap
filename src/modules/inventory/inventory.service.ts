@@ -1,13 +1,14 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { notFound } from '../../utils/http-error';
-import { bsToBase, round2, toDecimal } from '../../utils/money';
+import { bsToBase, toDecimal } from '../../utils/money';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { emitToKitchen, SocketEvents } from '../../sockets';
 import { caracasPartsOf } from '../../utils/timezone';
 import { CreateInventoryItemInput, InventoryAlertsQuery, UpdateInventoryItemInput } from './inventory.dto';
 import { inventoryCategoryService } from './inventory-category.service';
 import { effectiveInventoryRestaurantId } from './inventory-scope';
+import { recomputeDependentCosts } from './costing';
 
 /**
  * Calcula el costo por unidad (kg/lt/unidad) a partir del costo de la
@@ -108,9 +109,13 @@ export const inventoryService = {
     const quantityForPricing = input.quantity ?? Number(existing.quantity);
     const pricePerUnitBase = await resolvePricePerUnit(effectiveId, price, priceCurrency, quantityForPricing);
 
-    // Si el proveedor cambió el precio del insumo, el costo de cada receta que lo usa se
-    // recalcula automáticamente (costBase = nuevo precio por unidad * cantidad de la receta).
+    // Si el proveedor cambió el precio del insumo, o cambió su rendimiento/factor de
+    // corrección, el costo real ajustado cambia — y con él, el de toda receta o
+    // preparación que dependa de este insumo (directa o indirectamente, ver costing.ts).
     const priceChanged = pricePerUnitBase !== undefined && !pricePerUnitBase.equals(existing.pricePerUnitBase ?? 0);
+    const yieldChanged = input.yieldPercent !== undefined && !toDecimal(input.yieldPercent).equals(existing.yieldPercent);
+    const correctionChanged = input.correctionPercent !== undefined && !toDecimal(input.correctionPercent).equals(existing.correctionPercent);
+    const costAffectingChange = priceChanged || yieldChanged || correctionChanged;
 
     const item = await prisma.$transaction(async (tx) => {
       const item = await tx.inventoryItem.update({
@@ -122,12 +127,8 @@ export const inventoryService = {
         },
       });
 
-      if (priceChanged) {
-        const lines = await tx.recipeIngredient.findMany({ where: { restaurantId: effectiveId, inventoryItemId: id } });
-        for (const line of lines) {
-          const costBase = round2(pricePerUnitBase!.mul(line.quantity));
-          await tx.recipeIngredient.update({ where: { id: line.id }, data: { costBase } });
-        }
+      if (costAffectingChange) {
+        await recomputeDependentCosts(tx, effectiveId);
       }
 
       return item;

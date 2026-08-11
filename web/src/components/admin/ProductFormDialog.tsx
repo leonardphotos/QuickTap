@@ -77,6 +77,18 @@ export function ProductFormDialog({
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [recipeCascade, setRecipeCascade] = useState<{ costoReceta: string; foodCostReal: string } | null>(null);
+
+  useEffect(() => {
+    if (form.costSource !== 'RECIPE' || !product?.id) {
+      setRecipeCascade(null);
+      return;
+    }
+    api
+      .get(`/inventory/recipes/${product.id}/cascade`)
+      .then((res) => setRecipeCascade({ costoReceta: res.data.data.costoReceta, foodCostReal: res.data.data.foodCostReal }))
+      .catch(() => setRecipeCascade(null));
+  }, [form.costSource, product?.id]);
   const [justCreated, setJustCreated] = useState(false);
 
   const [pricingMode, setPricingMode] = useState<'SIMPLE' | 'VARIANTS'>('SIMPLE');
@@ -288,9 +300,17 @@ export function ProductFormDialog({
                 min="0"
                 className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
               />
+            ) : recipeCascade ? (
+              <p className="text-xs text-brand-950/60 self-center px-1">
+                Costo actual: {currencySymbol}
+                {recipeCascade.costoReceta} · Food cost: {recipeCascade.foodCostReal}%. Ajusta la receta en Inventario →
+                Recetas.
+              </p>
             ) : (
               <p className="text-xs text-brand-950/50 self-center px-1">
-                El costo se toma de la receta armada en Inventario → Recetas.
+                {product?.id
+                  ? 'Este producto todavía no tiene receta armada — hazlo en Inventario → Recetas.'
+                  : 'El costo se toma de la receta armada en Inventario → Recetas (después de crear el producto).'}
               </p>
             )}
             <input

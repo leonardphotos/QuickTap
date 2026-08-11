@@ -5,6 +5,7 @@ import { inventoryController } from './inventory.controller';
 import { inventoryCategoryController } from './inventory-category.controller';
 import { inventoryTransferController } from './inventory-transfer.controller';
 import { recipeController } from './recipe.controller';
+import { preparationController } from './preparation.controller';
 
 /**
  * Base: /api/v1/inventory. Insumos "normales" = Pro/Premium/CUSTOM con el
@@ -63,6 +64,17 @@ router.get(
 router.get('/transfers', requireFeature('inventoryBasic'), requireInventoryAccess, inventoryTransferController.list);
 router.post('/transfers', requireFeature('inventoryBasic'), mutate, inventoryTransferController.create);
 
+// Preparaciones (sub-recetas): bases intermedias reutilizables entre platos, armadas a
+// partir de insumos y/o de otras preparaciones. Mismo gating que Recetas (Premium).
+router.get('/preparations', requireFeature('inventoryRecipe'), requireInventoryAccess, preparationController.listOverview);
+router.get('/preparations/:id', requireFeature('inventoryRecipe'), requireInventoryAccess, preparationController.getById);
+router.post('/preparations', requireFeature('inventoryRecipe'), mutate, preparationController.create);
+router.patch('/preparations/:id', requireFeature('inventoryRecipe'), mutate, preparationController.update);
+router.delete('/preparations/:id', requireFeature('inventoryRecipe'), mutate, preparationController.remove);
+router.post('/preparations/:id/ingredients', requireFeature('inventoryRecipe'), mutate, preparationController.addIngredient);
+router.patch('/preparations/ingredient/:ingredientId', requireFeature('inventoryRecipe'), mutate, preparationController.updateIngredient);
+router.delete('/preparations/ingredient/:ingredientId', requireFeature('inventoryRecipe'), mutate, preparationController.removeIngredient);
+
 // Recetas: vincula productos del menú con insumos (descuenta stock al vender).
 router.get('/recipes', requireFeature('inventoryRecipe'), requireInventoryAccess, recipeController.listOverview);
 router.get(
@@ -72,6 +84,10 @@ router.get(
   recipeController.getByProduct,
 );
 router.post('/recipes/:productId', requireFeature('inventoryRecipe'), mutate, recipeController.addIngredient);
+// Cascada de precio sugerido: resguardo % / food cost objetivo % (editables) + servicio/IVA
+// reales del restaurante (solo lectura) comparados contra Product.price.
+router.get('/recipes/:productId/cascade', requireFeature('inventoryRecipe'), requireInventoryAccess, recipeController.getCascade);
+router.patch('/recipes/:productId/cascade', requireFeature('inventoryRecipe'), mutate, recipeController.updateCascadeConfig);
 router.patch('/recipes/ingredient/:id', requireFeature('inventoryRecipe'), mutate, recipeController.updateIngredient);
 router.delete('/recipes/ingredient/:id', requireFeature('inventoryRecipe'), mutate, recipeController.removeIngredient);
 

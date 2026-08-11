@@ -27,6 +27,10 @@ interface InventoryItem {
   quantity: string;
   minQuantity: string;
   pricePerUnitBase: string | null;
+  // % aprovechable tras merma/limpieza y % de colchón por fluctuación de precio —
+  // ajustan el costo real que usan recetas y preparaciones.
+  yieldPercent: string;
+  correctionPercent: string;
   photoUrl?: string | null;
   categoryId?: string | null;
   category?: { id: string; name: string } | null;
@@ -38,6 +42,16 @@ interface InventoryItem {
 }
 
 const PACKAGING_TYPE_LABELS: Record<string, string> = { ENVASE: 'Envase', CAJA: 'Caja', BOLSA: 'Bolsa' };
+
+/** Costo real por unidad tras aplicar rendimiento/factor de corrección — mismo cálculo
+ * que src/modules/inventory/costing.ts#resolveCostPerBaseUnit, aquí solo para mostrar. */
+function adjustedCost(item: InventoryItem): string {
+  const price = Number(item.pricePerUnitBase ?? 0);
+  const yieldFraction = Number(item.yieldPercent || 100) / 100;
+  const correction = Number(item.correctionPercent || 0) / 100;
+  if (yieldFraction <= 0) return '0.00';
+  return ((price * (1 + correction)) / yieldFraction).toFixed(2);
+}
 
 const emptyForm = {
   name: '',
@@ -53,6 +67,8 @@ const emptyForm = {
   packagingType: 'ENVASE' as 'ENVASE' | 'CAJA' | 'BOLSA',
   salePrice: '',
   expiryDate: '',
+  yieldPercent: '100',
+  correctionPercent: '0',
 };
 
 /** Inventario: insumos con stock directo ("normal", Pro+), o por receta vinculada al producto (solo Premium). */
@@ -65,6 +81,7 @@ export default function InventoryPage() {
   const showCasaMatriz = isMain && !!restaurant?.casaMatrizEnabled;
   const TABS = [
     { id: 'insumos', label: 'Insumos (normal)' },
+    ...(canRecipes ? [{ id: 'preparaciones', label: 'Preparaciones' }] : []),
     ...(canRecipes ? [{ id: 'recetas', label: 'Recetas' }] : []),
     { id: 'stock', label: 'Stock de productos' },
     { id: 'alertas', label: 'Alertas' },
@@ -129,8 +146,10 @@ export default function InventoryPage() {
           categories={categories}
           onChanged={loadItems}
           onCategoriesChanged={loadCategories}
+          canRecipes={canRecipes}
         />
       )}
+      {tab === 'preparaciones' && canRecipes && <PreparacionesTab insumos={items ?? []} />}
       {tab === 'recetas' && canRecipes && <RecetasTab insumos={items ?? []} />}
       {tab === 'stock' && <StockTab />}
       {tab === 'alertas' && <InventoryAlertsTab />}
@@ -142,6 +161,7 @@ export default function InventoryPage() {
           onChanged={loadCasaMatrizItems}
           onCategoriesChanged={loadCategories}
           showModifierLinkToggle={false}
+          canRecipes={canRecipes}
         />
       )}
       {tab === 'transferencias' && <TransferenciasTab />}
@@ -319,6 +339,7 @@ function InsumosTab({
   onChanged,
   onCategoriesChanged,
   showModifierLinkToggle = true,
+  canRecipes = false,
 }: {
   /** "LOCAL" (Insumos de siempre) o "CASA_MATRIZ" (ventana aparte, ver InventoryPage). */
   locationScope: 'LOCAL' | 'CASA_MATRIZ';
@@ -329,6 +350,9 @@ function InsumosTab({
   /** El interruptor de "Descontar insumos por modificador" es un ajuste único del
    * restaurante — solo tiene sentido mostrarlo una vez, en la pestaña Insumos normal. */
   showModifierLinkToggle?: boolean;
+  /** Rendimiento/factor de corrección solo tienen efecto con Recetas (Premium) — se
+   * ocultan del formulario si el plan no las incluye. */
+  canRecipes?: boolean;
 }) {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
@@ -444,6 +468,8 @@ function InsumosTab({
       packagingType: item.packagingType ?? 'ENVASE',
       salePrice: item.salePriceBase ?? '',
       expiryDate: item.expiryDate ?? '',
+      yieldPercent: item.yieldPercent ?? '100',
+      correctionPercent: item.correctionPercent ?? '0',
     });
   }
 
@@ -475,6 +501,9 @@ function InsumosTab({
         // Cadena vacía = el backend la interpreta como "borrar la fecha".
         expiryDate: form.expiryDate,
         locationScope,
+        ...(canRecipes
+          ? { yieldPercent: Number(form.yieldPercent) || 100, correctionPercent: Number(form.correctionPercent) || 0 }
+          : {}),
       };
       if (editingId) {
         await api.patch(`/inventory/${editingId}`, payload);
@@ -717,6 +746,39 @@ function InsumosTab({
           </label>
         </div>
 
+        {canRecipes && (
+          <div className="grid sm:grid-cols-2 gap-3">
+            <label className="block text-sm">
+              <span className="text-brand-950/70">Rendimiento % (tras merma o limpieza)</span>
+              <input
+                value={form.yieldPercent}
+                onChange={(e) => setForm({ ...form, yieldPercent: e.target.value.replace(/[^0-9.]/g, '') })}
+                placeholder="100"
+                type="number"
+                step="1"
+                min="1"
+                max="100"
+                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              />
+              <span className="block text-xs text-brand-950/40 font-light mt-1">
+                Ej: 90 = de 1 {UNIT_LABELS[form.unit] ?? form.unit} comprado solo 90% sirve. Ajusta el costo real de recetas y preparaciones.
+              </span>
+            </label>
+            <label className="block text-sm">
+              <span className="text-brand-950/70">Factor de corrección % (colchón de precio)</span>
+              <input
+                value={form.correctionPercent}
+                onChange={(e) => setForm({ ...form, correctionPercent: e.target.value.replace(/[^0-9.]/g, '') })}
+                placeholder="0"
+                type="number"
+                step="1"
+                min="0"
+                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              />
+            </label>
+          </div>
+        )}
+
         <div className="rounded-xl border border-brand-950/10 p-4 space-y-3">
           <label className="flex items-center gap-2 text-sm text-brand-950/70">
             <input
@@ -912,6 +974,10 @@ function InsumosTab({
                       {item.quantity} {UNIT_LABELS[item.unit] ?? item.unit} · mínimo {item.minQuantity}{' '}
                       {UNIT_LABELS[item.unit] ?? item.unit}
                       {item.pricePerUnitBase && ` · costo ${symbol}${item.pricePerUnitBase}/${UNIT_LABELS[item.unit] ?? item.unit}`}
+                      {canRecipes &&
+                        item.pricePerUnitBase &&
+                        (Number(item.yieldPercent) !== 100 || Number(item.correctionPercent) !== 0) &&
+                        ` · ajustado ${symbol}${adjustedCost(item)}/${UNIT_LABELS[item.unit] ?? item.unit} (rend. ${item.yieldPercent}%, corr. ${item.correctionPercent}%)`}
                       {item.salePriceBase && ` · venta ${symbol}${item.salePriceBase}`}
                     </p>
                     {minQty > 0 && (
@@ -977,12 +1043,382 @@ interface RecipeOverviewRow {
   totalCostBase: string;
 }
 
+interface PreparationOverviewRow {
+  id: string;
+  name: string;
+  unit: string;
+  unitLabel: string;
+  yieldQuantity: string;
+  ingredientCount: number;
+  totalCostBase: string;
+  costPerBaseUnit: string;
+}
+
+interface PreparationLine {
+  id: string;
+  type: 'insumo' | 'preparacion';
+  inventoryItemId: string | null;
+  componentPreparationId: string | null;
+  name: string;
+  unit: string;
+  quantity: string;
+  costBase: string;
+}
+
+/** Preparaciones (sub-recetas): bases intermedias reutilizables entre platos (fondo, salsa
+ * madre, masa), armadas a partir de insumos y/o de otras preparaciones. No tienen stock
+ * propio — su costo se calcula en vivo y queda disponible como ingrediente en Recetas. */
+function PreparacionesTab({ insumos }: { insumos: InventoryItem[] }) {
+  const { restaurant } = useAuth();
+  const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
+  const [rows, setRows] = useState<PreparationOverviewRow[] | null>(null);
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [newPrep, setNewPrep] = useState({ name: '', unit: 'kg' as 'kg' | 'lt', yieldQuantity: '' });
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    api.get('/inventory/preparations').then((res) => setRows(res.data.data));
+  }
+
+  useEffect(load, []);
+
+  async function createPreparation() {
+    setError(null);
+    if (!newPrep.name.trim() || !newPrep.yieldQuantity) {
+      setError('Completa el nombre y cuánto rinde.');
+      return;
+    }
+    try {
+      // Igual criterio que las cantidades de ingredientes: se escribe en gr/ml (natural para
+      // una preparación) y se convierte a la unidad declarada (kg/lt) antes de guardar.
+      const toBase = (SUB_UNITS[newPrep.unit] ?? [])[1]?.toBase ?? 0.001;
+      const res = await api.post('/inventory/preparations', {
+        name: newPrep.name.trim(),
+        unit: newPrep.unit,
+        yieldQuantity: Number(newPrep.yieldQuantity) * toBase,
+      });
+      setNewPrep({ name: '', unit: 'kg', yieldQuantity: '' });
+      setCreating(false);
+      load();
+      setOpenId(res.data.data.id);
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo crear la preparación.');
+    }
+  }
+
+  return (
+    <div className="space-y-5">
+      {insumos.length === 0 && (
+        <p className="text-sm text-amber-600 bg-amber-50 rounded-xl p-3">
+          Primero agrega insumos en la pestaña "Insumos (normal)": las preparaciones se arman a partir de ellos.
+        </p>
+      )}
+
+      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
+        {rows?.length === 0 && !creating && (
+          <p className="p-5 text-sm text-brand-950/40 font-light">Sin preparaciones todavía.</p>
+        )}
+        {rows?.map((r) => (
+          <div key={r.id} className="flex items-center justify-between gap-3 px-5 py-4">
+            <div className="min-w-0">
+              <p className="font-medium text-brand-950 truncate">{r.name}</p>
+              <p className="text-xs text-brand-950/40 font-light">
+                {r.ingredientCount} ingrediente(s) · Rinde {(Number(r.yieldQuantity) * 1000).toFixed(0)} {r.unit === 'kg' ? 'gr' : 'ml'} ·
+                Costo:{' '}
+                {symbol}
+                {r.totalCostBase} · {symbol}
+                {r.costPerBaseUnit}/{r.unitLabel}
+              </p>
+            </div>
+            <TextureButton variant="minimal" size="sm" className="!w-auto shrink-0" onClick={() => setOpenId(r.id)}>
+              Editar
+            </TextureButton>
+          </div>
+        ))}
+
+        {creating ? (
+          <div className="p-5 space-y-2">
+            <div className="grid sm:grid-cols-3 gap-2">
+              <input
+                value={newPrep.name}
+                onChange={(e) => setNewPrep({ ...newPrep, name: e.target.value })}
+                placeholder="Nombre (ej: Pasta de ajo)"
+                autoFocus
+                className="sm:col-span-2 border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+              />
+              <select
+                value={newPrep.unit}
+                onChange={(e) => setNewPrep({ ...newPrep, unit: e.target.value as 'kg' | 'lt' })}
+                className="border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+              >
+                <option value="kg">Kg</option>
+                <option value="lt">Lt</option>
+              </select>
+            </div>
+            <input
+              value={newPrep.yieldQuantity}
+              onChange={(e) => setNewPrep({ ...newPrep, yieldQuantity: e.target.value.replace(/[^0-9.]/g, '') })}
+              placeholder={`Cuánto rinde, en ${newPrep.unit === 'kg' ? 'gramos' : 'mililitros'}`}
+              className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+            />
+            {error && <p className="text-xs text-red-600">{error}</p>}
+            <div className="flex gap-2">
+              <TextureButton variant="brand" size="sm" className="!w-auto" onClick={createPreparation}>
+                Crear
+              </TextureButton>
+              <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={() => setCreating(false)}>
+                Cancelar
+              </TextureButton>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setCreating(true)}
+            className="flex items-center gap-1.5 text-sm font-medium text-brand-500 hover:underline p-5"
+          >
+            <Plus className="h-4 w-4" /> Nueva preparación
+          </button>
+        )}
+      </div>
+
+      {openId && (
+        <PreparationDialog id={openId} insumos={insumos} preparations={rows ?? []} onClose={() => setOpenId(null)} onSaved={load} />
+      )}
+    </div>
+  );
+}
+
+function PreparationDialog({
+  id,
+  insumos,
+  preparations,
+  onClose,
+  onSaved,
+}: {
+  id: string;
+  insumos: InventoryItem[];
+  preparations: PreparationOverviewRow[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [yieldQuantity, setYieldQuantity] = useState('');
+  const [unit, setUnit] = useState<'kg' | 'lt'>('kg');
+  const [lines, setLines] = useState<PreparationLine[] | null>(null);
+  const [totalCostBase, setTotalCostBase] = useState('0.00');
+  const [adding, setAdding] = useState(false);
+  const [newItem, setNewItem] = useState({ ref: '', quantity: '', subUnit: '' });
+  const [error, setError] = useState<string | null>(null);
+  const [savingYield, setSavingYield] = useState(false);
+
+  // No puede referenciarse a sí misma como ingrediente (evita el ciclo más obvio; el resto
+  // los bloquea el backend).
+  const otherPreparations = preparations.filter((p) => p.id !== id);
+
+  const [refType, refId] = newItem.ref.split(':');
+  const selectedInsumo = refType === 'insumo' ? insumos.find((i) => i.id === refId) : undefined;
+  const selectedPrep = refType === 'prep' ? otherPreparations.find((p) => p.id === refId) : undefined;
+  const selectedUnit = selectedInsumo?.unit ?? selectedPrep?.unit ?? '';
+  const subUnitOptions = selectedUnit ? SUB_UNITS[selectedUnit] ?? [] : [];
+
+  function load() {
+    api.get(`/inventory/preparations/${id}`).then((res) => {
+      setName(res.data.data.name);
+      setUnit(res.data.data.unit);
+      // El backend guarda en la unidad declarada (kg/lt) — se muestra en gr/ml, más natural
+      // para escribir cuánto rinde una preparación.
+      setYieldQuantity((Number(res.data.data.yieldQuantity) * 1000).toString());
+      setLines(res.data.data.ingredients);
+      setTotalCostBase(res.data.data.totalCostBase);
+    });
+  }
+
+  useEffect(load, [id]);
+
+  async function saveYield() {
+    setSavingYield(true);
+    setError(null);
+    try {
+      const toBase = (SUB_UNITS[unit] ?? [])[1]?.toBase ?? 0.001;
+      await api.patch(`/inventory/preparations/${id}`, { yieldQuantity: (Number(yieldQuantity) || 1) * toBase });
+      load();
+      onSaved();
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo guardar el rendimiento.');
+    } finally {
+      setSavingYield(false);
+    }
+  }
+
+  async function addIngredient() {
+    setError(null);
+    if (!newItem.ref || !newItem.quantity || !newItem.subUnit) {
+      setError('Completa ingrediente y cantidad.');
+      return;
+    }
+    const subUnit = subUnitOptions.find((u) => u.value === newItem.subUnit);
+    const quantityInBaseUnit = Number(newItem.quantity) * (subUnit?.toBase ?? 1);
+    try {
+      await api.post(`/inventory/preparations/${id}/ingredients`, {
+        inventoryItemId: refType === 'insumo' ? refId : undefined,
+        componentPreparationId: refType === 'prep' ? refId : undefined,
+        quantity: quantityInBaseUnit,
+      });
+      setNewItem({ ref: '', quantity: '', subUnit: '' });
+      setAdding(false);
+      load();
+      onSaved();
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo agregar el ingrediente.');
+    }
+  }
+
+  async function removeIngredient(lineId: string) {
+    await api.delete(`/inventory/preparations/ingredient/${lineId}`);
+    load();
+    onSaved();
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Preparación: {name}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          {lines?.length === 0 && !adding && (
+            <p className="text-sm text-brand-950/40 font-light">Esta preparación todavía no tiene ingredientes.</p>
+          )}
+
+          <ul className="space-y-2 max-h-64 overflow-y-auto">
+            {lines?.map((l) => (
+              <li key={l.id} className="flex items-center justify-between gap-2 border-b border-brand-950/10 pb-2">
+                <div className="text-sm">
+                  <p className="font-medium text-brand-950 flex items-center gap-1.5">
+                    {l.type === 'preparacion' && <span title="Preparación">🍯</span>}
+                    {l.name}
+                  </p>
+                  <p className="text-xs text-brand-950/50 font-light">
+                    {l.quantity} {UNIT_LABELS[l.unit] ?? l.unit} · $
+                    {l.costBase}
+                  </p>
+                </div>
+                <button onClick={() => removeIngredient(l.id)} className="text-brand-950/30 hover:text-red-600">
+                  <X className="h-4 w-4" />
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          {adding ? (
+            <div className="rounded-xl bg-brand-950/[0.04] p-3 space-y-2">
+              <select
+                value={newItem.ref}
+                onChange={(e) => {
+                  const [t, rid] = e.target.value.split(':');
+                  const item = t === 'insumo' ? insumos.find((i) => i.id === rid) : otherPreparations.find((p) => p.id === rid);
+                  const u = t === 'insumo' ? (item as InventoryItem | undefined)?.unit : (item as PreparationOverviewRow | undefined)?.unit;
+                  const defaultSubUnit = u ? (SUB_UNITS[u] ?? [])[0]?.value ?? '' : '';
+                  setNewItem({ ref: e.target.value, quantity: '', subUnit: defaultSubUnit });
+                }}
+                className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+              >
+                <option value="">Ingrediente…</option>
+                <optgroup label="Insumos">
+                  {insumos.map((i) => (
+                    <option key={i.id} value={`insumo:${i.id}`}>
+                      {i.name} ({UNIT_LABELS[i.unit] ?? i.unit})
+                    </option>
+                  ))}
+                </optgroup>
+                {otherPreparations.length > 0 && (
+                  <optgroup label="Preparaciones">
+                    {otherPreparations.map((p) => (
+                      <option key={p.id} value={`prep:${p.id}`}>
+                        🍯 {p.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  value={newItem.quantity}
+                  onChange={(e) => setNewItem({ ...newItem, quantity: e.target.value.replace(/[^0-9.]/g, '') })}
+                  placeholder="Cantidad usada"
+                  className="border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+                />
+                <select
+                  value={newItem.subUnit}
+                  onChange={(e) => setNewItem({ ...newItem, subUnit: e.target.value })}
+                  disabled={!selectedUnit}
+                  className="border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm disabled:opacity-50"
+                >
+                  {subUnitOptions.map((u) => (
+                    <option key={u.value} value={u.value}>
+                      {u.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <p className="text-xs text-brand-950/40">El costo se calcula automáticamente según el precio/rendimiento del ingrediente.</p>
+              {error && <p className="text-xs text-red-600">{error}</p>}
+              <div className="flex gap-2">
+                <TextureButton variant="brand" size="sm" className="!w-auto" onClick={addIngredient}>
+                  Guardar ingrediente
+                </TextureButton>
+                <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={() => setAdding(false)}>
+                  Cancelar
+                </TextureButton>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setAdding(true)}
+              className="flex items-center gap-1.5 text-sm font-medium text-brand-500 hover:underline"
+            >
+              <Plus className="h-4 w-4" /> Añadir ingrediente
+            </button>
+          )}
+
+          <div className="pt-3 border-t border-brand-950/10 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-brand-950/60">Costo total de ingredientes</span>
+              <span className="text-lg font-semibold text-brand-950">${totalCostBase}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-sm text-brand-950/70 shrink-0">
+                Esta preparación rinde ({unit === 'kg' ? 'gr' : 'ml'})
+              </label>
+              <input
+                value={yieldQuantity}
+                onChange={(e) => setYieldQuantity(e.target.value.replace(/[^0-9.]/g, ''))}
+                className="w-24 border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+              />
+              <TextureButton variant="minimal" size="sm" className="!w-auto" disabled={savingYield} onClick={saveYield}>
+                Guardar
+              </TextureButton>
+            </div>
+            <p className="text-xs text-brand-950/40 font-light">
+              Si entraron más gramos de insumos de los que rinde (merma al cocinar), el costo se reparte entre lo que realmente
+              queda.
+            </p>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function RecetasTab({ insumos }: { insumos: InventoryItem[] }) {
   const [rows, setRows] = useState<RecipeOverviewRow[] | null>(null);
+  const [preparations, setPreparations] = useState<PreparationOverviewRow[]>([]);
   const [openProductId, setOpenProductId] = useState<string | null>(null);
 
   function load() {
     api.get('/inventory/recipes').then((res) => setRows(res.data.data));
+    api.get('/inventory/preparations').then((res) => setPreparations(res.data.data));
   }
 
   useEffect(load, []);
@@ -1025,7 +1461,13 @@ function RecetasTab({ insumos }: { insumos: InventoryItem[] }) {
       </div>
 
       {openProductId && (
-        <RecipeDialog productId={openProductId} insumos={insumos} onClose={() => setOpenProductId(null)} onSaved={load} />
+        <RecipeDialog
+          productId={openProductId}
+          insumos={insumos}
+          preparations={preparations}
+          onClose={() => setOpenProductId(null)}
+          onSaved={load}
+        />
       )}
     </div>
   );
@@ -1033,10 +1475,12 @@ function RecetasTab({ insumos }: { insumos: InventoryItem[] }) {
 
 interface RecipeLine {
   id: string;
-  inventoryItemId: string;
-  inventoryItemName: string;
+  type: 'insumo' | 'preparacion';
+  inventoryItemId: string | null;
+  preparationId: string | null;
+  name: string;
   unit: string;
-  stockQuantity: string;
+  stockQuantity: string | null;
   quantity: string;
   costBase: string;
 }
@@ -1044,11 +1488,13 @@ interface RecipeLine {
 function RecipeDialog({
   productId,
   insumos,
+  preparations,
   onClose,
   onSaved,
 }: {
   productId: string;
   insumos: InventoryItem[];
+  preparations: PreparationOverviewRow[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -1056,7 +1502,7 @@ function RecipeDialog({
   const [lines, setLines] = useState<RecipeLine[] | null>(null);
   const [totalCostBase, setTotalCostBase] = useState('0.00');
   const [adding, setAdding] = useState(false);
-  const [newItem, setNewItem] = useState({ inventoryItemId: '', quantity: '', subUnit: '' });
+  const [newItem, setNewItem] = useState({ ref: '', quantity: '', subUnit: '' });
   const [error, setError] = useState<string | null>(null);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -1065,8 +1511,11 @@ function RecipeDialog({
   );
   const importInputRef = useRef<HTMLInputElement>(null);
 
-  const selectedInsumo = insumos.find((i) => i.id === newItem.inventoryItemId);
-  const subUnitOptions = selectedInsumo ? SUB_UNITS[selectedInsumo.unit] ?? SUB_UNITS.unidad : [];
+  const [refType, refId] = newItem.ref.split(':');
+  const selectedInsumo = refType === 'insumo' ? insumos.find((i) => i.id === refId) : undefined;
+  const selectedPrep = refType === 'prep' ? preparations.find((p) => p.id === refId) : undefined;
+  const selectedUnit = selectedInsumo?.unit ?? selectedPrep?.unit ?? '';
+  const subUnitOptions = selectedUnit ? SUB_UNITS[selectedUnit] ?? SUB_UNITS.unidad : [];
 
   function load() {
     api.get(`/inventory/recipes/${productId}`).then((res) => {
@@ -1080,18 +1529,19 @@ function RecipeDialog({
 
   async function addIngredient() {
     setError(null);
-    if (!newItem.inventoryItemId || !newItem.quantity || !newItem.subUnit) {
-      setError('Completa insumo y cantidad.');
+    if (!newItem.ref || !newItem.quantity || !newItem.subUnit) {
+      setError('Completa ingrediente y cantidad.');
       return;
     }
     const subUnit = subUnitOptions.find((u) => u.value === newItem.subUnit);
     const quantityInBaseUnit = Number(newItem.quantity) * (subUnit?.toBase ?? 1);
     try {
       await api.post(`/inventory/recipes/${productId}`, {
-        inventoryItemId: newItem.inventoryItemId,
+        inventoryItemId: refType === 'insumo' ? refId : undefined,
+        preparationId: refType === 'prep' ? refId : undefined,
         quantity: quantityInBaseUnit,
       });
-      setNewItem({ inventoryItemId: '', quantity: '', subUnit: '' });
+      setNewItem({ ref: '', quantity: '', subUnit: '' });
       setAdding(false);
       load();
       onSaved();
@@ -1194,9 +1644,13 @@ function RecipeDialog({
             {lines?.map((l) => (
               <li key={l.id} className="flex items-center justify-between gap-2 border-b border-brand-950/10 pb-2">
                 <div className="text-sm">
-                  <p className="font-medium text-brand-950">{l.inventoryItemName}</p>
+                  <p className="font-medium text-brand-950 flex items-center gap-1.5">
+                    {l.type === 'preparacion' && <span title="Preparación">🍯</span>}
+                    {l.name}
+                  </p>
                   <p className="text-xs text-brand-950/50 font-light">
-                    {l.quantity} {l.unit} · ${l.costBase}
+                    {l.quantity} {UNIT_LABELS[l.unit] ?? l.unit} · $
+                    {l.costBase}
                   </p>
                 </div>
                 <button onClick={() => removeIngredient(l.id)} className="text-brand-950/30 hover:text-red-600">
@@ -1209,20 +1663,33 @@ function RecipeDialog({
           {adding ? (
             <div className="rounded-xl bg-brand-950/[0.04] p-3 space-y-2">
               <select
-                value={newItem.inventoryItemId}
+                value={newItem.ref}
                 onChange={(e) => {
-                  const item = insumos.find((i) => i.id === e.target.value);
-                  const defaultSubUnit = item ? (SUB_UNITS[item.unit] ?? SUB_UNITS.unidad)[0].value : '';
-                  setNewItem({ inventoryItemId: e.target.value, quantity: '', subUnit: defaultSubUnit });
+                  const [t, rid] = e.target.value.split(':');
+                  const item = t === 'insumo' ? insumos.find((i) => i.id === rid) : preparations.find((p) => p.id === rid);
+                  const u = t === 'insumo' ? (item as InventoryItem | undefined)?.unit : (item as PreparationOverviewRow | undefined)?.unit;
+                  const defaultSubUnit = u ? (SUB_UNITS[u] ?? SUB_UNITS.unidad)[0]?.value ?? '' : '';
+                  setNewItem({ ref: e.target.value, quantity: '', subUnit: defaultSubUnit });
                 }}
                 className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
               >
-                <option value="">Insumo…</option>
-                {insumos.map((i) => (
-                  <option key={i.id} value={i.id}>
-                    {i.name} ({UNIT_LABELS[i.unit] ?? i.unit})
-                  </option>
-                ))}
+                <option value="">Ingrediente…</option>
+                <optgroup label="Insumos">
+                  {insumos.map((i) => (
+                    <option key={i.id} value={`insumo:${i.id}`}>
+                      {i.name} ({UNIT_LABELS[i.unit] ?? i.unit})
+                    </option>
+                  ))}
+                </optgroup>
+                {preparations.length > 0 && (
+                  <optgroup label="Preparaciones">
+                    {preparations.map((p) => (
+                      <option key={p.id} value={`prep:${p.id}`}>
+                        🍯 {p.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
               <div className="grid grid-cols-2 gap-2">
                 <input
@@ -1234,7 +1701,7 @@ function RecipeDialog({
                 <select
                   value={newItem.subUnit}
                   onChange={(e) => setNewItem({ ...newItem, subUnit: e.target.value })}
-                  disabled={!selectedInsumo}
+                  disabled={!selectedUnit}
                   className="border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm disabled:opacity-50"
                 >
                   {subUnitOptions.map((u) => (
@@ -1244,7 +1711,7 @@ function RecipeDialog({
                   ))}
                 </select>
               </div>
-              <p className="text-xs text-brand-950/40">El costo se calcula automáticamente según el precio del insumo.</p>
+              <p className="text-xs text-brand-950/40">El costo se calcula automáticamente según el precio/rendimiento del ingrediente.</p>
               {error && <p className="text-xs text-red-600">{error}</p>}
               <div className="flex gap-2">
                 <TextureButton variant="brand" size="sm" className="!w-auto" onClick={addIngredient}>
@@ -1268,9 +1735,185 @@ function RecipeDialog({
             <span className="text-sm text-brand-950/60">Costo total del producto</span>
             <span className="text-lg font-semibold text-brand-950">${totalCostBase}</span>
           </div>
+
+          <PriceCascadeSection productId={productId} />
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+interface CascadeData {
+  costoMP: string;
+  resguardoPercent: string;
+  resguardo: string;
+  costoReceta: string;
+  targetFoodCostPercent: string;
+  baseSugerida: string;
+  servicioPercent: number;
+  servicioInfo: string;
+  ivaPercent: number;
+  ivaInfo: string;
+  pvpSugeridoConImpuestos: string;
+  precioActual: string;
+  foodCostReal: string;
+  margen: string;
+}
+
+/** Cascada de precio sugerido: costo -> resguardo -> food cost objetivo -> PVP sugerido,
+ * comparado contra el precio actual del producto. Colapsable para no saturar el diálogo de
+ * receta cuando el usuario solo quiere agregar ingredientes. */
+function PriceCascadeSection({ productId }: { productId: string }) {
+  const { restaurant } = useAuth();
+  const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
+  const [open, setOpen] = useState(false);
+  const [data, setData] = useState<CascadeData | null>(null);
+  const [resguardo, setResguardo] = useState('');
+  const [targetFoodCost, setTargetFoodCost] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  function load() {
+    api.get(`/inventory/recipes/${productId}/cascade`).then((res) => {
+      setData(res.data.data);
+      setResguardo(res.data.data.resguardoPercent);
+      setTargetFoodCost(res.data.data.targetFoodCostPercent);
+    });
+  }
+
+  useEffect(() => {
+    if (open && !data) load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  async function save() {
+    setSaving(true);
+    try {
+      const res = await api.patch(`/inventory/recipes/${productId}/cascade`, {
+        recipeBufferPercent: Number(resguardo) || 0,
+        recipeTargetFoodCostPercent: Number(targetFoodCost) || 40,
+      });
+      setData(res.data.data);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const foodCostNum = data ? Number(data.foodCostReal) : 0;
+  const targetNum = data ? Number(data.targetFoodCostPercent) : 40;
+  const foodCostColor = foodCostNum <= targetNum ? 'text-emerald-600' : foodCostNum <= targetNum + 10 ? 'text-amber-600' : 'text-red-600';
+
+  return (
+    <div className="pt-3 border-t border-brand-950/10">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-1.5 text-sm font-medium text-brand-500 hover:underline"
+      >
+        Precio sugerido {open ? '▲' : '▼'}
+      </button>
+      {open && (
+        <div className="mt-3 space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block text-xs">
+              <span className="text-brand-950/60">Resguardo % (fallas al emplatar)</span>
+              <input
+                value={resguardo}
+                onChange={(e) => setResguardo(e.target.value.replace(/[^0-9.]/g, ''))}
+                className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+              />
+            </label>
+            <label className="block text-xs">
+              <span className="text-brand-950/60">Food cost objetivo %</span>
+              <input
+                value={targetFoodCost}
+                onChange={(e) => setTargetFoodCost(e.target.value.replace(/[^0-9.]/g, ''))}
+                className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+              />
+            </label>
+          </div>
+          <TextureButton variant="minimal" size="sm" className="!w-auto" disabled={saving} onClick={save}>
+            {saving ? 'Guardando…' : 'Recalcular'}
+          </TextureButton>
+
+          {data && (
+            <div className="rounded-xl bg-brand-950/[0.04] p-3 space-y-1.5 text-xs">
+              <div className="flex justify-between">
+                <span className="text-brand-950/60">Costo materia prima</span>
+                <span className="font-medium text-brand-950">
+                  {symbol}
+                  {data.costoMP}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-brand-950/60">Resguardo {data.resguardoPercent}%</span>
+                <span className="font-medium text-brand-950">
+                  {symbol}
+                  {data.resguardo}
+                </span>
+              </div>
+              <div className="flex justify-between font-semibold">
+                <span className="text-brand-950">Costo de la receta</span>
+                <span className="text-brand-950">
+                  {symbol}
+                  {data.costoReceta}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-brand-950/60">Base sugerida (FC {data.targetFoodCostPercent}%)</span>
+                <span className="font-medium text-brand-950">
+                  {symbol}
+                  {data.baseSugerida}
+                </span>
+              </div>
+              {data.servicioPercent > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-brand-950/60">+ Servicio {data.servicioPercent}%</span>
+                  <span className="font-medium text-brand-950">
+                    {symbol}
+                    {data.servicioInfo}
+                  </span>
+                </div>
+              )}
+              {data.ivaPercent > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-brand-950/60">+ IVA {data.ivaPercent}%</span>
+                  <span className="font-medium text-brand-950">
+                    {symbol}
+                    {data.ivaInfo}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between font-semibold pt-1 border-t border-brand-950/10">
+                <span className="text-brand-500">PVP sugerido</span>
+                <span className="text-brand-500">
+                  {symbol}
+                  {data.baseSugerida}
+                  {(data.servicioPercent > 0 || data.ivaPercent > 0) && ` (${symbol}${data.pvpSugeridoConImpuestos} con imp.)`}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-brand-950/60">Precio actual del producto</span>
+                <span className="font-medium text-brand-950">
+                  {symbol}
+                  {data.precioActual}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-brand-950/60">Food cost teórico real</span>
+                <span className={`font-semibold ${foodCostColor}`}>{data.foodCostReal}%</span>
+              </div>
+              <div className="flex justify-between font-semibold">
+                <span className="text-brand-950">Margen de contribución</span>
+                <span className={Number(data.margen) >= 0 ? 'text-emerald-600' : 'text-red-600'}>
+                  {symbol}
+                  {data.margen}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

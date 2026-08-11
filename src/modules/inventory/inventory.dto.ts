@@ -29,6 +29,10 @@ export const createInventoryItemSchema = z.object({
   // "LOCAL" (de siempre) = insumo normal de esta sede; "CASA_MATRIZ" = ventana aparte,
   // solo disponible en la sede principal cuando Restaurant.casaMatrizEnabled está activo.
   locationScope: z.enum(['LOCAL', 'CASA_MATRIZ']).optional().default('LOCAL'),
+  // % aprovechable tras merma/limpieza y % de colchón por fluctuación de precio — ajustan
+  // el costo real que usan recetas y preparaciones (ver src/modules/inventory/costing.ts).
+  yieldPercent: z.coerce.number().positive('El rendimiento debe ser mayor a 0.').max(100, 'El rendimiento no puede superar 100%.').optional(),
+  correctionPercent: z.coerce.number().min(0, 'El factor de corrección no puede ser negativo.').optional(),
 });
 
 export const updateInventoryItemSchema = createInventoryItemSchema.partial();
