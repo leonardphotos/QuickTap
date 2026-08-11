@@ -22,6 +22,10 @@ export const NUMERO_ROLES: UserRole[] = ['NUMERO'];
 // Cancha: tablet fija en una cancha de un club. El jugador escanea el QR de su
 // reserva y pide desde ahí; lo consumido se cobra en la Caja del club.
 export const CANCHA_ROLES: UserRole[] = ['CANCHA'];
+// Profesor de la academia. No se recicla WAITER: ese arrastra Cocina y Órdenes de
+// Mesa, que en un club no significan nada. Solo ve su agenda, pasa lista y consulta
+// sus honorarios.
+export const COACH_ROLES: UserRole[] = ['COACH'];
 export const TEAM_MANAGER_ROLES: UserRole[] = ['OWNER', 'ADMIN'];
 // Quién puede condonar/descontar saldo al cobrar (campo "Descuento %" en Pagar/Pago fraccionado).
 export const DISCOUNT_ROLES: UserRole[] = ['OWNER', 'ADMIN'];
@@ -34,11 +38,12 @@ export const ASSIGNABLE_TEAM_ROLES: UserRole[] = [
   'COMANDA',
   'NUMERO',
   'CANCHA',
+  'COACH',
 ];
 // Roles a los que aplica la Pantalla de bloqueo — se excluyen SCREEN/COMANDA/NUMERO/CANCHA
 // (dispositivos compartidos: TV de cocina, kiosco de autoservicio, ticker de "listo",
-// tablet de la cancha).
-export const LOCK_SCREEN_ROLES: UserRole[] = ['OWNER', 'ADMIN', 'CASHIER', 'STAFF', 'WAITER', 'KITCHEN'];
+// tablet de la cancha). COACH sí entra: es la sesión personal de una persona.
+export const LOCK_SCREEN_ROLES: UserRole[] = ['OWNER', 'ADMIN', 'CASHIER', 'STAFF', 'WAITER', 'KITCHEN', 'COACH'];
 export const DEFAULT_LOCK_SCREEN_MINUTES = 5;
 
 export const ROLE_LABELS: Record<UserRole, string> = {
@@ -52,6 +57,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   COMANDA: 'Comanda',
   NUMERO: 'Numero',
   CANCHA: 'Cancha',
+  COACH: 'Profesor',
 };
 
 // Rutas visibles según el rol. "*" habilita todas las rutas del admin.

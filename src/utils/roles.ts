@@ -42,6 +42,12 @@ export const DISCOUNT_ROLES = ['OWNER', 'ADMIN'] as const;
 // en la Caja del club. Solo existe en tenants SPORTS_CLUB.
 export const CANCHA_ROLES = ['CANCHA'] as const;
 
+// Profesor de la academia (club deportivo). NO se recicla WAITER: ese rol arrastra
+// acceso a Cocina y Órdenes de Mesa (RESTRICTED_ROLES), que en un club no significan
+// nada. Alcance: su propia agenda, pasar lista y consultar sus honorarios — siempre
+// filtrado por el coachId que sale de su userId en el token, nunca de un parámetro.
+export const COACH_ROLES = ['COACH'] as const;
+
 // Roles asignables desde la UI de Equipo (OWNER/STAFF no se asignan ahí).
 export const ASSIGNABLE_TEAM_ROLES = [
   'ADMIN',
@@ -52,13 +58,14 @@ export const ASSIGNABLE_TEAM_ROLES = [
   'COMANDA',
   'NUMERO',
   'CANCHA',
+  'COACH',
 ] as const;
 
 // Roles a los que aplica la Pantalla de bloqueo (PIN de 4 dígitos). Se excluyen
 // SCREEN/COMANDA/NUMERO/CANCHA porque son dispositivos compartidos de un solo uso (TV de cocina,
 // kiosco de autoservicio, ticker de "listo", tablet de la cancha) — bloquearlos periódicamente
 // interrumpiría a clientes/pantallas públicas en vez de proteger la sesión de un miembro del equipo.
-export const LOCK_SCREEN_ROLES = ['OWNER', 'ADMIN', 'CASHIER', 'STAFF', 'WAITER', 'KITCHEN'] as const;
+export const LOCK_SCREEN_ROLES = ['OWNER', 'ADMIN', 'CASHIER', 'STAFF', 'WAITER', 'KITCHEN', 'COACH'] as const;
 
 // Minutos de inactividad por defecto cuando el rol no tiene un valor propio en
 // Restaurant.lockScreenIntervals.

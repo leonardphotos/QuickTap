@@ -1,5 +1,5 @@
 import { lazy, Suspense, useState } from 'react';
-import { LayoutGrid, QrCode, Settings, ShoppingBag, Wallet } from 'lucide-react';
+import { GraduationCap, LayoutGrid, QrCode, Settings, ShoppingBag, Users, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { cn } from '@/lib/utils';
 
@@ -9,11 +9,15 @@ const ClubStorePage = lazy(() => import('./ClubStorePage'));
 const ClubAdminPage = lazy(() => import('./ClubAdminPage'));
 const ClubCheckInPage = lazy(() => import('./ClubCheckInPage'));
 const ClubSettingsPage = lazy(() => import('./ClubSettingsPage'));
+const ClubAcademyPage = lazy(() => import('./academia/ClubAcademyPage'));
+const ClubPlayersPage = lazy(() => import('./jugadores/ClubPlayersPage'));
 
-export type ClubScreen = 'canchas' | 'tienda' | 'admin' | 'acceso' | 'ajustes';
+export type ClubScreen = 'canchas' | 'academia' | 'jugadores' | 'tienda' | 'admin' | 'acceso' | 'ajustes';
 
 const TABS: { id: ClubScreen; label: string; icon: typeof LayoutGrid }[] = [
   { id: 'canchas', label: 'Canchas', icon: LayoutGrid },
+  { id: 'academia', label: 'Academia', icon: GraduationCap },
+  { id: 'jugadores', label: 'Jugadores', icon: Users },
   { id: 'tienda', label: 'Tienda', icon: ShoppingBag },
   { id: 'admin', label: 'Administración', icon: Wallet },
   { id: 'acceso', label: 'Acceso', icon: QrCode },
@@ -101,6 +105,8 @@ export default function ClubLayout() {
                 canPay={isAdmin || user.role === 'CASHIER'}
               />
             ))}
+          {active === 'academia' && <ClubAcademyPage restaurant={restaurant} isAdmin={isAdmin} />}
+          {active === 'jugadores' && <ClubPlayersPage restaurant={restaurant} isAdmin={isAdmin} />}
           {active === 'tienda' && <ClubStorePage restaurant={restaurant} canSeeMoney={isAdmin || user.role === 'CASHIER'} />}
           {active === 'admin' && <ClubAdminPage restaurant={restaurant} canSeeMoney={isAdmin} />}
           {active === 'acceso' && <ClubCheckInPage />}

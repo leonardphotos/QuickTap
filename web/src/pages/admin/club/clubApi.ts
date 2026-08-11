@@ -168,7 +168,10 @@ export const clubApi = {
     playerIdNumber?: string;
     playerCount?: number;
   }) => api.post<{ data: ClubBooking }>('/club/bookings', body).then((r) => r.data.data),
-  cancelBooking: (id: string) => api.patch<{ data: ClubBooking }>(`/club/bookings/${id}/cancel`).then((r) => r.data.data),
+  /** El motivo es obligatorio en el backend: es lo que después distingue una
+   * cancelación legítima de una ausencia encubierta. */
+  cancelBooking: (id: string, reason: string) =>
+    api.patch<{ data: ClubBooking }>(`/club/bookings/${id}/cancel`, { reason }).then((r) => r.data.data),
   checkIn: (accessToken: string) =>
     api
       .post<{ data: { booking: ClubBooking; alreadyCheckedIn: boolean } }>(`/club/bookings/check-in/${accessToken}`)

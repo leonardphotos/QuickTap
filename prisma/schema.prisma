@@ -35,6 +35,7 @@ enum UserRole {
   COMANDA // Kiosco de autoservicio (tablet en modo tótem, el cliente pide sin mesero)
   NUMERO // Pantalla que solo muestra avisos de "listo" de Autoservicio/Pickup (mostrador)
   CANCHA // Tablet fija en una cancha (club deportivo): el jugador escanea su QR y pide desde ahí
+  COACH // Profesor de la academia: solo su agenda, pasar lista y sus honorarios
 }
 
 enum TableSessionStatus {
@@ -545,6 +546,27 @@ model Restaurant {
   clubTabOrdersToPrepare ClubTabOrder[]       @relation("ClubTabOrderKitchen")
   clubTournaments        ClubTournament[]
 
+  // --- Academia de pádel (ver docs/ACADEMIA-PADEL.md) ---
+  academySettings     ClubAcademySettings?
+  clubCoaches         ClubCoach[]
+  clubClassGroups     ClubClassGroup[]
+  clubClassSessions   ClubClassSession[]
+  clubStudents        ClubStudent[]
+  clubEnrollments     ClubEnrollment[]
+  clubClassPackages   ClubClassPackage[]
+  clubClassCredits    ClubClassCreditEntry[]
+  clubAcademyPayments ClubAcademyPayment[]
+  clubAcademyCharges  ClubAcademyCharge[]
+  clubCoachPayouts    ClubCoachPayout[]
+
+  // --- Jugadores: cuenta, verificación, lista negra y puntos ---
+  clubBookingSettings    ClubBookingSettings?
+  clubPhoneVerifications ClubPhoneVerification[]
+  clubPlayerAccounts     ClubPlayerAccount[]
+  clubBlacklist          ClubBlacklistEntry[]
+  clubLoyaltyEntries     ClubLoyaltyEntry[]
+  clubPlayInvites        ClubPlayInvite[]
+
   @@index([parentRestaurantId])
   @@map("restaurants")
 }
@@ -644,16 +666,21 @@ model User {
   // registre igual en el local. Null = se cobra con los datos del local.
   paymentMethodsConfig Json?
 
-  restaurant         Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  clubCourt          ClubCourt?    @relation("UserClubCourt", fields: [clubCourtId], references: [id], onDelete: SetNull)
-  placedOrders       Order[]       @relation("OrderPlacedBy")
-  acceptedOrders     Order[]       @relation("OrderAcceptedBy")
-  assignedTables     Table[]       @relation("TableAssignedWaiter")
-  movements          Movement[]
-  paymentOrdersCreated PaymentOrder[] @relation("PaymentOrderCreatedBy")
-  paymentOrdersPaid    PaymentOrder[] @relation("PaymentOrderPaidBy")
-  cashSessionsOpened CashSession[] @relation("CashSessionOpenedBy")
-  cashSessionsClosed CashSession[] @relation("CashSessionClosedBy")
+  restaurant           Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  clubCourt            ClubCourt?           @relation("UserClubCourt", fields: [clubCourtId], references: [id], onDelete: SetNull)
+  placedOrders         Order[]              @relation("OrderPlacedBy")
+  acceptedOrders       Order[]              @relation("OrderAcceptedBy")
+  assignedTables       Table[]              @relation("TableAssignedWaiter")
+  movements            Movement[]
+  paymentOrdersCreated PaymentOrder[]       @relation("PaymentOrderCreatedBy")
+  paymentOrdersPaid    PaymentOrder[]       @relation("PaymentOrderPaidBy")
+  cashSessionsOpened   CashSession[]        @relation("CashSessionOpenedBy")
+  cashSessionsClosed   CashSession[]        @relation("CashSessionClosedBy")
+  // Academia: ficha de profesor (si este usuario da clases), listas que pasó y
+  // cobros que recibió.
+  clubCoachProfile     ClubCoach?           @relation("ClubCoachUser")
+  clubAttendanceMarked ClubAttendance[]     @relation("ClubAttendanceMarkedBy")
+  clubAcademyPayments  ClubAcademyPayment[] @relation("ClubAcademyPaymentReceivedBy")
 
   // El email es único DENTRO de cada restaurante (no globalmente); mismo criterio
   // para googleId (una cuenta de Google puede ser dueña de un restaurante y también
@@ -1495,11 +1522,11 @@ model Employee {
   id           String @id @default(cuid())
   restaurantId String
 
-  name     String
+  name       String
   /// Cargo, texto libre: cada negocio nombra distinto los suyos.
-  position String?
-  phone    String?
-  idNumber String?
+  position   String?
+  phone      String?
+  idNumber   String?
   /// Sueldo acordado, como referencia al pagar. No dispara nada solo: los pagos se
   /// registran a mano (ver EmployeePayment), porque casi nunca coinciden exactos.
   salaryBase Decimal? @db.Decimal(12, 2)
@@ -1510,6 +1537,8 @@ model Employee {
 
   restaurant Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   payments   EmployeePayment[]
+  /// Si este empleado además da clases en la academia.
+  clubCoach  ClubCoach[]
 
   @@index([restaurantId, active])
   @@map("employees")
@@ -1523,10 +1552,10 @@ model EmployeePayment {
   restaurantId String
   employeeId   String
 
-  amountBase Decimal        @db.Decimal(12, 2)
+  amountBase    Decimal        @db.Decimal(12, 2)
   /// Qué período cubre, texto libre ("Agosto 2026", "1ra quincena"). Libre porque cada
   /// negocio paga con su propio ritmo y encasillarlo obligaría a inventar reglas.
-  periodLabel String?
+  periodLabel   String?
   paymentMethod PaymentMethod?
   note          String?
 
@@ -1566,7 +1595,7 @@ model PaymentOrder {
   orderNumber Int
   supplierId  String?
 
-  status PaymentOrderStatus @default(PENDING)
+  status     PaymentOrderStatus @default(PENDING)
   /// Congelado al emitirla: la suma de los gastos incluidos en ese momento. No se recalcula
   /// después, para que el documento diga siempre lo que se autorizó.
   amountBase Decimal            @db.Decimal(12, 2)
@@ -1630,9 +1659,16 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurant        Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   // Historial de cancha del jugador (vertical SPORTS_CLUB).
-  clubBookings ClubBooking[]
+  clubBookings      ClubBooking[]
+  /// Ficha de academia, si además es alumno. La identidad es esta misma: el
+  /// alumno no es una persona distinta del jugador que alquila cancha.
+  clubStudent       ClubStudent?
+  /// Cuenta de jugador, lista negra y puntos de fidelización.
+  clubPlayerAccount ClubPlayerAccount?
+  clubBlacklist     ClubBlacklistEntry[]
+  clubLoyalty       ClubLoyaltyEntry[]
 
   @@unique([restaurantId, phone])
   @@index([restaurantId, name])
@@ -1926,17 +1962,17 @@ model PromoCode {
 // Configuración global (no por restaurante) de la plataforma: datos de pago
 // mostrados en la pasarela manual. Fila única, JSON flexible.
 model PlatformSettings {
-  id                   String  @id @default("singleton")
+  id                   String   @id @default("singleton")
   paymentMethods       Json?
   // Interruptores globales de la pasarela de pago (landing + billing autenticado).
   // Si se apagan ambos, PaymentForm no deja pagar hasta que se reactive uno.
-  ramblayEnabled       Boolean @default(true)
-  manualPaymentEnabled Boolean @default(true)
+  ramblayEnabled       Boolean  @default(true)
+  manualPaymentEnabled Boolean  @default(true)
   // Interruptor global de los botones "Mejorar con IA" / "Fondo blanco con IA"
   // (ai-photo-service, facturado con una sola API key de Gemini pagada por
   // QuickTap, no por restaurante) — apagarlo bloquea ambos botones en todos
   // los restaurantes y locales a la vez.
-  aiPhotoEnabled       Boolean @default(true)
+  aiPhotoEnabled       Boolean  @default(true)
   // Precios/descripción editables por plan desde el Dashboard maestro. Parcial
   // (solo los planes que el master haya tocado); se fusiona con los valores
   // por defecto en platform-settings.service.ts al leer.
@@ -2736,11 +2772,14 @@ model ClubCourt {
   sortOrder    Int           @default(0)
   createdAt    DateTime      @default(now())
 
-  restaurant Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  schedules  ClubSchedule[]
-  blocks     ClubCourtBlock[]
+  restaurant    Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  schedules     ClubSchedule[]
+  blocks        ClubCourtBlock[]
   /// Tablets fijas montadas en esta cancha (rol CANCHA).
-  tablets    User[]           @relation("UserClubCourt")
+  tablets       User[]             @relation("UserClubCourt")
+  // Academia: franjas recurrentes asignadas y sesiones dadas en esta cancha.
+  classSlots    ClubClassSlot[]
+  classSessions ClubClassSession[]
 
   @@index([restaurantId, active])
   @@map("club_courts")
@@ -2795,9 +2834,11 @@ model ClubCourtBlock {
   note      String? // Motivo del mantenimiento, nombre del torneo, etc.
   createdAt DateTime @default(now())
 
-  restaurant Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  court      ClubCourt    @relation(fields: [courtId], references: [id], onDelete: Cascade)
-  booking    ClubBooking?
+  restaurant   Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  court        ClubCourt         @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  booking      ClubBooking?
+  /// La clase de academia que ocupa este bloque, cuando kind = CLASS.
+  classSession ClubClassSession?
 
   @@index([restaurantId, startsAt])
   @@index([courtId, startsAt])
@@ -2852,17 +2893,30 @@ model ClubBooking {
   // datos de la reserva, solo identifica. El servidor resuelve y valida.
   accessToken String @unique
 
-  checkedInAt DateTime? // Lo marca el escáner de recepción
-  cancelledAt DateTime?
-  createdAt   DateTime  @default(now())
+  /// Cuenta de jugador que hizo la reserva, si reservó estando identificado.
+  /// Opcional a propósito: reservar sin cuenta tiene que seguir funcionando.
+  playerAccountId String?
+  /// Cuándo se validó el código de WhatsApp de este teléfono.
+  verifiedPhoneAt DateTime?
 
-  restaurant Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  block      ClubCourtBlock       @relation(fields: [blockId], references: [id], onDelete: Cascade)
-  customer   Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  payments   ClubBookingPayment[]
+  checkedInAt  DateTime? // Lo marca el escáner de recepción
+  cancelledAt  DateTime?
+  /// Por qué se canceló y quién lo hizo (STAFF | PLAYER). El motivo es lo que
+  /// permite distinguir una cancelación legítima de una ausencia encubierta.
+  cancelReason String?
+  cancelledBy  String?
+  createdAt    DateTime  @default(now())
+
+  restaurant     Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  block          ClubCourtBlock       @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  customer       Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  playerAccount  ClubPlayerAccount?   @relation(fields: [playerAccountId], references: [id], onDelete: SetNull)
+  payments       ClubBookingPayment[]
+  loyaltyEntries ClubLoyaltyEntry[]
+  invites        ClubPlayInvite[]
   // Lo que el jugador fue pidiendo desde la tablet de la cancha. Se cobra junto
   // con la cancha en la misma Caja — ver `withBookingMoney` en club.service.ts.
-  tabOrders  ClubTabOrder[]
+  tabOrders      ClubTabOrder[]
 
   @@index([restaurantId, status])
   @@index([restaurantId, createdAt])
@@ -3100,4 +3154,800 @@ model ClubTournamentMatch {
 
   @@index([tournamentId, round])
   @@map("club_tournament_matches")
+}
+
+// ============================================================================
+//  Academia de Pádel  — ver docs/ACADEMIA-PADEL.md
+// ============================================================================
+//  Una clase NO tiene tabla de calendario propia: es un ClubCourtBlock con
+//  kind = CLASS, así que la restricción club_court_blocks_no_overlap la protege
+//  contra el alquiler libre sin una sola línea de lógica de solapamiento nueva.
+//  ClubClassSession es la tabla satélite que cuelga de ese bloque, igual que
+//  ClubBooking cuelga del suyo.
+// ============================================================================
+
+enum ClubClassType {
+  GROUP // clase de grupo recurrente
+  PRIVATE // particular (uno a uno o pareja)
+  CLINIC // clínica/intensivo puntual
+}
+
+/// Cómo se le paga al profesor. Lo elige el administrador POR profesor: un club
+/// suele tener al titular a sueldo y al suplente por comisión.
+enum ClubCoachPayType {
+  FIXED_PER_SESSION // tarifa plana por clase dada
+  HOURLY // por hora (grupos de 60 y 90 min mezclados)
+  COMMISSION_ON_CONSUMED // % de lo que consumieron los alumnos PRESENTES
+  COMMISSION_ON_ENROLLMENT // % de la mensualidad de sus inscritos, asistan o no
+  MIXED // piso fijo por sesión + % sobre lo consumido
+}
+
+enum ClubGroupStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ENDED
+}
+
+enum ClubClassSessionStatus {
+  SCHEDULED // generada y con cancha
+  NEEDS_COURT // la fecha chocaba con una reserva: hay que reubicarla a mano
+  PENDING_PAYMENT // particular reservada por el alumno, con hold que vence
+  CONFIRMED // llegó al cupo mínimo, ya no se libera
+  DONE // se dio y se pasó lista
+  CANCELLED // la canceló el club
+  RELEASED // se liberó por no llegar al cupo mínimo
+}
+
+enum ClubBillingMode {
+  MONTHLY
+  PACKAGE
+  PER_CLASS
+}
+
+enum ClubEnrollmentStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+  FINISHED
+}
+
+enum ClubAttendanceStatus {
+  PRESENT
+  ABSENT
+  JUSTIFIED // canceló dentro del plazo: no pierde la clase
+  MAKEUP // vino a recuperar una clase de otro día
+}
+
+enum ClubCreditReason {
+  PACKAGE_PURCHASE
+  CLASS_CONSUMED
+  CANCELLATION_TOKEN
+  EXPIRED
+  MANUAL_ADJUST
+  REFUND
+}
+
+enum ClubAcademyPaymentKind {
+  PACKAGE
+  MONTHLY
+  SINGLE_CLASS
+  ENROLLMENT_FEE
+}
+
+enum ClubChargeStatus {
+  PENDING
+  PAID
+  WAIVED
+  OVERDUE
+}
+
+/// Reglas de reserva de la academia. Una fila por tenant con los valores por
+/// defecto; el grupo solo sobreescribe releaseHoursBefore donde haga falta.
+/// Repetir estas columnas en cada grupo sería ruido en el 95% de los casos.
+model ClubAcademySettings {
+  id           String @id @default(cuid())
+  restaurantId String @unique
+
+  /// Horas antes de la clase en que se decide si hay cupo mínimo o se libera.
+  defaultReleaseHoursBefore Int  @default(12)
+  /// Hasta cuándo el alumno puede cancelar sin perder la clase (gana ficha).
+  cancelDeadlineHours       Int  @default(24)
+  /// Tope de recuperaciones por mes: evita que el bono se use como ahorro.
+  maxMakeupPerMonth         Int  @default(2)
+  /// Vencimiento por defecto de las fichas. Editable después por paquete.
+  creditExpiryDays          Int? @default(90)
+  enrollmentOpensDaysBefore Int  @default(30)
+  /// Minutos que se sostiene la cancha de una particular sin pago verificado.
+  privateHoldMinutes        Int  @default(30)
+
+  enforceLevelOnEnroll Boolean @default(true)
+  notifyCoachOnEnroll  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@map("club_academy_settings")
+}
+
+/// El profesor es entidad propia, NO un User ni un Employee:
+///  1. muchos no inician sesión nunca (el admin pasa lista por ellos),
+///  2. el aviso de WhatsApp necesita su teléfono aunque no tenga cuenta,
+///  3. cobra por la nómina que ya existe (Employee/EmployeePayment).
+/// Así su identidad sobrevive a que se le borre el login o se le saque de la
+/// nómina, y sus sesiones históricas siguen atribuidas.
+model ClubCoach {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  displayName String
+  phone       String // obligatorio: es el canal del aviso por WhatsApp
+  email       String?
+
+  /// Acceso al portal del entrenador. Opcional.
+  userId     String? @unique
+  /// Vínculo con la nómina para liquidarle honorarios. Opcional.
+  employeeId String?
+
+  /// Qué niveles puede dar (1.0 - 6.0). Null = sin restricción.
+  levelMin Decimal? @db.Decimal(2, 1)
+  levelMax Decimal? @db.Decimal(2, 1)
+
+  bio       String?
+  photoUrl  String?
+  active    Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  // Honorarios. Se COPIAN congelados a cada sesión al generarla: si en marzo se
+  // le sube la tarifa, las sesiones de febrero no pueden cambiar de costo.
+  // payAmountBase y commissionPercent conviven a propósito — MIXED usa las dos.
+  payType           ClubCoachPayType @default(FIXED_PER_SESSION)
+  payAmountBase     Decimal?         @db.Decimal(12, 2)
+  commissionPercent Decimal?         @db.Decimal(5, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant   Restaurant              @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  user         User?                   @relation("ClubCoachUser", fields: [userId], references: [id], onDelete: SetNull)
+  employee     Employee?               @relation(fields: [employeeId], references: [id], onDelete: SetNull)
+  availability ClubCoachAvailability[]
+  timeOff      ClubCoachTimeOff[]
+  groups       ClubClassGroup[]
+  sessions     ClubClassSession[]
+  payouts      ClubCoachPayout[]
+
+  @@index([restaurantId, active])
+  @@index([employeeId])
+  @@map("club_coaches")
+}
+
+/// Franjas en las que el profesor acepta dar clase. NO bloquea cancha: solo
+/// restringe a qué grupos y particulares se le puede asignar. Si la
+/// disponibilidad ocupara la rejilla, un club con cuatro profesores no podría
+/// vender una sola hora libre.
+model ClubCoachAvailability {
+  id      String @id @default(cuid())
+  coachId String
+
+  weekday   Int // 0 = domingo … 6 = sábado
+  startTime String // "HH:mm" hora local del club
+  endTime   String // "HH:mm" — exclusivo
+
+  coach ClubCoach @relation(fields: [coachId], references: [id], onDelete: Cascade)
+
+  @@index([coachId, weekday])
+  @@map("club_coach_availability")
+}
+
+/// Ausencia puntual del profesor (vacaciones, lesión, viaje).
+model ClubCoachTimeOff {
+  id      String @id @default(cuid())
+  coachId String
+
+  startsAt DateTime
+  endsAt   DateTime
+  reason   String?
+
+  createdAt DateTime @default(now())
+
+  coach ClubCoach @relation(fields: [coachId], references: [id], onDelete: Cascade)
+
+  @@index([coachId, startsAt])
+  @@map("club_coach_time_off")
+}
+
+/// Grupo de la academia. Su horario recurrente vive en ClubClassSlot (una fila
+/// por día de la semana en que se reúne), no en un JSON ni en dos grupos.
+model ClubClassGroup {
+  id           String @id @default(cuid())
+  restaurantId String
+  coachId      String
+
+  name String // "Iniciación adultos", "Competición 4.5"
+
+  // Nivel como Decimal, no enum: la consulta que importa es "qué grupos admiten
+  // a un alumno de 3.5", y con un enum de once valores haría falta un mapa de
+  // orden paralelo. Aquí es levelMin <= 3.5 AND levelMax >= 3.5.
+  levelMin Decimal @db.Decimal(2, 1)
+  levelMax Decimal @db.Decimal(2, 1)
+
+  classType   ClubClassType @default(GROUP)
+  capacityMin Int           @default(2)
+  capacityMax Int           @default(4)
+
+  seasonStart DateTime
+  seasonEnd   DateTime?
+
+  priceMonthlyBase  Decimal? @db.Decimal(12, 2)
+  pricePerClassBase Decimal? @db.Decimal(12, 2)
+  packagePriceBase  Decimal? @db.Decimal(12, 2)
+  /// Clases que trae el lote de este grupo (para la silla recurrente).
+  packageClasses    Int?
+
+  /// Null = hereda defaultReleaseHoursBefore de ClubAcademySettings.
+  releaseHoursBefore Int?
+
+  status ClubGroupStatus @default(DRAFT)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant  Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  coach       ClubCoach          @relation(fields: [coachId], references: [id], onDelete: Restrict)
+  slots       ClubClassSlot[]
+  sessions    ClubClassSession[]
+  enrollments ClubEnrollment[]
+  packages    ClubClassPackage[]
+
+  @@index([restaurantId, status])
+  @@index([coachId])
+  @@map("club_class_groups")
+}
+
+/// Un horario recurrente del grupo. Lunes y miércoles son DOS filas.
+model ClubClassSlot {
+  id      String @id @default(cuid())
+  groupId String
+
+  weekday         Int
+  startTime       String // "HH:mm"
+  durationMinutes Int     @default(60)
+  /// Null = el generador busca cualquier cancha libre en esa franja.
+  courtId         String?
+
+  group    ClubClassGroup     @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  court    ClubCourt?         @relation(fields: [courtId], references: [id], onDelete: SetNull)
+  packages ClubClassPackage[]
+
+  @@index([groupId, weekday])
+  @@map("club_class_slots")
+}
+
+/// Una ocurrencia concreta de clase.
+model ClubClassSession {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  /// NULL cuando la fecha chocaba con una reserva ya existente (NEEDS_COURT).
+  /// Es la diferencia con ClubBooking, donde el bloque es obligatorio: una
+  /// reserva sin cancha no existe, pero una clase sin cancha sí — es una clase
+  /// que hay que reubicar.
+  blockId String? @unique
+  groupId String? // NULL en particular/clínica suelta
+  coachId String
+  courtId String?
+
+  // Duplicados del bloque A PROPÓSITO — única excepción consciente a no
+  // denormalizar: una sesión liberada tiene su bloque CANCELLED, y el reporte
+  // de "clases que no se llenaron" necesita la hora que iba a tener.
+  startsAt DateTime
+  endsAt   DateTime
+
+  classType          ClubClassType
+  capacityMin        Int
+  capacityMax        Int
+  /// Congelado al generar: la regla que aplicaba entonces, no la de hoy.
+  releaseHoursBefore Int
+
+  // Honorario del profesor congelado al generar la sesión.
+  payType           ClubCoachPayType
+  payAmountBase     Decimal?         @db.Decimal(12, 2)
+  commissionPercent Decimal?         @db.Decimal(5, 2)
+  /// Se resuelve al cerrar la sesión, con el criterio ya congelado arriba.
+  coachFeeBase      Decimal?         @db.Decimal(12, 2)
+
+  status ClubClassSessionStatus @default(SCHEDULED)
+
+  /// Hasta cuándo se sostiene la cancha de una particular sin pago verificado.
+  holdExpiresAt   DateTime?
+  cancelReason    String?
+  notifiedCoachAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant  Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  block       ClubCourtBlock?        @relation(fields: [blockId], references: [id], onDelete: SetNull)
+  group       ClubClassGroup?        @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  coach       ClubCoach              @relation(fields: [coachId], references: [id], onDelete: Restrict)
+  court       ClubCourt?             @relation(fields: [courtId], references: [id], onDelete: SetNull)
+  attendances ClubAttendance[]
+  credits     ClubClassCreditEntry[]
+  payments    ClubAcademyPayment[]
+
+  @@unique([groupId, startsAt])
+  @@index([restaurantId, startsAt])
+  @@index([coachId, startsAt])
+  @@index([restaurantId, status])
+  @@map("club_class_sessions")
+}
+
+/// El alumno ES un Customer (identidad por teléfono, única por tenant), con una
+/// extensión. Una identidad separada partiría su historial en dos: la misma
+/// persona alquila cancha y toma clases.
+model ClubStudent {
+  id           String @id @default(cuid())
+  restaurantId String
+  customerId   String @unique
+
+  level     Decimal?  @db.Decimal(2, 1)
+  birthDate DateTime?
+
+  // Menores de edad: a quién se avisa y a quién se le cobra.
+  guardianName  String?
+  guardianPhone String?
+
+  /// Portal del alumno sin login — mismo patrón que ClubBooking.accessToken.
+  accessToken String @unique
+
+  medicalNotes String?
+  active       Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant  Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  customer    Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  enrollments ClubEnrollment[]
+  attendances ClubAttendance[]
+  packages    ClubClassPackage[]
+  credits     ClubClassCreditEntry[]
+  payments    ClubAcademyPayment[]
+
+  @@index([restaurantId, active])
+  @@map("club_students")
+}
+
+model ClubEnrollment {
+  id           String @id @default(cuid())
+  restaurantId String
+  studentId    String
+  groupId      String
+
+  billingMode ClubBillingMode @default(MONTHLY)
+  /// Congelado al inscribir: subir el precio del grupo no reprecia al inscrito.
+  priceBase   Decimal         @db.Decimal(12, 2)
+  /// Día del mes en que se le genera el cargo (solo MONTHLY).
+  billingDay  Int?
+
+  status   ClubEnrollmentStatus @default(ACTIVE)
+  startsAt DateTime
+  endsAt   DateTime?
+
+  /// Por qué se saltó la regla de nivel. Queda como rastro de la excepción.
+  levelOverrideReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  student    ClubStudent         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  group      ClubClassGroup      @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  charges    ClubAcademyCharge[]
+
+  @@unique([studentId, groupId, startsAt])
+  @@index([restaurantId, status])
+  @@index([groupId, status])
+  @@map("club_enrollments")
+}
+
+model ClubAttendance {
+  id        String @id @default(cuid())
+  sessionId String
+  studentId String
+
+  status ClubAttendanceStatus @default(PRESENT)
+
+  /// El dinero que consumió esta silla, congelado al pasar lista.
+  /// Es la columna que hace que salgan solos el honorario por comisión, la
+  /// rentabilidad por grupo y el ingreso por sesión — sin reconstruir a
+  /// posteriori por qué vía llegó el alumno (mensualidad, ficha o pago suelto).
+  consumedValueBase Decimal @default(0) @db.Decimal(12, 2)
+
+  /// Qué ficha se gastó, si se gastó una.
+  creditEntryId String? @unique
+
+  markedByUserId String?
+  markedAt       DateTime @default(now())
+
+  session     ClubClassSession      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student     ClubStudent           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  markedBy    User?                 @relation("ClubAttendanceMarkedBy", fields: [markedByUserId], references: [id], onDelete: SetNull)
+  creditEntry ClubClassCreditEntry? @relation(fields: [creditEntryId], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, studentId])
+  @@index([studentId])
+  @@map("club_attendance")
+}
+
+/// Lote de clases. NO es un bono flotante: al comprarlo el alumno escoge un
+/// horario fijo ("todos los lunes 7pm") y reserva esa silla durante meses, así
+/// que el cupo se cuenta hacia adelante (ver plazasOcupadas en el servicio).
+/// La ficha, al gastarse, sí es genérica: sirve para recuperar en otro día.
+model ClubClassPackage {
+  id           String @id @default(cuid())
+  restaurantId String
+  studentId    String
+
+  name              String
+  totalClasses      Int
+  priceBase         Decimal @db.Decimal(12, 2)
+  /// priceBase / totalClasses, congelado: es lo que vale cada ficha al gastarse.
+  pricePerClassBase Decimal @db.Decimal(12, 2)
+
+  groupId   String?
+  /// La franja recurrente que este lote le reserva al alumno.
+  slotId    String?
+  /// Si el lote ocupa cupo hacia adelante o es solo saldo de fichas.
+  holdsSeat Boolean @default(true)
+
+  purchasedAt DateTime  @default(now())
+  /// Sale de creditExpiryDays al comprar, pero es EDITABLE por paquete: un
+  /// alumno lesionado dos meses no puede perder lo que pagó porque el plazo
+  /// por defecto no contemplaba eso.
+  expiresAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  student    ClubStudent            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  group      ClubClassGroup?        @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  slot       ClubClassSlot?         @relation(fields: [slotId], references: [id], onDelete: SetNull)
+  credits    ClubClassCreditEntry[]
+  payments   ClubAcademyPayment[]
+
+  @@index([restaurantId, studentId])
+  @@index([slotId, expiresAt])
+  @@map("club_class_packages")
+}
+
+/// Libro mayor de fichas. El saldo es SUM(delta), NUNCA un contador mutable:
+/// un contador se desincroniza en el primer error a mitad de transacción y deja
+/// al alumno con clases pagadas que no puede usar, sin forma de auditar dónde
+/// se perdieron. Mismo principio que el bloqueo por suscripción, que se calcula
+/// en vivo y jamás se persiste.
+///
+/// La caducidad también se escribe como entrada negativa (EXPIRED) en vez de
+/// filtrarse por fecha al leer: así el saldo es una suma plana sin lógica de
+/// fechas repartida por diez consultas, y el vencimiento queda auditable.
+model ClubClassCreditEntry {
+  id           String @id @default(cuid())
+  restaurantId String
+  studentId    String
+
+  delta  Int // +N al comprar el lote, -1 al pasar lista
+  reason ClubCreditReason
+
+  packageId String?
+  sessionId String?
+  note      String?
+  expiresAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  restaurant Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  student    ClubStudent       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  package    ClubClassPackage? @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  session    ClubClassSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  attendance ClubAttendance?
+
+  @@index([restaurantId, studentId])
+  @@index([studentId, createdAt])
+  @@map("club_class_credit_entries")
+}
+
+/// Cobro de la academia. DEBE sumarse en collectPayments del arqueo
+/// (cash-session.service.ts) o el club cierra la caja con diferencia todos los
+/// días — es el mismo fallo que ya tuvo este vertical con las ventas de tienda.
+model ClubAcademyPayment {
+  id           String @id @default(cuid())
+  restaurantId String
+  studentId    String
+
+  kind ClubAcademyPaymentKind
+
+  packageId String?
+  chargeId  String?
+  sessionId String?
+
+  amountBase   Decimal @db.Decimal(12, 2)
+  exchangeRate Decimal @db.Decimal(12, 4)
+  amountBs     Decimal @db.Decimal(14, 2)
+
+  method          PaymentMethod
+  referenceNumber String?
+  proofImageUrl   String?
+
+  receivedByUserId String?
+  createdAt        DateTime @default(now())
+
+  restaurant Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  student    ClubStudent        @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  package    ClubClassPackage?  @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  charge     ClubAcademyCharge? @relation(fields: [chargeId], references: [id], onDelete: SetNull)
+  session    ClubClassSession?  @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  receivedBy User?              @relation("ClubAcademyPaymentReceivedBy", fields: [receivedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId, createdAt])
+  @@index([studentId])
+  @@map("club_academy_payments")
+}
+
+/// Mensualidad de un alumno. El @@unique es lo que hace idempotente la
+/// generación: se puede correr diez veces el mismo día sin duplicarle la deuda.
+model ClubAcademyCharge {
+  id           String @id @default(cuid())
+  restaurantId String
+  enrollmentId String
+
+  periodYear  Int
+  periodMonth Int
+
+  amountBase Decimal  @db.Decimal(12, 2)
+  dueDate    DateTime
+
+  status     ClubChargeStatus @default(PENDING)
+  notifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  enrollment ClubEnrollment       @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  payments   ClubAcademyPayment[]
+
+  @@unique([enrollmentId, periodYear, periodMonth])
+  @@index([restaurantId, status])
+  @@map("club_academy_charges")
+}
+
+// ============================================================================
+//  Jugadores: cuenta propia, verificación por WhatsApp, lista negra y puntos
+// ============================================================================
+
+/// Reglas del alquiler de canchas. Una fila por club.
+model ClubBookingSettings {
+  id           String @id @default(cuid())
+  restaurantId String @unique
+
+  /// Exigir código de WhatsApp para cerrar una reserva pública.
+  requirePhoneVerification Boolean @default(true)
+  otpTtlMinutes            Int     @default(10)
+
+  /// Lista negra automática por ausencias.
+  ///
+  /// CUIDADO: settlePastBookings marca NO_SHOW toda reserva sin check-in, así que
+  /// en un club que no escanea los QR esto bloquearía a TODOS. Por eso el
+  /// servicio no auto-bloquea si el club nunca ha registrado un check-in — sin
+  /// escaneos, el dato de ausencia no significa nada.
+  autoBlacklistEnabled Boolean @default(true)
+  noShowStrikesToBlock Int     @default(1)
+
+  /// Fidelización por uso y consumo.
+  loyaltyEnabled        Boolean @default(true)
+  pointsPerBooking      Int     @default(10)
+  /// Puntos por cada unidad de la moneda base gastada (cancha + tienda).
+  pointsPerCurrencyUnit Decimal @default(1) @db.Decimal(8, 2)
+  /// Cuántos puntos equivalen a 1 unidad de la moneda base al canjear.
+  pointsPerRedeemUnit   Int     @default(100)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@map("club_booking_settings")
+}
+
+/// Código de un solo uso enviado por WhatsApp para verificar el teléfono antes
+/// de cerrar una reserva.
+///
+/// El código se guarda HASHEADO, nunca en claro: una fuga de la base no puede
+/// entregar códigos vivos. Y lleva contador de intentos porque seis dígitos se
+/// adivinan por fuerza bruta en segundos si se deja intentar sin límite.
+model ClubPhoneVerification {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  phone      String
+  codeHash   String
+  expiresAt  DateTime
+  attempts   Int       @default(0)
+  /// Se marca al usarlo; un código consumido no vale una segunda vez.
+  consumedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, phone, expiresAt])
+  @@map("club_phone_verifications")
+}
+
+/// Cuenta del jugador para no repetir sus datos en cada alquiler.
+///
+/// Es un TERCER ámbito de autenticación, aparte del token de staff y del de la
+/// plataforma: el JWT lleva `scope: 'player'` para que no pueda usarse contra
+/// las rutas del panel aunque esté firmado con el mismo secreto.
+model ClubPlayerAccount {
+  id           String @id @default(cuid())
+  restaurantId String
+  customerId   String @unique
+
+  /// Único por club, no globalmente: dos clubes distintos pueden tener su "carlos".
+  username     String
+  passwordHash String
+
+  lastLoginAt DateTime?
+  active      Boolean   @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant      Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  customer        Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  bookings        ClubBooking[]
+  invitesSent     ClubPlayInvite[] @relation("PlayInviteFrom")
+  invitesReceived ClubPlayInvite[] @relation("PlayInviteTo")
+
+  @@unique([restaurantId, username])
+  @@index([restaurantId, active])
+  @@map("club_player_accounts")
+}
+
+/// Jugador bloqueado para reservar por su cuenta.
+///
+/// Se guarda por TELÉFONO y no por customerId: quien falta suele volver a
+/// intentarlo con otro nombre, y el teléfono es la identidad estable del
+/// sistema (Customer ya es único por teléfono y tenant).
+model ClubBlacklistEntry {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  phone       String
+  customerId  String?
+  reason      String
+  /// Automática por ausencias, o puesta a mano por el club.
+  automatic   Boolean @default(false)
+  noShowCount Int     @default(0)
+
+  /// Null = bloqueo vigente. Se levanta poniendo fecha, no borrando la fila:
+  /// el historial de por qué se bloqueó no debe desaparecer al perdonar.
+  liftedAt       DateTime?
+  liftedByUserId String?
+  liftedReason   String?
+
+  createdAt DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  customer   Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId, phone, liftedAt])
+  @@map("club_blacklist_entries")
+}
+
+enum ClubLoyaltyReason {
+  BOOKING // reservó y jugó
+  CONSUMPTION // consumió en la tienda/cancha
+  MANUAL // ajuste del club
+  REDEEM // canjeó puntos
+  EXPIRED
+}
+
+/// Libro mayor de puntos. Mismo principio que las fichas de la academia: el
+/// saldo es SUM(delta) y jamás un contador guardado, para que no se desincronice
+/// y para que se pueda auditar de dónde salió cada punto.
+model ClubLoyaltyEntry {
+  id           String @id @default(cuid())
+  restaurantId String
+  customerId   String
+
+  delta  Int
+  reason ClubLoyaltyReason
+  note   String?
+
+  bookingId  String?
+  /// Monto que originó los puntos, congelado: si mañana cambian las reglas de
+  /// fidelización, lo ya otorgado no se recalcula.
+  amountBase Decimal? @db.Decimal(12, 2)
+
+  createdAt DateTime @default(now())
+
+  restaurant Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  customer   Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  booking    ClubBooking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId, customerId])
+  @@index([bookingId])
+  @@map("club_loyalty_entries")
+}
+
+enum ClubInviteStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+/// Invitación de un jugador a otro para completar un partido.
+model ClubPlayInvite {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  fromAccountId String
+  /// Si el invitado ya tiene cuenta. Si no, se invita por teléfono.
+  toAccountId   String?
+  toPhone       String?
+  toName        String?
+
+  bookingId String?
+  message   String?
+  status    ClubInviteStatus @default(PENDING)
+
+  respondedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  restaurant  Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  fromAccount ClubPlayerAccount  @relation("PlayInviteFrom", fields: [fromAccountId], references: [id], onDelete: Cascade)
+  toAccount   ClubPlayerAccount? @relation("PlayInviteTo", fields: [toAccountId], references: [id], onDelete: Cascade)
+  booking     ClubBooking?       @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId, status])
+  @@index([toAccountId, status])
+  @@map("club_play_invites")
+}
+
+/// Liquidación de honorarios de un período. El pago real se registra como
+/// Movement(EXPENSE, PAYROLL) + EmployeePayment reutilizando el módulo de
+/// nómina, para que el honorario pese en el balance y en el arqueo en vez de
+/// ser un gasto invisible.
+///
+/// movementId/employeePaymentId van SIN FK a propósito, igual que
+/// ShopOrder.shopSaleId: la nómina es un módulo compartido con los otros
+/// verticales y no debe conocer a la academia.
+model ClubCoachPayout {
+  id           String @id @default(cuid())
+  restaurantId String
+  coachId      String
+
+  periodStart   DateTime
+  periodEnd     DateTime
+  sessionsCount Int
+  amountBase    Decimal  @db.Decimal(12, 2)
+
+  movementId        String?
+  employeePaymentId String?
+
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  coach      ClubCoach  @relation(fields: [coachId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, coachId])
+  @@map("club_coach_payouts")
 }

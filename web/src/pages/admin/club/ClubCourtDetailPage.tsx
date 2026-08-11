@@ -21,6 +21,7 @@ import { card } from './clubStyle';
 import BookSlotDialog from './BookSlotDialog';
 import MaintenanceDialog from './MaintenanceDialog';
 import { ClubPaymentDialog } from './ClubPaymentDialog';
+import CancelBookingDialog from './CancelBookingDialog';
 
 interface Props {
   courtId: string;
@@ -47,6 +48,7 @@ export default function ClubCourtDetailPage({ courtId, restaurant, canBook, onBa
   const [maintenance, setMaintenance] = useState(false);
   const [payment, setPayment] = useState<{ booking: ClubBooking; mode: 'full' | 'split' } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState<{ id: string; name: string } | null>(null);
   const { show, toastMessage } = useToast();
 
   const load = useCallback(() => {
@@ -169,11 +171,7 @@ export default function ClubCourtDetailPage({ courtId, restaurant, canBook, onBa
                   </div>
                   {canBook && cancelable && (
                     <button
-                      onClick={async () => {
-                        await clubApi.cancelBooking(b.id);
-                        load();
-                        show('Reserva cancelada.');
-                      }}
+                      onClick={() => setCancelling({ id: b.id, name: b.playerName })}
                       className="shrink-0 text-[12px] font-medium text-brand-950/40 hover:text-rose-600"
                     >
                       Cancelar
@@ -296,6 +294,19 @@ export default function ClubCourtDetailPage({ courtId, restaurant, canBook, onBa
             load();
           }}
           onPaid={() => load()}
+        />
+      )}
+
+      {cancelling && (
+        <CancelBookingDialog
+          playerName={cancelling.name}
+          onClose={() => setCancelling(null)}
+          onConfirm={async (reason) => {
+            await clubApi.cancelBooking(cancelling.id, reason);
+            setCancelling(null);
+            load();
+            show('Reserva cancelada.');
+          }}
         />
       )}
 

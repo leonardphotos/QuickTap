@@ -59,7 +59,7 @@ async function collectPayments(
     return rows.map((p) => ({ amountBase: p.amountBase, method: p.method }));
   }
 
-  const [courtPayments, storeSales, storeInstallments] = await Promise.all([
+  const [courtPayments, storeSales, storeInstallments, academyPayments] = await Promise.all([
     prisma.clubBookingPayment.findMany({
       where: { booking: { restaurantId }, createdAt: { gte: since } },
       select: { amountBase: true, method: true },
@@ -74,9 +74,19 @@ async function collectPayments(
       where: { shopSale: { restaurantId }, createdAt: { gte: since } },
       select: { amount: true, method: true },
     }),
+    // Cuarta fuente: la academia (lotes, mensualidades y clases sueltas). Sin
+    // esto el club cierra la caja con menos de lo que entró y el arqueo acusa
+    // diferencia todos los días — el mismo fallo que tuvo la tienda en su día.
+    prisma.clubAcademyPayment.findMany({
+      where: { restaurantId, createdAt: { gte: since } },
+      select: { amountBase: true, method: true },
+    }),
   ]);
 
   const collected: CollectedPayment[] = courtPayments.map((p) => ({ amountBase: p.amountBase, method: p.method }));
+  for (const payment of academyPayments) {
+    collected.push({ amountBase: payment.amountBase, method: payment.method });
+  }
 
   for (const sale of storeSales) {
     const amount = sale.creditTerms ? (sale.amountPaidNow ?? 0) : sale.total;

@@ -10,7 +10,8 @@ export type UserRole =
   | 'SCREEN'
   | 'COMANDA'
   | 'NUMERO'
-  | 'CANCHA';
+  | 'CANCHA'
+  | 'COACH';
 
 export interface ExchangeRateInfo {
   rateBs: string;

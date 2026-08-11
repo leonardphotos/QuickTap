@@ -1,7 +1,8 @@
 import { nanoid } from 'nanoid';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
-import { badRequest, conflict, notFound } from '../../utils/http-error';
+import { badRequest, conflict, forbidden, notFound } from '../../utils/http-error';
+import { clubPlayerService } from '../club-players/club-player.service';
 import { atTimeCaracas, caracasPartsOf } from '../../utils/timezone';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { customerService } from '../customers/customer.service';
@@ -261,7 +262,31 @@ export const clubService = {
    * congelan aquí: si mañana sube la tasa o cambia el precio de la hora pico,
    * esta reserva no cambia (mismo criterio que Order).
    */
-  async createBooking(restaurantId: string, input: CreateBookingInput) {
+  async createBooking(
+    restaurantId: string,
+    input: CreateBookingInput,
+    opts: { enforcePublicRules?: boolean; playerAccountId?: string | null } = {},
+  ) {
+    // Lista negra y código de WhatsApp solo aplican a quien reserva SOLO desde
+    // el enlace público. Recepción tiene que poder anotar a cualquiera por
+    // teléfono: si el mostrador quedara bloqueado por las mismas reglas, un
+    // error del escáner dejaría al club sin poder vender la cancha.
+    if (opts.enforcePublicRules) {
+      const blocked = await clubPlayerService.isBlacklisted(restaurantId, input.playerPhone);
+      if (blocked) {
+        throw forbidden(
+          'No puedes reservar por internet en este momento. Comunícate con el club para resolverlo.',
+        );
+      }
+      const settings = await clubPlayerService.getBookingSettings(restaurantId);
+      if (settings.requirePhoneVerification) {
+        const verified = await clubPlayerService.hasRecentVerification(restaurantId, input.playerPhone);
+        if (!verified) {
+          throw badRequest('Verifica tu número con el código que te enviamos por WhatsApp.');
+        }
+      }
+    }
+
     const court = await prisma.clubCourt.findFirst({
       where: { id: input.courtId, restaurantId, active: true },
       select: { id: true },
@@ -322,6 +347,8 @@ export const clubService = {
             exchangeRate: rate.rateBs,
             totalBs,
             accessToken: nanoid(14),
+            playerAccountId: opts.playerAccountId ?? null,
+            verifiedPhoneAt: opts.enforcePublicRules ? new Date() : null,
           },
           include: { block: { include: { court: true } } },
         });
@@ -358,9 +385,15 @@ export const clubService = {
     return bookings.map(withBookingMoney);
   },
 
-  async cancelBooking(restaurantId: string, id: string) {
+  /**
+   * Cancela una reserva. El MOTIVO es obligatorio: sin él no hay forma de
+   * distinguir "el club cerró por lluvia" de "el jugador no iba a venir", que es
+   * justo lo que decide si esa persona debería entrar en la lista negra.
+   */
+  async cancelBooking(restaurantId: string, id: string, opts: { reason: string; by?: 'STAFF' | 'PLAYER' } = { reason: '' }) {
     const booking = await prisma.clubBooking.findFirst({ where: { id, restaurantId }, select: { id: true, blockId: true } });
     if (!booking) throw notFound('La reserva no existe o no pertenece a este club.');
+    if (!opts.reason?.trim()) throw badRequest('Indica el motivo de la cancelación.');
 
     // Cancelar el bloque es lo que libera el hueco: la restricción solo mira los
     // bloques que no están CANCELLED.
@@ -368,7 +401,12 @@ export const clubService = {
       await tx.clubCourtBlock.update({ where: { id: booking.blockId }, data: { status: 'CANCELLED' } });
       return tx.clubBooking.update({
         where: { id },
-        data: { status: 'CANCELLED', cancelledAt: new Date() },
+        data: {
+          status: 'CANCELLED',
+          cancelledAt: new Date(),
+          cancelReason: opts.reason.trim(),
+          cancelledBy: opts.by ?? 'STAFF',
+        },
         include: { block: { include: { court: true } }, ...bookingMoneyInclude },
       });
     });
@@ -506,6 +544,13 @@ export const clubService = {
       prisma.clubBooking.updateMany({ where: { id: { in: completed } }, data: { status: 'COMPLETED' } }),
       prisma.clubBooking.updateMany({ where: { id: { in: noShows } }, data: { status: 'NO_SHOW' } }),
     ]);
+
+    // Cerrar la reserva es lo que dispara las dos consecuencias: puntos a quien
+    // jugó, y lista negra a quien faltó. Perezoso como el resto del vertical.
+    // syncAutoBlacklist trae su propio freno para el club que no escanea QR.
+    if (completed.length) await clubPlayerService.syncLoyalty(restaurantId).catch(() => undefined);
+    if (noShows.length) await clubPlayerService.syncAutoBlacklist(restaurantId).catch(() => undefined);
+
     return { completed: completed.length, noShows: noShows.length };
   },
 
@@ -793,9 +838,9 @@ export const clubService = {
     return this.getAvailability(restaurant.id, date, courtId);
   },
 
-  async createPublicBooking(slug: string, input: CreateBookingInput) {
+  async createPublicBooking(slug: string, input: CreateBookingInput, playerAccountId?: string | null) {
     const restaurant = await resolveRestaurantBySlug(slug);
-    return this.createBooking(restaurant.id, input);
+    return this.createBooking(restaurant.id, input, { enforcePublicRules: true, playerAccountId });
   },
 
   /**

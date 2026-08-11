@@ -16,6 +16,7 @@ import {
   updateScheduleSchema,
 } from './club.dto';
 import { clubService } from './club.service';
+import { cancelBookingSchema } from '../club-players/club-player.dto';
 
 export const clubController = {
   // Canchas
@@ -73,7 +74,10 @@ export const clubController = {
     res.status(201).json({ data: await clubService.createBooking(req.restaurantId!, input) });
   }),
   cancelBooking: asyncHandler(async (req: Request, res: Response) => {
-    res.json({ data: await clubService.cancelBooking(req.restaurantId!, req.params.id) });
+    // El motivo es obligatorio: es lo único que después distingue "llovió" de
+    // "el jugador no pensaba venir".
+    const { reason } = cancelBookingSchema.parse(req.body ?? {});
+    res.json({ data: await clubService.cancelBooking(req.restaurantId!, req.params.id, { reason, by: 'STAFF' }) });
   }),
   checkIn: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await clubService.checkIn(req.restaurantId!, req.params.accessToken) });

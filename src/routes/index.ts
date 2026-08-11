@@ -54,7 +54,9 @@ import aiPhotoRoutes from '../modules/ai-photo/ai-photo.routes';
 import shopRoutes from '../modules/shop/shop.routes';
 import publicShopRoutes from '../modules/shop/shop-storefront.routes';
 import clubRoutes, { publicClubRoutes } from '../modules/club/club.routes';
+import clubAcademyRoutes, { publicAcademyRoutes } from '../modules/club-academy/club-academy.routes';
 import clubLinkRoutes from '../modules/club-link/club-link.routes';
+import clubPlayerRoutes, { playerRoutes, publicPlayerRoutes } from '../modules/club-players/club-player.routes';
 import clubTabletRoutes from '../modules/club-tablet/club-tablet.routes';
 import clubTournamentRoutes from '../modules/club-tournament/club-tournament.routes';
 import { tenantFiscalInvoicingRoutes, masterFiscalInvoicingRoutes } from '../modules/fiscal-invoicing/fiscal-invoicing.routes';
@@ -110,6 +112,10 @@ router.use('/reservations', tenantReservationRoutes);
 router.use('/branches', branchRoutes);
 router.use('/ai-photo', aiPhotoRoutes);
 router.use('/shop', shopRoutes);
+// Antes de '/club': si fuera después, cada petición de academia pasaría primero
+// por el router de canchas y correría su tenantGuard sin necesidad.
+router.use('/club/academy', clubAcademyRoutes);
+router.use('/club/players', clubPlayerRoutes);
 router.use('/club', clubRoutes);
 // Puente club <-> restaurante: el vínculo por código y la cola de comandas de las canchas.
 router.use('/club-link', clubLinkRoutes);
@@ -134,6 +140,11 @@ router.use('/public/reservations', publicReservationRoutes);
 router.use('/public/ramblay', publicRamblayRoutes);
 // Página del jugador del club: disponibilidad y reserva, resueltas por slug.
 router.use('/public/club', publicClubRoutes);
+router.use('/public/club', publicAcademyRoutes);
+router.use('/public/club', publicPlayerRoutes);
+// Panel del jugador: tercer ámbito de auth (scope 'player'), fuera de /public
+// porque sí lleva token, y fuera de las rutas del panel porque no es staff.
+router.use('/player', playerRoutes);
 // Tienda virtual del Local Comercial: catálogo y checkout, resueltos por slug.
 router.use('/public/shop', publicShopRoutes);
 
