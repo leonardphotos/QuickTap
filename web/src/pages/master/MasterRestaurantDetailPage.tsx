@@ -362,11 +362,17 @@ export default function MasterRestaurantDetailPage() {
     setBillingMessage(null);
     try {
       const res = await masterApi.post(`/master/restaurants/${id}/subscription-reminder`);
-      const { sent, phone } = res.data.data as { sent: boolean; phone: string };
+      const { sent, phone, reason } = res.data.data as {
+        sent: boolean;
+        phone: string;
+        reason?: 'NOT_ON_WHATSAPP' | 'BOT_DISCONNECTED';
+      };
       setBillingMessage(
         sent
           ? `Cobro enviado por WhatsApp a +${phone}.`
-          : `No se pudo entregar el mensaje a +${phone} — revisa que el chatbot de la plataforma esté conectado.`,
+          : reason === 'NOT_ON_WHATSAPP'
+            ? `+${phone} no tiene WhatsApp — revisa que el número de cobranza esté bien escrito.`
+            : `No se pudo entregar el mensaje a +${phone} — revisa que el chatbot de la plataforma esté conectado.`,
       );
       load();
     } catch (err: any) {

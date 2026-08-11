@@ -60,6 +60,26 @@ function toJid(phone: string): string {
 }
 
 /**
+ * Confirma contra los servidores de WhatsApp si el número existe de verdad, ANTES de intentar
+ * mandarle algo. Sin esto, `sock.sendMessage()` a un número mal tecleado o que nunca tuvo
+ * WhatsApp no lanza ningún error — la promesa resuelve igual, así que sendMessage() reportaba
+ * "enviado" aunque el mensaje nunca hubiera salido de verdad. `onWhatsApp` reutiliza la MISMA
+ * conexión ya activa (no abre una sesión nueva, que sí podría desconectar al bot real).
+ */
+async function checkRegistered(phone: string): Promise<{ exists: boolean; jid: string | null }> {
+  if (state.status !== 'connected' || !state.sock) return { exists: false, jid: null };
+  try {
+    const digits = phone.replace(/\D/g, '');
+    const [result] = (await state.sock.onWhatsApp(digits)) ?? [];
+    return { exists: !!result?.exists, jid: result?.jid ?? null };
+  } catch {
+    // Si la propia verificación falla (ej. timeout), no se bloquea el envío por eso — se
+    // intenta igual y que el try/catch de sendMessage/sendImage decida.
+    return { exists: true, jid: null };
+  }
+}
+
+/**
  * ----------------------------------------------------------------------------
  *  Cola de envío con espera aleatoria entre mensajes
  * ----------------------------------------------------------------------------
@@ -333,13 +353,21 @@ export const masterWhatsappBotService = {
     if (!phone) return false;
     return enqueueOutbox(async () => {
       if (state.status !== 'connected' || !state.sock) return false;
+      const { exists, jid } = await checkRegistered(phone);
+      if (!exists) return false;
       try {
-        await state.sock.sendMessage(toJid(phone), { text: message });
+        await state.sock.sendMessage(jid ?? toJid(phone), { text: message });
         return true;
       } catch {
         return false;
       }
     });
+  },
+
+  /** Solo para depuración desde el Dashboard maestro: confirma si un número existe en
+   * WhatsApp sin mandarle nada. */
+  async checkRegistered(phone: string): Promise<{ exists: boolean; jid: string | null }> {
+    return checkRegistered(phone);
   },
 
   /** Encola un mismo mensaje para varios números de una sola vez — ej. un anuncio a todos los
@@ -356,8 +384,10 @@ export const masterWhatsappBotService = {
     if (!phone) return false;
     return enqueueOutbox(async () => {
       if (state.status !== 'connected' || !state.sock) return false;
+      const { exists, jid } = await checkRegistered(phone);
+      if (!exists) return false;
       try {
-        await state.sock.sendMessage(toJid(phone), { image, caption });
+        await state.sock.sendMessage(jid ?? toJid(phone), { image, caption });
         return true;
       } catch {
         return false;

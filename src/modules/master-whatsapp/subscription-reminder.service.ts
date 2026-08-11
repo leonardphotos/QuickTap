@@ -121,10 +121,20 @@ function billingDestination(restaurant: { billingPhone: string | null; whatsappP
 async function sendReminderFor(
   restaurant: ReminderRestaurant,
   opts: { markPeriod: 'always' | 'ifWithinWindow' },
-): Promise<{ sent: boolean; phone: string }> {
+): Promise<{ sent: boolean; phone: string; reason?: 'NOT_ON_WHATSAPP' | 'BOT_DISCONNECTED' }> {
   const phone = billingDestination(restaurant);
   if (!phone) throw badRequest('Este restaurante no tiene número de cobranza ni WhatsApp registrado.');
   if (!restaurant.subscriptionPlan) throw badRequest('Este restaurante no tiene un plan activo que cobrar.');
+
+  // Se verifica ANTES de armar el mensaje y solo si el bot está conectado: sock.sendMessage() a
+  // un número que no existe en WhatsApp no lanza ningún error — la promesa resuelve igual — así
+  // que sin esto el botón decía "enviado" aunque el mensaje nunca hubiera salido de verdad. Si
+  // el número no existe, no tiene sentido ni armar el mensaje ni abrir una verificación que
+  // espera un comprobante que jamás puede llegar de ese número.
+  if (masterWhatsappBotService.getStatus().status === 'connected') {
+    const registered = await masterWhatsappBotService.checkRegistered(phone);
+    if (!registered.exists) return { sent: false, phone, reason: 'NOT_ON_WHATSAPP' };
+  }
 
   const amount = await resolveMonthlyPrice(restaurant);
   // Cargos puntuales (instalación, QR NFC, etc.) que todavía no se cobraron en ninguna
@@ -215,7 +225,9 @@ async function checkExpiring(): Promise<{ sent: number }> {
 
 /** Botón "Enviar cobro" del Dashboard maestro → Cobro: manda el mismo mensaje del recordatorio
  * automático, en el momento, sin esperar a la ventana de 3 días. */
-async function sendNow(restaurantId: string): Promise<{ sent: boolean; phone: string }> {
+async function sendNow(
+  restaurantId: string,
+): Promise<{ sent: boolean; phone: string; reason?: 'NOT_ON_WHATSAPP' | 'BOT_DISCONNECTED' }> {
   const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: REMINDER_SELECT });
   if (!restaurant) throw notFound('Restaurante no encontrado.');
   return sendReminderFor(restaurant, { markPeriod: 'ifWithinWindow' });
