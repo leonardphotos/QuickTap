@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
 import { optimizeImage, uploadShopProductPhoto, uploadShopPaymentProof } from '../../middlewares/upload.middleware';
 import { shopController } from './shop.controller';
+import { shopOrdersController } from './shop-storefront.controller';
 
 /** Base: /api/v1/shop (el tenant activo, resuelto por JWT) — QuickTap Shop (businessType = SHOP). */
 const router = Router();
@@ -10,6 +11,8 @@ router.use(tenantGuard);
 router.get('/state', shopController.getState);
 
 router.post('/products', shopController.createProduct);
+// Antes de '/products/:id': si no, Express tomaría "published" como un id de producto.
+router.patch('/products/published', requireRole('OWNER', 'ADMIN'), shopController.setProductsPublished);
 router.patch('/products/:id', shopController.updateProduct);
 // Borrar producto es de administración: el cajero cobra, no depura el catálogo.
 router.delete('/products/:id', requireRole('OWNER', 'ADMIN'), shopController.deleteProduct);
@@ -31,6 +34,12 @@ router.post('/adjustments', shopController.recordAdjustment);
 
 router.post('/till/open', shopController.openTill);
 router.post('/till/close', shopController.closeTill);
+
+// Pedidos que entraron por el catálogo público (ver shop-orders.service.ts). Confirmar es lo
+// que los convierte en venta, así que queda al alcance de cualquiera que pueda cobrar.
+router.get('/orders', shopOrdersController.list);
+router.post('/orders/:id/confirm', shopOrdersController.confirm);
+router.post('/orders/:id/cancel', shopOrdersController.cancel);
 
 router.post('/categories', shopController.addCategory);
 router.post('/categories/:category/subcategories', shopController.addSubcategory);

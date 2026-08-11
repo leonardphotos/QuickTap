@@ -73,6 +73,7 @@ const RESTAURANT_SELECT = {
   logoUrl: true,
   businessType: true,
   shopRubro: true,
+  shopDeliveryFee: true,
   whatsappPhone: true,
   whatsappOrderMessageTemplate: true,
   baseCurrency: true,
@@ -127,6 +128,7 @@ type RestaurantRow = {
   logoUrl: string | null;
   businessType: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB';
   shopRubro: string | null;
+  shopDeliveryFee: Prisma.Decimal | null;
   whatsappPhone: string | null;
   whatsappOrderMessageTemplate: string | null;
   baseCurrency: 'USD' | 'EUR';
@@ -201,6 +203,7 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
     logoUrl: restaurant.logoUrl,
     businessType: restaurant.businessType,
     shopRubro: restaurant.shopRubro,
+    shopDeliveryFee: restaurant.shopDeliveryFee != null ? Number(restaurant.shopDeliveryFee) : null,
     whatsappPhone: restaurant.whatsappPhone,
     whatsappOrderMessageTemplate: restaurant.whatsappOrderMessageTemplate,
     baseCurrency: restaurant.baseCurrency,

@@ -149,6 +149,16 @@ export const shopService = {
     return product;
   },
 
+  /** Publica/despublica varios productos de una en la tienda virtual. El filtro por
+   * restaurantId no es decorativo: sin él, un id de otro local publicaría su catálogo. */
+  async setProductsPublished(restaurantId: string, productIds: string[], isPublished: boolean) {
+    const result = await prisma.shopProduct.updateMany({
+      where: { id: { in: productIds }, restaurantId },
+      data: { isPublished },
+    });
+    return { updated: result.count, isPublished };
+  },
+
   /**
    * Elimina un producto del inventario. El historial NO se pierde: ventas, compras y ajustes
    * guardan `productId` como texto suelto (sin FK) más un snapshot del nombre y el precio,

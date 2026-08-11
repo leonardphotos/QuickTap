@@ -50,6 +50,8 @@ export const SocketEvents = {
   CLUB_TAB_ORDER_NEW: 'club:tab-order-new', // pedido desde la tablet de una cancha -> cola del restaurante vinculado y Caja del club
   CLUB_TAB_ORDER_UPDATED: 'club:tab-order-updated', // el restaurante lo aceptó/entregó/canceló
   CLUB_TOURNAMENT_UPDATED: 'club:tournament-updated', // ronda nueva o resultado cargado -> refrescar tabla de posiciones
+  SHOP_ORDER_NEW: 'shop:order-new', // pedido desde el catálogo público de la tienda virtual -> pantalla Pedidos del local
+  SHOP_ORDER_UPDATED: 'shop:order-updated', // el local lo confirmó (ya es venta) o lo canceló
 } as const;
 
 export function initSockets(server: HttpServer): IOServer {

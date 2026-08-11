@@ -7,6 +7,7 @@ const LandingPage = lazy(() => import('./pages/LandingPage'));
 const PlansPage = lazy(() => import('./pages/PlansPage'));
 const LegalPage = lazy(() => import('./pages/LegalPage'));
 const MenuPage = lazy(() => import('./pages/public/MenuPage'));
+const ShopStorefrontPage = lazy(() => import('./pages/public/shop/ShopStorefrontPage'));
 const LoginPage = lazy(() => import('./pages/admin/LoginPage'));
 const ImpersonatePage = lazy(() => import('./pages/admin/ImpersonatePage'));
 const StartRegisterPage = lazy(() => import('./pages/admin/StartRegisterPage'));
@@ -78,6 +79,9 @@ export default function App() {
 
             {/* Menú público (QR de mesa o link general para delivery/pickup) */}
             <Route path="/r/:slug" element={<MenuPage />} />
+
+            {/* Tienda virtual del Local Comercial: catálogo y pedido, sin cuenta. */}
+            <Route path="/tienda/:slug" element={<ShopStorefrontPage />} />
 
             {/* Club deportivo: reserva del jugador y su QR de acceso, sin cuenta. */}
             <Route path="/club/:slug" element={<ClubPublicPage />} />

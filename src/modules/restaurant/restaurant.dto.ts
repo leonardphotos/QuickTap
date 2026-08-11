@@ -84,6 +84,8 @@ export const updateRestaurantSchema = z.object({
 
   // Si es false, el menú público queda solo para ver (sin carrito/checkout).
   orderingEnabled: z.boolean().optional(),
+  // Tarifa plana de envío de la tienda virtual del Local Comercial (ver Restaurant.shopDeliveryFee).
+  shopDeliveryFee: z.coerce.number().min(0).max(100000).optional(),
   // Si es true, los pedidos de mesa (QR) quedan pendientes de aceptar por un mesero antes de ir a cocina.
   requireOrderConfirmation: z.boolean().optional(),
 

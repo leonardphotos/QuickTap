@@ -4,6 +4,7 @@ import { badRequest } from '../../utils/http-error';
 import {
   createShopProductSchema,
   updateShopProductSchema,
+  setShopProductsPublishedSchema,
   createShopSaleSchema,
   createShopPurchaseSchema,
   createShopAdjustmentSchema,
@@ -34,6 +35,12 @@ export const shopController = {
 
   deleteProduct: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await shopService.deleteProduct(req.restaurantId!, req.params.id) });
+  }),
+
+  /** PATCH /shop/products/published — publica/despublica varios en la tienda virtual. */
+  setProductsPublished: asyncHandler(async (req: Request, res: Response) => {
+    const { productIds, isPublished } = setShopProductsPublishedSchema.parse(req.body);
+    res.json({ data: await shopService.setProductsPublished(req.restaurantId!, productIds, isPublished) });
   }),
 
   recordSale: asyncHandler(async (req: Request, res: Response) => {

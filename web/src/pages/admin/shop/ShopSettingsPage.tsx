@@ -11,11 +11,14 @@ import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection'
 import { PaymentMethodsSection } from '@/components/admin/PaymentMethodsSection';
 import { ScheduleSection } from '@/components/admin/ScheduleSection';
 import { ShopTeamSection } from './ShopTeamSection';
+import { ShopStorefrontSection } from './ShopStorefrontSection';
+import type { ShopSession } from './shopSession';
 import { LockScreenSettingsSection } from '@/components/admin/LockScreenSettingsSection';
 import { SalesHistoryExportSection } from '@/components/admin/SalesHistoryExportSection';
 
 interface Props {
   onBack: () => void;
+  session: ShopSession;
 }
 
 /** Moneda base: no vive en un componente propio en el panel de restaurante (es un card suelto
@@ -82,7 +85,7 @@ function CurrencySection() {
  * delivery, Modo Cartelera). "Cerrar sesión" vive acá en vez de en la barra
  * superior.
  */
-export default function ShopSettingsPage({ onBack }: Props) {
+export default function ShopSettingsPage({ onBack, session }: Props) {
   const { user, logout } = useAuth();
   const canManageTeam = user?.role === 'OWNER' || user?.role === 'ADMIN';
 
@@ -164,6 +167,9 @@ export default function ShopSettingsPage({ onBack }: Props) {
         open={openCategory === 'pagos'}
         onToggle={toggleCategory}
       >
+        <FullWidth>
+          <ShopStorefrontSection session={session} />
+        </FullWidth>
         <FullWidth>
           <PaymentMethodsSection descriptionOverride="Elige qué métodos aceptas al cobrar en Venta, y sus datos para que tus clientes sepan a dónde pagar." />
         </FullWidth>

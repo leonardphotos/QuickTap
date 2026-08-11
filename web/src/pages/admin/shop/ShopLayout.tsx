@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Home, Receipt, Boxes, Users, Settings, FileText, Landmark } from 'lucide-react';
+import { Home, Receipt, Boxes, Users, Settings, FileText, Landmark, ShoppingBag } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getShopRubro } from '@/data/shopRubros';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -7,12 +7,13 @@ import { QuoteManager } from '@/components/admin/QuoteManager';
 import { useShopSession } from './shopSession';
 import ShopDashboardPage from './ShopDashboardPage';
 import ShopPosPage from './ShopPosPage';
+import ShopOrdersPage from './ShopOrdersPage';
 import ShopInventoryPage from './ShopInventoryPage';
 import ShopCustomersPage from './ShopCustomersPage';
 import ShopSettingsPage from './ShopSettingsPage';
 import ShopReceivablesPage from './ShopReceivablesPage';
 
-export type ShopScreen = 'admin' | 'venta' | 'inventario' | 'clientes' | 'ajustes' | 'cotizaciones' | 'cuentas';
+export type ShopScreen = 'admin' | 'venta' | 'pedidos' | 'inventario' | 'clientes' | 'ajustes' | 'cotizaciones' | 'cuentas';
 
 // Cotizaciones y Cuentas por Cobrar no van en el dock flotante de celular (ya tiene 5 iconos,
 // uno más lo dejaría apretado) — se llega a ellas desde los accesos de Inicio (ShopDashboardPage)
@@ -26,6 +27,9 @@ function getTabs(rubroId: string | undefined): { id: ShopScreen; label: string; 
   return [
     { id: 'venta', label: 'Venta', icon: Receipt },
     { id: 'admin', label: 'Inicio', icon: Home },
+    // Sí va en el dock aunque lo apriete a 6 iconos: un pedido de la tienda virtual que entra
+    // y nadie ve no sirve de nada, y el dueño está en el celular la mayor parte del día.
+    { id: 'pedidos', label: 'Pedidos', icon: ShoppingBag },
     { id: 'inventario', label: rubroId === 'agencia_publicidad' ? 'Servicios' : 'Inventario', icon: Boxes },
     { id: 'clientes', label: 'Clientes', icon: Users },
     { id: 'ajustes', label: 'Ajustes', icon: Settings },
@@ -116,9 +120,10 @@ export default function ShopLayout() {
         {screen === 'venta' && (
           <ShopPosPage session={session} restaurant={restaurant} rubro={rubro} />
         )}
+        {screen === 'pedidos' && <ShopOrdersPage restaurant={restaurant} />}
         {screen === 'inventario' && <ShopInventoryPage session={session} rubro={rubro} restaurant={restaurant} />}
         {screen === 'clientes' && <ShopCustomersPage session={session} restaurant={restaurant} />}
-        {screen === 'ajustes' && <ShopSettingsPage onBack={() => setScreen('admin')} />}
+        {screen === 'ajustes' && <ShopSettingsPage onBack={() => setScreen('admin')} session={session} />}
         {screen === 'cotizaciones' && <QuoteManager />}
         {screen === 'cuentas' && <ShopReceivablesPage />}
       </main>

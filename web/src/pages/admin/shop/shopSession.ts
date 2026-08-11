@@ -822,6 +822,29 @@ export function useShopSession(initialCategories: string[] = []) {
   }
 
   /**
+   * Publica o quita productos del catálogo público de la tienda virtual. Acepta varios de una
+   * porque encender la vitrina producto por producto no es viable en un local con cientos.
+   *
+   * Si el servidor rechaza el cambio se revierte en pantalla: dejar los productos "publicados"
+   * localmente haría creer que la tienda ya los muestra cuando no.
+   */
+  function setProductsPublished(ids: string[], isPublished: boolean) {
+    const affected = new Set(ids);
+    const previous = products;
+    setProducts((prev) => prev.map((p) => (affected.has(p.id) ? { ...p, isPublished } : p)));
+
+    (async () => {
+      try {
+        const realIds = await Promise.all(ids.map((id) => resolveServerProductId(id)));
+        await shopApi.setProductsPublished(realIds, isPublished);
+      } catch (err) {
+        console.error('No se pudo actualizar la vitrina en el servidor', err);
+        setProducts(previous);
+      }
+    })();
+  }
+
+  /**
    * Saca un producto del inventario. El historial de ventas/compras no se toca: guarda su
    * propio nombre y precio del momento, así que sigue cuadrando aunque el producto ya no exista.
    * Si el borrado falla en el servidor, se repone en la lista para no mentirle al usuario.
@@ -877,6 +900,7 @@ export function useShopSession(initialCategories: string[] = []) {
     adjustStock,
     addProduct,
     updateProduct,
+    setProductsPublished,
     deleteProduct,
   };
 }

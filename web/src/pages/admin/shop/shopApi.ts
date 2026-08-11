@@ -28,6 +28,8 @@ export interface RawShopProduct {
   promoPrice: number | null;
   expiryDate: string | null;
   photoUrl: string | null;
+  /** Aparece en el catálogo público de la tienda virtual (ver ShopProduct.isPublished). */
+  isPublished: boolean;
   pricingMode: string;
   rollWidths: number[] | null;
   rollLengthM: number | null;
@@ -140,6 +142,11 @@ export const shopApi = {
     return data.data;
   },
 
+  /** Publica/quita varios productos del catálogo público de la tienda virtual. */
+  async setProductsPublished(productIds: string[], isPublished: boolean): Promise<void> {
+    await api.patch('/shop/products/published', { productIds, isPublished });
+  },
+
   async deleteProduct(id: string): Promise<void> {
     await api.delete(`/shop/products/${id}`);
   },
@@ -230,6 +237,7 @@ export function toShopProduct(p: RawShopProduct) {
     promoPrice: p.promoPrice ?? undefined,
     expiryDate: p.expiryDate ?? undefined,
     photoUrl: p.photoUrl ?? undefined,
+    isPublished: p.isPublished ?? false,
     pricingMode: (p.pricingMode === 'AREA_ROLL' ? 'AREA_ROLL' : 'UNIT') as 'UNIT' | 'AREA_ROLL',
     rollWidths: p.rollWidths ?? undefined,
     rollLengthM: p.rollLengthM ?? undefined,

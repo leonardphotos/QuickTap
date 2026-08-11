@@ -50,6 +50,7 @@ import { publicRamblayRoutes } from '../modules/ramblay/ramblay.routes';
 import branchRoutes from '../modules/branches/branch.routes';
 import aiPhotoRoutes from '../modules/ai-photo/ai-photo.routes';
 import shopRoutes from '../modules/shop/shop.routes';
+import publicShopRoutes from '../modules/shop/shop-storefront.routes';
 import clubRoutes, { publicClubRoutes } from '../modules/club/club.routes';
 import clubLinkRoutes from '../modules/club-link/club-link.routes';
 import clubTabletRoutes from '../modules/club-tablet/club-tablet.routes';
@@ -129,6 +130,8 @@ router.use('/public/reservations', publicReservationRoutes);
 router.use('/public/ramblay', publicRamblayRoutes);
 // Página del jugador del club: disponibilidad y reserva, resueltas por slug.
 router.use('/public/club', publicClubRoutes);
+// Tienda virtual del Local Comercial: catálogo y checkout, resueltos por slug.
+router.use('/public/shop', publicShopRoutes);
 
 // --- Dashboard maestro (equipo de QuickTap, ve todos los restaurantes) ---
 router.use('/master/promo-codes', masterPromoCodeRoutes);

@@ -40,6 +40,9 @@ export interface ShopProductSeed {
   expiryDate?: string;
   /** Foto del producto — obligatoria al crear uno nuevo desde Inventario. */
   photoUrl?: string;
+  /** Aparece en el catálogo público de la tienda virtual (/tienda/:slug). Apagado por defecto:
+   * el inventario también guarda insumos internos que no se le venden a nadie por internet. */
+  isPublished?: boolean;
   /** 'AREA_ROLL' = impresión de gran formato: se cobra por m² saliendo de un rollo de ancho
    * fijo, y price/cost pasan a ser por m² (ver shop/printPricing.ts). Ausente o 'UNIT' = venta
    * por unidad de siempre. */

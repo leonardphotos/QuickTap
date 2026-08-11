@@ -27,6 +27,8 @@ export interface AuthRestaurant {
   businessType: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB';
   /** Rubro de retail (indexa web/src/data/shopRubros.ts) cuando businessType = SHOP. */
   shopRubro?: string | null;
+  /** Tienda virtual del Local Comercial: tarifa plana de envío, en la moneda base. */
+  shopDeliveryFee?: number | string | null;
   whatsappPhone?: string | null;
   whatsappOrderMessageTemplate?: string | null;
   baseCurrency: Currency;

@@ -32,9 +32,21 @@ export const createShopProductSchema = z.object({
   // que dispararía el precio por las nubes sin que nadie lo note.
   rollWidths: z.array(z.coerce.number().gt(0).max(6)).max(12).optional(),
   rollLengthM: z.coerce.number().gt(0).max(1000).optional(),
+  // Aparece en el catálogo público de la tienda virtual. Apagado por defecto: el inventario
+  // también guarda insumos internos que no se le venden a nadie (ver ShopProduct.isPublished).
+  isPublished: z.boolean().optional(),
 });
 
 export const updateShopProductSchema = createShopProductSchema.partial();
+
+/** Publicar/despublicar varios productos de una — el dueño de una tienda con cientos de
+ * artículos no va a entrar uno por uno para encender su vitrina. */
+export const setShopProductsPublishedSchema = z.object({
+  productIds: z.array(z.string().min(1)).min(1).max(1000),
+  isPublished: z.boolean(),
+});
+
+export type SetShopProductsPublishedInput = z.infer<typeof setShopProductsPublishedSchema>;
 
 const saleItemSchema = z.object({
   productId: z.string().optional(),

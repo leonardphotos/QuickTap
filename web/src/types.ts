@@ -79,6 +79,8 @@ export interface Restaurant {
   whatsappBotConnected?: boolean;
   theme?: RestaurantTheme | null;
   orderingEnabled: boolean;
+  /** Tienda virtual del Local Comercial: tarifa plana de envío en la moneda base. */
+  shopDeliveryFee?: number | string | null;
   /** Según Ajustes → Horario. true si no hay horario configurado (siempre abierto). */
   isOpen?: boolean;
   closedReason?: string | null;

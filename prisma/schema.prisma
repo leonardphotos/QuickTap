@@ -228,6 +228,10 @@ model Restaurant {
   // businessType = SHOP. Indexa el catálogo de ejemplo en web/src/data/shopRubros.ts.
   // Null para restaurantes.
   shopRubro    String?
+  // Costo de envío de la tienda virtual del local, en su moneda base. Tarifa plana y no
+  // zonas/distancia como el delivery del restaurante: un local despacha con su propio
+  // motorizado y cobra lo mismo a todo el mundo. 0 = envío sin cargo.
+  shopDeliveryFee Decimal? @db.Decimal(10, 2)
 
   // --- Configuración de moneda ---
   // Moneda en la que el restaurante coloca sus precios ($ o €).
@@ -513,6 +517,8 @@ model Restaurant {
   shopCategories       ShopCategory[]
   shopSubcategories    ShopSubcategory[]
   shopServiceSupplies  ShopServiceSupply[]
+  // Pedidos que entran por el catálogo público de la tienda virtual (ver ShopOrder).
+  shopOrders           ShopOrder[]
 
   // --- QuickTap Club (businessType = SPORTS_CLUB): canchas y reservas por franja
   // horaria, sin relación con Table/Order — ver web/src/pages/admin/club/. ---
@@ -2104,6 +2110,12 @@ model ShopProduct {
   // Foto del producto — obligatoria al crear uno nuevo desde el panel (ver ShopInventoryPage.tsx).
   photoUrl    String?
 
+  // Aparece en el catálogo público de la tienda virtual (/tienda/:slug). Arranca apagado a
+  // propósito: el inventario de un local también tiene INSUMOS (cera, shampoo, material de
+  // impresión) que se consumen internamente y no se le venden a nadie por internet. Publicar
+  // todo por defecto los expondría —con su precio— el día que el local encienda su tienda.
+  isPublished Boolean @default(false)
+
   // Precio mayorista: se aplica en Venta cuando la cantidad del carrito llega a wholesaleMinQty.
   wholesalePrice  Float?
   wholesaleMinQty Float?
@@ -2364,6 +2376,86 @@ model ShopSubcategory {
 
   @@unique([restaurantId, category, name])
   @@map("shop_subcategories")
+}
+
+// ----------------------------------------------------------------------------
+// Tienda virtual del Local Comercial: pedidos que entran por el catálogo público
+// (/tienda/:slug), antes de convertirse en una venta del POS.
+//
+// Es un modelo aparte de ShopSale a propósito: una venta es algo que YA ocurrió
+// (cobrada, stock descontado, dentro de los reportes), mientras que un pedido
+// online está pendiente hasta que el dueño lo acepta. Al confirmarlo se crea la
+// ShopSale correspondiente y se guarda su id en `shopSaleId` — de ahí en
+// adelante el pedido es solo el historial de cómo entró.
+// ----------------------------------------------------------------------------
+model ShopOrder {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  // Correlativo por local, para que el dueño y el cliente hablen del "pedido #12".
+  orderNumber Int
+
+  // 'PICKUP' = pasa buscando por la tienda | 'DELIVERY' = se le lleva a la dirección.
+  mode   String
+  // 'PENDING' (recién llegado, sin atender) | 'CONFIRMED' (aceptado, ya generó la venta)
+  // | 'CANCELLED'. No hay estados intermedios: el local confirma cuando va a despacharlo.
+  status String @default("PENDING")
+
+  customerName    String
+  customerPhone   String
+  // Solo en DELIVERY. Incluye el enlace de mapa cuando el cliente compartió su ubicación,
+  // mismo criterio que Order.customerAddress del vertical restaurante.
+  customerAddress String?
+  note            String?
+
+  // Método de pago que eligió el cliente (MOBILE_PAYMENT, ZELLE, CASH…), congelado.
+  paymentMethod String?
+
+  // Importes congelados al momento del pedido: si mañana suben los precios o cambia la
+  // tasa, lo que el cliente aceptó pagar no se mueve (mismo criterio que Order).
+  subtotal     Float
+  deliveryFee  Float  @default(0)
+  total        Float
+  exchangeRate Float?
+  totalBs      Float?
+
+  // Venta generada al confirmar. Sin relación FK: si la venta se borra o se devuelve, el
+  // pedido histórico no se toca (mismo criterio que ShopSaleItem.productId).
+  shopSaleId String?
+
+  createdAt   DateTime  @default(now())
+  confirmedAt DateTime?
+  cancelledAt DateTime?
+
+  restaurant Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items      ShopOrderItem[]
+
+  @@index([restaurantId, status])
+  @@index([restaurantId, createdAt])
+  @@map("shop_orders")
+}
+
+// Línea del pedido online. Snapshotea lo mismo que ShopSaleItem para poder crear la venta
+// al confirmar sin volver a mirar el catálogo (que pudo cambiar mientras tanto).
+model ShopOrderItem {
+  id      String @id @default(cuid())
+  orderId String
+
+  // Informativo, sin relación FK — igual que ShopSaleItem.productId.
+  productId    String?
+  v1           String
+  v2           String
+  name         String
+  category     String?
+  qty          Float
+  price        Float
+  cost         Float
+  soldByWeight Boolean @default(false)
+
+  order ShopOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@map("shop_order_items")
 }
 
 // ============================================================================
