@@ -41,6 +41,9 @@ router.post('/schedules', admin, clubController.createSchedule);
 router.patch('/schedules/:id', admin, clubController.updateSchedule);
 router.delete('/schedules/:id', admin, clubController.deleteSchedule);
 
+// Ocupación: es información de gestión, no de operación diaria.
+router.get('/stats/occupancy', admin, clubController.occupancy);
+
 router.get('/panel-courts', staff, clubController.panelCourts);
 router.get('/calendar', staff, clubController.calendar);
 router.get('/availability', staff, clubController.availability);

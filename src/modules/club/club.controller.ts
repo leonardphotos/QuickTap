@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
+import { clubStatsService } from './club-stats.service';
 import { badRequest } from '../../utils/http-error';
 import {
   availabilityQuerySchema,
@@ -122,5 +123,13 @@ export const clubController = {
   publicProducts: asyncHandler(async (req: Request, res: Response) => {
     res.set('Cache-Control', 'public, max-age=30');
     res.json({ data: await clubService.getPublicProducts(req.params.slug) });
+  }),
+
+  /** GET /club/stats/occupancy?days=14 — ocupación día por día. */
+  occupancy: asyncHandler(async (req: Request, res: Response) => {
+    const raw = Number(req.query.days);
+    // Se acota a 90: más días no se leen en un gráfico de barras y sí pesan en la consulta.
+    const days = Number.isFinite(raw) ? Math.min(90, Math.max(1, Math.trunc(raw))) : 14;
+    res.json({ data: await clubStatsService.occupancy(req.restaurantId!, days) });
   }),
 };
