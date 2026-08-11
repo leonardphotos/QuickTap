@@ -110,6 +110,16 @@ export function PaymentForm({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  // Moneda en la que QuickTap cobra la mensualidad (Dashboard maestro → Planes → Moneda de
+  // cobro) — self-fetch igual que PlanCards, único consumidor de este componente.
+  const [currencySymbol, setCurrencySymbol] = useState('$');
+
+  useEffect(() => {
+    api
+      .get('/public/plans/currency')
+      .then((res) => setCurrencySymbol(res.data.data?.currency === 'EUR' ? '€' : '$'))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     api
@@ -318,11 +328,11 @@ export function PaymentForm({
             {planName} ·{' '}
             {promo ? (
               <>
-                <span className="line-through text-brand-950/40">${selected.priceUsd.toFixed(2)}</span>{' '}
-                <span className="text-brand-500">${finalPriceUsd.toFixed(2)}/mes</span>
+                <span className="line-through text-brand-950/40">{currencySymbol}{selected.priceUsd.toFixed(2)}</span>{' '}
+                <span className="text-brand-500">{currencySymbol}{finalPriceUsd.toFixed(2)}/mes</span>
               </>
             ) : (
-              <>${selected.priceUsd.toFixed(2)}/mes</>
+              <>{currencySymbol}{selected.priceUsd.toFixed(2)}/mes</>
             )}
             {rateBs && (
               <span className="text-sm font-normal text-brand-950/50"> ({formatBs(finalPriceUsd, rateBs)}/mes)</span>
@@ -514,11 +524,12 @@ export function PaymentForm({
                 <div>
                   <div className="flex items-center justify-between text-sm mb-1.5">
                     <span className="text-brand-950/70">
-                      Pagado: <span className="font-semibold text-brand-950">${installmentPaidUsd.toFixed(2)}</span> de $
+                      Pagado: <span className="font-semibold text-brand-950">{currencySymbol}{installmentPaidUsd.toFixed(2)}</span> de{' '}
+                      {currencySymbol}
                       {Number(installment.priceUsd).toFixed(2)}
                     </span>
                     {installmentRemainingUsd > 0 && (
-                      <span className="text-brand-950/50">Faltan ${installmentRemainingUsd.toFixed(2)}</span>
+                      <span className="text-brand-950/50">Faltan {currencySymbol}{installmentRemainingUsd.toFixed(2)}</span>
                     )}
                   </div>
                   <div className="h-2 rounded-full bg-brand-950/10 overflow-hidden">
@@ -538,7 +549,7 @@ export function PaymentForm({
                         <span className="text-brand-950/70">
                           Abono {i + 1} · {PAYMENT_METHOD_LABEL[p.paymentMethod]} · Ref. {p.paymentReference}
                         </span>
-                        <span className="font-semibold text-brand-950 shrink-0">${Number(p.amountUsd).toFixed(2)}</span>
+                        <span className="font-semibold text-brand-950 shrink-0">{currencySymbol}{Number(p.amountUsd).toFixed(2)}</span>
                       </div>
                     ))}
                   </div>
@@ -549,7 +560,7 @@ export function PaymentForm({
                     <p className="text-sm font-medium text-brand-950/70">Registrar un abono</p>
                     <div className="grid sm:grid-cols-2 gap-3">
                       <Field
-                        label="Monto a abonar (USD)"
+                        label={`Monto a abonar (${currencySymbol})`}
                         type="number"
                         value={installmentAmount}
                         onChange={setInstallmentAmount}

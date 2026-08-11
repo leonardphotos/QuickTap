@@ -100,13 +100,33 @@ export function PlanCards({ rateBs, billingCycle, onBillingCycleChange, onChoose
   // Precios/descripción editables desde el Dashboard maestro; hasta que carguen,
   // se muestran los valores por defecto (PLAN_CONTENT/FIXED_PLAN_PRICES).
   const [dynamicContent, setDynamicContent] = useState<Record<string, FetchedPlan> | null>(null);
+  // Moneda en la que QuickTap cobra la mensualidad (Dashboard maestro → Planes → Moneda de
+  // cobro) — se pide aparte de `rateBs` (que el padre siempre trae en USD, porque también
+  // alimenta al plan de Shop, que no es parte de esta moneda) para poder mostrar el Bs
+  // correcto aunque el padre solo tenga la tasa de USD.
+  const [currencySymbol, setCurrencySymbol] = useState('$');
+  const [ownRateBs, setOwnRateBs] = useState<string | null>(null);
 
   useEffect(() => {
     api
       .get('/public/plans')
       .then((res) => setDynamicContent(res.data.data ?? null))
       .catch(() => {});
+    api
+      .get('/public/plans/currency')
+      .then(async (res) => {
+        const currency = res.data.data?.currency as 'USD' | 'EUR' | undefined;
+        if (!currency) return;
+        setCurrencySymbol(currency === 'EUR' ? '€' : '$');
+        if (currency === 'EUR') {
+          const rateRes = await api.get('/public/exchange-rate');
+          setOwnRateBs(rateRes.data.data?.EUR?.rateBs ?? null);
+        }
+      })
+      .catch(() => {});
   }, []);
+
+  const effectiveRateBs = currencySymbol === '€' ? ownRateBs : rateBs;
 
   return (
     <div>
@@ -182,19 +202,21 @@ export function PlanCards({ rateBs, billingCycle, onBillingCycleChange, onChoose
 
                 <div className="mt-4 flex flex-col gap-0.5">
                   <div className="flex items-baseline gap-2 flex-wrap">
-                    <span className="text-3xl font-bold text-brand-950 tracking-tight">${price.toFixed(2)}</span>
+                    <span className="text-3xl font-bold text-brand-950 tracking-tight">{currencySymbol}{price.toFixed(2)}</span>
                     <span className="text-xs text-brand-950/40 font-medium">/mes</span>
                     {billingCycle !== 'MONTHLY' && (
-                      <span className="text-sm text-brand-950/35 line-through">${monthlyPrice.toFixed(2)}</span>
+                      <span className="text-sm text-brand-950/35 line-through">{currencySymbol}{monthlyPrice.toFixed(2)}</span>
                     )}
                   </div>
-                  {rateBs && <p className="text-[11px] text-brand-950/45">{formatBs(price, rateBs)}/mes · a tasa BCV</p>}
+                  {effectiveRateBs && (
+                    <p className="text-[11px] text-brand-950/45">{formatBs(price, effectiveRateBs)}/mes · a tasa BCV</p>
+                  )}
                   <span
                     className={`self-start mt-2 inline-flex items-center gap-1 text-[11px] font-bold rounded-full px-2.5 py-1 transition-opacity duration-200 ${
                       showSavings ? 'opacity-100 bg-emerald-50 text-emerald-700' : 'opacity-0 pointer-events-none'
                     }`}
                   >
-                    ◆ Ahorras ${totalSavings.toFixed(0)} en el ciclo
+                    ◆ Ahorras {currencySymbol}{totalSavings.toFixed(0)} en el ciclo
                   </span>
                 </div>
 

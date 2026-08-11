@@ -1,6 +1,11 @@
-import { Prisma } from '@prisma/client';
+import { Currency, Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { UpdateMessageTemplatesInput, UpdatePaymentMethodsInput, UpdatePlanContentInput } from './platform-settings.dto';
+
+/** '$' para USD, '€' para EUR — el único par de símbolos que la mensualidad usa hoy. */
+export function currencySymbolFor(currency: Currency): string {
+  return currency === 'EUR' ? '€' : '$';
+}
 
 const SINGLETON_ID = 'singleton';
 
@@ -151,6 +156,25 @@ export const platformSettingsService = {
    * Datos de pago mostrados en la pasarela (landing + billing autenticado),
    * más los interruptores globales de Ramblay/pago manual. Público: sin secretos.
    */
+  /** Moneda de cobro de la mensualidad (Dashboard maestro → Planes). Default USD si nunca se
+   * tocó — mismo default que el campo en el schema, por si la fila del singleton no existe aún. */
+  async getSubscriptionCurrency(): Promise<Currency> {
+    const row = await prisma.platformSettings.findUnique({ where: { id: SINGLETON_ID }, select: { subscriptionCurrency: true } });
+    return row?.subscriptionCurrency ?? 'USD';
+  },
+
+  /** Cambia la moneda de cobro. No recalcula ningún precio ya cargado — ver el comentario en
+   * el campo del schema: solo cambia con qué símbolo se muestran y se cobran de ahí en adelante. */
+  async setSubscriptionCurrency(currency: Currency): Promise<Currency> {
+    const row = await prisma.platformSettings.upsert({
+      where: { id: SINGLETON_ID },
+      create: { id: SINGLETON_ID, subscriptionCurrency: currency },
+      update: { subscriptionCurrency: currency },
+      select: { subscriptionCurrency: true },
+    });
+    return row.subscriptionCurrency;
+  },
+
   async getPaymentMethods() {
     const row = await prisma.platformSettings.findUnique({ where: { id: SINGLETON_ID } });
     return {

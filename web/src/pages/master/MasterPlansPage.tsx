@@ -17,14 +17,39 @@ type PlanContent = Record<PurchasablePlan, PlanEntry>;
 const PLAN_ORDER: PurchasablePlan[] = ['DELIVERY', 'PRO', 'ELITE'];
 const BILLING_CYCLES: BillingCycle[] = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL'];
 
+type SubscriptionCurrency = 'USD' | 'EUR';
+const CURRENCY_LABEL: Record<SubscriptionCurrency, string> = { USD: '$ Dólares (USD)', EUR: '€ Euros (EUR)' };
+const CURRENCY_SYMBOL: Record<SubscriptionCurrency, string> = { USD: '$', EUR: '€' };
+
 export default function MasterPlansPage() {
   const [content, setContent] = useState<PlanContent | null>(null);
+  const [currency, setCurrency] = useState<SubscriptionCurrency | null>(null);
+  const [savingCurrency, setSavingCurrency] = useState(false);
+  const [currencyMessage, setCurrencyMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
     masterApi.get('/master/plans').then((res) => setContent(res.data.data));
+    masterApi.get('/master/plans/currency').then((res) => setCurrency(res.data.data.currency));
   }, []);
+
+  /** No recalcula ningún precio ya cargado — solo cambia con qué símbolo se muestran y se
+   * cobran de ahí en adelante (ver el comentario en PlatformSettings.subscriptionCurrency). */
+  async function changeCurrency(next: SubscriptionCurrency) {
+    if (next === currency) return;
+    setSavingCurrency(true);
+    setCurrencyMessage(null);
+    try {
+      const res = await masterApi.patch('/master/plans/currency', { currency: next });
+      setCurrency(res.data.data.currency);
+      setCurrencyMessage('Moneda de cobro actualizada.');
+    } catch (err: any) {
+      setCurrencyMessage(err.response?.data?.error ?? 'No se pudo cambiar la moneda.');
+    } finally {
+      setSavingCurrency(false);
+    }
+  }
 
   function updatePlan(plan: PurchasablePlan, patch: Partial<PlanEntry>) {
     if (!content) return;
@@ -51,7 +76,7 @@ export default function MasterPlansPage() {
     }
   }
 
-  if (!content) return <div className="text-brand-950/50 font-light">Cargando…</div>;
+  if (!content || !currency) return <div className="text-brand-950/50 font-light">Cargando…</div>;
 
   return (
     <div className="space-y-8 max-w-3xl">
@@ -62,8 +87,36 @@ export default function MasterPlansPage() {
         </p>
       </div>
 
+      <Section title="Moneda de cobro">
+        <div className="col-span-full space-y-3">
+          <p className="text-sm text-brand-950/60 font-light">
+            En qué moneda recibes la mensualidad de los restaurantes/locales — recordatorios de pago,
+            comprobantes y el aviso de instalación se piden en esta moneda de ahí en adelante. Cambiarla
+            no recalcula los precios de abajo, solo el símbolo con el que se muestran y se cobran.
+          </p>
+          <div className="flex gap-2">
+            {(['USD', 'EUR'] as const).map((c) => (
+              <button
+                key={c}
+                type="button"
+                disabled={savingCurrency}
+                onClick={() => changeCurrency(c)}
+                className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${
+                  currency === c
+                    ? 'bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]'
+                    : 'bg-brand-950/[0.05] text-brand-950/60 hover:text-brand-950'
+                }`}
+              >
+                {CURRENCY_LABEL[c]}
+              </button>
+            ))}
+          </div>
+          {currencyMessage && <p className="text-sm text-brand-950/70">{currencyMessage}</p>}
+        </div>
+      </Section>
+
       {PLAN_ORDER.map((plan) => (
-        <PlanSection key={plan} entry={content[plan]} onChange={(patch) => updatePlan(plan, patch)} />
+        <PlanSection key={plan} entry={content[plan]} currencySymbol={CURRENCY_SYMBOL[currency]} onChange={(patch) => updatePlan(plan, patch)} />
       ))}
 
       {message && <p className="text-sm text-brand-950/70">{message}</p>}
@@ -74,7 +127,15 @@ export default function MasterPlansPage() {
   );
 }
 
-function PlanSection({ entry, onChange }: { entry: PlanEntry; onChange: (patch: Partial<PlanEntry>) => void }) {
+function PlanSection({
+  entry,
+  currencySymbol,
+  onChange,
+}: {
+  entry: PlanEntry;
+  currencySymbol: string;
+  onChange: (patch: Partial<PlanEntry>) => void;
+}) {
   return (
     <Section title={entry.name}>
       <Field label="Nombre" value={entry.name} onChange={(v) => onChange({ name: v })} />
@@ -96,7 +157,7 @@ function PlanSection({ entry, onChange }: { entry: PlanEntry; onChange: (patch: 
       {BILLING_CYCLES.map((c) => (
         <Field
           key={c}
-          label={`Precio ${BILLING_CYCLE_LABEL[c]} (USD)`}
+          label={`Precio ${BILLING_CYCLE_LABEL[c]} (${currencySymbol})`}
           value={String(entry.prices[c] ?? '')}
           onChange={(v) => onChange({ prices: { ...entry.prices, [c]: Number(v.replace(/[^0-9.]/g, '')) || 0 } })}
         />

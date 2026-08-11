@@ -15,7 +15,7 @@ import makeWASocket, {
 import { prisma } from '../../config/prisma';
 import { UPLOADS_DIR } from '../../middlewares/upload.middleware';
 import { subscriptionPaymentVerificationService } from './subscription-payment-verification.service';
-import { platformSettingsService, renderTemplate } from '../platform-settings/platform-settings.service';
+import { currencySymbolFor, platformSettingsService, renderTemplate } from '../platform-settings/platform-settings.service';
 
 /**
  * ============================================================================
@@ -249,7 +249,8 @@ export const masterWhatsappBotService = {
       });
       const restaurant = await prisma.restaurant.findUnique({ where: { id: match.restaurantId }, select: { name: true } });
       if (settings?.subscriptionVerifierPhone && restaurant) {
-        await this.sendImage(settings.subscriptionVerifierPhone, buffer, buildVerifierCaption(restaurant.name, match));
+        const symbol = currencySymbolFor(await platformSettingsService.getSubscriptionCurrency());
+        await this.sendImage(settings.subscriptionVerifierPhone, buffer, buildVerifierCaption(restaurant.name, match, symbol));
       }
     }
 
@@ -287,7 +288,8 @@ export const masterWhatsappBotService = {
     const imagePath = path.join(process.cwd(), next.proofImageUrl.replace(/^\//, ''));
     const buffer = await fs.promises.readFile(imagePath).catch(() => null);
     if (!buffer) return;
-    await this.sendImage(settings.subscriptionVerifierPhone, buffer, buildVerifierCaption(restaurant.name, next));
+    const symbol = currencySymbolFor(await platformSettingsService.getSubscriptionCurrency());
+    await this.sendImage(settings.subscriptionVerifierPhone, buffer, buildVerifierCaption(restaurant.name, next, symbol));
   },
 
   async disconnect(): Promise<void> {
@@ -376,8 +378,12 @@ export const masterWhatsappBotService = {
   },
 };
 
-function buildVerifierCaption(restaurantName: string, verification: { plan: string; billingCycle: string; amountUsd: unknown }): string {
-  const amount = verification.amountUsd != null ? `$${Number(verification.amountUsd).toFixed(2)}` : 'monto acordado';
+function buildVerifierCaption(
+  restaurantName: string,
+  verification: { plan: string; billingCycle: string; amountUsd: unknown },
+  symbol: string,
+): string {
+  const amount = verification.amountUsd != null ? `${symbol}${Number(verification.amountUsd).toFixed(2)}` : 'monto acordado';
   return [
     `📄 Comprobante de renovación — ${restaurantName}`,
     `📦 Plan: ${verification.plan} (${verification.billingCycle})`,

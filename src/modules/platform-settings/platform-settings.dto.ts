@@ -53,6 +53,14 @@ export const updatePlanContentSchema = z.object({
 
 export type UpdatePlanContentInput = z.infer<typeof updatePlanContentSchema>;
 
+/** Dashboard maestro → Planes: en qué moneda se cobra la mensualidad ($ o €). No es
+ * Restaurant.baseCurrency (esa es la moneda del menú de cada tenant, otro concepto). */
+export const updateSubscriptionCurrencySchema = z.object({
+  currency: z.enum(['USD', 'EUR']),
+});
+
+export type UpdateSubscriptionCurrencyInput = z.infer<typeof updateSubscriptionCurrencySchema>;
+
 /** Editor de mensajes del chatbot del master (Dashboard maestro → WhatsApp). Cada campo admite
  * placeholders `{{variable}}` — ver DEFAULT_MESSAGE_TEMPLATES en platform-settings.service.ts
  * para la lista de variables disponibles por mensaje. */

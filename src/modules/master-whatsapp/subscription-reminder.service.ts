@@ -2,7 +2,7 @@ import { BillingCycle, SubscriptionPlan } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { formatVenezuelanWhatsappPhone } from '../../utils/whatsapp';
-import { platformSettingsService, PurchasablePlan, renderTemplate } from '../platform-settings/platform-settings.service';
+import { currencySymbolFor, platformSettingsService, PurchasablePlan, renderTemplate } from '../platform-settings/platform-settings.service';
 import { subscriptionPaymentVerificationService } from './subscription-payment-verification.service';
 import { masterWhatsappBotService } from './master-whatsapp-bot.service';
 
@@ -37,12 +37,13 @@ async function buildReminderMessage(opts: {
   pendingCharges: { description: string; amountUsd: unknown }[];
   pagoMovil: { banco?: string; telefono?: string; cedula?: string; titular?: string } | null;
 }): Promise<string> {
+  const symbol = currencySymbolFor(await platformSettingsService.getSubscriptionCurrency());
   const chargesTotal = opts.pendingCharges.reduce((acc, c) => acc + Number(c.amountUsd), 0);
   const total = (opts.monthlyAmount ?? 0) + chargesTotal;
 
   const amountLine =
     opts.monthlyAmount != null
-      ? `💰 Monto a cancelar: $${total.toFixed(2)}${chargesTotal > 0 ? ` (mensualidad $${opts.monthlyAmount.toFixed(2)} + cargos pendientes)` : ''}`
+      ? `💰 Monto a cancelar: ${symbol}${total.toFixed(2)}${chargesTotal > 0 ? ` (mensualidad ${symbol}${opts.monthlyAmount.toFixed(2)} + cargos pendientes)` : ''}`
       : '💰 Escríbenos si tienes dudas sobre el monto a cancelar.';
 
   // Cargos puntuales sin cobrar (ej. instalación, QR NFC) — si no se pagaron aparte, se suman acá
@@ -51,7 +52,7 @@ async function buildReminderMessage(opts: {
   let chargesBlock = '';
   if (opts.pendingCharges.length > 0) {
     const lines = ['🧾 *Cargos pendientes (incluidos en el monto de arriba):*'];
-    for (const c of opts.pendingCharges) lines.push(`• ${c.description}: $${Number(c.amountUsd).toFixed(2)}`);
+    for (const c of opts.pendingCharges) lines.push(`• ${c.description}: ${symbol}${Number(c.amountUsd).toFixed(2)}`);
     chargesBlock = lines.join('\n');
   }
 

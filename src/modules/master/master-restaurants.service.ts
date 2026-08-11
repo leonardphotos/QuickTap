@@ -8,7 +8,7 @@ import { branchService } from '../branches/branch.service';
 import { planRequestService } from '../plan-requests/plan-request.service';
 import { signToken } from '../auth/auth.service';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
-import { platformSettingsService } from '../platform-settings/platform-settings.service';
+import { currencySymbolFor, platformSettingsService } from '../platform-settings/platform-settings.service';
 import { masterWhatsappBotService } from '../master-whatsapp/master-whatsapp-bot.service';
 import { subscriptionReminderService } from '../master-whatsapp/subscription-reminder.service';
 import {
@@ -326,7 +326,9 @@ export const masterRestaurantsService = {
     });
     const totalUsd = pendingCharges.reduce((acc, c) => acc + Number(c.amountUsd), 0);
 
-    const rate = await exchangeRateService.getRate('USD');
+    const subscriptionCurrency = await platformSettingsService.getSubscriptionCurrency();
+    const symbol = currencySymbolFor(subscriptionCurrency);
+    const rate = await exchangeRateService.getRate(subscriptionCurrency);
     const totalBs = totalUsd * Number(rate.rateBs);
     const paymentMethods = await platformSettingsService.getPaymentMethods();
     const pagoMovil = (paymentMethods as { pagoMovil?: { banco?: string; telefono?: string; cedula?: string; titular?: string } })
@@ -351,8 +353,8 @@ export const masterRestaurantsService = {
       ...restaurant.users.map((u) => `• ${u.name} — ${u.email} (${roleLabel[u.role] ?? u.role})`),
       '',
       '💰 *Cargos pendientes:*',
-      ...pendingCharges.map((c) => `• ${c.description}: $${Number(c.amountUsd).toFixed(2)}`),
-      `Total a cancelar: $${totalUsd.toFixed(2)} (Bs ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} a la tasa del día)`,
+      ...pendingCharges.map((c) => `• ${c.description}: ${symbol}${Number(c.amountUsd).toFixed(2)}`),
+      `Total a cancelar: ${symbol}${totalUsd.toFixed(2)} (Bs ${totalBs.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} a la tasa del día)`,
       '',
       '⚠️ Si no cancelas ahora, este monto se suma a tu próxima mensualidad.',
     ];

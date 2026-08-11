@@ -311,6 +311,9 @@ model Restaurant {
   // Cobro. Cuando tiene valor, ES el precio que se le cobra al restaurante: manda sobre la
   // tarifa pública del plan (ver resolvePrice en plan-request.service.ts). El código
   // promocional se sigue aplicando encima, igual que sobre la tarifa pública.
+  // El sufijo "Usd" quedó del nombre original: el monto se interpreta en la moneda vigente de
+  // PlatformSettings.subscriptionCurrency, no siempre dólares — se dejó así para no acarrear
+  // una migración de columna solo por el nombre.
   customMonthlyPriceUsd Decimal? @db.Decimal(10, 2)
 
   // Número de cobranza: a dónde el chatbot maestro manda el recordatorio de mensualidad y los
@@ -1640,9 +1643,9 @@ model PlanRequest {
   promoCode       String?
   discountPercent Int?
 
-  // Precio mensual en USD, calculado en el servidor a partir del plan/ciclo
-  // (o de la fórmula del plan personalizado) y el código promocional. Nunca
-  // se confía en un precio enviado por el cliente.
+  // Precio mensual calculado en el servidor a partir del plan/ciclo (o de la fórmula del plan
+  // personalizado) y el código promocional. Nunca se confía en un precio enviado por el cliente.
+  // El sufijo "Usd" es histórico: la moneda real es PlatformSettings.subscriptionCurrency.
   priceUsd Decimal @db.Decimal(10, 2)
 
   paymentMethod    SubscriptionPaymentMethod
@@ -1812,6 +1815,11 @@ model PlatformSettings {
   // (solo los planes que el master haya tocado); se fusiona con los valores
   // por defecto en platform-settings.service.ts al leer.
   planContent          Json?
+  // Moneda en la que QuickTap cobra la mensualidad de sus restaurantes/locales — no confundir
+  // con Restaurant.baseCurrency, que es la moneda del MENÚ de cada tenant. Cambiarla no
+  // recalcula los precios ya cargados en `planContent`/`customMonthlyPriceUsd`: solo cambia el
+  // símbolo con el que se muestran y se cobran de ahí en adelante (ver Dashboard maestro → Planes).
+  subscriptionCurrency Currency @default(USD)
 
   // --- Chatbot de WhatsApp de la plataforma (ver src/modules/master-whatsapp/) ---
   // Mismo mecanismo de vinculación por QR que el bot de cada restaurante
