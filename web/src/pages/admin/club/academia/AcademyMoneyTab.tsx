@@ -5,6 +5,7 @@ import { formatBase } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { card } from '../clubStyle';
 import { academyApi } from './academyApi';
+import type { DetailTarget } from './AcademyDetails';
 
 interface Charge {
   id: string;
@@ -14,6 +15,8 @@ interface Charge {
   dueDate: string;
   status: 'PENDING' | 'PAID' | 'WAIVED' | 'OVERDUE';
   enrollment: {
+    studentId: string;
+    groupId: string;
     student: { customer: { name: string; phone: string } };
     group: { name: string };
   };
@@ -61,7 +64,13 @@ const STATUS_COLORS: Record<Charge['status'], string> = {
   OVERDUE: 'text-red-700 bg-red-50 border-red-200',
 };
 
-export default function AcademyMoneyTab({ restaurant }: { restaurant: Pick<AuthRestaurant, 'currencySymbol'> }) {
+export default function AcademyMoneyTab({
+  restaurant,
+  onOpen,
+}: {
+  restaurant: Pick<AuthRestaurant, 'currencySymbol'>;
+  onOpen: (t: DetailTarget) => void;
+}) {
   const [charges, setCharges] = useState<Charge[]>([]);
   const [revenue, setRevenue] = useState<Revenue | null>(null);
   const [retention, setRetention] = useState<Retention | null>(null);
@@ -144,14 +153,20 @@ export default function AcademyMoneyTab({ restaurant }: { restaurant: Pick<AuthR
           <ul className="mt-3 divide-y divide-brand-950/[0.06]">
             {charges.slice(0, 40).map((c) => (
               <li key={c.id} className="flex flex-wrap items-center gap-2 py-2.5">
-                <span className="min-w-0 flex-1">
+                <button
+                  type="button"
+                  onClick={() => onOpen({ kind: 'student', id: c.enrollment.studentId })}
+                  className="-mx-2 min-w-0 flex-1 rounded-xl px-2 py-1 text-left transition-colors hover:bg-brand-950/[0.03]"
+                >
                   <span className="block truncate text-sm font-semibold text-brand-950">
                     {c.enrollment.student.customer.name}
                   </span>
                   <span className="block text-xs font-light text-brand-950/50">
                     {c.enrollment.group.name} · {String(c.periodMonth).padStart(2, '0')}/{c.periodYear}
+                    {Number(c.payments.reduce((a, p) => a + Number(p.amountBase), 0)) > 0 &&
+                      ` · abonó ${formatBase(c.payments.reduce((a, p) => a + Number(p.amountBase), 0), symbol)}`}
                   </span>
-                </span>
+                </button>
                 <span
                   className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${STATUS_COLORS[c.status]}`}
                 >
@@ -218,12 +233,16 @@ export default function AcademyMoneyTab({ restaurant }: { restaurant: Pick<AuthR
           <ul className="mt-3 divide-y divide-brand-950/[0.06]">
             {byCoach.byCoach.map((r) => (
               <li key={r.id} className="flex items-center gap-2 py-2.5">
-                <span className="min-w-0 flex-1">
+                <button
+                  type="button"
+                  onClick={() => onOpen({ kind: 'coach', id: r.id })}
+                  className="-mx-2 min-w-0 flex-1 rounded-xl px-2 py-1 text-left transition-colors hover:bg-brand-950/[0.03]"
+                >
                   <span className="block truncate text-sm font-semibold text-brand-950">{r.name}</span>
                   <span className="block text-xs font-light text-brand-950/50">
                     {r.sessions} clases · le pagaste {formatBase(r.costBase, symbol)}
                   </span>
-                </span>
+                </button>
                 <span className="shrink-0 text-right">
                   <span className="block text-sm font-bold text-brand-950">{formatBase(r.revenueBase, symbol)}</span>
                   <span
@@ -265,12 +284,16 @@ export default function AcademyMoneyTab({ restaurant }: { restaurant: Pick<AuthR
             <ul className="mt-3 divide-y divide-brand-950/[0.06]">
               {revenue.groups.map((g) => (
                 <li key={g.groupId} className="flex flex-wrap items-center gap-2 py-2.5">
-                  <span className="min-w-0 flex-1">
+                  <button
+                    type="button"
+                    onClick={() => g.groupId !== 'sueltas' && onOpen({ kind: 'group', id: g.groupId })}
+                    className="-mx-2 min-w-0 flex-1 rounded-xl px-2 py-1 text-left transition-colors hover:bg-brand-950/[0.03]"
+                  >
                     <span className="block truncate text-sm font-semibold text-brand-950">{g.name}</span>
                     <span className="block text-xs font-light text-brand-950/50">
                       {g.sessions} clases · profesor {formatBase(g.coachCostBase, symbol)}
                     </span>
-                  </span>
+                  </button>
                   <span className="shrink-0 text-right">
                     <span className={`block text-sm font-bold ${Number(g.marginBase) < 0 ? 'text-red-600' : 'text-brand-950'}`}>
                       {formatBase(g.marginBase, symbol)}

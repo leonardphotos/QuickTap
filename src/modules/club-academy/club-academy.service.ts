@@ -1064,6 +1064,65 @@ export const clubAcademyService = {
   },
 
   // --------------------------------------------------------------- Asistencia
+  /**
+   * ¿Este alumno está al día? Depende de CÓMO paga, y por eso vive en un solo
+   * sitio: las tres respuestas son distintas y calcularlas por separado en cada
+   * pantalla garantizaría que se contradigan.
+   *
+   *  - MONTHLY   → mira el cargo del mes en curso (pagado / pendiente / vencido).
+   *  - PACKAGE   → mira el saldo de fichas; sin fichas, no tiene con qué asistir.
+   *  - PER_CLASS → mira si hay un cobro suelto registrado para esa clase.
+   */
+  async paymentStatusOf(
+    restaurantId: string,
+    studentId: string,
+    billingMode: 'MONTHLY' | 'PACKAGE' | 'PER_CLASS',
+    sessionId?: string,
+  ): Promise<{ state: 'PAID' | 'PENDING' | 'OVERDUE' | 'NO_CREDITS'; label: string; detail: string | null }> {
+    if (billingMode === 'MONTHLY') {
+      const now = new Date();
+      const charge = await prisma.clubAcademyCharge.findFirst({
+        where: {
+          restaurantId,
+          enrollment: { studentId },
+          periodYear: now.getFullYear(),
+          periodMonth: now.getMonth() + 1,
+        },
+        include: { payments: { select: { amountBase: true } } },
+      });
+      if (!charge) return { state: 'PENDING', label: 'Sin cargo del mes', detail: 'Aún no se generó la mensualidad' };
+      const paid = charge.payments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0));
+      if (charge.status === 'PAID' || charge.status === 'WAIVED' || paid.gte(charge.amountBase)) {
+        return { state: 'PAID', label: 'Al día', detail: `Mensualidad de ${charge.periodMonth}/${charge.periodYear}` };
+      }
+      const balance = round2(charge.amountBase.sub(paid));
+      return {
+        state: charge.status === 'OVERDUE' ? 'OVERDUE' : 'PENDING',
+        label: charge.status === 'OVERDUE' ? 'Vencida' : 'Pendiente',
+        detail: `Debe ${balance.toFixed(2)} de la mensualidad`,
+      };
+    }
+
+    if (billingMode === 'PACKAGE') {
+      const agg = await prisma.clubClassCreditEntry.aggregate({
+        where: { restaurantId, studentId },
+        _sum: { delta: true },
+      });
+      const credits = agg._sum.delta ?? 0;
+      return credits > 0
+        ? { state: 'PAID', label: 'Con fichas', detail: `${credits} ficha(s) disponibles` }
+        : { state: 'NO_CREDITS', label: 'Sin fichas', detail: 'Se le acabó el lote' };
+    }
+
+    // PER_CLASS
+    const payment = sessionId
+      ? await prisma.clubAcademyPayment.findFirst({ where: { restaurantId, studentId, sessionId } })
+      : null;
+    return payment
+      ? { state: 'PAID', label: 'Pagó la clase', detail: `${payment.amountBase.toFixed(2)}` }
+      : { state: 'PENDING', label: 'Por cobrar', detail: 'Clase suelta sin pagar' };
+  },
+
   async getRoster(restaurantId: string, sessionId: string) {
     const session = await prisma.clubClassSession.findFirst({
       where: { id: sessionId, restaurantId },
@@ -1084,14 +1143,18 @@ export const clubAcademyService = {
       : [];
 
     const byStudent = new Map(session.attendances.map((a) => [a.studentId, a]));
-    const roster = enrolled.map((e) => ({
-      studentId: e.studentId,
-      name: e.student.customer.name,
-      phone: e.student.customer.phone,
-      level: e.student.level,
-      billingMode: e.billingMode,
-      attendance: byStudent.get(e.studentId) ?? null,
-    }));
+    const roster = await Promise.all(
+      enrolled.map(async (e) => ({
+        studentId: e.studentId,
+        name: e.student.customer.name,
+        phone: e.student.customer.phone,
+        level: e.student.level,
+        billingMode: e.billingMode,
+        attendance: byStudent.get(e.studentId) ?? null,
+        // Lo que recepción necesita ver junto al nombre: si esa persona está al día.
+        payment: await this.paymentStatusOf(restaurantId, e.studentId, e.billingMode, sessionId),
+      })),
+    );
 
     // Quien vino a recuperar no está inscrito en el grupo pero sí en la lista.
     for (const a of session.attendances) {
@@ -1108,11 +1171,154 @@ export const clubAcademyService = {
           level: s.level,
           billingMode: 'PACKAGE',
           attendance: a,
-        });
+          payment: await this.paymentStatusOf(restaurantId, s.id, 'PACKAGE', sessionId),
+          isMakeup: true,
+        } as never);
       }
     }
 
     return { session, roster, occupiedSeats: await occupiedSeats(session) };
+  },
+
+  /**
+   * Ficha completa de un grupo: quiénes están inscritos y si pagaron, las clases
+   * agendadas con su cancha y hora, y quién espera cupo.
+   *
+   * Todo en una sola respuesta a propósito: la pantalla de detalle lo muestra
+   * junto, y pedirlo en tres llamadas dejaría la ventana llenándose por partes.
+   */
+  async getGroupDetail(restaurantId: string, id: string) {
+    const group = await prisma.clubClassGroup.findFirst({
+      where: { id, restaurantId },
+      include: {
+        coach: true,
+        program: true,
+        slots: { include: { court: { select: { id: true, name: true } } } },
+        enrollments: {
+          where: { status: { in: ['ACTIVE', 'PAUSED'] } },
+          include: { student: { include: { customer: { select: { name: true, phone: true } } } } },
+          orderBy: { startsAt: 'asc' },
+        },
+        waitlist: {
+          where: { status: { in: ['WAITING', 'OFFERED'] } },
+          include: { student: { include: { customer: { select: { name: true, phone: true } } } } },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+    if (!group) throw notFound('El grupo no existe o no pertenece a este club.');
+
+    const now = new Date();
+    const [upcoming, pastCount] = await Promise.all([
+      prisma.clubClassSession.findMany({
+        where: { groupId: id, startsAt: { gte: now }, status: { notIn: ['CANCELLED'] } },
+        include: { court: { select: { name: true } }, coach: { select: { displayName: true } }, _count: { select: { attendances: true } } },
+        orderBy: { startsAt: 'asc' },
+        take: 12,
+      }),
+      prisma.clubClassSession.count({ where: { groupId: id, status: 'DONE' } }),
+    ]);
+
+    const members = await Promise.all(
+      group.enrollments.map(async (e) => ({
+        enrollmentId: e.id,
+        studentId: e.studentId,
+        name: e.student.customer.name,
+        phone: e.student.customer.phone,
+        level: e.student.level,
+        billingMode: e.billingMode,
+        priceBase: e.priceBase.toFixed(2),
+        status: e.status,
+        since: e.startsAt,
+        payment: await this.paymentStatusOf(restaurantId, e.studentId, e.billingMode),
+      })),
+    );
+
+    return {
+      group,
+      members,
+      upcoming,
+      pastCount,
+      waitlist: group.waitlist.map((w, i) => ({
+        id: w.id,
+        position: i + 1,
+        name: w.student.customer.name,
+        phone: w.student.customer.phone,
+        status: w.status,
+        since: w.createdAt,
+      })),
+      /** Cuántos deben, para poder verlo sin recorrer la lista. */
+      owing: members.filter((m) => m.payment.state !== 'PAID').length,
+    };
+  },
+
+  /** Ficha del profesor: sus grupos, sus próximas clases y cómo se le paga. */
+  async getCoachDetail(restaurantId: string, id: string) {
+    const coach = await prisma.clubCoach.findFirst({
+      where: { id, restaurantId },
+      include: {
+        availability: { orderBy: [{ weekday: 'asc' }, { startTime: 'asc' }] },
+        timeOff: { where: { endsAt: { gte: new Date() } }, orderBy: { startsAt: 'asc' } },
+        groups: {
+          where: { status: { in: ['ACTIVE', 'DRAFT', 'PAUSED'] } },
+          include: { program: { select: { name: true, color: true } }, _count: { select: { enrollments: true } } },
+        },
+        employee: { select: { id: true, name: true } },
+        user: { select: { id: true, email: true, name: true } },
+      },
+    });
+    if (!coach) throw notFound('El profesor no existe o no pertenece a este club.');
+
+    const now = new Date();
+    const [upcoming, doneCount, payouts] = await Promise.all([
+      prisma.clubClassSession.findMany({
+        where: { coachId: id, startsAt: { gte: now }, status: { notIn: ['CANCELLED', 'RELEASED'] } },
+        include: { court: { select: { name: true } }, group: { select: { name: true } } },
+        orderBy: { startsAt: 'asc' },
+        take: 12,
+      }),
+      prisma.clubClassSession.count({ where: { coachId: id, status: 'DONE' } }),
+      prisma.clubCoachPayout.findMany({ where: { coachId: id }, orderBy: { createdAt: 'desc' }, take: 10 }),
+    ]);
+
+    return { coach, upcoming, doneCount, payouts };
+  },
+
+  /** Ficha del programa: sus grupos, con cuánta gente hay en cada uno. */
+  async getProgramDetail(restaurantId: string, id: string) {
+    const program = await prisma.clubProgram.findFirst({
+      where: { id, restaurantId },
+      include: {
+        groups: {
+          include: {
+            coach: { select: { id: true, displayName: true } },
+            slots: { include: { court: { select: { name: true } } } },
+            _count: { select: { enrollments: true, sessions: true, waitlist: true } },
+          },
+          orderBy: { name: 'asc' },
+        },
+      },
+    });
+    if (!program) throw notFound('El programa no existe o no pertenece a este club.');
+
+    const groupIds = program.groups.map((g) => g.id);
+    const [students, revenue] = await Promise.all([
+      groupIds.length
+        ? prisma.clubEnrollment.count({ where: { groupId: { in: groupIds }, status: 'ACTIVE' } })
+        : 0,
+      groupIds.length
+        ? prisma.clubAcademyPayment.aggregate({
+            where: { restaurantId, package: { groupId: { in: groupIds } } },
+            _sum: { amountBase: true },
+          })
+        : { _sum: { amountBase: null } },
+    ]);
+
+    return {
+      program,
+      activeStudents: students,
+      packageRevenueBase: round2(revenue._sum.amountBase ?? toDecimal(0)).toFixed(2),
+    };
   },
 
   /**

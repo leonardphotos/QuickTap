@@ -6,6 +6,7 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { card } from '../clubStyle';
 import { academyApi, LEVELS, PAY_TYPE_LABELS, type Coach } from './academyApi';
+import type { DetailTarget } from './AcademyDetails';
 
 const INPUT =
   'w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40';
@@ -20,7 +21,13 @@ function needsPercent(t: Coach['payType']) {
   return t === 'COMMISSION_ON_CONSUMED' || t === 'COMMISSION_ON_ENROLLMENT' || t === 'MIXED';
 }
 
-export default function AcademyCoachesTab({ restaurant }: { restaurant: Pick<AuthRestaurant, 'currencySymbol'> }) {
+export default function AcademyCoachesTab({
+  restaurant,
+  onOpen,
+}: {
+  restaurant: Pick<AuthRestaurant, 'currencySymbol'>;
+  onOpen: (t: DetailTarget) => void;
+}) {
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,7 +66,11 @@ export default function AcademyCoachesTab({ restaurant }: { restaurant: Pick<Aut
           <ul className="mt-3 divide-y divide-brand-950/[0.06]">
             {coaches.map((c) => (
               <li key={c.id} className="py-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => onOpen({ kind: 'coach', id: c.id })}
+                  className="-mx-2 flex w-[calc(100%+1rem)] flex-wrap items-start justify-between gap-2 rounded-xl px-2 py-1 text-left transition-colors hover:bg-brand-950/[0.03]"
+                >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-brand-950">
                       {c.displayName}
@@ -75,7 +86,7 @@ export default function AcademyCoachesTab({ restaurant }: { restaurant: Pick<Aut
                       {c.commissionPercent && ` · ${Number(c.commissionPercent)}%`}
                     </p>
                   </div>
-                </div>
+                </button>
                 <div className="mt-2 flex items-center gap-2">
                   <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setPayingTo(c)}>
                     <Wallet className="mr-1.5 h-3.5 w-3.5" />

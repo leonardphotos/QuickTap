@@ -239,6 +239,16 @@ export const clubAcademyController = {
     res.json({ data: await clubAcademyService.deactivateProgram(req.restaurantId!, req.params.id) });
   }),
 
+  getGroupDetail: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await clubAcademyService.getGroupDetail(req.restaurantId!, req.params.id) });
+  }),
+  getCoachDetail: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await clubAcademyService.getCoachDetail(req.restaurantId!, req.params.id) });
+  }),
+  getProgramDetail: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await clubAcademyService.getProgramDetail(req.restaurantId!, req.params.id) });
+  }),
+
   // Lista de espera
   listWaitlist: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await clubAcademyService.listWaitlist(req.restaurantId!, req.query.groupId as string | undefined) });

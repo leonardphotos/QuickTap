@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { card } from '../clubStyle';
 import { academyApi, LEVELS, WEEKDAY_SHORT, type ClassGroup, type Student } from './academyApi';
 import { levelLabel } from '@/utils/padelLevel';
+import type { DetailTarget } from './AcademyDetails';
 
 const INPUT =
   'w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40';
@@ -20,7 +21,13 @@ const METHODS = [
   { value: 'CARD', label: 'Punto de venta' },
 ];
 
-export default function AcademyStudentsTab({ restaurant }: { restaurant: Pick<AuthRestaurant, 'currencySymbol'> }) {
+export default function AcademyStudentsTab({
+  restaurant,
+  onOpen,
+}: {
+  restaurant: Pick<AuthRestaurant, 'currencySymbol'>;
+  onOpen: (t: DetailTarget) => void;
+}) {
   const [students, setStudents] = useState<Student[]>([]);
   const [groups, setGroups] = useState<ClassGroup[]>([]);
   const [q, setQ] = useState('');
@@ -71,7 +78,11 @@ export default function AcademyStudentsTab({ restaurant }: { restaurant: Pick<Au
           <ul className="mt-3 divide-y divide-brand-950/[0.06]">
             {students.map((s) => (
               <li key={s.id} className="py-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => onOpen({ kind: 'student', id: s.id })}
+                  className="-mx-2 flex w-[calc(100%+1rem)] flex-wrap items-start justify-between gap-2 rounded-xl px-2 py-1 text-left transition-colors hover:bg-brand-950/[0.03]"
+                >
                   <div className="min-w-0">
                     <p className="truncate text-sm font-semibold text-brand-950">{s.customer.name}</p>
                     <p className="text-xs font-light text-brand-950/50">
@@ -91,7 +102,7 @@ export default function AcademyStudentsTab({ restaurant }: { restaurant: Pick<Au
                     </p>
                     <p className="text-[11px] font-light text-brand-950/40">fichas</p>
                   </div>
-                </div>
+                </button>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setEnrolling(s)}>
                     Inscribir

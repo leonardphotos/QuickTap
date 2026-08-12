@@ -6,6 +6,7 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { card } from '../clubStyle';
 import { academyApi, SESSION_STATUS_LABELS, type AcademyDashboard, type ClassSession } from './academyApi';
+import type { DetailTarget } from './AcademyDetails';
 
 interface RosterEntry {
   studentId: string;
@@ -21,7 +22,13 @@ function hhmm(iso: string): string {
 }
 
 /** Las clases de hoy y el atajo a pasar lista, que es lo que más se usa. */
-export default function AcademyTodayTab({ restaurant }: { restaurant: Pick<AuthRestaurant, 'currencySymbol'> }) {
+export default function AcademyTodayTab({
+  restaurant,
+  onOpen,
+}: {
+  restaurant: Pick<AuthRestaurant, 'currencySymbol'>;
+  onOpen: (t: DetailTarget) => void;
+}) {
   const [data, setData] = useState<AcademyDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +86,11 @@ export default function AcademyTodayTab({ restaurant }: { restaurant: Pick<AuthR
           <ul className="mt-3 divide-y divide-brand-950/[0.06]">
             {data.todaySessions.map((s) => (
               <li key={s.id} className="flex flex-wrap items-center gap-3 py-3">
+                <button
+                  type="button"
+                  onClick={() => onOpen({ kind: 'session', id: s.id })}
+                  className="-mx-2 flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-1 text-left transition-colors hover:bg-brand-950/[0.03]"
+                >
                 <span className="w-14 shrink-0 text-sm font-bold text-brand-950">{hhmm(s.startsAt)}</span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold text-brand-950">
@@ -89,6 +101,7 @@ export default function AcademyTodayTab({ restaurant }: { restaurant: Pick<AuthR
                     {s.court && ` · ${s.court.name}`} · {SESSION_STATUS_LABELS[s.status]}
                   </span>
                 </span>
+                </button>
                 <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setRosterFor(s)}>
                   Pasar lista
                 </TextureButton>

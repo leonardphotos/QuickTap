@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState } from 'react';
 import type { AuthRestaurant } from '@/context/AuthContext';
+import { AcademyDetail, type DetailTarget } from './AcademyDetails';
 
 const AcademyTodayTab = lazy(() => import('./AcademyTodayTab'));
 const AcademyGroupsTab = lazy(() => import('./AcademyGroupsTab'));
@@ -34,6 +35,13 @@ export default function ClubAcademyPage({
   isAdmin: boolean;
 }) {
   const [tab, setTab] = useState<Tab>('hoy');
+  /**
+   * Qué ficha está abierta. Vive acá y no dentro de cada pestaña para poder
+   * ENCADENAR: de un grupo a un alumno, de ese alumno a otro de sus grupos, sin
+   * cerrar la ventana ni perder dónde estabas.
+   */
+  const [detail, setDetail] = useState<DetailTarget | null>(null);
+  const symbol = restaurant.currencySymbol ?? '$';
   const tabs = (Object.keys(TAB_LABELS) as Tab[]).filter((t) => isAdmin || !ADMIN_ONLY.includes(t));
   const active = tabs.includes(tab) ? tab : 'hoy';
 
@@ -60,13 +68,17 @@ export default function ClubAcademyPage({
       </div>
 
       <Suspense fallback={<p className="text-sm font-light text-brand-950/40">Cargando…</p>}>
-        {active === 'hoy' && <AcademyTodayTab restaurant={restaurant} />}
-        {active === 'grupos' && <AcademyGroupsTab restaurant={restaurant} isAdmin={isAdmin} />}
-        {active === 'programas' && <AcademyProgramsTab />}
-        {active === 'alumnos' && <AcademyStudentsTab restaurant={restaurant} />}
-        {active === 'profesores' && <AcademyCoachesTab restaurant={restaurant} />}
-        {active === 'cobros' && <AcademyMoneyTab restaurant={restaurant} />}
+        {active === 'hoy' && <AcademyTodayTab restaurant={restaurant} onOpen={setDetail} />}
+        {active === 'grupos' && <AcademyGroupsTab restaurant={restaurant} isAdmin={isAdmin} onOpen={setDetail} />}
+        {active === 'programas' && <AcademyProgramsTab onOpen={setDetail} />}
+        {active === 'alumnos' && <AcademyStudentsTab restaurant={restaurant} onOpen={setDetail} />}
+        {active === 'profesores' && <AcademyCoachesTab restaurant={restaurant} onOpen={setDetail} />}
+        {active === 'cobros' && <AcademyMoneyTab restaurant={restaurant} onOpen={setDetail} />}
       </Suspense>
+
+      {detail && (
+        <AcademyDetail target={detail} symbol={symbol} onClose={() => setDetail(null)} onNavigate={setDetail} />
+      )}
     </div>
   );
 }

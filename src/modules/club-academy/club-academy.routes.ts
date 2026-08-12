@@ -45,6 +45,7 @@ router.put('/settings', admin, clubAcademyController.updateSettings);
 
 router.get('/coaches', staff, clubAcademyController.listCoaches);
 router.post('/coaches', admin, clubAcademyController.createCoach);
+router.get('/coaches/:id', staff, clubAcademyController.getCoachDetail);
 router.patch('/coaches/:id', admin, clubAcademyController.updateCoach);
 router.delete('/coaches/:id', admin, clubAcademyController.deleteCoach);
 router.put('/coaches/:id/availability', admin, clubAcademyController.setAvailability);
@@ -55,6 +56,7 @@ router.post('/coaches/:id/payouts', admin, clubAcademyController.payCoach);
 
 router.get('/programs', staff, clubAcademyController.listPrograms);
 router.post('/programs', admin, clubAcademyController.createProgram);
+router.get('/programs/:id', staff, clubAcademyController.getProgramDetail);
 router.patch('/programs/:id', admin, clubAcademyController.updateProgram);
 router.delete('/programs/:id', admin, clubAcademyController.deleteProgram);
 
@@ -64,6 +66,7 @@ router.delete('/waitlist/:id', reception, clubAcademyController.leaveWaitlist);
 
 router.get('/groups', staff, clubAcademyController.listGroups);
 router.post('/groups', admin, clubAcademyController.createGroup);
+router.get('/groups/:id', staff, clubAcademyController.getGroupDetail);
 router.patch('/groups/:id', admin, clubAcademyController.updateGroup);
 router.post('/groups/:id/generate', admin, clubAcademyController.generateSessions);
 router.delete('/groups/:id', admin, clubAcademyController.endGroup);

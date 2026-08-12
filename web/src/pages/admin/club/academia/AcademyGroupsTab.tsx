@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { card } from '../clubStyle';
 import { academyApi, LEVELS, WEEKDAYS, WEEKDAY_SHORT, type ClassGroup, type Coach, type Program } from './academyApi';
 import { levelRangeLabel } from '@/utils/padelLevel';
+import type { DetailTarget } from './AcademyDetails';
 
 const INPUT =
   'w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40';
@@ -27,9 +28,11 @@ interface Court {
 export default function AcademyGroupsTab({
   restaurant,
   isAdmin,
+  onOpen,
 }: {
   restaurant: Pick<AuthRestaurant, 'currencySymbol'>;
   isAdmin: boolean;
+  onOpen: (t: DetailTarget) => void;
 }) {
   const [groups, setGroups] = useState<ClassGroup[]>([]);
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
@@ -92,9 +95,15 @@ export default function AcademyGroupsTab({
           </p>
           <ul className="mt-2 space-y-1">
             {conflicts.slice(0, 8).map((c) => (
-              <li key={c.id} className="text-sm text-amber-900">
-                {new Date(c.startsAt).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })} ·{' '}
-                {c.group?.name ?? 'Clase suelta'}
+              <li key={c.id}>
+                <button
+                  type="button"
+                  onClick={() => onOpen({ kind: 'session', id: c.id })}
+                  className="w-full text-left text-sm text-amber-900 underline-offset-2 hover:underline"
+                >
+                  {new Date(c.startsAt).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })} ·{' '}
+                  {c.group?.name ?? 'Clase suelta'}
+                </button>
               </li>
             ))}
           </ul>
@@ -118,7 +127,11 @@ export default function AcademyGroupsTab({
           <ul className="mt-3 divide-y divide-brand-950/[0.06]">
             {groups.map((g) => (
               <li key={g.id} className="py-3">
-                <div className="flex flex-wrap items-start justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => onOpen({ kind: 'group', id: g.id })}
+                  className="-mx-2 flex w-[calc(100%+1rem)] flex-wrap items-start justify-between gap-2 rounded-xl px-2 py-1 text-left transition-colors hover:bg-brand-950/[0.03]"
+                >
                   <div className="min-w-0">
                     <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-brand-950">
                       {g.program && (
@@ -144,7 +157,7 @@ export default function AcademyGroupsTab({
                     )}
                     <p className="text-[11px] font-light text-brand-950/40">{g._count.sessions} clases agendadas</p>
                   </div>
-                </div>
+                </button>
                 {isAdmin && (
                   <div className="mt-2 flex items-center gap-2">
                     <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => extend(g.id)}>

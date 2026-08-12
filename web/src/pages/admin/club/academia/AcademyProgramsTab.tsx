@@ -4,6 +4,7 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { card } from '../clubStyle';
 import { academyApi, type Program, type WaitlistEntry } from './academyApi';
+import type { DetailTarget } from './AcademyDetails';
 
 const INPUT =
   'w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40';
@@ -21,7 +22,7 @@ const SUGGESTIONS = ['Infantil', 'Adultos', 'Competición', 'Clínicas'];
  * Van juntos porque son las dos caras de cómo se organiza la oferta: el programa
  * define qué se ofrece, y la lista de espera dice a quién no le alcanzó el cupo.
  */
-export default function AcademyProgramsTab() {
+export default function AcademyProgramsTab({ onOpen }: { onOpen: (t: DetailTarget) => void }) {
   const [programs, setPrograms] = useState<Program[]>([]);
   const [waitlist, setWaitlist] = useState<WaitlistEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -70,6 +71,11 @@ export default function AcademyProgramsTab() {
           <ul className="mt-3 divide-y divide-brand-950/[0.06]">
             {programs.map((p) => (
               <li key={p.id} className="flex items-center gap-3 py-3">
+                <button
+                  type="button"
+                  onClick={() => onOpen({ kind: 'program', id: p.id })}
+                  className="-mx-2 flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-1 text-left transition-colors hover:bg-brand-950/[0.03]"
+                >
                 <span
                   className="h-8 w-8 shrink-0 rounded-xl"
                   style={{ backgroundColor: p.color ?? '#94a3b8' }}
@@ -84,6 +90,7 @@ export default function AcademyProgramsTab() {
                     {p.description || `${p._count.groups} grupo(s)`}
                   </span>
                 </span>
+                </button>
                 {p.active && (
                   <button
                     onClick={async () => {
@@ -119,7 +126,11 @@ export default function AcademyProgramsTab() {
                 <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-950/[0.05] text-xs font-bold text-brand-950/60">
                   {w.position}
                 </span>
-                <span className="min-w-0 flex-1">
+                <button
+                  type="button"
+                  onClick={() => onOpen({ kind: 'group', id: w.group.id })}
+                  className="-mx-2 min-w-0 flex-1 rounded-xl px-2 py-1 text-left transition-colors hover:bg-brand-950/[0.03]"
+                >
                   <span className="block truncate text-sm font-semibold text-brand-950">
                     {w.student.customer.name}
                     {w.status === 'OFFERED' && (
@@ -131,7 +142,7 @@ export default function AcademyProgramsTab() {
                   <span className="block truncate text-xs font-light text-brand-950/50">
                     {w.group.name} · {w.student.customer.phone}
                   </span>
-                </span>
+                </button>
                 <button
                   onClick={async () => {
                     await academyApi.leaveWaitlist(w.id);
