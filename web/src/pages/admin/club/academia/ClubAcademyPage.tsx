@@ -46,24 +46,28 @@ export default function ClubAcademyPage({
   const active = tabs.includes(tab) ? tab : 'hoy';
 
   return (
-    <div className="flex flex-col gap-5">
-      {/* El scroll va en un contenedor APARTE de la píldora: con overflow-x-auto
-          sobre la píldora misma nunca se activa —al ser de ancho automático
-          siempre "cabe"— y en su lugar estira la página. */}
-      <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="flex w-max items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
-          {tabs.map((t) => (
-            <button
-              key={t}
-              type="button"
-              onClick={() => setTab(t)}
-              className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[13px] font-semibold transition-colors ${
-                active === t ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
-              }`}
-            >
-              {TAB_LABELS[t]}
-            </button>
-          ))}
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+        <h1 className="text-[22px] font-bold tracking-tight text-brand-950 lg:text-[26px]">Academia</h1>
+
+        {/* El scroll va en un contenedor APARTE de la píldora: con overflow-x-auto
+            sobre la píldora misma nunca se activa —al ser de ancho automático
+            siempre "cabe"— y en su lugar estira la página. */}
+        <div className="-mx-1 min-w-0 max-w-full overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex w-max items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
+            {tabs.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTab(t)}
+                className={`whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-semibold transition-colors ${
+                  active === t ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
+                }`}
+              >
+                {TAB_LABELS[t]}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

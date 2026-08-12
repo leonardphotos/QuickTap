@@ -22,6 +22,7 @@ export default function DetailSheet({
   onClose,
   children,
   footer,
+  size = 'detail',
 }: {
   open: boolean;
   title: string;
@@ -29,31 +30,52 @@ export default function DetailSheet({
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
+  /**
+   * `detail` es una ficha: se lee, y en horizontal aprovecha el ancho para que el
+   * listado de inscritos no venga en columna de cerillas.
+   * `form` es un formulario corto (cobrar, ajustar): estirarlo solo aleja la
+   * etiqueta de su campo.
+   */
+  size?: 'detail' | 'form';
 }) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       {/* DialogContent ya trae su propia X (absolute right-4 top-4) — no se repite acá.
-          Se le deja el espacio a la derecha (pr-9) para que el título largo no quede
+          Se le deja el espacio a la derecha (pr-12) para que el título largo no quede
           debajo del botón. */}
-      <DialogContent className="flex max-h-[88vh] max-w-md flex-col gap-0 overflow-hidden p-0">
-        <div className="border-b border-brand-950/[0.06] py-5 pl-5 pr-9">
-          <h2 className="truncate text-[17px] font-bold tracking-tight text-brand-950">{title}</h2>
-          {subtitle && <p className="mt-0.5 truncate text-[13px] font-light text-brand-950/50">{subtitle}</p>}
+      <DialogContent
+        className={`flex max-h-[88vh] flex-col gap-0 overflow-hidden p-0 ${
+          size === 'form' ? 'max-w-md' : 'max-w-md sm:max-w-xl lg:max-w-3xl'
+        }`}
+      >
+        <div className="border-b border-brand-950/[0.06] py-5 pl-6 pr-12 lg:py-6">
+          <h2 className="truncate text-[18px] font-bold tracking-tight text-brand-950">{title}</h2>
+          {subtitle && <p className="mt-1 truncate text-[13px] font-light text-brand-950/50">{subtitle}</p>}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-6 lg:p-7">{children}</div>
 
-        {footer && <div className="border-t border-brand-950/[0.06] p-4">{footer}</div>}
+        {footer && <div className="border-t border-brand-950/[0.06] p-5">{footer}</div>}
       </DialogContent>
     </Dialog>
   );
 }
 
+/**
+ * Cuerpo de la ficha a dos columnas cuando hay ancho. Las `Section` de adentro se
+ * reparten solas: los datos quedan al lado de las listas en vez de debajo, que es
+ * lo que obligaba a bajar tres pantallas para ver quién está inscrito.
+ * En vertical vuelve a una sola columna sin tocar nada.
+ */
+export function SheetBody({ children }: { children: ReactNode }) {
+  return <div className="grid gap-x-9 lg:grid-cols-2 lg:items-start">{children}</div>;
+}
+
 export function Section({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
   return (
-    <section className="mb-5 last:mb-0">
-      <div className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="text-[13px] font-bold text-brand-950">{title}</h3>
+    <section className="mb-7 last:mb-0">
+      <div className="mb-2.5 flex items-center justify-between gap-2 border-b border-brand-950/[0.06] pb-2">
+        <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-brand-950/40">{title}</h3>
         {action}
       </div>
       {children}
@@ -63,7 +85,7 @@ export function Section({ title, children, action }: { title: string; children: 
 
 export function Row({ label, value, tone }: { label: string; value: ReactNode; tone?: 'muted' | 'strong' }) {
   return (
-    <div className="flex items-baseline justify-between gap-3 py-1.5">
+    <div className="flex items-baseline justify-between gap-4 py-2">
       <span className="shrink-0 text-[13px] font-light text-brand-950/50">{label}</span>
       <span
         className={`min-w-0 text-right text-[13px] ${
@@ -120,13 +142,13 @@ export function ItemRow({
   );
 
   if (!onClick) {
-    return <div className="flex items-center gap-2 py-2.5">{content}</div>;
+    return <div className="flex items-center gap-2 py-3">{content}</div>;
   }
   return (
     <button
       type="button"
       onClick={onClick}
-      className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-2 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-brand-950/[0.03]"
+      className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-2 rounded-xl px-2 py-3 text-left transition-colors hover:bg-brand-950/[0.03]"
     >
       {content}
     </button>

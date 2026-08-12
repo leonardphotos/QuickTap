@@ -4,7 +4,19 @@ import type { AuthRestaurant } from '@/context/AuthContext';
 import { formatBase } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { card } from '../clubStyle';
+import {
+  Cell,
+  ClubBadge,
+  ClubEyebrow,
+  ClubMetric,
+  ClubPanel,
+  ClubRow,
+  ClubTable,
+  PlainCell,
+  SubCell,
+  type BadgeTone,
+  type ClubColumn,
+} from '../ClubTable';
 import { academyApi, SESSION_STATUS_LABELS, type AcademyDashboard, type ClassSession } from './academyApi';
 import type { DetailTarget } from './AcademyDetails';
 
@@ -16,6 +28,27 @@ interface RosterEntry {
   billingMode: string;
   attendance: { status: string } | null;
 }
+
+/** Color del estado de la clase. Mismo criterio en toda la Academia. */
+const SESSION_TONES: Record<ClassSession['status'], BadgeTone> = {
+  SCHEDULED: 'neutral',
+  NEEDS_COURT: 'amber',
+  PENDING_PAYMENT: 'amber',
+  CONFIRMED: 'brand',
+  DONE: 'emerald',
+  CANCELLED: 'red',
+  RELEASED: 'sky',
+};
+
+const COLS: ClubColumn[] = [
+  { key: 'hora', label: 'Hora', width: '88px' },
+  { key: 'clase', label: 'Clase', width: 'minmax(0,1.6fr)' },
+  { key: 'profesor', label: 'Profesor', width: 'minmax(0,1fr)' },
+  { key: 'cancha', label: 'Cancha', width: '140px' },
+  { key: 'cupo', label: 'Cupo', width: '92px' },
+  { key: 'estado', label: 'Estado', width: '136px' },
+  { key: 'accion', label: '', width: '128px', align: 'right' },
+];
 
 function hhmm(iso: string): string {
   return new Date(iso).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit', hour12: false });
@@ -49,75 +82,91 @@ export default function AcademyTodayTab({
   if (error) return <p className="text-sm text-red-600">{error}</p>;
   if (!data) return null;
 
+  const owes = data.pendingCharges.count > 0;
+  const pending = data.todaySessions.filter((s) => s.status !== 'DONE' && s.status !== 'CANCELLED').length;
+
   return (
-    <div className="flex flex-col gap-5">
-      <div className="grid grid-cols-2 gap-3">
-        <button
-          type="button"
+    <div className="flex flex-col gap-4">
+      <ClubEyebrow>Resumen</ClubEyebrow>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+        <ClubMetric
+          value={data.activeStudents}
+          label="Alumnos activos"
+          hint={`${data.activeGroups} grupo(s) en marcha`}
           onClick={() => onOpen({ kind: 'activeStudents' })}
-          className={`${card} p-4 text-left transition-colors hover:border-brand-400`}
-        >
-          <p className="text-[22px] font-bold leading-tight text-brand-950">{data.activeStudents}</p>
-          <p className="text-[13px] font-semibold text-brand-950/70">Alumnos activos</p>
-          <p className="text-[11px] font-light text-brand-950/40">{data.activeGroups} grupos</p>
-        </button>
-        <button
-          type="button"
+        />
+        <ClubMetric
+          value={formatBase(data.pendingCharges.amountBase, symbol)}
+          label="Por cobrar"
+          hint={`${data.pendingCharges.count} mensualidad(es)`}
+          tone={owes ? 'amber' : 'default'}
           onClick={() => onOpen({ kind: 'pendingCharges' })}
-          className={`${card} p-4 text-left transition-colors hover:border-amber-300`}
-        >
-          <p className="text-[22px] font-bold leading-tight text-brand-950">
-            {formatBase(data.pendingCharges.amountBase, symbol)}
-          </p>
-          <p className="text-[13px] font-semibold text-brand-950/70">Por cobrar</p>
-          <p className="text-[11px] font-light text-brand-950/40">{data.pendingCharges.count} mensualidad(es)</p>
-        </button>
+        />
+        <ClubMetric
+          value={data.todaySessions.length}
+          label="Clases hoy"
+          hint={pending === 0 ? 'Todo cerrado' : `${pending} sin dar`}
+        />
+        <ClubMetric
+          value={data.activeGroups}
+          label="Grupos activos"
+          hint={data.needsCourt > 0 ? `${data.needsCourt} clase(s) sin cancha` : 'Sin conflictos'}
+          tone={data.needsCourt > 0 ? 'amber' : 'brand'}
+        />
       </div>
 
       {data.needsCourt > 0 && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-          <p className="flex items-center gap-1.5 text-sm font-bold text-amber-900">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 lg:p-5">
+          <p className="flex items-center gap-2 text-sm font-bold text-amber-900">
             <AlertTriangle className="h-4 w-4" />
             {data.needsCourt} clase(s) sin cancha
           </p>
-          <p className="mt-1 text-sm font-light text-amber-900/80">
+          <p className="mt-1.5 text-[13px] font-light leading-relaxed text-amber-900/80">
             Esas fechas chocaban con una reserva ya hecha. Reubícalas desde Grupos para que ocupen pista.
           </p>
         </div>
       )}
 
-      <div className={`${card} p-5`}>
-        <p className="text-sm font-bold text-brand-950">Clases de hoy</p>
-        {data.todaySessions.length === 0 ? (
-          <p className="py-6 text-center text-sm font-light text-brand-950/40">Hoy no hay clases programadas.</p>
-        ) : (
-          <ul className="mt-3 divide-y divide-brand-950/[0.06]">
-            {data.todaySessions.map((s) => (
-              <li key={s.id} className="flex flex-wrap items-center gap-3 py-3">
-                <button
-                  type="button"
-                  onClick={() => onOpen({ kind: 'session', id: s.id })}
-                  className="-mx-2 flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-1 text-left transition-colors hover:bg-brand-950/[0.03]"
+      <ClubEyebrow>Clases de hoy</ClubEyebrow>
+      <ClubPanel>
+        <ClubTable columns={COLS} rows={data.todaySessions.length} empty="Hoy no hay clases programadas.">
+          {data.todaySessions.map((s) => (
+            <ClubRow
+              key={s.id}
+              label={`Ver ${s.group?.name ?? 'la clase'}`}
+              onClick={() => onOpen({ kind: 'session', id: s.id })}
+              cells={[
+                <Cell key="h" className="tabular-nums">
+                  {hhmm(s.startsAt)}
+                </Cell>,
+                <>
+                  <Cell>{s.group?.name ?? 'Clase suelta'}</Cell>
+                  <SubCell>
+                    hasta {hhmm(s.endsAt)}
+                  </SubCell>
+                </>,
+                <PlainCell key="p">{s.coach.displayName}</PlainCell>,
+                <PlainCell key="c">{s.court?.name ?? 'Sin asignar'}</PlainCell>,
+                <PlainCell key="q" className="tabular-nums">
+                  {s.occupiedSeats}/{s.capacityMax}
+                </PlainCell>,
+                <ClubBadge key="e" tone={SESSION_TONES[s.status]}>
+                  {SESSION_STATUS_LABELS[s.status]}
+                </ClubBadge>,
+                <TextureButton
+                  key="a"
+                  variant="minimal"
+                  size="default"
+                  className="!w-auto"
+                  onClick={() => setRosterFor(s)}
                 >
-                <span className="w-14 shrink-0 text-sm font-bold text-brand-950">{hhmm(s.startsAt)}</span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-brand-950">
-                    {s.group?.name ?? 'Clase suelta'}
-                  </span>
-                  <span className="block text-xs font-light text-brand-950/50">
-                    {s.coach.displayName}
-                    {s.court && ` · ${s.court.name}`} · {SESSION_STATUS_LABELS[s.status]}
-                  </span>
-                </span>
-                </button>
-                <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setRosterFor(s)}>
                   Pasar lista
-                </TextureButton>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+                </TextureButton>,
+              ]}
+            />
+          ))}
+        </ClubTable>
+      </ClubPanel>
 
       {rosterFor && (
         <RosterDialog

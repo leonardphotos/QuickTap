@@ -1,14 +1,61 @@
 import { useCallback, useEffect, useState } from 'react';
-import { AlertTriangle, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { AlertTriangle, Pause, Play, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { api } from '@/api/client';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { formatBase } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { card } from '../clubStyle';
+import {
+  Cell,
+  ClubBadge,
+  ClubEyebrow,
+  ClubPanel,
+  ClubRow,
+  ClubTable,
+  PlainCell,
+  SubCell,
+  type ClubColumn,
+} from '../ClubTable';
 import { academyApi, LEVELS, WEEKDAYS, WEEKDAY_SHORT, type ClassGroup, type Coach, type Program } from './academyApi';
 import { levelRangeLabel } from '@/utils/padelLevel';
 import type { DetailTarget } from './AcademyDetails';
+
+/** Botón de acción de una fila. En horizontal es solo el icono, para no comerle
+ *  ancho a los datos; en vertical, donde sobra sitio, lleva el texto al lado —un
+ *  icono suelto de "pausa" no dice a qué. */
+function IconAction({
+  label,
+  danger,
+  onClick,
+  children,
+}: {
+  label: string;
+  danger?: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={label}
+      title={label}
+      className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-brand-950/45 transition-colors lg:w-9 lg:justify-center lg:px-0 ${
+        danger ? 'hover:bg-red-50 hover:text-red-600' : 'hover:bg-brand-950/[0.06] hover:text-brand-950'
+      }`}
+    >
+      {children}
+      <span className="lg:hidden">{label}</span>
+    </button>
+  );
+}
+
+const GROUP_STATUS: Record<ClassGroup['status'], { label: string; tone: 'neutral' | 'brand' | 'amber' }> = {
+  DRAFT: { label: 'Borrador', tone: 'neutral' },
+  ACTIVE: { label: 'Activo', tone: 'brand' },
+  PAUSED: { label: 'Pausado', tone: 'amber' },
+  ENDED: { label: 'Terminado', tone: 'neutral' },
+};
 
 const INPUT =
   'w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40';
@@ -79,27 +126,40 @@ export default function AcademyGroupsTab({
 
   if (loading) return <p className="text-sm font-light text-brand-950/40">Cargando grupos…</p>;
 
+  // La columna de acciones solo existe para quien puede usarla: a recepción le
+  // sobraría una columna vacía ocupando ancho de lectura.
+  const cols: ClubColumn[] = [
+    { key: 'grupo', label: 'Grupo', width: 'minmax(0,1.3fr)' },
+    // 186px es lo que mide "Principiante a Intermedio", el rango más largo.
+    { key: 'nivel', label: 'Nivel', width: '186px' },
+    { key: 'profesor', label: 'Profesor', width: 'minmax(0,1fr)' },
+    { key: 'horarios', label: 'Horarios', width: 'minmax(0,1.2fr)' },
+    { key: 'inscritos', label: 'Inscritos', width: '96px' },
+    { key: 'precio', label: 'Mensualidad', width: '116px', align: 'right' },
+    ...(isAdmin ? ([{ key: 'acciones', label: '', width: '130px', align: 'right' }] as ClubColumn[]) : []),
+  ];
+
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       {error && <p className="text-sm text-red-600">{error}</p>}
       {notice && <p className="text-sm text-emerald-700">{notice}</p>}
 
       {conflicts.length > 0 && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-          <p className="flex items-center gap-1.5 text-sm font-bold text-amber-900">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 lg:p-5">
+          <p className="flex items-center gap-2 text-sm font-bold text-amber-900">
             <AlertTriangle className="h-4 w-4" />
             {conflicts.length} clase(s) sin cancha
           </p>
-          <p className="mt-1 text-xs font-light text-amber-900/80">
+          <p className="mt-1.5 text-[13px] font-light leading-relaxed text-amber-900/80">
             Esas fechas ya tenían una reserva encima. Cámbialas de cancha u hora, o cancélalas.
           </p>
-          <ul className="mt-2 space-y-1">
+          <ul className="mt-3 grid gap-1 sm:grid-cols-2">
             {conflicts.slice(0, 8).map((c) => (
               <li key={c.id}>
                 <button
                   type="button"
                   onClick={() => onOpen({ kind: 'session', id: c.id })}
-                  className="w-full text-left text-sm text-amber-900 underline-offset-2 hover:underline"
+                  className="w-full truncate rounded-lg px-2 py-1.5 text-left text-[13px] text-amber-900 transition-colors hover:bg-amber-100"
                 >
                   {new Date(c.startsAt).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })} ·{' '}
                   {c.group?.name ?? 'Clase suelta'}
@@ -110,30 +170,30 @@ export default function AcademyGroupsTab({
         </div>
       )}
 
-      <div className={`${card} p-5`}>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-bold text-brand-950">Grupos</p>
-          {isAdmin && (
+      <ClubEyebrow>Grupos de la academia</ClubEyebrow>
+      <ClubPanel
+        title="Grupos"
+        description="Cada grupo ocupa cancha real: lo que se agenda acá desaparece del alquiler libre."
+        action={
+          isAdmin && (
             <TextureButton variant="brand" size="default" className="!w-auto" onClick={() => setCreating(true)}>
               <Plus className="mr-1.5 h-3.5 w-3.5" />
               Nuevo grupo
             </TextureButton>
-          )}
-        </div>
-
-        {groups.length === 0 ? (
-          <p className="py-6 text-center text-sm font-light text-brand-950/40">Todavía no hay grupos de academia.</p>
-        ) : (
-          <ul className="mt-3 divide-y divide-brand-950/[0.06]">
-            {groups.map((g) => (
-              <li key={g.id} className="py-3">
-                <button
-                  type="button"
-                  onClick={() => onOpen({ kind: 'group', id: g.id })}
-                  className="-mx-2 flex w-[calc(100%+1rem)] flex-wrap items-start justify-between gap-2 rounded-xl px-2 py-1 text-left transition-colors hover:bg-brand-950/[0.03]"
-                >
-                  <div className="min-w-0">
-                    <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-brand-950">
+          )
+        }
+      >
+        <ClubTable columns={cols} rows={groups.length} empty="Todavía no hay grupos de academia.">
+          {groups.map((g) => (
+            <ClubRow
+              key={g.id}
+              label={`Ver ${g.name}`}
+              muted={g.status === 'ENDED'}
+              onClick={() => onOpen({ kind: 'group', id: g.id })}
+              cells={[
+                <>
+                  <Cell>
+                    <span className="flex items-center gap-2">
                       {g.program && (
                         <span
                           className="h-2.5 w-2.5 shrink-0 rounded-full"
@@ -141,55 +201,68 @@ export default function AcademyGroupsTab({
                           title={g.program.name}
                         />
                       )}
-                      {g.name}
-                    </p>
-                    <p className="text-xs font-light text-brand-950/50">
-                      {levelRangeLabel(g.levelMin, g.levelMax)} ({Number(g.levelMin).toFixed(1)}–{Number(g.levelMax).toFixed(1)}) · {g.coach.displayName} ·{' '}
-                      {g._count.enrollments}/{g.capacityMax} inscritos
-                    </p>
-                    <p className="mt-0.5 text-xs font-light text-brand-950/40">
-                      {g.slots.map((s) => `${WEEKDAY_SHORT[s.weekday]} ${s.startTime}`).join(' · ')}
-                    </p>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    {g.priceMonthlyBase && (
-                      <p className="text-sm font-bold text-brand-950">{formatBase(g.priceMonthlyBase, symbol)}/mes</p>
-                    )}
-                    <p className="text-[11px] font-light text-brand-950/40">{g._count.sessions} clases agendadas</p>
-                  </div>
-                </button>
-                {isAdmin && (
-                  <div className="mt-2 flex items-center gap-2">
-                    <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => extend(g.id)}>
-                      <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-                      Agendar más semanas
-                    </TextureButton>
-                    <button
-                      onClick={async () => {
-                        await academyApi.updateGroup(g.id, { status: g.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE' });
-                        load();
-                      }}
-                      className="flex min-h-[34px] items-center gap-1 rounded-full px-3 text-xs font-medium text-brand-950/45 hover:text-brand-950"
-                    >
-                      {g.status === 'ACTIVE' ? 'Pausar' : 'Reactivar'}
-                    </button>
-                    <button
-                      onClick={async () => {
-                        await academyApi.updateGroup(g.id, { status: 'ENDED' });
-                        load();
-                      }}
-                      className="flex min-h-[34px] items-center gap-1 rounded-full px-3 text-xs font-medium text-brand-950/45 hover:text-red-600"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Terminar
-                    </button>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+                      <span className="truncate">{g.name}</span>
+                    </span>
+                  </Cell>
+                  <SubCell>{g.program?.name ?? 'Sin programa'}</SubCell>
+                </>,
+                <>
+                  <PlainCell>{levelRangeLabel(g.levelMin, g.levelMax)}</PlainCell>
+                  <SubCell className="tabular-nums">
+                    {Number(g.levelMin).toFixed(1)}–{Number(g.levelMax).toFixed(1)}
+                  </SubCell>
+                </>,
+                <>
+                  <PlainCell>{g.coach.displayName}</PlainCell>
+                  <SubCell>
+                    <ClubBadge tone={GROUP_STATUS[g.status].tone}>{GROUP_STATUS[g.status].label}</ClubBadge>
+                  </SubCell>
+                </>,
+                <>
+                  <PlainCell>{g.slots.map((s) => `${WEEKDAY_SHORT[s.weekday]} ${s.startTime}`).join(' · ') || '—'}</PlainCell>
+                  <SubCell>{g._count.sessions} clases agendadas</SubCell>
+                </>,
+                <PlainCell key="i" className="tabular-nums">
+                  {g._count.enrollments}/{g.capacityMax}
+                </PlainCell>,
+                <Cell key="p" className="tabular-nums">
+                  {g.priceMonthlyBase ? formatBase(g.priceMonthlyBase, symbol) : '—'}
+                </Cell>,
+                ...(isAdmin
+                  ? [
+                      // Solo iconos: tres botones con texto le comían a la fila el
+                      // ancho que necesitan los horarios, que es lo que se lee.
+                      <span key="a" className="flex items-center gap-1 lg:justify-end">
+                        <IconAction label="Agendar más semanas" onClick={() => extend(g.id)}>
+                          <RefreshCw className="h-4 w-4" />
+                        </IconAction>
+                        <IconAction
+                          label={g.status === 'ACTIVE' ? 'Pausar grupo' : 'Reactivar grupo'}
+                          onClick={async () => {
+                            await academyApi.updateGroup(g.id, { status: g.status === 'ACTIVE' ? 'PAUSED' : 'ACTIVE' });
+                            load();
+                          }}
+                        >
+                          {g.status === 'ACTIVE' ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                        </IconAction>
+                        <IconAction
+                          label="Terminar grupo"
+                          danger
+                          onClick={async () => {
+                            await academyApi.updateGroup(g.id, { status: 'ENDED' });
+                            load();
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </IconAction>
+                      </span>,
+                    ]
+                  : []),
+              ]}
+            />
+          ))}
+        </ClubTable>
+      </ClubPanel>
 
       {creating && (
         <GroupDialog

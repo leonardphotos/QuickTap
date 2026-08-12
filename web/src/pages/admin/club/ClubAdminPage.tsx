@@ -218,7 +218,7 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
 
       {tab === 'resumen' && (
       <>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         <Metric
           icon={CalendarCheck}
           color={METRIC_COLORS.court}
@@ -255,7 +255,7 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
             onClick={() => setTab('deudas')}
             className={cn(
               card,
-              'col-span-2 flex items-center gap-3 p-4 text-left transition-colors',
+              'col-span-2 flex items-center gap-3 p-4 text-left transition-colors lg:col-span-4',
               Number(debts.totals.total) > 0 ? 'hover:border-amber-300' : '',
             )}
           >

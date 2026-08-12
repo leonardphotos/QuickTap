@@ -4,9 +4,28 @@ import type { AuthRestaurant } from '@/context/AuthContext';
 import { formatBase } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { card } from '../clubStyle';
+import {
+  Cell,
+  ClubBadge,
+  ClubEyebrow,
+  ClubPanel,
+  ClubRow,
+  ClubTable,
+  PlainCell,
+  SubCell,
+  type ClubColumn,
+} from '../ClubTable';
 import { academyApi, LEVELS, PAY_TYPE_LABELS, type Coach } from './academyApi';
 import type { DetailTarget } from './AcademyDetails';
+
+const COLS: ClubColumn[] = [
+  { key: 'profesor', label: 'Profesor', width: 'minmax(0,1.2fr)' },
+  { key: 'tel', label: 'Teléfono', width: '150px' },
+  { key: 'niveles', label: 'Niveles', width: '150px' },
+  { key: 'pago', label: 'Cómo se le paga', width: 'minmax(0,1.4fr)' },
+  { key: 'estado', label: 'Estado', width: '116px' },
+  { key: 'accion', label: '', width: '148px', align: 'right' },
+];
 
 const INPUT =
   'w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40';
@@ -48,56 +67,65 @@ export default function AcademyCoachesTab({
   if (loading) return <p className="text-sm font-light text-brand-950/40">Cargando profesores…</p>;
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <div className={`${card} p-5`}>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-bold text-brand-950">Profesores</p>
+      <ClubEyebrow>Equipo docente</ClubEyebrow>
+      <ClubPanel
+        title="Profesores"
+        description="A su WhatsApp llegan los avisos de clase asignada, alumno inscrito y sesión cancelada."
+        action={
           <TextureButton variant="brand" size="default" className="!w-auto" onClick={() => setCreating(true)}>
             <Plus className="mr-1.5 h-3.5 w-3.5" />
             Agregar
           </TextureButton>
-        </div>
-
-        {coaches.length === 0 ? (
-          <p className="py-6 text-center text-sm font-light text-brand-950/40">Todavía no hay profesores.</p>
-        ) : (
-          <ul className="mt-3 divide-y divide-brand-950/[0.06]">
-            {coaches.map((c) => (
-              <li key={c.id} className="py-3">
-                <button
-                  type="button"
-                  onClick={() => onOpen({ kind: 'coach', id: c.id })}
-                  className="-mx-2 flex w-[calc(100%+1rem)] flex-wrap items-start justify-between gap-2 rounded-xl px-2 py-1 text-left transition-colors hover:bg-brand-950/[0.03]"
+        }
+      >
+        <ClubTable columns={COLS} rows={coaches.length} empty="Todavía no hay profesores.">
+          {coaches.map((c) => (
+            <ClubRow
+              key={c.id}
+              label={`Ver ${c.displayName}`}
+              muted={!c.active}
+              onClick={() => onOpen({ kind: 'coach', id: c.id })}
+              cells={[
+                <Cell key="n">{c.displayName}</Cell>,
+                <PlainCell key="t" className="tabular-nums">
+                  {c.phone}
+                </PlainCell>,
+                <PlainCell key="l">
+                  {c.levelMin && c.levelMax
+                    ? `${Number(c.levelMin).toFixed(1)}–${Number(c.levelMax).toFixed(1)}`
+                    : 'Cualquiera'}
+                </PlainCell>,
+                <>
+                  <PlainCell>{PAY_TYPE_LABELS[c.payType]}</PlainCell>
+                  {(c.payAmountBase || c.commissionPercent) && (
+                    <SubCell>
+                      {c.payAmountBase && formatBase(c.payAmountBase, symbol)}
+                      {c.payAmountBase && c.commissionPercent && ' · '}
+                      {c.commissionPercent && `${Number(c.commissionPercent)}%`}
+                    </SubCell>
+                  )}
+                </>,
+                <ClubBadge key="e" tone={c.active ? 'brand' : 'neutral'}>
+                  {c.active ? 'Activo' : 'Inactivo'}
+                </ClubBadge>,
+                <TextureButton
+                  key="a"
+                  variant="minimal"
+                  size="default"
+                  className="!w-auto"
+                  onClick={() => setPayingTo(c)}
                 >
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-brand-950">
-                      {c.displayName}
-                      {!c.active && <span className="ml-1.5 text-xs font-light text-brand-950/40">(inactivo)</span>}
-                    </p>
-                    <p className="text-xs font-light text-brand-950/50">
-                      {c.phone}
-                      {c.levelMin && c.levelMax && ` · niveles ${Number(c.levelMin).toFixed(1)}–${Number(c.levelMax).toFixed(1)}`}
-                    </p>
-                    <p className="mt-0.5 text-xs font-light text-brand-950/40">
-                      {PAY_TYPE_LABELS[c.payType]}
-                      {c.payAmountBase && ` · ${formatBase(c.payAmountBase, symbol)}`}
-                      {c.commissionPercent && ` · ${Number(c.commissionPercent)}%`}
-                    </p>
-                  </div>
-                </button>
-                <div className="mt-2 flex items-center gap-2">
-                  <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setPayingTo(c)}>
-                    <Wallet className="mr-1.5 h-3.5 w-3.5" />
-                    Honorarios
-                  </TextureButton>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+                  <Wallet className="mr-1.5 h-3.5 w-3.5" />
+                  Honorarios
+                </TextureButton>,
+              ]}
+            />
+          ))}
+        </ClubTable>
+      </ClubPanel>
 
       {creating && (
         <CoachDialog

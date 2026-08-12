@@ -2,9 +2,35 @@ import { useCallback, useEffect, useState } from 'react';
 import { Clock, Layers, Plus, UserMinus } from 'lucide-react';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { card } from '../clubStyle';
+import {
+  Cell,
+  ClubBadge,
+  ClubEyebrow,
+  ClubPanel,
+  ClubRow,
+  ClubTable,
+  PlainCell,
+  type ClubColumn,
+} from '../ClubTable';
 import { academyApi, type Program, type WaitlistEntry } from './academyApi';
 import type { DetailTarget } from './AcademyDetails';
+
+const PROGRAM_COLS: ClubColumn[] = [
+  { key: 'programa', label: 'Programa', width: 'minmax(0,1.2fr)' },
+  { key: 'desc', label: 'Descripción', width: 'minmax(0,1.8fr)' },
+  { key: 'grupos', label: 'Grupos', width: '100px' },
+  { key: 'estado', label: 'Estado', width: '120px' },
+  { key: 'accion', label: '', width: '130px', align: 'right' },
+];
+
+const WAITLIST_COLS: ClubColumn[] = [
+  { key: 'pos', label: '#', width: '56px' },
+  { key: 'alumno', label: 'Alumno', width: 'minmax(0,1.3fr)' },
+  { key: 'grupo', label: 'Grupo', width: 'minmax(0,1.2fr)' },
+  { key: 'tel', label: 'Teléfono', width: '150px' },
+  { key: 'estado', label: 'Estado', width: '160px' },
+  { key: 'accion', label: '', width: '110px', align: 'right' },
+];
 
 const INPUT =
   'w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40';
@@ -44,120 +70,119 @@ export default function AcademyProgramsTab({ onOpen }: { onOpen: (t: DetailTarge
   if (loading) return <p className="text-sm font-light text-brand-950/40">Cargando…</p>;
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       {error && <p className="text-sm text-red-600">{error}</p>}
 
-      <div className={`${card} p-5`}>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="flex items-center gap-1.5 text-sm font-bold text-brand-950">
+      <ClubEyebrow>Estructura de la academia</ClubEyebrow>
+      <ClubPanel
+        title={
+          <span className="flex items-center gap-2">
             <Layers className="h-4 w-4 text-brand-500" />
             Programas
-          </p>
+          </span>
+        }
+        description="La tipología de tu enseñanza. Cada grupo se asigna a uno, y los reportes se pueden ver por programa."
+        action={
           <TextureButton variant="brand" size="default" className="!w-auto" onClick={() => setCreating(true)}>
             <Plus className="mr-1.5 h-3.5 w-3.5" />
             Nuevo
           </TextureButton>
-        </div>
-        <p className="mt-0.5 text-xs font-light text-brand-950/50">
-          La tipología de tu enseñanza. Cada grupo se asigna a uno, y los reportes se pueden ver por programa.
-        </p>
-
-        {programs.length === 0 ? (
-          <div className="py-6 text-center">
-            <p className="text-sm font-light text-brand-950/40">Todavía no hay programas.</p>
-            <p className="mt-1 text-xs font-light text-brand-950/35">Por ejemplo: {SUGGESTIONS.join(' · ')}</p>
-          </div>
-        ) : (
-          <ul className="mt-3 divide-y divide-brand-950/[0.06]">
-            {programs.map((p) => (
-              <li key={p.id} className="flex items-center gap-3 py-3">
-                <button
-                  type="button"
-                  onClick={() => onOpen({ kind: 'program', id: p.id })}
-                  className="-mx-2 flex min-w-0 flex-1 items-center gap-3 rounded-xl px-2 py-1 text-left transition-colors hover:bg-brand-950/[0.03]"
-                >
-                <span
-                  className="h-8 w-8 shrink-0 rounded-xl"
-                  style={{ backgroundColor: p.color ?? '#94a3b8' }}
-                  aria-hidden
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-semibold text-brand-950">
-                    {p.name}
-                    {!p.active && <span className="ml-1.5 text-xs font-light text-brand-950/40">(inactivo)</span>}
+        }
+      >
+        <ClubTable
+          columns={PROGRAM_COLS}
+          rows={programs.length}
+          empty={`Todavía no hay programas. Por ejemplo: ${SUGGESTIONS.join(' · ')}`}
+        >
+          {programs.map((p) => (
+            <ClubRow
+              key={p.id}
+              label={`Ver ${p.name}`}
+              muted={!p.active}
+              onClick={() => onOpen({ kind: 'program', id: p.id })}
+              cells={[
+                <Cell key="n">
+                  <span className="flex items-center gap-2.5">
+                    <span
+                      className="h-7 w-7 shrink-0 rounded-xl"
+                      style={{ backgroundColor: p.color ?? '#94a3b8' }}
+                      aria-hidden
+                    />
+                    <span className="truncate">{p.name}</span>
                   </span>
-                  <span className="block truncate text-xs font-light text-brand-950/50">
-                    {p.description || `${p._count.groups} grupo(s)`}
-                  </span>
-                </span>
-                </button>
-                {p.active && (
+                </Cell>,
+                <PlainCell key="d">{p.description || '—'}</PlainCell>,
+                <PlainCell key="g" className="tabular-nums">
+                  {p._count.groups}
+                </PlainCell>,
+                <ClubBadge key="e" tone={p.active ? 'brand' : 'neutral'}>
+                  {p.active ? 'Activo' : 'Inactivo'}
+                </ClubBadge>,
+                p.active ? (
                   <button
+                    key="a"
                     onClick={async () => {
                       await academyApi.deleteProgram(p.id);
                       load();
                     }}
-                    className="flex min-h-[34px] shrink-0 items-center rounded-full px-3 text-xs font-medium text-brand-950/45 hover:text-red-600"
+                    className="flex min-h-[34px] items-center rounded-full px-3 text-xs font-medium text-brand-950/45 hover:text-red-600"
                   >
                     Desactivar
                   </button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+                ) : null,
+              ]}
+            />
+          ))}
+        </ClubTable>
+      </ClubPanel>
 
-      <div className={`${card} p-5`}>
-        <p className="flex items-center gap-1.5 text-sm font-bold text-brand-950">
-          <Clock className="h-4 w-4 text-amber-500" />
-          Lista de espera
-        </p>
-        <p className="mt-0.5 text-xs font-light text-brand-950/50">
-          Quien quiso entrar a un grupo lleno. Al liberarse un puesto se le avisa por WhatsApp al primero.
-        </p>
-
-        {waitlist.length === 0 ? (
-          <p className="py-6 text-center text-sm font-light text-brand-950/40">Nadie esperando cupo.</p>
-        ) : (
-          <ul className="mt-3 divide-y divide-brand-950/[0.06]">
-            {waitlist.map((w) => (
-              <li key={w.id} className="flex items-center gap-3 py-3">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-950/[0.05] text-xs font-bold text-brand-950/60">
-                  {w.position}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => onOpen({ kind: 'group', id: w.group.id })}
-                  className="-mx-2 min-w-0 flex-1 rounded-xl px-2 py-1 text-left transition-colors hover:bg-brand-950/[0.03]"
+      <ClubEyebrow>Cupos</ClubEyebrow>
+      <ClubPanel
+        title={
+          <span className="flex items-center gap-2">
+            <Clock className="h-4 w-4 text-amber-500" />
+            Lista de espera
+          </span>
+        }
+        description="Quien quiso entrar a un grupo lleno. Al liberarse un puesto se le avisa por WhatsApp al primero."
+      >
+        <ClubTable columns={WAITLIST_COLS} rows={waitlist.length} empty="Nadie esperando cupo.">
+          {waitlist.map((w) => (
+            <ClubRow
+              key={w.id}
+              label={`Ver ${w.group.name}`}
+              onClick={() => onOpen({ kind: 'group', id: w.group.id })}
+              cells={[
+                <span
+                  key="p"
+                  className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-950/[0.05] text-[12px] font-bold text-brand-950/60"
                 >
-                  <span className="block truncate text-sm font-semibold text-brand-950">
-                    {w.student.customer.name}
-                    {w.status === 'OFFERED' && (
-                      <span className="ml-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700">
-                        PUESTO OFRECIDO
-                      </span>
-                    )}
-                  </span>
-                  <span className="block truncate text-xs font-light text-brand-950/50">
-                    {w.group.name} · {w.student.customer.phone}
-                  </span>
-                </button>
+                  {w.position}
+                </span>,
+                <Cell key="a">{w.student.customer.name}</Cell>,
+                <PlainCell key="g">{w.group.name}</PlainCell>,
+                <PlainCell key="t" className="tabular-nums">
+                  {w.student.customer.phone}
+                </PlainCell>,
+                <ClubBadge key="e" tone={w.status === 'OFFERED' ? 'emerald' : 'neutral'}>
+                  {w.status === 'OFFERED' ? 'Puesto ofrecido' : 'Esperando'}
+                </ClubBadge>,
                 <button
+                  key="x"
                   onClick={async () => {
                     await academyApi.leaveWaitlist(w.id);
                     load();
                   }}
-                  className="flex min-h-[34px] shrink-0 items-center gap-1 rounded-full px-3 text-xs font-medium text-brand-950/45 hover:text-red-600"
+                  className="flex min-h-[34px] items-center gap-1 rounded-full px-3 text-xs font-medium text-brand-950/45 hover:text-red-600"
                 >
                   <UserMinus className="h-3.5 w-3.5" />
                   Quitar
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+                </button>,
+              ]}
+            />
+          ))}
+        </ClubTable>
+      </ClubPanel>
 
       {creating && (
         <ProgramDialog

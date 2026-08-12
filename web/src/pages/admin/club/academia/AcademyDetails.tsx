@@ -3,7 +3,7 @@ import { api } from '@/api/client';
 import { formatBase } from '@/utils/format';
 import { levelLabel, levelRangeLabel } from '@/utils/padelLevel';
 import { TextureButton } from '@/components/ui/texture-button';
-import DetailSheet, { EmptyNote, ItemRow, PayBadge, Row, Section, type PayState } from '../DetailSheet';
+import DetailSheet, { EmptyNote, ItemRow, PayBadge, Row, Section, SheetBody, type PayState } from '../DetailSheet';
 import { academyApi, PAY_TYPE_LABELS, SESSION_STATUS_LABELS, WEEKDAY_SHORT, type Student } from './academyApi';
 
 const fmtDateTime = (iso: string | Date) =>
@@ -222,6 +222,9 @@ const CHARGE_METHODS = [
   { value: 'PAYPAL', label: 'PayPal' },
 ] as const;
 
+/** Los mismos nombres, para leer un pago ya hecho. */
+const METHOD_LABELS: Record<string, string> = Object.fromEntries(CHARGE_METHODS.map((m) => [m.value, m.label]));
+
 /** Cobrar una mensualidad sin salir de la lista. Mismo criterio que el resto del
  *  vertical: referencia + método, sin pasarela — el club aprueba a mano. */
 function CollectChargeDialog({
@@ -266,7 +269,13 @@ function CollectChargeDialog({
   }
 
   return (
-    <DetailSheet open title={`Cobrar a ${charge.enrollment.student.customer.name}`} subtitle={charge.enrollment.group.name} onClose={onClose}>
+    <DetailSheet
+      open
+      size="form"
+      title={`Cobrar a ${charge.enrollment.student.customer.name}`}
+      subtitle={charge.enrollment.group.name}
+      onClose={onClose}
+    >
       <div className="space-y-3">
         <label className="block">
           <span className="mb-1 block text-[13px] font-medium text-brand-950/70">Monto ({symbol})</span>
@@ -349,7 +358,7 @@ function SessionDetail({ id, symbol, onClose, onNavigate }: { id: string; symbol
       {error && <p className="text-sm text-red-600">{error}</p>}
       {!data && !error && <EmptyNote>Cargando…</EmptyNote>}
       {data && (
-        <>
+        <SheetBody>
           <Section title="La clase">
             <Row label="Profesor" value={
               <button className="text-brand-500 hover:underline" onClick={() => onNavigate({ kind: 'coach', id: data.session.coach.id })}>
@@ -399,7 +408,7 @@ function SessionDetail({ id, symbol, onClose, onNavigate }: { id: string; symbol
               </div>
             )}
           </Section>
-        </>
+        </SheetBody>
       )}
     </DetailSheet>
   );
@@ -443,6 +452,15 @@ interface GroupDetailResponse {
 
 const BILLING_LABELS: Record<string, string> = { MONTHLY: 'Mensualidad', PACKAGE: 'Por fichas', PER_CLASS: 'Clase suelta' };
 
+/** Por qué se cobró. Sin esto la ficha del alumno mostraba el enum crudo
+ *  ("MONTHLY · MOBILE_PAYMENT"), que no le dice nada a quien atiende. */
+const PAYMENT_KIND_LABELS: Record<string, string> = {
+  MONTHLY: 'Mensualidad',
+  PACKAGE: 'Lote de clases',
+  SINGLE_CLASS: 'Clase suelta',
+  ENROLLMENT_FEE: 'Inscripción',
+};
+
 function GroupDetail({ id, symbol, onClose, onNavigate }: { id: string; symbol: string; onClose: () => void; onNavigate: (t: DetailTarget) => void }) {
   const { data, error } = useDetail<GroupDetailResponse>(`/club/academy/groups/${id}`);
 
@@ -451,7 +469,7 @@ function GroupDetail({ id, symbol, onClose, onNavigate }: { id: string; symbol: 
       {error && <p className="text-sm text-red-600">{error}</p>}
       {!data && !error && <EmptyNote>Cargando…</EmptyNote>}
       {data && (
-        <>
+        <SheetBody>
           <Section title="El grupo">
             <Row label="Profesor" value={
               <button className="text-brand-500 hover:underline" onClick={() => onNavigate({ kind: 'coach', id: data.group.coach.id })}>
@@ -546,7 +564,7 @@ function GroupDetail({ id, symbol, onClose, onNavigate }: { id: string; symbol: 
               </div>
             </Section>
           )}
-        </>
+        </SheetBody>
       )}
     </DetailSheet>
   );
@@ -584,7 +602,7 @@ function ProgramDetail({ id, symbol, onClose, onNavigate }: { id: string; symbol
       {error && <p className="text-sm text-red-600">{error}</p>}
       {!data && !error && <EmptyNote>Cargando…</EmptyNote>}
       {data && (
-        <>
+        <SheetBody>
           <Section title="Resumen">
             <Row label="Grupos" value={String(data.program.groups.length)} />
             <Row label="Alumnos activos" value={String(data.activeStudents)} tone="strong" />
@@ -618,7 +636,7 @@ function ProgramDetail({ id, symbol, onClose, onNavigate }: { id: string; symbol
               </div>
             )}
           </Section>
-        </>
+        </SheetBody>
       )}
     </DetailSheet>
   );
@@ -656,7 +674,7 @@ function CoachDetail({ id, symbol, onClose, onNavigate }: { id: string; symbol: 
       {error && <p className="text-sm text-red-600">{error}</p>}
       {!data && !error && <EmptyNote>Cargando…</EmptyNote>}
       {data && (
-        <>
+        <SheetBody>
           <Section title="Datos">
             <Row label="Teléfono" value={data.coach.phone} />
             {data.coach.email && <Row label="Correo" value={data.coach.email} />}
@@ -730,7 +748,7 @@ function CoachDetail({ id, symbol, onClose, onNavigate }: { id: string; symbol: 
               </div>
             </Section>
           )}
-        </>
+        </SheetBody>
       )}
     </DetailSheet>
   );
@@ -777,7 +795,7 @@ function StudentDetail({ id, symbol, onClose, onNavigate }: { id: string; symbol
       {error && <p className="text-sm text-red-600">{error}</p>}
       {!data && !error && <EmptyNote>Cargando…</EmptyNote>}
       {data && (
-        <>
+        <SheetBody>
           <Section title="Ficha">
             <Row label="Teléfono" value={data.customer.phone} />
             {data.customer.idNumber && <Row label="Cédula" value={data.customer.idNumber} />}
@@ -828,7 +846,7 @@ function StudentDetail({ id, symbol, onClose, onNavigate }: { id: string; symbol
                   <ItemRow
                     key={p.id}
                     title={formatBase(p.amountBase, symbol)}
-                    subtitle={`${p.kind} · ${p.method} · ${fmtDate(p.createdAt)}`}
+                    subtitle={`${PAYMENT_KIND_LABELS[p.kind] ?? p.kind} · ${METHOD_LABELS[p.method] ?? p.method} · ${fmtDate(p.createdAt)}`}
                   />
                 ))}
               </div>
@@ -848,7 +866,7 @@ function StudentDetail({ id, symbol, onClose, onNavigate }: { id: string; symbol
               </div>
             )}
           </Section>
-        </>
+        </SheetBody>
       )}
     </DetailSheet>
   );

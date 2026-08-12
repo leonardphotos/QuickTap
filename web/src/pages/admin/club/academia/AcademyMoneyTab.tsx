@@ -3,7 +3,18 @@ import { RefreshCw, Send } from 'lucide-react';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { formatBase } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
-import { card } from '../clubStyle';
+import {
+  Cell,
+  ClubBadge,
+  ClubEyebrow,
+  ClubMetric,
+  ClubPanel,
+  ClubRow,
+  ClubTable,
+  PlainCell,
+  type BadgeTone,
+  type ClubColumn,
+} from '../ClubTable';
 import { academyApi } from './academyApi';
 import type { DetailTarget } from './AcademyDetails';
 
@@ -57,12 +68,66 @@ const STATUS_LABELS: Record<Charge['status'], string> = {
   OVERDUE: 'Vencida',
 };
 
-const STATUS_COLORS: Record<Charge['status'], string> = {
-  PENDING: 'text-amber-700 bg-amber-50 border-amber-200',
-  PAID: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-  WAIVED: 'text-brand-950/50 bg-brand-950/[0.04] border-brand-950/10',
-  OVERDUE: 'text-red-700 bg-red-50 border-red-200',
+const STATUS_TONES: Record<Charge['status'], BadgeTone> = {
+  PENDING: 'amber',
+  PAID: 'emerald',
+  WAIVED: 'neutral',
+  OVERDUE: 'red',
 };
+
+const CHARGE_COLS: ClubColumn[] = [
+  { key: 'alumno', label: 'Alumno', width: 'minmax(0,1.3fr)' },
+  { key: 'grupo', label: 'Grupo', width: 'minmax(0,1.2fr)' },
+  { key: 'periodo', label: 'Período', width: '104px' },
+  { key: 'vence', label: 'Vence', width: '118px' },
+  { key: 'abonado', label: 'Abonado', width: '112px', align: 'right' },
+  { key: 'estado', label: 'Estado', width: '126px' },
+  { key: 'monto', label: 'Monto', width: '118px', align: 'right' },
+];
+
+const RETENTION_COLS: ClubColumn[] = [
+  { key: 'mes', label: 'Mes', width: 'minmax(0,1fr)' },
+  { key: 'inicio', label: 'Al abrir', width: 'minmax(0,1fr)', align: 'right' },
+  { key: 'altas', label: 'Altas', width: 'minmax(0,1fr)', align: 'right' },
+  { key: 'bajas', label: 'Bajas', width: 'minmax(0,1fr)', align: 'right' },
+  { key: 'churn', label: 'Churn', width: 'minmax(0,1fr)', align: 'right' },
+  { key: 'fin', label: 'Al cerrar', width: 'minmax(0,1fr)', align: 'right' },
+];
+
+const COACH_COLS: ClubColumn[] = [
+  { key: 'nombre', label: 'Entrenador', width: 'minmax(0,2fr)' },
+  { key: 'clases', label: 'Clases', width: 'minmax(0,1fr)', align: 'right' },
+  { key: 'facturado', label: 'Facturado', width: 'minmax(0,1fr)', align: 'right' },
+  { key: 'pagado', label: 'Se le pagó', width: 'minmax(0,1fr)', align: 'right' },
+  { key: 'margen', label: 'Margen', width: 'minmax(0,1fr)', align: 'right' },
+];
+
+const PROGRAM_COLS: ClubColumn[] = [
+  { key: 'nombre', label: 'Programa', width: 'minmax(0,3fr)' },
+  { key: 'clases', label: 'Clases', width: 'minmax(0,1fr)', align: 'right' },
+  { key: 'facturado', label: 'Facturado', width: 'minmax(0,1fr)', align: 'right' },
+];
+
+const GROUP_COLS: ClubColumn[] = [
+  { key: 'nombre', label: 'Grupo', width: 'minmax(0,2fr)' },
+  { key: 'clases', label: 'Clases', width: 'minmax(0,1fr)', align: 'right' },
+  { key: 'consumido', label: 'Consumido', width: 'minmax(0,1fr)', align: 'right' },
+  { key: 'profesor', label: 'Costo profesor', width: 'minmax(0,1fr)', align: 'right' },
+  { key: 'margen', label: 'Margen', width: 'minmax(0,1fr)', align: 'right' },
+];
+
+const fmtDay = (iso: string) => new Date(iso).toLocaleDateString('es-VE', { day: '2-digit', month: 'short' });
+
+/** Verde o rojo según el signo. El margen es el único número de la pantalla que
+ *  puede ser negativo, y hay que verlo sin leerlo. */
+function Money({ value, symbol, signed }: { value: string; symbol: string; signed?: boolean }) {
+  const negative = signed && Number(value) < 0;
+  return (
+    <span className={`block truncate text-[14px] font-semibold tabular-nums ${negative ? 'text-red-600' : 'text-brand-950'}`}>
+      {formatBase(value, symbol)}
+    </span>
+  );
+}
 
 export default function AcademyMoneyTab({
   restaurant,
@@ -113,198 +178,228 @@ export default function AcademyMoneyTab({
   if (loading) return <p className="text-sm font-light text-brand-950/40">Cargando cobros…</p>;
 
   const pending = charges.filter((c) => c.status === 'PENDING' || c.status === 'OVERDUE');
+  const pendingBase = pending.reduce(
+    (acc, c) => acc + Number(c.amountBase) - c.payments.reduce((a, p) => a + Number(p.amountBase), 0),
+    0,
+  );
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4">
       {error && <p className="text-sm text-red-600">{error}</p>}
       {notice && <p className="text-sm text-emerald-700">{notice}</p>}
 
-      <div className={`${card} p-5`}>
-        <p className="text-sm font-bold text-brand-950">Mensualidades</p>
-        <p className="mt-0.5 text-xs font-light text-brand-950/50">
-          Generar el mes es idempotente: puedes correrlo las veces que quieras sin duplicarle la deuda a nadie.
-        </p>
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <TextureButton
-            variant="minimal"
-            size="default"
-            className="!w-auto"
-            disabled={busy}
-            onClick={() => run(() => academyApi.generateCharges(), (r: { created: number }) => `${r.created} mensualidad(es) generadas.`)}
-          >
-            <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
-            Generar mes
-          </TextureButton>
-          <TextureButton
-            variant="minimal"
-            size="default"
-            className="!w-auto"
-            disabled={busy || pending.length === 0}
-            onClick={() => run(() => academyApi.notifyCharges(), (r: { sent: number }) => `${r.sent} aviso(s) enviados por WhatsApp.`)}
-          >
-            <Send className="mr-1.5 h-3.5 w-3.5" />
-            Avisar por WhatsApp
-          </TextureButton>
-        </div>
-
-        {charges.length === 0 ? (
-          <p className="py-6 text-center text-sm font-light text-brand-950/40">No hay mensualidades generadas.</p>
-        ) : (
-          <ul className="mt-3 divide-y divide-brand-950/[0.06]">
-            {charges.slice(0, 40).map((c) => (
-              <li key={c.id} className="flex flex-wrap items-center gap-2 py-2.5">
-                <button
-                  type="button"
-                  onClick={() => onOpen({ kind: 'student', id: c.enrollment.studentId })}
-                  className="-mx-2 min-w-0 flex-1 rounded-xl px-2 py-1 text-left transition-colors hover:bg-brand-950/[0.03]"
-                >
-                  <span className="block truncate text-sm font-semibold text-brand-950">
-                    {c.enrollment.student.customer.name}
-                  </span>
-                  <span className="block text-xs font-light text-brand-950/50">
-                    {c.enrollment.group.name} · {String(c.periodMonth).padStart(2, '0')}/{c.periodYear}
-                    {Number(c.payments.reduce((a, p) => a + Number(p.amountBase), 0)) > 0 &&
-                      ` · abonó ${formatBase(c.payments.reduce((a, p) => a + Number(p.amountBase), 0), symbol)}`}
-                  </span>
-                </button>
-                <span
-                  className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${STATUS_COLORS[c.status]}`}
-                >
-                  {STATUS_LABELS[c.status]}
-                </span>
-                <span className="shrink-0 text-sm font-bold text-brand-950">{formatBase(c.amountBase, symbol)}</span>
-              </li>
-            ))}
-          </ul>
-        )}
+      <ClubEyebrow>Resumen del dinero</ClubEyebrow>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+        <ClubMetric
+          value={formatBase(revenue?.collectedBase ?? 0, symbol)}
+          label="Cobrado"
+          hint={`${revenue?.paymentsCount ?? 0} pago(s) · últimos 30 días`}
+          tone="brand"
+        />
+        <ClubMetric
+          value={formatBase(pendingBase, symbol)}
+          label="Por cobrar"
+          hint={`${pending.length} mensualidad(es)`}
+          tone={pending.length > 0 ? 'amber' : 'default'}
+          onClick={() => onOpen({ kind: 'pendingCharges' })}
+        />
+        <ClubMetric
+          value={retention?.currentRetentionPercent === null || !retention ? '—' : `${retention.currentRetentionPercent}%`}
+          label="Retención"
+          hint={`${retention?.activeNow ?? 0} alumnos activos`}
+        />
+        <ClubMetric
+          value={retention?.currentChurnPercent === null || !retention ? '—' : `${retention.currentChurnPercent}%`}
+          label="Churn"
+          hint="Bajas sobre el mes anterior"
+          tone={(retention?.currentChurnPercent ?? 0) > 20 ? 'amber' : 'default'}
+        />
       </div>
 
-      {retention && (
-        <div className={`${card} p-5`}>
-          <p className="text-sm font-bold text-brand-950">Retención de alumnos</p>
-          <p className="mt-0.5 text-xs font-light text-brand-950/50">
-            Cuántos siguen mes a mes y cuántos se dan de baja.
+      <ClubEyebrow>Mensualidades</ClubEyebrow>
+      <ClubPanel
+        title="Mensualidades"
+        description="Generar el mes es idempotente: puedes correrlo las veces que quieras sin duplicarle la deuda a nadie."
+        action={
+          <>
+            <TextureButton
+              variant="minimal"
+              size="default"
+              className="!w-auto"
+              disabled={busy}
+              onClick={() => run(() => academyApi.generateCharges(), (r: { created: number }) => `${r.created} mensualidad(es) generadas.`)}
+            >
+              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+              Generar mes
+            </TextureButton>
+            <TextureButton
+              variant="minimal"
+              size="default"
+              className="!w-auto"
+              disabled={busy || pending.length === 0}
+              onClick={() => run(() => academyApi.notifyCharges(), (r: { sent: number }) => `${r.sent} aviso(s) enviados por WhatsApp.`)}
+            >
+              <Send className="mr-1.5 h-3.5 w-3.5" />
+              Avisar por WhatsApp
+            </TextureButton>
+          </>
+        }
+      >
+        <ClubTable columns={CHARGE_COLS} rows={Math.min(charges.length, 40)} empty="No hay mensualidades generadas.">
+          {charges.slice(0, 40).map((c) => {
+            const paid = c.payments.reduce((a, p) => a + Number(p.amountBase), 0);
+            return (
+              <ClubRow
+                key={c.id}
+                label={`Ver ${c.enrollment.student.customer.name}`}
+                onClick={() => onOpen({ kind: 'student', id: c.enrollment.studentId })}
+                cells={[
+                  <Cell key="a">{c.enrollment.student.customer.name}</Cell>,
+                  <PlainCell key="g">{c.enrollment.group.name}</PlainCell>,
+                  <PlainCell key="p" className="tabular-nums">
+                    {String(c.periodMonth).padStart(2, '0')}/{c.periodYear}
+                  </PlainCell>,
+                  <PlainCell key="v" className="tabular-nums">
+                    {fmtDay(c.dueDate)}
+                  </PlainCell>,
+                  <PlainCell key="ab" className="tabular-nums">
+                    {paid > 0 ? formatBase(paid, symbol) : '—'}
+                  </PlainCell>,
+                  <ClubBadge key="e" tone={STATUS_TONES[c.status]}>
+                    {STATUS_LABELS[c.status]}
+                  </ClubBadge>,
+                  <Money key="m" value={c.amountBase} symbol={symbol} />,
+                ]}
+              />
+            );
+          })}
+        </ClubTable>
+        {charges.length > 40 && (
+          <p className="mt-4 px-1 text-[12px] font-light text-brand-950/40">
+            Mostrando las 40 más recientes de {charges.length}.
           </p>
+        )}
+      </ClubPanel>
 
-          <div className="mt-3 grid grid-cols-3 gap-3 text-center">
-            <div>
-              <p className="text-[20px] font-bold tracking-tight text-brand-950">{retention.activeNow}</p>
-              <p className="text-[12px] font-light text-brand-950/45">activos hoy</p>
-            </div>
-            <div>
-              <p className="text-[20px] font-bold tracking-tight text-emerald-600">
-                {retention.currentRetentionPercent === null ? '—' : `${retention.currentRetentionPercent}%`}
-              </p>
-              <p className="text-[12px] font-light text-brand-950/45">retención</p>
-            </div>
-            <div>
-              <p
-                className={`text-[20px] font-bold tracking-tight ${
-                  (retention.currentChurnPercent ?? 0) > 20 ? 'text-red-600' : 'text-brand-950'
-                }`}
-              >
-                {retention.currentChurnPercent === null ? '—' : `${retention.currentChurnPercent}%`}
-              </p>
-              <p className="text-[12px] font-light text-brand-950/45">churn</p>
-            </div>
-          </div>
-
-          <ul className="mt-4 divide-y divide-brand-950/[0.06]">
-            {retention.months.map((m) => (
-              <li key={m.period} className="flex items-center gap-2 py-2 text-sm">
-                <span className="w-16 shrink-0 font-medium text-brand-950/70">{m.period}</span>
-                <span className="min-w-0 flex-1 text-xs font-light text-brand-950/50">
-                  <span className="text-emerald-600">+{m.joined}</span> altas ·{' '}
-                  <span className={m.left > 0 ? 'text-red-600' : ''}>−{m.left}</span> bajas
-                </span>
-                <span className="shrink-0 text-sm font-bold text-brand-950">{m.activeEnd}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+      {retention && (
+        <>
+          <ClubEyebrow>Retención</ClubEyebrow>
+          <ClubPanel title="Alumnos mes a mes" description="Cuántos siguen y cuántos se dan de baja.">
+            <ClubTable columns={RETENTION_COLS} rows={retention.months.length} empty="Todavía no hay meses que comparar.">
+              {retention.months.map((m) => (
+                <ClubRow
+                  key={m.period}
+                  cells={[
+                    <Cell key="p">{m.period}</Cell>,
+                    <PlainCell key="i" className="tabular-nums">
+                      {m.activeStart}
+                    </PlainCell>,
+                    <span key="a" className="block truncate text-[14px] font-semibold tabular-nums text-emerald-600">
+                      +{m.joined}
+                    </span>,
+                    <span
+                      key="b"
+                      className={`block truncate text-[14px] font-semibold tabular-nums ${m.left > 0 ? 'text-red-600' : 'text-brand-950/35'}`}
+                    >
+                      −{m.left}
+                    </span>,
+                    <PlainCell key="c" className="tabular-nums">
+                      {m.churnPercent === null ? '—' : `${m.churnPercent}%`}
+                    </PlainCell>,
+                    <Cell key="f" className="tabular-nums">
+                      {m.activeEnd}
+                    </Cell>,
+                  ]}
+                />
+              ))}
+            </ClubTable>
+          </ClubPanel>
+        </>
       )}
 
       {byCoach && byCoach.byCoach.length > 0 && (
-        <div className={`${card} p-5`}>
-          <p className="text-sm font-bold text-brand-950">Facturación por entrenador</p>
-          <p className="mt-0.5 text-xs font-light text-brand-950/50">
-            Lo que generó su clase, no lo que se le paga. Últimos 30 días.
-          </p>
-          <ul className="mt-3 divide-y divide-brand-950/[0.06]">
-            {byCoach.byCoach.map((r) => (
-              <li key={r.id} className="flex items-center gap-2 py-2.5">
-                <button
-                  type="button"
+        <>
+          <ClubEyebrow>Facturación</ClubEyebrow>
+          <ClubPanel
+            title="Por entrenador"
+            description="Lo que generó su clase, no lo que se le paga. Últimos 30 días."
+          >
+            <ClubTable columns={COACH_COLS} rows={byCoach.byCoach.length}>
+              {byCoach.byCoach.map((r) => (
+                <ClubRow
+                  key={r.id}
+                  label={`Ver ${r.name}`}
                   onClick={() => onOpen({ kind: 'coach', id: r.id })}
-                  className="-mx-2 min-w-0 flex-1 rounded-xl px-2 py-1 text-left transition-colors hover:bg-brand-950/[0.03]"
-                >
-                  <span className="block truncate text-sm font-semibold text-brand-950">{r.name}</span>
-                  <span className="block text-xs font-light text-brand-950/50">
-                    {r.sessions} clases · le pagaste {formatBase(r.costBase, symbol)}
-                  </span>
-                </button>
-                <span className="shrink-0 text-right">
-                  <span className="block text-sm font-bold text-brand-950">{formatBase(r.revenueBase, symbol)}</span>
-                  <span
-                    className={`block text-[11px] font-light ${Number(r.marginBase) < 0 ? 'text-red-600' : 'text-brand-950/40'}`}
-                  >
-                    margen {formatBase(r.marginBase, symbol)}
-                  </span>
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
+                  cells={[
+                    <Cell key="n">{r.name}</Cell>,
+                    <PlainCell key="s" className="tabular-nums">
+                      {r.sessions}
+                    </PlainCell>,
+                    <Money key="r" value={r.revenueBase} symbol={symbol} />,
+                    <PlainCell key="c" className="tabular-nums">
+                      {formatBase(r.costBase, symbol)}
+                    </PlainCell>,
+                    <Money key="m" value={r.marginBase} symbol={symbol} signed />,
+                  ]}
+                />
+              ))}
+            </ClubTable>
+          </ClubPanel>
+        </>
       )}
 
       {byCoach && byCoach.byProgram.length > 0 && (
-        <div className={`${card} p-5`}>
-          <p className="text-sm font-bold text-brand-950">Facturación por programa</p>
-          <ul className="mt-3 divide-y divide-brand-950/[0.06]">
+        <ClubPanel title="Por programa" description="El mismo ingreso, agrupado por tipo de enseñanza.">
+          <ClubTable columns={PROGRAM_COLS} rows={byCoach.byProgram.length}>
             {byCoach.byProgram.map((r) => (
-              <li key={r.id} className="flex items-center gap-2 py-2.5">
-                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-brand-950">{r.name}</span>
-                <span className="shrink-0 text-xs font-light text-brand-950/45">{r.sessions} clases</span>
-                <span className="shrink-0 text-sm font-bold text-brand-950">{formatBase(r.revenueBase, symbol)}</span>
-              </li>
+              <ClubRow
+                key={r.id}
+                cells={[
+                  <Cell key="n">{r.name}</Cell>,
+                  <PlainCell key="s" className="tabular-nums">
+                    {r.sessions}
+                  </PlainCell>,
+                  <Money key="r" value={r.revenueBase} symbol={symbol} />,
+                ]}
+              />
             ))}
-          </ul>
-        </div>
+          </ClubTable>
+        </ClubPanel>
       )}
 
       {revenue && (
-        <div className={`${card} p-5`}>
-          <p className="text-sm font-bold text-brand-950">Rentabilidad por grupo</p>
-          <p className="mt-0.5 text-xs font-light text-brand-950/50">
-            Últimos 30 días. Cobrado: {formatBase(revenue.collectedBase, symbol)} en {revenue.paymentsCount} pago(s).
-          </p>
-          {revenue.groups.length === 0 ? (
-            <p className="py-6 text-center text-sm font-light text-brand-950/40">Aún no hay clases dadas.</p>
-          ) : (
-            <ul className="mt-3 divide-y divide-brand-950/[0.06]">
+        <>
+          <ClubEyebrow>Rentabilidad</ClubEyebrow>
+          <ClubPanel
+            title="Por grupo"
+            description={`Últimos 30 días. Cobrado ${formatBase(revenue.collectedBase, symbol)} en ${revenue.paymentsCount} pago(s).`}
+          >
+            <ClubTable columns={GROUP_COLS} rows={revenue.groups.length} empty="Aún no hay clases dadas.">
               {revenue.groups.map((g) => (
-                <li key={g.groupId} className="flex flex-wrap items-center gap-2 py-2.5">
-                  <button
-                    type="button"
-                    onClick={() => g.groupId !== 'sueltas' && onOpen({ kind: 'group', id: g.groupId })}
-                    className="-mx-2 min-w-0 flex-1 rounded-xl px-2 py-1 text-left transition-colors hover:bg-brand-950/[0.03]"
-                  >
-                    <span className="block truncate text-sm font-semibold text-brand-950">{g.name}</span>
-                    <span className="block text-xs font-light text-brand-950/50">
-                      {g.sessions} clases · profesor {formatBase(g.coachCostBase, symbol)}
-                    </span>
-                  </button>
-                  <span className="shrink-0 text-right">
-                    <span className={`block text-sm font-bold ${Number(g.marginBase) < 0 ? 'text-red-600' : 'text-brand-950'}`}>
-                      {formatBase(g.marginBase, symbol)}
-                    </span>
-                    <span className="block text-[11px] font-light text-brand-950/40">margen</span>
-                  </span>
-                </li>
+                <ClubRow
+                  key={g.groupId}
+                  label={`Ver ${g.name}`}
+                  // "sueltas" no es un grupo real, es el cajón de las clases sin
+                  // grupo: no tiene ficha que abrir.
+                  onClick={g.groupId === 'sueltas' ? undefined : () => onOpen({ kind: 'group', id: g.groupId })}
+                  cells={[
+                    <Cell key="n">{g.name}</Cell>,
+                    <PlainCell key="s" className="tabular-nums">
+                      {g.sessions}
+                    </PlainCell>,
+                    <PlainCell key="c" className="tabular-nums">
+                      {formatBase(g.consumedBase, symbol)}
+                    </PlainCell>,
+                    <PlainCell key="p" className="tabular-nums">
+                      {formatBase(g.coachCostBase, symbol)}
+                    </PlainCell>,
+                    <Money key="m" value={g.marginBase} symbol={symbol} signed />,
+                  ]}
+                />
               ))}
-            </ul>
-          )}
-        </div>
+            </ClubTable>
+          </ClubPanel>
+        </>
       )}
     </div>
   );

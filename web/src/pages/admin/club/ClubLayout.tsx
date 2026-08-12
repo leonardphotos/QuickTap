@@ -57,7 +57,7 @@ export default function ClubLayout() {
   return (
     <div className="min-h-screen bg-[#fafafa]">
       <header className="sticky top-0 z-20 bg-white pt-[env(safe-area-inset-top)] border-b border-brand-950/[0.06]">
-        <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-5 sm:px-6">
+        <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-5 sm:px-6">
           <p className="truncate font-bold text-brand-950">{restaurant.name}</p>
           <span className="shrink-0 rounded-full bg-brand-500/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-500">
             Club
@@ -88,7 +88,9 @@ export default function ClubLayout() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-5 py-5 pb-28 sm:px-6 lg:pb-8">
+      {/* max-w-7xl y no 6xl: la vertical se lee en tabla, y con seis columnas el
+          ancho extra es justo el que evita que se aprieten los encabezados. */}
+      <main className="mx-auto max-w-7xl px-5 py-5 pb-28 sm:px-6 lg:py-7 lg:pb-10">
         <Suspense fallback={<p className="font-light text-brand-950/40">Cargando…</p>}>
           {active === 'canchas' &&
             (openCourtId ? (

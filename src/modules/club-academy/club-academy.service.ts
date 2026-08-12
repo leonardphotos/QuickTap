@@ -1810,8 +1810,15 @@ export const clubAcademyService = {
       prisma.clubWaitlistEntry.count({ where: { restaurantId, status: { in: ['WAITING', 'OFFERED'] } } }),
     ]);
 
+    // El cupo ocupado no se puede sacar del `_count.attendances`: ese solo se
+    // llena cuando el profesor pasa lista, y antes de la clase —que es cuando se
+    // mira esta pantalla— daría 0 en todas.
+    const withSeats = await Promise.all(
+      todaySessions.map(async (s) => ({ ...s, occupiedSeats: await occupiedSeats(s) })),
+    );
+
     return {
-      todaySessions,
+      todaySessions: withSeats,
       needsCourt,
       activeStudents,
       activeGroups,
