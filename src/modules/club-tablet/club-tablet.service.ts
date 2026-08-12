@@ -40,10 +40,18 @@ interface CatalogItem {
   stock: number | null;
 }
 
-/** Lo consumido en una reserva, sumando solo lo que no está cancelado. */
-function consumoOf(tabOrders: { totalBase: Prisma.Decimal; status: string }[]): Prisma.Decimal {
+/**
+ * Lo consumido en la reserva que COBRA EL CLUB: su tienda propia
+ * (`kitchenRestaurantId === null`). Lo pedido a una tienda vinculada es cuenta
+ * de esa tienda y se devuelve aparte, en `tabs`.
+ */
+function consumoOf(
+  tabOrders: { totalBase: Prisma.Decimal; status: string; kitchenRestaurantId: string | null }[],
+): Prisma.Decimal {
   return round2(
-    tabOrders.filter((o) => o.status !== 'CANCELLED').reduce((acc, o) => acc.add(o.totalBase), toDecimal(0)),
+    tabOrders
+      .filter((o) => o.status !== 'CANCELLED' && o.kitchenRestaurantId === null)
+      .reduce((acc, o) => acc.add(o.totalBase), toDecimal(0)),
   );
 }
 
@@ -98,6 +106,114 @@ async function readStoreCatalog(store: { id: string }) {
       priceBase: effectiveProductPrice(p, now).toFixed(2),
       photoUrl: p.photoUrl,
     }));
+}
+
+/** Los datos que el jugador necesita para pagarle a alguien. */
+interface PayMethod {
+  method: string;
+  banco?: string;
+  telefono?: string;
+  cedula?: string;
+  titular?: string;
+  correo?: string;
+  cuenta?: string;
+  rif?: string;
+  qrImageUrl?: string;
+}
+
+/** Solo estos campos salen del `paymentMethodsConfig` del cobrador. Se listan a
+ *  mano en vez de reenviar el objeto entero: es config de otro tenant y no todo
+ *  lo que haya ahí adentro tiene por qué verse en una tablet pública. */
+const PAY_FIELDS = ['banco', 'telefono', 'cedula', 'titular', 'correo', 'cuenta', 'rif', 'qrImageUrl'] as const;
+
+/**
+ * Cómo se le paga a un cobrador (el club o una tienda vinculada). Devuelve solo
+ * los métodos HABILITADOS: uno apagado en sus Ajustes no debe ofrecerse en la
+ * cancha.
+ */
+function payMethodsOf(config: unknown): PayMethod[] {
+  if (!config || typeof config !== 'object') return [];
+  return Object.entries(config as Record<string, Record<string, unknown>>)
+    .filter(([, v]) => v && typeof v === 'object' && v.enabled === true)
+    .map(([method, v]) => {
+      const out: PayMethod = { method };
+      for (const f of PAY_FIELDS) {
+        const value = v[f];
+        if (typeof value === 'string' && value.trim()) out[f] = value;
+      }
+      return out;
+    });
+}
+
+/**
+ * Las cuentas a pagar de una reserva, una por cobrador.
+ *
+ * La primera es siempre la del club (cancha + su tienda propia); después va una
+ * por cada tienda vinculada a la que se le pidió algo. Cada una lleva su propio
+ * método de cobro: el jugador le paga a cada quien por su lado, no todo junto
+ * en la caja del club.
+ */
+async function buildTabs(
+  clubId: string,
+  booking: {
+    totalBase: Prisma.Decimal;
+    tabOrders: { totalBase: Prisma.Decimal; status: string; kitchenRestaurantId: string | null }[];
+  },
+  clubDueBase: Prisma.Decimal,
+  clubPaidBase: Prisma.Decimal,
+) {
+  const live = booking.tabOrders.filter((o) => o.status !== 'CANCELLED');
+
+  // Cuánto le debe a cada tienda vinculada.
+  const byStore = new Map<string, Prisma.Decimal>();
+  for (const o of live) {
+    if (!o.kitchenRestaurantId) continue;
+    byStore.set(o.kitchenRestaurantId, (byStore.get(o.kitchenRestaurantId) ?? toDecimal(0)).add(o.totalBase));
+  }
+
+  const [club, storeRows] = await Promise.all([
+    prisma.restaurant.findUniqueOrThrow({
+      where: { id: clubId },
+      select: { name: true, logoUrl: true, paymentMethodsConfig: true },
+    }),
+    byStore.size
+      ? prisma.restaurant.findMany({
+          where: { id: { in: [...byStore.keys()] } },
+          select: { id: true, name: true, logoUrl: true, paymentMethodsConfig: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const clubBalance = round2(Prisma.Decimal.max(0, clubDueBase.sub(clubPaidBase)));
+
+  return [
+    {
+      payeeId: CLUB_STORE_ID,
+      name: club.name,
+      logoUrl: club.logoUrl,
+      /** Qué incluye esta cuenta, para que el jugador entienda qué está pagando. */
+      detail: 'Cancha y tienda del club',
+      dueBase: clubDueBase.toFixed(2),
+      paidBase: clubPaidBase.toFixed(2),
+      balanceBase: clubBalance.toFixed(2),
+      methods: payMethodsOf(club.paymentMethodsConfig),
+    },
+    ...storeRows.map((s) => {
+      const due = round2(byStore.get(s.id) ?? toDecimal(0));
+      return {
+        payeeId: s.id,
+        name: s.name,
+        logoUrl: s.logoUrl,
+        detail: 'Lo que pediste a esta tienda',
+        dueBase: due.toFixed(2),
+        // Todavía no hay pagos registrados contra una tienda: eso llega con el
+        // pago desde la tablet. Hasta entonces el saldo es todo lo pedido.
+        paidBase: '0.00',
+        balanceBase: due.toFixed(2),
+        methods: payMethodsOf(s.paymentMethodsConfig),
+      };
+    }),
+  ].filter((t) => Number(t.dueBase) > 0);
 }
 
 async function loadSession(clubId: string, accessToken: string) {
@@ -161,7 +277,13 @@ export const clubTabletService = {
     const paidBase = round2(booking.payments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0)));
     const dueBase = round2(booking.totalBase.add(consumoBase));
 
+    // Una cuenta por cobrador. El club cobra la cancha + su tienda propia; cada
+    // tienda vinculada cobra lo suyo, con SU método de pago — por eso cada
+    // cuenta viaja con el suyo y no con el del club.
+    const tabs = await buildTabs(clubId, booking, dueBase, paidBase);
+
     return {
+      tabs,
       booking: {
         id: booking.id,
         accessToken: booking.accessToken,

@@ -56,19 +56,21 @@ const bookingMoneyInclude = {
  * corresponde, `tabOrders`) incluidos — la Caja (Pagar/Fraccionado/Deuda) y el
  * ticket QR lo necesitan para saber cuánto falta cobrar.
  *
- * `dueBase` = cancha + consumo de la tablet. El consumo se cobra acá y no en el
- * restaurante vinculado: a él le llega la comanda para preparar, no la venta.
+ * `dueBase` = cancha + consumo de la TIENDA PROPIA del club. Lo pedido a una
+ * tienda vinculada NO entra: esa tienda le cobra directo al jugador, con su
+ * propio método de pago. Por eso solo cuentan las comandas sin
+ * `kitchenRestaurantId` (null = la despacha y la cobra el club).
  * Sin descuentos ni ajuste de servicio (a diferencia de Order). */
 function withBookingMoney<
   T extends {
     totalBase: Prisma.Decimal;
     payments: { amountBase: Prisma.Decimal }[];
-    tabOrders?: { totalBase: Prisma.Decimal; status: string }[];
+    tabOrders?: { totalBase: Prisma.Decimal; status: string; kitchenRestaurantId: string | null }[];
   },
 >(booking: T) {
   const consumoBase = round2(
     (booking.tabOrders ?? [])
-      .filter((o) => o.status !== 'CANCELLED')
+      .filter((o) => o.status !== 'CANCELLED' && o.kitchenRestaurantId === null)
       .reduce((acc, o) => acc.add(o.totalBase), toDecimal(0)),
   );
   const dueBase = round2(booking.totalBase.add(consumoBase));
@@ -431,9 +433,12 @@ export const clubService = {
       if (!booking) throw notFound('Reserva no encontrada.');
       if (booking.status === 'CANCELLED') throw badRequest('No se puede registrar un cobro en una reserva cancelada.');
 
-      // El tope es cancha + consumo de la tablet, no solo la cancha: si el
-      // jugador pidió dos aguas, recepción tiene que poder cobrarlas acá.
-      const consumo = booking.tabOrders.reduce((acc, o) => acc.add(o.totalBase), toDecimal(0));
+      // El tope es cancha + consumo de la TIENDA PROPIA, no solo la cancha: si
+      // el jugador pidió dos aguas, recepción tiene que poder cobrarlas acá. Lo
+      // pedido a una tienda vinculada no, que se lo cobra ella directo.
+      const consumo = booking.tabOrders
+        .filter((o) => o.kitchenRestaurantId === null)
+        .reduce((acc, o) => acc.add(o.totalBase), toDecimal(0));
       const due = round2(booking.totalBase.add(consumo));
       const alreadyPaid = booking.payments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0));
       const balance = round2(due.sub(alreadyPaid));

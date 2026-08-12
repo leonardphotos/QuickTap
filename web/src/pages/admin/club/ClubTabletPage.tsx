@@ -6,11 +6,14 @@ import { formatBase } from '@/utils/format';
 import { clubGradient, courtTypeLabel } from '@/pages/public/clubPublic';
 import { cn } from '@/lib/utils';
 import {
+  CLUB_STORE_ID,
   clubTabletApi,
   type TabletCatalogItem,
   type TabletCourt,
+  type TabletPayMethod,
   type TabletSession,
   type TabletStore,
+  type TabletTab,
 } from './clubTabletApi';
 import { clubApi } from './clubApi';
 import ClubTournamentScreen from './ClubTournamentScreen';
@@ -472,33 +475,42 @@ export default function ClubTabletPage() {
     );
   }
 
-  // -------------------------------------------------- Se acabó: pasa por caja
+  // ------------------------------- Se acabó: una cuenta por cada quien le cobra
   if (screen === 'closing' && session) {
+    const tabs = session.tabs ?? [];
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-7 p-10 text-center" style={brand}>
-        <Wallet className="h-14 w-14 text-white/80" />
-        <div>
+      <div className="flex min-h-screen flex-col items-center gap-6 overflow-y-auto p-8 text-center" style={brand}>
+        <Wallet className="mt-4 h-12 w-12 shrink-0 text-white/80" />
+        <div className="shrink-0">
           <p className="text-3xl font-bold text-white">Se acabó el tiempo, {session.booking.playerName.split(' ')[0]}</p>
           <p className="mt-2 text-lg font-light text-white/75">Gracias por jugar en {session.booking.courtName}.</p>
         </div>
 
-        <div className="w-full max-w-md rounded-3xl bg-white/95 p-6 shadow-xl">
-          <Row label="Cancha" value={money(session.money.courtBase)} />
-          <Row label="Consumo" value={money(session.money.consumoBase)} />
-          {Number(session.money.paidBase) > 0 && (
-            <Row label="Ya pagado" value={`− ${money(session.money.paidBase)}`} />
-          )}
-          <div className="mt-3 flex items-baseline justify-between border-t border-brand-950/10 pt-3">
-            <span className="text-lg font-bold text-brand-950">Total a cancelar</span>
-            <span className="text-3xl font-bold text-brand-950">{money(session.money.balanceBase)}</span>
+        {tabs.length === 0 ? (
+          <div className="w-full max-w-md rounded-3xl bg-white/95 p-6 shadow-xl">
+            <p className="text-lg font-bold text-brand-950">No debes nada. Todo listo.</p>
           </div>
-        </div>
-
-        <p className="text-lg font-medium text-white">Pasa por caja para cerrar tu cuenta.</p>
+        ) : (
+          <>
+            {/* Una tarjeta por cobrador: el club cobra la cancha y su tienda, y
+                cada tienda vinculada cobra lo suyo con SU método de pago. Van
+                separadas porque son pagos distintos, a personas distintas. */}
+            <div className="grid w-full max-w-5xl shrink-0 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {tabs.map((t) => (
+                <TabCard key={t.payeeId} tab={t} money={money} />
+              ))}
+            </div>
+            <p className="shrink-0 text-base font-medium text-white/85">
+              {tabs.length > 1
+                ? 'Cada tienda cobra por separado: paga cada cuenta a quien corresponde.'
+                : 'Paga tu cuenta para cerrar.'}
+            </p>
+          </>
+        )}
 
         <button
           onClick={reset}
-          className="rounded-full bg-white px-16 py-5 text-2xl font-bold text-brand-950 shadow-xl transition-transform active:scale-95"
+          className="mb-4 shrink-0 rounded-full bg-white px-16 py-4 text-xl font-bold text-brand-950 shadow-xl transition-transform active:scale-95"
         >
           Ok
         </button>
@@ -655,7 +667,9 @@ export default function ClubTabletPage() {
               {sending ? 'Enviando…' : 'Pedir a la cancha'}
             </button>
             <p className="mt-2 text-center text-[11px] font-light text-brand-950/40">
-              Se suma a tu cuenta. Pagas todo junto en caja.
+              {storeId === CLUB_STORE_ID
+              ? 'Se suma a tu cuenta del club. La pagas al terminar.'
+              : `Se suma a tu cuenta con ${store?.name ?? 'esta tienda'}, que cobra por separado.`}
             </p>
           </div>
         </aside>
@@ -776,6 +790,95 @@ function CourtWatermark() {
         <line x1="80" y1="100" x2="320" y2="100" strokeWidth="1" />
       </g>
     </svg>
+  );
+}
+
+/** Etiquetas de los datos de cobro, en el orden en que se dictan. */
+const PAY_FIELD_LABELS: [keyof TabletPayMethod, string][] = [
+  ['banco', 'Banco'],
+  ['telefono', 'Teléfono'],
+  ['cedula', 'Cédula/RIF'],
+  ['rif', 'RIF'],
+  ['titular', 'Titular'],
+  ['correo', 'Correo'],
+  ['cuenta', 'Cuenta'],
+];
+
+const PAY_METHOD_LABELS: Record<string, string> = {
+  MOBILE_PAYMENT: 'Pago Móvil',
+  ZELLE: 'Zelle',
+  CASH: 'Efectivo Bs',
+  CASH_USD: 'Efectivo $',
+  CARD: 'Punto de venta',
+  BINANCE: 'Binance',
+  PAYPAL: 'PayPal',
+  TRANSFER: 'Transferencia',
+};
+
+/**
+ * Una cuenta a pagar, con los datos de cobro de QUIEN la cobra. El jugador le
+ * paga a cada tienda por su lado, así que cada tarjeta trae su propio QR y sus
+ * propios datos — mezclarlos sería mandarle la plata a quien no es.
+ */
+function TabCard({ tab, money }: { tab: TabletTab; money: (v: string | number) => string }) {
+  // El QR es lo que más se usa: se muestra el del primer método que tenga uno.
+  const withQr = tab.methods.find((m) => m.qrImageUrl);
+  const paid = Number(tab.paidBase) > 0;
+
+  return (
+    <div className="flex flex-col rounded-3xl bg-white/95 p-5 text-left shadow-xl">
+      <div className="flex items-center gap-3">
+        {tab.logoUrl ? (
+          <img src={tab.logoUrl} alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover" />
+        ) : (
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-950/[0.06] text-xs font-bold text-brand-950/50">
+            {tab.name.slice(0, 2).toUpperCase()}
+          </span>
+        )}
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-base font-bold leading-tight text-brand-950">{tab.name}</p>
+          <p className="truncate text-[12px] font-light text-brand-950/50">{tab.detail}</p>
+        </div>
+      </div>
+
+      <div className="mt-4 border-t border-brand-950/10 pt-3">
+        {paid && <Row label="Ya pagado" value={`− ${money(tab.paidBase)}`} />}
+        <div className="flex items-baseline justify-between">
+          <span className="text-sm font-bold text-brand-950">A pagar</span>
+          <span className="text-2xl font-bold tabular-nums text-brand-950">{money(tab.balanceBase)}</span>
+        </div>
+      </div>
+
+      {withQr && (
+        <img
+          src={withQr.qrImageUrl}
+          alt={`QR de ${tab.name}`}
+          className="mx-auto mt-3 h-36 w-36 rounded-xl border border-brand-950/10 object-contain"
+        />
+      )}
+
+      {tab.methods.length === 0 ? (
+        <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-[12px] font-light text-amber-900">
+          Esta tienda no cargó sus datos de cobro. Pregúntale cómo pagarle.
+        </p>
+      ) : (
+        <div className="mt-3 space-y-2">
+          {tab.methods.map((m) => {
+            const fields = PAY_FIELD_LABELS.filter(([f]) => m[f]);
+            return (
+              <div key={m.method} className="rounded-xl bg-brand-950/[0.04] px-3 py-2">
+                <p className="text-[12px] font-bold text-brand-950">{PAY_METHOD_LABELS[m.method] ?? m.method}</p>
+                {fields.map(([f, label]) => (
+                  <p key={f} className="text-[12px] font-light leading-snug text-brand-950/60">
+                    <span className="text-brand-950/40">{label}:</span> {String(m[f])}
+                  </p>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 

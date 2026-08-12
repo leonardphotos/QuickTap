@@ -508,7 +508,12 @@ async function debts(restaurantId: string) {
       },
       include: {
         payments: { select: { amountBase: true } },
-        tabOrders: { where: { status: { not: 'CANCELLED' } }, select: { totalBase: true } },
+        // Solo lo que cobra el club: la cancha y su tienda propia. Lo pedido a
+        // una tienda vinculada se lo cobra ella, así que no es deuda de acá.
+        tabOrders: {
+          where: { status: { not: 'CANCELLED' }, kitchenRestaurantId: null },
+          select: { totalBase: true },
+        },
         block: { select: { startsAt: true, court: { select: { name: true } } } },
       },
       orderBy: { createdAt: 'desc' },

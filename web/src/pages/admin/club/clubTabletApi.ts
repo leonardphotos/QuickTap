@@ -41,7 +41,37 @@ export interface TabletStore {
 /** Id de la tienda propia del club (espejo de CLUB_STORE_ID en el backend). */
 export const CLUB_STORE_ID = 'CLUB';
 
+/** Cómo pagarle a un cobrador. Los campos son los de Ajustes → Métodos de pago. */
+export interface TabletPayMethod {
+  method: string;
+  banco?: string;
+  telefono?: string;
+  cedula?: string;
+  titular?: string;
+  correo?: string;
+  cuenta?: string;
+  rif?: string;
+  qrImageUrl?: string;
+}
+
+/**
+ * Una cuenta a pagar. Hay una del club (cancha + su tienda) y una por cada
+ * tienda vinculada a la que se le pidió algo: cada una cobra lo suyo, con su
+ * propio método de pago.
+ */
+export interface TabletTab {
+  payeeId: string;
+  name: string;
+  logoUrl: string | null;
+  detail: string;
+  dueBase: string;
+  paidBase: string;
+  balanceBase: string;
+  methods: TabletPayMethod[];
+}
+
 export interface TabletSession {
+  tabs: TabletTab[];
   booking: {
     id: string;
     accessToken: string;
