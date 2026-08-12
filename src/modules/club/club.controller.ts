@@ -150,4 +150,14 @@ export const clubController = {
     const days = Number.isFinite(raw) ? Math.min(180, Math.max(1, Math.trunc(raw))) : 30;
     res.json({ data: await clubStatsService.consumption(req.restaurantId!, days) });
   }),
+
+  finance: asyncHandler(async (req: Request, res: Response) => {
+    const raw = Number(req.query.days);
+    const days = Number.isFinite(raw) ? Math.min(365, Math.max(1, Math.trunc(raw))) : 30;
+    res.json({ data: await clubStatsService.finance(req.restaurantId!, days) });
+  }),
+
+  debts: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await clubStatsService.debts(req.restaurantId!) });
+  }),
 };

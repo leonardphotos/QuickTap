@@ -45,6 +45,9 @@ router.delete('/schedules/:id', admin, clubController.deleteSchedule);
 router.get('/stats/occupancy', admin, clubController.occupancy);
 router.get('/stats/customers', admin, clubController.frequentCustomers);
 router.get('/stats/consumption', admin, clubController.consumption);
+// Ingresos por método de pago y por origen (cancha/tienda/academia), y quién debe.
+router.get('/stats/finance', admin, clubController.finance);
+router.get('/stats/debts', admin, clubController.debts);
 
 router.get('/panel-courts', staff, clubController.panelCourts);
 router.get('/calendar', staff, clubController.calendar);

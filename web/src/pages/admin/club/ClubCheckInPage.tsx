@@ -42,7 +42,7 @@ export default function ClubCheckInPage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 max-w-lg">
+    <div className="mx-auto flex w-full max-w-lg flex-col gap-6 text-center">
       <div>
         <h1 className="text-[20px] font-bold text-brand-950 tracking-tight">Control de acceso</h1>
         <p className="mt-1 text-[13px] text-brand-950/50 font-light">
@@ -126,9 +126,14 @@ export default function ClubCheckInPage() {
 }
 
 /** Cámara para leer el QR de acceso. Usa ScannerModal (sin backdrop-blur) por el bug de WebKit
- * que deja el <video> en negro — ver el comentario en scanner-modal.tsx. */
+ * que deja el <video> en negro — ver el comentario en scanner-modal.tsx.
+ *
+ * Cámara FRONTAL ('user'): el equipo de acceso está fijo en el mostrador mirando al jugador,
+ * que acerca el QR de su teléfono de frente. Con la trasera (el defecto del hook, pensada para
+ * quien apunta a un código con el equipo en la mano) recepción tendría que voltear la tablet en
+ * cada entrada. */
 function QrScanDialog({ open, onClose, onDecoded }: { open: boolean; onClose: () => void; onDecoded: (v: string) => void }) {
-  const { videoRef, cameraError } = useBarcodeCamera(open, onDecoded);
+  const { videoRef, cameraError } = useBarcodeCamera(open, onDecoded, 'user');
 
   return (
     <ScannerModal
@@ -142,7 +147,11 @@ function QrScanDialog({ open, onClose, onDecoded }: { open: boolean; onClose: ()
       }
     >
       <div className="relative w-full aspect-square rounded-2xl overflow-hidden bg-black">
-        <video ref={videoRef} className="w-full h-full object-cover" muted autoPlay playsInline />
+        {/* Espejado como cualquier cámara frontal: sin esto, mover el QR a la derecha lo mueve
+            a la izquierda en pantalla y apuntar se vuelve un rompecabezas. Solo afecta a la
+            vista previa — zxing decodifica el stream original, no el elemento con el
+            transform (mismo criterio que la tablet de la cancha). */}
+        <video ref={videoRef} className="w-full h-full -scale-x-100 object-cover" muted autoPlay playsInline />
         {!cameraError && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="w-2/3 aspect-square border-2 border-white/70 rounded-2xl" />

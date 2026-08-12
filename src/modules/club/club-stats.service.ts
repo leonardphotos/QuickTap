@@ -1,5 +1,7 @@
+import { PaymentMethod, Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { round2, toDecimal } from '../../utils/money';
+import { PAYMENT_METHOD_LABELS, shopMethodToEnum } from '../../utils/payment-method';
 import { atTimeCaracas, caracasPartsOf, startOfDayCaracas } from '../../utils/timezone';
 
 /**
@@ -324,4 +326,216 @@ async function consumption(restaurantId: string, days: number) {
   };
 }
 
-export const clubStatsService = { occupancy, frequentCustomers, consumption };
+/**
+ * De dónde viene la plata y cómo pagó el cliente.
+ *
+ * Las MISMAS tres fuentes que suma el arqueo (ver collectPayments en
+ * cash-session.service.ts): canchas, tienda y academia. Se leen acá otra vez en
+ * vez de reutilizar aquella función porque el arqueo mira solo desde que se
+ * abrió la caja, y esto mira un rango de días — pero el criterio de traducción
+ * del método de pago SÍ se comparte (shopMethodToEnum), que es donde de verdad
+ * se podrían desincronizar los números.
+ *
+ * Una venta devuelta no dejó plata. Y de una venta fiada solo entró el abono
+ * inicial (`amountPaidNow`); el resto llega después como ShopSalePayment.
+ */
+async function finance(restaurantId: string, days = 30) {
+  const since = new Date(Date.now() - days * 86_400_000);
+
+  const [courtPayments, storeSales, storeInstallments, academyPayments] = await Promise.all([
+    prisma.clubBookingPayment.findMany({
+      where: { booking: { restaurantId }, createdAt: { gte: since } },
+      select: { amountBase: true, method: true },
+    }),
+    prisma.shopSale.findMany({
+      where: { restaurantId, time: { gte: since }, returned: false },
+      select: { total: true, paymentMethod: true, creditTerms: true, amountPaidNow: true },
+    }),
+    prisma.shopSalePayment.findMany({
+      where: { shopSale: { restaurantId }, createdAt: { gte: since } },
+      select: { amount: true, method: true },
+    }),
+    prisma.clubAcademyPayment.findMany({
+      where: { restaurantId, createdAt: { gte: since } },
+      select: { amountBase: true, method: true },
+    }),
+  ]);
+
+  const byMethod = new Map<string, Prisma.Decimal>();
+  const add = (method: PaymentMethod | null, amount: Prisma.Decimal) => {
+    const key = method ?? 'SIN_METODO';
+    byMethod.set(key, (byMethod.get(key) ?? toDecimal(0)).add(amount));
+  };
+
+  let court = toDecimal(0);
+  for (const p of courtPayments) {
+    court = court.add(p.amountBase);
+    add(p.method, p.amountBase);
+  }
+
+  let store = toDecimal(0);
+  for (const sale of storeSales) {
+    const amount = sale.creditTerms ? (sale.amountPaidNow ?? 0) : sale.total;
+    if (!amount || amount <= 0) continue;
+    store = store.add(toDecimal(amount));
+    add(shopMethodToEnum(sale.paymentMethod), toDecimal(amount));
+  }
+  for (const p of storeInstallments) {
+    if (!p.amount || p.amount <= 0) continue;
+    store = store.add(toDecimal(p.amount));
+    add(shopMethodToEnum(p.method), toDecimal(p.amount));
+  }
+
+  let academy = toDecimal(0);
+  for (const p of academyPayments) {
+    academy = academy.add(p.amountBase);
+    add(p.method, p.amountBase);
+  }
+
+  const total = round2(court.add(store).add(academy));
+
+  return {
+    days,
+    totalBase: total.toFixed(2),
+    bySource: [
+      { key: 'court', label: 'Reservas de cancha', amountBase: round2(court).toFixed(2), count: courtPayments.length },
+      { key: 'store', label: 'Tienda', amountBase: round2(store).toFixed(2), count: storeSales.length + storeInstallments.length },
+      { key: 'academy', label: 'Academia', amountBase: round2(academy).toFixed(2), count: academyPayments.length },
+    ],
+    byMethod: [...byMethod.entries()]
+      .map(([method, amount]) => ({
+        method,
+        label: method === 'SIN_METODO' ? 'Sin método registrado' : PAYMENT_METHOD_LABELS[method as PaymentMethod],
+        amountBase: round2(amount).toFixed(2),
+      }))
+      .filter((m) => Number(m.amountBase) > 0)
+      .sort((a, b) => Number(b.amountBase) - Number(a.amountBase)),
+  };
+}
+
+/**
+ * Quién debe y no ha pagado, de las tres fuentes a la vez.
+ *
+ * Una reserva debe si lo cobrado no cubre cancha + consumo de la tablet — el
+ * mismo criterio de `withBookingMoney` en club.service.ts, no uno nuevo. Se
+ * excluyen las canceladas (no se le cobra a nadie una reserva que no ocurrió) y
+ * las futuras aún sin cobrar no son deuda todavía: solo cuenta lo que ya se jugó
+ * o está marcado como cuenta abierta por recepción.
+ */
+async function debts(restaurantId: string) {
+  const now = new Date();
+
+  const [bookings, storeSales, charges] = await Promise.all([
+    prisma.clubBooking.findMany({
+      where: {
+        restaurantId,
+        status: { notIn: ['CANCELLED'] },
+        OR: [{ awaitingPayment: true }, { block: { endsAt: { lt: now } } }],
+      },
+      include: {
+        payments: { select: { amountBase: true } },
+        tabOrders: { where: { status: { not: 'CANCELLED' } }, select: { totalBase: true } },
+        block: { select: { startsAt: true, court: { select: { name: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 300,
+    }),
+    prisma.shopSale.findMany({
+      where: { restaurantId, returned: false, creditTerms: { not: null }, settledAt: null },
+      select: {
+        id: true,
+        time: true,
+        total: true,
+        amountPaidNow: true,
+        customerName: true,
+        customerPhone: true,
+        payments: { select: { amount: true } },
+      },
+      orderBy: { time: 'desc' },
+      take: 300,
+    }),
+    prisma.clubAcademyCharge.findMany({
+      where: { restaurantId, status: { in: ['PENDING', 'OVERDUE'] } },
+      include: {
+        enrollment: {
+          select: {
+            student: { select: { customer: { select: { name: true, phone: true } } } },
+            group: { select: { name: true } },
+          },
+        },
+        payments: { select: { amountBase: true } },
+      },
+      orderBy: { dueDate: 'asc' },
+      take: 300,
+    }),
+  ]);
+
+  const bookingDebts = bookings
+    .map((b) => {
+      const consumo = b.tabOrders.reduce((acc, o) => acc.add(o.totalBase), toDecimal(0));
+      const due = round2(b.totalBase.add(consumo));
+      const paid = b.payments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0));
+      const balance = round2(due.sub(paid));
+      return {
+        id: b.id,
+        name: b.playerName,
+        phone: b.playerPhone,
+        detail: `${b.block?.court.name ?? 'Cancha'} · ${b.block?.startsAt.toISOString().slice(0, 10) ?? ''}`,
+        dueBase: due.toFixed(2),
+        paidBase: round2(paid).toFixed(2),
+        balanceBase: balance.toFixed(2),
+      };
+    })
+    // Un céntimo de diferencia por redondeo no es una deuda.
+    .filter((b) => Number(b.balanceBase) > 0.01);
+
+  const storeDebts = storeSales
+    .map((s) => {
+      const paid = (s.amountPaidNow ?? 0) + s.payments.reduce((acc, p) => acc + p.amount, 0);
+      return {
+        id: s.id,
+        name: s.customerName ?? 'Sin nombre',
+        phone: s.customerPhone ?? null,
+        detail: `Tienda · ${s.time.toISOString().slice(0, 10)}`,
+        dueBase: s.total.toFixed(2),
+        paidBase: paid.toFixed(2),
+        balanceBase: Math.max(0, s.total - paid).toFixed(2),
+      };
+    })
+    .filter((s) => Number(s.balanceBase) > 0.01);
+
+  const academyDebts = charges
+    .map((c) => {
+      const paid = c.payments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0));
+      const balance = round2(c.amountBase.sub(paid));
+      return {
+        id: c.id,
+        name: c.enrollment.student.customer.name,
+        phone: c.enrollment.student.customer.phone,
+        detail: `${c.enrollment.group.name} · ${String(c.periodMonth).padStart(2, '0')}/${c.periodYear}`,
+        dueBase: c.amountBase.toFixed(2),
+        paidBase: round2(paid).toFixed(2),
+        balanceBase: balance.toFixed(2),
+        overdue: c.status === 'OVERDUE',
+      };
+    })
+    .filter((c) => Number(c.balanceBase) > 0.01);
+
+  const sum = (rows: { balanceBase: string }[]) =>
+    round2(rows.reduce((acc, r) => acc.add(toDecimal(r.balanceBase)), toDecimal(0))).toFixed(2);
+
+  return {
+    bookings: bookingDebts,
+    store: storeDebts,
+    academy: academyDebts,
+    totals: {
+      bookings: sum(bookingDebts),
+      store: sum(storeDebts),
+      academy: sum(academyDebts),
+      total: sum([...bookingDebts, ...storeDebts, ...academyDebts]),
+      count: bookingDebts.length + storeDebts.length + academyDebts.length,
+    },
+  };
+}
+
+export const clubStatsService = { occupancy, frequentCustomers, consumption, finance, debts };

@@ -3,39 +3,14 @@ import { prisma } from '../../config/prisma';
 import { round2, toDecimal } from '../../utils/money';
 import { badRequest, notFound } from '../../utils/http-error';
 import { emitToKitchen, SocketEvents } from '../../sockets';
+import { PAYMENT_METHODS, shopMethodToEnum } from '../../utils/payment-method';
 import { OpenCashSessionInput } from './cash-session.dto';
-
-const PAYMENT_METHODS = Object.values(PaymentMethod);
 
 /** Un cobro ya normalizado, venga de donde venga. Es lo que el arqueo suma.
  * `method` en null = no se pudo atribuir a un método conocido (ver shopMethodToEnum). */
 interface CollectedPayment {
   amountBase: Prisma.Decimal;
   method: PaymentMethod | null;
-}
-
-/**
- * La tienda del club guarda el método como etiqueta suelta (ver STORE_PAYMENT_METHODS en
- * clubStoreApi.ts) en vez del enum, así que hay que traducirlo para poder cuadrarlo con el
- * resto. Lo que no se reconozca queda sin método: entra igual al total del turno — plata que
- * entró es plata que entró — pero no se le carga a ninguna gaveta, porque adivinar cuál
- * descuadraría el arqueo en vez de ayudarlo.
- */
-const SHOP_METHOD_LABELS: Record<string, PaymentMethod> = {
-  'efectivo bs': 'CASH',
-  'efectivo $': 'CASH_USD',
-  'pago móvil': 'MOBILE_PAYMENT',
-  'pago movil': 'MOBILE_PAYMENT',
-  'punto de venta': 'CARD',
-  zelle: 'ZELLE',
-  binance: 'BINANCE',
-  paypal: 'PAYPAL',
-  transferencia: 'TRANSFER',
-};
-
-function shopMethodToEnum(label: string | null): PaymentMethod | null {
-  if (!label) return null;
-  return SHOP_METHOD_LABELS[label.trim().toLowerCase()] ?? null;
 }
 
 /**
