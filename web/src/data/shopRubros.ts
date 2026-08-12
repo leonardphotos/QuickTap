@@ -44,9 +44,10 @@ export interface ShopProductSeed {
    * el inventario también guarda insumos internos que no se le venden a nadie por internet. */
   isPublished?: boolean;
   /** 'AREA_ROLL' = impresión de gran formato: se cobra por m² saliendo de un rollo de ancho
-   * fijo, y price/cost pasan a ser por m² (ver shop/printPricing.ts). Ausente o 'UNIT' = venta
-   * por unidad de siempre. */
-  pricingMode?: 'UNIT' | 'AREA_ROLL';
+   * fijo, y price/cost pasan a ser por m² (ver shop/printPricing.ts). 'SERVICE' = rubro de
+   * servicios (estética/barbería): no lleva stock, nunca aparece "Agotado". Ausente o 'UNIT' =
+   * venta por unidad de siempre. */
+  pricingMode?: 'UNIT' | 'AREA_ROLL' | 'SERVICE';
   /** Anchos de rollo disponibles en metros, ej. [1.06, 1.37, 1.6, 1.84]. Solo con AREA_ROLL. */
   rollWidths?: number[];
   /** Largo del rollo en metros (típicamente 50) — base para derivar el costo por m². */
@@ -498,4 +499,11 @@ export const SHOP_RUBROS: ShopRubro[] = RUBRO_DEFS.map((def) => ({
 
 export function getShopRubro(rubroId: string | null | undefined): ShopRubro | undefined {
   return SHOP_RUBROS.find((r) => r.id === rubroId);
+}
+
+/** Rubros que venden servicios, no mercancía: sin SKU, sin stock, sin vencimiento. */
+const SERVICE_RUBROS = ['estetica', 'belleza'];
+
+export function isServiceRubro(rubroId: string | null | undefined): boolean {
+  return !!rubroId && SERVICE_RUBROS.includes(rubroId);
 }

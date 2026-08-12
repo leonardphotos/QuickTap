@@ -155,6 +155,8 @@ export function productStock(p: ShopProduct): number {
 export type ProductStatus = 'ok' | 'warn' | 'danger';
 
 export function productStatus(p: ShopProduct): ProductStatus {
+  // Un servicio (estética/barbería) no tiene mercancía que agotarse: siempre disponible.
+  if (p.pricingMode === 'SERVICE') return 'ok';
   const stock = productStock(p);
   if (stock === 0) return 'danger';
   if (stock <= p.minStock) return 'warn';
@@ -263,7 +265,7 @@ export interface NewProductInput {
   promoPrice?: number;
   expiryDate?: string;
   photoUrl?: string;
-  pricingMode?: 'UNIT' | 'AREA_ROLL';
+  pricingMode?: 'UNIT' | 'AREA_ROLL' | 'SERVICE';
   rollWidths?: number[];
   rollLengthM?: number;
 }

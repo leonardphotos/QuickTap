@@ -26,8 +26,9 @@ export const createShopProductSchema = z.object({
   expiryDate: z.string().max(10).optional(),
   photoUrl: z.string().min(1).optional(),
   // Impresión de gran formato: 'AREA_ROLL' cobra por m² saliendo de un rollo (price/cost pasan
-  // a ser por m²), 'UNIT' es la venta por unidad de siempre. Ver printPricing.ts en el frontend.
-  pricingMode: z.enum(['UNIT', 'AREA_ROLL']).optional(),
+  // a ser por m²). 'SERVICE' es un rubro de servicios (estética/barbería): no lleva stock.
+  // 'UNIT' es la venta por unidad de siempre. Ver printPricing.ts en el frontend.
+  pricingMode: z.enum(['UNIT', 'AREA_ROLL', 'SERVICE']).optional(),
   // Anchos de rollo en metros. Se acota a 6 m para atajar un tipeo (ej. "137" en vez de "1,37"),
   // que dispararía el precio por las nubes sin que nadie lo note.
   rollWidths: z.array(z.coerce.number().gt(0).max(6)).max(12).optional(),

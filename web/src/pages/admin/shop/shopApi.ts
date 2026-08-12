@@ -238,7 +238,10 @@ export function toShopProduct(p: RawShopProduct) {
     expiryDate: p.expiryDate ?? undefined,
     photoUrl: p.photoUrl ?? undefined,
     isPublished: p.isPublished ?? false,
-    pricingMode: (p.pricingMode === 'AREA_ROLL' ? 'AREA_ROLL' : 'UNIT') as 'UNIT' | 'AREA_ROLL',
+    pricingMode: (p.pricingMode === 'AREA_ROLL' || p.pricingMode === 'SERVICE' ? p.pricingMode : 'UNIT') as
+      | 'UNIT'
+      | 'AREA_ROLL'
+      | 'SERVICE',
     rollWidths: p.rollWidths ?? undefined,
     rollLengthM: p.rollLengthM ?? undefined,
   };

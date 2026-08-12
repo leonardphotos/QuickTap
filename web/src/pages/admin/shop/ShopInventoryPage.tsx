@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
-import type { ShopProductSeed, ShopRubro, ShopVariant } from '@/data/shopRubros';
+import { isServiceRubro, type ShopProductSeed, type ShopRubro, type ShopVariant } from '@/data/shopRubros';
 import { formatStock, shopMoneyFormatters } from './shopFormat';
 import { productStatus, productStock, type ShopProduct, type ShopSession } from './shopSession';
 import { shopApi } from './shopApi';
@@ -33,6 +33,9 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   const { user } = useAuth();
   // Depurar el catálogo es de administración: el cajero cobra, no borra productos.
   const canDeleteProducts = user?.role === 'OWNER' || user?.role === 'ADMIN';
+  // Salones de estética/belleza y barbería venden servicios, no mercancía: sin SKU, sin
+  // stock por presentación, sin vencimiento y sin venta por m² (eso es de agencias de publicidad).
+  const isServiceShop = isServiceRubro(rubro.id);
   const [productToDelete, setProductToDelete] = useState<ShopProduct | null>(null);
 
   const [category, setCategory] = useState<string | null>(null);
@@ -415,21 +418,23 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   function saveNewProduct() {
     const price = Number(npPrice) || 0;
     if (!npName.trim()) return setSaveError('Falta el nombre del producto.');
-    if (!npSku.trim()) return setSaveError('Falta el SKU / código de barras.');
+    if (!isServiceShop && !npSku.trim()) return setSaveError('Falta el SKU / código de barras.');
     if (!price) return setSaveError('El precio de venta debe ser mayor a 0.');
     const rollWidths = npAreaRoll ? parseRollWidths(npRollWidths) : [];
     if (npAreaRoll && rollWidths.length === 0) {
       return setSaveError('Ingresa al menos un ancho de rollo (ej. 1,06 1,37 1,60).');
     }
     // Un producto por m² no lleva stock por unidades: el material se controla por rollo, así que
-    // no se le pide stock ni variantes como al resto del catálogo.
-    if (!npAreaRoll && npVariants.length === 0 && npBasicStock.trim() === '') {
+    // no se le pide stock ni variantes como al resto del catálogo. Un servicio (estética/barbería)
+    // tampoco: no hay nada que contar.
+    if (!npAreaRoll && !isServiceShop && npVariants.length === 0 && npBasicStock.trim() === '') {
       return setSaveError('Ingresa el stock del producto, o agrega al menos una variante (talla/color) si aplica.');
     }
     if (!editingProductId && !npPhotoUrl) return setSaveError('Agrega una foto del producto.');
     setSaveError(null);
     // El esquema exige al menos una variante; en impresión por m² se crea una sola, nominal,
-    // con stock alto para que nunca dispare alertas de agotado (el stock real es el rollo).
+    // con stock alto para que nunca dispare alertas de agotado (el stock real es el rollo). En
+    // servicios se crea igual una sola, nominal, sin stock — productStatus() la exime de "Agotado".
     // Una variante por ancho de rollo, cuyo stock son los METROS LINEALES que quedan de ese
     // rollo — es de donde el POS descuenta el material al vender (ver printPricing.rollWidthLabel).
     const variants: ShopVariant[] = npAreaRoll
@@ -439,26 +444,28 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
           stock: Number((npRollMeters[rollWidthLabel(w)] ?? '').replace(',', '.')) || 0,
           soldByWeight: false,
         }))
-      : npVariants.length > 0
-        ? npVariants
-        : [{ v1: 'Único', v2: '', stock: Number(npBasicStock) || 0, soldByWeight: npSoldByWeight }];
+      : isServiceShop
+        ? [{ v1: 'Único', v2: '', stock: 0, soldByWeight: false }]
+        : npVariants.length > 0
+          ? npVariants
+          : [{ v1: 'Único', v2: '', stock: Number(npBasicStock) || 0, soldByWeight: npSoldByWeight }];
     const input = {
       name: npName.trim(),
       category: npCategory,
       subcategory: npSubcategory.trim(),
       brand: npBrand.trim(),
-      sku: npSku.trim(),
+      sku: isServiceShop ? '' : npSku.trim(),
       location: npLocation.trim(),
       price,
       cost: Number(npCost) || 0,
       minStock: Number(npMinStock) || 0,
       variants,
-      wholesalePrice: npWholesalePrice !== '' ? Number(npWholesalePrice) || 0 : undefined,
-      wholesaleMinQty: npWholesaleMinQty !== '' ? Number(npWholesaleMinQty) || 0 : undefined,
-      promoPrice: npPromoPrice !== '' ? Number(npPromoPrice) || 0 : undefined,
-      expiryDate: npExpiryDate || undefined,
+      wholesalePrice: !isServiceShop && npWholesalePrice !== '' ? Number(npWholesalePrice) || 0 : undefined,
+      wholesaleMinQty: !isServiceShop && npWholesaleMinQty !== '' ? Number(npWholesaleMinQty) || 0 : undefined,
+      promoPrice: !isServiceShop && npPromoPrice !== '' ? Number(npPromoPrice) || 0 : undefined,
+      expiryDate: !isServiceShop && npExpiryDate ? npExpiryDate : undefined,
       photoUrl: npPhotoUrl ?? undefined,
-      pricingMode: (npAreaRoll ? 'AREA_ROLL' : 'UNIT') as 'UNIT' | 'AREA_ROLL',
+      pricingMode: (npAreaRoll ? 'AREA_ROLL' : isServiceShop ? 'SERVICE' : 'UNIT') as 'UNIT' | 'AREA_ROLL' | 'SERVICE',
       rollWidths: npAreaRoll ? rollWidths : undefined,
       rollLengthM: npAreaRoll ? Number(npRollLength.replace(',', '.')) || 50 : undefined,
     };
@@ -470,7 +477,9 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <h1 className="text-xl font-bold text-brand-950">{rubro.id === 'agencia_publicidad' ? 'Servicios' : 'Inventario'}</h1>
+        <h1 className="text-xl font-bold text-brand-950">
+          {rubro.id === 'agencia_publicidad' || isServiceShop ? 'Servicios' : 'Inventario'}
+        </h1>
         <div className="flex gap-2 flex-wrap">
           <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => openCameraScan('toolbar')}>
             <ScanLine className="h-4 w-4" /> Escanear
@@ -482,7 +491,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
             <Truck className="h-4 w-4" /> Registrar compra
           </TextureButton>
           <TextureButton variant="brand" size="default" className="!w-auto" onClick={() => openNewProductDialog()}>
-            <Plus className="h-4 w-4" /> Nuevo producto
+            <Plus className="h-4 w-4" /> {isServiceShop ? 'Nuevo servicio' : 'Nuevo producto'}
           </TextureButton>
         </div>
       </div>
@@ -1052,7 +1061,11 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
       </Dialog>
 
       <DialogHeader>
-            <DialogTitle>{editingProductId ? 'Editar producto' : 'Nuevo producto'}</DialogTitle>
+            <DialogTitle>
+              {editingProductId
+                ? isServiceShop ? 'Editar servicio' : 'Editar producto'
+                : isServiceShop ? 'Nuevo servicio' : 'Nuevo producto'}
+            </DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="sm:col-span-2">
@@ -1111,42 +1124,44 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                 {brandOptions.map((b) => <option key={b} value={b} />)}
               </datalist>
             </label>
-            <label className="block text-sm">
-              <span className="text-brand-950/70 flex items-center justify-between gap-2">
-                SKU / código de barras
-                <span className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => openCameraScan('form')}
-                    title="Leer el código con la cámara del celular"
-                    className="text-[11px] font-semibold text-brand-500 hover:text-brand-600 flex items-center gap-1"
-                  >
-                    <ScanLine className="h-3 w-3" /> Usar cámara
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => npSkuInputRef.current?.focus()}
-                    title="Enfoca el campo — listo para leer un lector de código de barras USB/Bluetooth"
-                    className="text-[11px] font-semibold text-brand-950/40 hover:text-brand-950/70"
-                  >
-                    Lector USB
-                  </button>
+            {!isServiceShop && (
+              <label className="block text-sm">
+                <span className="text-brand-950/70 flex items-center justify-between gap-2">
+                  SKU / código de barras
+                  <span className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openCameraScan('form')}
+                      title="Leer el código con la cámara del celular"
+                      className="text-[11px] font-semibold text-brand-500 hover:text-brand-600 flex items-center gap-1"
+                    >
+                      <ScanLine className="h-3 w-3" /> Usar cámara
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => npSkuInputRef.current?.focus()}
+                      title="Enfoca el campo — listo para leer un lector de código de barras USB/Bluetooth"
+                      className="text-[11px] font-semibold text-brand-950/40 hover:text-brand-950/70"
+                    >
+                      Lector USB
+                    </button>
+                  </span>
                 </span>
-              </span>
-              <input
-                ref={npSkuInputRef}
-                value={npSku}
-                onChange={(e) => setNpSku(e.target.value)}
-                onKeyDown={handleSkuKeyDown}
-                placeholder="Escanea o tipea el código y Enter"
-                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-              />
-              {npSkuDuplicate && (
-                <span className="mt-1 block text-[11px] font-medium text-amber-600">
-                  Ya existe un producto con este SKU — si es el mismo producto, mejor editalo en vez de crear uno nuevo.
-                </span>
-              )}
-            </label>
+                <input
+                  ref={npSkuInputRef}
+                  value={npSku}
+                  onChange={(e) => setNpSku(e.target.value)}
+                  onKeyDown={handleSkuKeyDown}
+                  placeholder="Escanea o tipea el código y Enter"
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                />
+                {npSkuDuplicate && (
+                  <span className="mt-1 block text-[11px] font-medium text-amber-600">
+                    Ya existe un producto con este SKU — si es el mismo producto, mejor editalo en vez de crear uno nuevo.
+                  </span>
+                )}
+              </label>
+            )}
             <label className="block text-sm">
               <span className="text-brand-950/70">Ubicación</span>
               <input value={npLocation} onChange={(e) => setNpLocation(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500" />
@@ -1159,7 +1174,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
               <span className="text-brand-950/70">Costo{npAreaRoll ? ' (por m²)' : ''}</span>
               <input type="number" value={npCost} onChange={(e) => setNpCost(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500" />
             </label>
-            {!npAreaRoll && (
+            {!npAreaRoll && !isServiceShop && (
               <label className="block text-sm">
                 <span className="text-brand-950/70">Stock mínimo</span>
                 <input type="number" value={npMinStock} onChange={(e) => setNpMinStock(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500" />
@@ -1167,7 +1182,8 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
             )}
           </div>
 
-          {/* ---------- Impresión de gran formato (vinil / banner) ---------- */}
+          {/* ---------- Impresión de gran formato (vinil / banner) — solo agencias de publicidad ---------- */}
+          {!isServiceShop && (
           <div className="border-t border-brand-950/[0.06] pt-3.5">
             <label className="flex items-center gap-2 text-sm font-medium text-brand-950">
               <input type="checkbox" checked={npAreaRoll} onChange={(e) => setNpAreaRoll(e.target.checked)} />
@@ -1296,8 +1312,9 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
               </div>
             )}
           </div>
+          )}
 
-          <div className={`border-t border-brand-950/[0.06] pt-3.5 ${npAreaRoll ? 'hidden' : ''}`}>
+          <div className={`border-t border-brand-950/[0.06] pt-3.5 ${npAreaRoll || isServiceShop ? 'hidden' : ''}`}>
             <p className="text-sm font-bold text-brand-950 mb-1">
               Stock por {variantDims.dim1}{variantDims.dim2 ? ` y ${variantDims.dim2}` : ''}
             </p>
@@ -1371,30 +1388,32 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
             )}
           </div>
 
-          <div className="border-t border-brand-950/[0.06] pt-3.5">
-            <p className="text-sm font-bold text-brand-950 mb-2.5">Precios especiales y vencimiento (opcional)</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <label className="block text-xs">
-                <span className="text-brand-950/60">Precio mayorista</span>
-                <input type="number" value={npWholesalePrice} onChange={(e) => setNpWholesalePrice(e.target.value)} placeholder="0.00" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
-              </label>
-              <label className="block text-xs">
-                <span className="text-brand-950/60">Desde (uds.)</span>
-                <input type="number" value={npWholesaleMinQty} onChange={(e) => setNpWholesaleMinQty(e.target.value)} placeholder="12" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
-              </label>
-              <label className="block text-xs">
-                <span className="text-brand-950/60">Precio promocional</span>
-                <input type="number" value={npPromoPrice} onChange={(e) => setNpPromoPrice(e.target.value)} placeholder="0.00" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
-              </label>
-              <label className="block text-xs">
-                <span className="text-brand-950/60">Vence el</span>
-                <input type="date" value={npExpiryDate} onChange={(e) => setNpExpiryDate(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
-              </label>
+          {!isServiceShop && (
+            <div className="border-t border-brand-950/[0.06] pt-3.5">
+              <p className="text-sm font-bold text-brand-950 mb-2.5">Precios especiales y vencimiento (opcional)</p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <label className="block text-xs">
+                  <span className="text-brand-950/60">Precio mayorista</span>
+                  <input type="number" value={npWholesalePrice} onChange={(e) => setNpWholesalePrice(e.target.value)} placeholder="0.00" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
+                </label>
+                <label className="block text-xs">
+                  <span className="text-brand-950/60">Desde (uds.)</span>
+                  <input type="number" value={npWholesaleMinQty} onChange={(e) => setNpWholesaleMinQty(e.target.value)} placeholder="12" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
+                </label>
+                <label className="block text-xs">
+                  <span className="text-brand-950/60">Precio promocional</span>
+                  <input type="number" value={npPromoPrice} onChange={(e) => setNpPromoPrice(e.target.value)} placeholder="0.00" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
+                </label>
+                <label className="block text-xs">
+                  <span className="text-brand-950/60">Vence el</span>
+                  <input type="date" value={npExpiryDate} onChange={(e) => setNpExpiryDate(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
+                </label>
+              </div>
+              <p className="text-[11px] text-brand-950/40 mt-1.5">
+                Si activas el precio mayorista, se aplica solo en Venta cuando la cantidad de esa línea del carrito llega al mínimo. El precio promocional siempre gana sobre los demás.
+              </p>
             </div>
-            <p className="text-[11px] text-brand-950/40 mt-1.5">
-              Si activas el precio mayorista, se aplica solo en Venta cuando la cantidad de esa línea del carrito llega al mínimo. El precio promocional siempre gana sobre los demás.
-            </p>
-          </div>
+          )}
 
           {saveError && (
             <p className="text-[13px] font-medium text-red-600 bg-red-50 rounded-lg px-3 py-2">{saveError}</p>
@@ -1405,7 +1424,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
               Cancelar
             </TextureButton>
             <TextureButton variant="brand" size="default" className="!w-auto" onClick={saveNewProduct}>
-              {editingProductId ? 'Guardar cambios' : 'Guardar producto'}
+              {editingProductId ? 'Guardar cambios' : isServiceShop ? 'Guardar servicio' : 'Guardar producto'}
             </TextureButton>
           </DialogFooter>
         </DialogContent>
