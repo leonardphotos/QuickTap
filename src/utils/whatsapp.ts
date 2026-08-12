@@ -83,12 +83,15 @@ export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
  * Formatea un número de teléfono venezolano al formato internacional que
  * exige WhatsApp: "+58" seguido del número sin el 0 inicial (ej.
  * "0424-1234567" -> "+584241234567"). Si el número ya trae el 58 (con o sin
- * "+"), lo deja igual en vez de duplicar el código de país.
+ * "+"), se le quita ese prefijo antes de aplicar la misma limpieza y se
+ * vuelve a anteponer — así un pegado típico como "+58 0414-1234567" (58 y
+ * encima el 0 del operador) no se manda tal cual con un dígito de más, que
+ * WhatsApp entonces reporta como número inexistente.
  */
 export function formatVenezuelanWhatsappPhone(phone: string): string {
   const digits = phone.replace(/\D/g, '');
-  if (digits.startsWith('58')) return `+${digits}`;
-  return `+58${digits.replace(/^0+/, '')}`;
+  const withoutCountryCode = digits.startsWith('58') ? digits.slice(2) : digits;
+  return `+58${withoutCountryCode.replace(/^0+/, '')}`;
 }
 
 /**
