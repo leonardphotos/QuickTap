@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { env } from './config/env';
 import apiV1 from './routes';
+import seoRoutes from './modules/seo/seo.routes';
 import { errorMiddleware } from './middlewares/error.middleware';
 import { UPLOADS_DIR } from './middlewares/upload.middleware';
 
@@ -51,6 +52,12 @@ export function createApp() {
   app.use('/uploads', express.static(UPLOADS_DIR));
 
   app.use('/api/v1', apiV1);
+
+  // SEO: sitemap.xml y las páginas públicas por negocio (/r/, /tienda/, /club/), que
+  // se sirven desde el backend para poder inyectarles las etiquetas del negocio antes
+  // de mandar el HTML — ver src/modules/seo/seo.service.ts. Van en la raíz (son URLs
+  // que ve el usuario, no API) y Nginx las enruta acá en vez de servir el estático.
+  app.use(seoRoutes);
 
   // 404
   app.use((_req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));

@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { TextureButton } from '@/components/ui/texture-button';
+import { useDocumentMeta } from '@/hooks/useDocumentMeta';
 
 const LAST_UPDATED = '4 de agosto de 2026';
 
@@ -10,6 +11,7 @@ const SECTIONS = [
 ];
 
 export default function LegalPage() {
+  useDocumentMeta('Términos y privacidad — QuickTap', 'Términos de servicio y política de privacidad de QuickTap.');
   return (
     <div className="min-h-screen bg-white text-brand-950">
       {/* Nav flotante, mismo estilo que las demás páginas públicas (ver PlansPage.tsx) */}

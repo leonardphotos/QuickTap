@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="es">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/favicon.png" />
@@ -15,7 +15,79 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, interactive-widget=resizes-content"
     />
-    <title>QuickTap.club</title>
+
+    <!--
+      Bloque SEO. Todo lo que está entre seo:start y seo:end lo REEMPLAZA el backend
+      cuando la ruta es la página pública de un negocio (/r/, /tienda/, /club/), para
+      que el título, la descripción y la imagen sean los de ese negocio y no los
+      genéricos de QuickTap — ver src/modules/seo/seo.service.ts#renderShell.
+
+      Hace falta hacerlo en el servidor porque los crawlers de WhatsApp, Facebook y
+      Twitter NO ejecutan JavaScript: si estas etiquetas se pusieran desde React, un
+      link de menú compartido por WhatsApp seguiría sin vista previa. Google sí
+      ejecuta JS, pero igual indexa antes y mejor lo que ya viene en el HTML.
+
+      Si cambias los marcadores, actualiza también SEO_START/SEO_END en seo.service.ts.
+    -->
+    <!-- seo:start -->
+    <title>QuickTap — Menú QR, comandas y punto de venta para tu negocio</title>
+    <meta
+      name="description"
+      content="Menú digital por QR, pedidos de mesa que llegan directo a cocina, punto de venta, inventario y delivery por WhatsApp. Todo en un solo sistema, desde cualquier navegador."
+    />
+    <link rel="canonical" href="https://quicktap.club/" />
+    <meta name="robots" content="index, follow, max-image-preview:large" />
+
+    <meta property="og:site_name" content="QuickTap" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="es_VE" />
+    <meta property="og:url" content="https://quicktap.club/" />
+    <meta property="og:title" content="QuickTap — Menú QR, comandas y punto de venta para tu negocio" />
+    <meta
+      property="og:description"
+      content="Menú digital por QR, pedidos de mesa que llegan directo a cocina, punto de venta, inventario y delivery por WhatsApp. Todo en un solo sistema."
+    />
+    <meta property="og:image" content="https://quicktap.club/logo/quicktap-color.png" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="QuickTap — Menú QR, comandas y punto de venta para tu negocio" />
+    <meta
+      name="twitter:description"
+      content="Menú digital por QR, pedidos de mesa que llegan directo a cocina, punto de venta, inventario y delivery por WhatsApp."
+    />
+    <meta name="twitter:image" content="https://quicktap.club/logo/quicktap-color.png" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://quicktap.club/#organization",
+            "name": "QuickTap",
+            "url": "https://quicktap.club/",
+            "logo": "https://quicktap.club/logo/quicktap-color.png",
+            "description": "Plataforma para restaurantes, locales comerciales y clubes deportivos: menú digital por QR, comandas en tiempo real, punto de venta, inventario y delivery por WhatsApp.",
+            "areaServed": "VE"
+          },
+          {
+            "@type": "SoftwareApplication",
+            "name": "QuickTap",
+            "applicationCategory": "BusinessApplication",
+            "operatingSystem": "Web",
+            "url": "https://quicktap.club/",
+            "publisher": { "@id": "https://quicktap.club/#organization" },
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "USD",
+              "description": "Prueba gratis de 15 días, sin tarjeta de crédito."
+            }
+          }
+        ]
+      }
+    </script>
+    <!-- seo:end -->
   </head>
   <body>
     <div id="root"></div>

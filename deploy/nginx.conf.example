@@ -47,6 +47,40 @@ server {
         proxy_set_header Host $host;
     }
 
+    # --- SEO ---
+    # Estas rutas las sirve el backend, no el estático: Express toma el mismo
+    # web/dist/index.html y le inyecta el título, la descripción y la imagen del
+    # negocio antes de responder (ver src/modules/seo/seo.service.ts). Hace falta
+    # porque los crawlers de WhatsApp/Facebook/Twitter no ejecutan JavaScript: sin
+    # esto, compartir un menú por WhatsApp no genera ninguna vista previa.
+    #
+    # Van ANTES del "location /" de abajo. `^~` evita que otro location por regex
+    # les gane la prioridad. Los bundles siguen colgando de /assets/, que sirve
+    # Nginx igual que siempre, así que la página carga como antes.
+    location = /sitemap.xml {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location ^~ /r/ {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location ^~ /tienda/ {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location ^~ /club/ {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
     # Socket.IO: requiere upgrade a WebSocket
     location /socket.io/ {
         proxy_pass http://127.0.0.1:4000;

@@ -1,0 +1,24 @@
+# QuickTap — https://quicktap.club
+#
+# Se indexan la web pública (landing, planes, legal) y la página pública de cada
+# negocio: el menú del restaurante (/r/), la tienda del local (/tienda/) y el club
+# (/club/). Esas URLs ya son públicas y que aparezcan en buscadores le trae tráfico
+# al negocio.
+#
+# Queda fuera todo lo que es panel privado o de un solo uso.
+
+User-agent: *
+Allow: /
+
+# Paneles: no aportan nada a un buscador y viven detrás de login.
+Disallow: /admin/
+Disallow: /master/
+
+# Registro: pasos intermedios de un formulario, no una página de destino.
+Disallow: /empezar
+
+# Entradas a cancha: cada URL lleva un token de acceso de un solo uso.
+# No deben terminar en ningún índice de búsqueda.
+Disallow: /acceso/
+
+Sitemap: https://quicktap.club/sitemap.xml

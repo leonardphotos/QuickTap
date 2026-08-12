@@ -39,6 +39,7 @@ import { GradientWave } from '@/components/ui/gradient-wave';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '@/context/AuthContext';
+import { useDocumentMeta } from '@/hooks/useDocumentMeta';
 
 /** Espejo en JS de --ease-out-strong (index.css): arranca rápido, se siente intencional. */
 const EASE_OUT: [number, number, number, number] = [0.23, 1, 0.32, 1];
@@ -642,6 +643,13 @@ export default function LandingPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
+  // Título fijo aunque cambie el toggle Restaurantes / Locales: la URL es la misma (`/`),
+  // así que debe tener un solo título en buscadores.
+  useDocumentMeta(
+    'QuickTap — Menú QR, comandas y punto de venta para tu negocio',
+    'Menú digital por QR, pedidos de mesa que llegan directo a cocina, punto de venta, inventario y delivery por WhatsApp. Todo en un solo sistema, desde cualquier navegador.',
+  );
+
   // Contenido de toda la página desde acá para abajo depende del toggle Restaurantes / Locales
   // Comerciales — mismo componente, dos catálogos de contenido en paralelo.
   const isShop = vertical === 'shop';
@@ -835,6 +843,23 @@ export default function LandingPage() {
         {/* FAQ */}
         <section className="bg-white py-16 sm:py-20 px-4">
           <div className="max-w-2xl mx-auto">
+            {/* Mismo contenido que se ve abajo, en el formato que Google necesita para
+                mostrarlo como resultado enriquecido. Se emite el set del vertical activo
+                para que siempre coincida con lo que hay en pantalla. */}
+            <script
+              type="application/ld+json"
+              dangerouslySetInnerHTML={{
+                __html: JSON.stringify({
+                  '@context': 'https://schema.org',
+                  '@type': 'FAQPage',
+                  mainEntity: activeFaq.map((item) => ({
+                    '@type': 'Question',
+                    name: item.q,
+                    acceptedAnswer: { '@type': 'Answer', text: item.a },
+                  })),
+                }).replace(/</g, '\\u003c'),
+              }}
+            />
             <Reveal>
               <h2 className="text-2xl sm:text-3xl font-bold text-brand-950 text-center mb-10">Preguntas frecuentes</h2>
             </Reveal>

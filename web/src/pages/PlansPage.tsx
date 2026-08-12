@@ -1,8 +1,13 @@
 import { Link } from 'react-router-dom';
 import { PricingSection } from '@/components/landing/PricingSection';
 import { TextureButton } from '@/components/ui/texture-button';
+import { useDocumentMeta } from '@/hooks/useDocumentMeta';
 
 export default function PlansPage() {
+  useDocumentMeta(
+    'Precios y planes — QuickTap',
+    'Planes de QuickTap para restaurantes y locales comerciales. Empieza con 15 días gratis, sin tarjeta de crédito.',
+  );
   return (
     <div className="min-h-screen bg-white text-brand-950">
       {/* Nav flotante, mismo estilo que las demás páginas públicas */}
