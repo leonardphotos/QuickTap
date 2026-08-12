@@ -119,6 +119,54 @@ export const coachTimeOffSchema = z
   .refine((v) => v.endsAt > v.startsAt, { path: ['endsAt'], message: 'La fecha de fin debe ser posterior.' });
 export type CoachTimeOffInput = z.infer<typeof coachTimeOffSchema>;
 
+// ---------------------------------------------------------------- Programas
+export const createProgramSchema = z.object({
+  name: z.string().trim().min(2).max(60),
+  description: z.string().trim().max(200).nullish(),
+  color: z
+    .string()
+    .trim()
+    .regex(/^#[0-9a-fA-F]{6}$/, 'Color inválido (#rrggbb)')
+    .nullish(),
+});
+export type CreateProgramInput = z.infer<typeof createProgramSchema>;
+
+export const updateProgramSchema = createProgramSchema.partial().extend({
+  active: z.boolean().optional(),
+  sortOrder: z.number().int().min(0).max(999).optional(),
+});
+export type UpdateProgramInput = z.infer<typeof updateProgramSchema>;
+
+// ----------------------------------------------------------- Lista de espera
+export const joinWaitlistSchema = z.object({
+  groupId: z.string().cuid(),
+  studentId: z.string().cuid(),
+  note: z.string().trim().max(200).nullish(),
+});
+export type JoinWaitlistInput = z.infer<typeof joinWaitlistSchema>;
+
+/** Reubicar a un alumno en una clase de recuperación, desde recepción. */
+export const makeupSchema = z.object({
+  studentId: z.string().cuid(),
+  /** Reubicar aunque no le queden fichas (p. ej. el club le canceló por lluvia). */
+  force: z.boolean().default(false),
+});
+export type MakeupInput = z.infer<typeof makeupSchema>;
+
+/** Alta por autoservicio desde el enlace público. Nombre y teléfono obligatorios;
+ *  el resto lo completa el club después. */
+export const publicEnrollSchema = z.object({
+  groupId: z.string().cuid(),
+  name: z.string().trim().min(2, 'Escribe tu nombre.').max(80),
+  phone: z.string().trim().min(7).max(20),
+  level: level.nullish(),
+  birthDate: dateStr.nullish(),
+  guardianName: z.string().trim().max(80).nullish(),
+  guardianPhone: z.string().trim().max(20).nullish(),
+  medicalNotes: z.string().trim().max(500).nullish(),
+});
+export type PublicEnrollInput = z.infer<typeof publicEnrollSchema>;
+
 // ------------------------------------------------------------------- Grupos
 export const classSlotSchema = z.object({
   weekday,
@@ -131,6 +179,7 @@ export const createGroupSchema = z
   .object({
     name: z.string().trim().min(2).max(80),
     coachId: z.string().cuid(),
+    programId: z.string().cuid().nullish(),
     levelMin: level,
     levelMax: level,
     classType: z.enum(['GROUP', 'PRIVATE', 'CLINIC']).default('GROUP'),
@@ -143,6 +192,14 @@ export const createGroupSchema = z
     packagePriceBase: money.nullish(),
     packageClasses: z.number().int().min(1).max(200).nullish(),
     releaseHoursBefore: z.number().int().min(0).max(168).nullish(),
+    /**
+     * Nace ACTIVO, no en borrador. El modelo tenía DRAFT por defecto y nada lo
+     * cambiaba nunca: el grupo no salía en el enlace público, no admitía
+     * inscripciones y `extendHorizon` —que solo mira los activos— jamás le
+     * generaba más semanas. Un club que crea un grupo lo quiere abierto; DRAFT
+     * queda para quien lo pida a propósito.
+     */
+    status: z.enum(['DRAFT', 'ACTIVE']).default('ACTIVE'),
     slots: z.array(classSlotSchema).min(1).max(7),
   })
   .superRefine((v, ctx) => {
@@ -165,6 +222,7 @@ export type CreateGroupInput = z.infer<typeof createGroupSchema>;
 export const updateGroupSchema = z.object({
   name: z.string().trim().min(2).max(80).optional(),
   coachId: z.string().cuid().optional(),
+  programId: z.string().cuid().nullish(),
   levelMin: level.optional(),
   levelMax: level.optional(),
   capacityMin: z.number().int().min(1).max(20).optional(),

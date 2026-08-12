@@ -1,7 +1,8 @@
 import { nanoid } from 'nanoid';
 import { Prisma, ClubClassSessionStatus } from '@prisma/client';
 import { prisma } from '../../config/prisma';
-import { badRequest, conflict, notFound } from '../../utils/http-error';
+import { badRequest, conflict, forbidden, notFound } from '../../utils/http-error';
+import { clubPlayerService } from '../club-players/club-player.service';
 import { atTimeCaracas, caracasPartsOf } from '../../utils/timezone';
 import { round2, toDecimal } from '../../utils/money';
 import { emitToKitchen, SocketEvents } from '../../sockets';
@@ -264,6 +265,152 @@ export const clubAcademyService = {
     return availability.some((a) => a.startTime <= hhmm && a.endTime >= endHhmm);
   },
 
+  // ---------------------------------------------------------------- Programas
+  async listPrograms(restaurantId: string) {
+    return prisma.clubProgram.findMany({
+      where: { restaurantId },
+      orderBy: [{ active: 'desc' }, { sortOrder: 'asc' }, { name: 'asc' }],
+      include: { _count: { select: { groups: true } } },
+    });
+  },
+
+  async createProgram(restaurantId: string, input: { name: string; description?: string | null; color?: string | null }) {
+    return prisma.clubProgram.create({
+      data: { restaurantId, name: input.name, description: input.description ?? null, color: input.color ?? null },
+    });
+  },
+
+  async updateProgram(
+    restaurantId: string,
+    id: string,
+    input: { name?: string; description?: string | null; color?: string | null; active?: boolean; sortOrder?: number },
+  ) {
+    const program = await prisma.clubProgram.findFirst({ where: { id, restaurantId }, select: { id: true } });
+    if (!program) throw notFound('El programa no existe o no pertenece a este club.');
+    return prisma.clubProgram.update({ where: { id }, data: input });
+  },
+
+  /** Se desactiva, no se borra: los grupos que lo usaron son historial. */
+  async deactivateProgram(restaurantId: string, id: string) {
+    const program = await prisma.clubProgram.findFirst({ where: { id, restaurantId }, select: { id: true } });
+    if (!program) throw notFound('El programa no existe o no pertenece a este club.');
+    return prisma.clubProgram.update({ where: { id }, data: { active: false } });
+  },
+
+  // ----------------------------------------------------------- Lista de espera
+  /**
+   * Anota a alguien en la lista de espera de un grupo lleno.
+   *
+   * El orden es por `createdAt`, no por una posición guardada: una posición
+   * habría que reordenarla entera cada vez que alguien se cae de la lista, y se
+   * desincroniza al primer fallo a mitad de camino.
+   */
+  async joinWaitlist(restaurantId: string, groupId: string, studentId: string, note?: string | null) {
+    const group = await prisma.clubClassGroup.findFirst({ where: { id: groupId, restaurantId }, select: { id: true } });
+    if (!group) throw notFound('El grupo no existe o no pertenece a este club.');
+    await assertStudent(restaurantId, studentId);
+
+    const enrolled = await prisma.clubEnrollment.findFirst({
+      where: { groupId, studentId, status: 'ACTIVE' },
+      select: { id: true },
+    });
+    if (enrolled) throw conflict('Ese alumno ya está inscrito en este grupo.');
+
+    const existing = await prisma.clubWaitlistEntry.findUnique({
+      where: { groupId_studentId: { groupId, studentId } },
+    });
+    // Re-anotarse tras haberse caído de la lista vuelve a ponerlo al final, no
+    // le devuelve su puesto viejo: sería injusto con quien esperó todo ese rato.
+    if (existing) {
+      if (existing.status === 'WAITING' || existing.status === 'OFFERED') return existing;
+      return prisma.clubWaitlistEntry.update({
+        where: { id: existing.id },
+        data: { status: 'WAITING', note: note ?? null, notifiedAt: null, createdAt: new Date() },
+      });
+    }
+
+    return prisma.clubWaitlistEntry.create({
+      data: { restaurantId, groupId, studentId, note: note ?? null },
+    });
+  },
+
+  async listWaitlist(restaurantId: string, groupId?: string) {
+    const rows = await prisma.clubWaitlistEntry.findMany({
+      where: { restaurantId, status: { in: ['WAITING', 'OFFERED'] }, ...(groupId ? { groupId } : {}) },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        group: { select: { id: true, name: true, capacityMax: true } },
+        student: { include: { customer: { select: { name: true, phone: true } } } },
+      },
+    });
+    // La posición se deriva del orden dentro de cada grupo.
+    const seen = new Map<string, number>();
+    return rows.map((r) => {
+      const pos = (seen.get(r.groupId) ?? 0) + 1;
+      seen.set(r.groupId, pos);
+      return { ...r, position: pos };
+    });
+  },
+
+  async leaveWaitlist(restaurantId: string, id: string) {
+    const entry = await prisma.clubWaitlistEntry.findFirst({ where: { id, restaurantId }, select: { id: true } });
+    if (!entry) throw notFound('Esa anotación no existe o no pertenece a este club.');
+    return prisma.clubWaitlistEntry.update({ where: { id }, data: { status: 'CANCELLED' } });
+  },
+
+  /**
+   * Avisa al primero de la lista cuando se libera un puesto.
+   *
+   * Solo AVISA — no lo inscribe solo. Meter a alguien a un grupo (y empezar a
+   * cobrarle) sin que lo confirme sería cobrarle por algo que no pidió. Se marca
+   * `notifiedAt` para no repetirle el aviso en cada barrido.
+   */
+  async offerWaitlistSeats(restaurantId: string) {
+    const waiting = await prisma.clubWaitlistEntry.findMany({
+      where: { restaurantId, status: 'WAITING', notifiedAt: null },
+      orderBy: { createdAt: 'asc' },
+      include: {
+        group: { select: { id: true, name: true, capacityMax: true } },
+        student: { include: { customer: { select: { name: true, phone: true } } } },
+      },
+    });
+    if (!waiting.length) return { offered: 0 };
+
+    let offered = 0;
+    const seenGroup = new Set<string>();
+
+    for (const entry of waiting) {
+      // Un puesto por grupo y por barrido: si quedan dos libres, el segundo se
+      // ofrece en la pasada siguiente, cuando ya se sepa si el primero aceptó.
+      if (seenGroup.has(entry.groupId)) continue;
+
+      const nextSession = await prisma.clubClassSession.findFirst({
+        where: { groupId: entry.groupId, startsAt: { gt: new Date() }, status: { in: ['SCHEDULED', 'CONFIRMED'] } },
+        orderBy: { startsAt: 'asc' },
+      });
+      if (!nextSession) continue;
+
+      const seats = await occupiedSeats(nextSession);
+      if (seats >= entry.group.capacityMax) continue;
+
+      await prisma.clubWaitlistEntry.update({
+        where: { id: entry.id },
+        data: { status: 'OFFERED', notifiedAt: new Date() },
+      });
+      seenGroup.add(entry.groupId);
+      offered += 1;
+
+      await academyNotifier.waitlistSeatFree(
+        restaurantId,
+        entry.student.customer.phone,
+        entry.student.customer.name,
+        entry.group.name,
+      );
+    }
+
+    return { offered };
+  },
+
   // ------------------------------------------------------------------- Grupos
   async listGroups(restaurantId: string) {
     const groups = await prisma.clubClassGroup.findMany({
@@ -271,8 +418,9 @@ export const clubAcademyService = {
       orderBy: [{ status: 'asc' }, { name: 'asc' }],
       include: {
         coach: { select: { id: true, displayName: true } },
+        program: { select: { id: true, name: true, color: true } },
         slots: { include: { court: { select: { id: true, name: true } } } },
-        _count: { select: { enrollments: true, sessions: true } },
+        _count: { select: { enrollments: true, sessions: true, waitlist: true } },
       },
     });
     return groups;
@@ -287,10 +435,16 @@ export const clubAcademyService = {
       }
     }
 
+    if (input.programId) {
+      const program = await prisma.clubProgram.findFirst({ where: { id: input.programId, restaurantId }, select: { id: true } });
+      if (!program) throw notFound('El programa no existe o no pertenece a este club.');
+    }
+
     const group = await prisma.clubClassGroup.create({
       data: {
         restaurantId,
         coachId: input.coachId,
+        programId: input.programId ?? null,
         name: input.name,
         levelMin: new Prisma.Decimal(input.levelMin),
         levelMax: new Prisma.Decimal(input.levelMax),
@@ -304,6 +458,10 @@ export const clubAcademyService = {
         packagePriceBase: input.packagePriceBase != null ? new Prisma.Decimal(input.packagePriceBase) : null,
         packageClasses: input.packageClasses ?? null,
         releaseHoursBefore: input.releaseHoursBefore ?? null,
+        // El defecto vive también acá y no solo en el DTO: el modelo trae DRAFT, y
+        // un grupo en borrador no sale en el enlace público, no admite inscripciones
+        // y extendHorizon nunca le genera más semanas.
+        status: input.status ?? 'ACTIVE',
         slots: { create: input.slots.map((s) => ({ ...s, courtId: s.courtId ?? null })) },
       },
       include: { slots: true },
@@ -1092,6 +1250,46 @@ export const clubAcademyService = {
     return result;
   },
 
+  /**
+   * Recepción reubica a un alumno en una clase de recuperación.
+   *
+   * Mismas dos reglas que cuando lo hace el alumno solo: no pasar el aforo de la
+   * pista y tener ficha disponible. La diferencia es que recepción SÍ puede
+   * hacerlo sin ficha (`force`) — un alumno al que el club le canceló la clase por
+   * lluvia no debería quedarse fuera por un detalle de saldo.
+   */
+  async scheduleMakeup(restaurantId: string, sessionId: string, studentId: string, force = false) {
+    const session = await prisma.clubClassSession.findFirst({
+      where: { id: sessionId, restaurantId, status: { in: ['SCHEDULED', 'CONFIRMED'] } },
+    });
+    if (!session) throw notFound('Esa clase no existe o no admite recuperaciones.');
+    if (session.startsAt <= new Date()) throw badRequest('Esa clase ya pasó.');
+
+    const student = await assertStudent(restaurantId, studentId);
+
+    const seats = await occupiedSeats(session);
+    if (seats >= session.capacityMax) throw conflict('Esa clase está llena.');
+
+    if (!force) {
+      const balance = await prisma.clubClassCreditEntry.aggregate({
+        where: { restaurantId, studentId },
+        _sum: { delta: true },
+      });
+      if ((balance._sum.delta ?? 0) <= 0) {
+        throw badRequest('Ese alumno no tiene fichas disponibles. Puedes reubicarlo igual marcando "sin descontar ficha".');
+      }
+    }
+
+    const row = await prisma.clubAttendance.upsert({
+      where: { sessionId_studentId: { sessionId, studentId } },
+      create: { sessionId, studentId, status: 'MAKEUP' },
+      update: { status: 'MAKEUP' },
+    });
+
+    emitToKitchen(restaurantId, SocketEvents.CLUB_ACADEMY_SESSION_UPDATED, { id: sessionId });
+    return { ...row, studentName: student.customer.name };
+  },
+
   // ------------------------------------------------------------------ Alumnos
   async listStudents(restaurantId: string, query: ListStudentsQuery) {
     const where: Prisma.ClubStudentWhereInput = { restaurantId };
@@ -1251,11 +1449,104 @@ export const clubAcademyService = {
       include: { student: { include: { customer: true } }, group: true },
     });
 
+    // Si venía de la lista de espera, su anotación se cierra: dejarla abierta lo
+    // mantendría recibiendo avisos de "se liberó un puesto" ya estando dentro.
+    await prisma.clubWaitlistEntry.updateMany({
+      where: { groupId: input.groupId, studentId: input.studentId, status: { in: ['WAITING', 'OFFERED'] } },
+      data: { status: 'ENROLLED' },
+    });
+
     emitToKitchen(restaurantId, SocketEvents.CLUB_ACADEMY_ENROLLMENT_NEW, { id: enrollment.id });
     if (settings.notifyCoachOnEnroll) {
       await academyNotifier.studentEnrolled(restaurantId, group.coach, group.name, enrollment.student.customer.name);
     }
     return enrollment;
+  },
+
+  /**
+   * Alta por autoservicio desde el enlace público.
+   *
+   * Reutiliza la verificación por WhatsApp que ya protege las reservas: sin
+   * código validado no se inscribe a nadie, o el club amanecería con inscripciones
+   * de números inventados.
+   *
+   * Si el grupo está lleno NO falla: anota en lista de espera y lo dice. Devolver
+   * un error "está lleno" y perder al interesado es justo lo que la lista de
+   * espera existe para evitar.
+   */
+  async publicEnroll(
+    restaurantId: string,
+    input: { groupId: string; name: string; phone: string; level?: number | null; birthDate?: string | null; guardianName?: string | null; guardianPhone?: string | null; medicalNotes?: string | null },
+  ) {
+    const group = await prisma.clubClassGroup.findFirst({
+      where: { id: input.groupId, restaurantId, status: 'ACTIVE' },
+      include: { coach: true },
+    });
+    if (!group) throw notFound('Ese grupo no existe o no está abierto.');
+
+    const verified = await clubPlayerService.hasRecentVerification(restaurantId, input.phone);
+    if (!verified) throw badRequest('Verifica tu número con el código que te enviamos por WhatsApp.');
+
+    const blocked = await clubPlayerService.isBlacklisted(restaurantId, input.phone);
+    if (blocked) throw forbidden('No puedes inscribirte por internet. Comunícate con el club.');
+
+    // El alumno es un Customer, como en todo el sistema: si ya reservó cancha
+    // alguna vez, se reusa su ficha en vez de partirle el historial.
+    await customerService.upsertFromOrder(restaurantId, { name: input.name, phone: input.phone });
+    const customer = await prisma.customer.findUnique({
+      where: { restaurantId_phone: { restaurantId, phone: input.phone } },
+      select: { id: true },
+    });
+    if (!customer) throw badRequest('No se pudo registrar el alumno.');
+
+    const student =
+      (await prisma.clubStudent.findUnique({ where: { customerId: customer.id } })) ??
+      (await prisma.clubStudent.create({
+        data: {
+          restaurantId,
+          customerId: customer.id,
+          level: input.level != null ? new Prisma.Decimal(input.level) : null,
+          birthDate: input.birthDate ? atTimeCaracas(input.birthDate, '00:00') : null,
+          guardianName: input.guardianName ?? null,
+          guardianPhone: input.guardianPhone ?? null,
+          medicalNotes: input.medicalNotes ?? null,
+          accessToken: nanoid(14),
+        },
+      }));
+
+    const already = await prisma.clubEnrollment.findFirst({
+      where: { groupId: group.id, studentId: student.id, status: 'ACTIVE' },
+      select: { id: true },
+    });
+    if (already) {
+      return { status: 'ALREADY' as const, accessToken: student.accessToken, groupName: group.name };
+    }
+
+    // ¿Hay puesto en la próxima clase?
+    const nextSession = await prisma.clubClassSession.findFirst({
+      where: { groupId: group.id, startsAt: { gt: new Date() }, status: { in: ['SCHEDULED', 'CONFIRMED'] } },
+      orderBy: { startsAt: 'asc' },
+    });
+    const seats = nextSession ? await occupiedSeats(nextSession) : 0;
+    const full = nextSession ? seats >= group.capacityMax : false;
+
+    if (full) {
+      await this.joinWaitlist(restaurantId, group.id, student.id, 'Solicitud desde el enlace público');
+      await academyNotifier.enrollmentRequested(restaurantId, input.phone, input.name, group.name, true);
+      return { status: 'WAITLISTED' as const, accessToken: student.accessToken, groupName: group.name };
+    }
+
+    await this.createEnrollment(restaurantId, {
+      studentId: student.id,
+      groupId: group.id,
+      billingMode: group.priceMonthlyBase ? 'MONTHLY' : 'PER_CLASS',
+      // La regla de nivel no bloquea al que se inscribe solo: se anota el motivo y
+      // el club decide. Rechazarlo en la web, sin nadie a quien explicarle, se
+      // traduce en un alumno perdido.
+      levelOverrideReason: 'Inscripción por autoservicio',
+    } as never);
+    await academyNotifier.enrollmentRequested(restaurantId, input.phone, input.name, group.name, false);
+    return { status: 'ENROLLED' as const, accessToken: student.accessToken, groupName: group.name };
   },
 
   async updateEnrollment(restaurantId: string, id: string, input: UpdateEnrollmentInput) {
@@ -1282,13 +1573,16 @@ export const clubAcademyService = {
     await this.expirePrivateHolds(restaurantId);
     await this.releaseUnderfilledSessions(restaurantId);
     await this.extendHorizon(restaurantId);
+    // Liberar una sesión o dar de baja a alguien abre puestos: hay que avisarle al
+    // que espera en el mismo barrido, o se enteraría días después.
+    await this.offerWaitlistSeats(restaurantId).catch(() => undefined);
 
     const now = new Date();
     const { dateStr } = caracasPartsOf(now);
     const dayStart = atTimeCaracas(dateStr, '00:00');
     const dayEnd = new Date(dayStart.getTime() + 86_400_000);
 
-    const [todaySessions, needsCourt, activeStudents, activeGroups, pendingCharges] = await Promise.all([
+    const [todaySessions, needsCourt, activeStudents, activeGroups, pendingCharges, waitlistCount] = await Promise.all([
       prisma.clubClassSession.findMany({
         where: { restaurantId, startsAt: { gte: dayStart, lt: dayEnd }, status: { notIn: ['CANCELLED'] } },
         orderBy: { startsAt: 'asc' },
@@ -1307,6 +1601,7 @@ export const clubAcademyService = {
         _sum: { amountBase: true },
         _count: true,
       }),
+      prisma.clubWaitlistEntry.count({ where: { restaurantId, status: { in: ['WAITING', 'OFFERED'] } } }),
     ]);
 
     return {
@@ -1314,6 +1609,7 @@ export const clubAcademyService = {
       needsCourt,
       activeStudents,
       activeGroups,
+      waitlistCount,
       pendingCharges: {
         count: pendingCharges._count,
         amountBase: (pendingCharges._sum.amountBase ?? toDecimal(0)).toFixed(2),

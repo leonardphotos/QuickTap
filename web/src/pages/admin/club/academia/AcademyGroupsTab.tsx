@@ -6,7 +6,8 @@ import { formatBase } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { card } from '../clubStyle';
-import { academyApi, LEVELS, WEEKDAYS, WEEKDAY_SHORT, type ClassGroup, type Coach } from './academyApi';
+import { academyApi, LEVELS, WEEKDAYS, WEEKDAY_SHORT, type ClassGroup, type Coach, type Program } from './academyApi';
+import { levelRangeLabel } from '@/utils/padelLevel';
 
 const INPUT =
   'w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40';
@@ -34,6 +35,7 @@ export default function AcademyGroupsTab({
   const [conflicts, setConflicts] = useState<Conflict[]>([]);
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [courts, setCourts] = useState<Court[]>([]);
+  const [programs, setPrograms] = useState<Program[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,12 +48,14 @@ export default function AcademyGroupsTab({
       academyApi.conflicts(),
       academyApi.listCoaches(),
       api.get<{ data: Court[] }>('/club/courts').then((r) => r.data.data),
+      academyApi.listPrograms(),
     ])
-      .then(([g, c, co, ct]) => {
+      .then(([g, c, co, ct, pr]) => {
         setGroups(g);
         setConflicts(c as Conflict[]);
         setCoaches(co);
         setCourts(ct);
+        setPrograms(pr.filter((x) => x.active));
       })
       .catch(() => setError('No pudimos cargar los grupos.'))
       .finally(() => setLoading(false));
@@ -116,9 +120,18 @@ export default function AcademyGroupsTab({
               <li key={g.id} className="py-3">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-brand-950">{g.name}</p>
+                    <p className="flex items-center gap-1.5 truncate text-sm font-semibold text-brand-950">
+                      {g.program && (
+                        <span
+                          className="h-2.5 w-2.5 shrink-0 rounded-full"
+                          style={{ backgroundColor: g.program.color ?? '#94a3b8' }}
+                          title={g.program.name}
+                        />
+                      )}
+                      {g.name}
+                    </p>
                     <p className="text-xs font-light text-brand-950/50">
-                      Nivel {Number(g.levelMin).toFixed(1)}–{Number(g.levelMax).toFixed(1)} · {g.coach.displayName} ·{' '}
+                      {levelRangeLabel(g.levelMin, g.levelMax)} ({Number(g.levelMin).toFixed(1)}–{Number(g.levelMax).toFixed(1)}) · {g.coach.displayName} ·{' '}
                       {g._count.enrollments}/{g.capacityMax} inscritos
                     </p>
                     <p className="mt-0.5 text-xs font-light text-brand-950/40">
@@ -169,6 +182,7 @@ export default function AcademyGroupsTab({
         <GroupDialog
           coaches={coaches}
           courts={courts}
+          programs={programs}
           symbol={symbol}
           onClose={() => setCreating(false)}
           onSaved={(msg) => {
@@ -185,18 +199,21 @@ export default function AcademyGroupsTab({
 function GroupDialog({
   coaches,
   courts,
+  programs,
   symbol,
   onClose,
   onSaved,
 }: {
   coaches: Coach[];
   courts: Court[];
+  programs: Program[];
   symbol: string;
   onClose: () => void;
   onSaved: (msg: string) => void;
 }) {
   const [name, setName] = useState('');
   const [coachId, setCoachId] = useState(coaches[0]?.id ?? '');
+  const [programId, setProgramId] = useState('');
   const [levelMin, setLevelMin] = useState('2');
   const [levelMax, setLevelMax] = useState('3.5');
   const [capacityMin, setCapacityMin] = useState('2');
@@ -219,6 +236,7 @@ function GroupDialog({
       const r = (await academyApi.createGroup({
         name: name.trim(),
         coachId,
+        programId: programId || null,
         levelMin: Number(levelMin),
         levelMax: Number(levelMax),
         capacityMin: Number(capacityMin),
@@ -257,6 +275,17 @@ function GroupDialog({
               {coaches.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.displayName}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field label="Programa">
+            <select value={programId} onChange={(e) => setProgramId(e.target.value)} className={INPUT}>
+              <option value="">Sin programa</option>
+              {programs.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
                 </option>
               ))}
             </select>

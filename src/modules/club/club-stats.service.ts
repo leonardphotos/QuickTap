@@ -72,18 +72,24 @@ async function occupancy(restaurantId: string, days: number) {
       where: { restaurantId, active: true },
       select: { courtId: true, weekday: true, startTime: true, endTime: true },
     }),
+    // Antes esto filtraba `kind: 'BOOKING'`, así que las clases de academia no
+    // contaban: una cancha llena de clases se reportaba como libre y la ocupación
+    // salía subestimada. Ahora entran las dos y se separan, que es justo la
+    // comparación que interesa — ¿rinde más la hora de academia o la renta libre?
     prisma.clubCourtBlock.findMany({
       where: {
         restaurantId,
         status: 'ACTIVE',
-        kind: 'BOOKING',
+        kind: { in: ['BOOKING', 'CLASS'] },
         startsAt: { gte: start, lt: endExclusive },
       },
       select: {
         courtId: true,
+        kind: true,
         startsAt: true,
         endsAt: true,
         booking: { select: { totalBase: true, status: true } },
+        classSession: { select: { status: true, groupId: true } },
       },
     }),
   ]);
@@ -102,13 +108,20 @@ async function occupancy(restaurantId: string, days: number) {
     date: string;
     weekday: number;
     bookedMinutes: number;
+    rentalMinutes: number;
+    academyMinutes: number;
     availableMinutes: number;
     occupancyPercent: number;
     bookings: number;
+    classes: number;
     revenueBase: string;
   }[] = [];
-  const byCourt = new Map<string, { courtId: string; name: string; bookedMinutes: number; availableMinutes: number }>();
-  for (const c of courts) byCourt.set(c.id, { courtId: c.id, name: c.name, bookedMinutes: 0, availableMinutes: 0 });
+  const byCourt = new Map<
+    string,
+    { courtId: string; name: string; bookedMinutes: number; rentalMinutes: number; academyMinutes: number; availableMinutes: number }
+  >();
+  for (const c of courts)
+    byCourt.set(c.id, { courtId: c.id, name: c.name, bookedMinutes: 0, rentalMinutes: 0, academyMinutes: 0, availableMinutes: 0 });
 
   for (let i = 0; i < days; i += 1) {
     const dayStart = new Date(start);
@@ -125,34 +138,75 @@ async function occupancy(restaurantId: string, days: number) {
     }
 
     const dayBlocks = blocks.filter((b) => b.startsAt >= dayFrom && b.startsAt < dayTo);
-    // Una reserva cancelada no ocupó la cancha; su bloque queda CANCELLED y ya está
-    // filtrado, pero el booking puede haberse marcado cancelado sin tocar el bloque.
-    const counted = dayBlocks.filter((b) => b.booking?.status !== 'CANCELLED');
+    // Ni una reserva ni una clase canceladas ocuparon la cancha. El bloque cancelado
+    // ya está filtrado, pero la reserva/sesión puede haberse marcado cancelada sin
+    // tocar el bloque.
+    const counted = dayBlocks.filter(
+      (b) =>
+        b.booking?.status !== 'CANCELLED' &&
+        b.classSession?.status !== 'CANCELLED' &&
+        b.classSession?.status !== 'RELEASED',
+    );
+
+    const minutesOf = (b: { startsAt: Date; endsAt: Date }) =>
+      Math.max(0, Math.round((b.endsAt.getTime() - b.startsAt.getTime()) / 60000));
 
     let bookedMinutes = 0;
+    let rentalMinutes = 0;
+    let academyMinutes = 0;
     for (const b of counted) {
-      const mins = Math.max(0, Math.round((b.endsAt.getTime() - b.startsAt.getTime()) / 60000));
+      const mins = minutesOf(b);
       bookedMinutes += mins;
+      if (b.kind === 'CLASS') academyMinutes += mins;
+      else rentalMinutes += mins;
       const entry = byCourt.get(b.courtId);
-      if (entry) entry.bookedMinutes += mins;
+      if (entry) {
+        entry.bookedMinutes += mins;
+        if (b.kind === 'CLASS') entry.academyMinutes += mins;
+        else entry.rentalMinutes += mins;
+      }
     }
 
+    // El ingreso de la renta libre está en la reserva. El de la academia NO cuelga de
+    // la sesión (se cobra por mensualidad o bono, no por hora), así que se calcula
+    // aparte en academyRevenue() y se cruza al final.
     const revenue = round2(counted.reduce((acc, b) => acc.add(b.booking?.totalBase ?? 0), toDecimal(0)));
 
     byDay.push({
       date: dateStr,
       weekday,
       bookedMinutes,
+      rentalMinutes,
+      academyMinutes,
       availableMinutes,
       // Sin horarios cargados no hay capacidad contra la cual medir: 0 y no una división por cero.
       occupancyPercent: availableMinutes > 0 ? Math.round((bookedMinutes / availableMinutes) * 100) : 0,
-      bookings: counted.length,
+      bookings: counted.filter((b) => b.kind !== 'CLASS').length,
+      classes: counted.filter((b) => b.kind === 'CLASS').length,
       revenueBase: revenue.toFixed(2),
     });
   }
 
   const totalBooked = byDay.reduce((acc, d) => acc + d.bookedMinutes, 0);
   const totalAvailable = byDay.reduce((acc, d) => acc + d.availableMinutes, 0);
+  const totalRentalMin = byDay.reduce((acc, d) => acc + d.rentalMinutes, 0);
+  const totalAcademyMin = byDay.reduce((acc, d) => acc + d.academyMinutes, 0);
+  const rentalRevenue = round2(byDay.reduce((acc, d) => acc.add(d.revenueBase), toDecimal(0)));
+
+  // Lo que facturó la academia en el mismo período. No sale de las sesiones (una
+  // clase no tiene precio propio: se cobra por mensualidad o bono), así que se
+  // suma de los cobros reales y se reparte contra las horas que ocupó.
+  const academyPaid = await prisma.clubAcademyPayment.aggregate({
+    where: { restaurantId, createdAt: { gte: start, lt: endExclusive } },
+    _sum: { amountBase: true },
+  });
+  const academyRevenue = round2(academyPaid._sum.amountBase ?? toDecimal(0));
+
+  /** Ingreso por hora de cancha ocupada. Es la cifra que de verdad compara: una
+   *  hora de academia y una de renta libre ocupan la misma pista, así que gana la
+   *  que deje más por hora. */
+  const perHour = (revenue: Prisma.Decimal, minutes: number) =>
+    minutes > 0 ? round2(revenue.div(minutes / 60)).toFixed(2) : null;
 
   return {
     byDay,
@@ -160,12 +214,32 @@ async function occupancy(restaurantId: string, days: number) {
       ...c,
       occupancyPercent: c.availableMinutes > 0 ? Math.round((c.bookedMinutes / c.availableMinutes) * 100) : 0,
     })),
+    /** Punto 6.1: academia vs renta libre, en horas y en plata por hora. */
+    academyVsRental: {
+      rental: {
+        minutes: totalRentalMin,
+        hours: Math.round((totalRentalMin / 60) * 10) / 10,
+        revenueBase: rentalRevenue.toFixed(2),
+        revenuePerHourBase: perHour(rentalRevenue, totalRentalMin),
+        sharePercent: totalBooked > 0 ? Math.round((totalRentalMin / totalBooked) * 100) : 0,
+      },
+      academy: {
+        minutes: totalAcademyMin,
+        hours: Math.round((totalAcademyMin / 60) * 10) / 10,
+        revenueBase: academyRevenue.toFixed(2),
+        revenuePerHourBase: perHour(academyRevenue, totalAcademyMin),
+        sharePercent: totalBooked > 0 ? Math.round((totalAcademyMin / totalBooked) * 100) : 0,
+      },
+    },
     totals: {
       bookedMinutes: totalBooked,
+      rentalMinutes: totalRentalMin,
+      academyMinutes: totalAcademyMin,
       availableMinutes: totalAvailable,
       occupancyPercent: totalAvailable > 0 ? Math.round((totalBooked / totalAvailable) * 100) : 0,
       bookings: byDay.reduce((acc, d) => acc + d.bookings, 0),
-      revenueBase: round2(byDay.reduce((acc, d) => acc.add(d.revenueBase), toDecimal(0))).toFixed(2),
+      classes: byDay.reduce((acc, d) => acc + d.classes, 0),
+      revenueBase: rentalRevenue.toFixed(2),
     },
   };
 }

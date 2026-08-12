@@ -6,6 +6,9 @@ import { clubAcademyController } from './club-academy.controller';
 /** Público (sin auth): catálogo de grupos y la ficha del alumno por token opaco. */
 export const publicAcademyRoutes = Router();
 publicAcademyRoutes.get('/:slug/academy', clubAcademyController.publicAcademy);
+// Autoservicio: el alumno se inscribe solo. Protegido por el mismo código de
+// WhatsApp que las reservas (lo valida el servicio) y por rate limit.
+publicAcademyRoutes.post('/:slug/academy/enroll', publicBookingRateLimit, clubAcademyController.publicEnroll);
 publicAcademyRoutes.get('/academy/student/:token', clubAcademyController.publicStudent);
 publicAcademyRoutes.post('/academy/student/:token/cancel/:sessionId', clubAcademyController.publicCancel);
 publicAcademyRoutes.post('/academy/student/:token/makeup/:sessionId', clubAcademyController.publicMakeup);
@@ -50,6 +53,15 @@ router.delete('/coaches/:id/time-off/:timeOffId', admin, clubAcademyController.r
 router.get('/coaches/:id/earnings', admin, clubAcademyController.coachEarnings);
 router.post('/coaches/:id/payouts', admin, clubAcademyController.payCoach);
 
+router.get('/programs', staff, clubAcademyController.listPrograms);
+router.post('/programs', admin, clubAcademyController.createProgram);
+router.patch('/programs/:id', admin, clubAcademyController.updateProgram);
+router.delete('/programs/:id', admin, clubAcademyController.deleteProgram);
+
+router.get('/waitlist', staff, clubAcademyController.listWaitlist);
+router.post('/waitlist', reception, clubAcademyController.joinWaitlist);
+router.delete('/waitlist/:id', reception, clubAcademyController.leaveWaitlist);
+
 router.get('/groups', staff, clubAcademyController.listGroups);
 router.post('/groups', admin, clubAcademyController.createGroup);
 router.patch('/groups/:id', admin, clubAcademyController.updateGroup);
@@ -83,7 +95,11 @@ router.post('/charges/notify', admin, clubAcademyController.notifyCharges);
 router.post('/charges/:id/waive', admin, clubAcademyController.waiveCharge);
 router.post('/payments', reception, clubAcademyController.recordPayment);
 
+router.post('/sessions/:id/makeup', reception, clubAcademyController.scheduleMakeup);
+
 router.get('/reports/revenue', admin, clubAcademyController.revenueReport);
 router.get('/reports/attendance', admin, clubAcademyController.attendanceReport);
+router.get('/reports/retention', admin, clubAcademyController.retentionReport);
+router.get('/reports/by-coach', admin, clubAcademyController.revenueByCoachReport);
 
 export default router;

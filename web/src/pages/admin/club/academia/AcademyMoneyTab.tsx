@@ -26,6 +26,27 @@ interface Revenue {
   groups: { groupId: string; name: string; sessions: number; consumedBase: string; coachCostBase: string; marginBase: string }[];
 }
 
+interface Retention {
+  activeNow: number;
+  currentChurnPercent: number | null;
+  currentRetentionPercent: number | null;
+  months: { period: string; activeStart: number; joined: number; left: number; activeEnd: number; churnPercent: number | null }[];
+}
+
+interface RevenueRow {
+  id: string;
+  name: string;
+  sessions: number;
+  revenueBase: string;
+  costBase: string;
+  marginBase: string;
+}
+
+interface ByCoach {
+  byCoach: RevenueRow[];
+  byProgram: RevenueRow[];
+}
+
 const STATUS_LABELS: Record<Charge['status'], string> = {
   PENDING: 'Pendiente',
   PAID: 'Pagada',
@@ -43,6 +64,8 @@ const STATUS_COLORS: Record<Charge['status'], string> = {
 export default function AcademyMoneyTab({ restaurant }: { restaurant: Pick<AuthRestaurant, 'currencySymbol'> }) {
   const [charges, setCharges] = useState<Charge[]>([]);
   const [revenue, setRevenue] = useState<Revenue | null>(null);
+  const [retention, setRetention] = useState<Retention | null>(null);
+  const [byCoach, setByCoach] = useState<ByCoach | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,10 +73,12 @@ export default function AcademyMoneyTab({ restaurant }: { restaurant: Pick<AuthR
   const symbol = restaurant.currencySymbol ?? '$';
 
   const load = useCallback(() => {
-    Promise.all([academyApi.listCharges({}), academyApi.revenue()])
-      .then(([c, r]) => {
+    Promise.all([academyApi.listCharges({}), academyApi.revenue(), academyApi.retention(6), academyApi.revenueByCoach()])
+      .then(([c, r, ret, rc]) => {
         setCharges(c as Charge[]);
         setRevenue(r as Revenue);
+        setRetention(ret as Retention);
+        setByCoach(rc as ByCoach);
       })
       .catch(() => setError('No pudimos cargar los cobros.'))
       .finally(() => setLoading(false));
@@ -138,6 +163,95 @@ export default function AcademyMoneyTab({ restaurant }: { restaurant: Pick<AuthR
           </ul>
         )}
       </div>
+
+      {retention && (
+        <div className={`${card} p-5`}>
+          <p className="text-sm font-bold text-brand-950">Retención de alumnos</p>
+          <p className="mt-0.5 text-xs font-light text-brand-950/50">
+            Cuántos siguen mes a mes y cuántos se dan de baja.
+          </p>
+
+          <div className="mt-3 grid grid-cols-3 gap-3 text-center">
+            <div>
+              <p className="text-[20px] font-bold tracking-tight text-brand-950">{retention.activeNow}</p>
+              <p className="text-[12px] font-light text-brand-950/45">activos hoy</p>
+            </div>
+            <div>
+              <p className="text-[20px] font-bold tracking-tight text-emerald-600">
+                {retention.currentRetentionPercent === null ? '—' : `${retention.currentRetentionPercent}%`}
+              </p>
+              <p className="text-[12px] font-light text-brand-950/45">retención</p>
+            </div>
+            <div>
+              <p
+                className={`text-[20px] font-bold tracking-tight ${
+                  (retention.currentChurnPercent ?? 0) > 20 ? 'text-red-600' : 'text-brand-950'
+                }`}
+              >
+                {retention.currentChurnPercent === null ? '—' : `${retention.currentChurnPercent}%`}
+              </p>
+              <p className="text-[12px] font-light text-brand-950/45">churn</p>
+            </div>
+          </div>
+
+          <ul className="mt-4 divide-y divide-brand-950/[0.06]">
+            {retention.months.map((m) => (
+              <li key={m.period} className="flex items-center gap-2 py-2 text-sm">
+                <span className="w-16 shrink-0 font-medium text-brand-950/70">{m.period}</span>
+                <span className="min-w-0 flex-1 text-xs font-light text-brand-950/50">
+                  <span className="text-emerald-600">+{m.joined}</span> altas ·{' '}
+                  <span className={m.left > 0 ? 'text-red-600' : ''}>−{m.left}</span> bajas
+                </span>
+                <span className="shrink-0 text-sm font-bold text-brand-950">{m.activeEnd}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {byCoach && byCoach.byCoach.length > 0 && (
+        <div className={`${card} p-5`}>
+          <p className="text-sm font-bold text-brand-950">Facturación por entrenador</p>
+          <p className="mt-0.5 text-xs font-light text-brand-950/50">
+            Lo que generó su clase, no lo que se le paga. Últimos 30 días.
+          </p>
+          <ul className="mt-3 divide-y divide-brand-950/[0.06]">
+            {byCoach.byCoach.map((r) => (
+              <li key={r.id} className="flex items-center gap-2 py-2.5">
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-semibold text-brand-950">{r.name}</span>
+                  <span className="block text-xs font-light text-brand-950/50">
+                    {r.sessions} clases · le pagaste {formatBase(r.costBase, symbol)}
+                  </span>
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className="block text-sm font-bold text-brand-950">{formatBase(r.revenueBase, symbol)}</span>
+                  <span
+                    className={`block text-[11px] font-light ${Number(r.marginBase) < 0 ? 'text-red-600' : 'text-brand-950/40'}`}
+                  >
+                    margen {formatBase(r.marginBase, symbol)}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {byCoach && byCoach.byProgram.length > 0 && (
+        <div className={`${card} p-5`}>
+          <p className="text-sm font-bold text-brand-950">Facturación por programa</p>
+          <ul className="mt-3 divide-y divide-brand-950/[0.06]">
+            {byCoach.byProgram.map((r) => (
+              <li key={r.id} className="flex items-center gap-2 py-2.5">
+                <span className="min-w-0 flex-1 truncate text-sm font-semibold text-brand-950">{r.name}</span>
+                <span className="shrink-0 text-xs font-light text-brand-950/45">{r.sessions} clases</span>
+                <span className="shrink-0 text-sm font-bold text-brand-950">{formatBase(r.revenueBase, symbol)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {revenue && (
         <div className={`${card} p-5`}>

@@ -25,9 +25,29 @@ export interface ClassSlot {
   court?: { id: string; name: string } | null;
 }
 
+export interface Program {
+  id: string;
+  name: string;
+  description: string | null;
+  color: string | null;
+  active: boolean;
+  _count: { groups: number };
+}
+
+export interface WaitlistEntry {
+  id: string;
+  status: 'WAITING' | 'OFFERED' | 'ENROLLED' | 'CANCELLED';
+  position: number;
+  createdAt: string;
+  note: string | null;
+  group: { id: string; name: string; capacityMax: number };
+  student: { id: string; customer: { name: string; phone: string } };
+}
+
 export interface ClassGroup {
   id: string;
   name: string;
+  program: { id: string; name: string; color: string | null } | null;
   levelMin: string;
   levelMax: string;
   capacityMin: number;
@@ -39,7 +59,7 @@ export interface ClassGroup {
   packageClasses: number | null;
   coach: { id: string; displayName: string };
   slots: ClassSlot[];
-  _count: { enrollments: number; sessions: number };
+  _count: { enrollments: number; sessions: number; waitlist: number };
 }
 
 export interface ClassSession {
@@ -87,6 +107,23 @@ export const academyApi = {
   coachEarnings: (id: string, from?: string, to?: string) =>
     api.get(`${BASE}/coaches/${id}/earnings`, { params: { from, to } }).then((r) => r.data.data),
   payCoach: (id: string, body: unknown) => api.post(`${BASE}/coaches/${id}/payouts`, body).then((r) => r.data.data),
+
+  listPrograms: () => api.get<{ data: Program[] }>(`${BASE}/programs`).then((r) => r.data.data),
+  createProgram: (body: unknown) => api.post(`${BASE}/programs`, body).then((r) => r.data.data),
+  updateProgram: (id: string, body: unknown) => api.patch(`${BASE}/programs/${id}`, body).then((r) => r.data.data),
+  deleteProgram: (id: string) => api.delete(`${BASE}/programs/${id}`).then((r) => r.data.data),
+
+  listWaitlist: (groupId?: string) =>
+    api.get<{ data: WaitlistEntry[] }>(`${BASE}/waitlist`, { params: { groupId } }).then((r) => r.data.data),
+  joinWaitlist: (body: unknown) => api.post(`${BASE}/waitlist`, body).then((r) => r.data.data),
+  leaveWaitlist: (id: string) => api.delete(`${BASE}/waitlist/${id}`).then((r) => r.data.data),
+
+  scheduleMakeup: (sessionId: string, body: unknown) =>
+    api.post(`${BASE}/sessions/${sessionId}/makeup`, body).then((r) => r.data.data),
+
+  retention: (months = 6) => api.get(`${BASE}/reports/retention`, { params: { months } }).then((r) => r.data.data),
+  revenueByCoach: (from?: string, to?: string) =>
+    api.get(`${BASE}/reports/by-coach`, { params: { from, to } }).then((r) => r.data.data),
 
   listGroups: () => api.get<{ data: ClassGroup[] }>(`${BASE}/groups`).then((r) => r.data.data),
   createGroup: (body: unknown) => api.post(`${BASE}/groups`, body).then((r) => r.data.data),

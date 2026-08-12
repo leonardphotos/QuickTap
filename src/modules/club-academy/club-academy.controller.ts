@@ -15,8 +15,13 @@ import {
   createEnrollmentSchema,
   createGroupSchema,
   createSessionSchema,
+  createProgramSchema,
   createStudentSchema,
   generateChargesSchema,
+  joinWaitlistSchema,
+  makeupSchema,
+  publicEnrollSchema,
+  updateProgramSchema,
   generateSessionsSchema,
   listChargesQuerySchema,
   listSessionsQuerySchema,
@@ -218,7 +223,54 @@ export const clubAcademyController = {
     res.status(201).json({ data: await clubAcademyMoneyService.recordPayment(req.restaurantId!, input, req.auth?.userId) });
   }),
 
+  // Programas
+  listPrograms: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await clubAcademyService.listPrograms(req.restaurantId!) });
+  }),
+  createProgram: asyncHandler(async (req: Request, res: Response) => {
+    const input = createProgramSchema.parse(req.body);
+    res.status(201).json({ data: await clubAcademyService.createProgram(req.restaurantId!, input) });
+  }),
+  updateProgram: asyncHandler(async (req: Request, res: Response) => {
+    const input = updateProgramSchema.parse(req.body);
+    res.json({ data: await clubAcademyService.updateProgram(req.restaurantId!, req.params.id, input) });
+  }),
+  deleteProgram: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await clubAcademyService.deactivateProgram(req.restaurantId!, req.params.id) });
+  }),
+
+  // Lista de espera
+  listWaitlist: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await clubAcademyService.listWaitlist(req.restaurantId!, req.query.groupId as string | undefined) });
+  }),
+  joinWaitlist: asyncHandler(async (req: Request, res: Response) => {
+    const input = joinWaitlistSchema.parse(req.body);
+    res.status(201).json({
+      data: await clubAcademyService.joinWaitlist(req.restaurantId!, input.groupId, input.studentId, input.note),
+    });
+  }),
+  leaveWaitlist: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await clubAcademyService.leaveWaitlist(req.restaurantId!, req.params.id) });
+  }),
+
+  /** Recepción reubica a un alumno en una clase de recuperación. */
+  scheduleMakeup: asyncHandler(async (req: Request, res: Response) => {
+    const input = makeupSchema.parse(req.body);
+    res.status(201).json({
+      data: await clubAcademyService.scheduleMakeup(req.restaurantId!, req.params.id, input.studentId, input.force),
+    });
+  }),
+
   // Reportes
+  retentionReport: asyncHandler(async (req: Request, res: Response) => {
+    const raw = Number(req.query.months);
+    const months = Number.isFinite(raw) ? Math.min(24, Math.max(2, Math.trunc(raw))) : 6;
+    res.json({ data: await clubAcademyMoneyService.retentionReport(req.restaurantId!, months) });
+  }),
+  revenueByCoachReport: asyncHandler(async (req: Request, res: Response) => {
+    const q = rangeQuerySchema.parse(req.query);
+    res.json({ data: await clubAcademyMoneyService.revenueByCoachAndProgram(req.restaurantId!, q.from, q.to) });
+  }),
   revenueReport: asyncHandler(async (req: Request, res: Response) => {
     const q = rangeQuerySchema.parse(req.query);
     res.json({ data: await clubAcademyMoneyService.revenueReport(req.restaurantId!, q.from, q.to) });
@@ -297,6 +349,35 @@ export const clubAcademyController = {
       },
     });
     res.json({ data: { club: { name: restaurant.name }, groups } });
+  }),
+
+  /**
+   * Inscripción por autoservicio. Exige el código de WhatsApp (lo valida el
+   * servicio) y, si el grupo está lleno, anota en lista de espera en vez de
+   * fallar — perder al interesado por un "está lleno" es justo lo que la lista
+   * de espera evita.
+   */
+  publicEnroll: asyncHandler(async (req: Request, res: Response) => {
+    const club = await prisma.restaurant.findUnique({
+      where: { slug: req.params.slug },
+      select: { id: true, isActive: true, businessType: true },
+    });
+    if (!club || !club.isActive || club.businessType !== 'SPORTS_CLUB') {
+      throw notFound('Este club no existe o no está disponible.');
+    }
+    const input = publicEnrollSchema.parse(req.body);
+    const r = await clubAcademyService.publicEnroll(club.id, input);
+    res.status(201).json({
+      data: {
+        ...r,
+        message:
+          r.status === 'WAITLISTED'
+            ? `El grupo "${r.groupName}" está lleno. Quedaste en lista de espera y te avisamos apenas se libere un puesto.`
+            : r.status === 'ALREADY'
+              ? `Ya estabas inscrito en "${r.groupName}".`
+              : `¡Listo! Quedaste inscrito en "${r.groupName}".`,
+      },
+    });
   }),
 
   /** Ficha del alumno, resuelta por el token opaco — sin JWT, como el QR de reserva. */

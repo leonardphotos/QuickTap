@@ -22,14 +22,25 @@ interface CourtStat {
   occupancyPercent: number;
 }
 
+interface SplitStat {
+  hours: number;
+  revenueBase: string;
+  revenuePerHourBase: string | null;
+  sharePercent: number;
+}
+
 interface Occupancy {
   byDay: DayStat[];
   byCourt: CourtStat[];
+  academyVsRental: { rental: SplitStat; academy: SplitStat };
   totals: {
     bookedMinutes: number;
+    rentalMinutes: number;
+    academyMinutes: number;
     availableMinutes: number;
     occupancyPercent: number;
     bookings: number;
+    classes: number;
     revenueBase: string;
   };
 }
@@ -107,8 +118,44 @@ export default function ClubOccupancyPage({ restaurant }: { restaurant: Pick<Aut
         <>
           <div className="grid grid-cols-2 gap-3">
             <Metric label="Ocupación del período" value={`${data.totals.occupancyPercent}%`} sub={`${hours(data.totals.bookedMinutes)} de ${hours(data.totals.availableMinutes)}`} />
-            <Metric label="Reservas" value={String(data.totals.bookings)} sub={formatBase(data.totals.revenueBase, symbol)} />
+            <Metric label="Reservas" value={String(data.totals.bookings)} sub={`${data.totals.classes} clases de academia`} />
           </div>
+
+          {/* Academia vs renta libre: las dos ocupan la misma pista, así que lo que
+              decide es cuál deja más por hora. Antes este reporte ni siquiera veía
+              las clases y daba la cancha por libre. */}
+          {data.totals.bookedMinutes > 0 && (
+            <div className={`${card} p-5`}>
+              <p className="text-sm font-bold text-brand-950">Academia vs renta libre</p>
+              <p className="mt-0.5 text-xs font-light text-brand-950/50">
+                Qué deja más cada hora de cancha ocupada.
+              </p>
+
+              <div className="mt-3 flex h-2.5 overflow-hidden rounded-full">
+                <div className="h-full bg-brand-500" style={{ width: `${data.academyVsRental.rental.sharePercent}%` }} />
+                <div className="h-full bg-sky-500" style={{ width: `${data.academyVsRental.academy.sharePercent}%` }} />
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <SplitCard
+                  dot="bg-brand-500"
+                  label="Renta libre"
+                  stat={data.academyVsRental.rental}
+                  symbol={symbol}
+                />
+                <SplitCard dot="bg-sky-500" label="Academia" stat={data.academyVsRental.academy} symbol={symbol} />
+              </div>
+
+              {data.academyVsRental.rental.revenuePerHourBase && data.academyVsRental.academy.revenuePerHourBase && (
+                <p className="mt-3 rounded-xl bg-brand-950/[0.03] p-3 text-xs font-light text-brand-950/60">
+                  {Number(data.academyVsRental.academy.revenuePerHourBase) >
+                  Number(data.academyVsRental.rental.revenuePerHourBase)
+                    ? 'La academia deja más por hora de cancha que la renta libre.'
+                    : 'La renta libre deja más por hora de cancha que la academia.'}
+                </p>
+              )}
+            </div>
+          )}
 
           <div className={`${card} p-5`}>
             <p className="text-sm font-bold text-brand-950">Ocupación por día</p>
@@ -179,6 +226,34 @@ export default function ClubOccupancyPage({ restaurant }: { restaurant: Pick<Aut
           </div>
         </>
       )}
+    </div>
+  );
+}
+
+function SplitCard({
+  dot,
+  label,
+  stat,
+  symbol,
+}: {
+  dot: string;
+  label: string;
+  stat: SplitStat;
+  symbol: string;
+}) {
+  return (
+    <div className="rounded-2xl bg-brand-950/[0.03] p-3.5">
+      <p className="flex items-center gap-1.5 text-[13px] font-semibold text-brand-950">
+        <span className={`h-2.5 w-2.5 rounded-full ${dot}`} />
+        {label}
+      </p>
+      <p className="mt-1.5 text-[19px] font-bold leading-none tracking-tight text-brand-950">
+        {stat.revenuePerHourBase ? formatBase(stat.revenuePerHourBase, symbol) : '—'}
+      </p>
+      <p className="text-[11px] font-light text-brand-950/40">por hora de cancha</p>
+      <p className="mt-1.5 text-[12px] font-light text-brand-950/50">
+        {stat.hours} h · {formatBase(stat.revenueBase, symbol)}
+      </p>
     </div>
   );
 }

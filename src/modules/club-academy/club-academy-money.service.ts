@@ -534,6 +534,160 @@ export const clubAcademyMoneyService = {
     };
   },
 
+  /**
+   * Retención y churn, mes a mes.
+   *
+   * Se calcula de las FECHAS de la inscripción (startsAt / endsAt / status), no de
+   * un contador de bajas: un contador solo sabe el total de hoy, y la pregunta es
+   * cuántos se fueron en marzo. Con las fechas se puede reconstruir cualquier mes
+   * pasado, incluso meses que ya ocurrieron antes de que existiera este reporte.
+   *
+   * Activo en el mes = empezó antes de que terminara el mes y no se había ido
+   * antes de que empezara. Churn = los que se fueron ese mes sobre los que había
+   * al empezarlo.
+   */
+  async retentionReport(restaurantId: string, months = 6) {
+    const enrollments = await prisma.clubEnrollment.findMany({
+      where: { restaurantId },
+      select: { startsAt: true, endsAt: true, status: true, studentId: true },
+    });
+
+    const now = new Date();
+    const rows: {
+      period: string;
+      activeStart: number;
+      joined: number;
+      left: number;
+      activeEnd: number;
+      churnPercent: number | null;
+      retentionPercent: number | null;
+    }[] = [];
+
+    for (let i = months - 1; i >= 0; i -= 1) {
+      const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+      const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i + 1, 1));
+
+      /** Cuándo dejó de estar activa esa inscripción, si dejó de estarlo. */
+      const leftAt = (e: (typeof enrollments)[number]) =>
+        e.status === 'CANCELLED' || e.status === 'FINISHED' ? (e.endsAt ?? null) : null;
+
+      const activeStart = enrollments.filter((e) => {
+        const out = leftAt(e);
+        return e.startsAt < monthStart && (!out || out >= monthStart);
+      }).length;
+
+      const joined = enrollments.filter((e) => e.startsAt >= monthStart && e.startsAt < monthEnd).length;
+
+      const left = enrollments.filter((e) => {
+        const out = leftAt(e);
+        return out && out >= monthStart && out < monthEnd;
+      }).length;
+
+      const activeEnd = activeStart + joined - left;
+
+      rows.push({
+        period: `${monthStart.getUTCFullYear()}-${String(monthStart.getUTCMonth() + 1).padStart(2, '0')}`,
+        activeStart,
+        joined,
+        left,
+        activeEnd,
+        // Sin nadie al empezar el mes no hay churn que medir. Devuelve null y no 0:
+        // "0% de bajas" y "no había a quién perder" son cosas distintas, y mostrar
+        // 0% en un club que recién arranca haría creer que retiene perfecto.
+        churnPercent: activeStart > 0 ? Math.round((left / activeStart) * 100) : null,
+        retentionPercent: activeStart > 0 ? Math.round(((activeStart - left) / activeStart) * 100) : null,
+      });
+    }
+
+    const activeNow = enrollments.filter((e) => e.status === 'ACTIVE').length;
+    const last = rows[rows.length - 1];
+
+    return {
+      months: rows,
+      activeNow,
+      currentChurnPercent: last?.churnPercent ?? null,
+      currentRetentionPercent: last?.retentionPercent ?? null,
+    };
+  },
+
+  /**
+   * Facturación generada por cada entrenador y por cada programa.
+   *
+   * Ojo con la diferencia: `coachEarnings` dice lo que se le PAGA al profesor;
+   * esto dice lo que su clase FACTURÓ. Son cifras distintas y confundirlas haría
+   * ver rentable a un profesor caro que llena poco.
+   *
+   * El ingreso atribuido sale de `consumedValueBase` de las asistencias — la
+   * columna que ya congela, en cada silla, la plata que consumió (ver §0.5 del
+   * diseño). Es lo único que permite repartir una mensualidad entre las clases
+   * que de verdad se dieron.
+   */
+  async revenueByCoachAndProgram(restaurantId: string, from?: string, to?: string) {
+    const start = from ? atTimeCaracas(from, '00:00') : new Date(Date.now() - 30 * 86_400_000);
+    const end = to ? new Date(atTimeCaracas(to, '00:00').getTime() + 86_400_000) : new Date();
+
+    const sessions = await prisma.clubClassSession.findMany({
+      where: { restaurantId, startsAt: { gte: start, lt: end }, status: 'DONE' },
+      include: {
+        coach: { select: { id: true, displayName: true } },
+        group: { select: { id: true, name: true, program: { select: { id: true, name: true } } } },
+        attendances: { select: { status: true, consumedValueBase: true } },
+      },
+    });
+
+    const billed = (s: (typeof sessions)[number]) =>
+      s.attendances
+        .filter((a) => a.status === 'PRESENT' || a.status === 'MAKEUP')
+        .reduce((acc, a) => acc.add(a.consumedValueBase), toDecimal(0));
+
+    const byCoach = new Map<string, { id: string; name: string; sessions: number; revenue: Prisma.Decimal; cost: Prisma.Decimal }>();
+    const byProgram = new Map<string, { id: string; name: string; sessions: number; revenue: Prisma.Decimal; cost: Prisma.Decimal }>();
+
+    for (const s of sessions) {
+      const rev = billed(s);
+      const cost = s.coachFeeBase ?? toDecimal(0);
+
+      const c = byCoach.get(s.coachId) ?? {
+        id: s.coachId,
+        name: s.coach.displayName,
+        sessions: 0,
+        revenue: toDecimal(0),
+        cost: toDecimal(0),
+      };
+      c.sessions += 1;
+      c.revenue = c.revenue.add(rev);
+      c.cost = c.cost.add(cost);
+      byCoach.set(s.coachId, c);
+
+      const pid = s.group?.program?.id ?? 'sin-programa';
+      const p = byProgram.get(pid) ?? {
+        id: pid,
+        name: s.group?.program?.name ?? 'Sin programa',
+        sessions: 0,
+        revenue: toDecimal(0),
+        cost: toDecimal(0),
+      };
+      p.sessions += 1;
+      p.revenue = p.revenue.add(rev);
+      p.cost = p.cost.add(cost);
+      byProgram.set(pid, p);
+    }
+
+    const shape = (m: Map<string, { id: string; name: string; sessions: number; revenue: Prisma.Decimal; cost: Prisma.Decimal }>) =>
+      [...m.values()]
+        .map((r) => ({
+          id: r.id,
+          name: r.name,
+          sessions: r.sessions,
+          revenueBase: round2(r.revenue).toFixed(2),
+          costBase: round2(r.cost).toFixed(2),
+          marginBase: round2(r.revenue.sub(r.cost)).toFixed(2),
+        }))
+        .sort((a, b) => Number(b.revenueBase) - Number(a.revenueBase));
+
+    return { from: start, to: end, byCoach: shape(byCoach), byProgram: shape(byProgram) };
+  },
+
   async attendanceReport(restaurantId: string, from?: string, to?: string) {
     const start = from ? atTimeCaracas(from, '00:00') : new Date(Date.now() - 30 * 86_400_000);
     const end = to ? new Date(atTimeCaracas(to, '00:00').getTime() + 86_400_000) : new Date();

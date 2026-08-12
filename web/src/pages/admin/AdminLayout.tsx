@@ -37,6 +37,7 @@ const ComandaKioskPage = lazy(() => import('./ComandaKioskPage'));
 const NumeroPage = lazy(() => import('./NumeroPage'));
 const ShopLayout = lazy(() => import('./shop/ShopLayout'));
 const ClubLayout = lazy(() => import('./club/ClubLayout'));
+const CoachLayout = lazy(() => import('./club/CoachLayout'));
 const ClubTabletPage = lazy(() => import('./club/ClubTabletPage'));
 
 export default function AdminLayout() {
@@ -104,6 +105,11 @@ export default function AdminLayout() {
     // Va antes que ClubLayout porque este rol no tiene panel que mostrar.
     if (isCanchaRole(user.role)) {
       return <ClubTabletPage />;
+    }
+    // Profesor de academia: su propio portal, con alcance solo a lo suyo. Va antes
+    // que ClubLayout porque no debe ver el panel del club (caja, reservas, ajustes).
+    if (user.role === 'COACH') {
+      return <CoachLayout />;
     }
     return <ClubLayout />;
   }

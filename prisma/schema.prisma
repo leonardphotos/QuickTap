@@ -548,6 +548,8 @@ model Restaurant {
 
   // --- Academia de pádel (ver docs/ACADEMIA-PADEL.md) ---
   academySettings     ClubAcademySettings?
+  clubPrograms        ClubProgram[]
+  clubWaitlist        ClubWaitlistEntry[]
   clubCoaches         ClubCoach[]
   clubClassGroups     ClubClassGroup[]
   clubClassSessions   ClubClassSession[]
@@ -3242,6 +3244,68 @@ enum ClubChargeStatus {
   OVERDUE
 }
 
+/// Programa o categoría de la academia: Infantil, Adultos, Competición, Clínicas.
+///
+/// Es una tabla y no un enum porque cada club nombra su oferta distinto —uno tiene
+/// "Menores 8-12" y otro "Escuela"— y un enum obligaría a migrar el esquema cada
+/// vez que un club quiera abrir una categoría nueva.
+model ClubProgram {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  name        String
+  description String?
+  /// Color para distinguirlo de un vistazo en el calendario y los reportes.
+  color       String?
+  sortOrder   Int     @default(0)
+  active      Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  groups     ClubClassGroup[]
+
+  @@index([restaurantId, active])
+  @@map("club_programs")
+}
+
+enum ClubWaitlistStatus {
+  WAITING // anotado, esperando que se libere un puesto
+  OFFERED // se le ofreció el puesto, esperando que confirme
+  ENROLLED // entró al grupo
+  CANCELLED
+}
+
+/// Lista de espera de un grupo lleno.
+///
+/// Se guarda el ORDEN de llegada (createdAt) y no una posición numérica: una
+/// posición guardada habría que reordenarla a mano cada vez que alguien se cae
+/// de la lista, y se desincroniza al primer fallo. El puesto se deriva.
+model ClubWaitlistEntry {
+  id           String @id @default(cuid())
+  restaurantId String
+  groupId      String
+  studentId    String
+
+  status     ClubWaitlistStatus @default(WAITING)
+  note       String?
+  /// Cuándo se le avisó que había puesto, para no volver a avisarle cada barrido.
+  notifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  group      ClubClassGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  student    ClubStudent    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  /// Nadie se anota dos veces al mismo grupo.
+  @@unique([groupId, studentId])
+  @@index([restaurantId, status])
+  @@map("club_waitlist_entries")
+}
+
 /// Reglas de reserva de la academia. Una fila por tenant con los valores por
 /// defecto; el grupo solo sobreescribe releaseHoursBefore donde haga falta.
 /// Repetir estas columnas en cada grupo sería ruido en el 95% de los casos.
@@ -3362,9 +3426,12 @@ model ClubCoachTimeOff {
 /// Grupo de la academia. Su horario recurrente vive en ClubClassSlot (una fila
 /// por día de la semana en que se reúne), no en un JSON ni en dos grupos.
 model ClubClassGroup {
-  id           String @id @default(cuid())
+  id           String  @id @default(cuid())
   restaurantId String
   coachId      String
+  /// Programa al que pertenece (Infantil, Adultos, Competición…). Opcional para
+  /// no romper los grupos que ya existían sin programa.
+  programId    String?
 
   name String // "Iniciación adultos", "Competición 4.5"
 
@@ -3395,12 +3462,14 @@ model ClubClassGroup {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurant  Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  coach       ClubCoach          @relation(fields: [coachId], references: [id], onDelete: Restrict)
+  restaurant  Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  coach       ClubCoach           @relation(fields: [coachId], references: [id], onDelete: Restrict)
+  program     ClubProgram?        @relation(fields: [programId], references: [id], onDelete: SetNull)
   slots       ClubClassSlot[]
   sessions    ClubClassSession[]
   enrollments ClubEnrollment[]
   packages    ClubClassPackage[]
+  waitlist    ClubWaitlistEntry[]
 
   @@index([restaurantId, status])
   @@index([coachId])
@@ -3516,6 +3585,7 @@ model ClubStudent {
   packages    ClubClassPackage[]
   credits     ClubClassCreditEntry[]
   payments    ClubAcademyPayment[]
+  waitlist    ClubWaitlistEntry[]
 
   @@index([restaurantId, active])
   @@map("club_students")

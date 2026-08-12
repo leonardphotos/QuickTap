@@ -6,12 +6,14 @@ const AcademyGroupsTab = lazy(() => import('./AcademyGroupsTab'));
 const AcademyStudentsTab = lazy(() => import('./AcademyStudentsTab'));
 const AcademyCoachesTab = lazy(() => import('./AcademyCoachesTab'));
 const AcademyMoneyTab = lazy(() => import('./AcademyMoneyTab'));
+const AcademyProgramsTab = lazy(() => import('./AcademyProgramsTab'));
 
-type Tab = 'hoy' | 'grupos' | 'alumnos' | 'profesores' | 'cobros';
+type Tab = 'hoy' | 'grupos' | 'programas' | 'alumnos' | 'profesores' | 'cobros';
 
 const TAB_LABELS: Record<Tab, string> = {
   hoy: 'Hoy',
   grupos: 'Grupos',
+  programas: 'Programas',
   alumnos: 'Alumnos',
   profesores: 'Profesores',
   cobros: 'Cobros',
@@ -60,6 +62,7 @@ export default function ClubAcademyPage({
       <Suspense fallback={<p className="text-sm font-light text-brand-950/40">Cargando…</p>}>
         {active === 'hoy' && <AcademyTodayTab restaurant={restaurant} />}
         {active === 'grupos' && <AcademyGroupsTab restaurant={restaurant} isAdmin={isAdmin} />}
+        {active === 'programas' && <AcademyProgramsTab />}
         {active === 'alumnos' && <AcademyStudentsTab restaurant={restaurant} />}
         {active === 'profesores' && <AcademyCoachesTab restaurant={restaurant} />}
         {active === 'cobros' && <AcademyMoneyTab restaurant={restaurant} />}

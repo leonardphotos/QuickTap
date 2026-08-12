@@ -6,6 +6,7 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { card } from '../clubStyle';
 import { academyApi, LEVELS, WEEKDAY_SHORT, type ClassGroup, type Student } from './academyApi';
+import { levelLabel } from '@/utils/padelLevel';
 
 const INPUT =
   'w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40';
@@ -75,7 +76,7 @@ export default function AcademyStudentsTab({ restaurant }: { restaurant: Pick<Au
                     <p className="truncate text-sm font-semibold text-brand-950">{s.customer.name}</p>
                     <p className="text-xs font-light text-brand-950/50">
                       {s.customer.phone}
-                      {s.level && ` · nivel ${Number(s.level).toFixed(1)}`}
+                      {s.level && ` · ${Number(s.level).toFixed(1)} ${levelLabel(s.level) ?? ''}`}
                     </p>
                     {s.enrollments.length > 0 && (
                       <p className="mt-0.5 text-xs font-light text-brand-950/40">
@@ -188,7 +189,7 @@ function StudentDialog({ onClose, onSaved }: { onClose: () => void; onSaved: () 
               <option value="">Sin definir</option>
               {LEVELS.map((l) => (
                 <option key={l} value={l}>
-                  {l.toFixed(1)}
+                  {l.toFixed(1)} · {levelLabel(l)}
                 </option>
               ))}
             </select>

@@ -89,6 +89,26 @@ export const academyNotifier = {
     );
   },
 
+  /** Se liberó un puesto en un grupo donde estaba en lista de espera. */
+  async waitlistSeatFree(restaurantId: string, phone: string, studentName: string, groupName: string) {
+    return send(
+      restaurantId,
+      phone,
+      `Hola ${studentName}, se liberó un puesto en "${groupName}". Escríbenos para confirmar tu inscripción antes de que lo tome alguien más.`,
+    );
+  },
+
+  /** Solicitud de inscripción entrada desde el enlace público. */
+  async enrollmentRequested(restaurantId: string, phone: string, studentName: string, groupName: string, waitlisted: boolean) {
+    return send(
+      restaurantId,
+      phone,
+      waitlisted
+        ? `Hola ${studentName}, el grupo "${groupName}" está lleno, así que te anotamos en la lista de espera. Te avisamos apenas se libere un puesto.`
+        : `Hola ${studentName}, quedaste inscrito en "${groupName}". ¡Nos vemos en la cancha!`,
+    );
+  },
+
   async studentSessionCancelled(restaurantId: string, phone: string, studentName: string, session: SessionLike) {
     return send(
       restaurantId,
