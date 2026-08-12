@@ -74,6 +74,8 @@ export interface RawShopSale {
   paymentMeta: PaymentMeta | null;
   creditTerms: CreditTerms | null;
   amountPaidNow: number | null;
+  soldByUserId: string | null;
+  soldByUserName: string | null;
   items: RawShopSaleItem[];
 }
 

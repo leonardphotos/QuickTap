@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ShopProductSeed, ShopVariant } from '@/data/shopRubros';
 import { api } from '@/api/client';
+import { useAuth } from '@/context/AuthContext';
 import { shopApi, toShopProduct } from './shopApi';
 import { rollWidthLabel } from './printPricing';
 
@@ -101,6 +102,10 @@ export interface Sale {
   creditTerms: CreditTerms | null;
   /** Solo relevante si creditTerms está seteado — cuánto se cobró en el momento de la venta. */
   amountPaidNow: number | null;
+  /** Quién cobró la venta (cajero/vendedor) — nombre congelado al momento de vender, para el
+   * historial cuando el local tiene varios usuarios con acceso a la caja. */
+  soldByUserId: string | null;
+  soldByUserName: string | null;
 }
 
 export interface Purchase {
@@ -274,6 +279,10 @@ export interface NewProductInput {
 // → Nuevo producto). El catálogo de ejemplo del rubro (shopRubros.ts) ya no se usa para sembrar
 // productos/ventas — solo aporta categorías/dim1/dim2/proveedores a ShopInventoryPage/ShopPosPage.
 export function useShopSession(initialCategories: string[] = []) {
+  // Quién está cobrando ahora mismo — se usa para reflejar de inmediato "vendedor" en la venta
+  // recién hecha, sin esperar la respuesta del servidor (que igual guarda lo mismo, ver
+  // shop.service.ts recordSale — ese es el que manda, este es solo el eco optimista local).
+  const { user } = useAuth();
   const [products, setProducts] = useState<ShopProduct[]>([]);
   // Recetas de insumos por servicio (ver ShopServiceSupply): qué gasta cada corte del inventario.
   const [serviceSupplies, setServiceSupplies] = useState<ServiceSupply[]>([]);
@@ -372,6 +381,8 @@ export function useShopSession(initialCategories: string[] = []) {
             paymentMeta: s.paymentMeta,
             creditTerms: s.creditTerms,
             amountPaidNow: s.amountPaidNow,
+            soldByUserId: s.soldByUserId,
+            soldByUserName: s.soldByUserName,
           })),
         );
         setPurchases(
@@ -642,6 +653,8 @@ export function useShopSession(initialCategories: string[] = []) {
       paymentMeta,
       creditTerms: credit?.terms ?? null,
       amountPaidNow: credit ? credit.amountPaidNow : null,
+      soldByUserId: user?.id ?? null,
+      soldByUserName: user?.name ?? null,
     };
 
     setProducts((prev) => applyStockMovement(prev, cart, serviceSupplies, -1));
@@ -699,6 +712,8 @@ export function useShopSession(initialCategories: string[] = []) {
       paymentMeta,
       creditTerms: null,
       amountPaidNow: null,
+      soldByUserId: user?.id ?? null,
+      soldByUserName: user?.name ?? null,
     };
     setSales((prev) => [sale, ...prev]);
     shopApi

@@ -233,7 +233,7 @@ export const shopService = {
 
   // --- Ventas ---
 
-  async recordSale(restaurantId: string, input: CreateShopSaleInput) {
+  async recordSale(restaurantId: string, userId: string, input: CreateShopSaleInput) {
     // Comisión de cada profesional que aparece en el ticket, congelada al momento de vender:
     // si mañana le cambian el %, lo ya liquidado no se mueve.
     const staffIds = [...new Set(input.items.map((it) => it.staffUserId).filter((v): v is string => !!v))];
@@ -241,6 +241,11 @@ export const shopService = {
       ? await prisma.user.findMany({ where: { id: { in: staffIds }, restaurantId }, select: { id: true, commissionPercent: true } })
       : [];
     const commissionByUser = new Map(staff.map((u) => [u.id, u.commissionPercent ?? 0]));
+
+    // Quién cobró: viene del JWT (req.auth.userId), nunca del cliente — así no se puede
+    // reportar una venta a nombre de otro. El nombre se congela para no depender de un JOIN
+    // cada vez que se lista el historial (ver ShopDashboardPage → "Ventas recientes").
+    const soldBy = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
     const commissionFor = (it: { staffUserId?: string | null; price: number; qty: number }) => {
       if (!it.staffUserId) return null;
       const pct = commissionByUser.get(it.staffUserId) ?? 0;
@@ -259,6 +264,8 @@ export const shopService = {
           creditTerms: input.creditTerms ?? null,
           amountPaidNow: input.amountPaidNow ?? null,
           dueDate: input.creditTerms ? (input.dueDate ?? null) : null,
+          soldByUserId: userId,
+          soldByUserName: soldBy?.name ?? null,
           items: {
             createMany: {
               data: input.items.map((it) => ({

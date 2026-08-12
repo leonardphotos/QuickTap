@@ -2447,6 +2447,11 @@ model ShopSale {
   customerPhone String?
   returned      Boolean  @default(false)
   paymentMethod String?
+  // Quién cobró esta venta (cajero/vendedor) — igual que ShopSaleItem.staffUserId, sin relación
+  // FK y con el nombre congelado: si el usuario se borra o se le cambia el nombre, la venta
+  // histórica sigue mostrando quién la hizo tal como era en ese momento.
+  soldByUserId   String?
+  soldByUserName String?
   // { reference?, hasProof? } — comprobante de Pago Móvil.
   paymentMeta   Json?
   // 'FULL' | 'INSTALLMENT' | null — venta fiada (se paga todo después, o se abonó algo ahora).

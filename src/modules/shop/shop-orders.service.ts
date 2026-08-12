@@ -30,7 +30,7 @@ async function list(restaurantId: string, opts: { status?: string; limit?: numbe
  * esos y no con el catálogo de hoy: el cliente paga lo que le mostramos, aunque mientras tanto
  * le hayan cambiado el precio al producto.
  */
-async function confirm(restaurantId: string, orderId: string, paymentMethod?: string | null) {
+async function confirm(restaurantId: string, userId: string, orderId: string, paymentMethod?: string | null) {
   const order = await prisma.shopOrder.findFirst({
     where: { id: orderId, restaurantId },
     include: ORDER_INCLUDE,
@@ -39,7 +39,7 @@ async function confirm(restaurantId: string, orderId: string, paymentMethod?: st
   if (order.status === 'CONFIRMED') throw badRequest('Este pedido ya fue confirmado.');
   if (order.status === 'CANCELLED') throw badRequest('Este pedido fue cancelado.');
 
-  const sale = await shopService.recordSale(restaurantId, {
+  const sale = await shopService.recordSale(restaurantId, userId, {
     // El envío va dentro del total de la venta: es plata que entra al local, aunque no sea una
     // línea de producto. Por eso el total de la venta puede no coincidir con la suma de sus
     // líneas — igual que pasaría con cualquier cargo que no sea mercancía.

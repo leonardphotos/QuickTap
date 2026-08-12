@@ -478,6 +478,8 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
                     {s.paymentMethod ? ` · ${s.paymentMethod}` : ''}
                     {s.creditTerms ? ' · Fiado' : ''}
                     {s.returned ? ' · Devuelta' : ''}
+                    {/* Quién cobró — clave apenas hay más de un usuario con acceso a la caja. */}
+                    {s.soldByUserName ? ` · ${s.soldByUserName}` : ''}
                   </p>
                 </div>
                 <span className="text-sm font-bold text-brand-500 shrink-0">{saleAmount(s)}</span>
@@ -620,6 +622,12 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
                   <p className="text-brand-950/50 text-xs">Método de pago</p>
                   <p className="font-medium text-brand-950">{selectedSale.paymentMethod ?? '—'}</p>
                 </div>
+                {selectedSale.soldByUserName && (
+                  <div>
+                    <p className="text-brand-950/50 text-xs">Vendedor</p>
+                    <p className="font-medium text-brand-950">{selectedSale.soldByUserName}</p>
+                  </div>
+                )}
                 {selectedSale.customerName && (
                   <div>
                     <p className="text-brand-950/50 text-xs">Cliente</p>

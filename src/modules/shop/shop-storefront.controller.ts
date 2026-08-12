@@ -32,7 +32,7 @@ export const shopOrdersController = {
 
   confirm: asyncHandler(async (req: Request, res: Response) => {
     const paymentMethod = typeof req.body?.paymentMethod === 'string' ? req.body.paymentMethod : undefined;
-    const order = await shopOrdersService.confirm(req.restaurantId!, req.params.id, paymentMethod);
+    const order = await shopOrdersService.confirm(req.restaurantId!, req.auth!.userId, req.params.id, paymentMethod);
     emitToKitchen(req.restaurantId!, SocketEvents.SHOP_ORDER_UPDATED, order);
     res.json({ data: order });
   }),
