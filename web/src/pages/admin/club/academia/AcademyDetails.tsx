@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/api/client';
-import { formatBase } from '@/utils/format';
+import { formatBase, formatBs } from '@/utils/format';
 import { levelLabel, levelRangeLabel } from '@/utils/padelLevel';
 import { TextureButton } from '@/components/ui/texture-button';
 import DetailSheet, { EmptyNote, ItemRow, PayBadge, Row, Section, SheetBody, type PayState } from '../DetailSheet';
@@ -53,11 +53,15 @@ function useDetail<T>(url: string | null) {
 export function AcademyDetail({
   target,
   symbol,
+  rateBs,
   onClose,
   onNavigate,
 }: {
   target: DetailTarget;
   symbol: string;
+  /** Tasa Bs vigente, para el "Transferir X Bs" de Pago Móvil al cobrar. `null`
+   *  si todavía no hay tasa cargada (no debería bloquear el cobro, solo el aviso). */
+  rateBs: string | null;
   onClose: () => void;
   onNavigate: (t: DetailTarget) => void;
 }) {
@@ -66,7 +70,7 @@ export function AcademyDetail({
   if (target.kind === 'program') return <ProgramDetail id={target.id} symbol={symbol} onClose={onClose} onNavigate={onNavigate} />;
   if (target.kind === 'coach') return <CoachDetail id={target.id} symbol={symbol} onClose={onClose} onNavigate={onNavigate} />;
   if (target.kind === 'activeStudents') return <ActiveStudentsList onClose={onClose} onNavigate={onNavigate} />;
-  if (target.kind === 'pendingCharges') return <PendingChargesList symbol={symbol} onClose={onClose} onNavigate={onNavigate} />;
+  if (target.kind === 'pendingCharges') return <PendingChargesList symbol={symbol} rateBs={rateBs} onClose={onClose} onNavigate={onNavigate} />;
   return <StudentDetail id={target.id} symbol={symbol} onClose={onClose} onNavigate={onNavigate} />;
 }
 
@@ -137,7 +141,17 @@ interface PendingCharge {
  * fichas, ESTA deja actuar: cada fila tiene un botón "Cobrar" que registra el
  * pago ahí mismo, sin tener que ir a buscar al alumno en otra pestaña.
  */
-function PendingChargesList({ symbol, onClose, onNavigate }: { symbol: string; onClose: () => void; onNavigate: (t: DetailTarget) => void }) {
+function PendingChargesList({
+  symbol,
+  rateBs,
+  onClose,
+  onNavigate,
+}: {
+  symbol: string;
+  rateBs: string | null;
+  onClose: () => void;
+  onNavigate: (t: DetailTarget) => void;
+}) {
   const [charges, setCharges] = useState<PendingCharge[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [collecting, setCollecting] = useState<PendingCharge | null>(null);
@@ -200,6 +214,7 @@ function PendingChargesList({ symbol, onClose, onNavigate }: { symbol: string; o
           charge={collecting}
           balance={Number(collecting.amountBase) - collecting.payments.reduce((a, p) => a + Number(p.amountBase), 0)}
           symbol={symbol}
+          rateBs={rateBs}
           onClose={() => setCollecting(null)}
           onCollected={() => {
             setCollecting(null);
@@ -231,12 +246,14 @@ function CollectChargeDialog({
   charge,
   balance,
   symbol,
+  rateBs,
   onClose,
   onCollected,
 }: {
   charge: PendingCharge;
   balance: number;
   symbol: string;
+  rateBs: string | null;
   onClose: () => void;
   onCollected: () => void;
 }) {
@@ -302,6 +319,11 @@ function CollectChargeDialog({
               </option>
             ))}
           </select>
+          {/* Pago Móvil y Efectivo Bs se cobran en bolívares aunque el precio esté
+              en $/€: sin esto quien cobra no sabe cuánto pedir que transfieran. */}
+          {(method === 'MOBILE_PAYMENT' || method === 'CASH') && rateBs && Number(amount) > 0 && (
+            <p className="mt-1.5 text-[13px] font-bold text-brand-500">Transferir {formatBs(amount, rateBs)}</p>
+          )}
         </label>
         <label className="block">
           <span className="mb-1 block text-[13px] font-medium text-brand-950/70">Referencia</span>

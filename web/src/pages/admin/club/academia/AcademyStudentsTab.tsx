@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Search, Ticket, UserPlus } from 'lucide-react';
 import type { AuthRestaurant } from '@/context/AuthContext';
-import { formatBase } from '@/utils/format';
+import { formatBase, formatBs } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Cell, ClubEyebrow, ClubPanel, ClubRow, ClubTable, PlainCell, type ClubColumn } from '../ClubTable';
@@ -34,7 +34,7 @@ export default function AcademyStudentsTab({
   restaurant,
   onOpen,
 }: {
-  restaurant: Pick<AuthRestaurant, 'currencySymbol'>;
+  restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate'>;
   onOpen: (t: DetailTarget) => void;
 }) {
   const [students, setStudents] = useState<Student[]>([]);
@@ -46,6 +46,7 @@ export default function AcademyStudentsTab({
   const [enrolling, setEnrolling] = useState<Student | null>(null);
   const [sellingTo, setSellingTo] = useState<Student | null>(null);
   const symbol = restaurant.currencySymbol ?? '$';
+  const rateBs = restaurant.exchangeRate?.rateBs ?? null;
 
   const load = useCallback(() => {
     Promise.all([academyApi.listStudents({ q: q || undefined }), academyApi.listGroups()])
@@ -150,6 +151,7 @@ export default function AcademyStudentsTab({
           student={sellingTo}
           groups={groups}
           symbol={symbol}
+          rateBs={rateBs}
           onClose={() => setSellingTo(null)}
           onSaved={() => {
             setSellingTo(null);
@@ -327,12 +329,14 @@ function PackageDialog({
   student,
   groups,
   symbol,
+  rateBs,
   onClose,
   onSaved,
 }: {
   student: Student;
   groups: ClassGroup[];
   symbol: string;
+  rateBs: string | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -444,6 +448,13 @@ function PackageDialog({
                 </option>
               ))}
             </select>
+            {/* Pago Móvil y Efectivo Bs se cobran en bolívares aunque el precio esté
+                en $/€: sin esto quien cobra no sabe cuánto pedir que transfieran. */}
+            {(method === 'MOBILE_PAYMENT' || method === 'CASH') && rateBs && Number(priceBase) > 0 && (
+              <p className="mt-1.5 text-[13px] font-bold text-brand-500">
+                Transferir {formatBs(priceBase, rateBs)}
+              </p>
+            )}
           </Field>
           <Field label="Referencia">
             <input value={reference} onChange={(e) => setReference(e.target.value)} className={INPUT} placeholder="Opcional" />

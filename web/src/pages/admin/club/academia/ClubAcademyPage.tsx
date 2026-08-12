@@ -31,7 +31,7 @@ export default function ClubAcademyPage({
   restaurant,
   isAdmin,
 }: {
-  restaurant: Pick<AuthRestaurant, 'currencySymbol'>;
+  restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate'>;
   isAdmin: boolean;
 }) {
   const [tab, setTab] = useState<Tab>('hoy');
@@ -42,6 +42,9 @@ export default function ClubAcademyPage({
    */
   const [detail, setDetail] = useState<DetailTarget | null>(null);
   const symbol = restaurant.currencySymbol ?? '$';
+  // Pago Móvil se paga en bolívares aunque el precio esté en $/€: sin esto quien
+  // cobra no sabe cuántos Bs pedirle que transfiera.
+  const rateBs = restaurant.exchangeRate?.rateBs ?? null;
   const tabs = (Object.keys(TAB_LABELS) as Tab[]).filter((t) => isAdmin || !ADMIN_ONLY.includes(t));
   const active = tabs.includes(tab) ? tab : 'hoy';
 
@@ -81,7 +84,13 @@ export default function ClubAcademyPage({
       </Suspense>
 
       {detail && (
-        <AcademyDetail target={detail} symbol={symbol} onClose={() => setDetail(null)} onNavigate={setDetail} />
+        <AcademyDetail
+          target={detail}
+          symbol={symbol}
+          rateBs={rateBs}
+          onClose={() => setDetail(null)}
+          onNavigate={setDetail}
+        />
       )}
     </div>
   );

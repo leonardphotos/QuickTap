@@ -244,6 +244,7 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
           source={collecting.source}
           row={collecting.row}
           symbol={restaurant.currencySymbol}
+          rateBs={restaurant.exchangeRate?.rateBs ?? null}
           onClose={() => setCollecting(null)}
           onPaid={() => {
             setCollecting(null);
@@ -555,12 +556,14 @@ function DebtPaymentDialog({
   source,
   row,
   symbol,
+  rateBs,
   onClose,
   onPaid,
 }: {
   source: DebtSource;
   row: DebtRow;
   symbol: string;
+  rateBs: string | null;
   onClose: () => void;
   onPaid: () => void;
 }) {
@@ -661,6 +664,11 @@ function DebtPaymentDialog({
                   </button>
                 ))}
               </div>
+              {/* Pago Móvil y Efectivo Bs se cobran en bolívares aunque el precio esté
+                  en $/€: sin esto quien cobra no sabe cuánto pedir que transfieran. */}
+              {(method === 'MOBILE_PAYMENT' || method === 'CASH') && rateBs && Number(amount) > 0 && (
+                <p className="mt-1.5 text-[13px] font-bold text-brand-500">Transferir {formatBs(amount, rateBs)}</p>
+              )}
             </div>
             {source !== 'store' && (
               <label className="block">
