@@ -19,3 +19,19 @@ export const createTabOrderSchema = z.object({
 });
 
 export type CreateTabOrderInput = z.infer<typeof createTabOrderSchema>;
+
+/**
+ * El jugador reporta que ya transfirió. NO es un cobro: queda pendiente hasta
+ * que el cobrador lo apruebe (QuickTap no tiene pasarela). Por eso el monto se
+ * acepta del cliente pero se topa contra el saldo real en el servicio.
+ */
+export const reportTabPaymentSchema = z.object({
+  accessToken: z.string().min(1).max(64),
+  /** A quién le pagó: 'CLUB' o el id de una tienda vinculada. */
+  payeeId: z.string().min(1).max(40),
+  amountBase: z.coerce.number().positive().max(1000000),
+  method: z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER']),
+  referenceNumber: z.string().trim().max(60).nullish(),
+});
+
+export type ReportTabPaymentInput = z.infer<typeof reportTabPaymentSchema>;

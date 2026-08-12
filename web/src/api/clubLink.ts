@@ -37,6 +37,23 @@ export interface KitchenClubOrder {
   clubItemCount: number;
 }
 
+/** Un pago que un jugador reportó desde la tablet de una cancha, esperando que
+ *  esta tienda lo apruebe. Hasta que se apruebe, la cuenta del jugador sigue
+ *  abierta: QuickTap no tiene pasarela y la plata la confirma una persona. */
+export interface CourtPayment {
+  id: string;
+  amountBase: string;
+  amountBs: string;
+  method: string;
+  referenceNumber: string | null;
+  status: 'PENDING' | 'CONFIRMED' | 'REJECTED';
+  createdAt: string;
+  reviewedAt: string | null;
+  club: { id: string; name: string };
+  courtName: string;
+  player: { name: string; phone: string };
+}
+
 export const clubLinkApi = {
   // Lado restaurante
   state: () => api.get<{ data: RestaurantLinkState }>('/club-link/state').then((r) => r.data.data),
@@ -47,6 +64,12 @@ export const clubLinkApi = {
     api
       .get<{ data: KitchenClubOrder[] }>('/club-link/orders', { params: { includeDelivered } })
       .then((r) => r.data.data),
+  courtPayments: (includeReviewed = false) =>
+    api
+      .get<{ data: CourtPayment[] }>('/club-link/court-payments', { params: { includeReviewed } })
+      .then((r) => r.data.data),
+  reviewCourtPayment: (id: string, status: 'CONFIRMED' | 'REJECTED') =>
+    api.patch<{ data: { id: string; status: string } }>(`/club-link/court-payments/${id}`, { status }).then((r) => r.data.data),
   setOrderStatus: (id: string, status: 'PREPARING' | 'DELIVERED' | 'CANCELLED') =>
     api.patch<{ data: { id: string; status: ClubTabOrderStatus } }>(`/club-link/orders/${id}/status`, { status }).then((r) => r.data.data),
 

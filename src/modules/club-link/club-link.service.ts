@@ -233,6 +233,77 @@ export const clubLinkService = {
     }));
   },
 
+  // ------------------------- Pagos que los jugadores reportan desde la tablet
+
+  /**
+   * Los pagos que los jugadores dicen haberle hecho a ESTE cobrador desde la
+   * tablet de una cancha. `payeeRestaurantId` lo escribe el servidor a partir
+   * del vínculo, nunca llega del cliente, así que filtrar por él es seguro.
+   *
+   * `payeeRestaurantId: null` significa "al club", así que un restaurante nunca
+   * ve —ni puede aprobar— los pagos que le hicieron al club.
+   */
+  async listCourtPayments(restaurantId: string, includeReviewed: boolean) {
+    const payments = await prisma.clubReportedPayment.findMany({
+      where: {
+        payeeRestaurantId: restaurantId,
+        ...(includeReviewed
+          ? { createdAt: { gte: new Date(Date.now() - 7 * 24 * 3600_000) } }
+          : { status: 'PENDING' }),
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: {
+        restaurant: { select: { id: true, name: true } },
+        booking: {
+          select: {
+            playerName: true,
+            playerPhone: true,
+            block: { select: { court: { select: { name: true } } } },
+          },
+        },
+      },
+    });
+
+    return payments.map((p) => ({
+      id: p.id,
+      amountBase: p.amountBase.toFixed(2),
+      amountBs: p.amountBs.toFixed(2),
+      method: p.method,
+      referenceNumber: p.referenceNumber,
+      status: p.status,
+      createdAt: p.createdAt,
+      reviewedAt: p.reviewedAt,
+      club: p.restaurant,
+      courtName: p.booking.block.court.name,
+      player: { name: p.booking.playerName, phone: p.booking.playerPhone },
+    }));
+  },
+
+  /**
+   * El cobrador aprueba o rechaza un pago reportado. Aprobar es lo que de
+   * verdad salda la cuenta del jugador — hasta acá era solo un aviso.
+   */
+  async reviewCourtPayment(restaurantId: string, paymentId: string, status: 'CONFIRMED' | 'REJECTED') {
+    const payment = await prisma.clubReportedPayment.findFirst({
+      where: { id: paymentId, payeeRestaurantId: restaurantId },
+      select: { id: true, status: true, restaurantId: true },
+    });
+    if (!payment) throw notFound('Ese pago no existe o no es de tu tienda.');
+    if (payment.status !== 'PENDING') throw badRequest('Ese pago ya fue revisado.');
+
+    const updated = await prisma.clubReportedPayment.update({
+      where: { id: paymentId },
+      data: { status, reviewedAt: new Date() },
+      select: { id: true, status: true, restaurantId: true },
+    });
+
+    // La tablet del jugador y el panel del club refrescan el saldo.
+    emitToKitchen(updated.restaurantId, SocketEvents.CLUB_TAB_ORDER_UPDATED, { paymentId: updated.id });
+    emitToKitchen(restaurantId, SocketEvents.CLUB_TAB_ORDER_UPDATED, { paymentId: updated.id });
+    return { id: updated.id, status: updated.status };
+  },
+
   async setKitchenOrderStatus(restaurantId: string, orderId: string, status: 'PREPARING' | 'DELIVERED' | 'CANCELLED') {
     const order = await prisma.clubTabOrder.findFirst({
       where: { id: orderId, kitchenRestaurantId: restaurantId },

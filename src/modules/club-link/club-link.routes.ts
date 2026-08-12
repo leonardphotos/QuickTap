@@ -26,6 +26,10 @@ router.get('/state', manager, clubLinkController.restaurantState);
 router.delete('/clubs/:clubId', manager, clubLinkController.unlinkClub);
 router.get('/orders', clubLinkController.kitchenOrders);
 router.patch('/orders/:id/status', clubLinkController.setOrderStatus);
+// Cuentas de las canchas: los pagos que los jugadores reportan desde la tablet.
+// Aprobar plata es de dueño/admin, no de quien despacha la cola de comandas.
+router.get('/court-payments', clubLinkController.courtPayments);
+router.patch('/court-payments/:id', manager, clubLinkController.reviewCourtPayment);
 
 // --- Lado club ---
 router.post('/redeem', clubOnly, manager, clubLinkController.redeem);

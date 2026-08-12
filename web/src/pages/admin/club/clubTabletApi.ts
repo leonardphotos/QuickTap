@@ -59,6 +59,12 @@ export interface TabletPayMethod {
  * tienda vinculada a la que se le pidió algo: cada una cobra lo suyo, con su
  * propio método de pago.
  */
+export interface TabletTabItem {
+  name: string;
+  quantity: number;
+  lineTotalBase: string;
+}
+
 export interface TabletTab {
   payeeId: string;
   name: string;
@@ -67,7 +73,12 @@ export interface TabletTab {
   dueBase: string;
   paidBase: string;
   balanceBase: string;
+  /** El saldo en bolívares, a la tasa congelada de la reserva. */
+  balanceBs: string;
+  items: TabletTabItem[];
   methods: TabletPayMethod[];
+  /** Ya reportado y esperando que el cobrador lo confirme. */
+  pendingBase: string;
 }
 
 export interface TabletSession {
@@ -117,5 +128,16 @@ export const clubTabletApi = {
         storeId,
         items,
       })
+      .then((r) => r.data.data),
+  /** El jugador reporta que ya transfirió. No cobra: deja el pago por aprobar. */
+  reportPayment: (body: {
+    accessToken: string;
+    payeeId: string;
+    amountBase: number;
+    method: string;
+    referenceNumber?: string | null;
+  }) =>
+    api
+      .post<{ data: { id: string; amountBase: string; amountBs: string } }>('/club-tablet/payments', body)
       .then((r) => r.data.data),
 };

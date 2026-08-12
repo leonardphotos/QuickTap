@@ -540,10 +540,12 @@ model Restaurant {
   // --- Vínculo club ↔ restaurante: el club terceriza la cocina/barra en un
   // restaurante de QuickTap, que recibe las comandas de las canchas. Los dos
   // lados son un Restaurant, de ahí los nombres explícitos de relación. ---
-  clubLinkCodes          ClubLinkCode[]       @relation("ClubLinkCodeRestaurant")
-  clubLinksAsClub        ClubRestaurantLink[] @relation("ClubRestaurantLinkClub")
-  clubLinksAsKitchen     ClubRestaurantLink[] @relation("ClubRestaurantLinkRestaurant")
-  clubTabOrdersToPrepare ClubTabOrder[]       @relation("ClubTabOrderKitchen")
+  clubLinkCodes          ClubLinkCode[]        @relation("ClubLinkCodeRestaurant")
+  clubLinksAsClub        ClubRestaurantLink[]  @relation("ClubRestaurantLinkClub")
+  clubLinksAsKitchen     ClubRestaurantLink[]  @relation("ClubRestaurantLinkRestaurant")
+  clubTabOrdersToPrepare ClubTabOrder[]        @relation("ClubTabOrderKitchen")
+  clubReportedPayments   ClubReportedPayment[] @relation("ClubReportedPaymentClub")
+  clubPaymentsToApprove  ClubReportedPayment[] @relation("ClubReportedPaymentPayee")
   clubTournaments        ClubTournament[]
 
   // --- Academia de pádel (ver docs/ACADEMIA-PADEL.md) ---
@@ -2909,16 +2911,17 @@ model ClubBooking {
   cancelledBy  String?
   createdAt    DateTime  @default(now())
 
-  restaurant     Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  block          ClubCourtBlock       @relation(fields: [blockId], references: [id], onDelete: Cascade)
-  customer       Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  playerAccount  ClubPlayerAccount?   @relation(fields: [playerAccountId], references: [id], onDelete: SetNull)
-  payments       ClubBookingPayment[]
-  loyaltyEntries ClubLoyaltyEntry[]
-  invites        ClubPlayInvite[]
+  restaurant       Restaurant            @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  block            ClubCourtBlock        @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  customer         Customer?             @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  playerAccount    ClubPlayerAccount?    @relation(fields: [playerAccountId], references: [id], onDelete: SetNull)
+  payments         ClubBookingPayment[]
+  reportedPayments ClubReportedPayment[]
+  loyaltyEntries   ClubLoyaltyEntry[]
+  invites          ClubPlayInvite[]
   // Lo que el jugador fue pidiendo desde la tablet de la cancha. Se cobra junto
   // con la cancha en la misma Caja — ver `withBookingMoney` en club.service.ts.
-  tabOrders      ClubTabOrder[]
+  tabOrders        ClubTabOrder[]
 
   @@index([restaurantId, status])
   @@index([restaurantId, createdAt])
@@ -4027,4 +4030,47 @@ model ClubCoachPayout {
 
   @@index([restaurantId, coachId])
   @@map("club_coach_payouts")
+}
+
+enum ClubReportedPaymentStatus {
+  PENDING // el jugador lo reportó, nadie lo confirmó todavía
+  CONFIRMED
+  REJECTED
+}
+
+/// Pago que el JUGADOR reporta desde la tablet: transfirió y escribió su número
+/// de referencia. No es plata confirmada, y por eso vive en su propia tabla y no
+/// en ClubBookingPayment — así no ensucia saldos, deudas ni arqueo de caja hasta
+/// que el cobrador lo apruebe. QuickTap no tiene pasarela: el cobro siempre lo
+/// valida una persona.
+model ClubReportedPayment {
+  id                String                    @id @default(cuid())
+  /// El club, dueño de la fila (la reserva es suya aunque cobre otro).
+  restaurantId      String
+  bookingId         String
+  /// A quién dice haberle pagado. null = al club (cancha o su tienda propia);
+  /// si no, la tienda vinculada que cobra lo suyo.
+  payeeRestaurantId String?
+  amountBase        Decimal                   @db.Decimal(12, 2)
+  /// Congelados al reportar, igual que en Order: si la tasa cambia después, el
+  /// monto que el jugador dice haber transferido no se reescribe.
+  exchangeRate      Decimal                   @db.Decimal(12, 4)
+  amountBs          Decimal                   @db.Decimal(14, 2)
+  method            PaymentMethod
+  referenceNumber   String?
+  status            ClubReportedPaymentStatus @default(PENDING)
+  reviewedAt        DateTime?
+  /// Al aprobar un pago al club se crea el ClubBookingPayment real; queda su id
+  /// para poder rastrear de dónde salió.
+  bookingPaymentId  String?
+  createdAt         DateTime                  @default(now())
+
+  restaurant Restaurant  @relation("ClubReportedPaymentClub", fields: [restaurantId], references: [id], onDelete: Cascade)
+  payee      Restaurant? @relation("ClubReportedPaymentPayee", fields: [payeeRestaurantId], references: [id], onDelete: SetNull)
+  booking    ClubBooking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, status])
+  @@index([payeeRestaurantId, status])
+  @@index([bookingId])
+  @@map("club_reported_payments")
 }

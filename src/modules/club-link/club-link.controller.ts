@@ -1,6 +1,12 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
-import { listKitchenOrdersQuerySchema, redeemLinkCodeSchema, setTabOrderStatusSchema } from './club-link.dto';
+import {
+  listCourtPaymentsQuerySchema,
+  listKitchenOrdersQuerySchema,
+  redeemLinkCodeSchema,
+  reviewCourtPaymentSchema,
+  setTabOrderStatusSchema,
+} from './club-link.dto';
 import { clubLinkService } from './club-link.service';
 
 export const clubLinkController = {
@@ -21,6 +27,15 @@ export const clubLinkController = {
   setOrderStatus: asyncHandler(async (req: Request, res: Response) => {
     const input = setTabOrderStatusSchema.parse(req.body);
     res.json({ data: await clubLinkService.setKitchenOrderStatus(req.restaurantId!, req.params.id, input.status) });
+  }),
+
+  courtPayments: asyncHandler(async (req: Request, res: Response) => {
+    const query = listCourtPaymentsQuerySchema.parse(req.query);
+    res.json({ data: await clubLinkService.listCourtPayments(req.restaurantId!, query.includeReviewed) });
+  }),
+  reviewCourtPayment: asyncHandler(async (req: Request, res: Response) => {
+    const input = reviewCourtPaymentSchema.parse(req.body);
+    res.json({ data: await clubLinkService.reviewCourtPayment(req.restaurantId!, req.params.id, input.status) });
   }),
 
   // Lado club

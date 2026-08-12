@@ -7,7 +7,7 @@ import { effectiveProductPrice } from '../../utils/promo-price';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { clubLinkService } from '../club-link/club-link.service';
 import { emitToKitchen, SocketEvents } from '../../sockets';
-import type { CreateTabOrderInput } from './club-tablet.dto';
+import type { CreateTabOrderInput, ReportTabPaymentInput } from './club-tablet.dto';
 
 /**
  * Ventana en la que el QR de una reserva abre la tablet. Antes de empezar se
@@ -108,6 +108,13 @@ async function readStoreCatalog(store: { id: string }) {
     }));
 }
 
+/** Una línea del desglose de una cuenta: qué se está pagando. */
+interface TabItem {
+  name: string;
+  quantity: number;
+  lineTotalBase: string;
+}
+
 /** Los datos que el jugador necesita para pagarle a alguien. */
 interface PayMethod {
   method: string;
@@ -156,22 +163,40 @@ function payMethodsOf(config: unknown): PayMethod[] {
 async function buildTabs(
   clubId: string,
   booking: {
+    id: string;
     totalBase: Prisma.Decimal;
-    tabOrders: { totalBase: Prisma.Decimal; status: string; kitchenRestaurantId: string | null }[];
+    exchangeRate: Prisma.Decimal;
+    tabOrders: {
+      totalBase: Prisma.Decimal;
+      status: string;
+      kitchenRestaurantId: string | null;
+      items: { productName: string; quantity: number; lineTotal: Prisma.Decimal }[];
+    }[];
   },
   clubDueBase: Prisma.Decimal,
   clubPaidBase: Prisma.Decimal,
 ) {
   const live = booking.tabOrders.filter((o) => o.status !== 'CANCELLED');
+  const rate = booking.exchangeRate;
 
-  // Cuánto le debe a cada tienda vinculada.
-  const byStore = new Map<string, Prisma.Decimal>();
+  // Cuánto le debe a cada tienda vinculada, y qué le pidió.
+  const byStore = new Map<string, { total: Prisma.Decimal; items: TabItem[] }>();
+  const clubItems: TabItem[] = [];
   for (const o of live) {
-    if (!o.kitchenRestaurantId) continue;
-    byStore.set(o.kitchenRestaurantId, (byStore.get(o.kitchenRestaurantId) ?? toDecimal(0)).add(o.totalBase));
+    const lines = o.items.map((i) => ({
+      name: i.productName,
+      quantity: i.quantity,
+      lineTotalBase: i.lineTotal.toFixed(2),
+    }));
+    if (!o.kitchenRestaurantId) {
+      clubItems.push(...lines);
+      continue;
+    }
+    const prev = byStore.get(o.kitchenRestaurantId) ?? { total: toDecimal(0), items: [] };
+    byStore.set(o.kitchenRestaurantId, { total: prev.total.add(o.totalBase), items: [...prev.items, ...lines] });
   }
 
-  const [club, storeRows] = await Promise.all([
+  const [club, storeRows, reported] = await Promise.all([
     prisma.restaurant.findUniqueOrThrow({
       where: { id: clubId },
       select: { name: true, logoUrl: true, paymentMethodsConfig: true },
@@ -182,9 +207,30 @@ async function buildTabs(
           select: { id: true, name: true, logoUrl: true, paymentMethodsConfig: true },
         })
       : Promise.resolve([]),
+    prisma.clubReportedPayment.findMany({
+      where: { bookingId: booking.id, status: { in: ['PENDING', 'CONFIRMED'] } },
+      select: { payeeRestaurantId: true, amountBase: true, status: true },
+    }),
   ]);
 
+  /** Lo reportado por el jugador para un cobrador, separado por si ya se aprobó. */
+  function reportedFor(payeeId: string | null) {
+    const mine = reported.filter((r) => (r.payeeRestaurantId ?? null) === payeeId);
+    const sum = (st: string) =>
+      round2(mine.filter((r) => r.status === st).reduce((acc, r) => acc.add(r.amountBase), toDecimal(0)));
+    return { pendingBase: sum('PENDING'), confirmedBase: sum('CONFIRMED') };
+  }
+
+  const clubReported = reportedFor(null);
+  // Los pagos al club aprobados ya son ClubBookingPayment (entran en clubPaidBase),
+  // así que acá solo se descuenta lo que todavía está por verificar.
   const clubBalance = round2(Prisma.Decimal.max(0, clubDueBase.sub(clubPaidBase)));
+
+  const courtLine: TabItem = {
+    name: 'Alquiler de cancha',
+    quantity: 1,
+    lineTotalBase: booking.totalBase.toFixed(2),
+  };
 
   return [
     {
@@ -196,21 +242,30 @@ async function buildTabs(
       dueBase: clubDueBase.toFixed(2),
       paidBase: clubPaidBase.toFixed(2),
       balanceBase: clubBalance.toFixed(2),
+      balanceBs: round2(clubBalance.mul(rate)).toFixed(2),
+      items: [courtLine, ...clubItems],
       methods: payMethodsOf(club.paymentMethodsConfig),
+      pendingBase: clubReported.pendingBase.toFixed(2),
     },
     ...storeRows.map((s) => {
-      const due = round2(byStore.get(s.id) ?? toDecimal(0));
+      const agg = byStore.get(s.id)!;
+      const due = round2(agg.total);
+      const r = reportedFor(s.id);
+      // A una tienda no se le registran ClubBookingPayment: lo que salda su
+      // cuenta es lo que ella misma aprobó de los pagos reportados.
+      const balance = round2(Prisma.Decimal.max(0, due.sub(r.confirmedBase)));
       return {
         payeeId: s.id,
         name: s.name,
         logoUrl: s.logoUrl,
         detail: 'Lo que pediste a esta tienda',
         dueBase: due.toFixed(2),
-        // Todavía no hay pagos registrados contra una tienda: eso llega con el
-        // pago desde la tablet. Hasta entonces el saldo es todo lo pedido.
-        paidBase: '0.00',
-        balanceBase: due.toFixed(2),
+        paidBase: r.confirmedBase.toFixed(2),
+        balanceBase: balance.toFixed(2),
+        balanceBs: round2(balance.mul(rate)).toFixed(2),
+        items: agg.items,
         methods: payMethodsOf(s.paymentMethodsConfig),
+        pendingBase: r.pendingBase.toFixed(2),
       };
     }),
   ].filter((t) => Number(t.dueBase) > 0);
@@ -527,6 +582,74 @@ export const clubTabletService = {
       totalBase: order.totalBase.toFixed(2),
       totalBs: order.totalBs.toFixed(2),
       items: order.items.map((i) => ({ productName: i.productName, quantity: i.quantity, lineTotal: i.lineTotal.toFixed(2) })),
+    };
+  },
+
+  /**
+   * El jugador reporta desde la tablet que ya transfirió, con su referencia.
+   *
+   * NO cobra: crea un ClubReportedPayment en PENDING y la cuenta queda "en
+   * verificación" hasta que el cobrador lo apruebe. Es el mismo criterio que el
+   * resto de QuickTap — no hay pasarela, la plata la confirma una persona.
+   */
+  async reportPayment(clubId: string, userId: string, input: ReportTabPaymentInput) {
+    const booking = await loadSession(clubId, input.accessToken);
+
+    const tabletCourtId = await tabletCourtIdOf(userId);
+    if (tabletCourtId && booking.block.courtId !== tabletCourtId) {
+      throw badRequest('Esta reserva no es de esta cancha.');
+    }
+
+    const isClub = input.payeeId === CLUB_STORE_ID;
+    const payeeId = isClub ? null : input.payeeId;
+    if (payeeId) {
+      const linked = await clubLinkService.resolveKitchensFor(clubId);
+      if (!linked.some((k) => k.id === payeeId)) {
+        throw badRequest('Esa tienda ya no está vinculada a este club.');
+      }
+    }
+
+    // El tope sale del saldo real, calculado acá: si se confiara en el monto del
+    // cliente se podrían reportar pagos por cualquier cifra y ensuciar la cola
+    // de aprobación del cobrador.
+    const consumoBase = consumoOf(booking.tabOrders);
+    const paidBase = round2(booking.payments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0)));
+    const dueBase = round2(booking.totalBase.add(consumoBase));
+    const tabs = await buildTabs(clubId, booking, dueBase, paidBase);
+    const tab = tabs.find((t) => t.payeeId === input.payeeId);
+    if (!tab) throw badRequest('Esa cuenta no existe o ya no tiene saldo.');
+
+    // Lo ya reportado y sin revisar también ocupa saldo: si no, se podría
+    // reportar dos veces el total y dejarle al cobrador el doble por aprobar.
+    const room = round2(toDecimal(tab.balanceBase).sub(toDecimal(tab.pendingBase)));
+    const amountBase = round2(toDecimal(input.amountBase));
+    if (room.lte(0)) throw badRequest('Esa cuenta ya está reportada por completo. Espera la confirmación.');
+    if (amountBase.gt(room.add(0.01))) {
+      throw badRequest(`El monto no puede superar lo que falta por pagar (${room.toFixed(2)}).`);
+    }
+
+    const rate = booking.exchangeRate;
+    const created = await prisma.clubReportedPayment.create({
+      data: {
+        restaurantId: clubId,
+        bookingId: booking.id,
+        payeeRestaurantId: payeeId,
+        amountBase,
+        exchangeRate: rate,
+        amountBs: round2(amountBase.mul(rate)),
+        method: input.method,
+        referenceNumber: input.referenceNumber?.trim() || null,
+      },
+      select: { id: true, amountBase: true, amountBs: true },
+    });
+
+    // Al cobrador le aparece en su cola de aprobación al instante.
+    emitToKitchen(payeeId ?? clubId, SocketEvents.CLUB_TAB_ORDER_UPDATED, { paymentId: created.id });
+
+    return {
+      id: created.id,
+      amountBase: created.amountBase.toFixed(2),
+      amountBs: created.amountBs.toFixed(2),
     };
   },
 };

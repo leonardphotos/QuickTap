@@ -31,3 +31,12 @@ export const listKitchenOrdersQuerySchema = z.object({
 export type RedeemLinkCodeInput = z.infer<typeof redeemLinkCodeSchema>;
 export type SetTabOrderStatusInput = z.infer<typeof setTabOrderStatusSchema>;
 export type ListKitchenOrdersQuery = z.infer<typeof listKitchenOrdersQuerySchema>;
+
+/** Aprobar o rechazar un pago que un jugador reportó desde la tablet. */
+export const reviewCourtPaymentSchema = z.object({
+  status: z.enum(['CONFIRMED', 'REJECTED']),
+});
+
+export const listCourtPaymentsQuerySchema = z.object({
+  includeReviewed: z.coerce.boolean().optional().default(false),
+});

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
-import { createTabOrderSchema } from './club-tablet.dto';
+import { createTabOrderSchema, reportTabPaymentSchema } from './club-tablet.dto';
 import { clubTabletService } from './club-tablet.service';
 
 export const clubTabletController = {
@@ -16,5 +16,9 @@ export const clubTabletController = {
   createOrder: asyncHandler(async (req: Request, res: Response) => {
     const input = createTabOrderSchema.parse(req.body);
     res.status(201).json({ data: await clubTabletService.createOrder(req.restaurantId!, req.auth!.userId, input) });
+  }),
+  reportPayment: asyncHandler(async (req: Request, res: Response) => {
+    const input = reportTabPaymentSchema.parse(req.body);
+    res.status(201).json({ data: await clubTabletService.reportPayment(req.restaurantId!, req.auth!.userId, input) });
   }),
 };

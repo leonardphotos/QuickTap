@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Check, Clock, Minus, Plus, QrCode, RotateCcw, ShoppingBag, Trophy, Wallet } from 'lucide-react';
+import { ArrowLeft, Check, Clock, Minus, Plus, QrCode, RotateCcw, ShoppingBag, Trophy, Wallet, X } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useBarcodeCamera } from '@/hooks/useBarcodeCamera';
-import { formatBase } from '@/utils/format';
+import { formatBase, formatBsAbsolute } from '@/utils/format';
 import { clubGradient, courtTypeLabel } from '@/pages/public/clubPublic';
 import { cn } from '@/lib/utils';
 import {
@@ -126,6 +126,8 @@ export default function ClubTabletPage() {
   // A dónde volver al salir del torneo: si se abrió desde el menú de una sesión
   // activa, hay que volver ahí y no perder al jugador que está en la cancha.
   const [torneoReturnScreen, setTorneoReturnScreen] = useState<Screen>('idle');
+  // Qué cuenta está pagando en la pantalla de cierre (payeeId), si alguna.
+  const [payingTab, setPayingTab] = useState<string | null>(null);
 
   const countdown = useCountdown(session?.booking.endsAt);
 
@@ -497,7 +499,7 @@ export default function ClubTabletPage() {
                 separadas porque son pagos distintos, a personas distintas. */}
             <div className="grid w-full max-w-5xl shrink-0 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {tabs.map((t) => (
-                <TabCard key={t.payeeId} tab={t} money={money} />
+                <TabCard key={t.payeeId} tab={t} money={money} onPay={() => setPayingTab(t.payeeId)} />
               ))}
             </div>
             <p className="shrink-0 text-base font-medium text-white/85">
@@ -514,6 +516,20 @@ export default function ClubTabletPage() {
         >
           Ok
         </button>
+
+        {payingTab && tabs.find((t) => t.payeeId === payingTab) && (
+          <PayFlow
+            tab={tabs.find((t) => t.payeeId === payingTab)!}
+            accessToken={session.booking.accessToken}
+            money={money}
+            onClose={() => setPayingTab(null)}
+            onReported={async () => {
+              setPayingTab(null);
+              // El saldo baja a "en verificación" en cuanto vuelve la sesión.
+              await refreshSession(session.booking.accessToken);
+            }}
+          />
+        )}
       </div>
     );
   }
@@ -816,14 +832,24 @@ const PAY_METHOD_LABELS: Record<string, string> = {
 };
 
 /**
- * Una cuenta a pagar, con los datos de cobro de QUIEN la cobra. El jugador le
- * paga a cada tienda por su lado, así que cada tarjeta trae su propio QR y sus
- * propios datos — mezclarlos sería mandarle la plata a quien no es.
+ * Una cuenta a pagar, con el desglose de lo que la compone y un botón para
+ * pagarla. Cada cobrador tiene la suya: el jugador le paga a cada quien por su
+ * lado, y mezclarlos sería mandarle la plata a quien no es.
  */
-function TabCard({ tab, money }: { tab: TabletTab; money: (v: string | number) => string }) {
-  // El QR es lo que más se usa: se muestra el del primer método que tenga uno.
-  const withQr = tab.methods.find((m) => m.qrImageUrl);
+function TabCard({
+  tab,
+  money,
+  onPay,
+}: {
+  tab: TabletTab;
+  money: (v: string | number) => string;
+  onPay: () => void;
+}) {
   const paid = Number(tab.paidBase) > 0;
+  const pending = Number(tab.pendingBase);
+  const settled = Number(tab.balanceBase) <= 0;
+  // Todo lo que falta ya está reportado: no queda nada que pagar, solo esperar.
+  const fullyReported = !settled && pending >= Number(tab.balanceBase) - 0.01;
 
   return (
     <div className="flex flex-col rounded-3xl bg-white/95 p-5 text-left shadow-xl">
@@ -847,37 +873,254 @@ function TabCard({ tab, money }: { tab: TabletTab; money: (v: string | number) =
           <span className="text-sm font-bold text-brand-950">A pagar</span>
           <span className="text-2xl font-bold tabular-nums text-brand-950">{money(tab.balanceBase)}</span>
         </div>
+        {/* El monto en Bs va debajo del de $: es lo que de verdad se transfiere
+            por Pago Móvil, y hacerlo calcular a mano invita a equivocarse. */}
+        <p className="text-right text-[13px] font-semibold tabular-nums text-brand-500">
+          {formatBsAbsolute(tab.balanceBs)}
+        </p>
       </div>
 
-      {withQr && (
-        <img
-          src={withQr.qrImageUrl}
-          alt={`QR de ${tab.name}`}
-          className="mx-auto mt-3 h-36 w-36 rounded-xl border border-brand-950/10 object-contain"
-        />
+      {/* Qué compone la cuenta: sin esto el jugador ve un número y no sabe de
+          dónde salió. */}
+      {tab.items.length > 0 && (
+        <ul className="mt-3 space-y-1 border-t border-brand-950/[0.06] pt-3">
+          {tab.items.map((i, n) => (
+            <li key={`${i.name}-${n}`} className="flex items-baseline justify-between gap-2 text-[12px]">
+              <span className="min-w-0 truncate font-light text-brand-950/60">
+                {i.quantity > 1 && <span className="font-semibold text-brand-950/70">{i.quantity}× </span>}
+                {i.name}
+              </span>
+              <span className="shrink-0 font-medium tabular-nums text-brand-950/70">{money(i.lineTotalBase)}</span>
+            </li>
+          ))}
+        </ul>
       )}
 
-      {tab.methods.length === 0 ? (
-        <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-[12px] font-light text-amber-900">
-          Esta tienda no cargó sus datos de cobro. Pregúntale cómo pagarle.
+      {pending > 0 && (
+        <p className="mt-3 rounded-xl bg-sky-50 px-3 py-2 text-[12px] font-medium text-sky-800">
+          {money(tab.pendingBase)} en verificación. {tab.name} tiene que confirmarlo.
         </p>
-      ) : (
-        <div className="mt-3 space-y-2">
-          {tab.methods.map((m) => {
-            const fields = PAY_FIELD_LABELS.filter(([f]) => m[f]);
-            return (
-              <div key={m.method} className="rounded-xl bg-brand-950/[0.04] px-3 py-2">
-                <p className="text-[12px] font-bold text-brand-950">{PAY_METHOD_LABELS[m.method] ?? m.method}</p>
+      )}
+
+      <div className="mt-4">
+        {settled ? (
+          <p className="rounded-xl bg-emerald-50 py-2.5 text-center text-[13px] font-bold text-emerald-700">
+            Cuenta saldada
+          </p>
+        ) : tab.methods.length === 0 ? (
+          <p className="rounded-xl bg-amber-50 px-3 py-2 text-[12px] font-light text-amber-900">
+            Esta tienda no cargó sus datos de cobro. Pregúntale cómo pagarle.
+          </p>
+        ) : fullyReported ? (
+          <p className="rounded-xl bg-brand-950/[0.04] py-2.5 text-center text-[13px] font-medium text-brand-950/50">
+            Esperando confirmación
+          </p>
+        ) : (
+          <button
+            onClick={onPay}
+            className="w-full rounded-full bg-brand-500 py-3 text-base font-bold text-white transition-transform active:scale-[0.97]"
+          >
+            Pagar
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * La pasarela de pago de una cuenta, en tres pasos: elegir método → ver los
+ * datos y el QR → escribir la referencia.
+ *
+ * No cobra nada: al terminar, el pago queda REPORTADO y la cuenta entra en
+ * verificación hasta que el cobrador lo apruebe desde su panel. QuickTap no
+ * tiene pasarela real y la plata siempre la confirma una persona.
+ */
+function PayFlow({
+  tab,
+  accessToken,
+  money,
+  onClose,
+  onReported,
+}: {
+  tab: TabletTab;
+  accessToken: string;
+  money: (v: string | number) => string;
+  onClose: () => void;
+  onReported: () => void;
+}) {
+  const [step, setStep] = useState<'method' | 'data' | 'reference'>('method');
+  const [method, setMethod] = useState<TabletPayMethod | null>(null);
+  // Prellenado con todo el saldo; se puede bajar para dividir la cuenta entre
+  // varios, cada quien con su propia referencia.
+  const [amount, setAmount] = useState(tab.balanceBase);
+  const [reference, setReference] = useState('');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const maxBase = Math.max(0, Number(tab.balanceBase) - Number(tab.pendingBase));
+  const rate = Number(tab.balanceBs) / Math.max(0.01, Number(tab.balanceBase));
+
+  async function submit() {
+    const n = Number(amount);
+    if (!n || n <= 0) return setError('Escribe cuánto pagaste.');
+    if (n > maxBase + 0.01) return setError(`No puede superar lo que falta (${money(maxBase)}).`);
+    setSending(true);
+    setError(null);
+    try {
+      await onReportedSubmit(n);
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo registrar el pago.');
+      setSending(false);
+    }
+  }
+
+  async function onReportedSubmit(n: number) {
+    await clubTabletApi.reportPayment({
+      accessToken,
+      payeeId: tab.payeeId,
+      amountBase: n,
+      method: method!.method,
+      referenceNumber: reference.trim() || null,
+    });
+    onReported();
+  }
+
+  const fields = method ? PAY_FIELD_LABELS.filter(([f]) => method[f]) : [];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-950/70 p-6 backdrop-blur-sm">
+      <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-lg font-bold text-brand-950">Pagar a {tab.name}</p>
+            <p className="text-[13px] font-light text-brand-950/50">
+              {money(tab.balanceBase)} · {formatBsAbsolute(tab.balanceBs)}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="shrink-0 rounded-full bg-brand-950/[0.06] p-2 text-brand-950/50 hover:text-brand-950"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {step === 'method' && (
+          <div className="mt-5">
+            <p className="text-[13px] font-medium text-brand-950/70">¿Cómo vas a pagar?</p>
+            <div className="mt-2 space-y-2">
+              {tab.methods.map((m) => (
+                <button
+                  key={m.method}
+                  onClick={() => {
+                    setMethod(m);
+                    setStep('data');
+                  }}
+                  className="flex w-full items-center justify-between gap-3 rounded-2xl border border-brand-950/10 px-4 py-3.5 text-left transition-colors hover:border-brand-500 hover:bg-brand-500/[0.04]"
+                >
+                  <span className="text-base font-bold text-brand-950">
+                    {PAY_METHOD_LABELS[m.method] ?? m.method}
+                  </span>
+                  {m.qrImageUrl && <QrCode className="h-4 w-4 shrink-0 text-brand-500" />}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {step === 'data' && method && (
+          <div className="mt-5">
+            <p className="text-[13px] font-medium text-brand-950/70">
+              Transfiere {formatBsAbsolute(tab.balanceBs)} por {PAY_METHOD_LABELS[method.method] ?? method.method}
+            </p>
+
+            {method.qrImageUrl && (
+              <img
+                src={method.qrImageUrl}
+                alt={`QR de ${tab.name}`}
+                className="mx-auto mt-3 h-52 w-52 rounded-2xl border border-brand-950/10 object-contain"
+              />
+            )}
+
+            {fields.length > 0 && (
+              <div className="mt-3 space-y-1 rounded-2xl bg-brand-950/[0.04] px-4 py-3">
                 {fields.map(([f, label]) => (
-                  <p key={f} className="text-[12px] font-light leading-snug text-brand-950/60">
-                    <span className="text-brand-950/40">{label}:</span> {String(m[f])}
+                  <p key={f} className="text-sm font-light text-brand-950/70">
+                    <span className="text-brand-950/40">{label}:</span>{' '}
+                    <span className="font-semibold text-brand-950">{String(method[f])}</span>
                   </p>
                 ))}
               </div>
-            );
-          })}
-        </div>
-      )}
+            )}
+
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => setStep('method')}
+                className="rounded-full bg-brand-950/[0.06] px-5 py-3 text-sm font-semibold text-brand-950/60"
+              >
+                Atrás
+              </button>
+              <button
+                onClick={() => setStep('reference')}
+                className="flex-1 rounded-full bg-brand-500 py-3 text-base font-bold text-white transition-transform active:scale-[0.97]"
+              >
+                Listo, ya transferí
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === 'reference' && method && (
+          <div className="mt-5">
+            <label className="block">
+              <span className="text-[13px] font-medium text-brand-950/70">Número de referencia</span>
+              <input
+                autoFocus
+                value={reference}
+                onChange={(e) => setReference(e.target.value)}
+                placeholder="Los últimos dígitos bastan"
+                className="mt-1 w-full rounded-xl border border-brand-950/15 px-4 py-3 text-lg focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+              />
+            </label>
+
+            <label className="mt-3 block">
+              <span className="text-[13px] font-medium text-brand-950/70">¿Cuánto pagaste?</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="mt-1 w-full rounded-xl border border-brand-950/15 px-4 py-3 text-lg tabular-nums focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+              />
+              <span className="mt-1 block text-[12px] font-light text-brand-950/45">
+                {Number(amount) > 0 && `≈ ${formatBsAbsolute(Number(amount) * rate)} · `}
+                Si están dividiendo la cuenta, pon solo tu parte.
+              </span>
+            </label>
+
+            {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+
+            <div className="mt-5 flex gap-2">
+              <button
+                onClick={() => setStep('data')}
+                className="rounded-full bg-brand-950/[0.06] px-5 py-3 text-sm font-semibold text-brand-950/60"
+              >
+                Atrás
+              </button>
+              <button
+                onClick={submit}
+                disabled={sending}
+                className="flex-1 rounded-full bg-brand-500 py-3 text-base font-bold text-white transition-transform active:scale-[0.97] disabled:opacity-50"
+              >
+                {sending ? 'Enviando…' : 'Listo'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
