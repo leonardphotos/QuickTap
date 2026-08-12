@@ -52,18 +52,26 @@ export default function AcademyTodayTab({
   return (
     <div className="flex flex-col gap-5">
       <div className="grid grid-cols-2 gap-3">
-        <div className={`${card} p-4`}>
+        <button
+          type="button"
+          onClick={() => onOpen({ kind: 'activeStudents' })}
+          className={`${card} p-4 text-left transition-colors hover:border-brand-400`}
+        >
           <p className="text-[22px] font-bold leading-tight text-brand-950">{data.activeStudents}</p>
           <p className="text-[13px] font-semibold text-brand-950/70">Alumnos activos</p>
           <p className="text-[11px] font-light text-brand-950/40">{data.activeGroups} grupos</p>
-        </div>
-        <div className={`${card} p-4`}>
+        </button>
+        <button
+          type="button"
+          onClick={() => onOpen({ kind: 'pendingCharges' })}
+          className={`${card} p-4 text-left transition-colors hover:border-amber-300`}
+        >
           <p className="text-[22px] font-bold leading-tight text-brand-950">
             {formatBase(data.pendingCharges.amountBase, symbol)}
           </p>
           <p className="text-[13px] font-semibold text-brand-950/70">Por cobrar</p>
           <p className="text-[11px] font-light text-brand-950/40">{data.pendingCharges.count} mensualidad(es)</p>
-        </div>
+        </button>
       </div>
 
       {data.needsCourt > 0 && (

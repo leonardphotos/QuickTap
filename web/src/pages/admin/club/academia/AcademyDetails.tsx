@@ -4,7 +4,7 @@ import { formatBase } from '@/utils/format';
 import { levelLabel, levelRangeLabel } from '@/utils/padelLevel';
 import { TextureButton } from '@/components/ui/texture-button';
 import DetailSheet, { EmptyNote, ItemRow, PayBadge, Row, Section, type PayState } from '../DetailSheet';
-import { PAY_TYPE_LABELS, SESSION_STATUS_LABELS, WEEKDAY_SHORT } from './academyApi';
+import { academyApi, PAY_TYPE_LABELS, SESSION_STATUS_LABELS, WEEKDAY_SHORT, type Student } from './academyApi';
 
 const fmtDateTime = (iso: string | Date) =>
   new Date(iso).toLocaleString('es-VE', { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false });
@@ -25,7 +25,11 @@ export type DetailTarget =
   | { kind: 'group'; id: string }
   | { kind: 'program'; id: string }
   | { kind: 'student'; id: string }
-  | { kind: 'coach'; id: string };
+  | { kind: 'coach'; id: string }
+  // Estas dos no tienen id: son las casillas del resumen ("14 alumnos activos",
+  // "$250 por cobrar"), que abren una LISTA en vez de una ficha sola.
+  | { kind: 'activeStudents' }
+  | { kind: 'pendingCharges' };
 
 function useDetail<T>(url: string | null) {
   const [data, setData] = useState<T | null>(null);
@@ -61,7 +65,251 @@ export function AcademyDetail({
   if (target.kind === 'group') return <GroupDetail id={target.id} symbol={symbol} onClose={onClose} onNavigate={onNavigate} />;
   if (target.kind === 'program') return <ProgramDetail id={target.id} symbol={symbol} onClose={onClose} onNavigate={onNavigate} />;
   if (target.kind === 'coach') return <CoachDetail id={target.id} symbol={symbol} onClose={onClose} onNavigate={onNavigate} />;
+  if (target.kind === 'activeStudents') return <ActiveStudentsList onClose={onClose} onNavigate={onNavigate} />;
+  if (target.kind === 'pendingCharges') return <PendingChargesList symbol={symbol} onClose={onClose} onNavigate={onNavigate} />;
   return <StudentDetail id={target.id} symbol={symbol} onClose={onClose} onNavigate={onNavigate} />;
+}
+
+// --------------------------------------------------------- Alumnos activos
+/** Abre desde la casilla "N alumnos activos" del resumen. Lista simple: cada
+ *  fila lleva a la ficha completa del alumno (ahí sí se ve su historial de
+ *  pagos, asistencia y lotes). */
+function ActiveStudentsList({ onClose, onNavigate }: { onClose: () => void; onNavigate: (t: DetailTarget) => void }) {
+  const [students, setStudents] = useState<Student[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    academyApi
+      .listStudents({ active: 'true' })
+      .then(setStudents)
+      .catch(() => setError('No pudimos cargar los alumnos.'));
+  }, []);
+
+  return (
+    <DetailSheet open title="Alumnos activos" subtitle={students ? `${students.length} en total` : undefined} onClose={onClose}>
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {!students && !error && <EmptyNote>Cargando…</EmptyNote>}
+      {students && students.length === 0 && <EmptyNote>No hay alumnos activos.</EmptyNote>}
+      {students && students.length > 0 && (
+        <div className="divide-y divide-brand-950/[0.06]">
+          {students.map((s) => (
+            <ItemRow
+              key={s.id}
+              onClick={() => onNavigate({ kind: 'student', id: s.id })}
+              title={s.customer.name}
+              subtitle={
+                <>
+                  {s.customer.phone}
+                  {s.level && ` · ${Number(s.level).toFixed(1)} ${levelLabel(s.level) ?? ''}`}
+                  {s.enrollments.length > 0 && ` · ${s.enrollments.map((e) => e.group.name).join(', ')}`}
+                </>
+              }
+              right={
+                s.creditBalance > 0 ? (
+                  <span className="shrink-0 text-[12px] font-bold text-brand-950">{s.creditBalance} fichas</span>
+                ) : undefined
+              }
+            />
+          ))}
+        </div>
+      )}
+    </DetailSheet>
+  );
+}
+
+// -------------------------------------------------------------- Por cobrar
+interface PendingCharge {
+  id: string;
+  periodYear: number;
+  periodMonth: number;
+  amountBase: string;
+  status: 'PENDING' | 'PAID' | 'WAIVED' | 'OVERDUE';
+  enrollment: {
+    studentId: string;
+    student: { customer: { name: string; phone: string } };
+    group: { name: string };
+  };
+  payments: { amountBase: string }[];
+}
+
+/**
+ * Abre desde la casilla "$X por cobrar" del resumen. A diferencia de las demás
+ * fichas, ESTA deja actuar: cada fila tiene un botón "Cobrar" que registra el
+ * pago ahí mismo, sin tener que ir a buscar al alumno en otra pestaña.
+ */
+function PendingChargesList({ symbol, onClose, onNavigate }: { symbol: string; onClose: () => void; onNavigate: (t: DetailTarget) => void }) {
+  const [charges, setCharges] = useState<PendingCharge[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [collecting, setCollecting] = useState<PendingCharge | null>(null);
+
+  function load() {
+    academyApi
+      .listCharges({})
+      .then((all: PendingCharge[]) => setCharges(all.filter((c) => c.status === 'PENDING' || c.status === 'OVERDUE')))
+      .catch(() => setError('No pudimos cargar los cobros.'));
+  }
+  useEffect(load, []);
+
+  const total = charges?.reduce((acc, c) => acc + Number(c.amountBase), 0) ?? 0;
+
+  return (
+    <DetailSheet
+      open
+      title="Por cobrar"
+      subtitle={charges ? `${charges.length} mensualidad(es) · ${formatBase(total, symbol)}` : undefined}
+      onClose={onClose}
+    >
+      {error && <p className="text-sm text-red-600">{error}</p>}
+      {!charges && !error && <EmptyNote>Cargando…</EmptyNote>}
+      {charges && charges.length === 0 && <EmptyNote>Nadie debe mensualidad. Bien.</EmptyNote>}
+      {charges && charges.length > 0 && (
+        <div className="divide-y divide-brand-950/[0.06]">
+          {charges.map((c) => {
+            const paid = c.payments.reduce((acc, p) => acc + Number(p.amountBase), 0);
+            const balance = Number(c.amountBase) - paid;
+            return (
+              <div key={c.id} className="flex items-center gap-2 py-2.5">
+                <button
+                  type="button"
+                  onClick={() => onNavigate({ kind: 'student', id: c.enrollment.studentId })}
+                  className="-mx-2 min-w-0 flex-1 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-brand-950/[0.03]"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span className="truncate text-[14px] font-semibold text-brand-950">{c.enrollment.student.customer.name}</span>
+                    {c.status === 'OVERDUE' && <PayBadge state="OVERDUE" label="Vencida" />}
+                  </span>
+                  <span className="block truncate text-[12px] font-light text-brand-950/50">
+                    {c.enrollment.group.name} · {String(c.periodMonth).padStart(2, '0')}/{c.periodYear}
+                    {paid > 0 && ` · abonó ${formatBase(paid, symbol)}`}
+                  </span>
+                </button>
+                <div className="shrink-0 text-right">
+                  <p className="text-[13px] font-bold text-brand-950">{formatBase(balance, symbol)}</p>
+                  <TextureButton variant="minimal" size="sm" className="!w-auto !min-h-0 !py-1" onClick={() => setCollecting(c)}>
+                    Cobrar
+                  </TextureButton>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {collecting && (
+        <CollectChargeDialog
+          charge={collecting}
+          balance={Number(collecting.amountBase) - collecting.payments.reduce((a, p) => a + Number(p.amountBase), 0)}
+          symbol={symbol}
+          onClose={() => setCollecting(null)}
+          onCollected={() => {
+            setCollecting(null);
+            load();
+          }}
+        />
+      )}
+    </DetailSheet>
+  );
+}
+
+const CHARGE_METHODS = [
+  { value: 'CASH_USD', label: 'Efectivo $' },
+  { value: 'CASH', label: 'Efectivo Bs' },
+  { value: 'MOBILE_PAYMENT', label: 'Pago Móvil' },
+  { value: 'TRANSFER', label: 'Transferencia' },
+  { value: 'ZELLE', label: 'Zelle' },
+  { value: 'CARD', label: 'Punto de venta' },
+  { value: 'BINANCE', label: 'Binance' },
+  { value: 'PAYPAL', label: 'PayPal' },
+] as const;
+
+/** Cobrar una mensualidad sin salir de la lista. Mismo criterio que el resto del
+ *  vertical: referencia + método, sin pasarela — el club aprueba a mano. */
+function CollectChargeDialog({
+  charge,
+  balance,
+  symbol,
+  onClose,
+  onCollected,
+}: {
+  charge: PendingCharge;
+  balance: number;
+  symbol: string;
+  onClose: () => void;
+  onCollected: () => void;
+}) {
+  const [amount, setAmount] = useState(String(balance.toFixed(2)));
+  const [method, setMethod] = useState<(typeof CHARGE_METHODS)[number]['value']>('CASH_USD');
+  const [reference, setReference] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit() {
+    const n = Number(amount);
+    if (!n || n <= 0) return setError('Escribe un monto mayor a 0.');
+    setSaving(true);
+    setError(null);
+    try {
+      await academyApi.recordPayment({
+        studentId: charge.enrollment.studentId,
+        kind: 'MONTHLY',
+        chargeId: charge.id,
+        amountBase: n,
+        method,
+        referenceNumber: reference.trim() || null,
+      });
+      onCollected();
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      setError(e.response?.data?.error ?? 'No se pudo registrar el cobro.');
+      setSaving(false);
+    }
+  }
+
+  return (
+    <DetailSheet open title={`Cobrar a ${charge.enrollment.student.customer.name}`} subtitle={charge.enrollment.group.name} onClose={onClose}>
+      <div className="space-y-3">
+        <label className="block">
+          <span className="mb-1 block text-[13px] font-medium text-brand-950/70">Monto ({symbol})</span>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+          />
+          <span className="mt-1 block text-[11px] font-light text-brand-950/40">Saldo pendiente: {formatBase(balance, symbol)}</span>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-[13px] font-medium text-brand-950/70">Cómo pagó</span>
+          <select
+            value={method}
+            onChange={(e) => setMethod(e.target.value as typeof method)}
+            className="w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+          >
+            {CHARGE_METHODS.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="block">
+          <span className="mb-1 block text-[13px] font-medium text-brand-950/70">Referencia</span>
+          <input
+            value={reference}
+            onChange={(e) => setReference(e.target.value)}
+            placeholder="Opcional"
+            className="w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+          />
+        </label>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <TextureButton variant="brand" size="default" disabled={saving} className="disabled:opacity-50" onClick={submit}>
+          {saving ? 'Registrando…' : `Cobrar ${formatBase(amount || '0', symbol)}`}
+        </TextureButton>
+      </div>
+    </DetailSheet>
+  );
 }
 
 // ------------------------------------------------------------------- Clase

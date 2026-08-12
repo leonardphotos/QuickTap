@@ -33,12 +33,12 @@ const SLUG = process.env.CLUB_DEMO_SLUG ?? 'demo-canchas';
 const RATE = 40; // Bs por $ — solo para congelar montos de demo.
 
 const NAMES = [
-  'Carlos Rondón', 'María Fernández', 'José361 Pérez', 'Ana Villalba', 'Luis Contreras',
+  'Carlos Rondón', 'María Fernández', 'José Pérez', 'Ana Villalba', 'Luis Contreras',
   'Gabriela Ríos', 'Andrés Mendoza', 'Valentina Sosa', 'Ricardo Álvarez', 'Daniela Castro',
   'Miguel Herrera', 'Patricia León', 'Jorge Silva', 'Camila Duarte', 'Rafael Moreno',
   'Isabella Nieves', 'Óscar Blanco', 'Adriana Peña', 'Felipe Guerrero', 'Lucía Marcano',
   'Tomás Bracho', 'Renata Salas', 'Iván Padrón', 'Sofía Gil', 'Emilio Navarro',
-].map((n) => n.replace(' 361', ''));
+];
 
 const ALL_METHODS: PaymentMethod[] = [
   'CASH', 'CASH_USD', 'MOBILE_PAYMENT', 'ZELLE', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER',
