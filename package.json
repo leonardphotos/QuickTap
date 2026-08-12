@@ -16,7 +16,8 @@
     "seed:shop-demo": "ts-node prisma/seed-shop-demo.ts",
     "seed:club-demo": "ts-node prisma/seed-club-demo.ts",
     "lint": "eslint \"src/**/*.ts\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "seed:club-activity": "ts-node prisma/seed-club-activity.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
