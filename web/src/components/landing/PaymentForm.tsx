@@ -77,7 +77,9 @@ export function PaymentForm({
   prefillEmail,
   renderSuccess,
 }: Props) {
-  const planName = PLAN_CONTENT.find((p) => p.id === selected.plan)?.name ?? 'Plan Personalizado';
+  // SHOP no vive en PLAN_CONTENT (esa lista es solo de Restaurante, para no mezclarse con las
+  // 3 tarjetas de PlanCards) — se nombra aparte, igual que en ShopPlanCard.
+  const planName = PLAN_CONTENT.find((p) => p.id === selected.plan)?.name ?? (selected.plan === 'SHOP' ? 'QuickTap Shop' : 'Plan Personalizado');
   const { copy, toastMessage } = useCopyToast();
   const [methods, setMethods] = useState<PlatformPaymentMethods>({});
   const [method, setMethod] = useState<SubscriptionPaymentMethod>('PAGO_MOVIL');

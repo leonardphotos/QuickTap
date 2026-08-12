@@ -62,7 +62,7 @@ export function PricingSection() {
       </div>
 
       {isShop ? (
-        <ShopPlanCard rateBs={rateBs} />
+        <ShopPlanCard rateBs={rateBs} billingCycle={billingCycle} onBillingCycleChange={setBillingCycle} onChoosePlan={choosePlan} />
       ) : (
         <PlanCards rateBs={rateBs} billingCycle={billingCycle} onBillingCycleChange={setBillingCycle} onChoosePlan={choosePlan} />
       )}

@@ -1,7 +1,9 @@
 import { useState } from 'react';
-import { Home, Receipt, Boxes, Users, Settings, FileText, Landmark, ShoppingBag } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Home, Receipt, Boxes, Users, Settings, FileText, Landmark, ShoppingBag, CreditCard } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getShopRubro } from '@/data/shopRubros';
+import { daysRemaining, graceHoursRemaining } from '@/utils/subscription';
 import { TextureButton } from '@/components/ui/texture-button';
 import { QuoteManager } from '@/components/admin/QuoteManager';
 import { useShopSession } from './shopSession';
@@ -12,15 +14,17 @@ import ShopInventoryPage from './ShopInventoryPage';
 import ShopCustomersPage from './ShopCustomersPage';
 import ShopSettingsPage from './ShopSettingsPage';
 import ShopReceivablesPage from './ShopReceivablesPage';
+import ShopBillingPage from './ShopBillingPage';
 
-export type ShopScreen = 'admin' | 'venta' | 'pedidos' | 'inventario' | 'clientes' | 'ajustes' | 'cotizaciones' | 'cuentas';
+export type ShopScreen = 'admin' | 'venta' | 'pedidos' | 'inventario' | 'clientes' | 'ajustes' | 'cotizaciones' | 'cuentas' | 'factura';
 
-// Cotizaciones y Cuentas por Cobrar no van en el dock flotante de celular (ya tiene 5 iconos,
-// uno más lo dejaría apretado) — se llega a ellas desde los accesos de Inicio (ShopDashboardPage)
-// y, en escritorio, desde estos dos botones extra en la cabecera.
+// Cotizaciones, Cuentas por Cobrar y Facturación no van en el dock flotante de celular (ya tiene
+// 5 iconos, más lo dejaría apretado) — se llega a ellas desde los accesos de Inicio
+// (ShopDashboardPage), el aviso de vencimiento de abajo y, en escritorio, estos botones extra.
 const MORE_TABS: { id: ShopScreen; label: string; icon: typeof FileText }[] = [
   { id: 'cotizaciones', label: 'Cotizaciones', icon: FileText },
   { id: 'cuentas', label: 'Cuentas por Cobrar', icon: Landmark },
+  { id: 'factura', label: 'Facturación', icon: CreditCard },
 ];
 
 function getTabs(rubroId: string | undefined): { id: ShopScreen; label: string; icon: typeof Home }[] {
@@ -47,7 +51,12 @@ function getTabs(rubroId: string | undefined): { id: ShopScreen; label: string; 
  */
 export default function ShopLayout() {
   const { user, restaurant, logout } = useAuth();
-  const [screen, setScreen] = useState<ShopScreen>('venta');
+  const [searchParams] = useSearchParams();
+  // Entrada desde "Elegir plan" de la landing seguido de registro (?plan=SHOP&cycle=Y, o de
+  // vuelta del checkout de Ramblay): arranca directo en Facturación en vez de Venta.
+  const [screen, setScreen] = useState<ShopScreen>(() =>
+    searchParams.get('plan') === 'SHOP' || searchParams.get('ramblay') === 'success' ? 'factura' : 'venta',
+  );
   const rubro = getShopRubro(restaurant?.shopRubro);
   const session = useShopSession(rubro?.categories ?? []);
   const tabs = getTabs(rubro?.id);
@@ -79,9 +88,24 @@ export default function ShopLayout() {
   }
 
   const canSeeMoney = user.role === 'OWNER' || user.role === 'ADMIN';
+  const daysLeft = daysRemaining(restaurant.periodEnd);
+  const graceHours = graceHoursRemaining(restaurant.periodEnd);
+  const showExpirationWarning = daysLeft <= 3;
 
   return (
     <div className="min-h-screen bg-[#fafafa]">
+      {showExpirationWarning && (
+        <button
+          type="button"
+          onClick={() => setScreen('factura')}
+          className="block w-full bg-amber-400 text-amber-950 text-sm font-medium text-center py-2 px-4 hover:bg-amber-300 transition-colors"
+        >
+          {graceHours !== null
+            ? `Hoy vence tu plan. Tienes ${graceHours}h para pagar antes de que se bloquee tu cuenta.`
+            : `En ${daysLeft} día${daysLeft === 1 ? '' : 's'} vence tu plan. Actívalo aquí.`}
+        </button>
+      )}
+
       <div className="sticky top-0 z-20 bg-white text-brand-950 pt-[env(safe-area-inset-top)] border-b border-brand-950/[0.06]">
         <div className="max-w-7xl mx-auto px-5 sm:px-6 h-14 flex items-center justify-between gap-3">
           <div className="flex items-center gap-1.5 min-w-0">
@@ -124,6 +148,7 @@ export default function ShopLayout() {
         {screen === 'inventario' && <ShopInventoryPage session={session} rubro={rubro} restaurant={restaurant} />}
         {screen === 'clientes' && <ShopCustomersPage session={session} restaurant={restaurant} />}
         {screen === 'ajustes' && <ShopSettingsPage onBack={() => setScreen('admin')} session={session} />}
+        {screen === 'factura' && <ShopBillingPage restaurant={restaurant} onDone={() => setScreen('admin')} />}
         {screen === 'cotizaciones' && <QuoteManager />}
         {screen === 'cuentas' && <ShopReceivablesPage />}
       </main>

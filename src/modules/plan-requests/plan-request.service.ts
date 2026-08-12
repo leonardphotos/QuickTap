@@ -72,22 +72,33 @@ function buildPaymentNotReceivedMessage(): string {
   ].join('\n\n');
 }
 
-export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE';
+export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP';
 
 /**
  * Precios fijos por plan y ciclo de facturación (USD/mes). Única fuente de
  * verdad de respaldo: el precio que llega del cliente NUNCA se usa, siempre
  * se recalcula aquí (o desde platform_settings.planContent, ver resolvePrice)
- * para evitar manipulación. Tres planes vigentes: Delivery, Pro y Elite, los
- * tres con sucursales ILIMITADAS (ver allowsBranches/maxBranchesFor en
- * src/utils/subscription.ts) — SUCURSALES y DELIVERY_SUCURSALES quedaron como
- * planes legados, ya no se ofrecen a clientes nuevos pero se mantienen en el
- * enum/PLAN_LABELS por los restaurantes que ya los tienen activos.
+ * para evitar manipulación. Tres planes vigentes de Restaurante: Delivery, Pro
+ * y Elite, los tres con sucursales ILIMITADAS (ver allowsBranches/maxBranchesFor
+ * en src/utils/subscription.ts) — SUCURSALES y DELIVERY_SUCURSALES quedaron
+ * como planes legados, ya no se ofrecen a clientes nuevos pero se mantienen en
+ * el enum/PLAN_LABELS por los restaurantes que ya los tienen activos. SHOP es
+ * el único plan del vertical Locales Comerciales (ver businessType SHOP).
  */
 const FIXED_PLAN_PRICES: Record<PurchasablePlan, Record<BillingCycle, number>> = {
   DELIVERY: { MONTHLY: 24.99, QUARTERLY: 22.74, SEMIANNUAL: 20.49 },
   PRO: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99 },
   ELITE: { MONTHLY: 39.99, QUARTERLY: 35.49, SEMIANNUAL: 30.99 },
+  SHOP: { MONTHLY: 20, QUARTERLY: 18, SEMIANNUAL: 16 },
+};
+
+/** A qué businessType le corresponde cada plan comprable — un local no puede pedir un plan de
+ * restaurante ni viceversa, aunque adivine el nombre del plan (ver resolvePrice). */
+const BUSINESS_TYPE_FOR_PLAN: Record<PurchasablePlan, 'RESTAURANT' | 'SHOP'> = {
+  DELIVERY: 'RESTAURANT',
+  PRO: 'RESTAURANT',
+  ELITE: 'RESTAURANT',
+  SHOP: 'SHOP',
 };
 
 export interface CustomAddons {
@@ -176,9 +187,15 @@ async function resolvePrice(
   const restaurant = restaurantId
     ? await prisma.restaurant.findUnique({
         where: { id: restaurantId },
-        select: { customMonthlyPriceUsd: true },
+        select: { customMonthlyPriceUsd: true, businessType: true },
       })
     : null;
+
+  // Un local no puede pedir un plan de restaurante ni viceversa — cada vertical solo se le
+  // ofrece el suyo en la UI, esto es la segunda barrera por si se arma la petición a mano.
+  if (restaurant && restaurant.businessType !== BUSINESS_TYPE_FOR_PLAN[plan]) {
+    throw badRequest('Ese plan no aplica para este tipo de negocio.');
+  }
 
   // Fuente de verdad real: lo editado desde el Dashboard maestro (platform_settings.planContent),
   // con FIXED_PLAN_PRICES como respaldo si por lo que sea la fila no tuviera nada cargado aún.

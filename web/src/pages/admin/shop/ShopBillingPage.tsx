@@ -1,23 +1,23 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { api, getToken } from '@/api/client';
-import { useAuth } from '../../context/AuthContext';
-import { FIXED_PLAN_PRICES, type BillingCycle, type PurchasablePlan } from '@/utils/plans';
-import { PlanCards } from '@/components/landing/PlanCards';
+import type { AuthRestaurant } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext';
+import { FIXED_PLAN_PRICES, type BillingCycle } from '@/utils/plans';
+import { ShopPlanCard } from '@/components/landing/ShopPlanCard';
 import { ChargeBreakdown } from '@/components/landing/ChargeBreakdown';
 import { PaymentForm, type SelectedPlan } from '@/components/landing/PaymentForm';
 import { TextureButton } from '@/components/ui/texture-button';
 
-// Los 3 planes de Restaurante — Locales Comerciales tiene su propio flujo de facturación,
-// ver web/src/pages/admin/shop/ShopBillingPage.tsx (AdminLayout desvía businessType SHOP
-// a ShopLayout antes de llegar acá, así que esta página nunca la ve un local).
-type ChoosablePlan = PurchasablePlan;
-const VALID_PLANS: ChoosablePlan[] = ['DELIVERY', 'PRO', 'ELITE'];
-
-/** Activar el plan (fin de la prueba) o pagar la mensualidad, ya autenticado. */
-export default function BillingPage() {
-  const { user, restaurant, refresh } = useAuth();
-  const navigate = useNavigate();
+/**
+ * Activar/renovar el único plan de Locales Comerciales (QuickTap Shop), ya autenticado — mismo
+ * flujo que BillingPage (Restaurante), pero con la tarjeta de un solo plan (ver ShopPlanCard) en
+ * vez de las 3 de PlanCards. El precio y su conversión a Bs (tasa BCV del día) salen de
+ * ShopPlanCard, que a su vez los trae de /public/plans → DEFAULT_PLAN_CONTENT.SHOP, editable
+ * desde el Dashboard maestro → Planes.
+ */
+export default function ShopBillingPage({ restaurant, onDone }: { restaurant: AuthRestaurant; onDone: () => void }) {
+  const { user, refresh } = useAuth();
   const [searchParams] = useSearchParams();
   const [rateBs, setRateBs] = useState<string | null>(null);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('MONTHLY');
@@ -31,37 +31,33 @@ export default function BillingPage() {
   }, []);
 
   // Vuelta desde el checkout hospedado de Ramblay (ver plan-request.service.ts,
-  // createRamblayCheckout): refresca el restaurante para traer el plan recién
-  // activado (si el webhook ya llegó) y vuelve al panel — si `pendingWelcomePlan`
-  // quedó seteado, AdminLayout redirige solo a la bienvenida.
+  // createRamblayCheckout): refresca el local para traer el plan recién activado (si el
+  // webhook ya llegó). Sin ruta propia a la que volver (ShopLayout no navega por URL), así
+  // que solo limpia los parámetros de la URL para no repetir el refresh si se recarga.
   useEffect(() => {
     if (searchParams.get('ramblay') !== 'success') return;
-    refresh().then(() => navigate('/admin', { replace: true }));
+    refresh().then(() => window.history.replaceState({}, '', window.location.pathname));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function choosePlan(plan: ChoosablePlan, cycle: BillingCycle = billingCycle) {
-    setSelected({ plan, billingCycle: cycle, priceUsd: FIXED_PLAN_PRICES[plan][cycle] });
+  function choosePlan(cycle: BillingCycle = billingCycle) {
+    setSelected({ plan: 'SHOP', billingCycle: cycle, priceUsd: FIXED_PLAN_PRICES.SHOP[cycle] });
     requestAnimationFrame(() => {
       document.getElementById('billing-payment')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   }
 
-  // Entrada desde "Elegir plan" de la landing seguido de registro (?plan=X&cycle=Y):
-  // pre-selecciona el plan y muestra el formulario de pago directamente.
+  // Entrada desde "Elegir plan" de la landing seguido de registro (?plan=SHOP&cycle=Y):
+  // pre-selecciona el ciclo y muestra el formulario de pago directamente.
   useEffect(() => {
-    const planParam = searchParams.get('plan');
-    if (!planParam || !VALID_PLANS.includes(planParam as ChoosablePlan)) return;
-    const plan = planParam as ChoosablePlan;
+    if (searchParams.get('plan') !== 'SHOP') return;
     const cycleParam = searchParams.get('cycle');
     const cycle: BillingCycle =
       cycleParam === 'QUARTERLY' || cycleParam === 'SEMIANNUAL' ? cycleParam : 'MONTHLY';
     setBillingCycle(cycle);
-    choosePlan(plan, cycle);
+    choosePlan(cycle);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  if (!restaurant) return null;
 
   return (
     <div className="space-y-8 max-w-5xl">
@@ -71,16 +67,16 @@ export default function BillingPage() {
         </h1>
         <p className="text-sm text-brand-950/60 font-light mt-1">
           {restaurant.subscriptionStatus === 'TRIALING'
-            ? 'Elige el plan que se ajuste a tu restaurante para seguir usando QuickTap cuando termine la prueba.'
-            : 'Elige tu plan, paga y escribe el número de referencia. Activaremos tu cuenta en cuanto lo confirmemos.'}
+            ? 'Activa QuickTap Shop para seguir usándolo cuando termine la prueba.'
+            : 'Paga tu mensualidad y escribe el número de referencia. Activaremos tu cuenta en cuanto lo confirmemos.'}
         </p>
       </div>
 
-      <PlanCards rateBs={rateBs} billingCycle={billingCycle} onBillingCycleChange={setBillingCycle} onChoosePlan={choosePlan} />
+      <ShopPlanCard rateBs={rateBs} billingCycle={billingCycle} onBillingCycleChange={setBillingCycle} onChoosePlan={() => choosePlan()} />
 
       {selected && (
         <div id="billing-payment" className="scroll-mt-24 space-y-4">
-          <ChargeBreakdown plan={selected.plan as ChoosablePlan} billingCycle={selected.billingCycle} />
+          <ChargeBreakdown plan="SHOP" billingCycle={selected.billingCycle} />
           <PaymentForm
             selected={selected}
             rateBs={rateBs}
@@ -99,7 +95,7 @@ export default function BillingPage() {
                   className="mt-5 !w-auto"
                   onClick={() => {
                     refresh();
-                    navigate('/admin');
+                    onDone();
                   }}
                 >
                   Volver al panel

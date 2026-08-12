@@ -1,12 +1,12 @@
 import { z } from 'zod';
 
 export const createPlanRequestSchema = z.object({
-  // Tres planes vigentes: Delivery ($14.99), Pro ($19.99, más popular) y
-  // Elite ($29.99, todos los beneficios de Pro + soporte prioritario). Los
-  // tres incluyen sucursales ilimitadas. SUCURSALES/DELIVERY_SUCURSALES son
-  // planes legados — ya no se ofrecen por este flujo (solo el master puede
-  // reactivar/extenderlos, ver activateRestaurantSchema).
-  plan: z.enum(['DELIVERY', 'PRO', 'ELITE']),
+  // Tres planes vigentes de Restaurante: Delivery, Pro (más popular) y Elite,
+  // los tres con sucursales ilimitadas. SHOP es el único plan del vertical
+  // Locales Comerciales. SUCURSALES/DELIVERY_SUCURSALES son planes legados —
+  // ya no se ofrecen por este flujo (solo el master puede reactivar/
+  // extenderlos, ver activateRestaurantSchema).
+  plan: z.enum(['DELIVERY', 'PRO', 'ELITE', 'SHOP']),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL']),
   paymentMethod: z.enum(['PAGO_MOVIL', 'BINANCE', 'BANK_TRANSFER']),
   // Número de referencia de la transferencia/pago móvil/Binance (reemplaza
@@ -100,7 +100,7 @@ export type ActivateRestaurantInput = z.infer<typeof activateRestaurantSchema>;
 
 // GET /plan-requests/quote — desglose (mensualidad + cargos adicionales) antes de cobrar.
 export const quoteQuerySchema = z.object({
-  plan: z.enum(['DELIVERY', 'PRO', 'ELITE']),
+  plan: z.enum(['DELIVERY', 'PRO', 'ELITE', 'SHOP']),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL']),
   promoCode: z.string().max(40).optional(),
 });

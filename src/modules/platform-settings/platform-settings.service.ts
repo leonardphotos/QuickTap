@@ -57,7 +57,7 @@ export function renderTemplate(template: string, vars: Record<string, string>): 
     .trim();
 }
 
-export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE';
+export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP';
 export type PlanBillingCycle = 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL';
 
 export interface PlanContentEntry {
@@ -132,6 +132,22 @@ export const DEFAULT_PLAN_CONTENT: PlanContent = {
       ...CHATBOT_FEATURES,
     ],
     prices: { MONTHLY: 39.99, QUARTERLY: 35.49, SEMIANNUAL: 30.99 },
+  },
+  SHOP: {
+    name: 'QuickTap Shop',
+    subtitle: 'Todos los beneficios de QuickTap para tiendas, ropa, calzado, ferreterías, farmacias y más',
+    capacity: 'Un solo plan, con todo incluido',
+    features: [
+      'Punto Pago: sube tu QR de Pago Móvil una sola vez y cóbralo con el monto en Bs y la tasa del día en una sola pantalla',
+      'Inventario con foto obligatoria, variantes de talla/color o stock básico',
+      'Punto de venta con escaneo por cámara o lector, y carrito flotante con el total en $ y Bs',
+      'Acepta Efectivo Bs/$, Pago Móvil, Zelle, Binance y ventas fiadas (completas o con abono)',
+      'Caja: apertura, cierre y arqueo con historial de informes',
+      'Ingresos por método de pago, margen de utilidad y productos más vendidos',
+      'Alertas de stock bajo y productos próximos a vencer',
+      'Directorio de clientes y roles de equipo (Dueño, Administrador, Cajero)',
+    ],
+    prices: { MONTHLY: 20, QUARTERLY: 18, SEMIANNUAL: 16 },
   },
 };
 

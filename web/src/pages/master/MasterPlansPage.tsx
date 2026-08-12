@@ -14,7 +14,9 @@ interface PlanEntry {
 
 type PlanContent = Record<PurchasablePlan, PlanEntry>;
 
-const PLAN_ORDER: PurchasablePlan[] = ['DELIVERY', 'PRO', 'ELITE'];
+const RESTAURANT_PLAN_ORDER: PurchasablePlan[] = ['DELIVERY', 'PRO', 'ELITE'];
+const SHOP_PLAN_ORDER: PurchasablePlan[] = ['SHOP'];
+const PLAN_ORDER: PurchasablePlan[] = [...RESTAURANT_PLAN_ORDER, ...SHOP_PLAN_ORDER];
 const BILLING_CYCLES: BillingCycle[] = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL'];
 
 type SubscriptionCurrency = 'USD' | 'EUR';
@@ -115,9 +117,23 @@ export default function MasterPlansPage() {
         </div>
       </Section>
 
-      {PLAN_ORDER.map((plan) => (
-        <PlanSection key={plan} entry={content[plan]} currencySymbol={CURRENCY_SYMBOL[currency]} onChange={(patch) => updatePlan(plan, patch)} />
-      ))}
+      <div>
+        <p className="text-xs font-bold uppercase tracking-wide text-brand-950/40 mb-3">Restaurantes</p>
+        <div className="space-y-8">
+          {RESTAURANT_PLAN_ORDER.map((plan) => (
+            <PlanSection key={plan} entry={content[plan]} currencySymbol={CURRENCY_SYMBOL[currency]} onChange={(patch) => updatePlan(plan, patch)} />
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <p className="text-xs font-bold uppercase tracking-wide text-brand-950/40 mb-3">Locales Comerciales</p>
+        <div className="space-y-8">
+          {SHOP_PLAN_ORDER.map((plan) => (
+            <PlanSection key={plan} entry={content[plan]} currencySymbol={CURRENCY_SYMBOL[currency]} onChange={(patch) => updatePlan(plan, patch)} />
+          ))}
+        </div>
+      </div>
 
       {message && <p className="text-sm text-brand-950/70">{message}</p>}
       <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto disabled:opacity-50" onClick={save}>
