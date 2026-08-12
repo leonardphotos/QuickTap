@@ -16,6 +16,7 @@ import ClubOccupancyPage from './ClubOccupancyPage';
 import ClubCustomersPage from './ClubCustomersPage';
 import ClubConsumptionPage from './ClubConsumptionPage';
 import ClubPayrollPage from './ClubPayrollPage';
+import ClubHistoryTab from './ClubHistoryTab';
 import { clubApi, todayCaracas, type ClubBooking } from './clubApi';
 import { clubStoreApi, type StoreSale } from './clubStoreApi';
 import { academyApi } from './academia/academyApi';
@@ -50,6 +51,7 @@ const TAB_LABELS: Record<string, string> = {
   consumo: 'Consumo',
   cuentas: 'Cuentas por pagar',
   nomina: 'Nómina',
+  historial: 'Historial',
 };
 
 /** Ingresos por método de pago y por origen (cancha/tienda/academia). Lo calcula
@@ -106,7 +108,9 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
   const [finance, setFinance] = useState<Finance | null>(null);
   const [debts, setDebts] = useState<Debts | null>(null);
   const [collecting, setCollecting] = useState<{ source: DebtSource; row: DebtRow } | null>(null);
-  const [tab, setTab] = useState<'resumen' | 'deudas' | 'ocupacion' | 'clientes' | 'consumo' | 'cuentas' | 'nomina'>(
+  const [tab, setTab] = useState<
+    'resumen' | 'deudas' | 'ocupacion' | 'clientes' | 'consumo' | 'cuentas' | 'nomina' | 'historial'
+  >(
     'resumen',
   );
   const { show, toastMessage } = useToast();
@@ -174,7 +178,7 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
           lugar estiraba la página, que en un celular se podía arrastrar 245px de lado. */}
       <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex w-max items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
-          {(['resumen', 'deudas', 'ocupacion', 'clientes', 'consumo', 'cuentas', 'nomina'] as const).map((t) => (
+          {(['resumen', 'deudas', 'ocupacion', 'clientes', 'consumo', 'cuentas', 'nomina', 'historial'] as const).map((t) => (
             <button
               key={t}
               type="button"
@@ -253,6 +257,7 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
       {tab === 'consumo' && <ClubConsumptionPage restaurant={restaurant} />}
       {tab === 'nomina' && <ClubPayrollPage restaurant={restaurant} />}
       {tab === 'cuentas' && <ClubPayablesPage restaurant={restaurant} />}
+      {tab === 'historial' && <ClubHistoryTab restaurant={restaurant} />}
 
       {tab === 'resumen' && (
       <>
