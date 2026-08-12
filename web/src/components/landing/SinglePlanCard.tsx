@@ -5,20 +5,6 @@ import { formatBs } from '@/utils/format';
 import { BILLING_CYCLE_LABEL, FIXED_PLAN_PRICES, type BillingCycle } from '@/utils/plans';
 import { TextureButton } from '@/components/ui/texture-button';
 
-const SHOP_PLAN_NAME = 'QuickTap Shop';
-const SHOP_PLAN_SUBTITLE = 'Todos los beneficios de QuickTap para tiendas, ropa, calzado, ferreterías, farmacias y más';
-
-const SHOP_PLAN_FEATURES = [
-  'Punto Pago: sube tu QR de Pago Móvil una sola vez y cóbralo con el monto en Bs y la tasa del día en una sola pantalla',
-  'Inventario con foto obligatoria, variantes de talla/color o stock básico',
-  'Punto de venta con escaneo por cámara o lector, y carrito flotante con el total en $ y Bs',
-  'Acepta Efectivo Bs/$, Pago Móvil, Zelle, Binance y ventas fiadas (completas o con abono)',
-  'Caja: apertura, cierre y arqueo con historial de informes',
-  'Ingresos por método de pago, margen de utilidad y productos más vendidos',
-  'Alertas de stock bajo y productos próximos a vencer',
-  'Directorio de clientes y roles de equipo (Dueño, Administrador, Cajero)',
-];
-
 const CYCLE_MONTHS: Record<BillingCycle, number> = { MONTHLY: 1, QUARTERLY: 3, SEMIANNUAL: 6 };
 
 interface FetchedPlan {
@@ -28,20 +14,38 @@ interface FetchedPlan {
   prices: Record<BillingCycle, number>;
 }
 
+/** Los dos verticales con un solo plan (sin niveles) — Locales Comerciales y Canchas. */
+export type SinglePlan = 'SHOP' | 'CLUB';
+
 interface Props {
+  plan: SinglePlan;
+  /** Valores por defecto mientras carga /public/plans (o si el master nunca los editó). */
+  defaultName: string;
+  defaultSubtitle: string;
+  defaultFeatures: string[];
   rateBs: string | null;
   billingCycle: BillingCycle;
   onBillingCycleChange: (c: BillingCycle) => void;
-  onChoosePlan: (plan: 'SHOP') => void;
+  onChoosePlan: (plan: SinglePlan) => void;
 }
 
 /**
- * Único plan de QuickTap Shop — a diferencia de PlanCards (Restaurantes) no hay varios
- * niveles, pero nombre/beneficios/precio por ciclo SÍ son editables desde el Dashboard
- * maestro (Planes → QuickTap Shop, ver DEFAULT_PLAN_CONTENT.SHOP en
- * platform-settings.service.ts): esto solo trae los valores por defecto mientras carga.
+ * Tarjeta de un plan único — a diferencia de PlanCards (Restaurantes) no hay varios niveles,
+ * pero nombre/beneficios/precio por ciclo SÍ son editables desde el Dashboard maestro (Planes →
+ * QuickTap Shop / QuickTap Club, ver DEFAULT_PLAN_CONTENT en platform-settings.service.ts):
+ * esto solo trae los valores por defecto mientras carga. Usada tanto en la landing pública
+ * (PricingSection) como ya autenticado (ShopBillingPage/ClubBillingPage).
  */
-export function ShopPlanCard({ rateBs, billingCycle, onBillingCycleChange, onChoosePlan }: Props) {
+export function SinglePlanCard({
+  plan,
+  defaultName,
+  defaultSubtitle,
+  defaultFeatures,
+  rateBs,
+  billingCycle,
+  onBillingCycleChange,
+  onChoosePlan,
+}: Props) {
   const [dynamicContent, setDynamicContent] = useState<FetchedPlan | null>(null);
   // Misma moneda de cobro que los planes de Restaurante (Dashboard maestro → Planes →
   // Moneda de cobro): es una sola configuración para toda la plataforma, no por vertical.
@@ -49,9 +53,10 @@ export function ShopPlanCard({ rateBs, billingCycle, onBillingCycleChange, onCho
   const [ownRateBs, setOwnRateBs] = useState<string | null>(null);
 
   useEffect(() => {
+    setDynamicContent(null);
     api
       .get('/public/plans')
-      .then((res) => setDynamicContent(res.data.data?.SHOP ?? null))
+      .then((res) => setDynamicContent(res.data.data?.[plan] ?? null))
       .catch(() => {});
     api
       .get('/public/plans/currency')
@@ -65,15 +70,15 @@ export function ShopPlanCard({ rateBs, billingCycle, onBillingCycleChange, onCho
         }
       })
       .catch(() => {});
-  }, []);
+  }, [plan]);
 
   const effectiveRateBs = currencySymbol === '€' ? ownRateBs : rateBs;
 
-  const name = dynamicContent?.name ?? SHOP_PLAN_NAME;
-  const subtitle = dynamicContent?.subtitle ?? SHOP_PLAN_SUBTITLE;
-  const features = dynamicContent?.features ?? SHOP_PLAN_FEATURES;
-  const price = dynamicContent?.prices[billingCycle] ?? FIXED_PLAN_PRICES.SHOP[billingCycle];
-  const monthlyPrice = dynamicContent?.prices.MONTHLY ?? FIXED_PLAN_PRICES.SHOP.MONTHLY;
+  const name = dynamicContent?.name ?? defaultName;
+  const subtitle = dynamicContent?.subtitle ?? defaultSubtitle;
+  const features = dynamicContent?.features ?? defaultFeatures;
+  const price = dynamicContent?.prices[billingCycle] ?? FIXED_PLAN_PRICES[plan][billingCycle];
+  const monthlyPrice = dynamicContent?.prices.MONTHLY ?? FIXED_PLAN_PRICES[plan].MONTHLY;
   const months = CYCLE_MONTHS[billingCycle];
   const totalSavings = Math.max(0, (monthlyPrice - price) * months);
   const showSavings = billingCycle !== 'MONTHLY' && totalSavings > 0.01;
@@ -84,8 +89,8 @@ export function ShopPlanCard({ rateBs, billingCycle, onBillingCycleChange, onCho
         <div className="inline-flex gap-1 rounded-full border border-brand-950/10 bg-brand-950/[0.05] p-1.5">
           {(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL'] as const).map((c) => {
             const active = billingCycle === c;
-            const base = FIXED_PLAN_PRICES.SHOP.MONTHLY;
-            const off = c === 'MONTHLY' ? 0 : Math.round((1 - FIXED_PLAN_PRICES.SHOP[c] / base) * 100);
+            const base = FIXED_PLAN_PRICES[plan].MONTHLY;
+            const off = c === 'MONTHLY' ? 0 : Math.round((1 - FIXED_PLAN_PRICES[plan][c] / base) * 100);
             return (
               <button
                 key={c}
@@ -150,7 +155,7 @@ export function ShopPlanCard({ rateBs, billingCycle, onBillingCycleChange, onCho
             ))}
           </ul>
 
-          <TextureButton variant="brand" size="default" className="mt-6" onClick={() => onChoosePlan('SHOP')}>
+          <TextureButton variant="brand" size="default" className="mt-6" onClick={() => onChoosePlan(plan)}>
             Elegir plan
           </TextureButton>
         </div>

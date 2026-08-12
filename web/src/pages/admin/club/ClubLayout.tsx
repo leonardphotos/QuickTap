@@ -1,6 +1,8 @@
 import { lazy, Suspense, useState } from 'react';
-import { GraduationCap, LayoutGrid, QrCode, Settings, ShoppingBag, Users, Wallet } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { CreditCard, GraduationCap, LayoutGrid, QrCode, Settings, ShoppingBag, Users, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { daysRemaining, graceHoursRemaining } from '@/utils/subscription';
 import { cn } from '@/lib/utils';
 
 const ClubCourtsLivePage = lazy(() => import('./ClubCourtsLivePage'));
@@ -11,8 +13,9 @@ const ClubCheckInPage = lazy(() => import('./ClubCheckInPage'));
 const ClubSettingsPage = lazy(() => import('./ClubSettingsPage'));
 const ClubAcademyPage = lazy(() => import('./academia/ClubAcademyPage'));
 const ClubPlayersPage = lazy(() => import('./jugadores/ClubPlayersPage'));
+const ClubBillingPage = lazy(() => import('./ClubBillingPage'));
 
-export type ClubScreen = 'canchas' | 'academia' | 'jugadores' | 'tienda' | 'admin' | 'acceso' | 'ajustes';
+export type ClubScreen = 'canchas' | 'academia' | 'jugadores' | 'tienda' | 'admin' | 'acceso' | 'ajustes' | 'facturacion';
 
 const TABS: { id: ClubScreen; label: string; icon: typeof LayoutGrid }[] = [
   { id: 'canchas', label: 'Canchas', icon: LayoutGrid },
@@ -22,11 +25,12 @@ const TABS: { id: ClubScreen; label: string; icon: typeof LayoutGrid }[] = [
   { id: 'admin', label: 'Administración', icon: Wallet },
   { id: 'acceso', label: 'Acceso', icon: QrCode },
   { id: 'ajustes', label: 'Ajustes', icon: Settings },
+  { id: 'facturacion', label: 'Facturación', icon: CreditCard },
 ];
 
-// Configurar canchas, precios y equipo es del dueño/admin; recepción opera el día
-// a día. Todo el gating de rol de la vertical se concentra acá.
-const ADMIN_ONLY: ClubScreen[] = ['ajustes'];
+// Configurar canchas, precios y equipo, y pagar la mensualidad, es del dueño/admin; recepción
+// opera el día a día. Todo el gating de rol de la vertical se concentra acá.
+const ADMIN_ONLY: ClubScreen[] = ['ajustes', 'facturacion'];
 
 /**
  * Panel del club (businessType = SPORTS_CLUB). Blanco/azul, la misma línea
@@ -39,7 +43,12 @@ const ADMIN_ONLY: ClubScreen[] = ['ajustes'];
  */
 export default function ClubLayout() {
   const { user, restaurant, logout } = useAuth();
-  const [screen, setScreen] = useState<ClubScreen>('canchas');
+  const [searchParams] = useSearchParams();
+  // Entrada desde "Elegir plan" de la landing seguido de registro (?plan=CLUB&cycle=Y, o de
+  // vuelta del checkout de Ramblay): arranca directo en Facturación en vez de Canchas.
+  const [screen, setScreen] = useState<ClubScreen>(() =>
+    searchParams.get('plan') === 'CLUB' || searchParams.get('ramblay') === 'success' ? 'facturacion' : 'canchas',
+  );
   // Cancha abierta desde la pantalla de Canchas: su detalle reemplaza la grilla.
   const [openCourtId, setOpenCourtId] = useState<string | null>(null);
 
@@ -48,6 +57,9 @@ export default function ClubLayout() {
   const isAdmin = user.role === 'OWNER' || user.role === 'ADMIN';
   const tabs = TABS.filter((t) => isAdmin || !ADMIN_ONLY.includes(t.id));
   const active = tabs.some((t) => t.id === screen) ? screen : 'canchas';
+  const daysLeft = daysRemaining(restaurant.periodEnd);
+  const graceHours = graceHoursRemaining(restaurant.periodEnd);
+  const showExpirationWarning = isAdmin && daysLeft <= 3;
 
   function go(next: ClubScreen) {
     setOpenCourtId(null);
@@ -56,6 +68,18 @@ export default function ClubLayout() {
 
   return (
     <div className="min-h-screen bg-[#fafafa]">
+      {showExpirationWarning && (
+        <button
+          type="button"
+          onClick={() => go('facturacion')}
+          className="block w-full bg-amber-400 text-amber-950 text-sm font-medium text-center py-2 px-4 hover:bg-amber-300 transition-colors"
+        >
+          {graceHours !== null
+            ? `Hoy vence tu plan. Tienes ${graceHours}h para pagar antes de que se bloquee tu cuenta.`
+            : `En ${daysLeft} día${daysLeft === 1 ? '' : 's'} vence tu plan. Actívalo aquí.`}
+        </button>
+      )}
+
       <header className="sticky top-0 z-20 bg-white pt-[env(safe-area-inset-top)] border-b border-brand-950/[0.06]">
         <div className="mx-auto flex h-14 max-w-7xl items-center gap-4 px-5 sm:px-6">
           <p className="truncate font-bold text-brand-950">{restaurant.name}</p>
@@ -113,6 +137,7 @@ export default function ClubLayout() {
           {active === 'admin' && <ClubAdminPage restaurant={restaurant} canSeeMoney={isAdmin} />}
           {active === 'acceso' && <ClubCheckInPage />}
           {active === 'ajustes' && <ClubSettingsPage />}
+          {active === 'facturacion' && <ClubBillingPage restaurant={restaurant} onDone={() => go('canchas')} />}
         </Suspense>
       </main>
 

@@ -77,9 +77,10 @@ export function PaymentForm({
   prefillEmail,
   renderSuccess,
 }: Props) {
-  // SHOP no vive en PLAN_CONTENT (esa lista es solo de Restaurante, para no mezclarse con las
-  // 3 tarjetas de PlanCards) — se nombra aparte, igual que en ShopPlanCard.
-  const planName = PLAN_CONTENT.find((p) => p.id === selected.plan)?.name ?? (selected.plan === 'SHOP' ? 'QuickTap Shop' : 'Plan Personalizado');
+  // SHOP/CLUB no viven en PLAN_CONTENT (esa lista es solo de Restaurante, para no mezclarse con
+  // las 3 tarjetas de PlanCards) — se nombran aparte, igual que en SinglePlanCard.
+  const SINGLE_PLAN_NAMES: Partial<Record<typeof selected.plan, string>> = { SHOP: 'QuickTap Shop', CLUB: 'QuickTap Club' };
+  const planName = PLAN_CONTENT.find((p) => p.id === selected.plan)?.name ?? SINGLE_PLAN_NAMES[selected.plan] ?? 'Plan Personalizado';
   const { copy, toastMessage } = useCopyToast();
   const [methods, setMethods] = useState<PlatformPaymentMethods>({});
   const [method, setMethod] = useState<SubscriptionPaymentMethod>('PAGO_MOVIL');

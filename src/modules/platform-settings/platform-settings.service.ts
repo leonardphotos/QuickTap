@@ -57,7 +57,7 @@ export function renderTemplate(template: string, vars: Record<string, string>): 
     .trim();
 }
 
-export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP';
+export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP' | 'CLUB';
 export type PlanBillingCycle = 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL';
 
 export interface PlanContentEntry {
@@ -148,6 +148,21 @@ export const DEFAULT_PLAN_CONTENT: PlanContent = {
       'Directorio de clientes y roles de equipo (Dueño, Administrador, Cajero)',
     ],
     prices: { MONTHLY: 20, QUARTERLY: 18, SEMIANNUAL: 16 },
+  },
+  CLUB: {
+    name: 'QuickTap Club',
+    subtitle: 'Todos los beneficios de QuickTap para canchas y clubes deportivos',
+    capacity: 'Un solo plan, con todo incluido',
+    features: [
+      'Calendario de canchas en vivo, con reservas y bloqueos por mantenimiento/clases/torneos',
+      'Acceso por QR/código: el jugador entra a su reserva sin pasar por recepción',
+      'Tablet de cancha: pedidos a la tienda del club y cobro con el monto en Bs y la tasa del día',
+      'Hasta 4 tiendas vinculadas, cada una cobrando lo suyo con su propio método de pago',
+      'Academia: programas, horarios y lista de espera',
+      'Caja: apertura, cierre y arqueo con historial de informes',
+      'Directorio de jugadores y roles de equipo (Dueño, Administrador, Cajero, Cancha)',
+    ],
+    prices: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40 },
   },
 };
 

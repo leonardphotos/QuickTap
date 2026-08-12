@@ -16,7 +16,8 @@ type PlanContent = Record<PurchasablePlan, PlanEntry>;
 
 const RESTAURANT_PLAN_ORDER: PurchasablePlan[] = ['DELIVERY', 'PRO', 'ELITE'];
 const SHOP_PLAN_ORDER: PurchasablePlan[] = ['SHOP'];
-const PLAN_ORDER: PurchasablePlan[] = [...RESTAURANT_PLAN_ORDER, ...SHOP_PLAN_ORDER];
+const CLUB_PLAN_ORDER: PurchasablePlan[] = ['CLUB'];
+const PLAN_ORDER: PurchasablePlan[] = [...RESTAURANT_PLAN_ORDER, ...SHOP_PLAN_ORDER, ...CLUB_PLAN_ORDER];
 const BILLING_CYCLES: BillingCycle[] = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL'];
 
 type SubscriptionCurrency = 'USD' | 'EUR';
@@ -130,6 +131,15 @@ export default function MasterPlansPage() {
         <p className="text-xs font-bold uppercase tracking-wide text-brand-950/40 mb-3">Locales Comerciales</p>
         <div className="space-y-8">
           {SHOP_PLAN_ORDER.map((plan) => (
+            <PlanSection key={plan} entry={content[plan]} currencySymbol={CURRENCY_SYMBOL[currency]} onChange={(patch) => updatePlan(plan, patch)} />
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <p className="text-xs font-bold uppercase tracking-wide text-brand-950/40 mb-3">Canchas</p>
+        <div className="space-y-8">
+          {CLUB_PLAN_ORDER.map((plan) => (
             <PlanSection key={plan} entry={content[plan]} currencySymbol={CURRENCY_SYMBOL[currency]} onChange={(patch) => updatePlan(plan, patch)} />
           ))}
         </div>

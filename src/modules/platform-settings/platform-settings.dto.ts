@@ -50,6 +50,7 @@ export const updatePlanContentSchema = z.object({
   PRO: planContentEntrySchema.optional(),
   ELITE: planContentEntrySchema.optional(),
   SHOP: planContentEntrySchema.optional(),
+  CLUB: planContentEntrySchema.optional(),
 });
 
 export type UpdatePlanContentInput = z.infer<typeof updatePlanContentSchema>;

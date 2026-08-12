@@ -8,7 +8,8 @@ export type PlanId =
   | 'SUCURSALES'
   | 'DELIVERY_SUCURSALES'
   | 'ELITE'
-  | 'SHOP';
+  | 'SHOP'
+  | 'CLUB';
 export type BillingCycle = 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL';
 export type SubscriptionPaymentMethod = 'PAGO_MOVIL' | 'BINANCE' | 'BANK_TRANSFER';
 
@@ -18,7 +19,7 @@ export const BILLING_CYCLE_LABEL: Record<BillingCycle, string> = {
   SEMIANNUAL: '6 meses',
 };
 
-export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP';
+export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP' | 'CLUB';
 
 /**
  * Precios fijos por plan y ciclo de facturación (USD/mes). Espejo del cálculo
@@ -26,13 +27,15 @@ export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP';
  * única fuente de verdad real: aquí solo se usa para mostrar el precio antes
  * de enviar la solicitud. Tres planes vigentes de Restaurante: Delivery, Pro y
  * Elite, los tres con sucursales ilimitadas (ver allowsBranches en
- * utils/subscription.ts). SHOP es el único plan de Locales Comerciales.
+ * utils/subscription.ts). SHOP es el único plan de Locales Comerciales, CLUB
+ * el único de Canchas.
  */
 export const FIXED_PLAN_PRICES: Record<PurchasablePlan, Record<BillingCycle, number>> = {
   DELIVERY: { MONTHLY: 24.99, QUARTERLY: 22.74, SEMIANNUAL: 20.49 },
   PRO: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99 },
   ELITE: { MONTHLY: 39.99, QUARTERLY: 35.49, SEMIANNUAL: 30.99 },
   SHOP: { MONTHLY: 20, QUARTERLY: 18, SEMIANNUAL: 16 },
+  CLUB: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40 },
 };
 
 export const PAYMENT_METHOD_LABEL: Record<SubscriptionPaymentMethod, string> = {

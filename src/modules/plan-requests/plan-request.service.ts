@@ -72,7 +72,7 @@ function buildPaymentNotReceivedMessage(): string {
   ].join('\n\n');
 }
 
-export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP';
+export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP' | 'CLUB';
 
 /**
  * Precios fijos por plan y ciclo de facturación (USD/mes). Única fuente de
@@ -90,15 +90,17 @@ const FIXED_PLAN_PRICES: Record<PurchasablePlan, Record<BillingCycle, number>> =
   PRO: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99 },
   ELITE: { MONTHLY: 39.99, QUARTERLY: 35.49, SEMIANNUAL: 30.99 },
   SHOP: { MONTHLY: 20, QUARTERLY: 18, SEMIANNUAL: 16 },
+  CLUB: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40 },
 };
 
-/** A qué businessType le corresponde cada plan comprable — un local no puede pedir un plan de
- * restaurante ni viceversa, aunque adivine el nombre del plan (ver resolvePrice). */
-const BUSINESS_TYPE_FOR_PLAN: Record<PurchasablePlan, 'RESTAURANT' | 'SHOP'> = {
+/** A qué businessType le corresponde cada plan comprable — un local/club no puede pedir el plan
+ * de otro vertical, aunque adivine el nombre del plan (ver resolvePrice). */
+const BUSINESS_TYPE_FOR_PLAN: Record<PurchasablePlan, 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB'> = {
   DELIVERY: 'RESTAURANT',
   PRO: 'RESTAURANT',
   ELITE: 'RESTAURANT',
   SHOP: 'SHOP',
+  CLUB: 'SPORTS_CLUB',
 };
 
 export interface CustomAddons {
