@@ -40,7 +40,7 @@ function IconAction({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className={`flex h-9 shrink-0 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-brand-950/45 transition-colors lg:w-9 lg:justify-center lg:px-0 ${
+      className={`flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-medium text-brand-950/45 transition-colors lg:w-8 lg:justify-center lg:px-0 ${
         danger ? 'hover:bg-red-50 hover:text-red-600' : 'hover:bg-brand-950/[0.06] hover:text-brand-950'
       }`}
     >
@@ -140,26 +140,26 @@ export default function AcademyGroupsTab({
   ];
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3.5">
       {error && <p className="text-sm text-red-600">{error}</p>}
       {notice && <p className="text-sm text-emerald-700">{notice}</p>}
 
       {conflicts.length > 0 && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 lg:p-5">
-          <p className="flex items-center gap-2 text-sm font-bold text-amber-900">
-            <AlertTriangle className="h-4 w-4" />
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3.5 lg:p-4">
+          <p className="flex items-center gap-1.5 text-[13px] font-bold text-amber-900">
+            <AlertTriangle className="h-3.5 w-3.5" />
             {conflicts.length} clase(s) sin cancha
           </p>
-          <p className="mt-1.5 text-[13px] font-light leading-relaxed text-amber-900/80">
+          <p className="mt-1 text-[12px] font-light leading-relaxed text-amber-900/80">
             Esas fechas ya tenían una reserva encima. Cámbialas de cancha u hora, o cancélalas.
           </p>
-          <ul className="mt-3 grid gap-1 sm:grid-cols-2">
+          <ul className="mt-2.5 grid gap-1 sm:grid-cols-2">
             {conflicts.slice(0, 8).map((c) => (
               <li key={c.id}>
                 <button
                   type="button"
                   onClick={() => onOpen({ kind: 'session', id: c.id })}
-                  className="w-full truncate rounded-lg px-2 py-1.5 text-left text-[13px] text-amber-900 transition-colors hover:bg-amber-100"
+                  className="w-full truncate rounded-lg px-2 py-1 text-left text-[12px] text-amber-900 transition-colors hover:bg-amber-100"
                 >
                   {new Date(c.startsAt).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })} ·{' '}
                   {c.group?.name ?? 'Clase suelta'}
@@ -176,8 +176,8 @@ export default function AcademyGroupsTab({
         description="Cada grupo ocupa cancha real: lo que se agenda acá desaparece del alquiler libre."
         action={
           isAdmin && (
-            <TextureButton variant="brand" size="default" className="!w-auto" onClick={() => setCreating(true)}>
-              <Plus className="mr-1.5 h-3.5 w-3.5" />
+            <TextureButton variant="brand" size="sm" className="!w-auto" onClick={() => setCreating(true)}>
+              <Plus className="mr-1 h-3 w-3" />
               Nuevo grupo
             </TextureButton>
           )
@@ -232,9 +232,9 @@ export default function AcademyGroupsTab({
                   ? [
                       // Solo iconos: tres botones con texto le comían a la fila el
                       // ancho que necesitan los horarios, que es lo que se lee.
-                      <span key="a" className="flex items-center gap-1 lg:justify-end">
+                      <span key="a" className="flex flex-wrap items-center gap-1 lg:flex-nowrap lg:justify-end">
                         <IconAction label="Agendar más semanas" onClick={() => extend(g.id)}>
-                          <RefreshCw className="h-4 w-4" />
+                          <RefreshCw className="h-3.5 w-3.5" />
                         </IconAction>
                         <IconAction
                           label={g.status === 'ACTIVE' ? 'Pausar grupo' : 'Reactivar grupo'}
@@ -243,7 +243,7 @@ export default function AcademyGroupsTab({
                             load();
                           }}
                         >
-                          {g.status === 'ACTIVE' ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                          {g.status === 'ACTIVE' ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
                         </IconAction>
                         <IconAction
                           label="Terminar grupo"
@@ -253,7 +253,7 @@ export default function AcademyGroupsTab({
                             load();
                           }}
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </IconAction>
                       </span>,
                     ]

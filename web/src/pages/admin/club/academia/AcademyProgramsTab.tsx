@@ -70,21 +70,21 @@ export default function AcademyProgramsTab({ onOpen }: { onOpen: (t: DetailTarge
   if (loading) return <p className="text-sm font-light text-brand-950/40">Cargando…</p>;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3.5">
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <ClubEyebrow>Estructura de la academia</ClubEyebrow>
       <ClubPanel
         title={
-          <span className="flex items-center gap-2">
-            <Layers className="h-4 w-4 text-brand-500" />
+          <span className="flex items-center gap-1.5">
+            <Layers className="h-3.5 w-3.5 text-brand-500" />
             Programas
           </span>
         }
         description="La tipología de tu enseñanza. Cada grupo se asigna a uno, y los reportes se pueden ver por programa."
         action={
-          <TextureButton variant="brand" size="default" className="!w-auto" onClick={() => setCreating(true)}>
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
+          <TextureButton variant="brand" size="sm" className="!w-auto" onClick={() => setCreating(true)}>
+            <Plus className="mr-1 h-3 w-3" />
             Nuevo
           </TextureButton>
         }
@@ -125,7 +125,7 @@ export default function AcademyProgramsTab({ onOpen }: { onOpen: (t: DetailTarge
                       await academyApi.deleteProgram(p.id);
                       load();
                     }}
-                    className="flex min-h-[34px] items-center rounded-full px-3 text-xs font-medium text-brand-950/45 hover:text-red-600"
+                    className="flex min-h-[30px] items-center rounded-full px-2.5 text-[11px] font-medium text-brand-950/45 hover:text-red-600"
                   >
                     Desactivar
                   </button>
@@ -139,8 +139,8 @@ export default function AcademyProgramsTab({ onOpen }: { onOpen: (t: DetailTarge
       <ClubEyebrow>Cupos</ClubEyebrow>
       <ClubPanel
         title={
-          <span className="flex items-center gap-2">
-            <Clock className="h-4 w-4 text-amber-500" />
+          <span className="flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5 text-amber-500" />
             Lista de espera
           </span>
         }
@@ -155,7 +155,7 @@ export default function AcademyProgramsTab({ onOpen }: { onOpen: (t: DetailTarge
               cells={[
                 <span
                   key="p"
-                  className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-950/[0.05] text-[12px] font-bold text-brand-950/60"
+                  className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-950/[0.05] text-[11px] font-bold text-brand-950/60"
                 >
                   {w.position}
                 </span>,
@@ -173,9 +173,9 @@ export default function AcademyProgramsTab({ onOpen }: { onOpen: (t: DetailTarge
                     await academyApi.leaveWaitlist(w.id);
                     load();
                   }}
-                  className="flex min-h-[34px] items-center gap-1 rounded-full px-3 text-xs font-medium text-brand-950/45 hover:text-red-600"
+                  className="flex min-h-[30px] items-center gap-1 rounded-full px-2.5 text-[11px] font-medium text-brand-950/45 hover:text-red-600"
                 >
-                  <UserMinus className="h-3.5 w-3.5" />
+                  <UserMinus className="h-3 w-3" />
                   Quitar
                 </button>,
               ]}

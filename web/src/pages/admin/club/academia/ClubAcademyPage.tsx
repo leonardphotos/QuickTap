@@ -46,9 +46,9 @@ export default function ClubAcademyPage({
   const active = tabs.includes(tab) ? tab : 'hoy';
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
-        <h1 className="text-[22px] font-bold tracking-tight text-brand-950 lg:text-[26px]">Academia</h1>
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2.5">
+        <h1 className="text-[19px] font-bold tracking-tight text-brand-950 lg:text-[22px]">Academia</h1>
 
         {/* El scroll va en un contenedor APARTE de la píldora: con overflow-x-auto
             sobre la píldora misma nunca se activa —al ser de ancho automático
@@ -60,7 +60,7 @@ export default function ClubAcademyPage({
                 key={t}
                 type="button"
                 onClick={() => setTab(t)}
-                className={`whitespace-nowrap rounded-full px-4 py-2 text-[13px] font-semibold transition-colors ${
+                className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold transition-colors ${
                   active === t ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
                 }`}
               >

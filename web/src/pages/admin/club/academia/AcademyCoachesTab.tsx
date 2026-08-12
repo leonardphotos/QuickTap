@@ -67,7 +67,7 @@ export default function AcademyCoachesTab({
   if (loading) return <p className="text-sm font-light text-brand-950/40">Cargando profesores…</p>;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3.5">
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <ClubEyebrow>Equipo docente</ClubEyebrow>
@@ -75,8 +75,8 @@ export default function AcademyCoachesTab({
         title="Profesores"
         description="A su WhatsApp llegan los avisos de clase asignada, alumno inscrito y sesión cancelada."
         action={
-          <TextureButton variant="brand" size="default" className="!w-auto" onClick={() => setCreating(true)}>
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
+          <TextureButton variant="brand" size="sm" className="!w-auto" onClick={() => setCreating(true)}>
+            <Plus className="mr-1 h-3 w-3" />
             Agregar
           </TextureButton>
         }
@@ -114,11 +114,11 @@ export default function AcademyCoachesTab({
                 <TextureButton
                   key="a"
                   variant="minimal"
-                  size="default"
+                  size="sm"
                   className="!w-auto"
                   onClick={() => setPayingTo(c)}
                 >
-                  <Wallet className="mr-1.5 h-3.5 w-3.5" />
+                  <Wallet className="mr-1 h-3 w-3" />
                   Honorarios
                 </TextureButton>,
               ]}

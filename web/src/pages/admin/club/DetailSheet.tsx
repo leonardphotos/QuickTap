@@ -48,14 +48,14 @@ export default function DetailSheet({
           size === 'form' ? 'max-w-md' : 'max-w-md sm:max-w-xl lg:max-w-3xl'
         }`}
       >
-        <div className="border-b border-brand-950/[0.06] py-5 pl-6 pr-12 lg:py-6">
-          <h2 className="truncate text-[18px] font-bold tracking-tight text-brand-950">{title}</h2>
-          {subtitle && <p className="mt-1 truncate text-[13px] font-light text-brand-950/50">{subtitle}</p>}
+        <div className="border-b border-brand-950/[0.06] py-4 pl-5 pr-11 lg:py-5">
+          <h2 className="truncate text-[16px] font-bold tracking-tight text-brand-950">{title}</h2>
+          {subtitle && <p className="mt-0.5 truncate text-[12px] font-light text-brand-950/50">{subtitle}</p>}
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-6 lg:p-7">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-5 lg:p-6">{children}</div>
 
-        {footer && <div className="border-t border-brand-950/[0.06] p-5">{footer}</div>}
+        {footer && <div className="border-t border-brand-950/[0.06] p-4">{footer}</div>}
       </DialogContent>
     </Dialog>
   );
@@ -73,9 +73,9 @@ export function SheetBody({ children }: { children: ReactNode }) {
 
 export function Section({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
   return (
-    <section className="mb-7 last:mb-0">
-      <div className="mb-2.5 flex items-center justify-between gap-2 border-b border-brand-950/[0.06] pb-2">
-        <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-brand-950/40">{title}</h3>
+    <section className="mb-5 last:mb-0">
+      <div className="mb-2 flex items-center justify-between gap-2 border-b border-brand-950/[0.06] pb-1.5">
+        <h3 className="text-[10.5px] font-bold uppercase tracking-[0.11em] text-brand-950/40">{title}</h3>
         {action}
       </div>
       {children}
@@ -85,10 +85,10 @@ export function Section({ title, children, action }: { title: string; children: 
 
 export function Row({ label, value, tone }: { label: string; value: ReactNode; tone?: 'muted' | 'strong' }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 py-2">
-      <span className="shrink-0 text-[13px] font-light text-brand-950/50">{label}</span>
+    <div className="flex items-baseline justify-between gap-4 py-1.5">
+      <span className="shrink-0 text-[12px] font-light text-brand-950/50">{label}</span>
       <span
-        className={`min-w-0 text-right text-[13px] ${
+        className={`min-w-0 text-right text-[12px] ${
           tone === 'strong' ? 'font-bold text-brand-950' : tone === 'muted' ? 'font-light text-brand-950/40' : 'font-medium text-brand-950'
         }`}
       >
@@ -112,7 +112,7 @@ const PAY_COLORS: Record<PayState, string> = {
 
 export function PayBadge({ state, label }: { state: PayState; label: string }) {
   return (
-    <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${PAY_COLORS[state]}`}>
+    <span className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${PAY_COLORS[state]}`}>
       {label}
     </span>
   );
@@ -134,21 +134,21 @@ export function ItemRow({
   const content = (
     <>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[14px] font-semibold text-brand-950">{title}</span>
-        {subtitle && <span className="block truncate text-[12px] font-light text-brand-950/50">{subtitle}</span>}
+        <span className="block truncate text-[13px] font-semibold text-brand-950">{title}</span>
+        {subtitle && <span className="block truncate text-[11.5px] font-light text-brand-950/50">{subtitle}</span>}
       </span>
       {right}
     </>
   );
 
   if (!onClick) {
-    return <div className="flex items-center gap-2 py-3">{content}</div>;
+    return <div className="flex items-center gap-2 py-2.5">{content}</div>;
   }
   return (
     <button
       type="button"
       onClick={onClick}
-      className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-2 rounded-xl px-2 py-3 text-left transition-colors hover:bg-brand-950/[0.03]"
+      className="-mx-2 flex w-[calc(100%+1rem)] items-center gap-2 rounded-xl px-2 py-2.5 text-left transition-colors hover:bg-brand-950/[0.03]"
     >
       {content}
     </button>

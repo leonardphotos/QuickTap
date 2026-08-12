@@ -86,9 +86,9 @@ export default function AcademyTodayTab({
   const pending = data.todaySessions.filter((s) => s.status !== 'DONE' && s.status !== 'CANCELLED').length;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3.5">
       <ClubEyebrow>Resumen</ClubEyebrow>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-3">
         <ClubMetric
           value={data.activeStudents}
           label="Alumnos activos"
@@ -116,12 +116,12 @@ export default function AcademyTodayTab({
       </div>
 
       {data.needsCourt > 0 && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 lg:p-5">
-          <p className="flex items-center gap-2 text-sm font-bold text-amber-900">
-            <AlertTriangle className="h-4 w-4" />
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3.5 lg:p-4">
+          <p className="flex items-center gap-1.5 text-[13px] font-bold text-amber-900">
+            <AlertTriangle className="h-3.5 w-3.5" />
             {data.needsCourt} clase(s) sin cancha
           </p>
-          <p className="mt-1.5 text-[13px] font-light leading-relaxed text-amber-900/80">
+          <p className="mt-1 text-[12px] font-light leading-relaxed text-amber-900/80">
             Esas fechas chocaban con una reserva ya hecha. Reubícalas desde Grupos para que ocupen pista.
           </p>
         </div>
@@ -156,7 +156,7 @@ export default function AcademyTodayTab({
                 <TextureButton
                   key="a"
                   variant="minimal"
-                  size="default"
+                  size="sm"
                   className="!w-auto"
                   onClick={() => setRosterFor(s)}
                 >

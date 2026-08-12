@@ -123,7 +123,7 @@ const fmtDay = (iso: string) => new Date(iso).toLocaleDateString('es-VE', { day:
 function Money({ value, symbol, signed }: { value: string; symbol: string; signed?: boolean }) {
   const negative = signed && Number(value) < 0;
   return (
-    <span className={`block truncate text-[14px] font-semibold tabular-nums ${negative ? 'text-red-600' : 'text-brand-950'}`}>
+    <span className={`block truncate text-[13px] font-semibold tabular-nums ${negative ? 'text-red-600' : 'text-brand-950'}`}>
       {formatBase(value, symbol)}
     </span>
   );
@@ -184,12 +184,12 @@ export default function AcademyMoneyTab({
   );
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3.5">
       {error && <p className="text-sm text-red-600">{error}</p>}
       {notice && <p className="text-sm text-emerald-700">{notice}</p>}
 
       <ClubEyebrow>Resumen del dinero</ClubEyebrow>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+      <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4 lg:gap-3">
         <ClubMetric
           value={formatBase(revenue?.collectedBase ?? 0, symbol)}
           label="Cobrado"
@@ -224,22 +224,22 @@ export default function AcademyMoneyTab({
           <>
             <TextureButton
               variant="minimal"
-              size="default"
+              size="sm"
               className="!w-auto"
               disabled={busy}
               onClick={() => run(() => academyApi.generateCharges(), (r: { created: number }) => `${r.created} mensualidad(es) generadas.`)}
             >
-              <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+              <RefreshCw className="mr-1 h-3 w-3" />
               Generar mes
             </TextureButton>
             <TextureButton
               variant="minimal"
-              size="default"
+              size="sm"
               className="!w-auto"
               disabled={busy || pending.length === 0}
               onClick={() => run(() => academyApi.notifyCharges(), (r: { sent: number }) => `${r.sent} aviso(s) enviados por WhatsApp.`)}
             >
-              <Send className="mr-1.5 h-3.5 w-3.5" />
+              <Send className="mr-1 h-3 w-3" />
               Avisar por WhatsApp
             </TextureButton>
           </>
@@ -294,12 +294,12 @@ export default function AcademyMoneyTab({
                     <PlainCell key="i" className="tabular-nums">
                       {m.activeStart}
                     </PlainCell>,
-                    <span key="a" className="block truncate text-[14px] font-semibold tabular-nums text-emerald-600">
+                    <span key="a" className="block truncate text-[13px] font-semibold tabular-nums text-emerald-600">
                       +{m.joined}
                     </span>,
                     <span
                       key="b"
-                      className={`block truncate text-[14px] font-semibold tabular-nums ${m.left > 0 ? 'text-red-600' : 'text-brand-950/35'}`}
+                      className={`block truncate text-[13px] font-semibold tabular-nums ${m.left > 0 ? 'text-red-600' : 'text-brand-950/35'}`}
                     >
                       −{m.left}
                     </span>,

@@ -60,7 +60,7 @@ export default function AcademyStudentsTab({
   useEffect(load, [load]);
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-3.5">
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <ClubEyebrow>Base de alumnos</ClubEyebrow>
@@ -69,17 +69,17 @@ export default function AcademyStudentsTab({
         description="Cada alumno usa la misma ficha de cliente que sus reservas de cancha: el historial no se parte en dos."
         action={
           <>
-            <label className="relative block w-full sm:w-72">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-950/30" />
+            <label className="relative block w-full sm:w-64">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-brand-950/30" />
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                className="w-full rounded-full border border-brand-950/10 bg-brand-950/[0.03] py-2.5 pl-10 pr-4 text-sm placeholder:text-brand-950/35 focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-400/30"
+                className="w-full rounded-full border border-brand-950/10 bg-brand-950/[0.03] py-2 pl-9 pr-3.5 text-[13px] placeholder:text-brand-950/35 focus:border-brand-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-400/30"
                 placeholder="Buscar por nombre o teléfono…"
               />
             </label>
-            <TextureButton variant="brand" size="default" className="!w-auto" onClick={() => setCreating(true)}>
-              <UserPlus className="mr-1.5 h-3.5 w-3.5" />
+            <TextureButton variant="brand" size="sm" className="!w-auto" onClick={() => setCreating(true)}>
+              <UserPlus className="mr-1 h-3 w-3" />
               Nuevo alumno
             </TextureButton>
           </>
@@ -106,15 +106,15 @@ export default function AcademyStudentsTab({
                   <PlainCell key="g">
                     {s.enrollments.length > 0 ? s.enrollments.map((e) => e.group.name).join(' · ') : '—'}
                   </PlainCell>,
-                  <span key="f" className="flex items-center gap-1.5 text-[14px] font-semibold text-brand-950">
-                    <Ticket className="h-3.5 w-3.5 shrink-0 text-brand-500" />
+                  <span key="f" className="flex items-center gap-1.5 text-[13px] font-semibold text-brand-950">
+                    <Ticket className="h-3 w-3 shrink-0 text-brand-500" />
                     <span className="tabular-nums">{s.creditBalance}</span>
                   </span>,
                   <span key="a" className="flex flex-wrap items-center gap-1.5 lg:justify-end">
-                    <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setEnrolling(s)}>
+                    <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={() => setEnrolling(s)}>
                       Inscribir
                     </TextureButton>
-                    <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setSellingTo(s)}>
+                    <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={() => setSellingTo(s)}>
                       Vender lote
                     </TextureButton>
                   </span>,

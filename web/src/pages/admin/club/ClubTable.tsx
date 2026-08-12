@@ -57,13 +57,13 @@ export function ClubTable({
 
   return (
     <ColumnsCtx.Provider value={columns}>
-      <div className="-mx-2 mt-5" style={{ '--club-cols': columns.map((c) => c.width).join(' ') } as CSSProperties}>
-        <div className="hidden gap-x-5 border-b border-brand-950/[0.07] px-3 pb-3 lg:grid lg:[grid-template-columns:var(--club-cols)]">
+      <div className="-mx-2 mt-4" style={{ '--club-cols': columns.map((c) => c.width).join(' ') } as CSSProperties}>
+        <div className="hidden gap-x-5 border-b border-brand-950/[0.07] px-3 pb-2 lg:grid lg:[grid-template-columns:var(--club-cols)]">
           {columns.map((c) => (
             <span
               key={c.key}
               className={cn(
-                'truncate text-[10.5px] font-semibold uppercase tracking-[0.09em] text-brand-950/35',
+                'truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-950/35',
                 c.align === 'right' && 'text-right',
               )}
             >
@@ -111,7 +111,7 @@ export function ClubRow({
       )}
       <div
         className={cn(
-          'relative grid gap-x-5 gap-y-2 px-3 py-4 lg:items-center lg:gap-y-0 lg:py-[18px] lg:[grid-template-columns:var(--club-cols)]',
+          'relative grid gap-x-4 gap-y-1.5 px-3 py-3 lg:items-center lg:gap-y-0 lg:py-2.5 lg:[grid-template-columns:var(--club-cols)]',
           onClick && 'pointer-events-none',
           muted && 'opacity-55',
         )}
@@ -125,7 +125,7 @@ export function ClubRow({
             )}
           >
             {i > 0 && columns[i]?.label && (
-              <span className="shrink-0 text-[10.5px] font-semibold uppercase tracking-[0.09em] text-brand-950/30 lg:hidden">
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-950/30 lg:hidden">
                 {columns[i].label}
               </span>
             )}
@@ -139,17 +139,17 @@ export function ClubRow({
 
 /** Dato principal de una celda: el que se lee al bajar la columna. */
 export function Cell({ children, className }: { children: ReactNode; className?: string }) {
-  return <span className={cn('block truncate text-[14px] font-semibold text-brand-950', className)}>{children}</span>;
+  return <span className={cn('block truncate text-[13px] font-semibold text-brand-950', className)}>{children}</span>;
 }
 
 /** Segundo renglón de una celda: el contexto, no el dato. */
 export function SubCell({ children, className }: { children: ReactNode; className?: string }) {
-  return <span className={cn('mt-0.5 block truncate text-[12.5px] font-light text-brand-950/50', className)}>{children}</span>;
+  return <span className={cn('mt-0.5 block truncate text-[11.5px] font-light text-brand-950/50', className)}>{children}</span>;
 }
 
 /** Dato secundario que vive solo en su columna (teléfono, fecha, conteo). */
 export function PlainCell({ children, className }: { children: ReactNode; className?: string }) {
-  return <span className={cn('block truncate text-[13px] font-normal text-brand-950/70', className)}>{children}</span>;
+  return <span className={cn('block truncate text-[12px] font-normal text-brand-950/70', className)}>{children}</span>;
 }
 
 export type BadgeTone = 'neutral' | 'brand' | 'emerald' | 'amber' | 'red' | 'sky';
@@ -167,7 +167,7 @@ export function ClubBadge({ tone = 'neutral', children }: { tone?: BadgeTone; ch
   return (
     <span
       className={cn(
-        'inline-flex max-w-full items-center truncate rounded-full border px-2.5 py-1 text-[11.5px] font-semibold',
+        'inline-flex max-w-full items-center truncate rounded-full border px-2 py-0.5 text-[10.5px] font-semibold',
         BADGE_TONES[tone],
       )}
     >
@@ -184,7 +184,7 @@ export function ClubBadge({ tone = 'neutral', children }: { tone?: BadgeTone; ch
 export function ClubEyebrow({ children, action }: { children: ReactNode; action?: ReactNode }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-1">
-      <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand-950/35">{children}</p>
+      <p className="text-[10.5px] font-bold uppercase tracking-[0.13em] text-brand-950/35">{children}</p>
       {action}
     </div>
   );
@@ -206,16 +206,16 @@ export function ClubPanel({
   className?: string;
 }) {
   return (
-    <section className={cn(card, 'p-5 lg:p-6', className)}>
+    <section className={cn(card, 'p-4 lg:p-5', className)}>
       {(title || action) && (
-        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
+        <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2.5">
           <div className="min-w-0">
-            {title && <h2 className="text-[15px] font-bold tracking-tight text-brand-950">{title}</h2>}
+            {title && <h2 className="text-[14px] font-bold tracking-tight text-brand-950">{title}</h2>}
             {description && (
-              <p className="mt-1 max-w-xl text-[12.5px] font-light leading-relaxed text-brand-950/50">{description}</p>
+              <p className="mt-1 max-w-xl text-[12px] font-light leading-relaxed text-brand-950/50">{description}</p>
             )}
           </div>
-          {action && <div className="flex shrink-0 flex-wrap items-center gap-2">{action}</div>}
+          {action && <div className="flex shrink-0 flex-wrap items-center gap-1.5">{action}</div>}
         </div>
       )}
       {children}
@@ -244,7 +244,7 @@ export function ClubMetric({
     <>
       <p
         className={cn(
-          'text-[26px] font-bold leading-none tracking-tight',
+          'text-[21px] font-bold leading-none tracking-tight',
           tone === 'brand' ? 'text-white' : tone === 'amber' ? 'text-amber-900' : 'text-brand-950',
         )}
       >
@@ -252,7 +252,7 @@ export function ClubMetric({
       </p>
       <p
         className={cn(
-          'mt-2.5 text-[13px] font-semibold',
+          'mt-2 text-[12px] font-semibold',
           tone === 'brand' ? 'text-white/85' : tone === 'amber' ? 'text-amber-900/75' : 'text-brand-950/70',
         )}
       >
@@ -260,7 +260,7 @@ export function ClubMetric({
       </p>
       <p
         className={cn(
-          'mt-1 min-h-[16px] text-[11.5px] font-light',
+          'mt-0.5 min-h-[14px] text-[10.5px] font-light',
           tone === 'brand' ? 'text-white/60' : tone === 'amber' ? 'text-amber-900/55' : 'text-brand-950/40',
         )}
       >
@@ -270,7 +270,7 @@ export function ClubMetric({
   );
 
   const skin = cn(
-    'rounded-3xl border p-5 text-left transition-all',
+    'rounded-2xl border p-3.5 text-left transition-all',
     tone === 'brand'
       ? 'border-transparent bg-brand-500 shadow-sm shadow-brand-500/25'
       : tone === 'amber'
