@@ -533,6 +533,7 @@ async function debts(restaurantId: string) {
       include: {
         enrollment: {
           select: {
+            studentId: true,
             student: { select: { customer: { select: { name: true, phone: true } } } },
             group: { select: { name: true } },
           },
@@ -584,6 +585,10 @@ async function debts(restaurantId: string) {
       const balance = round2(c.amountBase.sub(paid));
       return {
         id: c.id,
+        // El pago de una mensualidad se registra contra el ALUMNO, no contra la
+        // cuota (ver academyApi.recordPayment): sin este id, Deudas no podía
+        // cobrar directamente y mandaba a buscar al alumno en otra pestaña.
+        studentId: c.enrollment.studentId,
         name: c.enrollment.student.customer.name,
         phone: c.enrollment.student.customer.phone,
         detail: `${c.enrollment.group.name} · ${String(c.periodMonth).padStart(2, '0')}/${c.periodYear}`,
