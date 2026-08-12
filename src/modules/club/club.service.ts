@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, conflict, forbidden, notFound } from '../../utils/http-error';
 import { clubPlayerService } from '../club-players/club-player.service';
+import { refreshClubDemo } from '../../utils/club-demo';
 import { atTimeCaracas, caracasPartsOf } from '../../utils/timezone';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { customerService } from '../customers/customer.service';
@@ -597,6 +598,7 @@ export const clubService = {
   // ------------------------------------------------------------ Calendario
   /** Todo lo que ocupa las canchas un día: la vista de recepción. */
   async getCalendar(restaurantId: string, date: string) {
+    await refreshClubDemo(restaurantId);
     await this.settlePastBookings(restaurantId);
     const dayStart = atTimeCaracas(date, '00:00');
     const dayEnd = new Date(dayStart.getTime() + 86_400_000);
@@ -628,6 +630,7 @@ export const clubService = {
    * compartida con el vertical de Locales.
    */
   async getPanelCourts(restaurantId: string) {
+    await refreshClubDemo(restaurantId);
     await this.settlePastBookings(restaurantId);
     const now = new Date();
     const { dateStr } = caracasPartsOf(now);

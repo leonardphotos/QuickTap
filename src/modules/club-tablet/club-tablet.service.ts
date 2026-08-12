@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
+import { DEMO_LIVE_TOKENS, refreshClubDemo } from '../../utils/club-demo';
 import { round2, toDecimal } from '../../utils/money';
 import { effectiveProductPrice } from '../../utils/promo-price';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
@@ -60,6 +61,12 @@ export const clubTabletService = {
    * consumido.
    */
   async getSession(clubId: string, userId: string, accessToken: string) {
+    // La demo desliza sus reservas en vivo para que el QR nunca caduque; si no se
+    // refrescara acá, escanear en la tablet sin haber abierto antes el panel
+    // devolvería "esta reserva ya terminó". Con un token de demo se fuerza,
+    // saltándose el throttle: escanear justo dentro de esa ventana no puede
+    // devolver un error.
+    await refreshClubDemo(clubId, DEMO_LIVE_TOKENS.includes(accessToken));
     const booking = await loadSession(clubId, accessToken);
 
     // La tablet de la Cancha 2 no abre el QR de una reserva de la Cancha 1: el
