@@ -114,10 +114,31 @@ export interface TabletSession {
   }[];
 }
 
+/** Una cancha vista con la llave maestra, con su reserva en curso si la tiene. */
+export interface MasterCourt {
+  id: string;
+  name: string;
+  booking: {
+    accessToken: string;
+    playerName: string;
+    playerCount: number;
+    startsAt: string;
+    endsAt: string;
+  } | null;
+}
+
 export const clubTabletApi = {
   court: () => api.get<{ data: TabletCourt | null }>('/club-tablet/court').then((r) => r.data.data),
-  session: (accessToken: string) =>
-    api.get<{ data: TabletSession }>(`/club-tablet/session/${accessToken}`).then((r) => r.data.data),
+  /** Con `masterCode` abre la reserva aunque sea de otra cancha o esté fuera de hora. */
+  session: (accessToken: string, masterCode?: string) =>
+    api
+      .get<{ data: TabletSession }>(`/club-tablet/session/${accessToken}`, {
+        params: masterCode ? { master: masterCode } : undefined,
+      })
+      .then((r) => r.data.data),
+  /** Canjea la llave maestra por la lista de canchas con su reserva en curso. */
+  master: (code: string) =>
+    api.post<{ data: { courts: MasterCourt[] } }>('/club-tablet/master', { code }).then((r) => r.data.data.courts),
   catalog: () =>
     api.get<{ data: { stores: TabletStore[] } }>('/club-tablet/catalog').then((r) => r.data.data.stores),
   /** Un pedido es siempre de UNA tienda: así cada una cobra lo suyo. */

@@ -22,6 +22,8 @@ const tablet = requireRole('OWNER', 'ADMIN', 'CASHIER', 'CANCHA');
 router.get('/court', tablet, clubTabletController.court);
 router.get('/session/:accessToken', tablet, clubTabletController.session);
 router.get('/catalog', tablet, clubTabletController.catalog);
+// Llave maestra: lista las canchas con su reserva en curso para elegir cuál abrir.
+router.post('/master', tablet, clubTabletController.masterCourts);
 router.post('/orders', tablet, clubTabletController.createOrder);
 // El jugador reporta que ya transfirió. No cobra: deja el pago por aprobar.
 router.post('/payments', tablet, clubTabletController.reportPayment);

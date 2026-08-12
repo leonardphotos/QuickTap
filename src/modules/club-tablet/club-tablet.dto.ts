@@ -35,3 +35,8 @@ export const reportTabPaymentSchema = z.object({
 });
 
 export type ReportTabPaymentInput = z.infer<typeof reportTabPaymentSchema>;
+
+/** La llave maestra escrita en la tablet. */
+export const masterCodeSchema = z.object({
+  code: z.string().min(1).max(64),
+});

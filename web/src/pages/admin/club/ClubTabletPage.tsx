@@ -12,6 +12,7 @@ import {
   type TabletCourt,
   type TabletPayMethod,
   type TabletSession,
+  type MasterCourt,
   type TabletStore,
   type TabletTab,
 } from './clubTabletApi';
@@ -21,7 +22,7 @@ import ClubTournamentScreen from './ClubTournamentScreen';
 /** La pantalla solo tiene sentido acostada: es una tablet fija en la pared de la cancha. */
 const LANDSCAPE_QUERY = '(orientation: landscape)';
 
-type Screen = 'idle' | 'scanning' | 'sesion' | 'tiendas' | 'menu' | 'closing' | 'torneo';
+type Screen = 'idle' | 'scanning' | 'maestro' | 'sesion' | 'tiendas' | 'menu' | 'closing' | 'torneo';
 
 function useIsLandscape(): boolean {
   const [ok, setOk] = useState(() => window.matchMedia(LANDSCAPE_QUERY).matches);
@@ -128,6 +129,10 @@ export default function ClubTabletPage() {
   const [torneoReturnScreen, setTorneoReturnScreen] = useState<Screen>('idle');
   // Qué cuenta está pagando en la pantalla de cierre (payeeId), si alguna.
   const [payingTab, setPayingTab] = useState<string | null>(null);
+  // Llave maestra en uso: se guarda para poder abrir la reserva elegida
+  // saltándose el candado de cancha y el de hora.
+  const [masterCode, setMasterCode] = useState<string | null>(null);
+  const [masterCourts, setMasterCourts] = useState<MasterCourt[] | null>(null);
 
   const countdown = useCountdown(session?.booking.endsAt);
 
@@ -154,6 +159,8 @@ export default function ClubTabletPage() {
     setError(null);
     setJustSent(false);
     setCategory('todo');
+    setMasterCode(null);
+    setMasterCourts(null);
     setScreen('idle');
   }, []);
 
@@ -168,10 +175,16 @@ export default function ClubTabletPage() {
     setScreen('menu');
   }, []);
 
+  // La llave viaja por ref para que el refresco periódico no se resuscriba cada
+  // vez que cambia — y sin ella el refresco expulsaría una sesión abierta con
+  // maestra, porque volvería a chocar con el candado de cancha.
+  const masterRef = useRef<string | null>(null);
+  masterRef.current = masterCode;
+
   // Refresca la sesión: el saldo cambia con cada pedido y el tiempo corre solo.
   const refreshSession = useCallback(async (token: string) => {
     try {
-      const s = await clubTabletApi.session(token);
+      const s = await clubTabletApi.session(token, masterRef.current ?? undefined);
       setSession(s);
       return s;
     } catch {
@@ -186,16 +199,33 @@ export default function ClubTabletPage() {
     setScreen('torneo');
   }
 
+  /** Abre una reserva. `master` va cuando se llegó por la llave maestra: deja
+   *  entrar aunque la reserva sea de otra cancha o esté fuera de hora. */
+  async function openBooking(token: string, master?: string) {
+    const [s, st] = await Promise.all([clubTabletApi.session(token, master), clubTabletApi.catalog()]);
+    setSession(s);
+    setStores(st);
+    setScreen(s.booking.finished ? 'closing' : 'sesion');
+  }
+
   async function openSession(rawToken: string) {
     const token = rawToken.trim().replace(/^.*\/acceso\//, '');
     if (!token) return;
     setError(null);
     try {
-      const [s, st] = await Promise.all([clubTabletApi.session(token), clubTabletApi.catalog()]);
-      setSession(s);
-      setStores(st);
-      setScreen(s.booking.finished ? 'closing' : 'sesion');
+      await openBooking(token);
     } catch (err: any) {
+      // No era una reserva. Puede ser la llave maestra, que se escribe en la
+      // misma casilla: se prueba como tal antes de dar el código por malo.
+      try {
+        const courts = await clubTabletApi.master(token);
+        setMasterCode(token);
+        setMasterCourts(courts);
+        setScreen('maestro');
+        return;
+      } catch {
+        // Tampoco. Vale el error original, que es el que le sirve al jugador.
+      }
       setError(err.response?.data?.error ?? 'No pudimos leer tu código. Intenta de nuevo.');
       setScreen('idle');
     }
@@ -369,6 +399,74 @@ export default function ClubTabletPage() {
             }}
           />
         )}
+      </TabletPortada>
+    );
+  }
+
+  // ------------------------------ Llave maestra: elegir qué cancha se abre
+  if (screen === 'maestro' && masterCourts) {
+    return (
+      <TabletPortada
+        brand={brand}
+        restaurant={restaurant}
+        clock={clock}
+        footer={
+          <button onClick={reset} className="absolute bottom-4 right-5 z-10 text-xs text-white/30">
+            Salir
+          </button>
+        }
+      >
+        <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-white/50">Llave maestra</p>
+        <h1 className="mt-3 text-[clamp(1.6rem,4vw,2.6rem)] font-bold leading-none tracking-tight text-white">
+          ¿Qué cancha abres?
+        </h1>
+
+        <div className="mt-9 grid w-full max-w-3xl gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {masterCourts.map((c) => (
+            <button
+              key={c.id}
+              disabled={!c.booking}
+              onClick={async () => {
+                if (!c.booking) return;
+                setError(null);
+                try {
+                  await openBooking(c.booking.accessToken, masterCode ?? undefined);
+                } catch (err: any) {
+                  setError(err.response?.data?.error ?? 'No se pudo abrir esa cancha.');
+                }
+              }}
+              className={cn(
+                'rounded-2xl border px-4 py-4 text-left transition-colors',
+                c.booking
+                  ? 'border-white/20 bg-white/15 backdrop-blur-xl hover:bg-white/25'
+                  : 'cursor-not-allowed border-white/10 bg-white/[0.06]',
+              )}
+            >
+              <p className="truncate text-lg font-bold text-white">{c.name}</p>
+              {c.booking ? (
+                <>
+                  <p className="truncate text-sm font-light text-white/75">{c.booking.playerName}</p>
+                  <p className="mt-0.5 text-xs font-light text-white/50">
+                    hasta{' '}
+                    {new Date(c.booking.endsAt).toLocaleTimeString('es-VE', {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      hour12: false,
+                    })}{' '}
+                    · {c.booking.playerCount} jugadores
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm font-light text-white/40">Sin reserva ahora</p>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {error && <p className="mt-5 text-sm font-medium text-white/85">{error}</p>}
+        <p className="mt-7 max-w-lg text-sm font-light text-white/55">
+          Entras sin el QR del jugador. Úsala solo cuando haga falta.
+        </p>
       </TabletPortada>
     );
   }

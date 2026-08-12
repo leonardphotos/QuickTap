@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
@@ -25,6 +26,32 @@ const OPEN_AFTER_MINUTES = 60;
  * evita confundirla con una tienda vinculada que casualmente fuera el club.
  */
 const CLUB_STORE_ID = 'CLUB';
+
+/**
+ * Llave maestra de las tablets. Se escribe en la misma casilla que el código de
+ * la reserva y abre cualquier cancha sin el QR del jugador — para cuando el QR
+ * no escanea, se perdió, o recepción necesita entrar a una tablet que no es la
+ * de esa cancha.
+ *
+ * Vive en la configuración del servidor (CLUB_TABLET_MASTER_CODE) y NO en el
+ * código: así no queda en el repositorio y se puede cambiar sin desplegar. Si no
+ * está configurada, la llave maestra simplemente no existe.
+ *
+ * No es una puerta desde fuera: todas las rutas de este módulo exigen sesión
+ * iniciada del club (tenantGuard + rol), así que la llave es una SEGUNDA
+ * credencial sobre una tablet que ya está dentro, nunca la primera.
+ */
+function isMasterCode(candidate: string | undefined | null): boolean {
+  const expected = process.env.CLUB_TABLET_MASTER_CODE?.trim();
+  if (!expected || !candidate) return false;
+
+  const a = Buffer.from(candidate.trim());
+  const b = Buffer.from(expected);
+  // Comparación de tiempo constante: comparar con === deja medir cuántos
+  // caracteres acertó quien esté probando códigos.
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
 
 /** Una línea del catálogo, venga de la tienda del club o de una vinculada. Las
  *  dos comparten forma para que la tablet las pinte con el mismo componente. */
@@ -299,7 +326,7 @@ export const clubTabletService = {
    * que la pantalla necesita: a quién saludar, cuánto tiempo queda y qué lleva
    * consumido.
    */
-  async getSession(clubId: string, userId: string, accessToken: string) {
+  async getSession(clubId: string, userId: string, accessToken: string, masterCode?: string) {
     // La demo desliza sus reservas en vivo para que el QR nunca caduque; si no se
     // refrescara acá, escanear en la tablet sin haber abierto antes el panel
     // devolvería "esta reserva ya terminó". Con un token de demo se fuerza,
@@ -308,9 +335,14 @@ export const clubTabletService = {
     await refreshClubDemo(clubId, DEMO_LIVE_TOKENS.includes(accessToken));
     const booking = await loadSession(clubId, accessToken);
 
+    // Con la llave maestra se abre cualquier reserva desde cualquier tablet, y a
+    // cualquier hora: es precisamente para destrabar los casos que los dos
+    // candados de abajo bloquean.
+    const master = isMasterCode(masterCode);
+
     // La tablet de la Cancha 2 no abre el QR de una reserva de la Cancha 1: el
     // jugador se llevaría los pedidos a la cancha equivocada.
-    const tabletCourtId = await tabletCourtIdOf(userId);
+    const tabletCourtId = master ? null : await tabletCourtIdOf(userId);
     if (tabletCourtId && booking.block.courtId !== tabletCourtId) {
       const own = await prisma.clubCourt.findUnique({ where: { id: tabletCourtId }, select: { name: true } });
       throw badRequest(
@@ -321,10 +353,10 @@ export const clubTabletService = {
     const now = Date.now();
     const startsAt = booking.block.startsAt.getTime();
     const endsAt = booking.block.endsAt.getTime();
-    if (now < startsAt - OPEN_BEFORE_MINUTES * 60_000) {
+    if (!master && now < startsAt - OPEN_BEFORE_MINUTES * 60_000) {
       throw badRequest('Tu reserva todavía no empieza. Vuelve unos minutos antes de tu hora.');
     }
-    if (now > endsAt + OPEN_AFTER_MINUTES * 60_000) {
+    if (!master && now > endsAt + OPEN_AFTER_MINUTES * 60_000) {
       throw badRequest('Esta reserva ya terminó. Acércate a caja si tienes algo pendiente.');
     }
 
@@ -582,6 +614,74 @@ export const clubTabletService = {
       totalBase: order.totalBase.toFixed(2),
       totalBs: order.totalBs.toFixed(2),
       items: order.items.map((i) => ({ productName: i.productName, quantity: i.quantity, lineTotal: i.lineTotal.toFixed(2) })),
+    };
+  },
+
+  /**
+   * Qué se abre al escribir la llave maestra: todas las canchas del club con la
+   * reserva que tengan en curso, para que quien atiende elija cuál abrir sin
+   * pedirle el QR a nadie.
+   *
+   * Con código inválido devuelve el MISMO error que un código de reserva que no
+   * existe: si respondiera distinto, la pantalla serviría para adivinar si un
+   * código es la llave maestra o no.
+   */
+  async masterCourts(clubId: string, code: string) {
+    if (!isMasterCode(code)) throw notFound('Esta reserva no existe.');
+
+    // Igual que al escanear un QR: en la cuenta demo las reservas se deslizan
+    // solas, y sin esto todas las canchas saldrían libres.
+    await refreshClubDemo(clubId, true);
+
+    const now = new Date();
+    // La misma ventana que abre el QR normal, para que "en curso" signifique lo
+    // mismo en las dos entradas.
+    const from = new Date(now.getTime() - OPEN_AFTER_MINUTES * 60_000);
+    const to = new Date(now.getTime() + OPEN_BEFORE_MINUTES * 60_000);
+
+    const courts = await prisma.clubCourt.findMany({
+      where: { restaurantId: clubId, active: true },
+      orderBy: { name: 'asc' },
+      select: {
+        id: true,
+        name: true,
+        blocks: {
+          where: {
+            kind: 'BOOKING',
+            status: { not: 'CANCELLED' },
+            startsAt: { lte: to },
+            endsAt: { gte: from },
+          },
+          orderBy: { startsAt: 'asc' },
+          take: 1,
+          select: {
+            startsAt: true,
+            endsAt: true,
+            booking: { select: { accessToken: true, playerName: true, playerCount: true, status: true } },
+          },
+        },
+      },
+    });
+
+    return {
+      courts: courts.map((c) => {
+        const block = c.blocks[0];
+        const booking = block?.booking;
+        return {
+          id: c.id,
+          name: c.name,
+          booking:
+            booking && booking.status !== 'CANCELLED'
+              ? {
+                  accessToken: booking.accessToken,
+                  playerName: booking.playerName,
+                  playerCount: booking.playerCount,
+                  startsAt: block.startsAt,
+                  endsAt: block.endsAt,
+                }
+              : null,
+        };
+      }),
     };
   },
 
