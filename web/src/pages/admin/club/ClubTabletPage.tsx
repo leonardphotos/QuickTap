@@ -522,6 +522,15 @@ export default function ClubTabletPage() {
         <p className="mt-7 text-sm font-light text-white/55">
           Tu cuenta: <span className="font-bold text-white">{money(session.money.dueBase)}</span>
         </p>
+
+        {/* Pagar sin esperar a que se acabe el tiempo: lleva a las cuentas
+            abiertas, que es donde está el desglose y el QR de cada cobrador. */}
+        <button
+          onClick={() => setScreen('closing')}
+          className="mt-3 rounded-full bg-white px-10 py-3 text-lg font-bold text-brand-950 shadow-lg transition-transform active:scale-95"
+        >
+          Pagar
+        </button>
       </TabletPortada>
     );
   }
@@ -534,8 +543,14 @@ export default function ClubTabletPage() {
         restaurant={restaurant}
         clock={clock}
         footer={
-          <button onClick={() => setScreen('sesion')} className="absolute bottom-4 right-5 z-10 text-xs text-white/30">
-            Volver
+          // Flecha centrada abajo: en una tablet colgada, la esquina es lo más
+          // incómodo de alcanzar, y el centro es donde la mano ya está.
+          <button
+            onClick={() => setScreen('sesion')}
+            aria-label="Volver"
+            className="absolute bottom-6 left-1/2 z-10 flex h-14 w-14 -translate-x-1/2 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur-xl transition-colors hover:bg-white/25"
+          >
+            <ArrowLeft className="h-6 w-6" />
           </button>
         }
       >
@@ -575,15 +590,27 @@ export default function ClubTabletPage() {
     );
   }
 
-  // ------------------------------- Se acabó: una cuenta por cada quien le cobra
+  // --------------------------- Cuentas abiertas: una por cada quien le cobra
+  //
+  // Se llega de dos formas: sola, cuando se acaba el tiempo, o a propósito desde
+  // el botón Pagar mientras todavía se juega. El texto y la salida cambian según
+  // el caso — a mitad de partida no se puede despedir al jugador ni cerrarle la
+  // sesión, que es lo que hace "Ok".
   if (screen === 'closing' && session) {
     const tabs = session.tabs ?? [];
+    const over = session.booking.finished || countdown.over;
     return (
       <div className="flex min-h-screen flex-col items-center gap-6 overflow-y-auto p-8 text-center" style={brand}>
         <Wallet className="mt-4 h-12 w-12 shrink-0 text-white/80" />
         <div className="shrink-0">
-          <p className="text-3xl font-bold text-white">Se acabó el tiempo, {session.booking.playerName.split(' ')[0]}</p>
-          <p className="mt-2 text-lg font-light text-white/75">Gracias por jugar en {session.booking.courtName}.</p>
+          <p className="text-3xl font-bold text-white">
+            {over ? `Se acabó el tiempo, ${session.booking.playerName.split(' ')[0]}` : 'Tus cuentas'}
+          </p>
+          <p className="mt-2 text-lg font-light text-white/75">
+            {over
+              ? `Gracias por jugar en ${session.booking.courtName}.`
+              : `Puedes pagar ahora y seguir jugando en ${session.booking.courtName}.`}
+          </p>
         </div>
 
         {tabs.length === 0 ? (
@@ -608,12 +635,23 @@ export default function ClubTabletPage() {
           </>
         )}
 
-        <button
-          onClick={reset}
-          className="mb-4 shrink-0 rounded-full bg-white px-16 py-4 text-xl font-bold text-brand-950 shadow-xl transition-transform active:scale-95"
-        >
-          Ok
-        </button>
+        {over ? (
+          <button
+            onClick={reset}
+            className="mb-4 shrink-0 rounded-full bg-white px-16 py-4 text-xl font-bold text-brand-950 shadow-xl transition-transform active:scale-95"
+          >
+            Ok
+          </button>
+        ) : (
+          // Todavía está jugando: se vuelve a donde estaba, no se cierra su sesión.
+          <button
+            onClick={() => setScreen(stores && stores.length > 1 ? 'tiendas' : 'sesion')}
+            aria-label="Volver"
+            className="mb-4 flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-white text-brand-950 shadow-xl transition-transform active:scale-95"
+          >
+            <ArrowLeft className="h-6 w-6" />
+          </button>
+        )}
 
         {payingTab && tabs.find((t) => t.payeeId === payingTab) && (
           <PayFlow
@@ -639,6 +677,16 @@ export default function ClubTabletPage() {
     <div className="flex h-screen flex-col bg-[#fafafa]">
       <header className="shrink-0 px-6 py-4 text-white" style={brand}>
         <div className="flex items-center gap-4">
+          {/* Volver va primero: en una tablet se lee de izquierda a derecha, y
+              "salir de acá" es lo que se busca en esa esquina. Vuelve al selector
+              de tiendas; si solo hay una, a la portada de la sesión. */}
+          <button
+            onClick={() => setScreen(stores && stores.length > 1 ? 'tiendas' : 'sesion')}
+            className="shrink-0 rounded-full bg-white/15 p-2.5 transition-colors hover:bg-white/25"
+            aria-label="Volver"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
           {store?.logoUrl && (
             <img src={store.logoUrl} alt="" className="h-11 w-11 shrink-0 rounded-2xl object-cover" />
           )}
@@ -659,15 +707,6 @@ export default function ClubTabletPage() {
             <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">tu cuenta</p>
             <p className="text-xl font-bold">{money(session.money.dueBase)}</p>
           </div>
-          {/* Vuelve al selector de tiendas; si solo hay una, a la portada de la
-              sesión, que es donde vive "Terminar". */}
-          <button
-            onClick={() => setScreen(stores && stores.length > 1 ? 'tiendas' : 'sesion')}
-            className="shrink-0 rounded-full bg-white/15 p-2.5 transition-colors hover:bg-white/25"
-            aria-label="Volver"
-          >
-            <ArrowLeft className="h-5 w-5" />
-          </button>
         </div>
       </header>
 
