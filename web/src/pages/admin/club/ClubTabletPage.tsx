@@ -4,6 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useBarcodeCamera } from '@/hooks/useBarcodeCamera';
 import { formatBase, formatBsAbsolute } from '@/utils/format';
 import { clubGradient, courtTypeLabel } from '@/pages/public/clubPublic';
+import { USD_FIRST_METHODS } from '@/utils/payments';
 import { cn } from '@/lib/utils';
 import {
   CLUB_STORE_ID,
@@ -657,6 +658,7 @@ export default function ClubTabletPage() {
           <PayFlow
             tab={tabs.find((t) => t.payeeId === payingTab)!}
             accessToken={session.booking.accessToken}
+            playerCount={session.booking.playerCount}
             money={money}
             onClose={() => setPayingTab(null)}
             onReported={async () => {
@@ -957,6 +959,13 @@ const PAY_FIELD_LABELS: [keyof TabletPayMethod, string][] = [
   ['cuenta', 'Cuenta'],
 ];
 
+/**
+ * Métodos que mueven dólares: su monto se dice en $, no en Bs. Parte de la regla
+ * compartida del panel (USD_FIRST_METHODS) y le suma los que son dólares por
+ * definición — decir "transfiere Bs" para Efectivo $ o PayPal sería falso.
+ */
+const USD_METHODS = new Set<string>([...USD_FIRST_METHODS, 'CASH_USD', 'PAYPAL']);
+
 const PAY_METHOD_LABELS: Record<string, string> = {
   MOBILE_PAYMENT: 'Pago Móvil',
   ZELLE: 'Zelle',
@@ -1076,27 +1085,40 @@ function TabCard({
 function PayFlow({
   tab,
   accessToken,
+  playerCount,
   money,
   onClose,
   onReported,
 }: {
   tab: TabletTab;
   accessToken: string;
+  /** Cuántos vinieron a jugar: es el reparto que se propone al dividir. */
+  playerCount: number;
   money: (v: string | number) => string;
   onClose: () => void;
   onReported: () => void;
 }) {
   const [step, setStep] = useState<'method' | 'data' | 'reference'>('method');
   const [method, setMethod] = useState<TabletPayMethod | null>(null);
-  // Prellenado con todo el saldo; se puede bajar para dividir la cuenta entre
-  // varios, cada quien con su propia referencia.
-  const [amount, setAmount] = useState(tab.balanceBase);
+  const [split, setSplit] = useState(false);
+  const [people, setPeople] = useState(Math.min(8, Math.max(2, playerCount || 2)));
   const [reference, setReference] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const maxBase = Math.max(0, Number(tab.balanceBase) - Number(tab.pendingBase));
   const rate = Number(tab.balanceBs) / Math.max(0.01, Number(tab.balanceBase));
+
+  /** Lo que le toca a quien está pagando ahora. Dividido, su parte; si no, todo
+   *  lo que falta. Se puede corregir a mano en el último paso. */
+  const shareBase = split ? Math.round((maxBase / people) * 100) / 100 : maxBase;
+  const [amount, setAmount] = useState(String(maxBase.toFixed(2)));
+
+  /** El monto se dice en la moneda del método: Pago Móvil y efectivo en Bs se
+   *  transfieren en bolívares, y Zelle/Binance mueven dólares. Decirlo en la
+   *  otra obliga al jugador a convertir de cabeza y a equivocarse. */
+  const usdFirst = method ? USD_METHODS.has(method.method) : false;
+  const amountLabel = (base: number) => (usdFirst ? money(base) : formatBsAbsolute(base * rate));
 
   async function submit() {
     const n = Number(amount);
@@ -1128,17 +1150,17 @@ function PayFlow({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-brand-950/70 p-6 backdrop-blur-sm">
       <div className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="truncate text-lg font-bold text-brand-950">Pagar a {tab.name}</p>
-            <p className="text-[13px] font-light text-brand-950/50">
-              {money(tab.balanceBase)} · {formatBsAbsolute(tab.balanceBs)}
-            </p>
-          </div>
+        {/* Título centrado y la X fuera del flujo, para que el nombre quede al
+            medio de verdad y no descuadrado por el ancho del botón. */}
+        <div className="relative pt-1 text-center">
+          <p className="truncate px-10 text-lg font-bold text-brand-950">Pagar a {tab.name}</p>
+          <p className="text-[13px] font-light text-brand-950/50">
+            {money(tab.balanceBase)} · {formatBsAbsolute(tab.balanceBs)}
+          </p>
           <button
             onClick={onClose}
             aria-label="Cerrar"
-            className="shrink-0 rounded-full bg-brand-950/[0.06] p-2 text-brand-950/50 hover:text-brand-950"
+            className="absolute right-0 top-0 rounded-full bg-brand-950/[0.06] p-2 text-brand-950/50 hover:text-brand-950"
           >
             <X className="h-4 w-4" />
           </button>
@@ -1146,13 +1168,63 @@ function PayFlow({
 
         {step === 'method' && (
           <div className="mt-5">
-            <p className="text-[13px] font-medium text-brand-950/70">¿Cómo vas a pagar?</p>
+            {/* Primero cuánto va a pagar, después con qué: el reparto cambia el
+                monto que se le va a mostrar en el QR. */}
+            <div className="grid grid-cols-2 gap-2">
+              {(
+                [
+                  [false, 'Pago completo'],
+                  [true, 'Pago dividido'],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={label}
+                  onClick={() => setSplit(value)}
+                  className={cn(
+                    'rounded-2xl border py-3 text-[15px] font-bold transition-colors',
+                    split === value
+                      ? 'border-brand-500 bg-brand-500 text-white'
+                      : 'border-brand-950/10 text-brand-950/60 hover:border-brand-500',
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {split && (
+              <div className="mt-3 rounded-2xl bg-brand-950/[0.04] px-4 py-3">
+                <p className="text-[13px] font-medium text-brand-950/70">¿Entre cuántos?</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {[2, 3, 4, 5, 6, 8].map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => setPeople(n)}
+                      className={cn(
+                        'h-10 w-10 rounded-full text-[15px] font-bold transition-colors',
+                        people === n ? 'bg-brand-500 text-white' : 'bg-white text-brand-950/60 hover:text-brand-950',
+                      )}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2.5 text-[13px] font-light text-brand-950/60">
+                  Cada uno paga{' '}
+                  <span className="font-bold text-brand-950">{money(shareBase)}</span> ·{' '}
+                  <span className="font-semibold text-brand-500">{formatBsAbsolute(shareBase * rate)}</span>
+                </p>
+              </div>
+            )}
+
+            <p className="mt-5 text-[13px] font-medium text-brand-950/70">¿Cómo vas a pagar?</p>
             <div className="mt-2 space-y-2">
               {tab.methods.map((m) => (
                 <button
                   key={m.method}
                   onClick={() => {
                     setMethod(m);
+                    setAmount(shareBase.toFixed(2));
                     setStep('data');
                   }}
                   className="flex w-full items-center justify-between gap-3 rounded-2xl border border-brand-950/10 px-4 py-3.5 text-left transition-colors hover:border-brand-500 hover:bg-brand-500/[0.04]"
@@ -1168,9 +1240,19 @@ function PayFlow({
         )}
 
         {step === 'data' && method && (
-          <div className="mt-5">
+          <div className="mt-5 text-center">
             <p className="text-[13px] font-medium text-brand-950/70">
-              Transfiere {formatBsAbsolute(tab.balanceBs)} por {PAY_METHOD_LABELS[method.method] ?? method.method}
+              {usdFirst ? 'Paga' : 'Transfiere'} por {PAY_METHOD_LABELS[method.method] ?? method.method}
+            </p>
+            {/* El monto, grande y en la moneda del método: es el dato que se
+                copia al banco y no puede obligar a convertir de cabeza. */}
+            <p className="mt-1 text-[34px] font-bold leading-none tracking-tight tabular-nums text-brand-950">
+              {amountLabel(shareBase)}
+            </p>
+            <p className="mt-1 text-[12px] font-light text-brand-950/45">
+              {/* La otra moneda queda de referencia, chiquita. */}
+              {usdFirst ? formatBsAbsolute(shareBase * rate) : money(shareBase)}
+              {split && ` · tu parte de ${people}`}
             </p>
 
             {method.qrImageUrl && (
@@ -1232,9 +1314,11 @@ function PayFlow({
                 onChange={(e) => setAmount(e.target.value)}
                 className="mt-1 w-full rounded-xl border border-brand-950/15 px-4 py-3 text-lg tabular-nums focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
               />
+              {/* Se escribe en la moneda base, así que se dicen las dos: si arriba
+                  vio un monto en Bs, tiene que quedar claro que acá va el otro. */}
               <span className="mt-1 block text-[12px] font-light text-brand-950/45">
-                {Number(amount) > 0 && `≈ ${formatBsAbsolute(Number(amount) * rate)} · `}
-                Si están dividiendo la cuenta, pon solo tu parte.
+                {Number(amount) > 0 && `${money(amount)} ≈ ${formatBsAbsolute(Number(amount) * rate)}`}
+                {split && ` · tu parte de ${people}`}
               </span>
             </label>
 
