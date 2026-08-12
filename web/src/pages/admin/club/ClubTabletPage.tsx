@@ -321,6 +321,26 @@ export default function ClubTabletPage() {
 
   const brand = clubGradient((restaurant?.theme ?? null) as never);
 
+  // Los mismos colores de "Marca del enlace de reservas" (Ajustes → Apariencia)
+  // pintan esta tablet: toda la pantalla usa las clases bg-brand-*/text-brand-*,
+  // así que sobreescribir las variables CSS en la raíz alcanza para que botones,
+  // textos y acentos se vean con la marca del club en vez del azul por defecto.
+  const clubTheme = restaurant?.theme as { primary?: string; accent?: string; text?: string } | null | undefined;
+  useEffect(() => {
+    const root = document.documentElement;
+    const vars: [string, string | undefined][] = [
+      ['--color-brand-950', clubTheme?.text],
+      ['--color-brand-500', clubTheme?.primary],
+      ['--color-brand-400', clubTheme?.accent],
+    ];
+    for (const [key, value] of vars) {
+      if (value) root.style.setProperty(key, value);
+    }
+    return () => {
+      for (const [key] of vars) root.style.removeProperty(key);
+    };
+  }, [clubTheme?.text, clubTheme?.primary, clubTheme?.accent]);
+
   if (!landscape) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-5 p-8 text-center" style={brand}>
