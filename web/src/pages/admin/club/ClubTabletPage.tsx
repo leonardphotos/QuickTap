@@ -5,14 +5,20 @@ import { useBarcodeCamera } from '@/hooks/useBarcodeCamera';
 import { formatBase } from '@/utils/format';
 import { clubGradient, courtTypeLabel } from '@/pages/public/clubPublic';
 import { cn } from '@/lib/utils';
-import { clubTabletApi, type TabletCatalogItem, type TabletCourt, type TabletSession } from './clubTabletApi';
+import {
+  clubTabletApi,
+  type TabletCatalogItem,
+  type TabletCourt,
+  type TabletSession,
+  type TabletStore,
+} from './clubTabletApi';
 import { clubApi } from './clubApi';
 import ClubTournamentScreen from './ClubTournamentScreen';
 
 /** La pantalla solo tiene sentido acostada: es una tablet fija en la pared de la cancha. */
 const LANDSCAPE_QUERY = '(orientation: landscape)';
 
-type Screen = 'idle' | 'scanning' | 'sesion' | 'menu' | 'closing' | 'torneo';
+type Screen = 'idle' | 'scanning' | 'sesion' | 'tiendas' | 'menu' | 'closing' | 'torneo';
 
 function useIsLandscape(): boolean {
   const [ok, setOk] = useState(() => window.matchMedia(LANDSCAPE_QUERY).matches);
@@ -25,8 +31,8 @@ function useIsLandscape(): boolean {
   return ok;
 }
 
-function itemKey(i: { source: string; id: string }): string {
-  return `${i.source}:${i.id}`;
+function itemKey(i: { storeId: string; id: string }): string {
+  return `${i.storeId}:${i.id}`;
 }
 
 /**
@@ -98,7 +104,10 @@ export default function ClubTabletPage() {
 
   const [screen, setScreen] = useState<Screen>('idle');
   const [session, setSession] = useState<TabletSession | null>(null);
-  const [catalog, setCatalog] = useState<TabletCatalogItem[] | null>(null);
+  const [stores, setStores] = useState<TabletStore[] | null>(null);
+  // En qué tienda está comprando. El carrito es de ESA tienda: cada tienda cobra
+  // lo suyo, así que un pedido nunca mezcla dos.
+  const [storeId, setStoreId] = useState<string | null>(null);
   const [cart, setCart] = useState<Record<string, number>>({});
   const [error, setError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
@@ -136,10 +145,22 @@ export default function ClubTabletPage() {
   const reset = useCallback(() => {
     setSession(null);
     setCart({});
+    setStoreId(null);
     setError(null);
     setJustSent(false);
     setCategory('todo');
     setScreen('idle');
+  }, []);
+
+  /** Entrar a una tienda arranca un carrito limpio: lo que no se pidió en la
+   *  anterior no se arrastra a la cuenta de otra. */
+  const openStore = useCallback((id: string) => {
+    setStoreId(id);
+    setCart({});
+    setCategory('todo');
+    setJustSent(false);
+    setError(null);
+    setScreen('menu');
   }, []);
 
   // Refresca la sesión: el saldo cambia con cada pedido y el tiempo corre solo.
@@ -165,9 +186,9 @@ export default function ClubTabletPage() {
     if (!token) return;
     setError(null);
     try {
-      const [s, c] = await Promise.all([clubTabletApi.session(token), clubTabletApi.catalog()]);
+      const [s, st] = await Promise.all([clubTabletApi.session(token), clubTabletApi.catalog()]);
       setSession(s);
-      setCatalog(c.items);
+      setStores(st);
       setScreen(s.booking.finished ? 'closing' : 'sesion');
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No pudimos leer tu código. Intenta de nuevo.');
@@ -180,7 +201,7 @@ export default function ClubTabletPage() {
   const tokenRef = useRef<string | null>(null);
   tokenRef.current = session?.booking.accessToken ?? null;
 
-  const inSession = screen === 'sesion' || screen === 'menu';
+  const inSession = screen === 'sesion' || screen === 'tiendas' || screen === 'menu';
 
   useEffect(() => {
     if (!inSession) return;
@@ -198,6 +219,10 @@ export default function ClubTabletPage() {
   useEffect(() => {
     if (inSession && countdown.over) setScreen('closing');
   }, [inSession, countdown.over]);
+
+  /** La tienda abierta y su catálogo. Todo lo del menú se deriva de acá. */
+  const store = useMemo(() => stores?.find((s) => s.id === storeId) ?? null, [stores, storeId]);
+  const catalog = store?.items ?? null;
 
   const categories = useMemo(() => {
     if (!catalog) return [];
@@ -234,13 +259,14 @@ export default function ClubTabletPage() {
   }
 
   async function send() {
-    if (!session || cartLines.length === 0) return;
+    if (!session || !storeId || cartLines.length === 0) return;
     setSending(true);
     setError(null);
     try {
       await clubTabletApi.createOrder(
         session.booking.accessToken,
-        cartLines.map((l) => ({ source: l.item.source, productId: l.item.id, quantity: l.qty })),
+        storeId,
+        cartLines.map((l) => ({ productId: l.item.id, quantity: l.qty })),
       );
       setCart({});
       setJustSent(true);
@@ -248,7 +274,7 @@ export default function ClubTabletPage() {
       // También el stock de la tienda cambió con este pedido.
       clubTabletApi
         .catalog()
-        .then((c) => setCatalog(c.items))
+        .then(setStores)
         .catch(() => {});
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No se pudo enviar el pedido.');
@@ -379,12 +405,69 @@ export default function ClubTabletPage() {
               })
             }
           />
-          <PortadaAction icon={<ShoppingBag className="h-7 w-7" />} title="Tienda" onClick={() => setScreen('menu')} />
+          <PortadaAction
+            icon={<ShoppingBag className="h-7 w-7" />}
+            title="Tienda"
+            onClick={() => {
+              // Con una sola tienda no tiene sentido hacer elegir: se entra directo.
+              if (stores?.length === 1) openStore(stores[0].id);
+              else setScreen('tiendas');
+            }}
+          />
         </div>
 
         <p className="mt-7 text-sm font-light text-white/55">
           Tu cuenta: <span className="font-bold text-white">{money(session.money.dueBase)}</span>
         </p>
+      </TabletPortada>
+    );
+  }
+
+  // ------------------------------------------------- Elegir en qué tienda pedir
+  if (screen === 'tiendas' && session) {
+    return (
+      <TabletPortada
+        brand={brand}
+        restaurant={restaurant}
+        clock={clock}
+        footer={
+          <button onClick={() => setScreen('sesion')} className="absolute bottom-4 right-5 z-10 text-xs text-white/30">
+            Volver
+          </button>
+        }
+      >
+        <p className="text-[11px] font-semibold uppercase tracking-[0.3em] text-white/50">¿Dónde quieres pedir?</p>
+        <h1 className="mt-3 text-[clamp(1.6rem,4vw,2.6rem)] font-bold leading-none tracking-tight text-white">
+          Tiendas
+        </h1>
+
+        {stores && stores.length > 0 ? (
+          <>
+            <div className="mt-10 flex flex-wrap items-start justify-center gap-6">
+              {stores.map((s) => (
+                <PortadaAction
+                  key={s.id}
+                  icon={
+                    s.logoUrl ? (
+                      <img src={s.logoUrl} alt="" className="h-full w-full rounded-2xl object-cover" />
+                    ) : (
+                      <ShoppingBag className="h-7 w-7" />
+                    )
+                  }
+                  title={s.name}
+                  onClick={() => openStore(s.id)}
+                />
+              ))}
+            </div>
+            <p className="mt-7 max-w-md text-sm font-light text-white/55">
+              Cada tienda te cobra lo suyo, así que se piden por separado.
+            </p>
+          </>
+        ) : (
+          <p className="mt-10 max-w-md text-lg font-light text-white/70">
+            Todavía no hay nada a la venta. Avísale a recepción.
+          </p>
+        )}
       </TabletPortada>
     );
   }
@@ -430,10 +513,14 @@ export default function ClubTabletPage() {
     <div className="flex h-screen flex-col bg-[#fafafa]">
       <header className="shrink-0 px-6 py-4 text-white" style={brand}>
         <div className="flex items-center gap-4">
+          {store?.logoUrl && (
+            <img src={store.logoUrl} alt="" className="h-11 w-11 shrink-0 rounded-2xl object-cover" />
+          )}
           <div className="min-w-0 flex-1">
-            <p className="truncate text-2xl font-bold">Bienvenido, {session.booking.playerName}</p>
-            <p className="text-sm font-light text-white/75">
-              {session.booking.courtName} · {session.booking.playerCount} jugadores
+            {/* El nombre de la tienda manda: es de quien se está pidiendo y quien cobra. */}
+            <p className="truncate text-2xl font-bold">{store?.name ?? 'Tienda'}</p>
+            <p className="truncate text-sm font-light text-white/75">
+              {session.booking.playerName} · {session.booking.courtName}
             </p>
           </div>
           <div className="shrink-0 rounded-2xl bg-white/15 px-4 py-2 text-center">
@@ -446,9 +533,10 @@ export default function ClubTabletPage() {
             <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">tu cuenta</p>
             <p className="text-xl font-bold">{money(session.money.dueBase)}</p>
           </div>
-          {/* Vuelve a la portada de la sesión, que es donde vive "Terminar". */}
+          {/* Vuelve al selector de tiendas; si solo hay una, a la portada de la
+              sesión, que es donde vive "Terminar". */}
           <button
-            onClick={() => setScreen('sesion')}
+            onClick={() => setScreen(stores && stores.length > 1 ? 'tiendas' : 'sesion')}
             className="shrink-0 rounded-full bg-white/15 p-2.5 transition-colors hover:bg-white/25"
             aria-label="Volver"
           >
@@ -488,8 +576,10 @@ export default function ClubTabletPage() {
                   )}
                   <div className="flex flex-1 flex-col p-3">
                     <p className="line-clamp-2 text-sm font-semibold leading-tight text-brand-950">{item.name}</p>
+                    {/* La categoría, no el origen: toda esta pantalla es de una
+                        sola tienda y su nombre ya está arriba. */}
                     <p className="mt-0.5 text-[11px] font-light text-brand-950/40">
-                      {item.source === 'RESTAURANT' ? 'Cocina' : 'Tienda'}
+                      {item.category}
                     </p>
                     <p className="mt-auto pt-2 text-base font-bold text-brand-950">{money(item.priceBase)}</p>
 
@@ -652,10 +742,14 @@ function PortadaAction({
       onClick={onClick}
       className="flex flex-col items-center gap-3 py-6 transition-transform active:scale-[0.97]"
     >
-      <span className="flex h-20 w-28 items-center justify-center rounded-xl bg-white/15 text-white backdrop-blur-xl transition-colors hover:bg-white/25">
+      {/* overflow-hidden: el icono puede ser el logo de una tienda, y sin esto
+          la foto se sale de las esquinas redondeadas. */}
+      <span className="flex h-20 w-28 items-center justify-center overflow-hidden rounded-xl bg-white/15 text-white backdrop-blur-xl transition-colors hover:bg-white/25">
         {icon}
       </span>
-      <span className="text-xl font-bold text-white">{title}</span>
+      {/* Los nombres de tienda son libres: se dejan envolver en dos líneas en vez
+          de recortarlos, que dejaba "Tienda del …" sin decir de quién es. */}
+      <span className="line-clamp-2 max-w-36 text-center text-xl font-bold leading-tight text-white">{title}</span>
     </button>
   );
 }

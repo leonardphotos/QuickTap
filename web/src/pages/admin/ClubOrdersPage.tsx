@@ -90,10 +90,14 @@ export default function ClubOrdersPage() {
           <TextureCard key={o.id}>
             <TextureCardContent className="space-y-3 py-4">
               {/* La cancha es lo más grande de la tarjeta a propósito: es el dato
-                  que usa quien lleva la bandeja. */}
+                  que usa quien lleva la bandeja. "Pedido desde" adelante para que
+                  se lea de un vistazo de dónde salió, sin confundirlo con una mesa. */}
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate text-lg font-bold leading-tight text-brand-950">{o.courtName}</p>
+                  <p className="truncate text-lg font-bold leading-tight text-brand-950">
+                    <span className="font-medium text-brand-950/45">Pedido desde </span>
+                    {o.courtName}
+                  </p>
                   <p className="truncate text-xs font-light text-brand-950/45">{o.club.name}</p>
                 </div>
                 <span

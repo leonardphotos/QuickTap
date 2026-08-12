@@ -53,9 +53,10 @@ export const clubLinkApi = {
   // Lado club
   clubState: () =>
     api
-      .get<{ data: { restaurant: LinkedParty | null; linkedAt: string | null } }>('/club-link/club')
+      .get<{ data: { stores: (LinkedParty & { linkedAt: string })[]; maxStores: number } }>('/club-link/club')
       .then((r) => r.data.data),
   redeem: (code: string) =>
     api.post<{ data: { restaurant: LinkedParty } }>('/club-link/redeem', { code }).then((r) => r.data.data),
-  unlinkFromClub: () => api.delete('/club-link/club').then((r) => r.data),
+  /** Desvincula UNA tienda: un club puede tener varias. */
+  unlinkFromClub: (restaurantId: string) => api.delete(`/club-link/club/${restaurantId}`).then((r) => r.data),
 };

@@ -19,10 +19,18 @@ function randomCode(): string {
   return out;
 }
 
-/** Vínculo activo de un club, o null. Se consulta desde los dos lados. */
-async function findLinkForClub(clubId: string) {
-  return prisma.clubRestaurantLink.findUnique({
+/**
+ * Cuántas tiendas puede vincular un club. El tope existe por la tablet: cada
+ * tienda es un icono en la pantalla de la cancha, y más de cuatro dejan de
+ * entrar de un vistazo (más la tienda propia del club, que siempre está).
+ */
+const MAX_LINKED_STORES = 4;
+
+/** Tiendas vinculadas a un club, en el orden en que se muestran en la tablet. */
+async function findLinksForClub(clubId: string) {
+  return prisma.clubRestaurantLink.findMany({
     where: { clubId },
+    orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
     include: { restaurant: { select: { id: true, name: true, slug: true, logoUrl: true } } },
   });
 }
@@ -114,17 +122,26 @@ export const clubLinkService = {
       throw badRequest('Ese código es de otro club, no de un restaurante.');
     }
 
-    const existing = await prisma.clubRestaurantLink.findUnique({ where: { clubId } });
-    if (existing && existing.restaurantId === found.restaurantId) {
-      throw conflict('Ya estás vinculado con ese restaurante.');
+    const existing = await prisma.clubRestaurantLink.findMany({
+      where: { clubId },
+      select: { restaurantId: true },
+    });
+    if (existing.some((l) => l.restaurantId === found.restaurantId)) {
+      throw conflict('Ya estás vinculado con esa tienda.');
+    }
+    if (existing.length >= MAX_LINKED_STORES) {
+      throw conflict(
+        `Ya tienes ${MAX_LINKED_STORES} tiendas vinculadas, que es el máximo. Desvincula una para agregar otra.`,
+      );
     }
 
     await prisma.$transaction(async (tx) => {
-      // Un club tiene un solo restaurante: canjear un código nuevo reemplaza el
-      // vínculo anterior en vez de fallar (es la forma natural de "cambiarme de
-      // restaurante" desde la UI del club).
-      if (existing) await tx.clubRestaurantLink.delete({ where: { id: existing.id } });
-      await tx.clubRestaurantLink.create({ data: { clubId, restaurantId: found.restaurantId } });
+      // Canjear un código SUMA una tienda. Antes reemplazaba a la anterior en
+      // silencio (el club solo podía tener una); ahora se acumulan hasta
+      // MAX_LINKED_STORES y salir de una es explícito, con "Desvincular".
+      await tx.clubRestaurantLink.create({
+        data: { clubId, restaurantId: found.restaurantId, sortOrder: existing.length },
+      });
       await tx.clubLinkCode.update({
         where: { id: found.id },
         data: { usedAt: new Date(), usedByClubId: clubId },
@@ -134,22 +151,30 @@ export const clubLinkService = {
     return { restaurant: { id: found.restaurant.id, name: found.restaurant.name, slug: found.restaurant.slug, logoUrl: found.restaurant.logoUrl } };
   },
 
+  /** Las tiendas del club, para Ajustes. */
   async getClubLink(clubId: string) {
-    const link = await findLinkForClub(clubId);
-    return { restaurant: link?.restaurant ?? null, linkedAt: link?.createdAt ?? null };
+    const links = await findLinksForClub(clubId);
+    return {
+      stores: links.map((l) => ({ ...l.restaurant, linkedAt: l.createdAt })),
+      maxStores: MAX_LINKED_STORES,
+    };
   },
 
-  async unlinkFromClub(clubId: string) {
-    const link = await prisma.clubRestaurantLink.findUnique({ where: { clubId } });
-    if (!link) throw notFound('No tienes ningún restaurante vinculado.');
+  /** El club corta el vínculo con UNA de sus tiendas. */
+  async unlinkFromClub(clubId: string, restaurantId: string) {
+    const link = await prisma.clubRestaurantLink.findFirst({ where: { clubId, restaurantId } });
+    if (!link) throw notFound('Esa tienda no está vinculada a tu club.');
     await prisma.clubRestaurantLink.delete({ where: { id: link.id } });
     return { ok: true };
   },
 
-  /** Usado por el módulo de la tablet: a qué restaurante se le mandan las comandas. */
-  async resolveKitchenFor(clubId: string) {
-    const link = await findLinkForClub(clubId);
-    return link?.restaurant ?? null;
+  /**
+   * Usado por el módulo de la tablet: a qué tiendas se les pueden mandar
+   * comandas. Devuelve un array — una comanda va siempre a UNA sola de ellas.
+   */
+  async resolveKitchensFor(clubId: string) {
+    const links = await findLinksForClub(clubId);
+    return links.map((l) => l.restaurant);
   },
 
   // --------------------------------- Lado restaurante: comandas de las canchas

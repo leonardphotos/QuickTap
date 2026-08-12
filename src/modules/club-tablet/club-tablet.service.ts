@@ -18,6 +18,28 @@ import type { CreateTabOrderInput } from './club-tablet.dto';
 const OPEN_BEFORE_MINUTES = 30;
 const OPEN_AFTER_MINUTES = 60;
 
+/**
+ * Id de la tienda propia del club en el catálogo de la tablet. No es el id del
+ * club a propósito: en `ClubTabOrder.kitchenRestaurantId` esa tienda se guarda
+ * como `null` ("no hay tienda externa que prepare esto"), y usar un centinela
+ * evita confundirla con una tienda vinculada que casualmente fuera el club.
+ */
+const CLUB_STORE_ID = 'CLUB';
+
+/** Una línea del catálogo, venga de la tienda del club o de una vinculada. Las
+ *  dos comparten forma para que la tablet las pinte con el mismo componente. */
+interface CatalogItem {
+  source: 'CLUB_STORE' | 'RESTAURANT';
+  storeId: string;
+  id: string;
+  name: string;
+  category: string;
+  priceBase: string;
+  photoUrl: string | null;
+  /** Solo la tienda del club lleva stock; el menú de un restaurante no. */
+  stock: number | null;
+}
+
 /** Lo consumido en una reserva, sumando solo lo que no está cancelado. */
 function consumoOf(tabOrders: { totalBase: Prisma.Decimal; status: string }[]): Prisma.Decimal {
   return round2(
@@ -30,6 +52,52 @@ function consumoOf(tabOrders: { totalBase: Prisma.Decimal; status: string }[]): 
 async function tabletCourtIdOf(userId: string): Promise<string | null> {
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true, clubCourtId: true } });
   return user?.role === 'CANCHA' ? user.clubCourtId : null;
+}
+
+/**
+ * Lo que vende una tienda vinculada, ya normalizado. Un restaurante vende de su
+ * Menú (`Product`, con precio de promo vigente) y un local de su Tienda
+ * (`ShopProduct`, con existencia real). Sin esta bifurcación, vincular un local
+ * mostraba una tienda vacía y nadie entendía por qué.
+ */
+async function readStoreCatalog(store: { id: string }) {
+  const info = await prisma.restaurant.findUniqueOrThrow({
+    where: { id: store.id },
+    select: { businessType: true },
+  });
+
+  if (info.businessType === 'SHOP') {
+    const products = await prisma.shopProduct.findMany({
+      where: { restaurantId: store.id },
+      orderBy: [{ category: 'asc' }, { name: 'asc' }],
+      include: { variants: true },
+    });
+    return products
+      .filter((p) => p.variants.reduce((acc, v) => acc + v.stock, 0) > 0)
+      .map((p) => ({
+        id: p.id,
+        name: p.name,
+        category: p.category || 'Tienda',
+        priceBase: p.price.toFixed(2),
+        photoUrl: p.photoUrl,
+      }));
+  }
+
+  const now = new Date();
+  const menu = await prisma.product.findMany({
+    where: { restaurantId: store.id, isAvailable: true, category: { isActive: true } },
+    orderBy: [{ category: { priority: 'asc' } }, { name: 'asc' }],
+    include: { category: { select: { name: true } } },
+  });
+  return menu
+    .filter((p) => !(p.stockControlEnabled && (p.stockQuantity ?? 0) <= 0))
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      category: p.category?.name ?? 'Menú',
+      priceBase: effectiveProductPrice(p, now).toFixed(2),
+      photoUrl: p.photoUrl,
+    }));
 }
 
 async function loadSession(clubId: string, accessToken: string) {
@@ -141,35 +209,37 @@ export const clubTabletService = {
   },
 
   /**
-   * Catálogo que ve el jugador: la tienda del club y el menú del restaurante
-   * vinculado, en una sola lista. La lectura al otro tenant está autorizada por
-   * el vínculo (ClubRestaurantLink), que es lo único que la habilita.
+   * Catálogo que ve el jugador, AGRUPADO POR TIENDA: primero la tienda propia
+   * del club, después cada tienda vinculada (hasta 4). Cada una es un icono en
+   * la tablet y una cuenta aparte.
+   *
+   * La lectura a los otros tenants está autorizada por el vínculo
+   * (ClubRestaurantLink), que es lo único que la habilita.
    */
   async getCatalog(clubId: string) {
-    const kitchen = await clubLinkService.resolveKitchenFor(clubId);
+    const [club, kitchens] = await Promise.all([
+      prisma.restaurant.findUniqueOrThrow({ where: { id: clubId }, select: { name: true, logoUrl: true } }),
+      clubLinkService.resolveKitchensFor(clubId),
+    ]);
 
-    const [shopProducts, menu] = await Promise.all([
+    const [shopProducts, storeCatalogs] = await Promise.all([
       prisma.shopProduct.findMany({
         where: { restaurantId: clubId },
         orderBy: [{ category: 'asc' }, { name: 'asc' }],
         include: { variants: true },
       }),
-      kitchen
-        ? prisma.product.findMany({
-            where: { restaurantId: kitchen.id, isAvailable: true, category: { isActive: true } },
-            orderBy: [{ category: { priority: 'asc' } }, { name: 'asc' }],
-            include: { category: { select: { name: true } } },
-          })
-        : Promise.resolve([]),
+      // Una tienda vinculada puede ser un restaurante (vende de su Menú) o un
+      // local (vende de su Tienda). Se lee lo que corresponda, si no una tienda
+      // recién vinculada aparecería vacía sin explicación.
+      Promise.all(kitchens.map((k) => readStoreCatalog(k))),
     ]);
 
-    const now = new Date();
-
-    const clubItems = shopProducts
+    const clubItems: CatalogItem[] = shopProducts
       .map((p) => {
         const stock = p.variants.reduce((acc, v) => acc + v.stock, 0);
         return {
           source: 'CLUB_STORE' as const,
+          storeId: CLUB_STORE_ID,
           id: p.id,
           name: p.name,
           category: p.category || 'Tienda',
@@ -178,29 +248,44 @@ export const clubTabletService = {
           stock,
         };
       })
-      .filter((p) => p.stock > 0);
+      .filter((p) => (p.stock ?? 0) > 0);
 
-    const menuItems = menu
-      .filter((p) => !(p.stockControlEnabled && (p.stockQuantity ?? 0) <= 0))
-      .map((p) => ({
-        source: 'RESTAURANT' as const,
-        id: p.id,
-        name: p.name,
-        category: p.category?.name ?? 'Menú',
-        priceBase: effectiveProductPrice(p, now).toFixed(2),
-        photoUrl: p.photoUrl,
-        stock: null as number | null,
-      }));
+    const stores: { id: string; name: string; logoUrl: string | null; items: CatalogItem[] }[] = [
+      // La tienda del club va primero y siempre existe, aunque esté vacía: es la
+      // que despacha agua y pelotas sin depender de nadie.
+      {
+        id: CLUB_STORE_ID,
+        name: 'Tienda del club',
+        logoUrl: club.logoUrl,
+        items: clubItems,
+      },
+      ...kitchens.map((k, i) => ({
+        id: k.id,
+        name: k.name,
+        logoUrl: k.logoUrl,
+        items: storeCatalogs[i].map((p) => ({
+          // 'RESTAURANT' acá significa "de una tienda vinculada", sea restaurante
+          // o local: es lo que separa esas líneas de las de la tienda del club.
+          source: 'RESTAURANT' as const,
+          storeId: k.id,
+          id: p.id,
+          name: p.name,
+          category: p.category,
+          priceBase: p.priceBase,
+          photoUrl: p.photoUrl,
+          stock: null as number | null,
+        })),
+      })),
+    ].filter((s) => s.items.length > 0);
 
-    return {
-      kitchen: kitchen ? { id: kitchen.id, name: kitchen.name, logoUrl: kitchen.logoUrl } : null,
-      items: [...menuItems, ...clubItems],
-    };
+    return { stores };
   },
 
   /**
-   * El jugador manda su pedido desde la cancha. Los precios se resuelven acá
-   * (nunca se confía en el cliente) y el total se congela, igual que en Order.
+   * El jugador manda su pedido desde la cancha. Una comanda es SIEMPRE de una
+   * sola tienda (`input.storeId`): así cada una cobra lo suyo y recibe solo lo
+   * que ella prepara. Los precios se resuelven acá (nunca se confía en el
+   * cliente) y el total se congela, igual que en Order.
    */
   async createOrder(clubId: string, userId: string, input: CreateTabOrderInput) {
     const booking = await loadSession(clubId, input.accessToken);
@@ -214,32 +299,36 @@ export const clubTabletService = {
       throw badRequest('Tu tiempo de cancha terminó. Pasa por caja para cerrar tu cuenta.');
     }
 
-    const kitchen = await clubLinkService.resolveKitchenFor(clubId);
-
-    const clubIds = input.items.filter((i) => i.source === 'CLUB_STORE').map((i) => i.productId);
-    const menuIds = input.items.filter((i) => i.source === 'RESTAURANT').map((i) => i.productId);
-
-    if (menuIds.length > 0 && !kitchen) {
-      throw badRequest('Este club no tiene un restaurante vinculado en este momento.');
+    const isClubStore = input.storeId === CLUB_STORE_ID;
+    // La tienda tiene que estar vinculada AHORA. Es lo que autoriza a leerle los
+    // productos y a mandarle la comanda; sin esta comprobación un storeId
+    // inventado por el cliente alcanzaría para pedirle a cualquier tenant.
+    const kitchen = isClubStore
+      ? null
+      : (await clubLinkService.resolveKitchensFor(clubId)).find((k) => k.id === input.storeId) ?? null;
+    if (!isClubStore && !kitchen) {
+      throw badRequest('Esa tienda ya no está vinculada a este club.');
     }
 
-    const [shopProducts, menuProducts] = await Promise.all([
-      clubIds.length
-        ? prisma.shopProduct.findMany({ where: { id: { in: clubIds }, restaurantId: clubId }, include: { variants: true } })
+    const productIds = input.items.map((i) => i.productId);
+
+    const [shopProducts, storeCatalog] = await Promise.all([
+      isClubStore
+        ? prisma.shopProduct.findMany({ where: { id: { in: productIds }, restaurantId: clubId }, include: { variants: true } })
         : Promise.resolve([]),
-      menuIds.length && kitchen
-        ? prisma.product.findMany({ where: { id: { in: menuIds }, restaurantId: kitchen.id, isAvailable: true } })
-        : Promise.resolve([]),
+      // Se valida contra el MISMO catálogo que se le mostró al jugador, así el
+      // precio cobrado es exactamente el que vio (y un producto retirado del
+      // menú deja de poder pedirse aunque el cliente mande su id).
+      kitchen ? readStoreCatalog(kitchen) : Promise.resolve([]),
     ]);
 
-    const now = new Date();
     const lines: Prisma.ClubTabItemCreateWithoutOrderInput[] = [];
     // Varias líneas del mismo producto de tienda tienen que descontar stock
     // sumado, no cada una por su lado.
     const stockToDrop = new Map<string, { variantV1: string; quantity: number }>();
 
     for (const item of input.items) {
-      if (item.source === 'CLUB_STORE') {
+      if (isClubStore) {
         const product = shopProducts.find((p) => p.id === item.productId);
         if (!product) throw badRequest('Uno de los productos ya no está disponible.');
         const variant = product.variants[0];
@@ -261,9 +350,9 @@ export const clubTabletService = {
           lineTotal: round2(unitPrice.mul(item.quantity)),
         });
       } else {
-        const product = menuProducts.find((p) => p.id === item.productId);
-        if (!product) throw badRequest('Uno de los productos del menú ya no está disponible.');
-        const unitPrice = round2(effectiveProductPrice(product, now));
+        const product = storeCatalog.find((p) => p.id === item.productId);
+        if (!product) throw badRequest('Uno de los productos ya no está disponible.');
+        const unitPrice = round2(toDecimal(product.priceBase));
         lines.push({
           source: 'RESTAURANT',
           sourceProductId: product.id,
@@ -279,8 +368,6 @@ export const clubTabletService = {
     const club = await prisma.restaurant.findUniqueOrThrow({ where: { id: clubId }, select: { baseCurrency: true } });
     const rate = await exchangeRateService.getRate(club.baseCurrency, clubId);
 
-    const hasKitchenLines = lines.some((l) => l.source === 'RESTAURANT');
-
     const order = await prisma.$transaction(async (tx) => {
       const created = await tx.clubTabOrder.create({
         data: {
@@ -290,8 +377,8 @@ export const clubTabletService = {
           totalBase,
           exchangeRate: rate.rateBs,
           totalBs: round2(totalBase.mul(rate.rateBs)),
-          // Solo se le manda al restaurante si de verdad tiene algo que preparar.
-          kitchenRestaurantId: hasKitchenLines ? kitchen!.id : null,
+          // null = la tienda propia del club; si no, la tienda que prepara y cobra.
+          kitchenRestaurantId: kitchen?.id ?? null,
           items: { create: lines },
         },
         include: { items: true },
@@ -307,10 +394,10 @@ export const clubTabletService = {
       return created;
     });
 
-    // El club refresca su Caja; el restaurante, su cola de comandas.
+    // El club refresca su Caja; la tienda, su cola de comandas.
     emitToKitchen(clubId, SocketEvents.CLUB_TAB_ORDER_NEW, { id: order.id, bookingId: booking.id });
-    if (hasKitchenLines) {
-      emitToKitchen(kitchen!.id, SocketEvents.CLUB_TAB_ORDER_NEW, { id: order.id, courtName: order.courtName });
+    if (kitchen) {
+      emitToKitchen(kitchen.id, SocketEvents.CLUB_TAB_ORDER_NEW, { id: order.id, courtName: order.courtName });
     }
 
     return {

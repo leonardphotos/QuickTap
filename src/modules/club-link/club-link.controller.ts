@@ -32,6 +32,6 @@ export const clubLinkController = {
     res.json({ data: await clubLinkService.getClubLink(req.restaurantId!) });
   }),
   unlinkFromClub: asyncHandler(async (req: Request, res: Response) => {
-    res.json({ data: await clubLinkService.unlinkFromClub(req.restaurantId!) });
+    res.json({ data: await clubLinkService.unlinkFromClub(req.restaurantId!, req.params.restaurantId) });
   }),
 };

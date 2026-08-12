@@ -30,6 +30,7 @@ router.patch('/orders/:id/status', clubLinkController.setOrderStatus);
 // --- Lado club ---
 router.post('/redeem', clubOnly, manager, clubLinkController.redeem);
 router.get('/club', clubOnly, clubLinkController.clubState);
-router.delete('/club', clubOnly, manager, clubLinkController.unlinkFromClub);
+// Lleva el id de la tienda: un club puede tener varias vinculadas.
+router.delete('/club/:restaurantId', clubOnly, manager, clubLinkController.unlinkFromClub);
 
 export default router;

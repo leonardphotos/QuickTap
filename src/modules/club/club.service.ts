@@ -848,13 +848,17 @@ export const clubService = {
 
   /**
    * Catálogo para "¿Quieres algo al llegar?": el mismo que ve el jugador ya en
-   * la tablet de la cancha (tienda del club + menú del restaurante vinculado,
-   * si tiene uno), para que pedirlo antes de llegar sea sobre productos reales
-   * y con precio, no una lista fija inventada.
+   * la tablet de la cancha (tienda del club + las tiendas vinculadas), para que
+   * pedirlo antes de llegar sea sobre productos reales y con precio, no una
+   * lista fija inventada.
+   *
+   * Acá se aplana a una sola lista a propósito: al reservar todavía no hay
+   * cuenta abierta que separar por tienda, es solo un adelanto de lo que va a
+   * poder pedir. Cada item trae su `storeId` para saber a quién pedírselo.
    */
   async getPublicProducts(slug: string) {
     const restaurant = await resolveRestaurantBySlug(slug);
     const catalog = await clubTabletService.getCatalog(restaurant.id);
-    return catalog.items;
+    return catalog.stores.flatMap((s) => s.items);
   },
 };

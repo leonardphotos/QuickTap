@@ -541,7 +541,7 @@ model Restaurant {
   // restaurante de QuickTap, que recibe las comandas de las canchas. Los dos
   // lados son un Restaurant, de ahí los nombres explícitos de relación. ---
   clubLinkCodes          ClubLinkCode[]       @relation("ClubLinkCodeRestaurant")
-  clubLinkAsClub         ClubRestaurantLink?  @relation("ClubRestaurantLinkClub")
+  clubLinksAsClub        ClubRestaurantLink[] @relation("ClubRestaurantLinkClub")
   clubLinksAsKitchen     ClubRestaurantLink[] @relation("ClubRestaurantLinkRestaurant")
   clubTabOrdersToPrepare ClubTabOrder[]       @relation("ClubTabOrderKitchen")
   clubTournaments        ClubTournament[]
@@ -2979,15 +2979,22 @@ model ClubLinkCode {
 
 /// Vínculo activo. Un club tiene un solo restaurante que le prepara los pedidos
 /// (de ahí el @unique en clubId); un restaurante sí puede atender varios clubes.
+/// Tiendas que le venden a las canchas de un club. Un club puede vincular hasta
+/// MAX_LINKED_STORES (4) — el tope se valida en el servicio, no acá, porque es
+/// una regla de negocio y no una propiedad de la tabla.
 model ClubRestaurantLink {
   id           String   @id @default(cuid())
-  clubId       String   @unique
+  clubId       String
   restaurantId String
+  /// Orden de los iconos en la tablet de la cancha.
+  sortOrder    Int      @default(0)
   createdAt    DateTime @default(now())
 
   club       Restaurant @relation("ClubRestaurantLinkClub", fields: [clubId], references: [id], onDelete: Cascade)
   restaurant Restaurant @relation("ClubRestaurantLinkRestaurant", fields: [restaurantId], references: [id], onDelete: Cascade)
 
+  @@unique([clubId, restaurantId])
+  @@index([clubId])
   @@index([restaurantId])
   @@map("club_restaurant_links")
 }

@@ -18,6 +18,8 @@ export interface TabletCourt {
 
 export interface TabletCatalogItem {
   source: TabletItemSource;
+  /** 'CLUB' para la tienda propia del club, o el id de una tienda vinculada. */
+  storeId: string;
   id: string;
   name: string;
   category: string;
@@ -26,6 +28,18 @@ export interface TabletCatalogItem {
   /** Solo para la tienda del club; el menú del restaurante no lleva stock acá. */
   stock: number | null;
 }
+
+/** Una tienda de la tablet: la propia del club o una vinculada. Cada una es un
+ *  icono en pantalla y una comanda aparte. */
+export interface TabletStore {
+  id: string;
+  name: string;
+  logoUrl: string | null;
+  items: TabletCatalogItem[];
+}
+
+/** Id de la tienda propia del club (espejo de CLUB_STORE_ID en el backend). */
+export const CLUB_STORE_ID = 'CLUB';
 
 export interface TabletSession {
   booking: {
@@ -64,13 +78,14 @@ export const clubTabletApi = {
   session: (accessToken: string) =>
     api.get<{ data: TabletSession }>(`/club-tablet/session/${accessToken}`).then((r) => r.data.data),
   catalog: () =>
+    api.get<{ data: { stores: TabletStore[] } }>('/club-tablet/catalog').then((r) => r.data.data.stores),
+  /** Un pedido es siempre de UNA tienda: así cada una cobra lo suyo. */
+  createOrder: (accessToken: string, storeId: string, items: { productId: string; quantity: number }[]) =>
     api
-      .get<{ data: { kitchen: { id: string; name: string; logoUrl: string | null } | null; items: TabletCatalogItem[] } }>(
-        '/club-tablet/catalog',
-      )
-      .then((r) => r.data.data),
-  createOrder: (accessToken: string, items: { source: TabletItemSource; productId: string; quantity: number }[]) =>
-    api
-      .post<{ data: { id: string; totalBase: string; totalBs: string } }>('/club-tablet/orders', { accessToken, items })
+      .post<{ data: { id: string; totalBase: string; totalBs: string } }>('/club-tablet/orders', {
+        accessToken,
+        storeId,
+        items,
+      })
       .then((r) => r.data.data),
 };
