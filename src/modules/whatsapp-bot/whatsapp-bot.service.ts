@@ -65,6 +65,14 @@ const sessions = new Map<string, SessionState>();
 export const DEFAULT_WELCOME_TEMPLATE = ['¡Hola! 👋 Bienvenido a *{{restaurant}}*.', '', 'Puedes ver el menú y hacer tu pedido aquí:', '{{link}}'].join(
   '\n',
 );
+/** Mismo mensaje, hablado en términos de reservar cancha en vez de pedir comida —
+ * se usa solo mientras el club no haya guardado su propio texto. */
+export const DEFAULT_WELCOME_TEMPLATE_CLUB = [
+  '¡Hola! 👋 Bienvenido a *{{restaurant}}*.',
+  '',
+  'Reserva tu cancha aquí:',
+  '{{link}}',
+].join('\n');
 
 function sessionDir(restaurantId: string): string {
   return path.join(UPLOADS_DIR, 'whatsapp-sessions', restaurantId);
@@ -262,6 +270,7 @@ export const whatsappBotService = {
       select: {
         slug: true,
         name: true,
+        businessType: true,
         whatsappBotWelcomeEnabled: true,
         whatsappBotWelcomeMessage: true,
         whatsappBotPaymentVerifierPhone: true,
@@ -301,8 +310,14 @@ export const whatsappBotService = {
     const s = sessions.get(restaurantId);
     if (!s || s.status !== 'connected' || !s.sock) return;
 
-    const link = `${env.appUrl}/r/${restaurant.slug}`;
-    const text = renderWhatsappTemplate(restaurant.whatsappBotWelcomeMessage || DEFAULT_WELCOME_TEMPLATE, {
+    // El enlace del saludo tiene que resolver a la página pública correcta según el
+    // vertical: /club/:slug (reservas de cancha) para SPORTS_CLUB, /r/:slug (menú)
+    // para el resto — mandarle a un jugador el link del menú de un restaurante
+    // sería un enlace roto para su propósito.
+    const isClub = restaurant.businessType === 'SPORTS_CLUB';
+    const link = isClub ? `${env.appUrl}/club/${restaurant.slug}` : `${env.appUrl}/r/${restaurant.slug}`;
+    const defaultTemplate = isClub ? DEFAULT_WELCOME_TEMPLATE_CLUB : DEFAULT_WELCOME_TEMPLATE;
+    const text = renderWhatsappTemplate(restaurant.whatsappBotWelcomeMessage || defaultTemplate, {
       restaurant: restaurant.name,
       link,
     });

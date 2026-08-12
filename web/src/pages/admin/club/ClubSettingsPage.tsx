@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Building2, ChevronDown, CircleDot, LogOut, Palette, ShieldCheck, Tablet, Wallet } from 'lucide-react';
+import { Building2, ChevronDown, CircleDot, LogOut, MessageCircle, Palette, ShieldCheck, Tablet, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard, TextureCardContent } from '@/components/ui/texture-card';
@@ -8,6 +8,7 @@ import { FullWidth, SettingsCategory, scrollToSettingsCategory } from '@/compone
 import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection';
 import { PaymentMethodsSection } from '@/components/admin/PaymentMethodsSection';
 import { LockScreenSettingsSection } from '@/components/admin/LockScreenSettingsSection';
+import { WhatsappBotSection } from '@/components/admin/WhatsappBotSection';
 import { canManageTeam } from '@/utils/roles';
 import { ClubBrandingSection } from './ClubBrandingSection';
 import ClubCourtsPage from './ClubCourtsPage';
@@ -26,6 +27,7 @@ export default function ClubSettingsPage() {
 
   const CATEGORIES = [
     { id: 'negocio', title: 'Negocio', icon: <Building2 className="h-4 w-4" /> },
+    { id: 'whatsapp', title: 'WhatsApp', icon: <MessageCircle className="h-4 w-4" /> },
     ...(isManager ? [{ id: 'canchas', title: 'Canchas y horarios', icon: <CircleDot className="h-4 w-4" /> }] : []),
     { id: 'apariencia', title: 'Apariencia del enlace público', icon: <Palette className="h-4 w-4" /> },
     ...(isManager ? [{ id: 'vinculo', title: 'Restaurante vinculado y tablets', icon: <Tablet className="h-4 w-4" /> }] : []),
@@ -108,6 +110,18 @@ export default function ClubSettingsPage() {
           </TextureCard>
         </FullWidth>
         <RestaurantInfoSection />
+      </SettingsCategory>
+
+      <SettingsCategory
+        id="whatsapp"
+        title="WhatsApp"
+        icon={<MessageCircle className="h-4 w-4" />}
+        open={openCategory === 'whatsapp'}
+        onToggle={toggleCategory}
+      >
+        <FullWidth>
+          <WhatsappBotSection variant="club" />
+        </FullWidth>
       </SettingsCategory>
 
       {/* Canchas y horarios: sin esto el club no puede recibir una sola reserva,

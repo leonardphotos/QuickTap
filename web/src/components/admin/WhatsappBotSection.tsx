@@ -26,18 +26,28 @@ interface StatusResponse {
   whatsappOrderMode: OrderMode;
 }
 
-// Debe coincidir con DEFAULT_WELCOME_TEMPLATE en whatsapp-bot.service.ts.
+// Debe coincidir con DEFAULT_WELCOME_TEMPLATE / DEFAULT_WELCOME_TEMPLATE_CLUB en
+// whatsapp-bot.service.ts.
 const DEFAULT_WELCOME_TEMPLATE = ['¡Hola! 👋 Bienvenido a *{{restaurant}}*.', '', 'Puedes ver el menú y hacer tu pedido aquí:', '{{link}}'].join(
   '\n',
 );
+const DEFAULT_WELCOME_TEMPLATE_CLUB = ['¡Hola! 👋 Bienvenido a *{{restaurant}}*.', '', 'Reserva tu cancha aquí:', '{{link}}'].join('\n');
 
 /**
  * Chatbot de WhatsApp vinculado por QR (protocolo WhatsApp Web, NO la API oficial de Meta —
  * ver whatsapp-bot.service.ts en el backend para el trade-off de riesgo aceptado). Escanea el
- * QR desde el WhatsApp del restaurante y desde ahí salen los mensajes automáticos de pedido
- * recibido/listo, sin salir de QuickTap.
+ * QR desde el WhatsApp del negocio y desde ahí salen los mensajes automáticos.
+ *
+ * `variant` cambia qué controles se muestran, no el mecanismo de vinculación (que es el mismo
+ * Restaurant/restaurantId para cualquier businessType):
+ * - 'restaurant': incluye avisos de pedido y el modo de confirmación (verificación de pago /
+ *   pedido completo), que dependen del ciclo de vida de `Order` — solo existe en restaurantes.
+ * - 'club': sin esos controles (un club no tiene Order/cocina). En su lugar explica para qué
+ *   usa QuickTap este número: código de verificación al reservar, avisos de reserva liberada
+ *   y notificaciones a los profesores de la academia — todo eso ya sale por acá una vez
+ *   vinculado, sin nada que configurar.
  */
-export function WhatsappBotSection() {
+export function WhatsappBotSection({ variant = 'restaurant' }: { variant?: 'restaurant' | 'club' }) {
   const { user } = useAuth();
   const canManage = TEAM_MANAGER_ROLES.includes(user?.role as UserRole);
   const [data, setData] = useState<StatusResponse | null>(null);
@@ -53,7 +63,10 @@ export function WhatsappBotSection() {
   useEffect(() => {
     api.get('/whatsapp-bot/status').then((res) => {
       setData(res.data.data);
-      setWelcomeDraft(res.data.data.whatsappBotWelcomeMessage || DEFAULT_WELCOME_TEMPLATE);
+      setWelcomeDraft(
+        res.data.data.whatsappBotWelcomeMessage ||
+          (variant === 'club' ? DEFAULT_WELCOME_TEMPLATE_CLUB : DEFAULT_WELCOME_TEMPLATE),
+      );
       setVerifierDraft(res.data.data.whatsappBotPaymentVerifierPhone || '');
     });
 
@@ -161,8 +174,9 @@ export function WhatsappBotSection() {
           <MessageCircle className="h-4 w-4 text-emerald-600" /> Chatbot de WhatsApp
         </TextureCardTitle>
         <p className="text-sm text-brand-950/60 font-light">
-          Vincula el WhatsApp del restaurante (como un dispositivo más, igual que WhatsApp Web) para mandar avisos
-          automáticos de pedido al cliente sin salir de QuickTap.
+          {variant === 'club'
+            ? 'Vincula el WhatsApp del club (como un dispositivo más, igual que WhatsApp Web) para mandarle a tus jugadores el código de verificación al reservar y avisos automáticos, sin salir de QuickTap.'
+            : 'Vincula el WhatsApp del restaurante (como un dispositivo más, igual que WhatsApp Web) para mandar avisos automáticos de pedido al cliente sin salir de QuickTap.'}
         </p>
       </TextureCardHeader>
       <TextureCardContent className="space-y-4">
@@ -184,8 +198,8 @@ export function WhatsappBotSection() {
           <div className="flex flex-col items-center gap-2 py-2">
             <img src={data.qrDataUrl!} alt="Código QR de WhatsApp" className="h-52 w-52 rounded-xl border border-brand-950/10" />
             <p className="text-xs text-brand-950/50 font-light text-center max-w-xs">
-              Abre WhatsApp en el celular del restaurante → Ajustes → Dispositivos vinculados → Vincular un
-              dispositivo, y escanea este código.
+              Abre WhatsApp en el celular {variant === 'club' ? 'del club' : 'del restaurante'} → Ajustes → Dispositivos
+              vinculados → Vincular un dispositivo, y escanea este código.
             </p>
           </div>
         ) : data.status === 'connecting' ? (
@@ -198,26 +212,41 @@ export function WhatsappBotSection() {
           )
         )}
 
+        {connected && variant === 'club' && (
+          <div className="rounded-xl border border-brand-950/10 bg-brand-950/[0.02] px-4 py-3">
+            <p className="text-sm font-semibold text-brand-950">Ya sale automático, sin nada que configurar</p>
+            <ul className="mt-1.5 space-y-1 text-xs font-light text-brand-950/60">
+              <li>· El código de verificación cuando un jugador reserva por internet</li>
+              <li>· El aviso a los inscritos si una clase se libera por falta de cupo</li>
+              <li>· Los avisos de la academia al profesor (clase asignada, cancelación)</li>
+            </ul>
+          </div>
+        )}
+
         {connected && (
           <div className="space-y-2 pt-2 border-t border-brand-950/[0.06]">
-            <label className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-brand-950/80">Avisar "Pedido recibido" al llegar un pedido de delivery/pickup</span>
-              <input
-                type="checkbox"
-                checked={data.whatsappBotNotifyReceived}
-                disabled={!canManage}
-                onChange={(e) => toggle('notifyReceived', e.target.checked)}
-              />
-            </label>
-            <label className="flex items-center justify-between gap-3 text-sm">
-              <span className="text-brand-950/80">Avisar "Pedido listo/en camino" al despachar o marcar listo</span>
-              <input
-                type="checkbox"
-                checked={data.whatsappBotNotifyReady}
-                disabled={!canManage}
-                onChange={(e) => toggle('notifyReady', e.target.checked)}
-              />
-            </label>
+            {variant === 'restaurant' && (
+              <>
+                <label className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-brand-950/80">Avisar "Pedido recibido" al llegar un pedido de delivery/pickup</span>
+                  <input
+                    type="checkbox"
+                    checked={data.whatsappBotNotifyReceived}
+                    disabled={!canManage}
+                    onChange={(e) => toggle('notifyReceived', e.target.checked)}
+                  />
+                </label>
+                <label className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-brand-950/80">Avisar "Pedido listo/en camino" al despachar o marcar listo</span>
+                  <input
+                    type="checkbox"
+                    checked={data.whatsappBotNotifyReady}
+                    disabled={!canManage}
+                    onChange={(e) => toggle('notifyReady', e.target.checked)}
+                  />
+                </label>
+              </>
+            )}
             <label className="flex items-center justify-between gap-3 text-sm">
               <span className="text-brand-950/80">Responder solo con un mensaje de bienvenida al primer mensaje de cada cliente</span>
               <input
@@ -233,8 +262,8 @@ export function WhatsappBotSection() {
                 <p className="text-xs text-brand-950/50 font-light">
                   Se envía en cada mensaje que escriba el cliente (sin límite de frecuencia), para responder lo más
                   rápido posible en hora pico. Variables:{' '}
-                  <code className="text-[11px]">{'{{restaurant}}'}</code> y <code className="text-[11px]">{'{{link}}'}</code> (enlace a tu
-                  menú público).
+                  <code className="text-[11px]">{'{{restaurant}}'}</code> y <code className="text-[11px]">{'{{link}}'}</code> (enlace a tu{' '}
+                  {variant === 'club' ? 'página de reservas' : 'menú público'}).
                 </p>
                 <textarea
                   value={welcomeDraft}
@@ -260,6 +289,8 @@ export function WhatsappBotSection() {
               </div>
             )}
 
+            {variant === 'restaurant' && (
+            <>
             <div className="pt-2 space-y-2 border-t border-brand-950/[0.06]">
               <p className="text-sm text-brand-950/80 font-medium">Modo de pedidos</p>
               <p className="text-xs text-brand-950/50 font-light">
@@ -339,6 +370,8 @@ export function WhatsappBotSection() {
                 </div>
               )}
             </div>
+            </>
+            )}
           </div>
         )}
       </TextureCardContent>
