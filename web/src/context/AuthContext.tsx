@@ -56,6 +56,8 @@ export interface AuthRestaurant {
   rif?: string | null;
   orderingEnabled: boolean;
   requireOrderConfirmation: boolean;
+  /** Si es false, la tablet de la cancha deja de ofrecer "Pagar" (solo detalle de cuenta). */
+  clubTabletPaymentsEnabled: boolean;
   deliveryOriginLat: number | null;
   deliveryOriginLng: number | null;
   deliveryPricingMode: 'DISABLED' | 'DISTANCE' | 'ZONE';

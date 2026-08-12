@@ -85,6 +85,7 @@ const RESTAURANT_SELECT = {
   rif: true,
   orderingEnabled: true,
   requireOrderConfirmation: true,
+  clubTabletPaymentsEnabled: true,
   deliveryOriginLat: true,
   deliveryOriginLng: true,
   deliveryPricingMode: true,
@@ -140,6 +141,7 @@ type RestaurantRow = {
   rif: string | null;
   orderingEnabled: boolean;
   requireOrderConfirmation: boolean;
+  clubTabletPaymentsEnabled: boolean;
   deliveryOriginLat: number | null;
   deliveryOriginLng: number | null;
   deliveryPricingMode: 'DISABLED' | 'DISTANCE' | 'ZONE';
@@ -221,6 +223,7 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
     rif: restaurant.rif,
     orderingEnabled: restaurant.orderingEnabled,
     requireOrderConfirmation: restaurant.requireOrderConfirmation,
+    clubTabletPaymentsEnabled: restaurant.clubTabletPaymentsEnabled,
     deliveryOriginLat: restaurant.deliveryOriginLat,
     deliveryOriginLng: restaurant.deliveryOriginLng,
     deliveryPricingMode: restaurant.deliveryPricingMode,

@@ -1,9 +1,42 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Plus, RotateCcw, Tablet, Trash2 } from 'lucide-react';
 import { api } from '@/api/client';
+import { useAuth } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard, TextureCardContent, TextureCardHeader, TextureCardTitle } from '@/components/ui/texture-card';
 import { clubApi, type ClubCourt } from './clubApi';
+
+function Toggle({
+  checked,
+  onChange,
+  label,
+  description,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label: string;
+  description: string;
+}) {
+  return (
+    <label className="flex items-start justify-between gap-4 py-3 cursor-pointer">
+      <div>
+        <p className="text-sm font-medium text-brand-950">{label}</p>
+        <p className="text-xs text-brand-950/50 font-light mt-0.5">{description}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`relative shrink-0 w-11 h-6 rounded-full transition-colors ${checked ? 'bg-brand-500' : 'bg-brand-950/15'}`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-5' : ''}`}
+        />
+      </button>
+    </label>
+  );
+}
 
 interface TabletUser {
   id: string;
@@ -27,6 +60,9 @@ const inputClass =
  * reserva de esa misma cancha, o los pedidos terminarían en la pista de al lado.
  */
 export function ClubTabletsSection() {
+  const { restaurant, refresh } = useAuth();
+  const [paymentsEnabled, setPaymentsEnabled] = useState(restaurant?.clubTabletPaymentsEnabled ?? true);
+  const [savingToggle, setSavingToggle] = useState(false);
   const [tablets, setTablets] = useState<TabletUser[] | null>(null);
   const [courts, setCourts] = useState<ClubCourt[]>([]);
   const [open, setOpen] = useState(false);
@@ -85,6 +121,21 @@ export function ClubTabletsSection() {
     }
   }
 
+  async function togglePayments(next: boolean) {
+    setPaymentsEnabled(next);
+    setSavingToggle(true);
+    setError(null);
+    try {
+      await api.patch('/restaurant', { clubTabletPaymentsEnabled: next });
+      await refresh();
+    } catch (err: any) {
+      setPaymentsEnabled(!next);
+      setError(err.response?.data?.error ?? 'No se pudo guardar.');
+    } finally {
+      setSavingToggle(false);
+    }
+  }
+
   async function toggleActive(t: TabletUser) {
     setBusy(true);
     setError(null);
@@ -123,6 +174,21 @@ export function ClubTabletsSection() {
       </TextureCardHeader>
 
       <TextureCardContent className="space-y-4">
+        <div className="rounded-2xl border border-brand-950/[0.07] px-4">
+          <Toggle
+            checked={paymentsEnabled}
+            onChange={togglePayments}
+            label="Cobrar desde la tablet"
+            description={
+              savingToggle
+                ? 'Guardando…'
+                : paymentsEnabled
+                  ? 'El jugador puede pagar sus cuentas desde la tablet. Si lo apagas, al acabarse el tiempo solo verá el detalle y el monto de cada cuenta, sin poder pagar ahí.'
+                  : 'Apagado: la tablet solo muestra el detalle y el monto de cada cuenta al terminar. El jugador paga en persona.'
+            }
+          />
+        </div>
+
         <div className="flex items-start gap-2.5 rounded-2xl bg-brand-950/[0.04] px-4 py-3">
           <Tablet className="mt-0.5 h-4 w-4 shrink-0 text-brand-950/45" />
           <p className="text-[13px] font-light text-brand-950/60">

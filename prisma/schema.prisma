@@ -341,6 +341,10 @@ model Restaurant {
   // NEEDS_CONFIRMATION hasta que un mesero los acepte; recién ahí pasan a la
   // cocina. No aplica a pedidos cargados manualmente por el staff.
   requireOrderConfirmation Boolean @default(false)
+  // Si es false, la tablet de la cancha (vertical Canchas) deja de ofrecer
+  // "Pagar": al acabarse el tiempo solo muestra el detalle de cada cuenta y su
+  // monto, para que el jugador pague en persona. No afecta poder pedir.
+  clubTabletPaymentsEnabled Boolean @default(true)
 
   // --- Precio de delivery ---
   // Ubicación del local, usada como origen para calcular distancia al cliente.

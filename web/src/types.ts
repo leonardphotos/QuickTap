@@ -86,6 +86,8 @@ export interface Restaurant {
   isOpen?: boolean;
   closedReason?: string | null;
   requireOrderConfirmation: boolean;
+  /** Si es false, la tablet de la cancha deja de ofrecer "Pagar" (solo detalle de cuenta). */
+  clubTabletPaymentsEnabled: boolean;
   serviceChargeEnabled: boolean;
   /** Interruptor del vínculo modificador -> insumo (botón en Inventario). */
   modifierInventoryLinkEnabled: boolean;

@@ -88,6 +88,8 @@ export const updateRestaurantSchema = z.object({
   shopDeliveryFee: z.coerce.number().min(0).max(100000).optional(),
   // Si es true, los pedidos de mesa (QR) quedan pendientes de aceptar por un mesero antes de ir a cocina.
   requireOrderConfirmation: z.boolean().optional(),
+  // Si es false, la tablet de la cancha deja de ofrecer "Pagar" (solo detalle de cuenta).
+  clubTabletPaymentsEnabled: z.boolean().optional(),
 
   // Precio de delivery: ubicación del local (origen) y cómo se calcula el envío.
   deliveryOriginLat: z.number().min(-90).max(90).optional(),

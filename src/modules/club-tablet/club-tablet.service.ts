@@ -693,6 +693,16 @@ export const clubTabletService = {
    * resto de QuickTap — no hay pasarela, la plata la confirma una persona.
    */
   async reportPayment(clubId: string, userId: string, input: ReportTabPaymentInput) {
+    // Segundo candado además del de la UI: si el club apagó "Pagar" desde la
+    // tablet, el endpoint tampoco acepta reportes aunque alguien arme el POST a mano.
+    const club = await prisma.restaurant.findUniqueOrThrow({
+      where: { id: clubId },
+      select: { clubTabletPaymentsEnabled: true },
+    });
+    if (!club.clubTabletPaymentsEnabled) {
+      throw badRequest('Este club desactivó los pagos desde la tablet. Paga en persona.');
+    }
+
     const booking = await loadSession(clubId, input.accessToken);
 
     const tabletCourtId = await tabletCourtIdOf(userId);

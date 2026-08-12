@@ -106,6 +106,9 @@ export default function ClubTabletPage() {
   const { restaurant, logout } = useAuth();
   const landscape = useIsLandscape();
   const clock = useClock();
+  // Si el club lo apagó, la tablet nunca ofrece "Pagar" — solo el detalle de
+  // cada cuenta cuando se acaba el tiempo (ver ClubTabletsSection en Ajustes).
+  const tabletPaymentsEnabled = restaurant?.clubTabletPaymentsEnabled ?? true;
 
   const [screen, setScreen] = useState<Screen>('idle');
   const [session, setSession] = useState<TabletSession | null>(null);
@@ -545,13 +548,17 @@ export default function ClubTabletPage() {
         </p>
 
         {/* Pagar sin esperar a que se acabe el tiempo: lleva a las cuentas
-            abiertas, que es donde está el desglose y el QR de cada cobrador. */}
-        <button
-          onClick={() => setScreen('closing')}
-          className="mt-3 rounded-full bg-white px-10 py-3 text-lg font-bold text-brand-950 shadow-lg transition-transform active:scale-95"
-        >
-          Pagar
-        </button>
+            abiertas, que es donde está el desglose y el QR de cada cobrador.
+            Si el club apagó los cobros desde la tablet, no hay nada que pagar
+            acá — el jugador solo ve el detalle cuando se acaba el tiempo. */}
+        {tabletPaymentsEnabled && (
+          <button
+            onClick={() => setScreen('closing')}
+            className="mt-3 rounded-full bg-white px-10 py-3 text-lg font-bold text-brand-950 shadow-lg transition-transform active:scale-95"
+          >
+            Pagar
+          </button>
+        )}
       </TabletPortada>
     );
   }
@@ -645,13 +652,21 @@ export default function ClubTabletPage() {
                 separadas porque son pagos distintos, a personas distintas. */}
             <div className="grid w-full max-w-5xl shrink-0 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {tabs.map((t) => (
-                <TabCard key={t.payeeId} tab={t} money={money} onPay={() => setPayingTab(t.payeeId)} />
+                <TabCard
+                  key={t.payeeId}
+                  tab={t}
+                  money={money}
+                  payable={tabletPaymentsEnabled}
+                  onPay={() => setPayingTab(t.payeeId)}
+                />
               ))}
             </div>
             <p className="shrink-0 text-base font-medium text-white/85">
-              {tabs.length > 1
-                ? 'Cada tienda cobra por separado: paga cada cuenta a quien corresponde.'
-                : 'Paga tu cuenta para cerrar.'}
+              {!tabletPaymentsEnabled
+                ? 'Acércate a caja para pagar — esta cancha no cobra desde la tablet.'
+                : tabs.length > 1
+                  ? 'Cada tienda cobra por separado: paga cada cuenta a quien corresponde.'
+                  : 'Paga tu cuenta para cerrar.'}
             </p>
           </>
         )}
@@ -1005,10 +1020,13 @@ const PAY_METHOD_LABELS: Record<string, string> = {
 function TabCard({
   tab,
   money,
+  payable,
   onPay,
 }: {
   tab: TabletTab;
   money: (v: string | number) => string;
+  /** Si el club apagó "Cobrar desde la tablet": se ve el detalle, sin botón de pagar. */
+  payable: boolean;
   onPay: () => void;
 }) {
   const paid = Number(tab.paidBase) > 0;
@@ -1073,7 +1091,7 @@ function TabCard({
           <p className="rounded-xl bg-emerald-50 py-2.5 text-center text-[13px] font-bold text-emerald-700">
             Cuenta saldada
           </p>
-        ) : tab.methods.length === 0 ? (
+        ) : !payable ? null : tab.methods.length === 0 ? (
           <p className="rounded-xl bg-amber-50 px-3 py-2 text-[12px] font-light text-amber-900">
             Esta tienda no cargó sus datos de cobro. Pregúntale cómo pagarle.
           </p>
