@@ -35,7 +35,10 @@ const DialogContent = React.forwardRef<
     <DialogPrimitive.Content
       ref={ref}
       className={cn(
-        'fixed left-1/2 top-1/2 z-[1100] grid w-full max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-[24px] border border-brand-950/[0.06] bg-white p-6 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.35)] max-h-[85vh] overflow-y-auto data-[state=open]:animate-scale-in data-[state=closed]:animate-scale-out',
+        // w-[calc(100%-2rem)] y no w-full: sin esto el diálogo queda pegado borde a
+        // borde en un teléfono (ancho = 100% del viewport, cero margen), y el
+        // texto que se acerca al borde derecho se ve cortado contra la pantalla.
+        'fixed left-1/2 top-1/2 z-[1100] grid w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 gap-4 rounded-[24px] border border-brand-950/[0.06] bg-white p-6 shadow-[0_24px_64px_-24px_rgba(0,0,0,0.35)] max-h-[85vh] overflow-y-auto data-[state=open]:animate-scale-in data-[state=closed]:animate-scale-out',
         className,
       )}
       {...props}

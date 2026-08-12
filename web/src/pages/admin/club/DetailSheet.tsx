@@ -68,7 +68,10 @@ export default function DetailSheet({
  * En vertical vuelve a una sola columna sin tocar nada.
  */
 export function SheetBody({ children }: { children: ReactNode }) {
-  return <div className="grid gap-x-9 lg:grid-cols-2 lg:items-start">{children}</div>;
+  // grid-cols-1 no es decorativo: es lo que le da al track su minmax(0,1fr).
+  // Sin eso, el track por defecto usa min-width:auto (como un flex item) y una
+  // fila con texto largo revienta el ancho del diálogo entero en vez de truncar.
+  return <div className="grid grid-cols-1 gap-x-9 lg:grid-cols-2 lg:items-start">{children}</div>;
 }
 
 export function Section({ title, children, action }: { title: string; children: ReactNode; action?: ReactNode }) {
