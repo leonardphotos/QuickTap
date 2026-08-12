@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { X } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 
 /**
@@ -33,20 +32,13 @@ export default function DetailSheet({
 }) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      {/* DialogContent ya trae su propia X (absolute right-4 top-4) — no se repite acá.
+          Se le deja el espacio a la derecha (pr-9) para que el título largo no quede
+          debajo del botón. */}
       <DialogContent className="flex max-h-[88vh] max-w-md flex-col gap-0 overflow-hidden p-0">
-        <div className="flex items-start justify-between gap-3 border-b border-brand-950/[0.06] p-5">
-          <div className="min-w-0">
-            <h2 className="truncate text-[17px] font-bold tracking-tight text-brand-950">{title}</h2>
-            {subtitle && <p className="mt-0.5 truncate text-[13px] font-light text-brand-950/50">{subtitle}</p>}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="-mr-1 -mt-1 shrink-0 rounded-full p-1.5 text-brand-950/40 transition-colors hover:bg-brand-950/[0.05] hover:text-brand-950"
-            aria-label="Cerrar"
-          >
-            <X className="h-4 w-4" />
-          </button>
+        <div className="border-b border-brand-950/[0.06] py-5 pl-5 pr-9">
+          <h2 className="truncate text-[17px] font-bold tracking-tight text-brand-950">{title}</h2>
+          {subtitle && <p className="mt-0.5 truncate text-[13px] font-light text-brand-950/50">{subtitle}</p>}
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-5">{children}</div>
