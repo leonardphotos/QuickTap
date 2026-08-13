@@ -744,7 +744,7 @@ export const clubTabletService = {
     // tablet, el endpoint tampoco acepta reportes aunque alguien arme el POST a mano.
     const club = await prisma.restaurant.findUniqueOrThrow({
       where: { id: clubId },
-      select: { clubTabletPaymentsEnabled: true },
+      select: { clubTabletPaymentsEnabled: true, isDemo: true },
     });
     if (!club.clubTabletPaymentsEnabled) {
       throw badRequest('Este club desactivó los pagos desde la tablet. Paga en persona.');
@@ -799,6 +799,37 @@ export const clubTabletService = {
       },
       select: { id: true, amountBase: true, amountBs: true },
     });
+
+    // En el club demo no hay nadie del otro lado para aprobar: el pago se
+    // confirma solo, al instante (la tablet le pone los ~3 segundos de
+    // "verificando" por encima). Un pago al club crea el ClubBookingPayment
+    // real — el mismo efecto que tendría la aprobación manual de recepción.
+    if (club.isDemo) {
+      await prisma.$transaction(async (tx) => {
+        let bookingPaymentId: string | null = null;
+        if (!payeeId) {
+          const bp = await tx.clubBookingPayment.create({
+            data: {
+              bookingId: booking.id,
+              amountBase,
+              method: input.method,
+              referenceNumber: input.referenceNumber?.trim() || null,
+            },
+            select: { id: true },
+          });
+          bookingPaymentId = bp.id;
+          // Si con esto queda saldada, se apaga awaitingPayment — mismo criterio
+          // que addBookingPayment en la Caja.
+          if (round2(paidBase.add(amountBase)).gte(dueBase)) {
+            await tx.clubBooking.update({ where: { id: booking.id }, data: { awaitingPayment: false } });
+          }
+        }
+        await tx.clubReportedPayment.update({
+          where: { id: created.id },
+          data: { status: 'CONFIRMED', reviewedAt: new Date(), bookingPaymentId },
+        });
+      });
+    }
 
     // Al cobrador le aparece en su cola de aprobación al instante.
     emitToKitchen(payeeId ?? clubId, SocketEvents.CLUB_TAB_ORDER_UPDATED, { paymentId: created.id });

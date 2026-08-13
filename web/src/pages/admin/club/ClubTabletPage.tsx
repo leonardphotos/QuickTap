@@ -627,6 +627,10 @@ export default function ClubTabletPage() {
   if (screen === 'closing' && session) {
     const tabs = session.tabs ?? [];
     const over = session.booking.finished || countdown.over;
+    // En la demo el "Ok" no cierra la cancha hasta que todo esté pagado y
+    // verificado: el punto de la demostración es justamente ver ese cobro.
+    const mustPayFirst =
+      (restaurant?.isDemo ?? false) && tabletPaymentsEnabled && tabs.some((t) => Number(t.balanceBase) > 0);
     return (
       <div className="flex min-h-screen flex-col items-center gap-6 overflow-y-auto p-8 text-center" style={brand}>
         <Wallet className="mt-4 h-12 w-12 shrink-0 text-white/80" />
@@ -649,8 +653,14 @@ export default function ClubTabletPage() {
           <>
             {/* Una tarjeta por cobrador: el club cobra la cancha y su tienda, y
                 cada tienda vinculada cobra lo suyo con SU método de pago. Van
-                separadas porque son pagos distintos, a personas distintas. */}
-            <div className="grid w-full max-w-5xl shrink-0 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                separadas porque son pagos distintos, a personas distintas. Con
+                una sola cuenta, la tarjeta va centrada y no pegada al borde. */}
+            <div
+              className={cn(
+                'grid w-full shrink-0 gap-4',
+                tabs.length === 1 ? 'max-w-md' : 'max-w-5xl sm:grid-cols-2 lg:grid-cols-3',
+              )}
+            >
               {tabs.map((t) => (
                 <TabCard
                   key={t.payeeId}
@@ -664,17 +674,20 @@ export default function ClubTabletPage() {
             <p className="shrink-0 text-base font-medium text-white/85">
               {!tabletPaymentsEnabled
                 ? 'Acércate a caja para pagar — esta cancha no cobra desde la tablet.'
-                : tabs.length > 1
-                  ? 'Cada tienda cobra por separado: paga cada cuenta a quien corresponde.'
-                  : 'Paga tu cuenta para cerrar.'}
+                : tabs.every((t) => Number(t.balanceBase) <= 0)
+                  ? 'Todo pagado. ¡Gracias!'
+                  : tabs.length > 1
+                    ? 'Cada tienda cobra por separado: paga cada cuenta a quien corresponde.'
+                    : 'Paga tu cuenta para cerrar.'}
             </p>
           </>
         )}
 
         {over ? (
           <button
-            onClick={reset}
-            className="mb-4 shrink-0 rounded-full bg-white px-16 py-4 text-xl font-bold text-brand-950 shadow-xl transition-transform active:scale-95"
+            onClick={mustPayFirst ? undefined : reset}
+            disabled={mustPayFirst}
+            className="mb-4 shrink-0 rounded-full bg-white px-16 py-4 text-xl font-bold text-brand-950 shadow-xl transition-transform active:scale-95 disabled:opacity-40"
           >
             Ok
           </button>
@@ -695,6 +708,7 @@ export default function ClubTabletPage() {
             accessToken={session.booking.accessToken}
             playerCount={session.booking.playerCount}
             money={money}
+            demo={restaurant?.isDemo ?? false}
             onClose={() => setPayingTab(null)}
             onReported={async () => {
               setPayingTab(null);
@@ -1125,6 +1139,7 @@ function PayFlow({
   accessToken,
   playerCount,
   money,
+  demo,
   onClose,
   onReported,
 }: {
@@ -1133,10 +1148,13 @@ function PayFlow({
   /** Cuántos vinieron a jugar: es el reparto que se propone al dividir. */
   playerCount: number;
   money: (v: string | number) => string;
+  /** Club demo: el backend confirma el pago solo, y acá se muestran ~3 segundos
+   *  de "verificando" para que la demostración cuente la historia completa. */
+  demo: boolean;
   onClose: () => void;
   onReported: () => void;
 }) {
-  const [step, setStep] = useState<'method' | 'data' | 'reference'>('method');
+  const [step, setStep] = useState<'method' | 'data' | 'reference' | 'verifying'>('method');
   const [method, setMethod] = useState<TabletPayMethod | null>(null);
   const [split, setSplit] = useState(false);
   const [people, setPeople] = useState(Math.min(8, Math.max(2, playerCount || 2)));
@@ -1180,6 +1198,13 @@ function PayFlow({
       method: method!.method,
       referenceNumber: reference.trim() || null,
     });
+    // En la demo el pago ya quedó confirmado en el servidor; los 3 segundos de
+    // "verificando" son la escena que el cliente espera ver antes del "saldada".
+    if (demo) {
+      setStep('verifying');
+      setTimeout(onReported, 3000);
+      return;
+    }
     onReported();
   }
 
@@ -1195,13 +1220,15 @@ function PayFlow({
           <p className="text-[13px] font-light text-brand-950/50">
             {money(tab.balanceBase)} · {formatBsAbsolute(tab.balanceBs)}
           </p>
-          <button
-            onClick={onClose}
-            aria-label="Cerrar"
-            className="absolute right-0 top-0 rounded-full bg-brand-950/[0.06] p-2 text-brand-950/50 hover:text-brand-950"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          {step !== 'verifying' && (
+            <button
+              onClick={onClose}
+              aria-label="Cerrar"
+              className="absolute right-0 top-0 rounded-full bg-brand-950/[0.06] p-2 text-brand-950/50 hover:text-brand-950"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
 
         {step === 'method' && (
@@ -1326,6 +1353,16 @@ function PayFlow({
                 Listo, ya transferí
               </button>
             </div>
+          </div>
+        )}
+
+        {step === 'verifying' && (
+          <div className="mt-8 flex flex-col items-center gap-4 pb-6 text-center">
+            <div className="h-12 w-12 animate-spin rounded-full border-4 border-brand-500/20 border-t-brand-500" />
+            <p className="text-lg font-bold text-brand-950">Verificando tu pago…</p>
+            <p className="max-w-xs text-[13px] font-light text-brand-950/50">
+              Estamos confirmando la referencia. Esto toma unos segundos.
+            </p>
           </div>
         )}
 
