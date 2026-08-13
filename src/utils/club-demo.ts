@@ -23,6 +23,14 @@ import { atTimeCaracas, caracasPartsOf } from './timezone';
 /** Tokens fijos de las reservas en vivo. El QR de la demo apunta siempre acá. */
 export const DEMO_LIVE_TOKENS = ['demolive1', 'demolive2'];
 
+/**
+ * Cuánto dura una partida en el club demo cuando el jugador escanea SU QR en la
+ * tablet (una reserva creada desde el enlace público, no las "en vivo" de
+ * arriba): arranca en ese instante y dura 1 minuto, para que quien ve la
+ * demostración llegue a ver qué pasa cuando el tiempo se acaba.
+ */
+export const DEMO_MATCH_MINUTES = 1;
+
 /** Cada cuánto se revisa, para no golpear la base en cada request. */
 const CHECK_EVERY_MS = 60_000;
 const lastCheck = new Map<string, number>();

@@ -4,6 +4,8 @@ interface Props {
   courtName: string;
   dateLabel: string;
   timeLabel: string;
+  /** Club demo: la partida arranca al escanear el QR en la tablet, no a la hora reservada. */
+  isDemo?: boolean;
   onDone: () => void;
 }
 
@@ -15,7 +17,7 @@ interface Props {
  * criterio que el carrusel de la Pantalla. Con `prefers-reduced-motion` la
  * pelota no aparece y el check se muestra directo.
  */
-export default function ClubBookingSuccess({ courtName, dateLabel, timeLabel, onDone }: Props) {
+export default function ClubBookingSuccess({ courtName, dateLabel, timeLabel, isDemo, onDone }: Props) {
   // El botón aparece cuando la animación ya contó su historia, para que nadie
   // salte la confirmación sin verla y quede la duda de si reservó.
   const [ready, setReady] = useState(false);
@@ -69,9 +71,12 @@ export default function ClubBookingSuccess({ courtName, dateLabel, timeLabel, on
           {courtName} · {timeLabel}
         </p>
         <p className="text-[14px] font-light capitalize text-club-text/60">{dateLabel}</p>
-        {/* Duda típica: "escaneé tarde, ¿me descuentan ese tiempo?" — sí. */}
+        {/* Duda típica: "escaneé tarde, ¿me descuentan ese tiempo?" — sí. En el
+            demo es al revés: la partida arranca al escanear y dura 1 minuto. */}
         <p className="mx-auto mt-4 max-w-xs rounded-2xl border border-white/25 bg-white/10 px-4 py-2.5 text-[12px] font-light text-club-text/70">
-          El tiempo corre desde la hora reservada, no desde que escanees el QR al llegar.
+          {isDemo
+            ? 'Modo demostración: escanea tu QR en la tablet de la cancha y la partida arranca en ese momento (dura 1 minuto).'
+            : 'El tiempo corre desde la hora reservada, no desde que escanees el QR al llegar.'}
         </p>
       </div>
 

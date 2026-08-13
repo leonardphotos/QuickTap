@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react';
-import type { FormEvent } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import type { FormEvent, KeyboardEvent } from 'react';
 import { cn } from '@/lib/utils';
-import { clubPublicApi, humanDate, type ClubExtra, type PublicSlot } from './clubPublic';
+import { clubPublicApi, humanDate, type ClubExtra, type PublicClub, type PublicSlot } from './clubPublic';
 
 interface Props {
   slug: string;
+  club: PublicClub | null;
   picked: { courtId: string; courtName: string; date: string; slot: PublicSlot };
   extras: (ClubExtra & { quantity: number })[];
   symbol: string;
@@ -17,7 +18,7 @@ interface Props {
 /** Umbral a partir del cual tiene sentido preguntar por un Americano/Mexicano. */
 const AMERICANO_MIN_PLAYERS = 6;
 
-export default function ClubDetailsStep({ slug, picked, extras, symbol, onBooked, onTaken, onToken }: Props) {
+export default function ClubDetailsStep({ slug, club, picked, extras, symbol, onBooked, onTaken, onToken }: Props) {
   const [playerName, setPlayerName] = useState('');
   const [playerPhone, setPlayerPhone] = useState('');
   const [playerIdNumber, setPlayerIdNumber] = useState('');
@@ -27,6 +28,14 @@ export default function ClubDetailsStep({ slug, picked, extras, symbol, onBooked
   const [tournamentNames, setTournamentNames] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Paso de verificación por WhatsApp: 'form' = datos del jugador; 'code' = ya se
+  // pidió el código y falta escribirlo. En el club demo no se envía nada de
+  // verdad y cualquier código de 4 dígitos vale.
+  const [stage, setStage] = useState<'form' | 'code'>('form');
+  const [code, setCode] = useState('');
+  const [codeMessage, setCodeMessage] = useState<string | null>(null);
+
+  const codeLength = club?.isDemo ? 4 : 6;
 
   const showAmericanoQuestion = playerCount >= AMERICANO_MIN_PLAYERS;
 
@@ -56,6 +65,37 @@ export default function ClubDetailsStep({ slug, picked, extras, symbol, onBooked
 
   const extrasTotal = extras.reduce((acc, e) => acc + Number(e.priceBase) * e.quantity, 0);
 
+  async function doBook() {
+    const booking = await clubPublicApi.book(slug, {
+      courtId: picked.courtId,
+      date: picked.date,
+      startTime: picked.slot.startTime,
+      durationMinutes,
+      playerName: playerName.trim(),
+      playerPhone: playerPhone.trim(),
+      playerIdNumber: playerIdNumber.trim(),
+      playerCount,
+      requestedExtras: extras.map((e) => ({ id: e.id, name: e.name, quantity: e.quantity })),
+      tournamentPlayerNames: americano ? tournamentNames.map((n) => n.trim()) : undefined,
+    });
+    onToken(booking.accessToken);
+    onBooked();
+  }
+
+  function handleBookingError(err: any) {
+    const status = err.response?.status;
+    const message = err.response?.data?.error ?? 'No se pudo crear la reserva.';
+    // 409 = la restricción de la base de datos rechazó el solape. No sirve
+    // reintentar con los mismos datos: hay que volver a elegir turno.
+    if (status === 409) {
+      setError(message);
+      setTimeout(onTaken, 1800);
+      return;
+    }
+    setError(message);
+    setSaving(false);
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (!namesReady) {
@@ -64,34 +104,92 @@ export default function ClubDetailsStep({ slug, picked, extras, symbol, onBooked
     }
     setSaving(true);
     setError(null);
-    try {
-      const booking = await clubPublicApi.book(slug, {
-        courtId: picked.courtId,
-        date: picked.date,
-        startTime: picked.slot.startTime,
-        durationMinutes,
-        playerName: playerName.trim(),
-        playerPhone: playerPhone.trim(),
-        playerIdNumber: playerIdNumber.trim(),
-        playerCount,
-        requestedExtras: extras.map((e) => ({ id: e.id, name: e.name, quantity: e.quantity })),
-        tournamentPlayerNames: americano ? tournamentNames.map((n) => n.trim()) : undefined,
-      });
-      onToken(booking.accessToken);
-      onBooked();
-    } catch (err: any) {
-      const status = err.response?.status;
-      const message = err.response?.data?.error ?? 'No se pudo crear la reserva.';
-      // 409 = la restricción de la base de datos rechazó el solape. No sirve
-      // reintentar con los mismos datos: hay que volver a elegir turno.
-      if (status === 409) {
-        setError(message);
-        setTimeout(onTaken, 1800);
-        return;
+    // Si el club exige verificar el teléfono, primero el código; si no, directo.
+    if (club?.requiresVerification) {
+      try {
+        const r = await clubPublicApi.sendCode(slug, playerPhone.trim());
+        if (!r.sent) {
+          setError(r.message);
+          setSaving(false);
+          return;
+        }
+        setCodeMessage(r.message);
+        setCode('');
+        setStage('code');
+        setSaving(false);
+      } catch (err: any) {
+        setError(err.response?.data?.error ?? 'No se pudo enviar el código. Intenta de nuevo.');
+        setSaving(false);
       }
-      setError(message);
-      setSaving(false);
+      return;
     }
+    try {
+      await doBook();
+    } catch (err: any) {
+      handleBookingError(err);
+    }
+  }
+
+  async function submitCode(e: FormEvent) {
+    e.preventDefault();
+    if (code.length < codeLength) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await clubPublicApi.checkCode(slug, playerPhone.trim(), code);
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'El código no es correcto.');
+      setSaving(false);
+      return;
+    }
+    try {
+      await doBook();
+    } catch (err: any) {
+      handleBookingError(err);
+    }
+  }
+
+  if (stage === 'code') {
+    return (
+      <div className="flex flex-1 flex-col">
+        <h1 className="text-[26px] font-bold tracking-tight">Verifica tu número</h1>
+        <p className="mt-2 text-[14px] font-light text-club-text/70">
+          {club?.isDemo
+            ? 'Modo demostración: escribe cualquier código de 4 dígitos para confirmar tu reserva.'
+            : (codeMessage ?? `Te enviamos un código de ${codeLength} dígitos por WhatsApp al ${playerPhone.trim()}.`)}
+        </p>
+
+        <form onSubmit={submitCode} className="mt-8 flex flex-1 flex-col">
+          <CodeBoxes value={code} onChange={setCode} length={codeLength} disabled={saving} />
+
+          {error && (
+            <p className="mt-5 rounded-2xl bg-rose-500/25 p-3 text-[13px] font-medium text-club-text">{error}</p>
+          )}
+
+          <div className="mt-auto pt-6">
+            <button
+              type="submit"
+              disabled={saving || code.length < codeLength}
+              className="w-full rounded-full bg-white px-6 py-4 text-[15px] font-bold text-brand-950 shadow-xl transition-transform active:scale-[0.99] disabled:opacity-60"
+            >
+              {saving ? 'Confirmando…' : 'Confirmar reserva'}
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => {
+                setStage('form');
+                setError(null);
+                setSaving(false);
+              }}
+              className="mt-3 w-full text-center text-[13px] font-medium text-club-text/60 underline"
+            >
+              Cambiar mis datos
+            </button>
+          </div>
+        </form>
+      </div>
+    );
   }
 
   return (
@@ -208,6 +306,66 @@ export default function ClubDetailsStep({ slug, picked, extras, symbol, onBooked
           </p>
         </div>
       </form>
+    </div>
+  );
+}
+
+/** Casillas del código, una por dígito, con el estilo de cristal del enlace del
+ * club (OtpInput, el componente del panel, viene pintado para fondo claro). */
+function CodeBoxes({
+  value,
+  onChange,
+  length,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  length: number;
+  disabled?: boolean;
+}) {
+  const digits = Array.from({ length }, (_, i) => value[i] ?? '');
+  const refs = useRef<(HTMLInputElement | null)[]>([]);
+
+  function setDigit(index: number, char: string) {
+    if (char && !/^[0-9]$/.test(char)) return;
+    const next = digits.slice();
+    next[index] = char;
+    onChange(next.join('').replace(/\s+$/, ''));
+    if (char && index < length - 1) refs.current[index + 1]?.focus();
+  }
+
+  function onKeyDown(index: number, e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Backspace' && !digits[index] && index > 0) refs.current[index - 1]?.focus();
+  }
+
+  return (
+    <div className="flex justify-center gap-2.5">
+      {digits.map((d, i) => (
+        <input
+          key={i}
+          ref={(el) => {
+            refs.current[i] = el;
+          }}
+          value={d}
+          onChange={(e) => setDigit(i, e.target.value.slice(-1))}
+          onKeyDown={(e) => onKeyDown(i, e)}
+          onPaste={(e) => {
+            const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, length);
+            if (!pasted) return;
+            e.preventDefault();
+            onChange(pasted);
+            refs.current[Math.min(pasted.length, length - 1)]?.focus();
+          }}
+          inputMode="numeric"
+          maxLength={1}
+          disabled={disabled}
+          autoFocus={i === 0}
+          className={cn(
+            'h-14 w-12 rounded-2xl border text-center text-xl font-bold text-club-text outline-none backdrop-blur-xl transition-colors disabled:opacity-50',
+            d ? 'border-white/70 bg-white/25' : 'border-white/25 bg-white/15 focus:border-white/60',
+          )}
+        />
+      ))}
     </div>
   );
 }

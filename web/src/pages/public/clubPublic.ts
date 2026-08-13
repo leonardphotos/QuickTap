@@ -14,6 +14,10 @@ export interface PublicClub {
   logoUrl: string | null;
   theme: { primary?: string; accent?: string; text?: string } | null;
   currencySymbol: string;
+  /** Si hay que verificar el teléfono con un código antes de reservar. */
+  requiresVerification: boolean;
+  /** Club de demostración: el código no se envía y cualquiera de 4 dígitos vale. */
+  isDemo: boolean;
 }
 
 export interface PublicSlot {
@@ -84,6 +88,14 @@ export const clubPublicApi = {
       tournamentPlayerNames?: string[];
     },
   ) => api.post(`/public/club/${slug}/bookings`, body).then((r) => r.data.data as { accessToken: string }),
+  sendCode: (slug: string, phone: string) =>
+    api
+      .post(`/public/club/${slug}/verify/send`, { phone })
+      .then((r) => r.data.data as { sent: boolean; demo: boolean; message: string }),
+  checkCode: (slug: string, phone: string, code: string) =>
+    api
+      .post(`/public/club/${slug}/verify/check`, { phone, code })
+      .then((r) => r.data.data as { verified: boolean; blocked: { reason: string } | null }),
 };
 
 // --- Fechas (el backend interpreta todo en hora de Caracas) ---

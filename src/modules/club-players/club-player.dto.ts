@@ -15,7 +15,9 @@ export const bookingSettingsSchema = z.object({
 export type BookingSettingsInput = z.infer<typeof bookingSettingsSchema>;
 
 export const sendCodeSchema = z.object({ phone });
-export const verifyCodeSchema = z.object({ phone, code: z.string().trim().regex(/^\d{6}$/, 'El código son 6 dígitos.') });
+// 4 a 6 dígitos: el código real son 6, pero el club demo acepta uno de 4 para
+// poder mostrar el paso de verificación sin un WhatsApp vinculado.
+export const verifyCodeSchema = z.object({ phone, code: z.string().trim().regex(/^\d{4,6}$/, 'El código no es válido.') });
 
 /** Nombre y teléfono son obligatorios en toda reserva pública — es requisito del
  * club, no un detalle de formulario. */

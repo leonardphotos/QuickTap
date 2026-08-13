@@ -178,6 +178,7 @@ export default function ClubPublicPage() {
         {screen === 'details' && picked && (
           <ClubDetailsStep
             slug={slug}
+            club={club}
             picked={picked}
             extras={extras}
             symbol={symbol}
@@ -198,6 +199,7 @@ export default function ClubPublicPage() {
             courtName={picked.courtName}
             dateLabel={humanDate(picked.date)}
             timeLabel={`${picked.slot.startTime} a ${picked.slot.endTime}`}
+            isDemo={club?.isDemo}
             onDone={() => navigate(`/acceso/${accessToken}`)}
           />
         )}

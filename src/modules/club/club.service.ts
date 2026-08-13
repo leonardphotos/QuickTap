@@ -97,6 +97,7 @@ async function resolveRestaurantBySlug(slug: string) {
       baseCurrency: true,
       logoUrl: true,
       theme: true,
+      isDemo: true,
     },
   });
   if (!restaurant || !restaurant.isActive || restaurant.businessType !== 'SPORTS_CLUB') {
@@ -202,7 +203,7 @@ export const clubService = {
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
     const weekday = caracasPartsOf(dayStart).dayOfWeek;
 
-    const [courts, schedules, blocks] = await Promise.all([
+    const [courts, schedules, blocks, restaurant] = await Promise.all([
       prisma.clubCourt.findMany({
         where: { restaurantId, active: true, ...(courtId ? { id: courtId } : {}) },
         orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
@@ -218,9 +219,15 @@ export const clubService = {
         },
         select: { courtId: true, kind: true, startsAt: true, endsAt: true },
       }),
+      prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { isDemo: true } }),
     ]);
 
     const now = Date.now();
+    // En el club demo TODO turno del día se puede reservar, aunque ya haya
+    // pasado o esté ocupado: quien muestra el sistema no puede depender de la
+    // hora que sea. Al reservar, el bloque que estorbe se cancela (ver
+    // createBooking) — mismo criterio que las reservas deslizantes de la demo.
+    const demoAlwaysOpen = restaurant?.isDemo ?? false;
 
     return courts.map((court) => {
       // Una franja sin courtId aplica a todas las canchas; una con courtId manda
@@ -249,8 +256,8 @@ export const clubService = {
             endsAt,
             priceBase: schedule.priceBase.toString(),
             isPeak: schedule.isPeak,
-            available: !clash && !isPast,
-            reason: clash ? clash.kind : isPast ? 'PAST' : null,
+            available: demoAlwaysOpen || (!clash && !isPast),
+            reason: demoAlwaysOpen ? null : clash ? clash.kind : isPast ? 'PAST' : null,
           });
         }
       }
@@ -296,9 +303,16 @@ export const clubService = {
     });
     if (!court) throw notFound('La cancha no existe o no está disponible.');
 
+    const restaurant = await prisma.restaurant.findUniqueOrThrow({
+      where: { id: restaurantId },
+      select: { baseCurrency: true, isDemo: true },
+    });
+
     const startsAt = atTimeCaracas(input.date, input.startTime);
     const endsAt = new Date(startsAt.getTime() + input.durationMinutes * 60_000);
-    if (endsAt.getTime() <= Date.now()) {
+    // En la demo se puede reservar cualquier turno del día, incluso uno que ya
+    // pasó: el QR igual abre la tablet a cualquier hora (ver getSession).
+    if (!restaurant.isDemo && endsAt.getTime() <= Date.now()) {
       throw badRequest('No se puede reservar un horario que ya pasó.');
     }
 
@@ -312,10 +326,6 @@ export const clubService = {
       throw conflict(slot.reason === 'PAST' ? 'Ese horario ya pasó.' : 'Ese horario ya no está disponible.');
     }
 
-    const restaurant = await prisma.restaurant.findUniqueOrThrow({
-      where: { id: restaurantId },
-      select: { baseCurrency: true },
-    });
     const rate = await exchangeRateService.getRate(restaurant.baseCurrency, restaurantId);
     const totalBase = new Prisma.Decimal(slot.priceBase);
     const totalBs = totalBase.mul(rate.rateBs);
@@ -332,6 +342,21 @@ export const clubService = {
 
     try {
       const booking = await prisma.$transaction(async (tx) => {
+        // Demo: el turno elegido manda. Cualquier bloque que estorbe se cancela
+        // antes de insertar (mismo criterio que refreshClubDemo) — si no, la
+        // restricción EXCLUDE rechazaría reservar encima de la partida en vivo.
+        if (restaurant.isDemo) {
+          await tx.clubCourtBlock.updateMany({
+            where: {
+              restaurantId,
+              courtId: input.courtId,
+              status: 'ACTIVE',
+              startsAt: { lt: endsAt },
+              endsAt: { gt: startsAt },
+            },
+            data: { status: 'CANCELLED' },
+          });
+        }
         const block = await tx.clubCourtBlock.create({
           data: { restaurantId, courtId: input.courtId, kind: 'BOOKING', startsAt, endsAt },
         });
@@ -747,11 +772,14 @@ export const clubService = {
   // ------------------------------------------------------- Rutas públicas
   async getPublicClub(slug: string) {
     const restaurant = await resolveRestaurantBySlug(slug);
-    const courts = await prisma.clubCourt.findMany({
-      where: { restaurantId: restaurant.id, active: true },
-      orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
-      select: { id: true, name: true, sport: true, courtType: true },
-    });
+    const [courts, settings] = await Promise.all([
+      prisma.clubCourt.findMany({
+        where: { restaurantId: restaurant.id, active: true },
+        orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+        select: { id: true, name: true, sport: true, courtType: true },
+      }),
+      clubPlayerService.getBookingSettings(restaurant.id),
+    ]);
     return {
       club: {
         name: restaurant.name,
@@ -761,6 +789,10 @@ export const clubService = {
         // un club de marca verde no debería verse forzado a otra paleta.
         theme: restaurant.theme,
         currencySymbol: CURRENCY_SYMBOLS[restaurant.baseCurrency],
+        // El formulario necesita saber si tiene que pedir el código de WhatsApp
+        // antes de reservar, y si es demo (ahí acepta cualquier código de 4 dígitos).
+        requiresVerification: settings.requirePhoneVerification,
+        isDemo: restaurant.isDemo,
       },
       courts,
     };

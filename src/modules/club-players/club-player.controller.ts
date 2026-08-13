@@ -41,12 +41,15 @@ export const clubPlayerController = {
     res.json({
       data: {
         sent: r.sent,
+        demo: r.demo,
         expiresAt: r.expiresAt,
         // Si el bot está caído hay que decirlo, no fingir que llegó: el jugador
         // se quedaría esperando un mensaje que nunca va a ver.
-        message: r.sent
-          ? 'Te enviamos un código por WhatsApp.'
-          : 'No pudimos enviarte el WhatsApp. Comunícate con el club para reservar.',
+        message: r.demo
+          ? 'Modo demostración: escribe cualquier código de 4 dígitos.'
+          : r.sent
+            ? 'Te enviamos un código por WhatsApp.'
+            : 'No pudimos enviarte el WhatsApp. Comunícate con el club para reservar.',
       },
     });
   }),

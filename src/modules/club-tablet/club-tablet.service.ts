@@ -2,7 +2,7 @@ import { timingSafeEqual } from 'crypto';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
-import { DEMO_LIVE_TOKENS, refreshClubDemo } from '../../utils/club-demo';
+import { DEMO_LIVE_TOKENS, DEMO_MATCH_MINUTES, refreshClubDemo } from '../../utils/club-demo';
 import { round2, toDecimal } from '../../utils/money';
 import { effectiveProductPrice } from '../../utils/promo-price';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
@@ -333,7 +333,54 @@ export const clubTabletService = {
     // saltándose el throttle: escanear justo dentro de esa ventana no puede
     // devolver un error.
     await refreshClubDemo(clubId, DEMO_LIVE_TOKENS.includes(accessToken));
-    const booking = await loadSession(clubId, accessToken);
+    let booking = await loadSession(clubId, accessToken);
+
+    // En el club demo, una reserva creada desde el enlace público abre la
+    // tablet A CUALQUIER HORA: al primer escaneo (o si su horario ya quedó
+    // atrás) la partida se re-ancla para empezar en este instante y durar
+    // DEMO_MATCH_MINUTES — así quien mira la demostración ve arrancar el
+    // cronómetro y, un minuto después, la pantalla de cierre. Los refrescos
+    // periódicos de la tablet caen dentro de la ventana y NO re-anclan, o la
+    // partida no terminaría nunca. Las reservas "en vivo" (DEMO_LIVE_TOKENS)
+    // quedan fuera: esas deben mostrar una partida larga en curso.
+    if (!DEMO_LIVE_TOKENS.includes(accessToken)) {
+      const demo = await prisma.restaurant.findUnique({ where: { id: clubId }, select: { isDemo: true } });
+      if (demo?.isDemo) {
+        const nowMs = Date.now();
+        const outOfWindow =
+          nowMs < booking.block.startsAt.getTime() - OPEN_BEFORE_MINUTES * 60_000 ||
+          nowMs > booking.block.endsAt.getTime() + OPEN_AFTER_MINUTES * 60_000;
+        if (!booking.checkedInAt || outOfWindow) {
+          const newStart = new Date(nowMs);
+          const newEnd = new Date(nowMs + DEMO_MATCH_MINUTES * 60_000);
+          await prisma.$transaction([
+            // Igual que refreshClubDemo: lo que estorbe en esa cancha se cancela
+            // antes de mover el bloque, o la restricción EXCLUDE lo rechaza.
+            prisma.clubCourtBlock.updateMany({
+              where: {
+                restaurantId: clubId,
+                courtId: booking.block.courtId,
+                id: { not: booking.blockId },
+                status: 'ACTIVE',
+                startsAt: { lt: newEnd },
+                endsAt: { gt: newStart },
+              },
+              data: { status: 'CANCELLED' },
+            }),
+            prisma.clubCourtBlock.update({
+              where: { id: booking.blockId },
+              data: { startsAt: newStart, endsAt: newEnd, status: 'ACTIVE' },
+            }),
+            prisma.clubBooking.update({
+              where: { id: booking.id },
+              data: { status: 'CONFIRMED', checkedInAt: newStart },
+            }),
+          ]);
+          booking = await loadSession(clubId, accessToken);
+          emitToKitchen(clubId, SocketEvents.CLUB_BOOKING_UPDATED, { id: booking.id });
+        }
+      }
+    }
 
     // Con la llave maestra se abre cualquier reserva desde cualquier tablet, y a
     // cualquier hora: es precisamente para destrabar los casos que los dos

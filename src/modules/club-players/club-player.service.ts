@@ -81,6 +81,17 @@ export const clubPlayerService = {
     const phone = normalizePhone(rawPhone);
     if (phone.length < 7) throw badRequest('El número de teléfono no es válido.');
 
+    // El club demo no tiene WhatsApp vinculado: no se envía nada ni se guarda
+    // código, pero se responde como si sí — el paso de verificación tiene que
+    // verse igual que en un club real, solo que acepta cualquier código.
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { isDemo: true },
+    });
+    if (restaurant?.isDemo) {
+      return { sent: true, demo: true, expiresAt: new Date(Date.now() + 10 * 60_000), phone };
+    }
+
     const settings = await getBookingSettings(restaurantId);
     const since = new Date(Date.now() - 3_600_000);
     const recent = await prisma.clubPhoneVerification.count({
@@ -108,7 +119,7 @@ export const clubPlayerService = {
       sent = false;
     }
 
-    return { sent, expiresAt, phone };
+    return { sent, demo: false, expiresAt, phone };
   },
 
   /**
@@ -118,6 +129,20 @@ export const clubPlayerService = {
    */
   async verifyCode(restaurantId: string, rawPhone: string, code: string): Promise<boolean> {
     const phone = normalizePhone(rawPhone);
+
+    // Demo: cualquier código vale. Se registra una verificación ya consumida
+    // para que hasRecentVerification (que valida la reserva) la encuentre.
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { isDemo: true },
+    });
+    if (restaurant?.isDemo) {
+      await prisma.clubPhoneVerification.create({
+        data: { restaurantId, phone, codeHash: 'DEMO', expiresAt: new Date(), consumedAt: new Date() },
+      });
+      return true;
+    }
+
     const row = await prisma.clubPhoneVerification.findFirst({
       where: { restaurantId, phone, consumedAt: null, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: 'desc' },
