@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
-import { Check, FileText, Plus, RotateCcw, Send, Trash2, X } from 'lucide-react';
+import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
+import { Check, Download, FileText, Plus, RotateCcw, Send, Trash2, X } from 'lucide-react';
 import { masterApi } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { downloadElementAsPdf } from '@/utils/pdf';
 
 /**
  * Master → Cotizaciones: presupuestos para FUTUROS clientes. Crear (plan + cargos
@@ -65,6 +66,25 @@ export default function MasterQuotesPage() {
   const [createOpen, setCreateOpen] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Cotización que se está exportando: se monta la plantilla oculta, se captura y se limpia.
+  const [pdfQuote, setPdfQuote] = useState<PlatformQuote | null>(null);
+  const pdfRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!pdfQuote || !pdfRef.current) return;
+    const el = pdfRef.current;
+    const run = async () => {
+      // Esperar a que el logo termine de cargar antes de capturar.
+      const imgs = [...el.querySelectorAll('img')];
+      await Promise.all(imgs.map((img) => (img.complete ? Promise.resolve() : new Promise((res) => { img.onload = img.onerror = res; }))));
+      await downloadElementAsPdf(el, `cotizacion-quicktap-${pdfQuote.quoteNumber}.pdf`);
+      setPdfQuote(null);
+    };
+    run().catch((err) => {
+      console.error('[cotizaciones] No se pudo generar el PDF:', err);
+      setPdfQuote(null);
+    });
+  }, [pdfQuote]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -211,6 +231,14 @@ export default function MasterQuotesPage() {
                 )}
                 <button
                   type="button"
+                  disabled={pdfQuote !== null}
+                  onClick={() => setPdfQuote(q)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-brand-950/15 px-3.5 py-1.5 text-xs font-semibold text-brand-950/70 hover:bg-brand-950/5 disabled:opacity-50"
+                >
+                  <Download className="h-3.5 w-3.5" /> {pdfQuote?.id === q.id ? 'Generando…' : 'PDF'}
+                </button>
+                <button
+                  type="button"
                   disabled={busyId === q.id}
                   onClick={() => remove(q.id)}
                   className="inline-flex items-center gap-1.5 rounded-full border border-red-200 px-3.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 disabled:opacity-50"
@@ -224,9 +252,117 @@ export default function MasterQuotesPage() {
       )}
 
       {createOpen && <CreateQuoteDialog onClose={() => setCreateOpen(false)} onCreated={() => { setCreateOpen(false); setTab('open'); load(); }} />}
+
+      {/* Plantilla del PDF, montada fuera de pantalla solo mientras se genera. */}
+      {pdfQuote && (
+        <div className="fixed -left-[9999px] top-0">
+          <QuotePdfTemplate ref={pdfRef} quote={pdfQuote} />
+        </div>
+      )}
     </div>
   );
 }
+
+/** Hoja A4 de la cotización con la línea gráfica de QuickTap (logo, azul de marca,
+ * Poppins). Se renderiza oculta y se captura con html2canvas → PDF. */
+const QuotePdfTemplate = forwardRef<HTMLDivElement, { quote: PlatformQuote }>(function QuotePdfTemplate({ quote }, ref) {
+  const half = Number(quote.totalUsd) / 2;
+  const fechaLarga = new Date(quote.createdAt).toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' });
+  // OJO: solo colores hex/rgba INLINE — html2canvas no entiende los colores oklab
+  // que Tailwind v4 genera con los modificadores de opacidad (text-brand-950/50).
+  const navy = '#001b43';
+  const blue = '#009aff';
+  const dim = (a: number) => `rgba(0,27,67,${a})`;
+  return (
+    <div ref={ref} style={{ width: 794, minHeight: 1000, backgroundColor: '#ffffff', color: navy }} className="flex flex-col font-sans">
+      {/* Cabecera: logo + número, con la franja azul de la marca */}
+      <div className="px-12 pt-10 pb-6 flex items-start justify-between">
+        <div>
+          <img src="/logo/logo-central.png" alt="QuickTap" style={{ height: 34, width: 'auto' }} />
+          <p className="mt-2 text-[11px] font-light" style={{ color: dim(0.5) }}>quicktap.club — todo a un toque</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: blue }}>Cotización</p>
+          <p className="text-2xl font-bold">N.º {quote.quoteNumber}</p>
+          <p className="text-[11px] font-light" style={{ color: dim(0.5) }}>{fechaLarga}</p>
+        </div>
+      </div>
+      <div style={{ height: 4, backgroundColor: blue }} className="mx-12 rounded-full" />
+
+      {/* Cliente */}
+      <div className="px-12 pt-6">
+        <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: dim(0.4) }}>Preparada para</p>
+        <p className="mt-1 text-lg font-bold">{quote.clientName}</p>
+        {quote.businessName && <p className="text-sm font-medium" style={{ color: dim(0.7) }}>{quote.businessName}</p>}
+        <p className="text-sm font-light" style={{ color: dim(0.5) }}>{quote.clientPhone}</p>
+      </div>
+
+      {/* Detalle */}
+      <div className="px-12 pt-7">
+        <table className="w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+          <thead>
+            <tr className="text-left text-[11px] font-bold uppercase tracking-widest" style={{ color: dim(0.4) }}>
+              <th className="pb-2">Concepto</th>
+              <th className="pb-2 text-right">Monto</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style={{ borderTop: `1px solid ${dim(0.08)}` }}>
+              <td className="py-3">
+                <span className="font-semibold">Plan {quote.planName}</span>
+                <span className="font-light" style={{ color: dim(0.5) }}> · {quote.planCycle.toLowerCase()}</span>
+              </td>
+              <td className="py-3 text-right font-semibold">{money(quote.planPriceUsd)}</td>
+            </tr>
+            {quote.items.map((it, i) => (
+              <tr key={`${it.label}-${i}`} style={{ borderTop: `1px solid ${dim(0.08)}` }}>
+                <td className="py-3">
+                  {it.label} <span className="font-light text-xs" style={{ color: dim(0.4) }}>(pago único)</span>
+                </td>
+                <td className="py-3 text-right">{money(it.amountUsd)}</td>
+              </tr>
+            ))}
+            <tr style={{ borderTop: `2px solid ${navy}` }}>
+              <td className="py-3 text-base font-bold">Pago inicial</td>
+              <td className="py-3 text-right text-xl font-bold" style={{ color: blue }}>{money(quote.totalUsd)}</td>
+            </tr>
+          </tbody>
+        </table>
+        {quote.items.length > 0 && (
+          <p className="mt-1 text-xs font-light" style={{ color: dim(0.5) }}>
+            Luego del pago inicial, solo el plan: {money(quote.planPriceUsd)} ({quote.planCycle.toLowerCase()}).
+          </p>
+        )}
+      </div>
+
+      {/* Términos 50/50 */}
+      <div className="mx-12 mt-7 rounded-2xl px-6 py-5" style={{ backgroundColor: 'rgba(0,154,255,0.07)' }}>
+        <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: blue }}>Condiciones de pago</p>
+        <p className="mt-1.5 text-sm">
+          <span className="font-semibold">50% para comenzar la instalación ({money(half)})</span>
+          <span style={{ color: dim(0.6) }}> · el 50% restante ({money(half)}) a los 15 días.</span>
+        </p>
+        <p className="mt-1 text-xs font-light" style={{ color: dim(0.5) }}>Incluye 15 días de prueba gratis, sin tarjeta de crédito.</p>
+      </div>
+
+      {quote.note && (
+        <div className="px-12 pt-5">
+          <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: dim(0.4) }}>Nota</p>
+          <p className="mt-1 text-sm font-light" style={{ color: dim(0.7) }}>{quote.note}</p>
+        </div>
+      )}
+
+      {/* Pie */}
+      <div className="mt-auto px-12 pb-10 pt-8">
+        <div style={{ height: 1, backgroundColor: dim(0.1) }} className="mb-4" />
+        <div className="flex items-center justify-between text-[11px] font-light" style={{ color: dim(0.4) }}>
+          <span>QuickTap.club — menú QR, pedidos, delivery e inventario para tu negocio.</span>
+          <span>quicktap.club</span>
+        </div>
+      </div>
+    </div>
+  );
+});
 
 function CreateQuoteDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [plans, setPlans] = useState<PublicPlan[]>([]);
