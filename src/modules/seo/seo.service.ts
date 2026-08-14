@@ -104,14 +104,25 @@ const DEFAULT_IMAGE = `${env.appUrl.replace(/\/$/, '')}/logo/quicktap-color.png`
 const WEB_DIST_PATH = process.env.WEB_DIST_PATH ?? path.resolve(__dirname, '../../../web/dist');
 
 let cachedShell: string | null = null;
+let cachedShellMtimeMs = 0;
 
 function loadShell(): string | null {
-  // En desarrollo no se cachea: el frontend lo sirve Vite y el dist puede estar viejo
-  // o no existir, y así un rebuild se refleja sin reiniciar el backend.
-  if (env.isProd && cachedShell) return cachedShell;
+  // El caché se invalida por mtime del archivo: un `npm run build` del frontend cambia
+  // los nombres hasheados de los bundles dentro de index.html, y servir el shell viejo
+  // deja TODAS las páginas del backend (/r/, /tienda/, /club/, SEO) apuntando a assets
+  // que ya no existen — menús rotos hasta reiniciar PM2. Pasó el 14-ago-2026 con el
+  // menú de All Grill: un deploy "solo frontend" no reiniciaba el backend y el caché
+  // quedaba envenenado. El fs.statSync por request es despreciable frente al I/O de
+  // la petición misma.
+  const shellPath = path.join(WEB_DIST_PATH, 'index.html');
   try {
-    const html = fs.readFileSync(path.join(WEB_DIST_PATH, 'index.html'), 'utf8');
-    if (env.isProd) cachedShell = html;
+    const mtimeMs = fs.statSync(shellPath).mtimeMs;
+    if (env.isProd && cachedShell && mtimeMs === cachedShellMtimeMs) return cachedShell;
+    const html = fs.readFileSync(shellPath, 'utf8');
+    if (env.isProd) {
+      cachedShell = html;
+      cachedShellMtimeMs = mtimeMs;
+    }
     return html;
   } catch {
     return null;
