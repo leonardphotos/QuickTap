@@ -745,11 +745,8 @@ export default function LandingPage() {
           <div className="relative z-10 flex min-h-screen w-full flex-col justify-between px-6 py-6 sm:px-12 lg:px-16">
             {/* Nav integrada en el hero */}
             <nav aria-label="Principal" className="flex items-center justify-between gap-4">
-              <Link to="/" className="flex items-center gap-2">
-                <img src="/logo/icono.png" alt="" className="h-8 w-8" />
-                <span className="text-lg font-bold tracking-tight text-brand-950">
-                  quicktap<span className="text-brand-500">.</span>
-                </span>
+              <Link to="/" className="flex items-center">
+                <img src="/logo/logo-central.png" alt="QuickTap" className="h-8 w-auto" />
               </Link>
               <div className="hidden lg:flex items-center gap-8">
                 {[
