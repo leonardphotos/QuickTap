@@ -323,7 +323,7 @@ function DeliveryPaidToggle({
 const ORIGIN_ICON = L.divIcon({
   className: '',
   html: `<svg width="26" height="36" viewBox="0 0 26 36" xmlns="http://www.w3.org/2000/svg" style="filter:drop-shadow(0 2px 3px rgba(0,0,0,.35))">
-    <path d="M13 0C5.82 0 0 5.82 0 13c0 9.75 13 23 13 23s13-13.25 13-23C26 5.82 20.18 0 13 0z" fill="#056cf2"/>
+    <path d="M13 0C5.82 0 0 5.82 0 13c0 9.75 13 23 13 23s13-13.25 13-23C26 5.82 20.18 0 13 0z" fill="#009aff"/>
     <circle cx="13" cy="13" r="5" fill="#ffffff"/>
   </svg>`,
   iconSize: [26, 36],
@@ -465,7 +465,7 @@ function ZoneMapEditor({ originLat, originLng }: { originLat: number | null; ori
       const latlngs = zone.polygon.map((p) => [p.lat, p.lng] as [number, number]);
       const isSelected = zone.id === selectedZoneId;
       const polygon = L.polygon(latlngs, {
-        color: isSelected ? '#f59e0b' : '#056cf2',
+        color: isSelected ? '#f59e0b' : '#009aff',
         weight: isSelected ? 3 : 2,
         fillOpacity: isSelected ? 0.3 : 0.1,
       }).addTo(layer);

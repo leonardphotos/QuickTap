@@ -24,9 +24,13 @@
   --color-brand-950: #001b43;
   --color-brand-900: #022873;
   --color-brand-800: #03258c;
-  --color-brand-500: #056cf2;
-  --color-brand-400: #0597f2;
-  /* El azul claro exacto del icono del logo (logo/icono.png) — acento de las páginas SEO. */
+  /* Azul de la marca: el MISMO azul del icono del logo (logo/icono.png). Cambiarlo
+   * aquí recolorea todos los botones y acentos azules de la plataforma. */
+  --color-brand-500: #009aff;
+  /* Hover/estados un paso más oscuros que el azul de marca. */
+  --color-brand-600: #008ae6;
+  --color-brand-400: #33adff;
+  /* Alias del azul del logo usado por las páginas SEO (mismo valor que brand-500). */
   --color-brand-logo: #009aff;
 
   /* Color de fuente del enlace público del Club (reservas + ticket QR) — ver
