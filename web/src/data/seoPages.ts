@@ -57,8 +57,9 @@ export const SEO_SERVICES: SeoServicePage[] = [
       'Los precios se muestran en bolívares calculados con la tasa BCV del día (y en dólares como referencia), así que un menú que armaste hace meses sigue cobrando bien hoy. Cambias un plato, una foto o un precio desde tu panel y el menú se actualiza al instante en todos los teléfonos.',
     ],
     screenshot: {
-      src: '/images/restaurant-menu-captura.jpg',
-      alt: 'Menú digital QR de un restaurante visto desde el teléfono del cliente, con productos estrella y precios en bolívares',
+      // Menú real de un cliente (All Grill Chirikayen) — mejor prueba social que el demo.
+      src: '/images/restaurant-menu-allgrill-captura.jpg',
+      alt: 'Menú digital QR de All Grill Chirikayen visto desde el teléfono del cliente, con fotos de los platos y precios en bolívares y euros',
     },
     features: [
       { title: 'Carta con fotos y categorías', text: 'Productos estrella, promociones y especiales de la casa destacados; agotados que se ocultan solos.' },
