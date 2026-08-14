@@ -3,6 +3,7 @@ import { ChevronDown, LogOut, Settings, ShieldCheck } from 'lucide-react';
 import { useMasterAuth } from '../../context/MasterAuthContext';
 import { MoneyVisibilityProvider } from '@/context/MoneyVisibilityContext';
 import { MoneyVisibilityToggle } from '@/components/master/MoneyVisibilityToggle';
+import { DailyRatesBadge } from '@/components/DailyRatesBadge';
 import { TextureButton } from '@/components/ui/texture-button';
 import {
   DropdownMenu,
@@ -72,6 +73,7 @@ export default function MasterLayout() {
             </nav>
 
             <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
+              <DailyRatesBadge />
               <MoneyVisibilityToggle className="text-brand-950/50 hover:text-brand-500 transition-colors" />
               <TextureButton variant="icon" size="icon" aria-label="Salir" onClick={logout}>
                 <LogOut className="h-4 w-4 text-brand-950/70" />

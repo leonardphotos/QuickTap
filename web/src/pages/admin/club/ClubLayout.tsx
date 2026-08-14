@@ -4,6 +4,7 @@ import { CreditCard, GraduationCap, LayoutGrid, QrCode, Settings, ShoppingBag, U
 import { useAuth } from '@/context/AuthContext';
 import { daysRemaining, graceHoursRemaining } from '@/utils/subscription';
 import { cn } from '@/lib/utils';
+import { DailyRatesBadge } from '@/components/DailyRatesBadge';
 
 const ClubCourtsLivePage = lazy(() => import('./ClubCourtsLivePage'));
 const ClubCourtDetailPage = lazy(() => import('./ClubCourtDetailPage'));
@@ -103,9 +104,10 @@ export default function ClubLayout() {
             ))}
           </nav>
 
+          <DailyRatesBadge className="ml-auto lg:ml-0" />
           <button
             onClick={logout}
-            className="ml-auto shrink-0 text-[13px] font-medium text-brand-950/50 hover:text-brand-950 lg:ml-0"
+            className="shrink-0 text-[13px] font-medium text-brand-950/50 hover:text-brand-950"
           >
             Salir
           </button>

@@ -13,6 +13,7 @@ import { InventoryByBranchCard } from '@/components/admin/InventoryByBranchCard'
 import { LiveOrdersPanel } from '@/components/admin/LiveOrdersPanel';
 import { NavMenuDrawer } from '@/components/admin/NavMenuDrawer';
 import { TextureButton } from '@/components/ui/texture-button';
+import { DailyRatesBadge } from '@/components/DailyRatesBadge';
 import { dashboardSectionLinks, PLAN_LABELS } from './nav-links';
 
 // Colores rotativos para los íconos de "Accesos rápidos" — solo distinguen
@@ -81,6 +82,7 @@ export default function DashboardPage() {
         </Link>
 
         <div className="flex items-center gap-2 shrink-0">
+          <DailyRatesBadge />
           <Link
             to="/admin/billing"
             className={`text-xs font-medium px-2.5 py-1 rounded-full whitespace-nowrap ${

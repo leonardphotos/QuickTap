@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { getShopRubro } from '@/data/shopRubros';
 import { daysRemaining, graceHoursRemaining } from '@/utils/subscription';
 import { TextureButton } from '@/components/ui/texture-button';
+import { DailyRatesBadge } from '@/components/DailyRatesBadge';
 import { QuoteManager } from '@/components/admin/QuoteManager';
 import { useShopSession } from './shopSession';
 import ShopDashboardPage from './ShopDashboardPage';
@@ -129,11 +130,7 @@ export default function ShopLayout() {
             ))}
           </nav>
 
-          {restaurant.exchangeRate && (
-            <span className="shrink-0 text-[10px] font-bold text-brand-500 whitespace-nowrap">
-              Bs {Number(restaurant.exchangeRate.rateBs).toFixed(2)}
-            </span>
-          )}
+          <DailyRatesBadge />
         </div>
       </div>
 
