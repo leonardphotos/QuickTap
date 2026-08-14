@@ -16,7 +16,7 @@ export default function ServicePage({ slug }: { slug: string }) {
     <SeoPageLayout>
       <Seo title={page.title} description={page.description} path={`/${page.slug}`} faq={page.faq} />
 
-      <p className="text-xs font-bold uppercase tracking-widest text-brand-500">{page.eyebrow}</p>
+      <p className="text-xs font-bold uppercase tracking-widest text-brand-logo">{page.eyebrow}</p>
       <h1 className="mt-3 text-3xl sm:text-4xl font-bold leading-tight max-w-3xl">{page.h1}</h1>
       <div className="mt-5 space-y-4 max-w-3xl">
         {page.intro.map((p) => (
@@ -60,7 +60,7 @@ export default function ServicePage({ slug }: { slug: string }) {
             <Link
               key={r.to}
               to={r.to}
-              className="flex items-center justify-between gap-2 flex-1 rounded-xl border border-brand-950/[0.08] px-4 py-3 text-sm font-medium hover:border-brand-500/40 hover:text-brand-500 transition-colors"
+              className="flex items-center justify-between gap-2 flex-1 rounded-xl border border-brand-950/[0.08] px-4 py-3 text-sm font-medium hover:border-brand-logo/40 hover:text-brand-logo transition-colors"
             >
               {r.label}
               <ArrowRight className="h-4 w-4 shrink-0" />

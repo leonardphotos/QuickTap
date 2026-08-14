@@ -72,7 +72,7 @@ export default function ComparativaPage() {
         faq={FAQ}
       />
 
-      <p className="text-xs font-bold uppercase tracking-widest text-brand-500">Guía de compra</p>
+      <p className="text-xs font-bold uppercase tracking-widest text-brand-logo">Guía de compra</p>
       <h1 className="mt-3 text-3xl sm:text-4xl font-bold leading-tight max-w-3xl">
         ¿Cuál es el mejor software para tu restaurante? Compara los enfoques
       </h1>
@@ -92,7 +92,7 @@ export default function ComparativaPage() {
               <th className="py-3 px-3 font-semibold text-center">A mano<br /><span className="font-light text-brand-950/50 text-xs">cuaderno + chats</span></th>
               <th className="py-3 px-3 font-semibold text-center">POS tradicional<br /><span className="font-light text-brand-950/50 text-xs">licencia + equipos</span></th>
               <th className="py-3 px-3 font-semibold text-center">Apps de delivery<br /><span className="font-light text-brand-950/50 text-xs">comisión por pedido</span></th>
-              <th className="py-3 px-3 font-semibold text-center bg-brand-500/[0.06] rounded-t-xl">QuickTap</th>
+              <th className="py-3 px-3 font-semibold text-center bg-brand-logo/[0.06] rounded-t-xl">QuickTap</th>
             </tr>
           </thead>
           <tbody>
@@ -102,7 +102,7 @@ export default function ComparativaPage() {
                 <td className="py-2.5 px-3 text-center"><CellIcon v={c.cuaderno} /></td>
                 <td className="py-2.5 px-3 text-center"><CellIcon v={c.pos} /></td>
                 <td className="py-2.5 px-3 text-center"><CellIcon v={c.apps} /></td>
-                <td className={`py-2.5 px-3 text-center bg-brand-500/[0.06] ${i === CRITERIA.length - 1 ? 'rounded-b-xl' : ''}`}><CellIcon v={c.quicktap} /></td>
+                <td className={`py-2.5 px-3 text-center bg-brand-logo/[0.06] ${i === CRITERIA.length - 1 ? 'rounded-b-xl' : ''}`}><CellIcon v={c.quicktap} /></td>
               </tr>
             ))}
           </tbody>
@@ -131,7 +131,7 @@ export default function ComparativaPage() {
           <li><strong className="font-semibold text-brand-950">Prueba real:</strong> si no puedes probarlo gratis con tu propia carta antes de pagar, sospecha.</li>
         </ul>
         <p className="mt-4 text-brand-950/70 font-light">
-          <Link to="/precios" className="text-brand-500 font-medium hover:underline">Mira los planes y precios de QuickTap</Link>{' '}
+          <Link to="/precios" className="text-brand-logo font-medium hover:underline">Mira los planes y precios de QuickTap</Link>{' '}
           o explora las funciones una por una desde el pie de esta página.
         </p>
       </section>

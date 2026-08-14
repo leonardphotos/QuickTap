@@ -26,6 +26,8 @@
   --color-brand-800: #03258c;
   --color-brand-500: #056cf2;
   --color-brand-400: #0597f2;
+  /* El azul claro exacto del icono del logo (logo/icono.png) — acento de las páginas SEO. */
+  --color-brand-logo: #009aff;
 
   /* Color de fuente del enlace público del Club (reservas + ticket QR) — ver
      Ajustes → Marca del enlace. Blanco por defecto (fondo con degradado de
