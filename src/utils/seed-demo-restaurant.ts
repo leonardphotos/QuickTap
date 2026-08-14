@@ -724,6 +724,10 @@ async function seedBranch(
       ivaEnabled: true,
       orderingEnabled: true,
       isDemo: true,
+      // Las cuentas demo nunca piden PIN de bloqueo: un prospecto que entra a curiosear
+      // no tiene por qué toparse con "Crea tu PIN" (además el PIN quedaría desconocido
+      // para el siguiente visitante).
+      lockScreenEnabled: false,
       demoLastActivityAt: new Date(),
       parentRestaurantId: parentId,
       subscriptionStatus: 'ACTIVE',
@@ -810,6 +814,8 @@ export async function resetAndSeedDemoRestaurant(prisma: PrismaClient): Promise<
       ivaEnabled: true,
       orderingEnabled: true,
       isDemo: true,
+      // Las cuentas demo nunca piden PIN de bloqueo (ver el mismo comentario en las sucursales).
+      lockScreenEnabled: false,
       // Recién creado: cuenta como "actividad reciente" para que el barrido de
       // inactividad (server.ts) no lo vuelva a resetear antes de que alguien
       // llegue a usarlo.

@@ -56,6 +56,8 @@ async function main() {
       name: 'Club Pádel Caracas',
       description: 'Canchas de pádel en Los Palos Grandes — cuenta de demostración de QuickTap Club.',
       businessType: 'SPORTS_CLUB',
+      // Cuenta de demostración: sin PIN de bloqueo, para que un prospecto entre directo.
+      lockScreenEnabled: false,
       baseCurrency: 'USD',
       periodEnd: trialPeriodEnd(),
       subscriptionStatus: 'ACTIVE',

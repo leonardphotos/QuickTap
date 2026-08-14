@@ -91,6 +91,8 @@ async function main() {
       description: 'Tienda de ropa, calzado y accesorios — cuenta de demostración de QuickTap Shop.',
       businessType: 'SHOP',
       shopRubro: 'ropa',
+      // Cuenta de demostración: sin PIN de bloqueo, para que un prospecto entre directo.
+      lockScreenEnabled: false,
       baseCurrency: 'USD',
       periodEnd: trialPeriodEnd(),
       subscriptionStatus: 'ACTIVE',
