@@ -107,6 +107,9 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [finance, setFinance] = useState<Finance | null>(null);
   const [debts, setDebts] = useState<Debts | null>(null);
+  // Globo de "Cuentas por pagar": gastos a crédito sin saldar + órdenes de pago
+  // pendientes — mismo criterio que lista ClubPayablesPage.
+  const [payablesCount, setPayablesCount] = useState(0);
   const [collecting, setCollecting] = useState<{ source: DebtSource; row: DebtRow } | null>(null);
   const [tab, setTab] = useState<
     'resumen' | 'deudas' | 'ocupacion' | 'clientes' | 'consumo' | 'cuentas' | 'nomina' | 'historial'
@@ -130,6 +133,14 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
       .get('/club/stats/debts')
       .then((r) => setDebts(r.data.data))
       .catch(() => setDebts(null));
+    Promise.all([api.get('/payment-orders/payables'), api.get('/payment-orders')])
+      .then(([p, o]) =>
+        setPayablesCount(
+          p.data.data.movements.length +
+            (o.data.data as { status: string }[]).filter((x) => x.status === 'PENDING').length,
+        ),
+      )
+      .catch(() => setPayablesCount(0));
   }, []);
 
   useEffect(load, [load]);
@@ -193,6 +204,11 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
               {t === 'deudas' && debts && debts.totals.count > 0 && (
                 <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
                   {debts.totals.count}
+                </span>
+              )}
+              {t === 'cuentas' && payablesCount > 0 && (
+                <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                  {payablesCount}
                 </span>
               )}
             </button>
