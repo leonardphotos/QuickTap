@@ -3,8 +3,14 @@ import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion, useScroll, useTransform } from 'motion/react';
 import {
+  ArrowUpRight,
   ChevronDown,
   ChevronRight,
+  Coffee,
+  Menu,
+  Trophy,
+  UtensilsCrossed,
+  X,
   Check,
   QrCode,
   ChefHat,
@@ -35,7 +41,6 @@ import {
   Tablet,
 } from 'lucide-react';
 import { IntroLoader } from '@/components/landing/IntroLoader';
-import { GradientWave } from '@/components/ui/gradient-wave';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '@/context/AuthContext';
@@ -694,11 +699,12 @@ export default function LandingPage() {
           cta: 'Ver restaurante de demostración',
         };
 
-  // Parallax del hero: el logo se retira más rápido que el scroll de la página,
-  // creando sensación de profundidad al pasar a la primera sección de contenido.
-  const { scrollY } = useScroll();
-  const heroLogoY = useTransform(scrollY, [0, 800], [0, -220]);
-  const heroLogoOpacity = useTransform(scrollY, [0, 500], [1, 0.15]);
+  // Video ambiente del hero: ralentizado para que se sienta atmosférico, no un comercial.
+  const heroVideoRef = useRef<HTMLVideoElement>(null);
+  const [navOpen, setNavOpen] = useState(false);
+  useEffect(() => {
+    if (heroVideoRef.current) heroVideoRef.current.playbackRate = 0.7;
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => setShowIntro(false), 2100);
@@ -730,49 +736,180 @@ export default function LandingPage() {
         transition={{ duration: 0.5, ease: EASE_OUT }}
         className="text-brand-950"
       >
-        {/* Nav flotante, estilo "cult-seo": pastilla oscura translúcida sobre el hero */}
-        <header className="fixed top-4 inset-x-0 z-30 px-4">
-          <div className="max-w-2xl mx-auto flex items-center justify-between gap-3 rounded-full bg-brand-950/80 backdrop-blur-md border border-white/10 shadow-lg shadow-brand-950/30 px-4 py-2">
-            <img src="/logo/icono-blanco.png" alt="QuickTap" className="h-7 w-7" />
-            <nav className="flex items-center gap-1 sm:gap-2">
-              <Link to="/precios" className="hidden sm:inline text-sm text-white/70 hover:text-white px-2 py-1.5">
-                Ver planes
+        {/* Hero estilo estudio creativo: video ambiente de fondo a sangre completa, nav
+            integrada arriba, titular con acento serif itálico y contenido en la columna
+            izquierda. Las máscaras de degradado garantizan legibilidad sin tapar el
+            centro-derecha del video. */}
+        <section className="relative min-h-screen overflow-hidden bg-[#F6F9FC]">
+          {/* Video decorativo, ralentizado a 0.7x (ver useEffect) */}
+          <video
+            ref={heroVideoRef}
+            autoPlay
+            loop
+            muted
+            playsInline
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full object-cover"
+            src="https://strvid.nyc3.cdn.digitaloceanspaces.com/motionsite/creative_studio_video.mp4"
+          />
+          {/* Máscaras: columna izquierda legible, franjas arriba/abajo para nav y cierre */}
+          <div className="absolute inset-y-0 left-0 w-[78%] sm:w-[42%] bg-gradient-to-r from-[#F6F9FC] via-[#F6F9FC]/90 to-transparent" />
+          <div className="absolute top-0 inset-x-0 h-48 sm:h-56 lg:h-64 bg-gradient-to-b from-[#F6F9FC] via-[#F6F9FC]/60 to-transparent" />
+          <div className="absolute bottom-0 inset-x-0 h-48 sm:h-56 lg:h-64 bg-gradient-to-t from-[#F6F9FC] via-[#F6F9FC]/60 to-transparent" />
+
+          <div className="relative z-10 flex min-h-screen w-full flex-col justify-between px-6 py-6 sm:px-12 lg:px-16">
+            {/* Nav integrada en el hero */}
+            <nav aria-label="Principal" className="flex items-center justify-between gap-4">
+              <Link to="/" className="flex items-center gap-2">
+                <img src="/logo/icono.png" alt="" className="h-8 w-8" />
+                <span className="text-lg font-bold tracking-tight text-brand-950">
+                  quicktap<span className="text-brand-500">.</span>
+                </span>
               </Link>
-              <Link to="/admin/login" className="text-sm text-white/70 hover:text-white px-2 py-1.5">
-                Iniciar sesión
-              </Link>
-              <Link
-                to="/empezar"
-                className="text-sm font-medium bg-white text-brand-950 rounded-full px-3 py-1.5 hover:bg-white/90"
-              >
-                Regístrate
-              </Link>
+              <div className="hidden lg:flex items-center gap-8">
+                {[
+                  { label: 'Funciones', href: '#funciones' },
+                  { label: 'Precios', to: '/precios' },
+                  { label: 'Comparativa', to: '/comparativa' },
+                  { label: 'Iniciar sesión', to: '/admin/login' },
+                ].map((l) =>
+                  l.to ? (
+                    <Link key={l.label} to={l.to} className="group relative text-sm font-medium text-brand-950/70 transition-colors hover:text-brand-950">
+                      {l.label}
+                      <span className="absolute -bottom-1 left-0 h-px w-0 bg-brand-950 transition-all duration-300 group-hover:w-full" />
+                    </Link>
+                  ) : (
+                    <a key={l.label} href={l.href} className="group relative text-sm font-medium text-brand-950/70 transition-colors hover:text-brand-950">
+                      {l.label}
+                      <span className="absolute -bottom-1 left-0 h-px w-0 bg-brand-950 transition-all duration-300 group-hover:w-full" />
+                    </a>
+                  ),
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <Link
+                  to="/empezar"
+                  className="hidden sm:inline-flex items-center gap-1.5 rounded-full border border-brand-950 px-5 py-2 text-sm font-semibold text-brand-950 transition-colors hover:bg-brand-950 hover:text-white"
+                >
+                  Regístrate <ArrowUpRight className="h-4 w-4" />
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setNavOpen(true)}
+                  aria-label="Abrir menú"
+                  className="lg:hidden flex h-10 w-10 items-center justify-center rounded-full border border-brand-950/15 bg-white/70 backdrop-blur-sm"
+                >
+                  <Menu className="h-5 w-5 text-brand-950" />
+                </button>
+              </div>
             </nav>
-          </div>
-        </header>
 
-        {/* Tarjeta única a pantalla completa, fondo de onda animada, sin texto: solo invita a deslizar */}
-        <section className="relative h-screen overflow-hidden bg-white">
-          <GradientWave />
+            {/* Contenido principal — columna izquierda */}
+            <div className="max-w-xl py-14">
+              <p className="text-[11px] sm:text-xs font-bold uppercase tracking-[0.25em] text-brand-500">
+                • Menú QR • Comandas • Delivery
+              </p>
+              <h1 className="mt-5 text-4xl sm:text-6xl font-bold leading-[1.05] text-brand-950">
+                Software para restaurantes,
+                <span className="block font-display italic font-normal text-brand-500">en un toque.</span>
+              </h1>
+              <p className="mt-6 max-w-md text-[15px] sm:text-base font-light leading-relaxed text-brand-950/60">
+                Tu carta digital, los pedidos de cada mesa, el delivery por WhatsApp y el inventario — en un solo
+                sistema, desde cualquier navegador. También para locales comerciales y canchas.
+              </p>
+              <div className="mt-8 flex flex-wrap items-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => setDemoOpen(true)}
+                  className="group inline-flex items-center gap-2 rounded-full bg-brand-950 px-7 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-brand-900"
+                >
+                  Ver la demo
+                  <ArrowUpRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                </button>
+                <Link to="/precios" className="text-sm font-medium text-brand-950/70 underline underline-offset-4 hover:text-brand-950">
+                  Ver precios y planes
+                </Link>
+              </div>
 
-          {/* Logo centrado en toda la sección, con parallax: se retira más rápido que el scroll */}
-          <motion.div
-            style={{ y: heroLogoY, opacity: heroLogoOpacity }}
-            className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none"
-          >
-            <img src="/logo/quicktap-white.png" alt="QuickTap" className="w-36 sm:w-52 h-auto mix-blend-difference" />
-          </motion.div>
+              {/* Prueba social: las tres verticales que ya operan con QuickTap */}
+              <div className="mt-10 flex items-center gap-4">
+                <div className="flex -space-x-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-950 ring-2 ring-[#F6F9FC]">
+                    <UtensilsCrossed className="h-4 w-4 text-white" />
+                  </span>
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-500 ring-2 ring-[#F6F9FC]">
+                    <ShoppingBag className="h-4 w-4 text-white" />
+                  </span>
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-600 ring-2 ring-[#F6F9FC]">
+                    <Trophy className="h-4 w-4 text-white" />
+                  </span>
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500 ring-2 ring-[#F6F9FC]">
+                    <Coffee className="h-4 w-4 text-white" />
+                  </span>
+                </div>
+                <p className="max-w-[240px] text-[13px] font-light leading-snug text-brand-950/60">
+                  Restaurantes, locales comerciales y canchas operan a diario con QuickTap.
+                </p>
+              </div>
+            </div>
 
-          {/* Animación de "desliza para ver más" — invita a hacer scroll sin ningún texto */}
-          <div className="absolute bottom-10 inset-x-0 z-10 flex justify-center pointer-events-none">
-            <motion.div animate={{ y: [0, 10, 0] }} transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}>
-              <ChevronDown className="h-8 w-8 text-white mix-blend-difference" />
-            </motion.div>
+            {/* Invitación a seguir bajando */}
+            <div className="flex justify-center pb-1">
+              <motion.div animate={{ y: [0, 8, 0] }} transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}>
+                <ChevronDown className="h-6 w-6 text-brand-950/40" />
+              </motion.div>
+            </div>
           </div>
         </section>
 
+        {/* Menú móvil del hero: panel deslizante desde la derecha */}
+        <AnimatePresence>
+          {navOpen && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 lg:hidden">
+              <div className="absolute inset-0 bg-brand-950/40 backdrop-blur-sm" onClick={() => setNavOpen(false)} />
+              <motion.div
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '100%' }}
+                transition={{ duration: 0.3, ease: EASE_OUT }}
+                className="absolute right-0 top-0 flex h-full w-72 flex-col bg-white p-6 shadow-xl"
+              >
+                <div className="mb-6 flex items-center justify-between">
+                  <img src="/logo/icono.png" alt="QuickTap" className="h-7 w-7" />
+                  <button
+                    type="button"
+                    onClick={() => setNavOpen(false)}
+                    aria-label="Cerrar menú"
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-950/[0.06]"
+                  >
+                    <X className="h-4.5 w-4.5 text-brand-950" />
+                  </button>
+                </div>
+                <a href="#funciones" onClick={() => setNavOpen(false)} className="rounded-lg px-3 py-2.5 text-[15px] font-medium text-brand-950 hover:bg-brand-950/5">
+                  Funciones
+                </a>
+                <Link to="/precios" className="rounded-lg px-3 py-2.5 text-[15px] font-medium text-brand-950 hover:bg-brand-950/5">
+                  Precios
+                </Link>
+                <Link to="/comparativa" className="rounded-lg px-3 py-2.5 text-[15px] font-medium text-brand-950 hover:bg-brand-950/5">
+                  Comparativa
+                </Link>
+                <Link to="/admin/login" className="rounded-lg px-3 py-2.5 text-[15px] font-medium text-brand-950 hover:bg-brand-950/5">
+                  Iniciar sesión
+                </Link>
+                <Link
+                  to="/empezar"
+                  className="mt-4 inline-flex items-center justify-center gap-1.5 rounded-full bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white"
+                >
+                  Regístrate <ArrowUpRight className="h-4 w-4" />
+                </Link>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Hero secundario: presentación general (antes en /soluciones) */}
-        <section className="relative bg-white min-h-screen flex items-center px-4 pt-24 pb-12">
+        <section id="funciones" className="relative bg-white min-h-screen flex items-center px-4 pt-24 pb-12">
           <Reveal className="relative z-10 max-w-3xl mx-auto text-center">
             {/* Toggle Restaurantes / Locales Comerciales / Canchas: todo el contenido de acá
                 para abajo (vitrinas, features, FAQ y el demo) cambia según cuál esté activo. */}
@@ -806,7 +943,8 @@ export default function LandingPage() {
               </button>
             </div>
             <p className="text-xs font-medium text-brand-950/40 tracking-wide">{heroContent.eyebrow}</p>
-            <h1 className="mt-4 text-3xl sm:text-5xl font-bold text-brand-950">{heroContent.title}</h1>
+            {/* h2, no h1: el h1 de la home vive en el hero de arriba (cluster G del plan SEO). */}
+            <h2 className="mt-4 text-3xl sm:text-5xl font-bold text-brand-950">{heroContent.title}</h2>
             <p className="mt-5 text-base text-brand-950/60 max-w-xl mx-auto font-light">{heroContent.description}</p>
             <div className="mt-8 flex items-center justify-center">
               <TextureButton variant="brand" size="lg" className="sm:!w-auto" onClick={() => setDemoOpen(true)}>
