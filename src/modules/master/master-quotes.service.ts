@@ -39,6 +39,9 @@ function buildQuoteMessage(q: {
     lines.push(`➕ ${item.label}: ${money(item.amountUsd)} (pago único)`);
   }
   lines.push('', `💰 *Pago inicial: ${money(q.totalUsd)}*`);
+  // Términos estándar de instalación: 50% para comenzar, 50% a los 15 días.
+  const half = Number(q.totalUsd) / 2;
+  lines.push(`📋 Para comenzar: 50% (${money(half)}) — el 50% restante (${money(half)}) a los 15 días.`);
   if (items.length > 0) {
     lines.push(`🔁 Luego solo el plan: ${money(q.planPriceUsd)} ${q.planCycle.toLowerCase()}`);
   }

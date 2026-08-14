@@ -33,22 +33,26 @@ interface PlatformQuote {
   createdAt: string;
 }
 
-/** Planes sugeridos con su precio típico — TODO editable en el formulario. */
-const PLAN_PRESETS = [
-  { name: 'Solo Delivery', price: 24.99 },
-  { name: 'Pro', price: 39.99 },
-  { name: 'Premium', price: 59.99 },
-  { name: 'Sucursales', price: 99.99 },
-  { name: 'Locales Comerciales', price: 30 },
-  { name: 'Canchas', price: 50 },
-];
+/** Los planes reales se cargan de /public/plans — la MISMA fuente que la página de
+ * precios, así la cotización nunca ofrece un plan que no existe o con precio viejo. */
+interface PublicPlan {
+  name: string;
+  prices: { MONTHLY: number; QUARTERLY: number; SEMIANNUAL: number };
+}
 
-/** Cargos únicos frecuentes, para agregarlos con un toque. */
+/** Meses y clave de precio de cada ciclo (los precios públicos son por mes con
+ * descuento según el ciclo; la cotización muestra el total del ciclo). */
+const CYCLES = [
+  { label: 'Mensual', priceKey: 'MONTHLY', months: 1 },
+  { label: 'Trimestral', priceKey: 'QUARTERLY', months: 3 },
+  { label: 'Semestral', priceKey: 'SEMIANNUAL', months: 6 },
+] as const;
+
+/** Cargos únicos estándar, para agregarlos con un toque. */
 const ITEM_PRESETS: QuoteItem[] = [
-  { label: 'Instalación y configuración', amountUsd: 60 },
-  { label: 'Placas QR/NFC para mesas', amountUsd: 40 },
-  { label: 'Carga del menú/catálogo', amountUsd: 25 },
-  { label: 'Capacitación del equipo', amountUsd: 30 },
+  { label: 'Instalación y configuración', amountUsd: 200 },
+  { label: 'Carga de inventario', amountUsd: 150 },
+  { label: 'Capacitación del equipo', amountUsd: 50 },
 ];
 
 const money = (n: string | number) => `$${Number(n).toFixed(2)}`;
@@ -225,11 +229,12 @@ export default function MasterQuotesPage() {
 }
 
 function CreateQuoteDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [plans, setPlans] = useState<PublicPlan[]>([]);
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [businessName, setBusinessName] = useState('');
-  const [planName, setPlanName] = useState(PLAN_PRESETS[1].name);
-  const [planPrice, setPlanPrice] = useState(String(PLAN_PRESETS[1].price));
+  const [planName, setPlanName] = useState('');
+  const [planPrice, setPlanPrice] = useState('');
   const [planCycle, setPlanCycle] = useState('Mensual');
   const [items, setItems] = useState<QuoteItem[]>([]);
   const [itemLabel, setItemLabel] = useState('');
@@ -238,13 +243,38 @@ function CreateQuoteDialog({ onClose, onCreated }: { onClose: () => void; onCrea
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    masterApi.get('/public/plans').then((res) => {
+      const list = Object.values(res.data.data as Record<string, PublicPlan>);
+      setPlans(list);
+      // Arranca con el Plan Pro (o el primero), a precio mensual real.
+      const initial = list.find((p) => p.name.includes('Pro')) ?? list[0];
+      if (initial) {
+        setPlanName(initial.name);
+        setPlanPrice(String(initial.prices.MONTHLY));
+      }
+    });
+  }, []);
+
   const itemsTotal = items.reduce((acc, i) => acc + i.amountUsd, 0);
   const total = (Number(planPrice) || 0) + itemsTotal;
 
+  /** Precio del ciclo completo (los públicos son por mes con descuento por ciclo). */
+  function priceFor(plan: PublicPlan, cycleLabel: string): number {
+    const cycle = CYCLES.find((c) => c.label === cycleLabel) ?? CYCLES[0];
+    return Math.round(plan.prices[cycle.priceKey] * cycle.months * 100) / 100;
+  }
+
   function pickPlan(name: string) {
     setPlanName(name);
-    const preset = PLAN_PRESETS.find((p) => p.name === name);
-    if (preset) setPlanPrice(String(preset.price));
+    const plan = plans.find((p) => p.name === name);
+    if (plan) setPlanPrice(String(priceFor(plan, planCycle)));
+  }
+
+  function pickCycle(cycleLabel: string) {
+    setPlanCycle(cycleLabel);
+    const plan = plans.find((p) => p.name === planName);
+    if (plan) setPlanPrice(String(priceFor(plan, cycleLabel)));
   }
 
   function addItem(item?: QuoteItem) {
@@ -303,7 +333,7 @@ function CreateQuoteDialog({ onClose, onCreated }: { onClose: () => void; onCrea
           <div className="border-t border-brand-950/[0.06] pt-3">
             <p className="text-sm font-bold text-brand-950 mb-2">Plan</p>
             <div className="flex flex-wrap gap-1.5 mb-2.5">
-              {PLAN_PRESETS.map((p) => (
+              {plans.map((p) => (
                 <button
                   key={p.name}
                   type="button"
@@ -327,10 +357,10 @@ function CreateQuoteDialog({ onClose, onCreated }: { onClose: () => void; onCrea
               </label>
               <label className="block text-sm">
                 <span className="text-brand-950/60 text-xs">Ciclo</span>
-                <select value={planCycle} onChange={(e) => setPlanCycle(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm bg-white">
-                  <option>Mensual</option>
-                  <option>Trimestral</option>
-                  <option>Semestral</option>
+                <select value={planCycle} onChange={(e) => pickCycle(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm bg-white">
+                  {CYCLES.map((c) => (
+                    <option key={c.label}>{c.label}</option>
+                  ))}
                 </select>
               </label>
             </div>
@@ -383,15 +413,12 @@ function CreateQuoteDialog({ onClose, onCreated }: { onClose: () => void; onCrea
             <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Ej: precio especial válido hasta fin de mes." className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm" />
           </label>
 
-          <div className="rounded-xl bg-brand-500/[0.06] px-4 py-3 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-bold text-brand-950">Pago inicial: {money(total)}</p>
-              {items.length > 0 && (
-                <p className="text-[11px] text-brand-950/50 font-light">
-                  Luego solo el plan: {money(Number(planPrice) || 0)} ({planCycle.toLowerCase()})
-                </p>
-              )}
-            </div>
+          <div className="rounded-xl bg-brand-500/[0.06] px-4 py-3">
+            <p className="text-sm font-bold text-brand-950">Pago inicial: {money(total)}</p>
+            <p className="text-[11px] text-brand-950/50 font-light">
+              Para comenzar: 50% ({money(total / 2)}) — el 50% restante a los 15 días.
+              {items.length > 0 && ` Luego solo el plan: ${money(Number(planPrice) || 0)} (${planCycle.toLowerCase()}).`}
+            </p>
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
