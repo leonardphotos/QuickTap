@@ -211,8 +211,8 @@ const SHOWCASES: Showcase[] = [
     ],
     mock: (
       <PhoneMockup
-        src="/images/restaurant-menu-captura.jpg"
-        alt="Menú digital real de Big Bite Burgers, visto desde el teléfono al escanear el QR de la mesa"
+        src="/images/restaurant-menu-allgrill-captura.jpg"
+        alt="Menú digital real de All Grill Chirikayen, visto desde el teléfono al escanear el QR de la mesa"
       />
     ),
   },
