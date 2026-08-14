@@ -60,9 +60,6 @@ interface InventoryOption {
   unit: string;
 }
 
-/** "Agregar gasto": egreso con categoría, proveedor y reabastecimiento opcional de
- * inventario. Compartido entre el Dashboard ("Añadir egreso") y el módulo de Gastos,
- * para que todo egreso quede siempre vinculado a la misma sección. */
 /** Gasto ya cargado que se está corrigiendo (monto mal tipeado, categoría equivocada, factura
  * que llegó después). Solo los campos que el formulario sabe reponer. */
 export interface EditableExpense {
@@ -79,16 +76,12 @@ export interface EditableExpense {
   isCredit?: boolean;
 }
 
-export function ExpenseFormDialog({
-  onClose,
-  onCreated,
-  expense,
-}: {
-  onClose: () => void;
-  onCreated: () => void;
-  /** Si viene, el diálogo edita ese gasto en vez de crear uno nuevo. */
-  expense?: EditableExpense;
-}) {
+/** Cuerpo de "Agregar/Editar gasto" — egreso con categoría, proveedor y reabastecimiento
+ * opcional de inventario — sin cáscara de diálogo. `ExpenseFormDialog` (ventana flotante,
+ * usada en el Dashboard y en el módulo de Gastos) y Administración de Canchas/Locales
+ * (panel en línea) son los consumidores, para que todo egreso quede siempre vinculado a la
+ * misma sección sin importar desde dónde se cargue. */
+export function ExpenseForm({ onCreated, expense }: { onCreated: () => void; expense?: EditableExpense }) {
   const { restaurant } = useAuth();
   const isEdit = !!expense;
   // El reabastecimiento descuenta contra InventoryItem (insumos de restaurante). Un local
@@ -187,219 +180,238 @@ export function ExpenseFormDialog({
     }
   }
 
+  if (showSupplierPicker) {
+    return (
+      <div className="space-y-3">
+        <p className="text-sm font-medium text-brand-950/70">Escoge el proveedor</p>
+        <SupplierPicker
+          onSelect={(s) => {
+            setSupplier(s);
+            setShowSupplierPicker(false);
+          }}
+        />
+        <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={() => setShowSupplierPicker(false)}>
+          Cancelar
+        </TextureButton>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid grid-cols-3 gap-2">
+        <div className="col-span-2">
+          <p className="text-xs font-medium text-brand-950/50 mb-1.5">Monto</p>
+          <input
+            autoFocus
+            value={amount}
+            onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+            placeholder="0.00"
+            className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+          />
+        </div>
+        <div>
+          <p className="text-xs font-medium text-brand-950/50 mb-1.5">Moneda</p>
+          <select
+            value={amountCurrency}
+            onChange={(e) => setAmountCurrency(e.target.value as 'BASE' | 'BS')}
+            className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+          >
+            <option value="BASE">$</option>
+            <option value="BS">Bs</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <p className="text-xs font-medium text-brand-950/50 mb-1.5">Descripción</p>
+        <input
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="Ej: Compra de agua embotellada"
+          className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+        />
+      </div>
+      <div>
+        <p className="text-xs font-medium text-brand-950/50 mb-1.5">Categoría</p>
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value as ExpenseCategory | '')}
+          className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+        >
+          <option value="">Sin categoría</option>
+          {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map((c) => (
+            <option key={c} value={c}>
+              {CATEGORY_LABELS[c]}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <p className="text-xs font-medium text-brand-950/50 mb-1.5">¿Con qué se pagó?</p>
+          <select
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value)}
+            className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+          >
+            <option value="">Sin especificar</option>
+            {Object.entries(PAYMENT_METHOD_LABELS).map(([v, label]) => (
+              <option key={v} value={v}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <p className="text-xs font-medium text-brand-950/50 mb-1.5">Fecha del gasto</p>
+          <input
+            type="date"
+            value={expenseDate}
+            onChange={(e) => setExpenseDate(e.target.value)}
+            className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+          />
+        </div>
+      </div>
+      <p className="text-[11px] text-brand-950/40 font-light -mt-1">
+        Deja la fecha vacía si el gasto es de hoy.
+      </p>
+
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <p className="text-xs font-medium text-brand-950/50 mb-1.5">Nº de factura o referencia</p>
+          <input
+            value={referenceNumber}
+            onChange={(e) => setReferenceNumber(e.target.value)}
+            placeholder="Opcional"
+            className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+          />
+        </div>
+        <div>
+          <p className="text-xs font-medium text-brand-950/50 mb-1.5">
+            ¿Quién lo gastó?{isFieldTrip ? '' : ' (opcional)'}
+          </p>
+          <input
+            value={spentByName}
+            onChange={(e) => setSpentByName(e.target.value)}
+            placeholder={isFieldTrip ? 'Ej: chofer, vendedor…' : 'Opcional'}
+            className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+          />
+        </div>
+      </div>
+
+      {/* Recibo: en gastos de viaje es el soporte que se pierde y sin el cual no hay
+          cómo justificar el egreso, por eso se destaca en esas categorías. */}
+      <div className={`rounded-lg border px-2.5 py-2 ${isFieldTrip ? 'border-brand-500/30 bg-brand-500/[0.04]' : 'border-brand-950/10'}`}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm text-brand-950/70">
+            {receiptImageUrl ? '✓ Recibo adjunto' : uploadingReceipt ? 'Subiendo…' : 'Foto del recibo'}
+          </span>
+          {receiptImageUrl ? (
+            <button
+              type="button"
+              onClick={() => setReceiptImageUrl('')}
+              className="text-xs font-medium text-red-600 hover:text-red-700 shrink-0"
+            >
+              Quitar
+            </button>
+          ) : (
+            <label className="text-xs font-medium text-brand-500 hover:text-brand-600 shrink-0 cursor-pointer">
+              Adjuntar
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) uploadReceipt(f);
+                }}
+              />
+            </label>
+          )}
+        </div>
+        {receiptImageUrl && (
+          <img src={receiptImageUrl} alt="Recibo" className="mt-2 max-h-32 rounded-md border border-brand-950/10" />
+        )}
+      </div>
+
+      <div className="flex items-center justify-between rounded-lg border border-brand-950/10 px-2.5 py-2">
+        <span className="text-sm text-brand-950/70">
+          {supplier ? `Proveedor: ${supplier.name}` : 'Sin proveedor'}
+        </span>
+        <button
+          type="button"
+          onClick={() => setShowSupplierPicker(true)}
+          className="text-xs font-medium text-brand-500 hover:text-brand-600 shrink-0"
+        >
+          {supplier ? 'Cambiar' : 'Escoge el proveedor'}
+        </button>
+      </div>
+
+      {supportsRestock && (
+        <label className="flex items-center gap-1.5 text-sm">
+          <input type="checkbox" checked={isRestock} onChange={(e) => setIsRestock(e.target.checked)} />
+          ¿Es reabastecimiento de inventario?
+        </label>
+      )}
+      {supportsRestock && isRestock && (
+        <div className="grid grid-cols-2 gap-2 pl-5">
+          <select
+            value={inventoryItemId}
+            onChange={(e) => setInventoryItemId(e.target.value)}
+            className="text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+          >
+            <option value="">Insumo…</option>
+            {inventoryItems.map((it) => (
+              <option key={it.id} value={it.id}>
+                {it.name} ({it.unit})
+              </option>
+            ))}
+          </select>
+          <input
+            value={inventoryQuantity}
+            onChange={(e) => setInventoryQuantity(e.target.value.replace(/[^0-9.]/g, ''))}
+            placeholder="Cantidad recibida"
+            className="text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+          />
+        </div>
+      )}
+
+      <label className="flex items-center gap-1.5 text-sm">
+        <input type="checkbox" checked={isCredit} onChange={(e) => setIsCredit(e.target.checked)} />
+        ¿A crédito? (queda pendiente por pagar al proveedor)
+      </label>
+
+      {error && <p className="text-sm text-red-600">{error}</p>}
+
+      <TextureButton variant="brand" size="default" disabled={saving} onClick={submit} className="disabled:opacity-50">
+        {saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Guardar gasto'}
+      </TextureButton>
+    </div>
+  );
+}
+
+/** Ventana flotante — usada fuera de Administración (Dashboard "Añadir egreso", módulo de
+ * Gastos). Dentro de Administración (Canchas/Locales) se usa `ExpenseForm` directo dentro de
+ * un InlinePanel. */
+export function ExpenseFormDialog({
+  onClose,
+  onCreated,
+  expense,
+}: {
+  onClose: () => void;
+  onCreated: () => void;
+  /** Si viene, el diálogo edita ese gasto en vez de crear uno nuevo. */
+  expense?: EditableExpense;
+}) {
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{isEdit ? 'Editar gasto' : 'Agregar gasto'}</DialogTitle>
+          <DialogTitle>{expense ? 'Editar gasto' : 'Agregar gasto'}</DialogTitle>
         </DialogHeader>
-
-        {showSupplierPicker ? (
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-brand-950/70">Escoge el proveedor</p>
-            <SupplierPicker
-              onSelect={(s) => {
-                setSupplier(s);
-                setShowSupplierPicker(false);
-              }}
-            />
-            <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={() => setShowSupplierPicker(false)}>
-              Cancelar
-            </TextureButton>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-2">
-              <div className="col-span-2">
-                <p className="text-xs font-medium text-brand-950/50 mb-1.5">Monto</p>
-                <input
-                  autoFocus
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
-                  placeholder="0.00"
-                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-                />
-              </div>
-              <div>
-                <p className="text-xs font-medium text-brand-950/50 mb-1.5">Moneda</p>
-                <select
-                  value={amountCurrency}
-                  onChange={(e) => setAmountCurrency(e.target.value as 'BASE' | 'BS')}
-                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-                >
-                  <option value="BASE">$</option>
-                  <option value="BS">Bs</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-brand-950/50 mb-1.5">Descripción</p>
-              <input
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Ej: Compra de agua embotellada"
-                className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-              />
-            </div>
-            <div>
-              <p className="text-xs font-medium text-brand-950/50 mb-1.5">Categoría</p>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value as ExpenseCategory | '')}
-                className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-              >
-                <option value="">Sin categoría</option>
-                {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map((c) => (
-                  <option key={c} value={c}>
-                    {CATEGORY_LABELS[c]}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <p className="text-xs font-medium text-brand-950/50 mb-1.5">¿Con qué se pagó?</p>
-                <select
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value)}
-                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-                >
-                  <option value="">Sin especificar</option>
-                  {Object.entries(PAYMENT_METHOD_LABELS).map(([v, label]) => (
-                    <option key={v} value={v}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <p className="text-xs font-medium text-brand-950/50 mb-1.5">Fecha del gasto</p>
-                <input
-                  type="date"
-                  value={expenseDate}
-                  onChange={(e) => setExpenseDate(e.target.value)}
-                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-                />
-              </div>
-            </div>
-            <p className="text-[11px] text-brand-950/40 font-light -mt-1">
-              Deja la fecha vacía si el gasto es de hoy.
-            </p>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <p className="text-xs font-medium text-brand-950/50 mb-1.5">Nº de factura o referencia</p>
-                <input
-                  value={referenceNumber}
-                  onChange={(e) => setReferenceNumber(e.target.value)}
-                  placeholder="Opcional"
-                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-                />
-              </div>
-              <div>
-                <p className="text-xs font-medium text-brand-950/50 mb-1.5">
-                  ¿Quién lo gastó?{isFieldTrip ? '' : ' (opcional)'}
-                </p>
-                <input
-                  value={spentByName}
-                  onChange={(e) => setSpentByName(e.target.value)}
-                  placeholder={isFieldTrip ? 'Ej: chofer, vendedor…' : 'Opcional'}
-                  className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-                />
-              </div>
-            </div>
-
-            {/* Recibo: en gastos de viaje es el soporte que se pierde y sin el cual no hay
-                cómo justificar el egreso, por eso se destaca en esas categorías. */}
-            <div className={`rounded-lg border px-2.5 py-2 ${isFieldTrip ? 'border-brand-500/30 bg-brand-500/[0.04]' : 'border-brand-950/10'}`}>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm text-brand-950/70">
-                  {receiptImageUrl ? '✓ Recibo adjunto' : uploadingReceipt ? 'Subiendo…' : 'Foto del recibo'}
-                </span>
-                {receiptImageUrl ? (
-                  <button
-                    type="button"
-                    onClick={() => setReceiptImageUrl('')}
-                    className="text-xs font-medium text-red-600 hover:text-red-700 shrink-0"
-                  >
-                    Quitar
-                  </button>
-                ) : (
-                  <label className="text-xs font-medium text-brand-500 hover:text-brand-600 shrink-0 cursor-pointer">
-                    Adjuntar
-                    <input
-                      type="file"
-                      accept="image/*"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(e) => {
-                        const f = e.target.files?.[0];
-                        if (f) uploadReceipt(f);
-                      }}
-                    />
-                  </label>
-                )}
-              </div>
-              {receiptImageUrl && (
-                <img src={receiptImageUrl} alt="Recibo" className="mt-2 max-h-32 rounded-md border border-brand-950/10" />
-              )}
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border border-brand-950/10 px-2.5 py-2">
-              <span className="text-sm text-brand-950/70">
-                {supplier ? `Proveedor: ${supplier.name}` : 'Sin proveedor'}
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowSupplierPicker(true)}
-                className="text-xs font-medium text-brand-500 hover:text-brand-600 shrink-0"
-              >
-                {supplier ? 'Cambiar' : 'Escoge el proveedor'}
-              </button>
-            </div>
-
-            {supportsRestock && (
-              <label className="flex items-center gap-1.5 text-sm">
-                <input type="checkbox" checked={isRestock} onChange={(e) => setIsRestock(e.target.checked)} />
-                ¿Es reabastecimiento de inventario?
-              </label>
-            )}
-            {supportsRestock && isRestock && (
-              <div className="grid grid-cols-2 gap-2 pl-5">
-                <select
-                  value={inventoryItemId}
-                  onChange={(e) => setInventoryItemId(e.target.value)}
-                  className="text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-                >
-                  <option value="">Insumo…</option>
-                  {inventoryItems.map((it) => (
-                    <option key={it.id} value={it.id}>
-                      {it.name} ({it.unit})
-                    </option>
-                  ))}
-                </select>
-                <input
-                  value={inventoryQuantity}
-                  onChange={(e) => setInventoryQuantity(e.target.value.replace(/[^0-9.]/g, ''))}
-                  placeholder="Cantidad recibida"
-                  className="text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-                />
-              </div>
-            )}
-
-            <label className="flex items-center gap-1.5 text-sm">
-              <input type="checkbox" checked={isCredit} onChange={(e) => setIsCredit(e.target.checked)} />
-              ¿A crédito? (queda pendiente por pagar al proveedor)
-            </label>
-
-            {error && <p className="text-sm text-red-600">{error}</p>}
-
-            <TextureButton variant="brand" size="default" disabled={saving} onClick={submit} className="disabled:opacity-50">
-              {saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Guardar gasto'}
-            </TextureButton>
-          </div>
-        )}
+        <ExpenseForm onCreated={onCreated} expense={expense} />
       </DialogContent>
     </Dialog>
   );

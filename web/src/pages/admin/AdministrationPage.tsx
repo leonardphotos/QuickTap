@@ -1,15 +1,18 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, Clock, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, Clock, DollarSign, Plus, Receipt, Trash2, TrendingUp, Wallet } from 'lucide-react';
 import { api } from '@/api/client';
 import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
 import { useAuth } from '@/context/AuthContext';
 import { hasFeature } from '@/utils/subscription';
 import { TextureButton } from '@/components/ui/texture-button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { CashSessionControl } from '@/components/admin/CashSessionControl';
-import { ReportDialog } from '@/components/admin/ReportDialog';
+import { InlinePanel } from '@/components/admin/InlinePanel';
+import { AdminSectionNav } from '@/components/admin/AdminSectionNav';
+import { MetricCard } from '@/components/admin/MetricCard';
+import { CashSessionPanel } from '@/components/admin/CashSessionControl';
+import { ReportPickerForm, ReportResult } from '@/components/admin/ReportDialog';
 import { PAYMENT_LABELS as ALL_PAYMENT_LABELS } from '@/components/admin/PaymentDialog';
-import { IncomeFormDialog, INCOME_CATEGORY_LABELS, type IncomeCategory } from '@/components/admin/IncomeFormDialog';
+import { IncomeForm, INCOME_CATEGORY_LABELS, type IncomeCategory } from '@/components/admin/IncomeFormDialog';
+import type { ReportData } from '@/components/admin/ReportReceipt';
 import type { PaymentMethod as AnyPaymentMethod } from '@/types';
 
 const BASE_TABS = [
@@ -23,51 +26,72 @@ const BASE_TABS = [
 ] as const;
 const PAYABLE_TAB = { id: 'payable', label: 'Cuentas por pagar' } as const;
 
-/** Administración: resumen, historial de pedidos, propinas y reporte de productos. Planes Pro/Premium. */
+/** Administración: resumen, historial de pedidos, propinas y reporte de productos. Planes Pro/Premium.
+ * Menú propio (`AdminSectionNav`, sidebar en escritorio) + todo desplegado en línea, sin ventanas
+ * flotantes (`InlinePanel` en vez de `Dialog` para abrir/cerrar caja, reportes, ingresos y detalle). */
 export default function AdministrationPage() {
   const { restaurant } = useAuth();
   const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
-  const TABS = canAccountsPayable ? [...BASE_TABS, PAYABLE_TAB] : BASE_TABS;
+  const [payableCount, setPayableCount] = useState<number | null>(null);
+  const TABS = canAccountsPayable ? [...BASE_TABS, { ...PAYABLE_TAB, badge: payableCount ?? undefined }] : [...BASE_TABS];
   const [tab, setTab] = useState<(typeof TABS)[number]['id']>('summary');
+  const [showReport, setShowReport] = useState(false);
+
+  useEffect(() => {
+    if (!canAccountsPayable) return;
+    api
+      .get('/orders/live')
+      .then((res) => setPayableCount((res.data.data as { awaitingPayment: boolean }[]).filter((o) => o.awaitingPayment).length))
+      .catch(() => setPayableCount(null));
+  }, [canAccountsPayable]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Administración</h1>
           <p className="text-sm text-brand-950/60 font-light mt-1">Ventas, pedidos, propinas y productos de tu restaurante.</p>
         </div>
-        <div className="flex items-center gap-2">
-          <CashSessionControl />
-          <ReportDialog />
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <CashSessionPanel />
+          <TextureButton variant="secondary" size="sm" className="!w-auto" onClick={() => setShowReport((s) => !s)}>
+            Generar reporte
+          </TextureButton>
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-              tab === t.id
-                ? 'bg-brand-500 text-white shadow-[0_10px_24px_-8px_rgba(5,108,242,0.5)]'
-                : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {showReport && <ReportPanel onClose={() => setShowReport(false)} />}
 
-      {tab === 'summary' && <SummaryTab />}
-      {tab === 'stats' && <StatsTab />}
-      {tab === 'history' && <HistoryTab />}
-      {tab === 'products' && <ProductsTab />}
-      {tab === 'margin' && <MarginTab />}
-      {tab === 'delivery' && <DeliveryTab />}
-      {tab === 'payments' && <PaymentsTab />}
-      {tab === 'payable' && <PayableTab />}
+      <div className="lg:flex lg:flex-row lg:gap-6">
+        <AdminSectionNav items={TABS} activeId={tab} onChange={(id) => setTab(id as (typeof TABS)[number]['id'])} />
+        <div className="mt-5 lg:mt-0 min-w-0 flex-1">
+          {tab === 'summary' && <SummaryTab />}
+          {tab === 'stats' && <StatsTab />}
+          {tab === 'history' && <HistoryTab />}
+          {tab === 'products' && <ProductsTab />}
+          {tab === 'margin' && <MarginTab />}
+          {tab === 'delivery' && <DeliveryTab />}
+          {tab === 'payments' && <PaymentsTab />}
+          {tab === 'payable' && <PayableTab />}
+        </div>
+      </div>
     </div>
+  );
+}
+
+/** Botón "Generar reporte" de la cabecera: elige área + período, genera, y muestra el PDF a
+ * descargar — dentro de un InlinePanel propio (antes era `ReportDialog`, ventana flotante). */
+function ReportPanel({ onClose }: { onClose: () => void }) {
+  const [report, setReport] = useState<{ data: ReportData; dateLabel: string } | null>(null);
+
+  return (
+    <InlinePanel title={report ? 'Reporte generado' : 'Generar reporte'} onClose={onClose}>
+      {report ? (
+        <ReportResult report={report.data} dateLabel={report.dateLabel} area={report.data.kind} />
+      ) : (
+        <ReportPickerForm onGenerated={(data, dateLabel) => setReport({ data, dateLabel })} />
+      )}
+    </InlinePanel>
   );
 }
 
@@ -194,18 +218,9 @@ function SummaryTab() {
 
       {result && (
         <div className="grid sm:grid-cols-3 gap-4">
-          <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
-            <p className="text-2xl font-semibold text-brand-950">{formatBsAbsolute(result.totalBs)}</p>
-            <p className="text-xs text-brand-950/50 font-light mt-1">En bolívares</p>
-          </div>
-          <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
-            <p className="text-2xl font-semibold text-brand-950">{formatBase(result.totalBase, symbol)}</p>
-            <p className="text-xs text-brand-950/50 font-light mt-1">En {symbol}</p>
-          </div>
-          <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
-            <p className="text-2xl font-semibold text-brand-950">{result.total}</p>
-            <p className="text-xs text-brand-950/50 font-light mt-1">Pedidos · {periodLabel}</p>
-          </div>
+          <MetricCard icon={Wallet} title="En bolívares" value={formatBsAbsolute(result.totalBs)} />
+          <MetricCard icon={DollarSign} title={`En ${symbol}`} value={formatBase(result.totalBase, symbol)} />
+          <MetricCard icon={Receipt} title={`Pedidos · ${periodLabel}`} value={String(result.total)} />
         </div>
       )}
 
@@ -220,15 +235,23 @@ function SummaryTab() {
             className="text-sm border border-brand-950/15 rounded-full px-3.5 py-1.5 w-full sm:w-64"
           />
         </div>
-        <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06] max-h-[36rem] overflow-y-auto">
-          {filteredOrders?.length === 0 && (
-            <p className="p-5 text-sm text-brand-950/40 font-light">
-              {searchLower ? 'Ninguna venta coincide con esa referencia.' : 'Sin ventas en este período.'}
-            </p>
-          )}
-          {filteredOrders?.map((o) => (
-            <OrderDetailRow key={o.id} order={o} symbol={symbol} />
-          ))}
+        <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm overflow-hidden">
+          <div className="hidden sm:flex items-center gap-3 px-5 py-2 border-b border-brand-950/[0.06] text-[11px] font-medium uppercase tracking-wide text-brand-950/40">
+            <span className="flex-1">Pedido</span>
+            <span className="w-32">Fecha</span>
+            <span className="w-20 text-right">Total</span>
+            <span className="w-4" />
+          </div>
+          <div className="divide-y divide-brand-950/[0.06] max-h-[36rem] overflow-y-auto">
+            {filteredOrders?.length === 0 && (
+              <p className="p-5 text-sm text-brand-950/40 font-light">
+                {searchLower ? 'Ninguna venta coincide con esa referencia.' : 'Sin ventas en este período.'}
+              </p>
+            )}
+            {filteredOrders?.map((o) => (
+              <OrderDetailRow key={o.id} order={o} symbol={symbol} />
+            ))}
+          </div>
         </div>
         {result && !searchLower && result.total > result.pageSize && (
           <p className="text-xs text-brand-950/40 mt-2 text-center">
@@ -247,7 +270,14 @@ function SummaryTab() {
               Egresos: {formatBsAbsolute(movements.totalExpenseBs)} · {formatBase(movements.totalExpense, symbol)}
             </p>
           </div>
-          <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
+          <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm overflow-hidden">
+          <div className="hidden sm:flex items-center gap-3 px-5 py-2 border-b border-brand-950/[0.06] text-[11px] font-medium uppercase tracking-wide text-brand-950/40">
+            <span className="flex-1">Descripción</span>
+            <span className="w-40">Fecha</span>
+            <span className="w-24 text-right">Monto</span>
+            <span className="w-6" />
+          </div>
+          <div className="divide-y divide-brand-950/[0.06]">
             {filteredMovements?.length === 0 && (
               <p className="p-5 text-sm text-brand-950/40 font-light">Ningún movimiento coincide con esa búsqueda.</p>
             )}
@@ -280,17 +310,19 @@ function SummaryTab() {
               </div>
             ))}
           </div>
+          </div>
         </div>
       )}
 
       {showMovementDialog && (
-        <IncomeFormDialog
-          onClose={() => setShowMovementDialog(false)}
-          onCreated={() => {
-            setShowMovementDialog(false);
-            loadMovements();
-          }}
-        />
+        <InlinePanel title="Añadir ingreso" onClose={() => setShowMovementDialog(false)}>
+          <IncomeForm
+            onCreated={() => {
+              setShowMovementDialog(false);
+              loadMovements();
+            }}
+          />
+        </InlinePanel>
       )}
     </div>
   );
@@ -326,30 +358,19 @@ function BalanceCard({
   const negative = balanceBase < 0;
 
   return (
-    <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
-      <p className="text-sm font-medium text-brand-950/70 mb-4">Balance · {periodLabel}</p>
-      <div className="grid sm:grid-cols-3 gap-4">
-        <div>
-          <p className="text-xl font-semibold text-emerald-600">{formatBsAbsolute(String(ingresosBs))}</p>
-          <p className="text-xs text-brand-950/40 font-light">{formatBase(ingresosBase, symbol)}</p>
-          <p className="text-xs text-brand-950/50 font-medium mt-1">Ingresos</p>
-        </div>
-        <div>
-          <p className="text-xl font-semibold text-red-600">{formatBsAbsolute(String(egresosBs))}</p>
-          <p className="text-xs text-brand-950/40 font-light">{formatBase(egresosBase, symbol)}</p>
-          <p className="text-xs text-brand-950/50 font-medium mt-1">Egresos</p>
-        </div>
-        <div>
-          <p className={`text-xl font-semibold ${negative ? 'text-red-600' : 'text-brand-950'}`}>
-            {formatBsAbsolute(String(balanceBs))}
-          </p>
-          <p className={`text-xs font-light ${negative ? 'text-red-500' : 'text-brand-950/40'}`}>
-            {formatBase(balanceBase, symbol)}
-          </p>
-          <p className="text-xs text-brand-950/50 font-medium mt-1">Balance final</p>
-        </div>
-      </div>
-    </div>
+    <MetricCard
+      icon={Wallet}
+      title={`Balance · ${periodLabel}`}
+      rows={[
+        { label: 'Ingresos', amount: `${formatBsAbsolute(String(ingresosBs))} · ${formatBase(ingresosBase, symbol)}`, tone: 'success' },
+        { label: 'Egresos', amount: `${formatBsAbsolute(String(egresosBs))} · ${formatBase(egresosBase, symbol)}`, tone: 'danger' },
+        {
+          label: 'Balance final',
+          amount: `${formatBsAbsolute(String(balanceBs))} · ${formatBase(balanceBase, symbol)}`,
+          tone: negative ? 'danger' : undefined,
+        },
+      ]}
+    />
   );
 }
 
@@ -408,6 +429,11 @@ interface UserSale {
 const STATS_RANGE_LABELS = { week: 'Esta semana', month: 'Este mes' } as const;
 const STATS_PREVIOUS_LABELS = { week: 'la semana pasada', month: 'el mes pasado' } as const;
 
+/** Ventas por usuario/período: 3 vistas en línea, nunca superpuestas — `stats` (tarjetas + lista
+ * por usuario), `allSales` (todas las ventas del período) y `saleDetail` (comanda + pagos de una
+ * venta). Antes `allSales` y `saleDetail` eran diálogos flotantes que podían estar abiertos los
+ * DOS a la vez (uno tapaba al otro); ahora es una sola vista visible, y "← Volver" desde el
+ * detalle regresa a `allSales` o a `stats` según de dónde vino la venta seleccionada. */
 function StatsTab() {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
@@ -417,8 +443,9 @@ function StatsTab() {
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
   const [userSales, setUserSales] = useState<UserSale[] | null>(null);
   const [loadingSales, setLoadingSales] = useState(false);
+  const [view, setView] = useState<'stats' | 'allSales' | 'saleDetail'>('stats');
   const [selectedSale, setSelectedSale] = useState<UserSale | null>(null);
-  const [showAllSales, setShowAllSales] = useState(false);
+  const [saleDetailFrom, setSaleDetailFrom] = useState<'stats' | 'allSales'>('stats');
   const [allSales, setAllSales] = useState<UserSale[] | null>(null);
   const [loadingAllSales, setLoadingAllSales] = useState(false);
 
@@ -445,7 +472,7 @@ function StatsTab() {
   }
 
   function openAllSales() {
-    setShowAllSales(true);
+    setView('allSales');
     setAllSales(null);
     setLoadingAllSales(true);
     api
@@ -454,7 +481,39 @@ function StatsTab() {
       .finally(() => setLoadingAllSales(false));
   }
 
+  function openSaleDetail(sale: UserSale, from: 'stats' | 'allSales') {
+    setSelectedSale(sale);
+    setSaleDetailFrom(from);
+    setView('saleDetail');
+  }
+
   if (error) return <p className="text-sm text-red-600">{error}</p>;
+
+  if (view === 'saleDetail' && selectedSale) {
+    return (
+      <SaleDetailPanel
+        sale={selectedSale}
+        symbol={symbol}
+        onClose={() => {
+          setSelectedSale(null);
+          setView(saleDetailFrom);
+        }}
+      />
+    );
+  }
+
+  if (view === 'allSales') {
+    return (
+      <SalesListPanel
+        title={`Ventas · ${stats ? STATS_RANGE_LABELS[stats.range] : ''}`}
+        sales={allSales}
+        loading={loadingAllSales}
+        symbol={symbol}
+        onSelectSale={(sale) => openSaleDetail(sale, 'allSales')}
+        onClose={() => setView('stats')}
+      />
+    );
+  }
 
   const changeUp = stats?.changePercent != null && Number(stats.changePercent) >= 0;
 
@@ -476,36 +535,30 @@ function StatsTab() {
 
       {stats && (
         <div className="grid sm:grid-cols-3 gap-4">
-          <button
+          <MetricCard
+            icon={Wallet}
+            title={`Ventas · ${STATS_RANGE_LABELS[stats.range]}`}
+            value={formatBsAbsolute(stats.totalBs)}
+            caption={formatBase(stats.totalBase, symbol)}
             onClick={openAllSales}
-            className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 text-left hover:bg-brand-950/[0.02]"
-          >
-            <p className="text-2xl font-semibold text-brand-950">{formatBsAbsolute(stats.totalBs)}</p>
-            <p className="text-xs text-brand-950/50 font-light mt-1">{formatBase(stats.totalBase, symbol)}</p>
-            <p className="text-xs text-brand-950/40 font-light mt-1">Ventas · {STATS_RANGE_LABELS[stats.range]}</p>
-          </button>
-          <button
+          />
+          <MetricCard
+            icon={Receipt}
+            title={`Pedidos · ${STATS_RANGE_LABELS[stats.range]}`}
+            value={String(stats.ordersCount)}
             onClick={openAllSales}
-            className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 text-left hover:bg-brand-950/[0.02]"
-          >
-            <p className="text-2xl font-semibold text-brand-950">{stats.ordersCount}</p>
-            <p className="text-xs text-brand-950/50 font-light mt-1">Pedidos · {STATS_RANGE_LABELS[stats.range]}</p>
-          </button>
-          <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6">
-            {stats.changePercent == null ? (
-              <p className="text-sm text-brand-950/40 font-light">Sin datos de {STATS_PREVIOUS_LABELS[stats.range]}.</p>
-            ) : (
-              <>
-                <p className={`text-2xl font-semibold ${changeUp ? 'text-emerald-600' : 'text-red-600'}`}>
-                  {changeUp ? '+' : ''}
-                  {stats.changePercent}%
-                </p>
-                <p className="text-xs text-brand-950/50 font-light mt-1">
-                  vs. {STATS_PREVIOUS_LABELS[stats.range]} ({formatBase(stats.previousTotalBase, symbol)})
-                </p>
-              </>
-            )}
-          </div>
+          />
+          {stats.changePercent == null ? (
+            <MetricCard icon={TrendingUp} title="Cambio" caption={`Sin datos de ${STATS_PREVIOUS_LABELS[stats.range]}.`} value="—" />
+          ) : (
+            <MetricCard
+              icon={TrendingUp}
+              title="Cambio"
+              value={`${changeUp ? '+' : ''}${stats.changePercent}%`}
+              valueTone={changeUp ? 'success' : 'danger'}
+              trend={`vs. ${STATS_PREVIOUS_LABELS[stats.range]} (${formatBase(stats.previousTotalBase, symbol)})`}
+            />
+          )}
         </div>
       )}
 
@@ -540,7 +593,7 @@ function StatsTab() {
                       userSales?.map((sale) => (
                         <button
                           key={sale.id}
-                          onClick={() => setSelectedSale(sale)}
+                          onClick={() => openSaleDetail(sale, 'stats')}
                           className="w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-xs hover:bg-brand-950/[0.04]"
                         >
                           <div className="min-w-0">
@@ -561,25 +614,12 @@ function StatsTab() {
           })}
         </div>
       </div>
-
-      {showAllSales && (
-        <SalesListDialog
-          title={`Ventas · ${stats ? STATS_RANGE_LABELS[stats.range] : ''}`}
-          sales={allSales}
-          loading={loadingAllSales}
-          symbol={symbol}
-          onSelectSale={setSelectedSale}
-          onClose={() => setShowAllSales(false)}
-        />
-      )}
-
-      {selectedSale && <SaleDetailDialog sale={selectedSale} symbol={symbol} onClose={() => setSelectedSale(null)} />}
     </div>
   );
 }
 
-/** Lista de todas las ventas del período (botones "Ventas"/"Pedidos" de Estadísticas): cada fila abre el detalle completo. */
-function SalesListDialog({
+/** Lista de todas las ventas del período (tarjetas "Ventas"/"Pedidos" de Estadísticas): cada fila abre el detalle completo. */
+function SalesListPanel({
   title,
   sales,
   loading,
@@ -595,109 +635,94 @@ function SalesListDialog({
   onClose: () => void;
 }) {
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-        <div className="max-h-[60vh] overflow-y-auto space-y-1">
-          {loading && <p className="text-sm text-brand-950/40 font-light py-2">Cargando ventas…</p>}
-          {!loading && sales?.length === 0 && <p className="text-sm text-brand-950/40 font-light py-2">Sin ventas en este período.</p>}
-          {!loading &&
-            sales?.map((sale) => (
-              <button
-                key={sale.id}
-                onClick={() => onSelectSale(sale)}
-                className="w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-brand-950/[0.04]"
-              >
-                <div className="min-w-0">
-                  <p className="font-medium text-brand-950">
-                    #{sale.orderNumber} · {sale.table ? `Mesa ${sale.table}` : CHANNEL_ROW_LABELS[sale.channel]}
-                  </p>
-                  <p className="text-xs text-brand-950/40">
-                    {new Date(sale.createdAt).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })}
-                  </p>
-                </div>
-                <p className="font-semibold text-brand-950 shrink-0">{formatBase(sale.totalBase, symbol)}</p>
-              </button>
-            ))}
-        </div>
-      </DialogContent>
-    </Dialog>
+    <InlinePanel title={title} onClose={onClose} closeLabel="← Volver">
+      <div className="max-h-[60vh] overflow-y-auto space-y-1">
+        {loading && <p className="text-sm text-brand-950/40 font-light py-2">Cargando ventas…</p>}
+        {!loading && sales?.length === 0 && <p className="text-sm text-brand-950/40 font-light py-2">Sin ventas en este período.</p>}
+        {!loading &&
+          sales?.map((sale) => (
+            <button
+              key={sale.id}
+              onClick={() => onSelectSale(sale)}
+              className="w-full flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm hover:bg-brand-950/[0.04]"
+            >
+              <div className="min-w-0">
+                <p className="font-medium text-brand-950">
+                  #{sale.orderNumber} · {sale.table ? `Mesa ${sale.table}` : CHANNEL_ROW_LABELS[sale.channel]}
+                </p>
+                <p className="text-xs text-brand-950/40">
+                  {new Date(sale.createdAt).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })}
+                </p>
+              </div>
+              <p className="font-semibold text-brand-950 shrink-0">{formatBase(sale.totalBase, symbol)}</p>
+            </button>
+          ))}
+      </div>
+    </InlinePanel>
   );
 }
 
 /** Detalle de una venta del drill-down "Ventas por usuario": comanda completa + pagos con método/referencia. */
-function SaleDetailDialog({ sale, symbol, onClose }: { sale: UserSale; symbol: string; onClose: () => void }) {
+function SaleDetailPanel({ sale, symbol, onClose }: { sale: UserSale; symbol: string; onClose: () => void }) {
   return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>
-            Pedido #{sale.orderNumber} · {sale.table ? `Mesa ${sale.table}` : CHANNEL_ROW_LABELS[sale.channel]}
-          </DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <p className="text-xs text-brand-950/50 font-light">
-            {new Date(sale.createdAt).toLocaleString('es-VE', { dateStyle: 'medium', timeStyle: 'short' })}
-            {sale.customerName && ` · ${sale.customerName}`}
-          </p>
+    <InlinePanel
+      title={`Pedido #${sale.orderNumber} · ${sale.table ? `Mesa ${sale.table}` : CHANNEL_ROW_LABELS[sale.channel]}`}
+      onClose={onClose}
+      closeLabel="← Volver"
+    >
+      <div className="space-y-4">
+        <p className="text-xs text-brand-950/50 font-light">
+          {new Date(sale.createdAt).toLocaleString('es-VE', { dateStyle: 'medium', timeStyle: 'short' })}
+          {sale.customerName && ` · ${sale.customerName}`}
+        </p>
 
-          <div>
-            <p className="text-xs font-medium text-brand-950/60 mb-1.5">Comanda</p>
+        <div>
+          <p className="text-xs font-medium text-brand-950/60 mb-1.5">Comanda</p>
+          <div className="rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
+            {sale.items.map((item, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                <p className="text-brand-950/80">
+                  {item.quantity}× {item.productName}
+                </p>
+                <p className="font-medium text-brand-950 shrink-0">{formatBase(item.lineTotal, symbol)}</p>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-between gap-2 px-1 pt-2 text-sm font-semibold text-brand-950">
+            <p>Total</p>
+            <p>
+              {formatBase(sale.totalBase, symbol)} · {formatBsAbsolute(sale.totalBs)}
+            </p>
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-brand-950/60 mb-1.5">Pago{sale.payments.length === 1 ? '' : 's'}</p>
+          {sale.payments.length === 0 ? (
+            <p className="text-xs text-brand-950/40 font-light">
+              Sin pago registrado{sale.paymentMethod ? ` (método: ${ALL_PAYMENT_LABELS[sale.paymentMethod as AnyPaymentMethod] ?? sale.paymentMethod})` : ''}.
+            </p>
+          ) : (
             <div className="rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
-              {sale.items.map((item, i) => (
+              {sale.payments.map((p, i) => (
                 <div key={i} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
-                  <p className="text-brand-950/80">
-                    {item.quantity}× {item.productName}
-                  </p>
-                  <p className="font-medium text-brand-950 shrink-0">{formatBase(item.lineTotal, symbol)}</p>
+                  <div className="min-w-0">
+                    <p className="font-medium text-brand-950">{ALL_PAYMENT_LABELS[p.method as AnyPaymentMethod] ?? p.method}</p>
+                    {p.referenceNumber && <p className="text-xs text-brand-950/40 truncate">Ref: {p.referenceNumber}</p>}
+                    {Number(p.discountBase ?? 0) > 0 && (
+                      <p className="text-xs text-brand-950/40">Descuento: {formatBase(p.discountBase!, symbol)}</p>
+                    )}
+                  </div>
+                  <p className="font-semibold text-brand-950 shrink-0">{formatBase(p.amountBase, symbol)}</p>
                 </div>
               ))}
             </div>
-            <div className="flex items-center justify-between gap-2 px-1 pt-2 text-sm font-semibold text-brand-950">
-              <p>Total</p>
-              <p>
-                {formatBase(sale.totalBase, symbol)} · {formatBsAbsolute(sale.totalBs)}
-              </p>
-            </div>
-          </div>
-
-          <div>
-            <p className="text-xs font-medium text-brand-950/60 mb-1.5">Pago{sale.payments.length === 1 ? '' : 's'}</p>
-            {sale.payments.length === 0 ? (
-              <p className="text-xs text-brand-950/40 font-light">
-                Sin pago registrado{sale.paymentMethod ? ` (método: ${ALL_PAYMENT_LABELS[sale.paymentMethod as AnyPaymentMethod] ?? sale.paymentMethod})` : ''}.
-              </p>
-            ) : (
-              <div className="rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
-                {sale.payments.map((p, i) => (
-                  <div key={i} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
-                    <div className="min-w-0">
-                      <p className="font-medium text-brand-950">{ALL_PAYMENT_LABELS[p.method as AnyPaymentMethod] ?? p.method}</p>
-                      {p.referenceNumber && <p className="text-xs text-brand-950/40 truncate">Ref: {p.referenceNumber}</p>}
-                      {Number(p.discountBase ?? 0) > 0 && (
-                        <p className="text-xs text-brand-950/40">Descuento: {formatBase(p.discountBase!, symbol)}</p>
-                      )}
-                    </div>
-                    <p className="font-semibold text-brand-950 shrink-0">{formatBase(p.amountBase, symbol)}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <TextureButton variant="minimal" size="default" onClick={onClose}>
-            Cerrar
-          </TextureButton>
+          )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </InlinePanel>
   );
 }
-
-/** Botón "Añadir movimiento": solo ingresos manuales (con "Propina" como atajo). Los egresos
- * se cargan siempre desde el módulo de Gastos, para que queden vinculados a categoría/proveedor. */
 
 // -----------------------------------------------------------------------------
 //  Historial de pedidos + propinas
@@ -867,8 +892,8 @@ function OrderDetailRow({
   );
 }
 
-/** Ventana con el listado detallado de pedidos que cumplen un filtro (drill-down desde Productos / Métodos de pago). */
-function OrdersListDialog({
+/** Panel con el listado detallado de pedidos que cumplen un filtro (drill-down desde Productos / Métodos de pago). */
+function OrdersListPanel({
   title,
   params,
   highlightProductId,
@@ -893,36 +918,31 @@ function OrdersListDialog({
   }, []);
 
   return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          {result && (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-xl border border-brand-950/10 p-3">
-                <p className="text-lg font-semibold text-brand-950">{formatBase(result.totalBase, symbol)}</p>
-                <p className="text-xs text-brand-950/50 font-light">
-                  {result.total} pedido{result.total === 1 ? '' : 's'}
-                </p>
-              </div>
-              <div className="rounded-xl border border-brand-950/10 p-3">
-                <p className="text-lg font-semibold text-brand-950">{formatBsAbsolute(result.totalBs)}</p>
-                <p className="text-xs text-brand-950/50 font-light">En bolívares</p>
-              </div>
+    <InlinePanel title={title} onClose={onClose}>
+      <div className="space-y-3">
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        {result && (
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl border border-brand-950/10 p-3">
+              <p className="text-lg font-semibold text-brand-950">{formatBase(result.totalBase, symbol)}</p>
+              <p className="text-xs text-brand-950/50 font-light">
+                {result.total} pedido{result.total === 1 ? '' : 's'}
+              </p>
             </div>
-          )}
-          <div className="rounded-2xl border border-brand-950/10 divide-y divide-brand-950/[0.06] max-h-96 overflow-y-auto">
-            {result?.orders.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin movimientos.</p>}
-            {result?.orders.map((o) => (
-              <OrderDetailRow key={o.id} order={o} symbol={symbol} highlightProductId={highlightProductId} />
-            ))}
+            <div className="rounded-xl border border-brand-950/10 p-3">
+              <p className="text-lg font-semibold text-brand-950">{formatBsAbsolute(result.totalBs)}</p>
+              <p className="text-xs text-brand-950/50 font-light">En bolívares</p>
+            </div>
           </div>
+        )}
+        <div className="rounded-2xl border border-brand-950/10 divide-y divide-brand-950/[0.06] max-h-96 overflow-y-auto">
+          {result?.orders.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin movimientos.</p>}
+          {result?.orders.map((o) => (
+            <OrderDetailRow key={o.id} order={o} symbol={symbol} highlightProductId={highlightProductId} />
+          ))}
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    </InlinePanel>
   );
 }
 
@@ -1029,26 +1049,23 @@ function HistoryTab() {
 
       {result && (
         <div className="grid sm:grid-cols-4 gap-4">
-          <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5">
-            <p className="text-xl font-semibold text-brand-950">{formatBsAbsolute(result.totalBs)}</p>
-            <p className="text-xs text-brand-950/50 font-light mt-1">Ingresos en Bs</p>
-          </div>
-          <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5">
-            <p className="text-xl font-semibold text-brand-950">{formatBase(result.totalBase, symbol)}</p>
-            <p className="text-xs text-brand-950/50 font-light mt-1">Ingresos en {symbol}</p>
-          </div>
-          <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5">
-            <p className="text-xl font-semibold text-brand-950">{formatBase(result.totalTipBase, symbol)}</p>
-            <p className="text-xs text-brand-950/50 font-light mt-1">Propinas</p>
-          </div>
-          <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5">
-            <p className="text-xl font-semibold text-brand-950">{result.total}</p>
-            <p className="text-xs text-brand-950/50 font-light mt-1">Pedidos</p>
-          </div>
+          <MetricCard icon={Wallet} title="Ingresos en Bs" value={formatBsAbsolute(result.totalBs)} />
+          <MetricCard icon={DollarSign} title={`Ingresos en ${symbol}`} value={formatBase(result.totalBase, symbol)} />
+          <MetricCard icon={Receipt} title="Propinas" value={formatBase(result.totalTipBase, symbol)} />
+          <MetricCard icon={Receipt} title="Pedidos" value={String(result.total)} />
         </div>
       )}
 
-      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06] overflow-x-auto">
+      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm overflow-x-auto">
+        <div className="flex items-center gap-3 px-5 py-2 border-b border-brand-950/[0.06] text-[11px] font-medium uppercase tracking-wide text-brand-950/40 min-w-[560px]">
+          <span className="w-16 shrink-0">Pedido</span>
+          <span className="w-24 shrink-0">Canal</span>
+          <span className="w-28 shrink-0">Mesero / Pago</span>
+          <span className="w-28 shrink-0">Total</span>
+          <span className="w-28 shrink-0">Propina</span>
+          <span className="flex-1 text-right">Fecha</span>
+        </div>
+        <div className="divide-y divide-brand-950/[0.06]">
         {result?.orders.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin pedidos en este filtro.</p>}
         {result?.orders.map((o) => (
           <div key={o.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm min-w-[560px]">
@@ -1086,6 +1103,7 @@ function HistoryTab() {
             <div className="flex-1 text-right text-xs text-brand-950/40">{new Date(o.createdAt).toLocaleString('es-VE')}</div>
           </div>
         ))}
+        </div>
       </div>
 
       {result && result.total > result.pageSize && (
@@ -1171,7 +1189,14 @@ function ProductsTab() {
         </button>
       </div>
 
-      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
+      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm overflow-hidden">
+        <div className="hidden sm:flex items-center gap-3 px-5 py-2 border-b border-brand-950/[0.06] text-[11px] font-medium uppercase tracking-wide text-brand-950/40">
+          <span className="w-5" />
+          <span className="flex-1">Producto</span>
+          <span className="w-24 text-right">Vendidos</span>
+          <span className="w-20 text-right">Ingresos</span>
+        </div>
+        <div className="divide-y divide-brand-950/[0.06]">
         {sorted?.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin ventas en este rango.</p>}
         {sorted?.map((r, i) => (
           <div key={`${r.productId ?? 'x'}-${r.name}`} className="flex items-center justify-between gap-3 px-5 py-3">
@@ -1194,10 +1219,11 @@ function ProductsTab() {
             </div>
           </div>
         ))}
+        </div>
       </div>
 
       {detailProduct && (
-        <OrdersListDialog
+        <OrdersListPanel
           title={`${detailProduct.name} · ${RANGE_LABELS[range]}`}
           params={{ productId: detailProduct.productId, range }}
           highlightProductId={detailProduct.productId}
@@ -1244,7 +1270,12 @@ function MarginTab() {
         Margen = precio − costo. El costo viene del campo "Costo" del producto, o de su receta armada en
         Inventario → Recetas si eligió "Desde receta".
       </p>
-      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
+      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm overflow-hidden">
+        <div className="hidden sm:flex items-center gap-3 px-5 py-2 border-b border-brand-950/[0.06] text-[11px] font-medium uppercase tracking-wide text-brand-950/40">
+          <span className="flex-1">Producto</span>
+          <span className="w-52 text-right">Margen</span>
+        </div>
+        <div className="divide-y divide-brand-950/[0.06]">
         {rows?.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">No tienes productos todavía.</p>}
         {rows?.map((r) => (
           <div key={r.id} className="flex items-center justify-between gap-3 px-5 py-3">
@@ -1266,6 +1297,7 @@ function MarginTab() {
             </div>
           </div>
         ))}
+        </div>
       </div>
     </div>
   );
@@ -1328,7 +1360,12 @@ function DeliveryTab() {
         ))}
       </div>
 
-      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
+      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm overflow-hidden">
+        <div className="hidden sm:flex items-center gap-3 px-5 py-2 border-b border-brand-950/[0.06] text-[11px] font-medium uppercase tracking-wide text-brand-950/40">
+          <span className="flex-1">Repartidor</span>
+          <span className="w-40 text-right">Entregas / Total</span>
+        </div>
+        <div className="divide-y divide-brand-950/[0.06]">
         {rows?.length === 0 && (
           <p className="p-5 text-sm text-brand-950/40 font-light">
             Agrega repartidores en Ajustes → Equipo de Delivery para ver su movimiento aquí.
@@ -1352,6 +1389,7 @@ function DeliveryTab() {
             </div>
           </div>
         ))}
+        </div>
       </div>
     </div>
   );
@@ -1412,7 +1450,12 @@ function PaymentsTab() {
         ))}
       </div>
 
-      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
+      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm overflow-hidden">
+        <div className="hidden sm:flex items-center gap-3 px-5 py-2 border-b border-brand-950/[0.06] text-[11px] font-medium uppercase tracking-wide text-brand-950/40">
+          <span className="flex-1">Método</span>
+          <span className="w-32 text-right">Pedidos / Total</span>
+        </div>
+        <div className="divide-y divide-brand-950/[0.06]">
         {rows?.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin pedidos en este rango.</p>}
         {rows?.map((r) =>
           r.method === 'SIN_METODO' ? (
@@ -1437,10 +1480,11 @@ function PaymentsTab() {
             </button>
           ),
         )}
+        </div>
       </div>
 
       {detailMethod && (
-        <OrdersListDialog
+        <OrdersListPanel
           title={`${PAYMENT_METHOD_LABELS[detailMethod] ?? detailMethod} · ${RANGE_LABELS[range]}`}
           params={{ paymentMethod: detailMethod, range }}
           onClose={() => setDetailMethod(null)}
@@ -1498,41 +1542,55 @@ function PayableTab() {
 
   return (
     <div className="space-y-5">
+      <MetricCard
+        icon={Clock}
+        title="Cuentas por pagar"
+        value={String(orders?.length ?? 0)}
+        caption="cuentas abiertas esperando pago"
+        highlighted={!!orders?.length}
+      />
       <p className="text-sm text-brand-950/60 font-light">
         Cuentas abiertas marcadas con el botón del reloj en Pedidos, esperando a que el cliente pague.
       </p>
-      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
-        {orders?.length === 0 && (
-          <p className="p-5 text-sm text-brand-950/40 font-light">No hay cuentas pendientes por pagar.</p>
-        )}
-        {orders?.map((o) => (
-          <div key={o.id} className="flex items-center justify-between gap-3 px-5 py-4">
-            <div className="flex items-center gap-2 min-w-0">
-              <Clock className="h-4 w-4 text-amber-500 shrink-0" />
-              <div className="min-w-0">
-                <p className="font-medium text-brand-950 truncate">
-                  #{o.orderNumber}
-                  {o.customerName && <span className="font-normal text-brand-950/60"> · {o.customerName}</span>}
-                </p>
-                <p className="text-xs text-brand-950/40 font-light">
-                  {CHANNEL_ROW_LABELS[o.channel]} · {new Date(o.createdAt).toLocaleString('es-VE')}
-                </p>
+      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm overflow-hidden">
+        <div className="hidden sm:flex items-center gap-3 px-5 py-2 border-b border-brand-950/[0.06] text-[11px] font-medium uppercase tracking-wide text-brand-950/40">
+          <span className="flex-1">Pedido</span>
+          <span className="w-28">Total</span>
+          <span className="w-32 text-right">Acción</span>
+        </div>
+        <div className="divide-y divide-brand-950/[0.06]">
+          {orders?.length === 0 && (
+            <p className="p-5 text-sm text-brand-950/40 font-light">No hay cuentas pendientes por pagar.</p>
+          )}
+          {orders?.map((o) => (
+            <div key={o.id} className="flex items-center justify-between gap-3 px-5 py-4">
+              <div className="flex items-center gap-2 min-w-0">
+                <Clock className="h-4 w-4 text-amber-500 shrink-0" />
+                <div className="min-w-0">
+                  <p className="font-medium text-brand-950 truncate">
+                    #{o.orderNumber}
+                    {o.customerName && <span className="font-normal text-brand-950/60"> · {o.customerName}</span>}
+                  </p>
+                  <p className="text-xs text-brand-950/40 font-light">
+                    {CHANNEL_ROW_LABELS[o.channel]} · {new Date(o.createdAt).toLocaleString('es-VE')}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <span className="text-sm font-semibold text-brand-950">{formatBase(o.totalBase, symbol)}</span>
+                <TextureButton
+                  variant="brand"
+                  size="sm"
+                  className="!w-auto"
+                  disabled={busyId === o.id}
+                  onClick={() => markPaid(o.id)}
+                >
+                  Marcar pagado
+                </TextureButton>
               </div>
             </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <span className="text-sm font-semibold text-brand-950">{formatBase(o.totalBase, symbol)}</span>
-              <TextureButton
-                variant="brand"
-                size="sm"
-                className="!w-auto"
-                disabled={busyId === o.id}
-                onClick={() => markPaid(o.id)}
-              >
-                Marcar pagado
-              </TextureButton>
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );
