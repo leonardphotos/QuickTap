@@ -24,10 +24,12 @@ function buildQuoteMessage(q: {
   planPriceUsd: Prisma.Decimal;
   planCycle: string;
   items: Prisma.JsonValue;
+  recurringItems: Prisma.JsonValue;
   totalUsd: Prisma.Decimal;
   note: string | null;
 }): string {
   const items = (q.items as PlatformQuoteItem[] | null) ?? [];
+  const recurringItems = (q.recurringItems as PlatformQuoteItem[] | null) ?? [];
   const lines = [
     `🧾 *Cotización QuickTap* N.º ${q.quoteNumber}`,
     '',
@@ -38,12 +40,19 @@ function buildQuoteMessage(q: {
   for (const item of items) {
     lines.push(`➕ ${item.label}: ${money(item.amountUsd)} (pago único)`);
   }
+  for (const item of recurringItems) {
+    lines.push(`🔁 ${item.label}: ${money(item.amountUsd)}/mes`);
+  }
   lines.push('', `💰 *Pago inicial: ${money(q.totalUsd)}*`);
   // Términos estándar de instalación: 50% para comenzar, 50% a los 15 días.
   const half = Number(q.totalUsd) / 2;
   lines.push(`📋 Para comenzar: 50% (${money(half)}) — el 50% restante (${money(half)}) a los 15 días.`);
-  if (items.length > 0) {
-    lines.push(`🔁 Luego solo el plan: ${money(q.planPriceUsd)} ${q.planCycle.toLowerCase()}`);
+  // Recurrencia posterior: plan + cargos mensuales adicionales (si los hay), aparte de
+  // los cargos únicos (que ya se pagaron en el pago inicial y no se repiten).
+  if (items.length > 0 || recurringItems.length > 0) {
+    const recurringTotal = recurringItems.reduce((acc, i) => acc + i.amountUsd, 0);
+    const recurringSuffix = recurringItems.length > 0 ? ` + ${money(recurringTotal)}/mes (${recurringItems.map((i) => i.label).join(', ')})` : '';
+    lines.push(`🔁 Luego: ${money(q.planPriceUsd)} ${q.planCycle.toLowerCase()}${recurringSuffix}`);
   }
   if (q.note) lines.push('', q.note);
   lines.push('', 'Incluye 15 días de prueba gratis, sin tarjeta. Cualquier duda, respóndenos por aquí 🙌');
@@ -61,6 +70,7 @@ export const masterQuotesService = {
 
   async create(input: CreatePlatformQuoteInput) {
     const itemsTotal = input.items.reduce((acc, i) => acc + i.amountUsd, 0);
+    const recurringTotal = input.recurringItems.reduce((acc, i) => acc + i.amountUsd, 0);
     return prisma.platformQuote.create({
       data: {
         clientName: input.clientName,
@@ -70,7 +80,9 @@ export const masterQuotesService = {
         planPriceUsd: new Prisma.Decimal(input.planPriceUsd),
         planCycle: input.planCycle,
         items: input.items as unknown as Prisma.InputJsonValue,
+        recurringItems: input.recurringItems as unknown as Prisma.InputJsonValue,
         totalUsd: new Prisma.Decimal(input.planPriceUsd + itemsTotal),
+        recurringTotalUsd: new Prisma.Decimal(recurringTotal),
         note: input.note ?? null,
       },
     });
@@ -87,6 +99,7 @@ export const masterQuotesService = {
     if (quote.status === 'APPROVED') throw badRequest('No se puede editar una cotización ya aprobada.');
 
     const itemsTotal = input.items.reduce((acc, i) => acc + i.amountUsd, 0);
+    const recurringTotal = input.recurringItems.reduce((acc, i) => acc + i.amountUsd, 0);
     return prisma.platformQuote.update({
       where: { id },
       data: {
@@ -97,7 +110,9 @@ export const masterQuotesService = {
         planPriceUsd: new Prisma.Decimal(input.planPriceUsd),
         planCycle: input.planCycle,
         items: input.items as unknown as Prisma.InputJsonValue,
+        recurringItems: input.recurringItems as unknown as Prisma.InputJsonValue,
         totalUsd: new Prisma.Decimal(input.planPriceUsd + itemsTotal),
+        recurringTotalUsd: new Prisma.Decimal(recurringTotal),
         note: input.note ?? null,
       },
     });

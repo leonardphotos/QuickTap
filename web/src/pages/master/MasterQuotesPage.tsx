@@ -26,7 +26,9 @@ interface PlatformQuote {
   planPriceUsd: string;
   planCycle: string;
   items: QuoteItem[];
+  recurringItems: QuoteItem[];
   totalUsd: string;
+  recurringTotalUsd: string;
   note: string | null;
   status: 'PENDING' | 'SENT' | 'APPROVED';
   sentAt: string | null;
@@ -55,6 +57,9 @@ const ITEM_PRESETS: QuoteItem[] = [
   { label: 'Carga de inventario', amountUsd: 150 },
   { label: 'Capacitación del equipo', amountUsd: 50 },
 ];
+
+/** Cargo recurrente MENSUAL, aparte del plan — casilla en el formulario. */
+const HOMOLOGATION_ITEM: QuoteItem = { label: 'Homologación (100 facturas)', amountUsd: 60 };
 
 const money = (n: string | number) => `$${Number(n).toFixed(2)}`;
 const fecha = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('es-VE', { day: '2-digit', month: 'short' }) : '');
@@ -183,6 +188,8 @@ export default function MasterQuotesPage() {
                   <p className="text-xs text-brand-950/50 font-light mt-0.5">
                     📞 {q.clientPhone} · Plan {q.planName} {money(q.planPriceUsd)} ({q.planCycle.toLowerCase()})
                     {q.items.length > 0 && ` · ${q.items.map((i) => `${i.label} ${money(i.amountUsd)}`).join(' · ')}`}
+                    {q.recurringItems.length > 0 &&
+                      ` · ${q.recurringItems.map((i) => `${i.label} ${money(i.amountUsd)}/mes`).join(' · ')}`}
                   </p>
                   {q.note && <p className="text-xs text-brand-950/40 font-light mt-0.5 italic">{q.note}</p>}
                 </div>
@@ -353,10 +360,24 @@ const QuotePdfTemplate = forwardRef<HTMLDivElement, { quote: PlatformQuote }>(fu
             </tr>
           </tbody>
         </table>
-        {quote.items.length > 0 && (
+        {(quote.items.length > 0 || quote.recurringItems.length > 0) && (
           <p className="mt-1 text-xs font-light" style={{ color: dim(0.5) }}>
-            Luego del pago inicial, solo el plan: {money(quote.planPriceUsd)} ({quote.planCycle.toLowerCase()}).
+            Luego del pago inicial: {money(quote.planPriceUsd)} ({quote.planCycle.toLowerCase()})
+            {Number(quote.recurringTotalUsd) > 0 &&
+              ` + ${money(quote.recurringTotalUsd)}/mes (${quote.recurringItems.map((i) => i.label).join(', ')})`}
+            .
           </p>
+        )}
+        {quote.recurringItems.length > 0 && (
+          <div className="mt-3 rounded-xl px-4 py-2.5" style={{ backgroundColor: dim(0.03) }}>
+            <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: dim(0.4) }}>Cargos mensuales adicionales</p>
+            {quote.recurringItems.map((it, i) => (
+              <div key={`${it.label}-${i}`} className="flex items-center justify-between text-xs">
+                <span>{it.label}</span>
+                <span className="font-semibold">{money(it.amountUsd)}/mes</span>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 
@@ -397,6 +418,7 @@ function QuoteFormDialog({ quote, onClose, onSaved }: { quote?: PlatformQuote; o
   const [items, setItems] = useState<QuoteItem[]>(quote?.items ?? []);
   const [itemLabel, setItemLabel] = useState('');
   const [itemAmount, setItemAmount] = useState('');
+  const [recurringItems, setRecurringItems] = useState<QuoteItem[]>(quote?.recurringItems ?? []);
   const [note, setNote] = useState(quote?.note ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -417,6 +439,7 @@ function QuoteFormDialog({ quote, onClose, onSaved }: { quote?: PlatformQuote; o
   }, []);
 
   const itemsTotal = items.reduce((acc, i) => acc + i.amountUsd, 0);
+  const recurringItemsTotal = recurringItems.reduce((acc, i) => acc + i.amountUsd, 0);
   const total = (Number(planPrice) || 0) + itemsTotal;
 
   /** Precio del ciclo completo (los públicos son por mes con descuento por ciclo). */
@@ -446,6 +469,14 @@ function QuoteFormDialog({ quote, onClose, onSaved }: { quote?: PlatformQuote; o
     setItemAmount('');
   }
 
+  // Casilla de Homologación: entra/sale del arreglo de cargos recurrentes con un toggle.
+  const homologationChecked = recurringItems.some((i) => i.label === HOMOLOGATION_ITEM.label);
+  function toggleHomologation(checked: boolean) {
+    setRecurringItems((prev) =>
+      checked ? [...prev.filter((i) => i.label !== HOMOLOGATION_ITEM.label), HOMOLOGATION_ITEM] : prev.filter((i) => i.label !== HOMOLOGATION_ITEM.label),
+    );
+  }
+
   async function save() {
     setSaving(true);
     setError(null);
@@ -457,6 +488,7 @@ function QuoteFormDialog({ quote, onClose, onSaved }: { quote?: PlatformQuote; o
       planPriceUsd: Number(planPrice) || 0,
       planCycle,
       items,
+      recurringItems,
       note: note.trim() || null,
     };
     try {
@@ -573,6 +605,15 @@ function QuoteFormDialog({ quote, onClose, onSaved }: { quote?: PlatformQuote; o
             )}
           </div>
 
+          <div className="border-t border-brand-950/[0.06] pt-3">
+            <p className="text-sm font-bold text-brand-950 mb-1">Cargos recurrentes (mensuales, aparte del plan)</p>
+            <label className="flex items-center gap-2.5 rounded-lg bg-brand-950/[0.04] px-3 py-2.5 cursor-pointer">
+              <input type="checkbox" checked={homologationChecked} onChange={(e) => toggleHomologation(e.target.checked)} className="h-4 w-4" />
+              <span className="flex-1 text-[13px] font-semibold text-brand-950">{HOMOLOGATION_ITEM.label}</span>
+              <span className="text-xs text-brand-950/60">{money(HOMOLOGATION_ITEM.amountUsd)}/mes</span>
+            </label>
+          </div>
+
           <label className="block text-sm">
             <span className="text-brand-950/70">Nota para el cliente (opcional)</span>
             <textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} placeholder="Ej: precio especial válido hasta fin de mes." className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm" />
@@ -582,7 +623,10 @@ function QuoteFormDialog({ quote, onClose, onSaved }: { quote?: PlatformQuote; o
             <p className="text-sm font-bold text-brand-950">Pago inicial: {money(total)}</p>
             <p className="text-[11px] text-brand-950/50 font-light">
               Para comenzar: 50% ({money(total / 2)}) — el 50% restante a los 15 días.
-              {items.length > 0 && ` Luego solo el plan: ${money(Number(planPrice) || 0)} (${planCycle.toLowerCase()}).`}
+              {(items.length > 0 || recurringItems.length > 0) &&
+                ` Luego: ${money(Number(planPrice) || 0)} (${planCycle.toLowerCase()})${
+                  recurringItemsTotal > 0 ? ` + ${money(recurringItemsTotal)}/mes (${recurringItems.map((i) => i.label).join(', ')})` : ''
+                }.`}
             </p>
           </div>
 

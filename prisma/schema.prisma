@@ -2110,8 +2110,14 @@ model PlatformQuote {
   planCycle    String              @default("Mensual")
   /// Cargos únicos personalizables: [{ label: "Instalación", amountUsd: 60 }, …].
   items        Json                @default("[]")
+  /// Cargos recurrentes MENSUALES adicionales al plan (ej. Homologación de facturas):
+  /// [{ label: "Homologación (100 facturas)", amountUsd: 60 }, …]. Se facturan cada mes
+  /// aparte del ciclo del plan, no entran en el pago inicial de instalación.
+  recurringItems    Json          @default("[]")
   /// planPriceUsd + suma de items — congelado al guardar, para listar sin recalcular.
   totalUsd     Decimal             @db.Decimal(12, 2)
+  /// Suma de recurringItems — congelado al guardar, igual criterio que totalUsd.
+  recurringTotalUsd Decimal       @db.Decimal(12, 2) @default(0)
   note         String?
   status       PlatformQuoteStatus @default(PENDING)
   sentAt       DateTime?

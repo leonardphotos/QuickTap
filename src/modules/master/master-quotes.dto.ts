@@ -14,6 +14,8 @@ export const createPlatformQuoteSchema = z.object({
   planPriceUsd: z.coerce.number().min(0).max(100000),
   planCycle: z.string().trim().min(1).max(30).default('Mensual'),
   items: z.array(quoteItemSchema).max(20).default([]),
+  // Cargos recurrentes mensuales adicionales al plan (ej. Homologación de facturas).
+  recurringItems: z.array(quoteItemSchema).max(10).default([]),
   note: z.string().trim().max(600).nullish(),
 });
 
