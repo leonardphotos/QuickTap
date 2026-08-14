@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
-import { isServiceRubro, type ShopProductSeed, type ShopRubro, type ShopVariant } from '@/data/shopRubros';
+import { getRubroFeatures, isServiceRubro, type ShopProductSeed, type ShopRubro, type ShopVariant } from '@/data/shopRubros';
 import { formatStock, shopMoneyFormatters } from './shopFormat';
 import { productStatus, productStock, type ShopProduct, type ShopSession } from './shopSession';
 import { shopApi } from './shopApi';
@@ -36,6 +36,10 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   // Salones de estética/belleza y barbería venden servicios, no mercancía: sin SKU, sin
   // stock por presentación, sin vencimiento y sin venta por m² (eso es de agencias de publicidad).
   const isServiceShop = isServiceRubro(rubro.id);
+  // Qué funciones ve este rubro (venta por Kg, vencimiento, mayorista, impresión por m²) —
+  // el "||" con el valor ya guardado en cada condición de abajo cubre productos viejos que
+  // usan una función que el rubro hoy no muestra: se siguen pudiendo ver y editar.
+  const features = getRubroFeatures(rubro.id);
   const [productToDelete, setProductToDelete] = useState<ShopProduct | null>(null);
 
   const [category, setCategory] = useState<string | null>(null);
@@ -283,7 +287,8 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     setNpV2('');
     setNpStock('');
     setNpBasicStock('');
-    setNpSoldByWeight(false);
+    // Carnicerías/fruterías viven de la balanza: el producto nuevo arranca en Kg.
+    setNpSoldByWeight(features.weight === 'default');
     setNpAreaRoll(false);
     setNpRollWidths('');
     setNpRollLength('50');
@@ -1183,7 +1188,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
           </div>
 
           {/* ---------- Impresión de gran formato (vinil / banner) — solo agencias de publicidad ---------- */}
-          {!isServiceShop && (
+          {(features.areaRoll || npAreaRoll) && (
           <div className="border-t border-brand-950/[0.06] pt-3.5">
             <label className="flex items-center gap-2 text-sm font-medium text-brand-950">
               <input type="checkbox" checked={npAreaRoll} onChange={(e) => setNpAreaRoll(e.target.checked)} />
@@ -1323,10 +1328,17 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
               {variantDims.dim2 ? `/${variantDims.dim2.toLowerCase()}` : ''}), ingresa su stock directamente. Si
               maneja variantes, agrégalas abajo en vez de llenar el stock básico.
             </p>
-            <label className="flex items-center gap-2 mb-3 text-sm cursor-pointer">
-              <input type="checkbox" checked={npSoldByWeight} onChange={(e) => setNpSoldByWeight(e.target.checked)} />
-              <span className="text-brand-950/70">Se vende por peso (Kg) — para verduras, carnes u otros productos a granel</span>
-            </label>
+            {(features.weight !== 'none' || npSoldByWeight) && (
+              <label className="flex items-center gap-2 mb-3 text-sm cursor-pointer">
+                <input type="checkbox" checked={npSoldByWeight} onChange={(e) => setNpSoldByWeight(e.target.checked)} />
+                <span className="text-brand-950/70">
+                  Se vende por peso (Kg)
+                  {features.weight === 'default'
+                    ? ' — desmárcalo solo si este producto se cobra por unidad/paquete'
+                    : ' — para productos a granel que se pesan al cobrar'}
+                </span>
+              </label>
+            )}
 
             {npVariants.length === 0 && (
               <label className="block text-xs mb-3.5 max-w-[160px]">
@@ -1388,32 +1400,46 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
             )}
           </div>
 
-          {!isServiceShop && (
-            <div className="border-t border-brand-950/[0.06] pt-3.5">
-              <p className="text-sm font-bold text-brand-950 mb-2.5">Precios especiales y vencimiento (opcional)</p>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <label className="block text-xs">
-                  <span className="text-brand-950/60">Precio mayorista</span>
-                  <input type="number" value={npWholesalePrice} onChange={(e) => setNpWholesalePrice(e.target.value)} placeholder="0.00" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
-                </label>
-                <label className="block text-xs">
-                  <span className="text-brand-950/60">Desde (uds.)</span>
-                  <input type="number" value={npWholesaleMinQty} onChange={(e) => setNpWholesaleMinQty(e.target.value)} placeholder="12" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
-                </label>
-                <label className="block text-xs">
-                  <span className="text-brand-950/60">Precio promocional</span>
-                  <input type="number" value={npPromoPrice} onChange={(e) => setNpPromoPrice(e.target.value)} placeholder="0.00" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
-                </label>
-                <label className="block text-xs">
-                  <span className="text-brand-950/60">Vence el</span>
-                  <input type="date" value={npExpiryDate} onChange={(e) => setNpExpiryDate(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
-                </label>
+          {!isServiceShop && (() => {
+            const showWholesale = features.wholesale || npWholesalePrice !== '' || npWholesaleMinQty !== '';
+            const showExpiry = features.expiry || npExpiryDate !== '';
+            return (
+              <div className="border-t border-brand-950/[0.06] pt-3.5">
+                <p className="text-sm font-bold text-brand-950 mb-2.5">
+                  Precios especiales{showExpiry ? ' y vencimiento' : ''} (opcional)
+                </p>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {showWholesale && (
+                    <>
+                      <label className="block text-xs">
+                        <span className="text-brand-950/60">Precio mayorista</span>
+                        <input type="number" value={npWholesalePrice} onChange={(e) => setNpWholesalePrice(e.target.value)} placeholder="0.00" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
+                      </label>
+                      <label className="block text-xs">
+                        <span className="text-brand-950/60">Desde (uds.)</span>
+                        <input type="number" value={npWholesaleMinQty} onChange={(e) => setNpWholesaleMinQty(e.target.value)} placeholder="12" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
+                      </label>
+                    </>
+                  )}
+                  <label className="block text-xs">
+                    <span className="text-brand-950/60">Precio promocional</span>
+                    <input type="number" value={npPromoPrice} onChange={(e) => setNpPromoPrice(e.target.value)} placeholder="0.00" className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
+                  </label>
+                  {showExpiry && (
+                    <label className="block text-xs">
+                      <span className="text-brand-950/60">Vence el</span>
+                      <input type="date" value={npExpiryDate} onChange={(e) => setNpExpiryDate(e.target.value)} className="mt-1 w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm" />
+                    </label>
+                  )}
+                </div>
+                <p className="text-[11px] text-brand-950/40 mt-1.5">
+                  {showWholesale
+                    ? 'Si activas el precio mayorista, se aplica solo en Venta cuando la cantidad de esa línea del carrito llega al mínimo. El precio promocional siempre gana sobre los demás.'
+                    : 'El precio promocional, si lo cargas, gana sobre el precio de lista mientras esté activo.'}
+                </p>
               </div>
-              <p className="text-[11px] text-brand-950/40 mt-1.5">
-                Si activas el precio mayorista, se aplica solo en Venta cuando la cantidad de esa línea del carrito llega al mínimo. El precio promocional siempre gana sobre los demás.
-              </p>
-            </div>
-          )}
+            );
+          })()}
 
           {saveError && (
             <p className="text-[13px] font-medium text-red-600 bg-red-50 rounded-lg px-3 py-2">{saveError}</p>

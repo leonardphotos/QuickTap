@@ -507,3 +507,54 @@ const SERVICE_RUBROS = ['estetica', 'belleza'];
 export function isServiceRubro(rubroId: string | null | undefined): boolean {
   return !!rubroId && SERVICE_RUBROS.includes(rubroId);
 }
+
+/**
+ * Funciones habilitadas según el rubro: el formulario de Inventario (y lo que depende de él)
+ * solo muestra lo que ese tipo de negocio realmente usa — una carnicería vende por Kg y le
+ * importa el vencimiento; una tienda de decoración vende unidades y nada de eso le aplica.
+ */
+export interface ShopRubroFeatures {
+  /** Venta por peso (Kg): 'default' = el rubro vive de pesar (nuevo producto arranca en Kg),
+   * 'optional' = algunos productos se pesan (el interruptor aparece, apagado),
+   * 'none' = todo es unitario y el interruptor ni aparece. */
+  weight: 'default' | 'optional' | 'none';
+  /** Fecha de vencimiento + alerta de "por vencer" (perecederos, cosméticos, medicinas). */
+  expiry: boolean;
+  /** Precio mayorista por cantidad (negocios donde el "al mayor" es parte del día a día). */
+  wholesale: boolean;
+  /** Impresión por m² desde rollo (vinil/banner) — exclusivo de agencias de publicidad. */
+  areaRoll: boolean;
+}
+
+const DEFAULT_FEATURES: ShopRubroFeatures = { weight: 'none', expiry: false, wholesale: false, areaRoll: false };
+
+const RUBRO_FEATURES: Record<string, Partial<ShopRubroFeatures>> = {
+  agencia_publicidad: { areaRoll: true },
+  cafeteria: { weight: 'optional', expiry: true }, // tortas/helado por Kg; todo perecedero
+  carniceria: { weight: 'default', expiry: true, wholesale: true }, // el mostrador ES la balanza
+  estetica: {}, // servicios — el modo SERVICE ya oculta stock/SKU/vencimiento
+  decoracion: {}, // unitario puro: cuadros, cortinas, cojines
+  electrodomesticos: {},
+  ferreteria: { weight: 'optional', wholesale: true }, // clavos/tornillos por Kg; venta al mayor a maestros de obra
+  fruteria: { weight: 'default', expiry: true, wholesale: true }, // balanza + merma diaria
+  informatica: {},
+  joyeria: {},
+  libreria: { wholesale: true }, // temporada escolar: listas al mayor
+  marroquineria: {},
+  mueblerias: {},
+  optica: { expiry: true }, // lentes de contacto y soluciones vencen
+  panaderia: { weight: 'optional', expiry: true, wholesale: true }, // torta/charcutería por Kg; pan al mayor a cafés
+  perfumeria: { expiry: true }, // cosméticos con fecha
+  belleza: {}, // servicios
+  supermercado: { weight: 'optional', expiry: true, wholesale: true }, // charcutería/verduras por Kg
+  deportivos: {},
+  petshop: { weight: 'optional', expiry: true }, // alimento a granel por Kg; alimentos vencen
+  ropa: { wholesale: true }, // venta al mayor por docena, muy común
+  telefonia: {},
+  vivero: {},
+  zapateria: {},
+};
+
+export function getRubroFeatures(rubroId: string | null | undefined): ShopRubroFeatures {
+  return { ...DEFAULT_FEATURES, ...(rubroId ? RUBRO_FEATURES[rubroId] : undefined) };
+}
