@@ -29,10 +29,10 @@ import {
   Grid2x2,
   Monitor,
   ShoppingBag,
-  ShoppingCart,
   Hash,
   ScanLine,
   CreditCard,
+  Tablet,
 } from 'lucide-react';
 import { IntroLoader } from '@/components/landing/IntroLoader';
 import { GradientWave } from '@/components/ui/gradient-wave';
@@ -113,6 +113,17 @@ const SHOP_DEMO_ROLES: DemoRole[] = [
   { icon: WalletIcon, role: 'CASHIER', email: 'caja@urbanastore.club', label: 'Cajera', description: 'Cobra en el punto de venta y abre/cierra caja.' },
 ];
 
+/** Club de demostración de QuickTap Canchas ("Canchas Demo") — siempre listo para mostrar:
+ * cualquier horario se puede reservar, el código de verificación acepta cualquier número de
+ * 4 dígitos y el QR de la tablet arranca una partida de 1 minuto (ver refreshClubDemo/backend). */
+const CLUB_DEMO_PASSWORD = 'Demo1234';
+const CLUB_DEMO_SLUG = 'demo-canchas';
+
+const CLUB_DEMO_ROLES: DemoRole[] = [
+  { icon: Crown, role: 'OWNER', email: 'demo@canchas.club', label: 'Dueño', description: 'Ve todo el club: caja, reservas, canchas y jugadores.' },
+  { icon: Tablet, role: 'CANCHA', email: 'cancha@canchas.club', label: 'Tablet de cancha', description: 'El kiosco que el jugador escanea para pedir y pagar desde la cancha.' },
+];
+
 /** Una de las 8 "vitrinas" grandes (headline + bullets + mini-mockup). */
 interface Showcase {
   icon: typeof QrCode;
@@ -123,86 +134,9 @@ interface Showcase {
   mock: React.ReactNode;
 }
 
-/** Mini mockup: mesas con estado (libre/ocupada/por cobrar), estilo mapa de piso. */
-function FloorMock() {
-  const tables = [
-    { n: 1, state: 'bg-emerald-100 text-emerald-700', label: 'Libre' },
-    { n: 2, state: 'bg-amber-100 text-amber-700', label: 'Ocupada' },
-    { n: 3, state: 'bg-rose-100 text-rose-700', label: 'Por cobrar' },
-    { n: 4, state: 'bg-fuchsia-100 text-fuchsia-700', label: 'Reservada' },
-  ];
-  return (
-    <div className="grid grid-cols-2 gap-3">
-      {tables.map((t) => (
-        <div key={t.n} className={`rounded-xl p-3 ${t.state}`}>
-          <p className="text-xs font-semibold">Mesa {t.n}</p>
-          <p className="text-[11px] opacity-70">{t.label}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** Mini mockup: comanda con estaciones de cocina. */
-function KitchenMock() {
-  const stations = [
-    { name: 'Parrilla', items: ['2x Big Bite Clásica', '1x BBQ Bacon'] },
-    { name: 'Bar', items: ['2x Refresco'] },
-    { name: 'Postres', items: ['1x Brownie'] },
-  ];
-  return (
-    <div className="grid grid-cols-3 gap-2">
-      {stations.map((s) => (
-        <div key={s.name} className="rounded-xl bg-brand-950/[0.04] p-2.5">
-          <p className="text-[11px] font-semibold text-brand-950 mb-1.5">{s.name}</p>
-          <div className="space-y-1">
-            {s.items.map((it) => (
-              <div key={it} className="rounded-lg bg-white px-2 py-1 text-[10px] text-brand-950/70 shadow-sm">
-                {it}
-              </div>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** Mini mockup: una cuenta dividida en varias. */
-function SplitMock() {
-  return (
-    <div className="flex items-center gap-2">
-      <div className="flex-1 rounded-xl border border-brand-950/10 p-3 text-center">
-        <p className="text-[10px] text-brand-950/40">Mesa 5</p>
-        <p className="text-sm font-semibold text-brand-950">$42.80</p>
-      </div>
-      <span className="text-brand-950/30">→</span>
-      <div className="flex gap-1.5">
-        {['A', 'B', 'C'].map((l) => (
-          <div key={l} className="rounded-lg bg-brand-500/10 px-2.5 py-2 text-center">
-            <p className="text-[10px] text-brand-500 font-semibold">{l}</p>
-            <p className="text-[10px] text-brand-950/60">$14.27</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** Mini mockup: chat de WhatsApp con el resumen del pedido. */
-function WhatsappMock() {
-  return (
-    <div className="rounded-2xl bg-[#dcf8c6]/60 p-3 max-w-xs">
-      <p className="text-[11px] text-brand-950/80 font-medium mb-1">🧾 NUEVO PEDIDO — Big Bite Burgers</p>
-      <p className="text-[10px] text-brand-950/60">📍 Modalidad: Delivery</p>
-      <p className="text-[10px] text-brand-950/60">• 2x Combo Big Bite — $19.80</p>
-      <p className="text-[10px] text-brand-950/60">• 1x Refresco — $1.80</p>
-      <p className="text-[10px] font-semibold text-brand-950 mt-1">Total: $21.60</p>
-    </div>
-  );
-}
-
-/** Mini mockup: secuencia de mensajes automáticos del chatbot (bienvenida -> cobro -> confirmación). */
+/** Mini mockup: secuencia de mensajes automáticos del chatbot (bienvenida -> cobro -> confirmación).
+ * Sigue siendo un mockup ilustrativo (no una captura real) porque el mensaje se manda por WhatsApp,
+ * fuera de la app — y el bot de la demo no está vinculado a un número real. */
 function ChatbotMock() {
   const bubbles = [
     '¡Hola! 👋 Bienvenido a Big Bite Burgers. Puedes ver el menú y pedir aquí: quicktap.club/r/bigbite',
@@ -214,82 +148,6 @@ function ChatbotMock() {
       {bubbles.map((b, i) => (
         <div key={i} className="rounded-2xl bg-[#dcf8c6]/60 px-3 py-2">
           <p className="text-[10px] text-brand-950/70 leading-snug">{b}</p>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** Mini mockup: kiosco de autoservicio + pantalla de números. */
-function KioskMock() {
-  return (
-    <div className="flex items-center gap-3">
-      <div className="flex-1 rounded-xl border border-brand-950/10 p-3">
-        <p className="text-[10px] text-brand-950/40 mb-1">Autoservicio</p>
-        <p className="text-xs font-semibold text-brand-950">Pantalla táctil para pedir</p>
-      </div>
-      <div className="rounded-xl bg-brand-950 p-3 text-center w-20">
-        <p className="text-[9px] text-white/50">Listo</p>
-        <p className="text-2xl font-bold text-white">07</p>
-      </div>
-    </div>
-  );
-}
-
-/** Mini mockup: barra de stock con alerta. */
-function InventoryMock() {
-  const items = [
-    { name: 'Carne de res', pct: 70, low: false },
-    { name: 'Pan', pct: 18, low: true },
-    { name: 'Queso cheddar', pct: 55, low: false },
-  ];
-  return (
-    <div className="space-y-2.5">
-      {items.map((i) => (
-        <div key={i.name}>
-          <div className="flex items-center justify-between text-[11px] mb-1">
-            <span className="text-brand-950/70">{i.name}</span>
-            {i.low && <span className="text-amber-600 font-medium">Bajo</span>}
-          </div>
-          <div className="h-1.5 rounded-full bg-brand-950/[0.08] overflow-hidden">
-            <div
-              className={`h-full rounded-full ${i.low ? 'bg-amber-500' : 'bg-emerald-500'}`}
-              style={{ width: `${i.pct}%` }}
-            />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** Mini mockup: tarjetas de reporte (ventas, margen). */
-function ReportsMock() {
-  return (
-    <div className="grid grid-cols-2 gap-2.5">
-      <div className="rounded-xl bg-brand-950/[0.04] p-3">
-        <p className="text-[10px] text-brand-950/40">Ventas del mes</p>
-        <p className="text-base font-bold text-brand-950">$8,420</p>
-      </div>
-      <div className="rounded-xl bg-emerald-50 p-3">
-        <p className="text-[10px] text-emerald-700/70">Utilidad</p>
-        <p className="text-base font-bold text-emerald-700">+$2,150</p>
-      </div>
-    </div>
-  );
-}
-
-/** Mini mockup: mapa de sucursales consolidado. */
-function BranchesMock() {
-  const branches = ['Centro', 'Este', 'Oeste'];
-  return (
-    <div className="space-y-2">
-      {branches.map((b) => (
-        <div key={b} className="flex items-center justify-between rounded-xl border border-brand-950/10 px-3 py-2">
-          <span className="flex items-center gap-2 text-xs text-brand-950/70">
-            <Building2 className="h-3.5 w-3.5 text-brand-500" /> Sucursal {b}
-          </span>
-          <span className="text-xs font-semibold text-brand-950">${(1200 + b.length * 340).toLocaleString()}</span>
         </div>
       ))}
     </div>
@@ -317,59 +175,24 @@ function ShopQrPaymentMock() {
   return <PhoneMockup src="/images/punto-pago-captura.jpg" alt="Pantalla de cobro por Pago Móvil de QuickTap Shop, con QR, monto en Bs y tasa del día" />;
 }
 
-/** Mini mockup: barra de stock con alerta, catálogo de tienda en vez de insumos de cocina. */
-function ShopInventoryMock() {
-  const items = [
-    { name: 'Camiseta Básica Blanca', pct: 62, low: false },
-    { name: 'Jean Slim Fit Negro', pct: 12, low: true },
-    { name: 'Zapatilla Runner Blanca', pct: 40, low: false },
-  ];
+/** Marco de tablet horizontal (CSS puro), para las capturas reales de la tablet de cancha —
+ * mismo criterio que PhoneMockup, pero apaisado. */
+function TabletMockup({ src, alt }: { src: string; alt: string }) {
   return (
-    <div className="space-y-2.5">
-      {items.map((i) => (
-        <div key={i.name}>
-          <div className="flex items-center justify-between text-[11px] mb-1">
-            <span className="text-brand-950/70">{i.name}</span>
-            {i.low && <span className="text-amber-600 font-medium">Bajo</span>}
-          </div>
-          <div className="h-1.5 rounded-full bg-brand-950/[0.08] overflow-hidden">
-            <div
-              className={`h-full rounded-full ${i.low ? 'bg-amber-500' : 'bg-emerald-500'}`}
-              style={{ width: `${i.pct}%` }}
-            />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-/** Mini mockup: carrito flotante de Venta (Shop) con cantidad de items y total en $/Bs. */
-function ShopCartMock() {
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between rounded-xl border border-brand-950/10 px-3 py-2">
-        <span className="text-xs text-brand-950/70">2x Camiseta Básica Blanca</span>
-        <span className="text-xs font-semibold text-brand-950">$25.00</span>
-      </div>
-      <div className="flex items-center gap-2 rounded-full bg-brand-500 text-white px-4 py-2.5 w-fit shadow-lg shadow-brand-500/30">
-        <ShoppingCart className="h-4 w-4" />
-        <span className="text-xs font-bold">3 items · $61.00 · Bs 45.320</span>
+    <div className="relative mx-auto w-full max-w-md rounded-2xl border-[6px] border-brand-950 bg-brand-950 shadow-[0_24px_50px_-20px_rgba(0,27,67,0.5)]">
+      <div className="overflow-hidden rounded-lg aspect-[2360/1400] bg-white">
+        <img src={src} alt={alt} className="h-full w-full object-cover object-top" />
       </div>
     </div>
   );
 }
 
-/** Mini mockup: chips de métodos de pago aceptados en Venta (Shop). */
-function ShopPaymentMock() {
-  const methods = ['Efectivo Bs', 'Efectivo $', 'Pago Móvil', 'Zelle', 'Binance'];
+/** Tarjeta simple para una captura real que ya trae su propia forma (un diálogo, una pantalla
+ * de escritorio) — sin bezel de dispositivo, solo el marco que usan el resto de vitrinas. */
+function ScreenshotCard({ src, alt }: { src: string; alt: string }) {
   return (
-    <div className="flex flex-wrap gap-2">
-      {methods.map((m) => (
-        <span key={m} className="rounded-full bg-brand-950/[0.04] px-3 py-1.5 text-[11px] font-medium text-brand-950/70">
-          {m}
-        </span>
-      ))}
+    <div className="mx-auto w-full overflow-hidden rounded-2xl border border-brand-950/10 shadow-[0_20px_50px_-24px_rgba(0,27,67,0.35)]">
+      <img src={src} alt={alt} className="h-auto w-full" />
     </div>
   );
 }
@@ -386,7 +209,12 @@ const SHOWCASES: Showcase[] = [
       'Variantes (tamaños) y modificadores (extras, sin cebolla, punto de cocción) con límites configurables',
       'Colores, logo y banner del menú 100% personalizables',
     ],
-    mock: <FloorMock />,
+    mock: (
+      <PhoneMockup
+        src="/images/restaurant-menu-captura.jpg"
+        alt="Menú digital real de Big Bite Burgers, visto desde el teléfono al escanear el QR de la mesa"
+      />
+    ),
   },
   {
     icon: ChefHat,
@@ -399,7 +227,12 @@ const SHOWCASES: Showcase[] = [
       'Impresión automática: cocina, barra o caja — cada ticket a su impresora',
       'Los pedidos que carga el propio mesero/cajero entran directo; los del cliente esperan un toque de aceptación',
     ],
-    mock: <KitchenMock />,
+    mock: (
+      <ScreenshotCard
+        src="/images/restaurant-cocina-captura.jpg"
+        alt="Cola de cocina en vivo de Big Bite Burgers, con las comandas reales entrando por mesa, delivery y pickup"
+      />
+    ),
   },
   {
     icon: SplitSquareHorizontal,
@@ -412,7 +245,12 @@ const SHOWCASES: Showcase[] = [
       'Varias cuentas abiertas en la misma mesa al mismo tiempo',
       'Apertura y cierre de caja con resumen congelado (no se desactualiza después)',
     ],
-    mock: <SplitMock />,
+    mock: (
+      <ScreenshotCard
+        src="/images/restaurant-cobros-captura.jpg"
+        alt="Diálogo real de pago fraccionado de una mesa, con método de pago, referencia y monto a abonar"
+      />
+    ),
   },
   {
     icon: MessageCircle,
@@ -425,7 +263,12 @@ const SHOWCASES: Showcase[] = [
       'Despacho a repartidores propios desde el panel',
       'Ubicación en vivo del cliente (botón "usar mi ubicación actual")',
     ],
-    mock: <WhatsappMock />,
+    mock: (
+      <PhoneMockup
+        src="/images/restaurant-delivery-captura.jpg"
+        alt="Checkout real de delivery con los datos del cliente y el botón para enviar el pedido por WhatsApp"
+      />
+    ),
   },
   {
     icon: Bot,
@@ -454,7 +297,12 @@ const SHOWCASES: Showcase[] = [
       'Rol "Número": solo lectura, avisa en grande cuando el pedido está listo',
       'El pedido de autoservicio espera confirmación de pago antes de pasar a cocina',
     ],
-    mock: <KioskMock />,
+    mock: (
+      <ScreenshotCard
+        src="/images/restaurant-autoservicio-captura.jpg"
+        alt="Kiosco de autoservicio real, con el catálogo del restaurante listo para que el cliente pida solo"
+      />
+    ),
   },
   {
     icon: Boxes,
@@ -467,7 +315,12 @@ const SHOWCASES: Showcase[] = [
       'Alertas de stock bajo en vivo, sin recargar la pantalla',
       'Lista de insumos imprimible para el proveedor',
     ],
-    mock: <InventoryMock />,
+    mock: (
+      <ScreenshotCard
+        src="/images/restaurant-inventario-captura.jpg"
+        alt="Alertas de inventario reales: insumos por agotarse en Big Bite Burgers, con su stock y mínimo"
+      />
+    ),
   },
   {
     icon: BarChart3,
@@ -480,7 +333,12 @@ const SHOWCASES: Showcase[] = [
       'Margen de utilidad automático (receta o costo manual) por producto',
       'Módulo de gastos con categoría y proveedor',
     ],
-    mock: <ReportsMock />,
+    mock: (
+      <ScreenshotCard
+        src="/images/restaurant-administracion-captura.jpg"
+        alt="Panel de Administración real de Big Bite Burgers, con el balance del día y el detalle de ventas"
+      />
+    ),
   },
   {
     icon: Building2,
@@ -493,7 +351,12 @@ const SHOWCASES: Showcase[] = [
       'Ventas por sucursal con historial de pedidos y desglose por método de pago',
       'Cambia de sede sin cerrar sesión',
     ],
-    mock: <BranchesMock />,
+    mock: (
+      <ScreenshotCard
+        src="/images/restaurant-sucursales-captura.jpg"
+        alt="Panel de Sucursales real, con las 3 sedes de Big Bite Burgers y el reporte consolidado de ventas"
+      />
+    ),
   },
 ];
 
@@ -556,7 +419,12 @@ const SHOP_SHOWCASES: Showcase[] = [
       'Variantes (talla × color) o stock básico si el producto no maneja variantes',
       'Alertas de stock bajo y productos próximos a vencer, en vivo',
     ],
-    mock: <ShopInventoryMock />,
+    mock: (
+      <ScreenshotCard
+        src="/images/shop-inventario-captura.jpg"
+        alt="Inventario real de Urbana Store, con SKU, categoría, ubicación en tienda, precio y stock por producto"
+      />
+    ),
   },
   {
     icon: ScanLine,
@@ -569,7 +437,12 @@ const SHOP_SHOWCASES: Showcase[] = [
       'Carrito flotante con el total en $ y Bs, siempre a la vista en el celular',
       'Precio mayorista y promocional automáticos según la cantidad',
     ],
-    mock: <ShopCartMock />,
+    mock: (
+      <ScreenshotCard
+        src="/images/shop-venta-captura.jpg"
+        alt="Punto de venta real de Urbana Store, con el catálogo y el carrito con el total en $ y Bs"
+      />
+    ),
   },
   {
     icon: CreditCard,
@@ -582,7 +455,12 @@ const SHOP_SHOWCASES: Showcase[] = [
       'Caja: apertura, cierre y arqueo, con historial de informes',
       'Animación y sonido de confirmación en cada pago registrado',
     ],
-    mock: <ShopPaymentMock />,
+    mock: (
+      <ScreenshotCard
+        src="/images/shop-pagos-captura.jpg"
+        alt="Selector real de método de pago al cobrar en Urbana Store: Efectivo Bs, Efectivo $, Pago Móvil y Zelle"
+      />
+    ),
   },
   {
     icon: BarChart3,
@@ -595,7 +473,12 @@ const SHOP_SHOWCASES: Showcase[] = [
       'Margen de utilidad automático por producto',
       'Egresos e ingresos manuales, con categoría',
     ],
-    mock: <ReportsMock />,
+    mock: (
+      <ScreenshotCard
+        src="/images/shop-panel-captura.jpg"
+        alt="Panel administrativo real de Urbana Store, con ventas, utilidad y gastos de los últimos 30 días"
+      />
+    ),
   },
 ];
 
@@ -633,45 +516,181 @@ const SHOP_FAQ = [
   },
 ];
 
+const CLUB_SHOWCASES: Showcase[] = [
+  {
+    icon: CalendarDays,
+    eyebrow: 'Reservas',
+    title: 'El jugador reserva solo, tú ves la cancha llena',
+    description:
+      'Comparte el enlace de tu club: el jugador elige cancha, día y hora, ve el precio de cada franja (con recargo en hora pico) y confirma con un código que llega por WhatsApp — sin llamadas ni grupos para coordinar horarios.',
+    bullets: [
+      'Calendario en vivo por cancha, con la hora pico marcada aparte',
+      'Confirmación por código de WhatsApp — sin reservas fantasma',
+      'Torneos Americano/Mexicano: se piden los nombres de los jugadores al reservar',
+    ],
+    mock: (
+      <PhoneMockup
+        src="/images/canchas-reservas-captura.jpg"
+        alt="Calendario de reservas de QuickTap Canchas, con los turnos libres y de hora pico de cada cancha"
+      />
+    ),
+  },
+  {
+    icon: QrCode,
+    eyebrow: 'Control de acceso',
+    title: 'Un QR abre la cancha, nadie más',
+    description:
+      'Cada reserva genera un QR de acceso único: el jugador lo escanea en la tablet de su cancha y ahí arranca el cronómetro de su turno — sin que recepción tenga que estar pendiente de quién llegó.',
+    bullets: [
+      'El QR solo abre SU cancha, en SU horario — nunca la de otra reserva',
+      'Cuenta regresiva en vivo, visible desde la cancha',
+      'Llave maestra para recepción, por si el QR no escanea',
+    ],
+    mock: (
+      <TabletMockup
+        src="/images/canchas-acceso-captura.jpg"
+        alt="Tablet de la cancha con el nombre del jugador y la cuenta regresiva de su partida"
+      />
+    ),
+  },
+  {
+    icon: ShoppingBag,
+    eyebrow: 'Tablet de cancha',
+    title: 'El jugador pide desde la cancha, sin levantarse',
+    description:
+      'Desde la misma tablet, el jugador pide a la tienda del club (o a hasta 4 negocios vinculados) y todo se suma a su cuenta — cada tienda cobra lo suyo, con su propio método de pago.',
+    bullets: [
+      'Hasta 4 tiendas vinculadas, cada una con su icono en la tablet',
+      'Cada tienda ve la comanda como "Pedido desde Cancha X"',
+      'La cuenta se separa sola: cancha + tienda propia vs. cada tienda vinculada',
+    ],
+    mock: (
+      <TabletMockup
+        src="/images/canchas-tienda-captura.jpg"
+        alt="Selector de tiendas en la tablet de la cancha: la tienda del club y las tiendas vinculadas"
+      />
+    ),
+  },
+  {
+    icon: CreditCard,
+    eyebrow: 'Cobro',
+    title: 'Paga desde la cancha: completo o dividido entre todos',
+    description:
+      'Al terminar, cada jugador ve su cuenta con el QR de pago móvil de quien cobra, reporta su referencia y listo — sin que nadie tenga que pasar por caja a hacer fila.',
+    bullets: [
+      'Pago completo o dividido entre los jugadores que llegaron',
+      'El QR y el monto en Bs son de quien cobra esa cuenta: cancha o tienda',
+      'El saldo baja solo al confirmar la referencia — nunca antes',
+    ],
+    mock: (
+      <ScreenshotCard
+        src="/images/canchas-cobro-captura.jpg"
+        alt="Pantalla de pago desde la tablet de cancha, con el monto en bolívares y los datos de transferencia del cobrador"
+      />
+    ),
+  },
+  {
+    icon: BarChart3,
+    eyebrow: 'Panel administrativo',
+    title: 'Ocupación, ingresos y quién debe, todo junto',
+    description:
+      'Ve qué tan llenas están tus canchas por hora, cuánto entró por cada método de pago y quién tiene cuenta pendiente, sin salir del panel.',
+    bullets: [
+      'Ocupación por cancha y por franja horaria',
+      'Lista negra automática a quien falta sin avisar',
+      'Fidelización: puntos por reserva, canjeables por el jugador',
+    ],
+    mock: (
+      <ScreenshotCard
+        src="/images/canchas-panel-captura.jpg"
+        alt="Panel de Administración de QuickTap Canchas con los ingresos del día y las deudas de clientes"
+      />
+    ),
+  },
+];
+
+const CLUB_SUPPORTING = [
+  { icon: CalendarDays, title: 'Reserva en línea', text: 'El jugador reserva sin llamar, con confirmación por WhatsApp.' },
+  { icon: QrCode, title: 'Acceso por QR', text: 'La reserva abre la cancha sola, en su horario, sin depender de recepción.' },
+  { icon: Users, title: 'Torneos Americano/Mexicano', text: 'Se piden los nombres de los jugadores desde la reserva.' },
+  { icon: ShoppingBag, title: 'Tiendas vinculadas', text: 'Hasta 4 negocios cobran su propio consumo, con su propio QR.' },
+  { icon: Wallet, title: 'Pago dividido', text: 'Cada jugador paga su parte desde la tablet, con su referencia.' },
+  { icon: Banknote, title: 'Tasa BCV automática', text: 'El monto en bolívares se calcula solo, actualizado varias veces al día.' },
+  { icon: Bell, title: 'Lista negra automática', text: 'Bloquea sola a quien falta sin avisar, sin que nadie lo anote a mano.' },
+  { icon: UserCog, title: 'Roles del equipo', text: 'Dueño, Administrador y Cajero — cada quien ve solo lo que le corresponde.' },
+];
+
+const CLUB_FAQ = [
+  {
+    q: '¿Qué deportes puedo gestionar?',
+    a: 'Pádel, tenis, fútbol y cualquier cancha que se reserve por horario — tú defines tus canchas, horarios y precios.',
+  },
+  {
+    q: '¿Cómo confirma el jugador su reserva?',
+    a: 'Con un código que le llega por WhatsApp al número que escribió al reservar — sin esto, cualquiera podría reservar con el teléfono de otra persona.',
+  },
+  {
+    q: '¿Qué pasa si el jugador pierde su QR de acceso?',
+    a: 'Recepción tiene una llave maestra que abre cualquier cancha sin depender del QR del jugador.',
+  },
+  {
+    q: '¿Puedo vincular la tienda del club a las canchas?',
+    a: 'Sí, y también hasta 3 negocios más — cada uno cobra su propio consumo desde la misma tablet, con su propio método de pago.',
+  },
+  {
+    q: '¿Puedo probarlo antes de pagar?',
+    a: 'Sí — hay un club de demostración ("Canchas Demo") abierto para explorar todo el sistema en vivo, y un período de prueba gratis al crear tu cuenta.',
+  },
+];
+
 export default function LandingPage() {
   const [showIntro, setShowIntro] = useState(true);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [demoOpen, setDemoOpen] = useState(false);
   const [enteringRole, setEnteringRole] = useState<string | null>(null);
   const [demoError, setDemoError] = useState<string | null>(null);
-  const [vertical, setVertical] = useState<'restaurant' | 'shop'>('restaurant');
+  const [vertical, setVertical] = useState<'restaurant' | 'shop' | 'club'>('restaurant');
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  // Título fijo aunque cambie el toggle Restaurantes / Locales: la URL es la misma (`/`),
-  // así que debe tener un solo título en buscadores.
+  // Título fijo aunque cambie el toggle Restaurantes / Locales / Canchas: la URL es la
+  // misma (`/`), así que debe tener un solo título en buscadores.
   useDocumentMeta(
     'QuickTap — Menú QR, comandas y punto de venta para tu negocio',
     'Menú digital por QR, pedidos de mesa que llegan directo a cocina, punto de venta, inventario y delivery por WhatsApp. Todo en un solo sistema, desde cualquier navegador.',
   );
 
-  // Contenido de toda la página desde acá para abajo depende del toggle Restaurantes / Locales
-  // Comerciales — mismo componente, dos catálogos de contenido en paralelo.
+  // Contenido de toda la página desde acá para abajo depende del toggle Restaurantes /
+  // Locales Comerciales / Canchas — mismo componente, tres catálogos de contenido en paralelo.
   const isShop = vertical === 'shop';
-  const activeShowcases = isShop ? SHOP_SHOWCASES : SHOWCASES;
-  const activeSupporting = isShop ? SHOP_SUPPORTING : SUPPORTING;
-  const activeFaq = isShop ? SHOP_FAQ : FAQ;
-  const activeDemoRoles = isShop ? SHOP_DEMO_ROLES : DEMO_ROLES;
-  const heroContent = isShop
+  const isClub = vertical === 'club';
+  const activeShowcases = isClub ? CLUB_SHOWCASES : isShop ? SHOP_SHOWCASES : SHOWCASES;
+  const activeSupporting = isClub ? CLUB_SUPPORTING : isShop ? SHOP_SUPPORTING : SUPPORTING;
+  const activeFaq = isClub ? CLUB_FAQ : isShop ? SHOP_FAQ : FAQ;
+  const activeDemoRoles = isClub ? CLUB_DEMO_ROLES : isShop ? SHOP_DEMO_ROLES : DEMO_ROLES;
+  const heroContent = isClub
     ? {
-        eyebrow: 'QuickTap Shop',
-        title: 'Del inventario al cierre de caja. En un toque.',
+        eyebrow: 'QuickTap Canchas',
+        title: 'De la reserva a la cancha libre. En un toque.',
         description:
-          'QuickTap Shop conecta tu catálogo, tu punto de venta, tus métodos de pago y tu inventario en un solo sistema — para tiendas de ropa, calzado, ferretería, farmacia y más.',
-        cta: 'Ver local de demostración',
+          'QuickTap Canchas conecta tus reservas, el control de acceso por QR, el consumo en cancha y el cobro en un solo sistema — para clubes de pádel, tenis, fútbol y más.',
+        cta: 'Ver cancha de demostración',
       }
-    : {
-        eyebrow: 'Todo lo que hace QuickTap',
-        title: 'Del QR de la mesa a la caja del mes. En un toque.',
-        description:
-          'QuickTap conecta tu menú, tus comandas, tu cobro, tu delivery y tu inventario en un solo sistema — para que dejes de operar tu restaurante desde cinco herramientas distintas.',
-        cta: 'Ver restaurante de demostración',
-      };
+    : isShop
+      ? {
+          eyebrow: 'QuickTap Shop',
+          title: 'Del inventario al cierre de caja. En un toque.',
+          description:
+            'QuickTap Shop conecta tu catálogo, tu punto de venta, tus métodos de pago y tu inventario en un solo sistema — para tiendas de ropa, calzado, ferretería, farmacia y más.',
+          cta: 'Ver local de demostración',
+        }
+      : {
+          eyebrow: 'Todo lo que hace QuickTap',
+          title: 'Del QR de la mesa a la caja del mes. En un toque.',
+          description:
+            'QuickTap conecta tu menú, tus comandas, tu cobro, tu delivery y tu inventario en un solo sistema — para que dejes de operar tu restaurante desde cinco herramientas distintas.',
+          cta: 'Ver restaurante de demostración',
+        };
 
   // Parallax del hero: el logo se retira más rápido que el scroll de la página,
   // creando sensación de profundidad al pasar a la primera sección de contenido.
@@ -688,8 +707,8 @@ export default function LandingPage() {
     setEnteringRole(demoRole.role);
     setDemoError(null);
     try {
-      const password = isShop ? SHOP_DEMO_PASSWORD : RESTAURANT_DEMO_PASSWORD;
-      const slug = isShop ? SHOP_DEMO_SLUG : RESTAURANT_DEMO_SLUG;
+      const password = isClub ? CLUB_DEMO_PASSWORD : isShop ? SHOP_DEMO_PASSWORD : RESTAURANT_DEMO_PASSWORD;
+      const slug = isClub ? CLUB_DEMO_SLUG : isShop ? SHOP_DEMO_SLUG : RESTAURANT_DEMO_SLUG;
       await login(demoRole.email, password, slug);
       setDemoOpen(false);
       navigate('/admin');
@@ -753,14 +772,14 @@ export default function LandingPage() {
         {/* Hero secundario: presentación general (antes en /soluciones) */}
         <section className="relative bg-white min-h-screen flex items-center px-4 pt-24 pb-12">
           <Reveal className="relative z-10 max-w-3xl mx-auto text-center">
-            {/* Toggle Restaurantes / Locales Comerciales: todo el contenido de acá para abajo
-                (vitrinas, features, FAQ y el demo) cambia según cuál esté activo. */}
+            {/* Toggle Restaurantes / Locales Comerciales / Canchas: todo el contenido de acá
+                para abajo (vitrinas, features, FAQ y el demo) cambia según cuál esté activo. */}
             <div className="inline-flex items-center gap-1 rounded-full border border-brand-950/10 bg-brand-950/[0.03] p-1 mb-6">
               <button
                 type="button"
                 onClick={() => setVertical('restaurant')}
                 className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
-                  !isShop ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950/80'
+                  !isShop && !isClub ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950/80'
                 }`}
               >
                 Restaurantes
@@ -773,6 +792,15 @@ export default function LandingPage() {
                 }`}
               >
                 Locales Comerciales
+              </button>
+              <button
+                type="button"
+                onClick={() => setVertical('club')}
+                className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
+                  isClub ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950/80'
+                }`}
+              >
+                Canchas
               </button>
             </div>
             <p className="text-xs font-medium text-brand-950/40 tracking-wide">{heroContent.eyebrow}</p>
