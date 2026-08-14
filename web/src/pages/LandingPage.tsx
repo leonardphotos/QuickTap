@@ -41,6 +41,7 @@ import {
   Tablet,
 } from 'lucide-react';
 import { IntroLoader } from '@/components/landing/IntroLoader';
+import { GradientWave } from '@/components/ui/gradient-wave';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '@/context/AuthContext';
@@ -699,12 +700,7 @@ export default function LandingPage() {
           cta: 'Ver restaurante de demostración',
         };
 
-  // Video ambiente del hero: ralentizado para que se sienta atmosférico, no un comercial.
-  const heroVideoRef = useRef<HTMLVideoElement>(null);
   const [navOpen, setNavOpen] = useState(false);
-  useEffect(() => {
-    if (heroVideoRef.current) heroVideoRef.current.playbackRate = 0.7;
-  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => setShowIntro(false), 2100);
@@ -736,22 +732,11 @@ export default function LandingPage() {
         transition={{ duration: 0.5, ease: EASE_OUT }}
         className="text-brand-950"
       >
-        {/* Hero estilo estudio creativo: video ambiente de fondo a sangre completa, nav
-            integrada arriba, titular con acento serif itálico y contenido en la columna
-            izquierda. Las máscaras de degradado garantizan legibilidad sin tapar el
-            centro-derecha del video. */}
+        {/* Hero estilo estudio creativo: la onda animada de siempre como fondo a sangre
+            completa, nav integrada arriba, titular con acento serif itálico y contenido
+            en la columna izquierda. Las máscaras de degradado garantizan legibilidad. */}
         <section className="relative min-h-screen overflow-hidden bg-[#F6F9FC]">
-          {/* Video decorativo, ralentizado a 0.7x (ver useEffect) */}
-          <video
-            ref={heroVideoRef}
-            autoPlay
-            loop
-            muted
-            playsInline
-            aria-hidden="true"
-            className="absolute inset-0 h-full w-full object-cover"
-            src="https://strvid.nyc3.cdn.digitaloceanspaces.com/motionsite/creative_studio_video.mp4"
-          />
+          <GradientWave />
           {/* Máscaras: columna izquierda legible, franjas arriba/abajo para nav y cierre */}
           <div className="absolute inset-y-0 left-0 w-[78%] sm:w-[42%] bg-gradient-to-r from-[#F6F9FC] via-[#F6F9FC]/90 to-transparent" />
           <div className="absolute top-0 inset-x-0 h-48 sm:h-56 lg:h-64 bg-gradient-to-b from-[#F6F9FC] via-[#F6F9FC]/60 to-transparent" />
