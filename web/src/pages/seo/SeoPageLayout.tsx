@@ -37,14 +37,14 @@ export function SeoPageLayout({ children }: { children: ReactNode }) {
       {/* CTA de cierre — igual en todas las páginas SEO */}
       <section className="max-w-5xl mx-auto px-5 pb-14">
         <div className="rounded-3xl bg-brand-logo text-white px-6 py-10 sm:px-12 text-center">
-          <h2 className="text-2xl sm:text-3xl font-bold">Pruébalo con tu propio negocio</h2>
-          <p className="mt-2 text-white/80 font-light max-w-xl mx-auto">
+          <h2 className="text-xl sm:text-2xl font-bold">Pruébalo con tu propio negocio</h2>
+          <p className="mt-2 text-sm text-white/80 font-light max-w-xl mx-auto">
             15 días gratis, sin tarjeta de crédito. Configura tu carta, tus mesas y tu WhatsApp en una tarde.
           </p>
           <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
               to="/empezar"
-              className="inline-flex items-center justify-center rounded-full bg-white text-brand-logo font-semibold text-base px-6 py-3 shadow-[0_16px_32px_-8px_rgba(0,27,67,0.35)] transition-transform duration-200 active:scale-[0.97] hover:bg-white/90"
+              className="inline-flex items-center justify-center rounded-full bg-white text-brand-logo font-semibold text-sm px-6 py-3 shadow-[0_16px_32px_-8px_rgba(0,27,67,0.35)] transition-transform duration-200 active:scale-[0.97] hover:bg-white/90"
             >
               Regístrate y comienza gratis hoy
             </Link>
@@ -110,15 +110,15 @@ export function SeoPageLayout({ children }: { children: ReactNode }) {
 export function SeoFaqList({ faq }: { faq: { q: string; a: string }[] }) {
   return (
     <section className="mt-12">
-      <h2 className="text-xl sm:text-2xl font-bold mb-4">Preguntas frecuentes</h2>
+      <h2 className="text-lg sm:text-xl font-bold mb-4">Preguntas frecuentes</h2>
       <div className="divide-y divide-brand-950/[0.08] border-y border-brand-950/[0.08]">
         {faq.map((f) => (
           <details key={f.q} className="group py-4">
-            <summary className="cursor-pointer list-none flex items-center justify-between gap-3 font-semibold">
+            <summary className="cursor-pointer list-none flex items-center justify-between gap-3 text-[15px] font-semibold">
               {f.q}
               <span className="text-brand-950/40 group-open:rotate-45 transition-transform text-lg leading-none">+</span>
             </summary>
-            <p className="mt-2 text-brand-950/70 font-light leading-relaxed">{f.a}</p>
+            <p className="mt-2 text-sm text-brand-950/70 font-light leading-relaxed">{f.a}</p>
           </details>
         ))}
       </div>

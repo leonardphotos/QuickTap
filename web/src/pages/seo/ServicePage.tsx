@@ -17,10 +17,10 @@ export default function ServicePage({ slug }: { slug: string }) {
       <Seo title={page.title} description={page.description} path={`/${page.slug}`} faq={page.faq} />
 
       <p className="text-xs font-bold uppercase tracking-widest text-brand-logo">{page.eyebrow}</p>
-      <h1 className="mt-3 text-3xl sm:text-4xl font-bold leading-tight max-w-3xl">{page.h1}</h1>
+      <h1 className="mt-3 text-2xl sm:text-3xl font-bold leading-tight max-w-3xl">{page.h1}</h1>
       <div className="mt-5 space-y-4 max-w-3xl">
         {page.intro.map((p) => (
-          <p key={p.slice(0, 40)} className="text-brand-950/70 font-light leading-relaxed">{p}</p>
+          <p key={p.slice(0, 40)} className="text-[15px] text-brand-950/70 font-light leading-relaxed">{p}</p>
         ))}
       </div>
 
@@ -37,17 +37,17 @@ export default function ServicePage({ slug }: { slug: string }) {
               <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100">
                 <Check className="h-3.5 w-3.5 text-emerald-700" />
               </span>
-              <h2 className="text-[15px] font-semibold">{f.title}</h2>
+              <h2 className="text-sm font-semibold">{f.title}</h2>
             </div>
-            <p className="text-sm text-brand-950/60 font-light leading-relaxed">{f.text}</p>
+            <p className="text-[13px] text-brand-950/60 font-light leading-relaxed">{f.text}</p>
           </div>
         ))}
       </section>
 
       {page.sections?.map((s) => (
         <section key={s.title} className="mt-10 max-w-3xl">
-          <h2 className="text-xl sm:text-2xl font-bold mb-2">{s.title}</h2>
-          <p className="text-brand-950/70 font-light leading-relaxed">{s.text}</p>
+          <h2 className="text-lg sm:text-xl font-bold mb-2">{s.title}</h2>
+          <p className="text-[15px] text-brand-950/70 font-light leading-relaxed">{s.text}</p>
         </section>
       ))}
 

@@ -73,11 +73,11 @@ export default function ComparativaPage() {
       />
 
       <p className="text-xs font-bold uppercase tracking-widest text-brand-logo">Guía de compra</p>
-      <h1 className="mt-3 text-3xl sm:text-4xl font-bold leading-tight max-w-3xl">
+      <h1 className="mt-3 text-2xl sm:text-3xl font-bold leading-tight max-w-3xl">
         ¿Cuál es el mejor software para tu restaurante? Compara los enfoques
       </h1>
       <div className="mt-5 space-y-4 max-w-3xl">
-        <p className="text-brand-950/70 font-light leading-relaxed">
+        <p className="text-[15px] text-brand-950/70 font-light leading-relaxed">
           Antes de comparar marcas, compara enfoques: la mayoría de los locales termina eligiendo entre seguir a mano
           (cuaderno + WhatsApp), un punto de venta tradicional por licencia, apps de delivery de terceros, o una
           plataforma en la nube como QuickTap. Cada camino resuelve cosas distintas — esta tabla muestra qué cubre cada uno.
@@ -113,8 +113,8 @@ export default function ComparativaPage() {
       </div>
 
       <section className="mt-12 max-w-3xl">
-        <h2 className="text-xl sm:text-2xl font-bold mb-2">Para ser justos: cuándo NO elegir QuickTap</h2>
-        <p className="text-brand-950/70 font-light leading-relaxed">
+        <h2 className="text-lg sm:text-xl font-bold mb-2">Para ser justos: cuándo NO elegir QuickTap</h2>
+        <p className="text-[15px] text-brand-950/70 font-light leading-relaxed">
           Si lo único que buscas es una máquina fiscal para facturar, o dependes por completo del tráfico que te traen
           las apps de delivery, un sistema de gestión no es tu primera compra. QuickTap rinde cuando quieres operar tu
           propio canal: tu carta, tus pedidos, tu delivery y tu inventario, con tus datos y sin comisiones por venta.
@@ -122,8 +122,8 @@ export default function ComparativaPage() {
       </section>
 
       <section className="mt-10 max-w-3xl">
-        <h2 className="text-xl sm:text-2xl font-bold mb-3">Qué mirar al comparar, punto por punto</h2>
-        <ul className="space-y-3 text-brand-950/70 font-light leading-relaxed list-disc pl-5">
+        <h2 className="text-lg sm:text-xl font-bold mb-3">Qué mirar al comparar, punto por punto</h2>
+        <ul className="space-y-3 text-[15px] text-brand-950/70 font-light leading-relaxed list-disc pl-5">
           <li><strong className="font-semibold text-brand-950">Costo total, no mensualidad:</strong> suma licencias, equipos obligatorios, instalación y comisiones por pedido. Una mensualidad "barata" con 20% de comisión sale carísima.</li>
           <li><strong className="font-semibold text-brand-950">Tasa del dólar:</strong> si vendes en bolívares, el sistema debe actualizar la tasa BCV solo. Recalcular precios a mano cada mañana no es un flujo, es un castigo.</li>
           <li><strong className="font-semibold text-brand-950">Qué pasa con tus datos:</strong> en las apps de terceros, el cliente es de la app. En tu canal propio, el historial y el teléfono del cliente quedan contigo.</li>
