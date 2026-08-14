@@ -1,5 +1,5 @@
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
-import { Check, Download, FileText, Plus, RotateCcw, Send, Trash2, X } from 'lucide-react';
+import { Check, Download, FileText, Pencil, Plus, RotateCcw, Send, Trash2, X } from 'lucide-react';
 import { masterApi } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -64,6 +64,7 @@ export default function MasterQuotesPage() {
   const [quotes, setQuotes] = useState<PlatformQuote[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editQuote, setEditQuote] = useState<PlatformQuote | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Cotización que se está exportando: se monta la plantilla oculta, se captura y se limpia.
@@ -229,6 +230,16 @@ export default function MasterQuotesPage() {
                     <RotateCcw className="h-3.5 w-3.5" /> Devolver a enviadas
                   </button>
                 )}
+                {q.status !== 'APPROVED' && (
+                  <button
+                    type="button"
+                    disabled={busyId === q.id}
+                    onClick={() => setEditQuote(q)}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-brand-950/15 px-3.5 py-1.5 text-xs font-semibold text-brand-950/70 hover:bg-brand-950/5 disabled:opacity-50"
+                  >
+                    <Pencil className="h-3.5 w-3.5" /> Editar
+                  </button>
+                )}
                 <button
                   type="button"
                   disabled={pdfQuote !== null}
@@ -251,7 +262,15 @@ export default function MasterQuotesPage() {
         </div>
       )}
 
-      {createOpen && <CreateQuoteDialog onClose={() => setCreateOpen(false)} onCreated={() => { setCreateOpen(false); setTab('open'); load(); }} />}
+      {createOpen && <QuoteFormDialog onClose={() => setCreateOpen(false)} onSaved={() => { setCreateOpen(false); setTab('open'); load(); }} />}
+
+      {editQuote && (
+        <QuoteFormDialog
+          quote={editQuote}
+          onClose={() => setEditQuote(null)}
+          onSaved={() => { setEditQuote(null); load(); }}
+        />
+      )}
 
       {/* Plantilla del PDF, montada fuera de pantalla solo mientras se genera. */}
       {pdfQuote && (
@@ -363,18 +382,22 @@ const QuotePdfTemplate = forwardRef<HTMLDivElement, { quote: PlatformQuote }>(fu
   );
 });
 
-function CreateQuoteDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+/** Crea una cotización nueva, o edita una existente si se pasa `quote` (precarga
+ * todos los campos y guarda con PATCH en vez de POST). Deshabilitada para
+ * aprobadas — el backend también lo rechaza, esto solo evita el viaje inútil. */
+function QuoteFormDialog({ quote, onClose, onSaved }: { quote?: PlatformQuote; onClose: () => void; onSaved: () => void }) {
+  const isEditing = !!quote;
   const [plans, setPlans] = useState<PublicPlan[]>([]);
-  const [clientName, setClientName] = useState('');
-  const [clientPhone, setClientPhone] = useState('');
-  const [businessName, setBusinessName] = useState('');
-  const [planName, setPlanName] = useState('');
-  const [planPrice, setPlanPrice] = useState('');
-  const [planCycle, setPlanCycle] = useState('Mensual');
-  const [items, setItems] = useState<QuoteItem[]>([]);
+  const [clientName, setClientName] = useState(quote?.clientName ?? '');
+  const [clientPhone, setClientPhone] = useState(quote?.clientPhone ?? '');
+  const [businessName, setBusinessName] = useState(quote?.businessName ?? '');
+  const [planName, setPlanName] = useState(quote?.planName ?? '');
+  const [planPrice, setPlanPrice] = useState(quote?.planPriceUsd ?? '');
+  const [planCycle, setPlanCycle] = useState(quote?.planCycle ?? 'Mensual');
+  const [items, setItems] = useState<QuoteItem[]>(quote?.items ?? []);
   const [itemLabel, setItemLabel] = useState('');
   const [itemAmount, setItemAmount] = useState('');
-  const [note, setNote] = useState('');
+  const [note, setNote] = useState(quote?.note ?? '');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -382,13 +405,15 @@ function CreateQuoteDialog({ onClose, onCreated }: { onClose: () => void; onCrea
     masterApi.get('/public/plans').then((res) => {
       const list = Object.values(res.data.data as Record<string, PublicPlan>);
       setPlans(list);
-      // Arranca con el Plan Pro (o el primero), a precio mensual real.
+      // Al crear (no al editar): arranca con el Plan Pro (o el primero), a precio mensual real.
+      if (isEditing) return;
       const initial = list.find((p) => p.name.includes('Pro')) ?? list[0];
       if (initial) {
         setPlanName(initial.name);
         setPlanPrice(String(initial.prices.MONTHLY));
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const itemsTotal = items.reduce((acc, i) => acc + i.amountUsd, 0);
@@ -424,20 +449,25 @@ function CreateQuoteDialog({ onClose, onCreated }: { onClose: () => void; onCrea
   async function save() {
     setSaving(true);
     setError(null);
+    const payload = {
+      clientName: clientName.trim(),
+      clientPhone: clientPhone.trim(),
+      businessName: businessName.trim() || null,
+      planName: planName.trim(),
+      planPriceUsd: Number(planPrice) || 0,
+      planCycle,
+      items,
+      note: note.trim() || null,
+    };
     try {
-      await masterApi.post('/master/quotes', {
-        clientName: clientName.trim(),
-        clientPhone: clientPhone.trim(),
-        businessName: businessName.trim() || null,
-        planName: planName.trim(),
-        planPriceUsd: Number(planPrice) || 0,
-        planCycle,
-        items,
-        note: note.trim() || null,
-      });
-      onCreated();
+      if (isEditing) {
+        await masterApi.patch(`/master/quotes/${quote.id}`, payload);
+      } else {
+        await masterApi.post('/master/quotes', payload);
+      }
+      onSaved();
     } catch (err: any) {
-      setError(err.response?.data?.error ?? 'No se pudo crear la cotización.');
+      setError(err.response?.data?.error ?? `No se pudo ${isEditing ? 'guardar' : 'crear'} la cotización.`);
       setSaving(false);
     }
   }
@@ -446,7 +476,7 @@ function CreateQuoteDialog({ onClose, onCreated }: { onClose: () => void; onCrea
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nueva cotización</DialogTitle>
+          <DialogTitle>{isEditing ? `Editar cotización #${quote.quoteNumber}` : 'Nueva cotización'}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3.5">
@@ -570,7 +600,7 @@ function CreateQuoteDialog({ onClose, onCreated }: { onClose: () => void; onCrea
             disabled={saving || !clientName.trim() || clientPhone.trim().length < 7 || !planName.trim()}
             onClick={save}
           >
-            {saving ? 'Guardando…' : 'Crear cotización'}
+            {saving ? 'Guardando…' : isEditing ? 'Guardar cambios' : 'Crear cotización'}
           </TextureButton>
         </DialogFooter>
       </DialogContent>

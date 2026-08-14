@@ -25,6 +25,14 @@ router.post(
   }),
 );
 
+router.patch(
+  '/:id',
+  asyncHandler(async (req: Request, res: Response) => {
+    const input = createPlatformQuoteSchema.parse(req.body);
+    res.json({ data: await masterQuotesService.update(req.params.id, input) });
+  }),
+);
+
 router.post(
   '/:id/send',
   asyncHandler(async (req: Request, res: Response) => {

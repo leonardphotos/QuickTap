@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
-import { notFound } from '../../utils/http-error';
+import { badRequest, notFound } from '../../utils/http-error';
 import { formatVenezuelanWhatsappPhone } from '../../utils/whatsapp';
 import { masterWhatsappBotService } from '../master-whatsapp/master-whatsapp-bot.service';
 import { CreatePlatformQuoteInput, PlatformQuoteItem } from './master-quotes.dto';
@@ -62,6 +62,33 @@ export const masterQuotesService = {
   async create(input: CreatePlatformQuoteInput) {
     const itemsTotal = input.items.reduce((acc, i) => acc + i.amountUsd, 0);
     return prisma.platformQuote.create({
+      data: {
+        clientName: input.clientName,
+        clientPhone: input.clientPhone,
+        businessName: input.businessName ?? null,
+        planName: input.planName,
+        planPriceUsd: new Prisma.Decimal(input.planPriceUsd),
+        planCycle: input.planCycle,
+        items: input.items as unknown as Prisma.InputJsonValue,
+        totalUsd: new Prisma.Decimal(input.planPriceUsd + itemsTotal),
+        note: input.note ?? null,
+      },
+    });
+  },
+
+  /**
+   * Edita una cotización existente — solo tiene sentido antes de aprobarse (una vez
+   * aprobada, el presupuesto ya se cerró con el cliente). No toca `status`/`sentAt`:
+   * si ya se había enviado, sigue en SENT y hay que reenviarla a mano tras el cambio.
+   */
+  async update(id: string, input: CreatePlatformQuoteInput) {
+    const quote = await prisma.platformQuote.findUnique({ where: { id } });
+    if (!quote) throw notFound('Cotización no encontrada.');
+    if (quote.status === 'APPROVED') throw badRequest('No se puede editar una cotización ya aprobada.');
+
+    const itemsTotal = input.items.reduce((acc, i) => acc + i.amountUsd, 0);
+    return prisma.platformQuote.update({
+      where: { id },
       data: {
         clientName: input.clientName,
         clientPhone: input.clientPhone,
