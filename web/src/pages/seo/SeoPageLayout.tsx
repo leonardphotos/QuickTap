@@ -37,18 +37,19 @@ export function SeoPageLayout({ children }: { children: ReactNode }) {
 
       {/* CTA de cierre — igual en todas las páginas SEO */}
       <section className="max-w-5xl mx-auto px-5 pb-14">
-        <div className="rounded-3xl bg-brand-950 text-white px-6 py-10 sm:px-12 text-center">
+        <div className="rounded-3xl bg-brand-500 text-white px-6 py-10 sm:px-12 text-center">
           <h2 className="text-2xl sm:text-3xl font-bold">Pruébalo con tu propio negocio</h2>
-          <p className="mt-2 text-white/70 font-light max-w-xl mx-auto">
+          <p className="mt-2 text-white/80 font-light max-w-xl mx-auto">
             15 días gratis, sin tarjeta de crédito. Configura tu carta, tus mesas y tu WhatsApp en una tarde.
           </p>
           <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link to="/empezar">
-              <TextureButton variant="primary" size="lg" className="!w-auto">
-                Regístrate y comienza gratis hoy
-              </TextureButton>
+            <Link
+              to="/empezar"
+              className="inline-flex items-center justify-center rounded-full bg-white text-brand-500 font-semibold text-base px-6 py-3 shadow-[0_16px_32px_-8px_rgba(0,27,67,0.35)] transition-transform duration-200 active:scale-[0.97] hover:bg-white/90"
+            >
+              Regístrate y comienza gratis hoy
             </Link>
-            <Link to="/precios" className="text-sm text-white/70 hover:text-white underline underline-offset-4">
+            <Link to="/precios" className="text-sm text-white/80 hover:text-white underline underline-offset-4">
               Ver precios y planes
             </Link>
           </div>
