@@ -1,4 +1,4 @@
-import { BarChart3, DollarSign, MessageCircle, Nfc, Receipt, Store, Tag, Users, Wallet } from 'lucide-react';
+import { BarChart3, DollarSign, FileText, MessageCircle, Nfc, Receipt, Store, Tag, Users, Wallet } from 'lucide-react';
 
 export interface MasterNavLink {
   to: string;
@@ -24,6 +24,7 @@ export const MASTER_OPERATION_LINKS: MasterNavLink[] = [
   { to: '/master', label: 'Locales', icon: Store, hint: 'Restaurantes y tiendas' },
   { to: '/master/proofs', label: 'Comprobantes', icon: Receipt, hint: 'Pagos por aprobar' },
   { to: '/master/qrnfc-requests', label: 'Solicitud QRNFC', icon: Nfc, hint: 'Pedidos de QR y NFC' },
+  { to: '/master/quotes', label: 'Cotizaciones', icon: FileText, hint: 'Presupuestos a futuros clientes' },
 ];
 
 export const MASTER_CONFIG_LINKS: MasterNavLink[] = [

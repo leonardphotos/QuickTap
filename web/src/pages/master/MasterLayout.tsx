@@ -73,7 +73,9 @@ export default function MasterLayout() {
             </nav>
 
             <div className="flex items-center gap-2 shrink-0 ml-auto sm:ml-0">
-              <DailyRatesBadge />
+              {/* Con las 5 pastillas de operación + Configuración, en anchos medios la tasa
+                  se montaba sobre el menú — solo se muestra donde realmente cabe. */}
+              <DailyRatesBadge className="hidden xl:inline" />
               <MoneyVisibilityToggle className="text-brand-950/50 hover:text-brand-500 transition-colors" />
               <TextureButton variant="icon" size="icon" aria-label="Salir" onClick={logout}>
                 <LogOut className="h-4 w-4 text-brand-950/70" />
