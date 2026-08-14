@@ -267,7 +267,11 @@ export default function MasterQuotesPage() {
  * Poppins). Se renderiza oculta y se captura con html2canvas → PDF. */
 const QuotePdfTemplate = forwardRef<HTMLDivElement, { quote: PlatformQuote }>(function QuotePdfTemplate({ quote }, ref) {
   const half = Number(quote.totalUsd) / 2;
-  const fechaLarga = new Date(quote.createdAt).toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' });
+  const fmtFecha = (d: Date) => d.toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' });
+  const creada = new Date(quote.createdAt);
+  // Vence exactamente un mes después de emitida.
+  const vence = new Date(creada);
+  vence.setMonth(vence.getMonth() + 1);
   // OJO: solo colores hex/rgba INLINE — html2canvas no entiende los colores oklab
   // que Tailwind v4 genera con los modificadores de opacidad (text-brand-950/50).
   const navy = '#001b43';
@@ -279,12 +283,14 @@ const QuotePdfTemplate = forwardRef<HTMLDivElement, { quote: PlatformQuote }>(fu
       <div className="px-12 pt-10 pb-6 flex items-start justify-between">
         <div>
           <img src="/logo/logo-central.png" alt="QuickTap" style={{ height: 34, width: 'auto' }} />
-          <p className="mt-2 text-[11px] font-light" style={{ color: dim(0.5) }}>quicktap.club — todo a un toque</p>
         </div>
         <div className="text-right">
           <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: blue }}>Cotización</p>
           <p className="text-2xl font-bold">N.º {quote.quoteNumber}</p>
-          <p className="text-[11px] font-light" style={{ color: dim(0.5) }}>{fechaLarga}</p>
+          <p className="text-[11px] font-light" style={{ color: dim(0.5) }}>{fmtFecha(creada)}</p>
+          <p className="text-[11px] font-light" style={{ color: dim(0.5) }}>
+            <span className="font-medium" style={{ color: dim(0.7) }}>Fecha de vencimiento:</span> {fmtFecha(vence)}
+          </p>
         </div>
       </div>
       <div style={{ height: 4, backgroundColor: blue }} className="mx-12 rounded-full" />
@@ -344,13 +350,6 @@ const QuotePdfTemplate = forwardRef<HTMLDivElement, { quote: PlatformQuote }>(fu
         </p>
         <p className="mt-1 text-xs font-light" style={{ color: dim(0.5) }}>Incluye 15 días de prueba gratis, sin tarjeta de crédito.</p>
       </div>
-
-      {quote.note && (
-        <div className="px-12 pt-5">
-          <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: dim(0.4) }}>Nota</p>
-          <p className="mt-1 text-sm font-light" style={{ color: dim(0.7) }}>{quote.note}</p>
-        </div>
-      )}
 
       {/* Pie */}
       <div className="mt-auto px-12 pb-10 pt-8">
