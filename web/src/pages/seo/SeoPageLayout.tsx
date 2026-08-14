@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
-import { TextureButton } from '@/components/ui/texture-button';
 import { SEO_SERVICES, SEO_VERTICALS } from '@/data/seoPages';
 
 /**
@@ -13,9 +12,8 @@ export function SeoPageLayout({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-white text-brand-950">
       <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-brand-950/[0.06]">
         <div className="max-w-5xl mx-auto px-5 h-14 flex items-center justify-between gap-3">
-          <Link to="/" className="flex items-center gap-2 min-w-0">
+          <Link to="/" className="flex items-center min-w-0">
             <img src="/logo/icono.png" alt="QuickTap" className="h-7 w-7" />
-            <span className="font-bold tracking-tight">QuickTap</span>
           </Link>
           <nav className="flex items-center gap-2 sm:gap-3">
             <Link to="/precios" className="text-sm text-brand-950/70 hover:text-brand-950 px-1.5 py-1">
@@ -24,10 +22,11 @@ export function SeoPageLayout({ children }: { children: ReactNode }) {
             <Link to="/admin/login" className="hidden sm:inline text-sm text-brand-950/70 hover:text-brand-950 px-1.5 py-1">
               Iniciar sesión
             </Link>
-            <Link to="/empezar">
-              <TextureButton variant="primary" size="sm" className="!w-auto">
-                Prueba gratis
-              </TextureButton>
+            <Link
+              to="/empezar"
+              className="inline-flex items-center justify-center rounded-full bg-brand-500 text-white font-medium text-xs px-4 py-2 transition-colors hover:bg-brand-600 active:scale-[0.97]"
+            >
+              Prueba gratis
             </Link>
           </nav>
         </div>
