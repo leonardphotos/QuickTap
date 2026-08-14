@@ -746,7 +746,7 @@ export default function LandingPage() {
             {/* Nav integrada en el hero */}
             <nav aria-label="Principal" className="flex items-center justify-between gap-4">
               <Link to="/" className="flex items-center">
-                <img src="/logo/logo-central.png" alt="QuickTap" className="h-8 w-auto" />
+                <img src="/logo/logo-central.png" alt="QuickTap" className="h-6 w-auto" />
               </Link>
               <div className="hidden lg:flex items-center gap-8">
                 {[
