@@ -235,3 +235,25 @@ export function optimizeImages(maxWidth: number, maxHeight: number, quality = 80
     next();
   });
 }
+
+/**
+ * Comprime una imagen que llegó como Buffer (comprobantes recibidos por los bots de
+ * WhatsApp, que no pasan por multer ni por `optimizeImage`). Mismo criterio: JPEG
+ * mozjpeg q80 dentro de 1200×1200 — un comprobante es texto de una captura, no
+ * necesita más. Si sharp no está disponible o falla, devuelve el buffer original:
+ * mejor guardar la foto pesada que perder el comprobante.
+ */
+export async function compressImageBuffer(buffer: Buffer, maxWidth = 1200, maxHeight = 1200, quality = 80): Promise<Buffer> {
+  if (!sharp) return buffer;
+  try {
+    const out = await sharp(buffer)
+      .rotate()
+      .resize(maxWidth, maxHeight, { fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality, mozjpeg: true })
+      .toBuffer();
+    // Con imágenes ya pequeñas la recompresión puede pesar MÁS que el original.
+    return out.length < buffer.length ? out : buffer;
+  } catch {
+    return buffer;
+  }
+}

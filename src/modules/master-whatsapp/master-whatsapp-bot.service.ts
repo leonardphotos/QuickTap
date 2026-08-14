@@ -13,7 +13,7 @@ import makeWASocket, {
   WASocket,
 } from '@whiskeysockets/baileys';
 import { prisma } from '../../config/prisma';
-import { UPLOADS_DIR } from '../../middlewares/upload.middleware';
+import { compressImageBuffer, UPLOADS_DIR } from '../../middlewares/upload.middleware';
 import { subscriptionPaymentVerificationService } from './subscription-payment-verification.service';
 import { currencySymbolFor, platformSettingsService, renderTemplate } from '../platform-settings/platform-settings.service';
 
@@ -257,6 +257,7 @@ export const masterWhatsappBotService = {
     const dir = path.join(UPLOADS_DIR, 'subscription-payment-proofs');
     fs.mkdirSync(dir, { recursive: true });
     const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}.jpg`;
+    buffer = await compressImageBuffer(buffer); // comprobante: 1200px q80, no llena el disco
     fs.writeFileSync(path.join(dir, filename), buffer);
     const proofImageUrl = `/uploads/subscription-payment-proofs/${filename}`;
 

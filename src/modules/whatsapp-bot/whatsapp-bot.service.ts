@@ -14,7 +14,7 @@ import makeWASocket, {
 } from '@whiskeysockets/baileys';
 import { env } from '../../config/env';
 import { prisma } from '../../config/prisma';
-import { UPLOADS_DIR } from '../../middlewares/upload.middleware';
+import { compressImageBuffer, UPLOADS_DIR } from '../../middlewares/upload.middleware';
 import { emitToKitchen, SocketEvents } from '../../sockets';
 import { formatVenezuelanWhatsappPhone, PAYMENT_LABELS, renderWhatsappTemplate } from '../../utils/whatsapp';
 import { UpdateWhatsappBotSettingsInput } from './whatsapp-bot.dto';
@@ -368,6 +368,7 @@ export const whatsappBotService = {
     const dir = path.join(UPLOADS_DIR, 'whatsapp-payment-proofs', restaurantId);
     fs.mkdirSync(dir, { recursive: true });
     const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}.jpg`;
+    buffer = await compressImageBuffer(buffer); // comprobante: 1200px q80, no llena el disco
     fs.writeFileSync(path.join(dir, filename), buffer);
     const proofImageUrl = `/uploads/whatsapp-payment-proofs/${restaurantId}/${filename}`;
 
@@ -410,6 +411,7 @@ export const whatsappBotService = {
     const dir = path.join(UPLOADS_DIR, 'whatsapp-payment-proofs', restaurantId);
     fs.mkdirSync(dir, { recursive: true });
     const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}.jpg`;
+    buffer = await compressImageBuffer(buffer); // comprobante: 1200px q80, no llena el disco
     fs.writeFileSync(path.join(dir, filename), buffer);
     const proofImageUrl = `/uploads/whatsapp-payment-proofs/${restaurantId}/${filename}`;
 
