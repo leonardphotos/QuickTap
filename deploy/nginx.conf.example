@@ -81,6 +81,15 @@ server {
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
+    # Páginas SEO fijas por cluster de keywords: mismo mecanismo que /r/ — el
+    # backend inyecta título/descripción de cada página en el shell. La lista de
+    # rutas vive en src/modules/seo/static-pages.ts; si agregas una allá, agrégala acá.
+    location ~ ^/(menu-digital-qr|autopedido-comandas|pedidos-whatsapp|software-delivery|menu-pantalla-tv|inventario-costos|precios|comparativa|para/[a-z0-9-]+)$ {
+        proxy_pass http://127.0.0.1:4000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
     # Socket.IO: requiere upgrade a WebSocket
     location /socket.io/ {
         proxy_pass http://127.0.0.1:4000;

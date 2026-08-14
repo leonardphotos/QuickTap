@@ -102,7 +102,7 @@ export default function LegalPage() {
                 <li>
                   Si tu suscripción vence, cuentas con un período de gracia de 12 horas antes de que se bloqueen las
                   funciones del panel. Los precios de cada plan y sus beneficios están publicados en{' '}
-                  <Link to="/planes" className="text-brand-500 hover:underline">
+                  <Link to="/precios" className="text-brand-500 hover:underline">
                     quicktap.club/planes
                   </Link>
                   y pueden cambiar con aviso previo razonable para renovaciones futuras.

@@ -1,15 +1,17 @@
 import { Link } from 'react-router-dom';
 import { PricingSection } from '@/components/landing/PricingSection';
 import { TextureButton } from '@/components/ui/texture-button';
-import { useDocumentMeta } from '@/hooks/useDocumentMeta';
+import { Seo } from '@/components/Seo';
 
 export default function PlansPage() {
-  useDocumentMeta(
-    'Precios y planes — QuickTap',
-    'Planes de QuickTap para restaurantes y locales comerciales. Empieza con 15 días gratis, sin tarjeta de crédito.',
-  );
   return (
     <div className="min-h-screen bg-white text-brand-950">
+      {/* Mismo title/description que /precios en static-pages.ts (backend). */}
+      <Seo
+        title="Software para restaurantes: precios y planes | QuickTap"
+        description="Planes de QuickTap para restaurantes, locales comerciales y canchas: precios claros en dólares, pago en bolívares a tasa BCV y prueba gratis de 15 días sin tarjeta."
+        path="/precios"
+      />
       {/* Nav flotante, mismo estilo que las demás páginas públicas */}
       <header className="fixed top-4 inset-x-0 z-30 px-4">
         <div className="max-w-2xl mx-auto flex items-center justify-between gap-3 rounded-full bg-brand-950/80 backdrop-blur-md border border-white/10 shadow-lg shadow-brand-950/30 px-4 py-2">

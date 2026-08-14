@@ -1,6 +1,8 @@
 import { NextFunction, Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { buildMetaForSlug, buildSitemap, renderShell } from './seo.service';
+import { env } from '../../config/env';
+import { getStaticSeoPage } from './static-pages';
 
 export const seoController = {
   /** GET /sitemap.xml — páginas fijas + la página pública de cada negocio activo. */
@@ -43,6 +45,49 @@ export const seoController = {
       // Corto a propósito: si el negocio cambia su nombre o su portada, la tarjeta
       // que se comparte en WhatsApp debe actualizarse pronto.
       res.set('Cache-Control', 'public, max-age=300');
+      res.send(html);
+    });
+  },
+
+  /**
+   * Páginas SEO fijas (/menu-digital-qr, /precios, /para/bares, …): mismo shell de
+   * la SPA con el título/descripción del cluster inyectados en el servidor, para que
+   * el crawler los vea sin ejecutar JavaScript. El contenido lo renderiza React.
+   *
+   * `path` viene del montaje de la ruta (static-pages.ts), no de la URL.
+   */
+  staticPage(path: string) {
+    return asyncHandler(async (_req: Request, res: Response, next: NextFunction) => {
+      const page = getStaticSeoPage(path);
+      if (!page) return next();
+
+      const origin = env.appUrl.replace(/\/$/, '');
+      const html = renderShell({
+        title: page.title,
+        description: page.description,
+        canonical: `${origin}${page.path}`,
+        image: `${origin}/logo/quicktap-color.png`,
+        indexable: true,
+        jsonLd: {
+          '@context': 'https://schema.org',
+          '@type': 'WebPage',
+          name: page.title,
+          description: page.description,
+          url: `${origin}${page.path}`,
+          isPartOf: { '@id': `${origin}/#organization` },
+        },
+      });
+
+      if (!html) {
+        console.error('[seo] No se pudo leer web/dist/index.html — revisa WEB_DIST_PATH.');
+        return next();
+      }
+
+      res.removeHeader('Content-Security-Policy');
+      res.type('html');
+      // Contenido editorial: cambia solo con un despliegue, puede cachearse más
+      // que la página de un negocio.
+      res.set('Cache-Control', 'public, max-age=3600');
       res.send(html);
     });
   },

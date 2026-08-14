@@ -4,6 +4,7 @@ import { BusinessType } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
 import { isLocked } from '../../utils/subscription';
+import { listStaticSeoPages } from './static-pages';
 
 /**
  * SEO de las páginas públicas por negocio.
@@ -247,10 +248,11 @@ async function isBusinessLocked(restaurant: {
 
 // --- Sitemap ------------------------------------------------------------------
 
-/** Páginas fijas del sitio, con su prioridad relativa. */
+/** Páginas fijas del sitio, con su prioridad relativa. Las páginas SEO por cluster
+ * (servicios, precios, comparativa y verticales) salen de static-pages.ts. */
 const STATIC_PAGES: { path: string; priority: string; changefreq: string }[] = [
   { path: '/', priority: '1.0', changefreq: 'weekly' },
-  { path: '/planes', priority: '0.8', changefreq: 'monthly' },
+  ...listStaticSeoPages().map((p) => ({ path: p.path, priority: p.priority, changefreq: 'monthly' })),
   { path: '/legal', priority: '0.3', changefreq: 'yearly' },
 ];
 

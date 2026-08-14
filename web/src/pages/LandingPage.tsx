@@ -655,9 +655,11 @@ export default function LandingPage() {
 
   // Título fijo aunque cambie el toggle Restaurantes / Locales / Canchas: la URL es la
   // misma (`/`), así que debe tener un solo título en buscadores.
+  // Cluster G del plan SEO: la home es la única página que persigue "software para
+  // restaurantes" — mantener en espejo con web/index.html.
   useDocumentMeta(
-    'QuickTap — Menú QR, comandas y punto de venta para tu negocio',
-    'Menú digital por QR, pedidos de mesa que llegan directo a cocina, punto de venta, inventario y delivery por WhatsApp. Todo en un solo sistema, desde cualquier navegador.',
+    'QuickTap — Software para restaurantes: menú QR, pedidos y delivery',
+    'Software para gestionar tu restaurante: menú digital QR, pedidos que llegan directo a cocina, delivery por WhatsApp e inventario con recetas. También para locales comerciales y canchas. Prueba gratis 15 días.',
   );
 
   // Contenido de toda la página desde acá para abajo depende del toggle Restaurantes /
@@ -733,7 +735,7 @@ export default function LandingPage() {
           <div className="max-w-2xl mx-auto flex items-center justify-between gap-3 rounded-full bg-brand-950/80 backdrop-blur-md border border-white/10 shadow-lg shadow-brand-950/30 px-4 py-2">
             <img src="/logo/icono-blanco.png" alt="QuickTap" className="h-7 w-7" />
             <nav className="flex items-center gap-1 sm:gap-2">
-              <Link to="/planes" className="hidden sm:inline text-sm text-white/70 hover:text-white px-2 py-1.5">
+              <Link to="/precios" className="hidden sm:inline text-sm text-white/70 hover:text-white px-2 py-1.5">
                 Ver planes
               </Link>
               <Link to="/admin/login" className="text-sm text-white/70 hover:text-white px-2 py-1.5">
@@ -924,7 +926,7 @@ export default function LandingPage() {
                   Regístrate y comienza gratis hoy
                 </TextureButton>
               </Link>
-              <Link to="/planes" className="w-full sm:w-auto">
+              <Link to="/precios" className="w-full sm:w-auto">
                 <button className="w-full sm:w-auto rounded-full border border-brand-950/15 text-brand-950 font-medium px-6 py-2.5 transition-colors hover:bg-brand-950/5 active:scale-[0.97]">
                   Ver precios y planes
                 </button>
@@ -935,6 +937,41 @@ export default function LandingPage() {
 
         {/* Footer */}
         <footer className="border-t border-brand-950/10 bg-white">
+          {/* Mapa de enlaces SEO: la home es el hub del cluster genérico y desde aquí
+              reparte hacia cada página de servicio y vertical (ver data/seoPages.ts). */}
+          <nav aria-label="Funciones y tipos de negocio" className="max-w-5xl mx-auto px-4 pt-10 grid grid-cols-2 sm:grid-cols-3 gap-8 text-sm">
+            <div>
+              <p className="font-semibold text-brand-950 mb-3">Funciones</p>
+              <ul className="space-y-2">
+                <li><Link to="/menu-digital-qr" className="text-brand-950/60 hover:text-brand-950">Menú digital QR</Link></li>
+                <li><Link to="/autopedido-comandas" className="text-brand-950/60 hover:text-brand-950">Sistema de comandas</Link></li>
+                <li><Link to="/pedidos-whatsapp" className="text-brand-950/60 hover:text-brand-950">Pedidos por WhatsApp</Link></li>
+                <li><Link to="/software-delivery" className="text-brand-950/60 hover:text-brand-950">Delivery propio</Link></li>
+                <li><Link to="/menu-pantalla-tv" className="text-brand-950/60 hover:text-brand-950">Menú en pantalla / TV</Link></li>
+                <li><Link to="/inventario-costos" className="text-brand-950/60 hover:text-brand-950">Inventario y costos</Link></li>
+              </ul>
+            </div>
+            <div>
+              <p className="font-semibold text-brand-950 mb-3">Por tipo de negocio</p>
+              <ul className="space-y-2">
+                <li><Link to="/para/bares" className="text-brand-950/60 hover:text-brand-950">Para bares</Link></li>
+                <li><Link to="/para/cafeterias" className="text-brand-950/60 hover:text-brand-950">Para cafeterías</Link></li>
+                <li><Link to="/para/pizzerias" className="text-brand-950/60 hover:text-brand-950">Para pizzerías</Link></li>
+                <li><Link to="/para/comida-rapida" className="text-brand-950/60 hover:text-brand-950">Para comida rápida</Link></li>
+                <li><Link to="/para/food-trucks" className="text-brand-950/60 hover:text-brand-950">Para food trucks</Link></li>
+                <li><Link to="/para/taquerias" className="text-brand-950/60 hover:text-brand-950">Para taquerías</Link></li>
+                <li><Link to="/para/pollerias" className="text-brand-950/60 hover:text-brand-950">Para pollerías</Link></li>
+              </ul>
+            </div>
+            <div>
+              <p className="font-semibold text-brand-950 mb-3">Recursos</p>
+              <ul className="space-y-2">
+                <li><Link to="/precios" className="text-brand-950/60 hover:text-brand-950">Precios y planes</Link></li>
+                <li><Link to="/comparativa" className="text-brand-950/60 hover:text-brand-950">Cómo elegir un software</Link></li>
+                <li><Link to="/legal" className="text-brand-950/60 hover:text-brand-950">Legal</Link></li>
+              </ul>
+            </div>
+          </nav>
           <div className="max-w-5xl mx-auto px-4 py-10 flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <img src="/logo/icono.png" alt="" className="h-7 w-7" />

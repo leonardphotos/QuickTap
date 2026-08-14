@@ -6,6 +6,9 @@ import { MasterAuthProvider } from './context/MasterAuthContext';
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const PlansPage = lazy(() => import('./pages/PlansPage'));
 const LegalPage = lazy(() => import('./pages/LegalPage'));
+const ServicePage = lazy(() => import('./pages/seo/ServicePage'));
+const VerticalPage = lazy(() => import('./pages/seo/VerticalPage'));
+const ComparativaPage = lazy(() => import('./pages/seo/ComparativaPage'));
 const MenuPage = lazy(() => import('./pages/public/MenuPage'));
 const ShopStorefrontPage = lazy(() => import('./pages/public/shop/ShopStorefrontPage'));
 const LoginPage = lazy(() => import('./pages/admin/LoginPage'));
@@ -58,6 +61,13 @@ function LegacyMenuRedirect() {
   return <Navigate to={`/r/${slug}${location.search}`} replace />;
 }
 
+/** /planes -> /precios (slug SEO del cluster de precio), conservando query y hash —
+ * el flujo de registro llega con ?plan=... y no debe perderlo. */
+function PlanesRedirect() {
+  const location = useLocation();
+  return <Navigate to={`/precios${location.search}${location.hash}`} replace />;
+}
+
 /** Cada área (público/admin/maestro) se carga por separado: un visitante del menú nunca descarga el panel. */
 function RouteFallback() {
   return <div className="min-h-screen flex items-center justify-center text-brand-950/30 font-light text-sm">Cargando…</div>;
@@ -72,8 +82,21 @@ export default function App() {
             <Route path="/" element={<LandingPage />} />
             {/* La página de soluciones se fusionó con la Landing (ahora vive debajo del hero). */}
             <Route path="/soluciones" element={<Navigate to="/" replace />} />
-            <Route path="/planes" element={<PlansPage />} />
+            {/* /precios es el slug SEO canónico (cluster de precio); /planes queda como redirección. */}
+            <Route path="/precios" element={<PlansPage />} />
+            <Route path="/planes" element={<PlanesRedirect />} />
             <Route path="/legal" element={<LegalPage />} />
+
+            {/* Páginas SEO por cluster de intención — contenido en web/src/data/seoPages.ts,
+                meta del lado del servidor en src/modules/seo/static-pages.ts (backend). */}
+            <Route path="/menu-digital-qr" element={<ServicePage slug="menu-digital-qr" />} />
+            <Route path="/autopedido-comandas" element={<ServicePage slug="autopedido-comandas" />} />
+            <Route path="/pedidos-whatsapp" element={<ServicePage slug="pedidos-whatsapp" />} />
+            <Route path="/software-delivery" element={<ServicePage slug="software-delivery" />} />
+            <Route path="/menu-pantalla-tv" element={<ServicePage slug="menu-pantalla-tv" />} />
+            <Route path="/inventario-costos" element={<ServicePage slug="inventario-costos" />} />
+            <Route path="/para/:vertical" element={<VerticalPage />} />
+            <Route path="/comparativa" element={<ComparativaPage />} />
             <Route path="/terminos" element={<Navigate to="/legal#terminos" replace />} />
             <Route path="/privacidad" element={<Navigate to="/legal#privacidad" replace />} />
 
