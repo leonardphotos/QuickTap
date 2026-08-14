@@ -69,7 +69,10 @@ function makeUpload(
 }
 
 function makeImageUpload(subdir: string, fieldName: string) {
-  return makeUpload(subdir, fieldName, ALLOWED_MIME, EXT_BY_MIME, 3 * 1024 * 1024, 'Formato de imagen no soportado (usa JPG, PNG o WEBP).');
+  // 10 MB: una foto de comprobante tomada con un teléfono moderno pesa 3-8 MB sin
+  // comprimir — con 3 MB los comprobantes reales rebotaban. `optimizeImage` (sharp)
+  // las reduce después de recibirlas, así que el límite alto no infla el disco.
+  return makeUpload(subdir, fieldName, ALLOWED_MIME, EXT_BY_MIME, 10 * 1024 * 1024, 'Formato de imagen no soportado (usa JPG, PNG o WEBP).');
 }
 
 /** Variante de `makeUpload` para múltiples archivos a la vez (carga masiva de fotos de
@@ -90,7 +93,8 @@ function makeImageUploadArray(subdir: string, fieldName: string, maxCount: numbe
 
   return multer({
     storage,
-    limits: { fileSize: 3 * 1024 * 1024 },
+    // Mismo criterio que makeImageUpload: fotos reales de teléfono pesan 3-8 MB.
+    limits: { fileSize: 10 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
       if (!ALLOWED_MIME.has(file.mimetype)) {
         cb(badRequest('Formato de imagen no soportado (usa JPG, PNG o WEBP).'));

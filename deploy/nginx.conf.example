@@ -14,7 +14,9 @@ server {
     root /var/www/quicktap/web/dist;
     index index.html;
 
-    client_max_body_size 10m;
+    # Debe superar el mayor límite de subida del backend (15 MB, imagen de cartelera —
+    # ver upload.middleware.ts): sin esto Nginx corta en 1 MB y ninguna foto real sube.
+    client_max_body_size 25m;
 
     # Compresión: sin listar los tipos, nginx por defecto solo comprime
     # text/html — los bundles JS/CSS (cientos de KB cada uno) viajarían sin
