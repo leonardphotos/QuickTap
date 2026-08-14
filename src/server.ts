@@ -12,6 +12,7 @@ import { whatsappBotService } from './modules/whatsapp-bot/whatsapp-bot.service'
 import { orderPaymentVerificationService } from './modules/orders/order-payment-verification.service';
 import { masterWhatsappBotService } from './modules/master-whatsapp/master-whatsapp-bot.service';
 import { subscriptionReminderService } from './modules/master-whatsapp/subscription-reminder.service';
+import { clubDebtBotService } from './modules/club/club-debt-bot.service';
 import { subscriptionPaymentVerificationService } from './modules/master-whatsapp/subscription-payment-verification.service';
 import { emitToKitchen, SocketEvents } from './sockets';
 
@@ -106,6 +107,15 @@ async function bootstrap() {
     6 * 60 * 60 * 1000,
   );
 
+  // Cobranza de deudas de clubes por WhatsApp: recordatorio a los 3 días de la deuda,
+  // repetido cada 7 (dedup en ClubDebtReminder) — ver club-debt-bot.service.ts. Cada 6h,
+  // con una primera pasada diferida para dar tiempo a que las sesiones del bot reconecten.
+  const clubDebtReminderKickoff = setTimeout(() => clubDebtBotService.sweepReminders().catch(() => undefined), 3 * 60 * 1000);
+  const clubDebtReminderInterval = setInterval(
+    () => clubDebtBotService.sweepReminders().catch(() => undefined),
+    6 * 60 * 60 * 1000,
+  );
+
   // Mismo barrido de vencidos que orderPaymentVerificationService, pero para comprobantes de
   // RENOVACIÓN de plan (ver subscription-payment-verification.service.ts).
   const SUBSCRIPTION_VERIFICATION_TIMEOUT_MS = 20 * 60 * 1000;
@@ -138,6 +148,8 @@ async function bootstrap() {
     clearInterval(fiscalInvoicingRetryInterval);
     clearInterval(paymentVerificationSweepInterval);
     clearInterval(subscriptionReminderInterval);
+    clearTimeout(clubDebtReminderKickoff);
+    clearInterval(clubDebtReminderInterval);
     clearInterval(subscriptionVerificationSweepInterval);
     masterServerStatusService.stopSampling();
     server.close();

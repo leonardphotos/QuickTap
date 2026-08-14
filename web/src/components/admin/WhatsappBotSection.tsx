@@ -24,6 +24,7 @@ interface StatusResponse {
   whatsappBotWelcomeMessage: string | null;
   whatsappBotPaymentVerifierPhone: string | null;
   whatsappOrderMode: OrderMode;
+  whatsappBotDebtRemindersEnabled: boolean;
 }
 
 // Debe coincidir con DEFAULT_WELCOME_TEMPLATE / DEFAULT_WELCOME_TEMPLATE_CLUB en
@@ -124,6 +125,7 @@ export function WhatsappBotSection({ variant = 'restaurant' }: { variant?: 'rest
     notifyReceived: 'whatsappBotNotifyReceived',
     notifyReady: 'whatsappBotNotifyReady',
     welcomeEnabled: 'whatsappBotWelcomeEnabled',
+    debtRemindersEnabled: 'whatsappBotDebtRemindersEnabled',
   } as const;
 
   async function toggle(key: keyof typeof TOGGLE_FIELD, value: boolean) {
@@ -287,6 +289,54 @@ export function WhatsappBotSection({ variant = 'restaurant' }: { variant?: 'rest
                   </div>
                 )}
               </div>
+            )}
+
+            {variant === 'club' && (
+              <>
+                <div className="pt-2 space-y-2 border-t border-brand-950/[0.06]">
+                  <label className="flex items-center justify-between gap-3 text-sm">
+                    <span className="text-brand-950/80">Recordatorio automático de deudas con cobro por comprobante</span>
+                    <input
+                      type="checkbox"
+                      checked={data.whatsappBotDebtRemindersEnabled}
+                      disabled={!canManage}
+                      onChange={(e) => toggle('debtRemindersEnabled', e.target.checked)}
+                    />
+                  </label>
+                  <p className="text-xs text-brand-950/50 font-light">
+                    A los 3 días de una deuda (reserva, tienda fiada o mensualidad de academia) el chatbot le recuerda
+                    al cliente el monto pendiente — con tus datos de Pago Móvil — y lo repite cada 7 días mientras siga
+                    sin pagar. El cliente responde con la foto de su comprobante, esta llega al número verificador de
+                    abajo y, al responder <em>Aprobado</em>, el pago se registra solo en Administración con su método.
+                  </p>
+                </div>
+
+                <div className="pt-1 space-y-2">
+                  <label className="text-sm text-brand-950/80">
+                    Número que verifica los pagos (recibe cada comprobante y responde Aprobado/Rechazado)
+                  </label>
+                  <p className="text-xs text-brand-950/50 font-light">
+                    Puede indicar el método al aprobar: <em>"Aprobado zelle"</em>, <em>"Aprobado efectivo"</em>… — sin
+                    indicarlo, se registra como Pago Móvil. Sin este número, los comprobantes de deuda no tienen a
+                    dónde llegar.
+                  </p>
+                  <WhatsappPhoneInput value={verifierDraft} onChange={setVerifierDraft} disabled={!canManage} />
+                  {canManage && (
+                    <div className="flex items-center gap-2">
+                      <TextureButton
+                        variant="secondary"
+                        size="sm"
+                        className="!w-auto"
+                        disabled={savingVerifier}
+                        onClick={saveVerifierPhone}
+                      >
+                        {savingVerifier ? 'Guardando…' : 'Guardar número'}
+                      </TextureButton>
+                      {verifierSaved && <span className="text-xs text-emerald-700">Guardado.</span>}
+                    </div>
+                  )}
+                </div>
+              </>
             )}
 
             {variant === 'restaurant' && (

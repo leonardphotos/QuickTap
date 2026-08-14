@@ -19,6 +19,7 @@ import { emitToKitchen, SocketEvents } from '../../sockets';
 import { formatVenezuelanWhatsappPhone, PAYMENT_LABELS, renderWhatsappTemplate } from '../../utils/whatsapp';
 import { UpdateWhatsappBotSettingsInput } from './whatsapp-bot.dto';
 import { orderPaymentVerificationService } from '../orders/order-payment-verification.service';
+import { clubDebtBotService } from '../club/club-debt-bot.service';
 import { CURRENCY_SYMBOLS, formatBs, formatMoney } from '../../utils/money';
 
 /**
@@ -290,7 +291,16 @@ export const whatsappBotService = {
       restaurant.whatsappBotPaymentVerifierPhone.replace(/\D/g, '') === phoneDigits
     ) {
       const text = content.conversation ?? content.extendedTextMessage?.text;
-      if (text) await this.routeVerifierReply(restaurantId, text);
+      if (text) {
+        // En clubes, el verificador también resuelve comprobantes de DEUDA (recordatorio
+        // de cobranza) — se intenta primero ese flujo y, si no hay ninguno esperando,
+        // cae al de pedidos de siempre.
+        if (restaurant.businessType === 'SPORTS_CLUB') {
+          const handled = await this.routeClubDebtVerifierReply(restaurantId, text);
+          if (handled) return;
+        }
+        await this.routeVerifierReply(restaurantId, text);
+      }
       return;
     }
 
@@ -298,6 +308,13 @@ export const whatsappBotService = {
     // esperando comprobante de ese teléfono, se ignora en silencio (no cae al saludo: una
     // foto no es un "primer mensaje" típico de un cliente nuevo).
     if (content.imageMessage) {
+      // Club: una foto de un cliente con deuda abierta es su comprobante de pago
+      // (flujo de cobranza — ver club-debt-bot.service.ts). Si no debe nada, cae al
+      // matching de pedidos de siempre.
+      if (restaurant.businessType === 'SPORTS_CLUB') {
+        const handled = await this.routeClubDebtProofImage(restaurantId, phoneDigits, msg);
+        if (handled) return;
+      }
       await this.routeIncomingProofImage(restaurantId, phoneDigits, msg);
       return;
     }
@@ -372,6 +389,86 @@ export const whatsappBotService = {
       phoneDigits,
       '📥 Recibimos tu comprobante, estamos confirmando tu pago con el restaurante.',
     );
+  },
+
+  /**
+   * Club: foto de un cliente con deuda abierta = comprobante de cobranza. Devuelve false
+   * si ese teléfono no debe nada (el caller sigue con el flujo de pedidos).
+   */
+  async routeClubDebtProofImage(restaurantId: string, phoneDigits: string, msg: WAMessage): Promise<boolean> {
+    const match = await clubDebtBotService.matchDebtByPhone(restaurantId, phoneDigits).catch(() => null);
+    if (!match) return false;
+
+    let buffer: Buffer;
+    try {
+      buffer = (await downloadMediaMessage(msg, 'buffer', {})) as Buffer;
+    } catch (err) {
+      console.error('[whatsapp-bot] no se pudo descargar el comprobante de deuda:', err);
+      return true;
+    }
+
+    const dir = path.join(UPLOADS_DIR, 'whatsapp-payment-proofs', restaurantId);
+    fs.mkdirSync(dir, { recursive: true });
+    const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}.jpg`;
+    fs.writeFileSync(path.join(dir, filename), buffer);
+    const proofImageUrl = `/uploads/whatsapp-payment-proofs/${restaurantId}/${filename}`;
+
+    const { verification, shouldForwardNow } = await clubDebtBotService.createVerification(
+      restaurantId,
+      match.source,
+      match.row,
+      phoneDigits,
+      proofImageUrl,
+    );
+
+    if (shouldForwardNow) {
+      const restaurant = await prisma.restaurant.findUnique({
+        where: { id: restaurantId },
+        select: { whatsappBotPaymentVerifierPhone: true },
+      });
+      if (restaurant?.whatsappBotPaymentVerifierPhone) {
+        const caption = await clubDebtBotService.buildVerifierCaption(verification);
+        await this.sendImage(restaurantId, restaurant.whatsappBotPaymentVerifierPhone, buffer, caption);
+      }
+    }
+
+    await this.sendMessage(restaurantId, phoneDigits, '📥 Recibimos tu comprobante, estamos confirmando tu pago. Te avisamos por aquí.');
+    return true;
+  },
+
+  /** Club: "Aprobado"/"Rechazado" del verificador sobre un comprobante de DEUDA. Devuelve
+   * false si no había ninguno esperando (el caller prueba con el flujo de pedidos). */
+  async routeClubDebtVerifierReply(restaurantId: string, text: string): Promise<boolean> {
+    const result = await clubDebtBotService.resolveVerifierReply(restaurantId, text).catch(() => ({ handled: false as const }));
+    if (!result.handled) return false;
+
+    if (result.action === 'approve') {
+      await this.sendMessage(
+        restaurantId,
+        result.verification.customerPhone,
+        '✅ ¡Tu pago fue confirmado! Tu deuda quedó al día. Gracias por ponerte al corriente.',
+      );
+    } else {
+      await this.sendMessage(
+        restaurantId,
+        result.verification.customerPhone,
+        '⚠️ No pudimos confirmar tu pago con ese comprobante. Revísalo y reenvíalo por este chat, por favor.',
+      );
+    }
+
+    // Siguiente comprobante de deuda en cola, si hay.
+    const next = await clubDebtBotService.dequeueNext(restaurantId);
+    if (next) {
+      const restaurant = await prisma.restaurant.findUnique({
+        where: { id: restaurantId },
+        select: { whatsappBotPaymentVerifierPhone: true },
+      });
+      if (restaurant?.whatsappBotPaymentVerifierPhone && next.image) {
+        const caption = await clubDebtBotService.buildVerifierCaption(next.verification);
+        await this.sendImage(restaurantId, restaurant.whatsappBotPaymentVerifierPhone, next.image, caption);
+      }
+    }
+    return true;
   },
 
   /** Respuesta del verificador: "Aprobado" acepta el pedido a cocina, "Rechazado" según el
@@ -466,6 +563,9 @@ export const whatsappBotService = {
             }
           : {}),
         ...(input.orderMode !== undefined ? { whatsappOrderMode: input.orderMode } : {}),
+        ...(input.debtRemindersEnabled !== undefined
+          ? { whatsappBotDebtRemindersEnabled: input.debtRemindersEnabled }
+          : {}),
       },
       select: {
         whatsappBotNotifyReceived: true,
@@ -474,6 +574,7 @@ export const whatsappBotService = {
         whatsappBotWelcomeMessage: true,
         whatsappBotPaymentVerifierPhone: true,
         whatsappOrderMode: true,
+        whatsappBotDebtRemindersEnabled: true,
       },
     });
   },

@@ -561,6 +561,9 @@ async function debts(restaurantId: string) {
         name: b.playerName,
         phone: b.playerPhone,
         detail: `${b.block?.court.name ?? 'Cancha'} · ${b.block?.startsAt.toISOString().slice(0, 10) ?? ''}`,
+        // Desde cuándo existe la deuda — lo usa el recordatorio por WhatsApp (regla
+        // de los 3 días, ver club-debt-bot.service.ts).
+        since: (b.block?.startsAt ?? b.createdAt).toISOString(),
         dueBase: due.toFixed(2),
         paidBase: round2(paid).toFixed(2),
         balanceBase: balance.toFixed(2),
@@ -577,6 +580,7 @@ async function debts(restaurantId: string) {
         name: s.customerName ?? 'Sin nombre',
         phone: s.customerPhone ?? null,
         detail: `Tienda · ${s.time.toISOString().slice(0, 10)}`,
+        since: s.time.toISOString(),
         dueBase: s.total.toFixed(2),
         paidBase: paid.toFixed(2),
         balanceBase: Math.max(0, s.total - paid).toFixed(2),
@@ -597,6 +601,7 @@ async function debts(restaurantId: string) {
         name: c.enrollment.student.customer.name,
         phone: c.enrollment.student.customer.phone,
         detail: `${c.enrollment.group.name} · ${String(c.periodMonth).padStart(2, '0')}/${c.periodYear}`,
+        since: c.dueDate.toISOString(),
         dueBase: c.amountBase.toFixed(2),
         paidBase: round2(paid).toFixed(2),
         balanceBase: balance.toFixed(2),

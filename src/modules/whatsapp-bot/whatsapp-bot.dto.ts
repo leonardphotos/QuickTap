@@ -12,6 +12,9 @@ export const updateWhatsappBotSettingsSchema = z.object({
   // 'PAYMENT_VERIFICATION' (de siempre) = solo pide comprobante en métodos que lo exigen.
   // 'FULL_ORDER' = manda el pedido completo a paymentVerifierPhone para confirmación manual.
   orderMode: z.enum(['PAYMENT_VERIFICATION', 'FULL_ORDER']).optional(),
+  // Solo clubes: recordatorio automático de deudas (3 días + repetición semanal) — ver
+  // club-debt-bot.service.ts.
+  debtRemindersEnabled: z.boolean().optional(),
 });
 
 export type UpdateWhatsappBotSettingsInput = z.infer<typeof updateWhatsappBotSettingsSchema>;
