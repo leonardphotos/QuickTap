@@ -114,14 +114,14 @@ export function isDeliveryTierPlan(plan?: string | null): boolean {
 
 /**
  * Planes que habilitan crear sucursales. Desde la reestructuración a 3 planes
- * (Delivery/Pro/Elite), los tres vigentes traen sucursales ILIMITADAS —
+ * (Delivery/Pro/Elite), Delivery y Elite traen sucursales ILIMITADAS (Pro ya no incluye) —
  * SUCURSALES/DELIVERY_SUCURSALES son planes legados (ya no se ofrecen a
  * clientes nuevos, ver maxBranchesFor) que siguen topados en 5.
  */
 export function allowsBranches(plan?: string | null): boolean {
+  // Pro ya no incluye sucursales (quedan para Elite y los planes legados de sucursales).
   return (
     plan === 'DELIVERY' ||
-    plan === 'PRO' ||
     plan === 'ELITE' ||
     plan === 'SUCURSALES' ||
     plan === 'DELIVERY_SUCURSALES'
@@ -131,16 +131,17 @@ export function allowsBranches(plan?: string | null): boolean {
 /** [Legado] Tope de sucursales de SUCURSALES/DELIVERY_SUCURSALES, los únicos planes que aún limitan. */
 export const MAX_BRANCHES = 5;
 
-/** Tope de sucursales según el plan — null significa sin límite (Delivery/Pro/Elite). */
+/** Tope de sucursales según el plan — null significa sin límite (Delivery/Elite). */
 export function maxBranchesFor(plan?: string | null): number | null {
   if (plan === 'SUCURSALES' || plan === 'DELIVERY_SUCURSALES') return MAX_BRANCHES;
   return null;
 }
 
 export function hasFeature(restaurant: FeatureCheckRestaurant, feature: FeatureFlag): boolean {
-  // Plan Pro (único plan completo desde la reducción a 2 planes): todos los beneficios,
-  // igual que Premium (mantenido por compatibilidad con restaurantes ya activados en él).
-  // Sucursales trae exactamente los mismos beneficios que Pro, más sucursales.
+  // Plan Pro: completo SALVO el inventario por receta (y con él, Producción/preparaciones,
+  // que cuelga del mismo flag) — Pro incluye solo inventario por stock; recetas son de Elite.
+  if (restaurant.subscriptionPlan === 'PRO') return feature !== 'inventoryRecipe';
+  // Premium/Sucursales (legados) y Elite: todos los beneficios.
   if (isFullTierPlan(restaurant.subscriptionPlan)) return true;
   // QuickTap Shop y QuickTap Club tienen un plan único: no hay nada a lo que mejorar, así que
   // su plan incluye todo lo que el negocio necesita. Sin esto, el botón "Añadir egreso"

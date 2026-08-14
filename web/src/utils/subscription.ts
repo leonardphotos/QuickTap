@@ -45,14 +45,14 @@ export function isDeliveryTierPlan(plan?: string | null): boolean {
 }
 
 /**
- * Planes que habilitan crear sucursales. Los 3 planes vigentes (Delivery/Pro/Elite) traen
+ * Planes que habilitan crear sucursales. Delivery y Elite traen
  * sucursales ILIMITADAS; SUCURSALES/DELIVERY_SUCURSALES son legados (ya no se ofrecen a
  * clientes nuevos) que se mantienen topados en 5, ver MAX_BRANCHES en el backend.
  */
 export function allowsBranches(plan?: string | null): boolean {
+  // Pro ya no incluye sucursales (espejo del backend).
   return (
     plan === 'DELIVERY' ||
-    plan === 'PRO' ||
     plan === 'ELITE' ||
     plan === 'SUCURSALES' ||
     plan === 'DELIVERY_SUCURSALES'
@@ -61,7 +61,9 @@ export function allowsBranches(plan?: string | null): boolean {
 
 export function hasFeature(restaurant: FeatureCheckRestaurant | null | undefined, feature: FeatureFlag): boolean {
   if (!restaurant) return false;
-  // Sucursales trae exactamente los mismos beneficios que Pro, más sucursales.
+  // Pro: completo salvo inventario por receta/producción — solo inventario por stock
+  // (espejo del mismo caso en el backend; los dos tienen que decir lo mismo).
+  if (restaurant.subscriptionPlan === 'PRO') return feature !== 'inventoryRecipe';
   if (isFullTierPlan(restaurant.subscriptionPlan)) return true;
   // QuickTap Shop y QuickTap Club: plan único, incluye todo lo que el negocio necesita (ver el
   // mismo caso en src/utils/subscription.ts del backend — los dos tienen que decir lo mismo).

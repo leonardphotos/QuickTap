@@ -26,7 +26,7 @@ export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP' | 'CLUB';
  * del backend (src/modules/plan-requests/plan-request.service.ts), que es la
  * única fuente de verdad real: aquí solo se usa para mostrar el precio antes
  * de enviar la solicitud. Tres planes vigentes de Restaurante: Delivery, Pro y
- * Elite, los tres con sucursales ilimitadas (ver allowsBranches en
+ * Elite (Pro sin sucursales — ver allowsBranches en
  * utils/subscription.ts). SHOP es el único plan de Locales Comerciales, CLUB
  * el único de Canchas.
  */

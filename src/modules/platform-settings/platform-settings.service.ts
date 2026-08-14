@@ -105,12 +105,12 @@ export const DEFAULT_PLAN_CONTENT: PlanContent = {
   PRO: {
     name: 'Plan Pro',
     subtitle: 'Todos los beneficios de QuickTap',
-    capacity: 'Mesas, pedidos y sucursales ilimitadas',
+    capacity: 'Mesas y pedidos ilimitados',
     features: [
       'Usuarios ilimitados',
       'Administración, propinas y reportes de ventas',
       'Margen de utilidad por producto',
-      'Inventario por receta: descuenta insumos automáticamente al vender',
+      'Inventario por stock: existencias, compras y alertas de agotados',
       'Gastos y cuentas por pagar',
       ...CHATBOT_FEATURES,
     ],
