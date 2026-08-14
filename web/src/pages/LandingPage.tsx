@@ -266,7 +266,7 @@ const SHOWCASES: Showcase[] = [
     mock: (
       <PhoneMockup
         src="/images/restaurant-delivery-captura.jpg"
-        alt="Checkout real de delivery con los datos del cliente y el botón para enviar el pedido por WhatsApp"
+        alt="Checkout de delivery real de All Grill Chirikayen, con el envío calculado por zona y el botón para enviar el pedido por WhatsApp"
       />
     ),
   },

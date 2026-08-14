@@ -174,8 +174,9 @@ export const SEO_SERVICES: SeoServicePage[] = [
       'Tú solo confirmas. El pedido queda también registrado en tu panel, así que no vives copiando mensajes a un cuaderno — la venta entra al sistema sola, con su cliente y su historial.',
     ],
     screenshot: {
+      // Checkout real de un cliente (All Grill Chirikayen), con envío por zona calculado.
       src: '/images/restaurant-delivery-captura.jpg',
-      alt: 'Carrito de pedido en línea con el botón de enviar pedido por WhatsApp, nombre y teléfono del cliente completados',
+      alt: 'Pedido de delivery de All Grill Chirikayen listo para enviarse por WhatsApp, con el envío calculado por zona y el total en bolívares',
     },
     features: [
       { title: 'Pedido completo, no un audio', text: 'Productos, variantes, extras, notas, dirección y pago — todo en un solo mensaje ordenado.' },
