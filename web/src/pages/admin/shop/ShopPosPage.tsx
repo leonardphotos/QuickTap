@@ -4,7 +4,7 @@ import { Camera, CheckCircle2, ClipboardList, Loader2, MessageCircle, Minus, Plu
 import { api } from '@/api/client';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { useAuth } from '@/context/AuthContext';
-import type { PaymentMethodKey, StaffMember } from '@/types';
+import type { PaymentMethodKey, PaymentMethodsConfig } from '@/types';
 import {
   METHODS_ALLOWING_PROOF,
   METHODS_REQUIRING_PROOF_OR_REFERENCE,
@@ -31,6 +31,17 @@ interface Props {
   session: ShopSession;
   restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate' | 'name' | 'paymentMethodsConfig'>;
   rubro: ShopRubro;
+}
+
+/** Profesional que presta servicios, tal como lo devuelve GET /shop/service-providers — a
+ * propósito más chico que StaffMember (sin email/role/etc.): ese endpoint solo expone lo
+ * necesario para "Atendido por" y, si quien pide la lista es él mismo un barbero, SOLO
+ * su propia fila (nunca los datos de cobro de sus compañeros — ver shop.service.ts). */
+interface ServiceProvider {
+  id: string;
+  name: string;
+  commissionPercent: number | null;
+  paymentMethodsConfig: PaymentMethodsConfig | null;
 }
 
 /** Métodos de pago cuyo monto se cobra naturalmente en dólares — el recibo de WhatsApp muestra
@@ -207,13 +218,16 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const [scanCameraOpen, setScanCameraOpen] = useState(false);
 
   // Profesionales que prestan servicios (barberos/estilistas) y a quién se le acredita la venta.
-  const [providers, setProviders] = useState<StaffMember[]>([]);
+  // GET /shop/service-providers (no /team): si quien pide la lista es él mismo un barbero, el
+  // backend le devuelve SOLO su propia fila — nunca los datos de cobro de sus compañeros, ni
+  // siquiera en la respuesta de red. Ver shop.service.ts#listServiceProviders.
+  const [providers, setProviders] = useState<ServiceProvider[]>([]);
 
   useEffect(() => {
     api
-      .get('/team')
+      .get('/shop/service-providers')
       .then((res) => {
-        const list = (res.data.data as StaffMember[]).filter((u) => u.isServiceProvider && u.isActive);
+        const list = res.data.data as ServiceProvider[];
         setProviders(list);
         // Si quien está cobrando es él mismo un barbero, se preselecciona: en la práctica cada
         // uno carga sus propios cortes desde su sesión.
@@ -223,6 +237,9 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   }, [user?.id]);
 
   const activeProvider = providers.find((p) => p.id === activeStaffUserId) ?? null;
+  // El backend ya resolvió que quien pide la lista es él mismo un barbero (le mandó solo su
+  // propia fila): el selector queda fijo en su nombre, sin poder ver ni elegir a otro.
+  const lockedToSelfProvider = Boolean(user && providers.length === 1 && providers[0].id === user.id);
 
   const [fiadoOpen, setFiadoOpen] = useState(false);
   const [fiadoStep, setFiadoStep] = useState<'choose' | 'installment'>('choose');
@@ -754,26 +771,41 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
         </div>
 
         <div ref={cartPanelRef} className="w-full lg:w-[360px] shrink-0 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-5 flex flex-col gap-4">
-          {providers.length > 0 && (
-            <label className="block text-sm">
+          {lockedToSelfProvider ? (
+            // Quien cobra es él mismo un barbero: fijo en su propio nombre, sin dropdown — no
+            // debe poder ver ni elegir a ningún compañero (y el backend nunca le mandó sus datos).
+            <div className="block text-sm">
               <span className="text-brand-950/70">Atendido por</span>
-              <select
-                value={activeStaffUserId}
-                onChange={(e) => setActiveStaffUserId(e.target.value)}
-                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-              >
-                <option value="">— Sin asignar —</option>
-                {providers.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                    {p.commissionPercent ? ` · ${p.commissionPercent}%` : ''}
-                  </option>
-                ))}
-              </select>
+              <p className="mt-1 w-full rounded-lg border border-brand-950/15 bg-brand-950/[0.03] px-3 py-2 text-sm font-medium text-brand-950">
+                {providers[0].name}
+                {providers[0].commissionPercent ? ` · ${providers[0].commissionPercent}%` : ''}
+              </p>
               <span className="mt-1 block text-[11px] text-brand-950/45">
-                Se le acredita lo que agregues al carrito desde ahora. Cámbialo antes de agregar si atiende otro.
+                Cobras con tus propios datos de pago. Se te acredita lo que agregues al carrito.
               </span>
-            </label>
+            </div>
+          ) : (
+            providers.length > 0 && (
+              <label className="block text-sm">
+                <span className="text-brand-950/70">Atendido por</span>
+                <select
+                  value={activeStaffUserId}
+                  onChange={(e) => setActiveStaffUserId(e.target.value)}
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                >
+                  <option value="">— Sin asignar —</option>
+                  {providers.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                      {p.commissionPercent ? ` · ${p.commissionPercent}%` : ''}
+                    </option>
+                  ))}
+                </select>
+                <span className="mt-1 block text-[11px] text-brand-950/45">
+                  Se le acredita lo que agregues al carrito desde ahora. Cámbialo antes de agregar si atiende otro.
+                </span>
+              </label>
+            )
           )}
 
           <div className="flex items-center justify-between">

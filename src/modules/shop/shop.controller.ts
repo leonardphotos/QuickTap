@@ -23,6 +23,10 @@ export const shopController = {
     res.json({ data: await shopService.getState(req.restaurantId!) });
   }),
 
+  listServiceProviders: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await shopService.listServiceProviders(req.restaurantId!, req.auth!.userId) });
+  }),
+
   createProduct: asyncHandler(async (req: Request, res: Response) => {
     const input = createShopProductSchema.parse(req.body);
     res.status(201).json({ data: await shopService.createProduct(req.restaurantId!, input) });

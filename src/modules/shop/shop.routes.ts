@@ -9,6 +9,7 @@ const router = Router();
 router.use(tenantGuard);
 
 router.get('/state', shopController.getState);
+router.get('/service-providers', shopController.listServiceProviders);
 
 router.post('/products', shopController.createProduct);
 // Antes de '/products/:id': si no, Express tomaría "published" como un id de producto.

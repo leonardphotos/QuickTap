@@ -95,6 +95,26 @@ export const shopService = {
     return { products, sales, purchases, adjustments, categories: categories.map((c) => c.name), subcategories: subcategoriesByCategory, till, closedTills, serviceSupplies };
   },
 
+  /**
+   * Profesionales que prestan servicios (barberos/estilistas) para el selector "Atendido por"
+   * del POS. A propósito NO reutiliza `/team` (que devuelve el `paymentMethodsConfig` de TODO
+   * el personal, pensado para que Ajustes → Equipo lo administre): en una barbería cada
+   * profesional cobra con sus propios datos de Pago Móvil/Zelle, y si el que pide la lista es
+   * él mismo un barbero, no debe recibir ni ver — ni siquiera en la respuesta de red — los
+   * datos de cobro de sus compañeros. Solo alguien que NO presta servicios (recepción, un
+   * administrador que no es barbero) puede ver la lista completa, porque necesita elegir a
+   * quién se le paga.
+   */
+  async listServiceProviders(restaurantId: string, requestingUserId: string) {
+    const providers = await prisma.user.findMany({
+      where: { restaurantId, isServiceProvider: true, isActive: true },
+      select: { id: true, name: true, commissionPercent: true, paymentMethodsConfig: true },
+      orderBy: { name: 'asc' },
+    });
+    const self = providers.find((p) => p.id === requestingUserId);
+    return self ? [self] : providers;
+  },
+
   // --- Catálogo ---
 
   async createProduct(restaurantId: string, input: CreateShopProductInput) {
