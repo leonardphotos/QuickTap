@@ -105,6 +105,25 @@ function makeImageUploadArray(subdir: string, fieldName: string, maxCount: numbe
   }).array(fieldName, maxCount);
 }
 
+/**
+ * Soportes administrativos (facturas, retenciones, comprobantes de transferencia): además de
+ * las fotos acepta PDF, que es como llegan casi todas las facturas y planillas de retención.
+ * `optimizeImage` ignora los PDF, así que se guardan tal cual llegan.
+ */
+const DOCUMENT_MIME = new Set([...ALLOWED_MIME, 'application/pdf']);
+const DOCUMENT_EXT_BY_MIME: Record<string, string> = { ...EXT_BY_MIME, 'application/pdf': '.pdf' };
+
+function makeDocumentUpload(subdir: string, fieldName: string) {
+  return makeUpload(
+    subdir,
+    fieldName,
+    DOCUMENT_MIME,
+    DOCUMENT_EXT_BY_MIME,
+    10 * 1024 * 1024,
+    'Formato no soportado (usa JPG, PNG, WEBP o PDF).',
+  );
+}
+
 export const uploadProductPhoto = makeImageUpload('products', 'photo');
 export const uploadProductPhotosBulk = makeImageUploadArray('products', 'photos', 100);
 export const uploadInventoryPhoto = makeImageUpload('inventory', 'photo');
@@ -128,6 +147,9 @@ export const uploadPlanPaymentProof = makeImageUpload('plan-payment-proofs', 'ph
 export const uploadOrderPaymentProof = makeImageUpload('order-payment-proofs', 'photo');
 // Comprobante de pago de una reserva de cancha (botón "Caja" en Canchas) — ver club.service.ts addBookingPayment.
 export const uploadClubPaymentProof = makeImageUpload('club-payment-proofs', 'photo');
+// Soportes de una orden de pago a proveedores (factura, retenciones, comprobante de la
+// transferencia): imágenes o PDF, tanto al emitir la orden como al registrar el pago.
+export const uploadPaymentOrderDocument = makeDocumentUpload('payment-order-docs', 'file');
 // Imagen de "Modo Cartelera" (pantalla completa del menú público). Estas
 // imágenes suelen ser piezas verticales grandes; `optimizeImage` de abajo
 // se encarga de bajarlas a un tamaño razonable para celular.
@@ -203,7 +225,15 @@ export function optimizeImage(maxWidth: number, maxHeight: number, quality = 80)
       pipeline = pipeline.jpeg({ quality, mozjpeg: true });
     }
 
-    await pipeline.toFile(tmpPath);
+    try {
+      await pipeline.toFile(tmpPath);
+    } catch {
+      // Archivo que dice ser imagen pero sharp no puede leer (descarga a medias, extensión
+      // cambiada a mano). Se borra y se avisa en cristiano, en vez de filtrar el error de sharp.
+      fs.rmSync(tmpPath, { force: true });
+      fs.rmSync(filePath, { force: true });
+      throw badRequest('No pudimos leer esa imagen: parece estar dañada. Prueba con otra foto o un PDF.');
+    }
     const { size } = fs.statSync(tmpPath);
     fs.renameSync(tmpPath, filePath);
     req.file.size = size;

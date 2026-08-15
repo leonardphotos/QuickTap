@@ -1684,6 +1684,13 @@ model PaymentOrder {
   supplier      Supplier?  @relation(fields: [supplierId], references: [id], onDelete: SetNull)
   createdByUser User?      @relation("PaymentOrderCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
   paidByUser    User?      @relation("PaymentOrderPaidBy", fields: [paidByUserId], references: [id], onDelete: SetNull)
+  /// Soportes de la orden y de su pago: facturas, notas de crédito, planillas de retención y
+  /// comprobantes de transferencia. Array de `{ url, name, type: 'image' | 'pdf', stage }`,
+  /// donde `stage` distingue lo cargado al emitirla ('ORDER') de lo cargado al pagarla ('PAYMENT').
+  /// JSON y no una tabla aparte: son adjuntos sueltos de un solo documento, nunca se consultan
+  /// por separado (mismo criterio que `paymentMethodsConfig`).
+  attachments   Json?
+
   /// Los gastos que esta orden salda.
   movements     Movement[]
 

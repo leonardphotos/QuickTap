@@ -3,6 +3,20 @@ import { PaymentMethod } from '@prisma/client';
 
 const PAYMENT_METHODS = Object.values(PaymentMethod) as [PaymentMethod, ...PaymentMethod[]];
 
+/**
+ * Un soporte adjunto a la orden: factura, nota de crédito, planilla de retención o el
+ * comprobante de la transferencia. `url` es la ruta que devolvió /payment-orders/upload-document.
+ */
+export const paymentOrderAttachmentSchema = z.object({
+  url: z.string().min(1).max(300),
+  name: z.string().min(1).max(160),
+  type: z.enum(['image', 'pdf']),
+  // 'ORDER' = cargado al emitir la orden; 'PAYMENT' = cargado al registrar el pago.
+  stage: z.enum(['ORDER', 'PAYMENT']).optional().default('ORDER'),
+});
+
+export type PaymentOrderAttachment = z.infer<typeof paymentOrderAttachmentSchema>;
+
 /** Emitir una orden: qué cuentas por pagar entran. El monto lo calcula el servidor a partir
  * de esos gastos — nunca se confía en un total mandado por el cliente. */
 export const createPaymentOrderSchema = z.object({
@@ -10,6 +24,8 @@ export const createPaymentOrderSchema = z.object({
   // Solo se usa si ninguno de los gastos tenía proveedor cargado.
   supplierId: z.string().min(1).nullish(),
   note: z.string().max(300).nullish(),
+  // Soportes de la orden (facturas, presupuestos): imágenes o PDF ya subidos.
+  attachments: z.array(paymentOrderAttachmentSchema).max(10).optional(),
 });
 
 export type CreatePaymentOrderInput = z.infer<typeof createPaymentOrderSchema>;
@@ -31,6 +47,9 @@ export const payPaymentOrderSchema = z.object({
   totalWithIvaBase: z.coerce.number().nonnegative().max(10000000).nullish(),
   // De cuál cuenta bancaria salió el dinero, cuando el método tiene varias.
   bankAccountId: z.string().max(60).nullish(),
+  // Soportes del pago (comprobante de transferencia, planilla de retención): se suman a los
+  // que ya traía la orden, no los reemplazan.
+  attachments: z.array(paymentOrderAttachmentSchema).max(10).optional(),
 });
 
 export type PayPaymentOrderInput = z.infer<typeof payPaymentOrderSchema>;

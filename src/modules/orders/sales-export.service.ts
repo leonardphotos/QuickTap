@@ -5,6 +5,7 @@ import { PAYMENT_LABELS } from '../../utils/whatsapp';
 import { round2, toDecimal } from '../../utils/money';
 import { describeDateSpec } from '../../utils/date-range';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
+import { applyMoneyFormat, caracasParts, styleHeader } from '../../utils/excel';
 import type { OrderHistoryQuery } from './order.dto';
 import { orderService } from './order.service';
 
@@ -37,33 +38,6 @@ const METHOD_CURRENCY: Record<PaymentMethod, 'BS' | 'USD'> = {
  * el cobro fue en divisa.
  */
 const USD_SHOP_LABELS = new Set(['Efectivo $', 'Zelle', 'Binance', 'PayPal']);
-
-/** Formatea una fecha en hora de Caracas y devuelve fecha y hora por separado. */
-function caracasParts(date: Date): { fecha: string; hora: string } {
-  const fecha = new Intl.DateTimeFormat('es-VE', {
-    timeZone: 'America/Caracas',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  }).format(date);
-  const hora = new Intl.DateTimeFormat('es-VE', {
-    timeZone: 'America/Caracas',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(date);
-  return { fecha, hora };
-}
-
-function styleHeader(sheet: ExcelJS.Worksheet) {
-  sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-  sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0A1428' } };
-  sheet.views = [{ state: 'frozen', ySplit: 1 }];
-}
-
-function applyMoneyFormat(sheet: ExcelJS.Worksheet, keys: string[]) {
-  for (const key of keys) sheet.getColumn(key).numFmt = '#,##0.00';
-}
 
 export const salesExportService = {
   /**

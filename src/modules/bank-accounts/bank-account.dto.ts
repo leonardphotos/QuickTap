@@ -26,7 +26,9 @@ export const transferSchema = z.object({
   fromId: z.string().min(1),
   toId: z.string().min(1),
   amount: z.coerce.number().positive().max(1000000000),
-  note: z.string().max(200).nullish(),
+  // Concepto de la transferencia: obligatorio, es lo que queda escrito en el movimiento de
+  // las dos cuentas — sin él, el libro del banco no explica por qué se movió la plata.
+  note: z.string().trim().min(1, 'Escribe el concepto de la transferencia.').max(200),
 });
 
 /** Ajuste manual de saldo (conciliación contra el banco real), en la moneda de la cuenta. */

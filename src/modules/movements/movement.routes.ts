@@ -14,6 +14,9 @@ router.use(requireFeature('administration'));
 router.get('/', requireRole('OWNER', 'ADMIN', 'CASHIER'), movementController.list);
 // Export/import Excel del libro son contabilidad avanzada (Elite / Elite Shop / Club).
 router.get('/export', requireRole('OWNER', 'ADMIN', 'CASHIER'), requireFeature('accounting'), movementController.exportExcel);
+// Libros fiscales en Excel (Administración → Libros fiscales y módulo Compras).
+router.get('/export/purchase-book', requireRole('OWNER', 'ADMIN', 'CASHIER'), requireFeature('accounting'), movementController.exportPurchaseBook);
+router.get('/export/sales-book', requireRole('OWNER', 'ADMIN', 'CASHIER'), requireFeature('accounting'), movementController.exportSalesBook);
 const mutate = requireRoleOrCashierFullAccess('OWNER', 'ADMIN');
 // Carga del historial financiero por Excel (Contabilidad): plantilla + import masivo.
 router.get('/import-template', mutate, requireFeature('accounting'), movementController.downloadImportTemplate);

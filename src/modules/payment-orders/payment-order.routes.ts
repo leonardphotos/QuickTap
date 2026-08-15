@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireFeature, requireRole, requireRoleOrCashierFullAccess, tenantGuard } from '../../middlewares/auth.middleware';
+import { optimizeImage, uploadPaymentOrderDocument } from '../../middlewares/upload.middleware';
 import { paymentOrderController } from './payment-order.controller';
 
 /** Base: /api/v1/payment-orders — cuentas por pagar a proveedores y sus órdenes de pago. */
@@ -14,6 +15,15 @@ router.get('/', requireRole('OWNER', 'ADMIN', 'CASHIER'), paymentOrderController
 router.get('/:id', requireRole('OWNER', 'ADMIN', 'CASHIER'), paymentOrderController.getById);
 
 const mutate = requireRoleOrCashierFullAccess('OWNER', 'ADMIN');
+// Soportes de la orden y del pago: factura, retenciones, comprobante de transferencia
+// (imagen o PDF). Se sube primero y la URL viaja después dentro de `attachments`.
+router.post(
+  '/upload-document',
+  mutate,
+  uploadPaymentOrderDocument,
+  optimizeImage(1600, 1600),
+  paymentOrderController.uploadDocument,
+);
 router.post('/', mutate, paymentOrderController.create);
 router.post('/:id/pay', mutate, paymentOrderController.pay);
 router.post('/:id/cancel', mutate, paymentOrderController.cancel);

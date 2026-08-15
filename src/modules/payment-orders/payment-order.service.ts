@@ -4,7 +4,7 @@ import { badRequest, notFound } from '../../utils/http-error';
 import { bsToBase, round2, toDecimal } from '../../utils/money';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { bankLedgerService } from '../bank-accounts/bank-ledger.service';
-import type { CreatePaymentOrderInput, PayPaymentOrderInput } from './payment-order.dto';
+import type { CreatePaymentOrderInput, PaymentOrderAttachment, PayPaymentOrderInput } from './payment-order.dto';
 
 /**
  * ============================================================================
@@ -127,6 +127,7 @@ async function create(restaurantId: string, userId: string | undefined, input: C
         supplierId: suppliers[0] ?? input.supplierId ?? null,
         amountBase,
         note: input.note ?? null,
+        attachments: input.attachments?.length ? (input.attachments as Prisma.InputJsonValue) : Prisma.DbNull,
         createdByUserId: userId,
       },
     });
@@ -138,6 +139,13 @@ async function create(restaurantId: string, userId: string | undefined, input: C
 
     return tx.paymentOrder.findFirstOrThrow({ where: { id: order.id }, include: ORDER_INCLUDE });
   });
+}
+
+/** Une los soportes ya guardados con los nuevos, sin duplicar por url. */
+function mergeAttachments(existing: Prisma.JsonValue | null, incoming?: PaymentOrderAttachment[]): Prisma.InputJsonValue | typeof Prisma.DbNull {
+  const previous = Array.isArray(existing) ? (existing as unknown as PaymentOrderAttachment[]) : [];
+  const merged = [...previous, ...(incoming ?? []).filter((a) => !previous.some((p) => p.url === a.url))];
+  return merged.length ? (merged as unknown as Prisma.InputJsonValue) : Prisma.DbNull;
 }
 
 /** Marca la orden pagada y salda de una vez todos sus gastos, con el detalle fiscal del pago. */
@@ -181,6 +189,9 @@ async function pay(restaurantId: string, id: string, userId: string | undefined,
         creditNoteBase: input.creditNoteBase ?? null,
         ivaAmountBase: input.ivaAmountBase ?? null,
         totalWithIvaBase: input.totalWithIvaBase ?? null,
+        // Los soportes del pago se SUMAN a los que ya traía la orden: la factura cargada al
+        // emitirla no se pierde cuando se adjunta el comprobante de la transferencia.
+        attachments: mergeAttachments(order.attachments, input.attachments),
       },
     });
 

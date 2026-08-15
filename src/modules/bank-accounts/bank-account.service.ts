@@ -161,7 +161,7 @@ export const bankAccountService = {
     const amountBase = from.currency === 'BS' ? round2(bsToBase(amountFrom, rateBs!)) : amountFrom;
     const amountTo = to.currency === from.currency ? amountFrom : to.currency === 'BS' ? round2(baseToBs(amountBase, rateBs!)) : amountBase;
 
-    const note = input.note?.trim();
+    const note = input.note.trim();
     return prisma.$transaction(async (tx) => {
       await tx.bankTransaction.create({
         data: {
@@ -170,7 +170,7 @@ export const bankAccountService = {
           type: 'TRANSFER_OUT',
           amount: amountFrom,
           amountBase,
-          description: note || `Transferencia a ${to.name}`,
+          description: `${note} · a ${to.name}`,
           counterpartAccountId: to.id,
           createdByUserId: userId ?? null,
         },
@@ -182,7 +182,7 @@ export const bankAccountService = {
           type: 'TRANSFER_IN',
           amount: amountTo,
           amountBase,
-          description: note || `Transferencia desde ${from.name}`,
+          description: `${note} · desde ${from.name}`,
           counterpartAccountId: from.id,
           createdByUserId: userId ?? null,
         },

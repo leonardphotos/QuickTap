@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { BookOpen, Receipt, Wallet } from 'lucide-react';
+import { BookOpen, Download, Receipt, Wallet } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { formatBase, formatBsAbsolute } from '@/utils/format';
 import { MetricCard } from './MetricCard';
+import { TextureButton } from '@/components/ui/texture-button';
 import { CATEGORY_LABELS, DOCUMENT_TYPE_LABELS, type ExpenseCategory, type ExpenseDocumentType } from './ExpenseFormDialog';
 import { PAYMENT_LABELS } from './PaymentDialog';
 import type { PaymentMethod } from '@/types';
@@ -58,6 +59,27 @@ export function FiscalBooksSection({ only }: { only?: 'compras' | 'ventas' } = {
   const [book, setBook] = useState<'compras' | 'ventas'>(only ?? 'compras');
   const [range, setRange] = useState<Range>('month');
   const [date, setDate] = useState('');
+  const [downloading, setDownloading] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
+
+  /** Descarga el libro que se está viendo, con el mismo período que muestra la pantalla. */
+  async function exportBook() {
+    setDownloading(true);
+    setExportError(null);
+    try {
+      const path = book === 'compras' ? '/movements/export/purchase-book' : '/movements/export/sales-book';
+      const res = await api.get(path, { params: { range, date: date || undefined }, responseType: 'blob' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(res.data);
+      link.download = `${book === 'compras' ? 'Libro de compras' : 'Libro de ventas'} - ${(restaurant?.name ?? 'QuickTap').replace(/[\\/:*?"<>|]/g, '').trim()}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch {
+      setExportError('No se pudo generar el archivo. Intenta de nuevo.');
+    } finally {
+      setDownloading(false);
+    }
+  }
 
   const periodLabel = date ? new Date(date + 'T12:00:00').toLocaleDateString('es-VE') : RANGE_LABELS[range];
 
@@ -103,7 +125,14 @@ export function FiscalBooksSection({ only }: { only?: 'compras' | 'ventas' } = {
             date ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
           }`}
         />
+        <div className="ml-auto">
+          <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={downloading} onClick={exportBook}>
+            <Download className="mr-1 h-3.5 w-3.5" /> {downloading ? 'Generando…' : 'Exportar Excel'}
+          </TextureButton>
+        </div>
       </div>
+
+      {exportError && <p className="text-sm text-red-600">{exportError}</p>}
 
       {book === 'compras' ? (
         <PurchasesBook symbol={symbol} range={range} date={date} periodLabel={periodLabel} />

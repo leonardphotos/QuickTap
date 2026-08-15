@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
+import { badRequest } from '../../utils/http-error';
 import { createPaymentOrderSchema, payPaymentOrderSchema } from './payment-order.dto';
 import { paymentOrderService } from './payment-order.service';
 
@@ -17,6 +18,18 @@ export const paymentOrderController = {
 
   getById: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await paymentOrderService.getById(req.restaurantId!, req.params.id) });
+  }),
+
+  /** POST /api/v1/payment-orders/upload-document — sube un soporte (imagen o PDF) y devuelve su URL. */
+  uploadDocument: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw badRequest('No se recibió ningún archivo.');
+    res.status(201).json({
+      data: {
+        url: `/uploads/payment-order-docs/${req.file.filename}`,
+        name: req.file.originalname,
+        type: req.file.mimetype === 'application/pdf' ? 'pdf' : 'image',
+      },
+    });
   }),
 
   create: asyncHandler(async (req: Request, res: Response) => {

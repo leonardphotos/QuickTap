@@ -410,6 +410,12 @@ function TransferForm({
   const crossCurrency = from && to && from.currency !== to.currency;
 
   async function submit() {
+    // El concepto es obligatorio: es lo único que explica la transferencia en el libro de
+    // las dos cuentas cuando se revisa meses después.
+    if (!note.trim()) {
+      setError('Escribe el concepto de la transferencia.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -417,7 +423,7 @@ function TransferForm({
         fromId,
         toId,
         amount: Number(amount) || 0,
-        note: note.trim() || null,
+        note: note.trim(),
       });
       onDone();
     } catch (e: any) {
@@ -470,8 +476,15 @@ function TransferForm({
         </div>
 
         <div>
-          <p className="text-xs font-medium text-brand-950/50 mb-1.5">Nota (opcional)</p>
-          <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ej: reposición de caja chica" className={inputCls} />
+          <p className="text-xs font-medium text-brand-950/50 mb-1.5">
+            Concepto <span className="text-red-500">*</span>
+          </p>
+          <input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="Ej: reposición de caja chica"
+            className={inputCls}
+          />
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}

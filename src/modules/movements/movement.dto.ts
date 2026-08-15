@@ -129,6 +129,9 @@ export const updateMovementSchema = z.object({
 export const movementQuerySchema = z.object({
   range: z.enum(['day', 'week', 'month', 'year', 'all']).optional().default('day'),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  // Tramo libre desde–hasta (inclusivos), usado por la exportación de los libros fiscales.
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   // "Pendientes con proveedores": ignora range/date, muestra todo lo que sigue a crédito sin pagar.
   onlyPendingCredit: z.coerce.boolean().optional(),
   // Filtro del módulo de Gastos: ver solo una categoría (para revisar de un vistazo cuáles

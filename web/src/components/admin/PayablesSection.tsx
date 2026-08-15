@@ -5,6 +5,11 @@ import { useAuth } from '@/context/AuthContext';
 import { formatBase, formatBsAbsolute } from '@/utils/format';
 import { methodAccountsOf } from '@/utils/payment-accounts';
 import { TextureButton } from '@/components/ui/texture-button';
+import {
+  DocumentAttachmentsField,
+  DocumentAttachmentsList,
+  type DocumentAttachment,
+} from '@/components/admin/DocumentAttachmentsField';
 import { InlinePanel } from './InlinePanel';
 import { ExpenseForm } from './ExpenseFormDialog';
 import { MethodAccountPicker } from './MethodAccountPicker';
@@ -42,6 +47,7 @@ interface PaymentOrder {
   createdByUser: { name: string } | null;
   paidByUser: { name: string } | null;
   movements: { id: string; description: string; amountBase: string; creditPaidAt: string | null }[];
+  attachments: DocumentAttachment[] | null;
 }
 
 const PAYMENT_METHODS = [
@@ -109,6 +115,8 @@ export function PayablesSection() {
   const [orders, setOrders] = useState<PaymentOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Soportes que se adjuntan al emitir la orden (facturas del proveedor, presupuestos).
+  const [newOrderDocs, setNewOrderDocs] = useState<DocumentAttachment[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [payingOrder, setPayingOrder] = useState<PaymentOrder | null>(null);
@@ -152,8 +160,9 @@ export function PayablesSection() {
     setBusy(true);
     setError(null);
     try {
-      await api.post('/payment-orders', { movementIds: [...selected] });
+      await api.post('/payment-orders', { movementIds: [...selected], attachments: newOrderDocs });
       setSelected(new Set());
+      setNewOrderDocs([]);
       load();
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No se pudo emitir la orden.');
@@ -308,6 +317,19 @@ export function PayablesSection() {
             </ul>
 
             {selected.size > 0 && (
+              <div className="mt-3 border-t border-brand-950/10 pt-3">
+                <DocumentAttachmentsField
+                  uploadUrl="/payment-orders/upload-document"
+                  value={newOrderDocs}
+                  onChange={setNewOrderDocs}
+                  stage="ORDER"
+                  label="Documentos de la orden (opcional)"
+                  hint="Fotos o PDF: facturas del proveedor, presupuestos, notas de entrega."
+                />
+              </div>
+            )}
+
+            {selected.size > 0 && (
               <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-brand-950/10 pt-3">
                 <p className="text-sm text-brand-950">
                   {selected.size} seleccionada{selected.size === 1 ? '' : 's'} ·{' '}
@@ -426,6 +448,7 @@ function PaidOrderDetail({ order: o, symbol }: { order: PaymentOrder; symbol: st
         {o.referenceNumber && ` · Ref. ${o.referenceNumber}`}
         {o.paidByUser && ` · ${o.paidByUser.name}`}
       </p>
+      <DocumentAttachmentsList attachments={o.attachments ?? []} />
       {rows.length > 0 && (
         <div className="mt-1.5 space-y-0.5">
           {rows.map((r) => (
@@ -468,6 +491,8 @@ function PayOrderPanel({
   const [islrRetention, setIslrRetention] = useState('');
   const [ivaRetention, setIvaRetention] = useState('');
   const [creditNote, setCreditNote] = useState('');
+  // Soportes del pago: comprobante de la transferencia, planillas de retención, nota de crédito.
+  const [docs, setDocs] = useState<DocumentAttachment[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -498,6 +523,7 @@ function PayOrderPanel({
         ivaAmountBase: ivaAmount !== '' ? num(ivaAmount) : null,
         totalWithIvaBase: totalWithIva !== '' ? num(totalWithIva) : null,
         bankAccountId: selectedAccount?.bankAccountId ?? null,
+        attachments: docs,
       });
       onPaid();
     } catch (err: any) {
@@ -632,6 +658,15 @@ function PayOrderPanel({
             <span className="font-bold text-brand-950">{formatBase(suggestedNet, symbol)}</span>
           </div>
         </div>
+
+        <DocumentAttachmentsField
+          uploadUrl="/payment-orders/upload-document"
+          value={docs}
+          onChange={setDocs}
+          stage="PAYMENT"
+          label="Documentos del pago (opcional)"
+          hint="Fotos o PDF: comprobante de la transferencia, planillas de retención, nota de crédito."
+        />
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 

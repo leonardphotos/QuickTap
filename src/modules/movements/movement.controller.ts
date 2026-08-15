@@ -4,6 +4,14 @@ import { badRequest } from '../../utils/http-error';
 import { createMovementSchema, movementQuerySchema, updateMovementSchema } from './movement.dto';
 import { movementService } from './movement.service';
 import { movementExcelService } from './movement-excel.service';
+import { fiscalExportService } from './fiscal-export.service';
+
+/** Manda un workbook ya armado como descarga .xlsx. */
+function sendWorkbook(res: Response, workbook: { xlsx: { write: (stream: Response) => Promise<void> } }, filename: string) {
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+  return workbook.xlsx.write(res).then(() => res.end());
+}
 
 export const movementController = {
   list: asyncHandler(async (req: Request, res: Response) => {
@@ -33,6 +41,22 @@ export const movementController = {
     await workbook.xlsx.write(res);
     res.end();
   }),
+  /**
+   * GET /api/v1/movements/export/purchase-book y /export/sales-book — los libros fiscales del
+   * período en Excel, completos (la pantalla pagina; el archivo no).
+   */
+  exportPurchaseBook: asyncHandler(async (req: Request, res: Response) => {
+    const { range, date, from, to } = movementQuerySchema.parse(req.query);
+    const { workbook, filename } = await fiscalExportService.buildPurchaseBookWorkbook(req.restaurantId!, { range, date, from, to });
+    sendWorkbook(res, workbook, filename);
+  }),
+
+  exportSalesBook: asyncHandler(async (req: Request, res: Response) => {
+    const { range, date, from, to } = movementQuerySchema.parse(req.query);
+    const { workbook, filename } = await fiscalExportService.buildSalesBookWorkbook(req.restaurantId!, { range, date, from, to });
+    sendWorkbook(res, workbook, filename);
+  }),
+
   /** GET /api/v1/movements/import-template — plantilla para cargar el historial financiero. */
   downloadImportTemplate: asyncHandler(async (_req: Request, res: Response) => {
     const workbook = movementExcelService.buildImportTemplate();
