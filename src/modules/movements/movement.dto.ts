@@ -78,6 +78,13 @@ export const createMovementSchema = z
   .refine((v) => !v.inventoryItemId || v.inventoryQuantity != null, {
     message: 'Indica la cantidad recibida del insumo.',
     path: ['inventoryQuantity'],
+  })
+  // El método de pago dejó de ser "opcional / sin especificar": todo movimiento que mueve
+  // dinero ahora dice con qué se pagó, para que el arqueo por método cuadre. La única
+  // excepción es el gasto a crédito — ahí todavía no salió plata de ninguna cuenta.
+  .refine((v) => !!v.paymentMethod || v.isCredit, {
+    message: 'Escoge con qué se pagó.',
+    path: ['paymentMethod'],
   });
 
 /**

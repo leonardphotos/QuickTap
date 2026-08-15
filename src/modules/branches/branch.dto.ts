@@ -16,6 +16,15 @@ export const branchReportQuerySchema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
+  // Tramo libre desde–hasta (inclusivos) para la comparativa entre sucursales.
+  from: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  to: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
 });
 
 export type CreateBranchInput = z.infer<typeof createBranchSchema>;

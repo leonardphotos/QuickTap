@@ -7,6 +7,7 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { WhatsappPhoneInput } from '@/components/ui/whatsapp-phone-input';
 import { PAYMENT_LABELS } from '@/components/admin/PaymentDialog';
+import { BranchComparisonSection } from '@/components/admin/BranchComparisonSection';
 import type { OrderChannel, PaymentMethod } from '@/types';
 
 type Range = 'day' | 'week' | 'month' | 'year' | 'all';
@@ -15,6 +16,7 @@ const CHANNEL_ROW_LABELS: Record<OrderChannel, string> = { DINE_IN: 'Mesa', DELI
 
 const TABS = [
   { id: 'summary', label: 'Resumen' },
+  { id: 'comparison', label: 'Comparativa' },
   { id: 'sales', label: 'Ventas por sucursal' },
   { id: 'inventory', label: 'Inventario por sucursal' },
   { id: 'products', label: 'Productos más vendidos' },
@@ -189,6 +191,7 @@ export default function SucursalesPage() {
       </div>
 
       {tab === 'summary' && <SummaryTab />}
+      {tab === 'comparison' && <BranchComparisonSection />}
       {tab === 'sales' && <SalesByBranchTab symbol={restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$'} />}
       {tab === 'inventory' && <InventoryByBranchTab />}
       {tab === 'products' && <TopProductsTab symbol={restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$'} />}

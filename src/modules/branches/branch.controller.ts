@@ -26,6 +26,11 @@ export const branchController = {
     res.json({ data: await branchService.getConsolidatedSummary(req.restaurantId!, range, date) });
   }),
 
+  branchComparison: asyncHandler(async (req: Request, res: Response) => {
+    const { range, date, from, to } = branchReportQuerySchema.parse(req.query);
+    res.json({ data: await branchService.getBranchComparison(req.restaurantId!, range, date, from, to) });
+  }),
+
   salesByBranch: asyncHandler(async (req: Request, res: Response) => {
     const { range, date } = branchReportQuerySchema.parse(req.query);
     res.json({ data: await branchService.getSalesByBranch(req.restaurantId!, range, date) });

@@ -46,7 +46,10 @@ async function confirm(restaurantId: string, userId: string, orderId: string, pa
     total: order.total,
     customerName: order.customerName,
     customerPhone: order.customerPhone,
-    paymentMethod: paymentMethod ?? order.paymentMethod ?? null,
+    // El pedido web puede llegar sin método elegido: en ese caso la venta queda con el
+    // método que el cajero escoja al confirmar, y si tampoco viene, "Efectivo Bs" (lo que
+    // realmente pasa: el cliente paga al recibir en efectivo).
+    paymentMethod: paymentMethod ?? order.paymentMethod ?? 'Efectivo Bs',
     items: order.items.map((it) => ({
       // El DTO de la venta usa `undefined` para "sin producto"; la fila lo guarda como null.
       productId: it.productId ?? undefined,

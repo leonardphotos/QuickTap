@@ -79,7 +79,9 @@ export const createShopSaleSchema = z.object({
   total: z.coerce.number(),
   customerName: z.string().nullable().optional(),
   customerPhone: z.string().nullable().optional(),
-  paymentMethod: z.string().nullable().optional(),
+  // Obligatorio: toda venta dice con qué se cobró (etiqueta del método configurado en el
+  // local). Las ventas fiadas también lo llevan — es el método con el que se abonó/abonará.
+  paymentMethod: z.string().min(1, 'Escoge un método de pago.'),
   paymentMeta: z
     .object({ reference: z.string().optional(), hasProof: z.boolean().optional(), proofImageUrl: z.string().optional() })
     .nullable()

@@ -236,6 +236,12 @@ export function ExpenseForm({
       setError('Elige el insumo y la cantidad recibida.');
       return;
     }
+    // El método de pago es obligatorio: sin él, el arqueo por método nunca cuadra. Solo el
+    // gasto a crédito puede quedar sin método (todavía no salió plata de ninguna cuenta).
+    if (!paymentMethod && !isCredit) {
+      setError('Escoge con qué se pagó.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -343,7 +349,7 @@ export function ExpenseForm({
 
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <p className="text-xs font-medium text-brand-950/50 mb-1.5">¿Con qué se pagó?</p>
+          <p className="text-xs font-medium text-brand-950/50 mb-1.5">¿Con qué se pagó? {!isCredit && <span className="text-red-500">*</span>}</p>
           <select
             value={paymentMethod}
             onChange={(e) => {
@@ -352,7 +358,7 @@ export function ExpenseForm({
             }}
             className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
           >
-            <option value="">Sin especificar</option>
+            <option value="">{isCredit ? 'Queda a crédito' : 'Escoge un método…'}</option>
             {Object.entries(PAYMENT_METHOD_LABELS).map(([v, label]) => (
               <option key={v} value={v}>
                 {label}

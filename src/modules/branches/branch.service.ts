@@ -7,6 +7,51 @@ import { round2, toDecimal } from '../../utils/money';
 import { resolveDateFilter, ReportRange } from '../../utils/date-range';
 import { CreateBranchInput } from './branch.dto';
 
+type DateFilter = { gte?: Date; lt?: Date } | undefined;
+
+/**
+ * Costo de lo vendido por sede en un restaurante: cada `OrderItem` valorado con el costo
+ * vivo del producto (receta sumada o `costBase` manual) — misma aproximación que el
+ * reporte de Margen de utilidad, que tampoco congela el costo por pedido.
+ */
+async function orderCostByBranch(ids: string[], dateFilter: DateFilter): Promise<Map<string, Prisma.Decimal>> {
+  const items = await prisma.orderItem.findMany({
+    where: { order: { restaurantId: { in: ids }, status: { not: 'CANCELLED' }, createdAt: dateFilter } },
+    select: { productId: true, quantity: true, order: { select: { restaurantId: true } } },
+  });
+  const productIds = Array.from(new Set(items.map((i) => i.productId).filter((id): id is string => !!id)));
+  const [products, recipeSums] = await Promise.all([
+    prisma.product.findMany({ where: { id: { in: productIds } }, select: { id: true, costBase: true, costSource: true } }),
+    prisma.recipeIngredient.groupBy({ by: ['productId'], where: { productId: { in: productIds } }, _sum: { costBase: true } }),
+  ]);
+  const recipeCost = new Map(recipeSums.map((r) => [r.productId, toDecimal(r._sum.costBase ?? 0)]));
+  const costByProduct = new Map(
+    products.map((p) => [p.id, p.costSource === 'RECIPE' ? (recipeCost.get(p.id) ?? toDecimal(0)) : toDecimal(p.costBase ?? 0)]),
+  );
+
+  const byBranch = new Map<string, Prisma.Decimal>();
+  for (const item of items) {
+    const unitCost = item.productId ? (costByProduct.get(item.productId) ?? toDecimal(0)) : toDecimal(0);
+    const branchId = item.order.restaurantId;
+    byBranch.set(branchId, (byBranch.get(branchId) ?? toDecimal(0)).add(unitCost.mul(item.quantity)));
+  }
+  return byBranch;
+}
+
+/** Costo de lo vendido por sede en un local comercial: `ShopSaleItem` ya congela su costo. */
+async function shopCostByBranch(ids: string[], dateFilter: DateFilter): Promise<Map<string, Prisma.Decimal>> {
+  const items = await prisma.shopSaleItem.findMany({
+    where: { sale: { restaurantId: { in: ids }, returned: false, time: dateFilter } },
+    select: { qty: true, cost: true, sale: { select: { restaurantId: true } } },
+  });
+  const byBranch = new Map<string, Prisma.Decimal>();
+  for (const item of items) {
+    const branchId = item.sale.restaurantId;
+    byBranch.set(branchId, (byBranch.get(branchId) ?? toDecimal(0)).add(toDecimal(item.cost).mul(item.qty)));
+  }
+  return byBranch;
+}
+
 const BRANCH_SELECT = {
   id: true,
   name: true,
@@ -367,8 +412,10 @@ export const branchService = {
     businessType: string,
     range: ReportRange,
     date?: string,
+    from?: string,
+    to?: string,
   ): Promise<{ restaurantId: string; totalBase: Prisma.Decimal; totalBs: Prisma.Decimal }[]> {
-    const dateFilter = resolveDateFilter({ range, date });
+    const dateFilter = resolveDateFilter({ range, date, from, to });
     if (businessType === 'SHOP') {
       const [sales, rate] = await Promise.all([
         prisma.shopSale.findMany({
@@ -514,6 +561,78 @@ export const branchService = {
           .slice(0, 5),
       };
     });
+  },
+
+  /**
+   * Comparativa administrativa entre sedes: para el mismo período, cada sucursal con sus
+   * ventas, pedidos, ticket promedio, costo de lo vendido, gastos registrados, utilidad
+   * (ventas − costo − gastos) y su peso sobre el total del grupo. Es la vista que responde
+   * "¿cuál sucursal está rindiendo y cuál se está comiendo la utilidad?".
+   */
+  async getBranchComparison(restaurantId: string, range: ReportRange, date?: string, from?: string, to?: string) {
+    const { ids, names, mainId, businessType } = await this.resolveScope(restaurantId);
+    const dateFilter = resolveDateFilter({ range, date, from, to });
+
+    const [sales, costRows, expenses] = await Promise.all([
+      this.salesRows(ids, businessType, range, date, from, to),
+      businessType === 'SHOP' ? shopCostByBranch(ids, dateFilter) : orderCostByBranch(ids, dateFilter),
+      prisma.movement.groupBy({
+        by: ['restaurantId'],
+        where: { restaurantId: { in: ids }, type: 'EXPENSE', createdAt: dateFilter },
+        _sum: { amountBase: true },
+        _count: true,
+      }),
+    ]);
+
+    const totalGroupBase = round2(sales.reduce((acc, s) => acc.add(s.totalBase), toDecimal(0)));
+
+    const branches = ids.map((id) => {
+      const own = sales.filter((s) => s.restaurantId === id);
+      const totalBase = round2(own.reduce((acc, o) => acc.add(o.totalBase), toDecimal(0)));
+      const totalBs = round2(own.reduce((acc, o) => acc.add(o.totalBs), toDecimal(0)));
+      const costBase = round2(costRows.get(id) ?? toDecimal(0));
+      const expenseRow = expenses.find((e) => e.restaurantId === id);
+      const expensesBase = round2(toDecimal(expenseRow?._sum.amountBase ?? 0));
+      const marginBase = round2(totalBase.sub(costBase));
+      const netBase = round2(marginBase.sub(expensesBase));
+
+      return {
+        branchId: id,
+        name: names.get(id) ?? id,
+        isMain: id === mainId,
+        ordersCount: own.length,
+        totalBase: totalBase.toFixed(2),
+        totalBs: totalBs.toFixed(2),
+        avgTicketBase: own.length > 0 ? round2(totalBase.div(own.length)).toFixed(2) : '0.00',
+        costBase: costBase.toFixed(2),
+        marginBase: marginBase.toFixed(2),
+        marginPercent: totalBase.gt(0) ? round2(marginBase.div(totalBase).mul(100)).toFixed(1) : '0.0',
+        expensesBase: expensesBase.toFixed(2),
+        expensesCount: expenseRow?._count ?? 0,
+        netBase: netBase.toFixed(2),
+        sharePercent: totalGroupBase.gt(0) ? round2(totalBase.div(totalGroupBase).mul(100)).toFixed(1) : '0.0',
+      };
+    });
+
+    const sum = (key: 'totalBase' | 'costBase' | 'marginBase' | 'expensesBase' | 'netBase') =>
+      round2(branches.reduce((acc, b) => acc.add(toDecimal(b[key])), toDecimal(0))).toFixed(2);
+    const ordersCount = branches.reduce((acc, b) => acc + b.ordersCount, 0);
+
+    return {
+      businessType,
+      branches: branches.sort((a, b) => Number(b.totalBase) - Number(a.totalBase)),
+      totals: {
+        branchCount: ids.length,
+        ordersCount,
+        totalBase: sum('totalBase'),
+        totalBs: round2(branches.reduce((acc, b) => acc.add(toDecimal(b.totalBs)), toDecimal(0))).toFixed(2),
+        avgTicketBase: ordersCount > 0 ? round2(toDecimal(sum('totalBase')).div(ordersCount)).toFixed(2) : '0.00',
+        costBase: sum('costBase'),
+        marginBase: sum('marginBase'),
+        expensesBase: sum('expensesBase'),
+        netBase: sum('netBase'),
+      },
+    };
   },
 
   /**

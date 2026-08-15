@@ -6,6 +6,7 @@ import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { MetricCard } from '@/components/admin/MetricCard';
 import { AddBranchDialog } from '../SucursalesPage';
+import { BranchComparisonSection } from '@/components/admin/BranchComparisonSection';
 
 interface Branch {
   id: string;
@@ -150,6 +151,13 @@ export default function ShopSucursalesPage() {
           ))}
         </div>
       </div>
+
+      {branches.length > 0 && (
+        <div>
+          <p className="mb-3 text-sm font-medium text-brand-950/70">Comparativa administrativa entre sedes</p>
+          <BranchComparisonSection />
+        </div>
+      )}
 
       {showAdd && (
         <AddBranchDialog

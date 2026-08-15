@@ -2616,9 +2616,9 @@ export const orderService = {
   },
 
   /** Movimiento por método de pago, para Administración. */
-  async getPaymentMethodStats(restaurantId: string, range: ReportRange, date?: string) {
+  async getPaymentMethodStats(restaurantId: string, range: ReportRange, date?: string, from?: string, to?: string) {
     const orders = await prisma.order.findMany({
-      where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: resolveDateFilter({ range, date }) },
+      where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: resolveDateFilter({ range, date, from, to }) },
       select: { paymentMethod: true, totalBase: true, totalBs: true },
     });
 

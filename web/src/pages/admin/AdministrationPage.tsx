@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ChevronDown, Clock, DollarSign, Plus, Receipt, Trash2, TrendingUp, Wallet } from 'lucide-react';
+import { ChevronDown, DollarSign, Plus, Receipt, Trash2, TrendingUp, Wallet } from 'lucide-react';
 import { api } from '@/api/client';
 import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
 import { useAuth } from '@/context/AuthContext';
@@ -55,14 +55,14 @@ const ALL_TABS = [
   // Clientes con segmentos + promociones personalizadas con código canjeable.
   { id: 'crm', label: 'CRM', feature: 'crm' },
   { id: 'payments', label: 'Métodos de pago', feature: null },
-  // Cuentas por pagar a PROVEEDORES (gastos a crédito + órdenes de pago) — no confundir con
-  // la pestaña "Cuentas por pagar" de abajo, que son los CLIENTES que deben al restaurante.
+  // Lo que el restaurante le debe a sus PROVEEDORES: gastos a crédito + órdenes de pago.
+  // (La pestaña "Cuentas por pagar" se eliminó: era el mismo concepto con otro nombre —
+  // las cuentas abiertas de clientes se siguen manejando desde Pedidos, con el reloj.)
   { id: 'paymentOrders', label: 'Órdenes de pago', feature: 'accounting' },
   { id: 'ledger', label: 'Contabilidad', feature: 'accounting' },
   { id: 'suppliers', label: 'Proveedores', feature: 'accounting' },
   { id: 'books', label: 'Libros fiscales', feature: 'accounting' },
   { id: 'banks', label: 'Cuentas bancarias', feature: 'accounting' },
-  { id: 'payable', label: 'Cuentas por pagar', feature: 'accountsPayable' },
 ] as const satisfies readonly { id: string; label: string; feature: FeatureFlag | null }[];
 type TabId = (typeof ALL_TABS)[number]['id'];
 
@@ -71,12 +71,9 @@ type TabId = (typeof ALL_TABS)[number]['id'];
  * flotantes (`InlinePanel` en vez de `Dialog` para abrir/cerrar caja, reportes, ingresos y detalle). */
 export default function AdministrationPage() {
   const { restaurant } = useAuth();
-  const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
-  const [payableCount, setPayableCount] = useState<number | null>(null);
   const TABS = ALL_TABS.map((t) => ({
     id: t.id,
     label: t.label,
-    badge: t.id === 'payable' && canAccountsPayable ? (payableCount ?? undefined) : undefined,
     locked: t.feature != null && !hasFeature(restaurant, t.feature),
   }));
   const [tab, setTab] = useState<TabId>('summary');
@@ -84,13 +81,6 @@ export default function AdministrationPage() {
   const activeTab = ALL_TABS.find((t) => t.id === tab)!;
   const tabLocked = activeTab.feature != null && !hasFeature(restaurant, activeTab.feature);
 
-  useEffect(() => {
-    if (!canAccountsPayable) return;
-    api
-      .get('/orders/live')
-      .then((res) => setPayableCount((res.data.data as { awaitingPayment: boolean }[]).filter((o) => o.awaitingPayment).length))
-      .catch(() => setPayableCount(null));
-  }, [canAccountsPayable]);
 
   return (
     <div className="space-y-6">
@@ -128,7 +118,6 @@ export default function AdministrationPage() {
           {!tabLocked && tab === 'suppliers' && <SuppliersSection />}
           {!tabLocked && tab === 'books' && <FiscalBooksSection />}
           {!tabLocked && tab === 'banks' && <BankAccountsSection symbol={restaurant?.currencySymbol ?? '$'} />}
-          {!tabLocked && tab === 'payable' && <PayableTab />}
         </div>
       </div>
     </div>
@@ -698,6 +687,9 @@ function StatsTab() {
       {/* Margen de utilidad del mismo período, con "Ver más" para el detalle por producto. */}
       <MarginSummaryCard range={range} from={from} to={to} periodLabel={periodLabel} />
 
+      {/* Con qué pagaron en el mismo período — el detalle completo sigue en la pestaña Métodos de pago. */}
+      <PaymentMethodsSummaryCard range={range} from={from} to={to} periodLabel={periodLabel} />
+
 
       <div>
         <p className="text-sm font-medium text-brand-950/70 mb-3">Ventas por usuario · {stats ? STATS_RANGE_LABELS[stats.range] : ''}</p>
@@ -851,6 +843,74 @@ function MarginSummaryCard({
         </button>
       )}
       {rows?.length === 0 && <p className="mt-3 text-sm font-light text-brand-950/40">Sin ventas en este período.</p>}
+    </div>
+  );
+}
+
+/**
+ * Con qué pagaron en el período, dentro de Estadísticas: cada método con su monto, su
+ * cantidad de pedidos y su peso sobre el total cobrado. El drill-down pedido por pedido
+ * sigue viviendo en la pestaña "Métodos de pago".
+ */
+function PaymentMethodsSummaryCard({
+  range,
+  from,
+  to,
+  periodLabel,
+}: {
+  range: 'week' | 'month';
+  from: string;
+  to: string;
+  periodLabel: string;
+}) {
+  const { restaurant } = useAuth();
+  const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
+  const [rows, setRows] = useState<PaymentStatsRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .get('/orders/reports/payment-methods', { params: { range, from: from || undefined, to: to || undefined } })
+      .then((res) => setRows(res.data.data))
+      .catch((err) => setError(err.response?.data?.error ?? null));
+  }, [range, from, to]);
+
+  if (error || !rows) return null;
+
+  const total = rows.reduce((acc, r) => acc + Number(r.totalBase), 0);
+
+  return (
+    <div className="rounded-2xl border border-brand-950/10 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-sm font-medium text-brand-950/70">Métodos de pago · {periodLabel}</p>
+        <p className="text-xs font-light text-brand-950/45">Con qué te pagaron</p>
+      </div>
+
+      {rows.length === 0 && <p className="text-sm font-light text-brand-950/40">Sin cobros en este período.</p>}
+
+      <div className="space-y-3">
+        {rows.map((r) => {
+          const share = total > 0 ? (Number(r.totalBase) / total) * 100 : 0;
+          return (
+            <div key={r.method}>
+              <div className="mb-1 flex items-baseline justify-between gap-2">
+                <p className="text-sm font-medium text-brand-950">
+                  {PAYMENT_METHOD_LABELS[r.method] ?? r.method}
+                  <span className="ml-1.5 text-xs font-normal text-brand-950/40">
+                    {r.count} pedido{r.count === 1 ? '' : 's'}
+                  </span>
+                </p>
+                <p className="text-sm font-semibold text-brand-950">
+                  {formatBase(r.totalBase, symbol)} <span className="text-xs font-normal text-brand-950/40">{share.toFixed(1)}%</span>
+                </p>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-brand-950/[0.06]">
+                <div className="h-full rounded-full bg-brand-500" style={{ width: `${Math.max(share, share > 0 ? 2 : 0)}%` }} />
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1281,7 +1341,9 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   BINANCE: 'Binance',
   PAYPAL: 'PayPal',
   TRANSFER: 'Transferencia',
-  SIN_METODO: 'Sin especificar',
+  // Solo aparece en datos viejos: hoy el método de pago es obligatorio al cobrar y al
+  // registrar un gasto (salvo compras a crédito, que se saldan después).
+  SIN_METODO: 'Sin registrar',
 };
 
 function PaymentsTab() {
@@ -1361,104 +1423,3 @@ function PaymentsTab() {
   );
 }
 
-// -----------------------------------------------------------------------------
-//  Cuentas por pagar: cuentas abiertas marcadas con el botón del reloj en Pedidos
-// -----------------------------------------------------------------------------
-
-interface PayableOrder {
-  id: string;
-  orderNumber: number;
-  channel: Channel;
-  customerName: string | null;
-  totalBase: string;
-  totalBs: string;
-  currency: string;
-  createdAt: string;
-}
-
-function PayableTab() {
-  const { restaurant } = useAuth();
-  const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
-  const [orders, setOrders] = useState<PayableOrder[] | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  function load() {
-    api
-      .get('/orders/live')
-      .then((res) => setOrders((res.data.data as (PayableOrder & { awaitingPayment: boolean })[]).filter((o) => o.awaitingPayment)))
-      .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar las cuentas por pagar.'));
-  }
-
-  useEffect(load, []);
-
-  async function markPaid(id: string) {
-    setBusyId(id);
-    setError(null);
-    try {
-      await api.patch(`/orders/${id}/status`, { status: 'SERVED' });
-      load();
-    } catch (err: any) {
-      setError(err.response?.data?.error ?? 'No se pudo marcar como pagado.');
-    } finally {
-      setBusyId(null);
-    }
-  }
-
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
-
-  return (
-    <div className="space-y-5">
-      <MetricCard
-        icon={Clock}
-        title="Cuentas por pagar"
-        value={String(orders?.length ?? 0)}
-        caption="cuentas abiertas esperando pago"
-        highlighted={!!orders?.length}
-      />
-      <p className="text-sm text-brand-950/60 font-light">
-        Cuentas abiertas marcadas con el botón del reloj en Pedidos, esperando a que el cliente pague.
-      </p>
-      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm overflow-hidden">
-        <div className="hidden sm:flex items-center gap-3 px-5 py-2 border-b border-brand-950/[0.06] text-[11px] font-medium uppercase tracking-wide text-brand-950/40">
-          <span className="flex-1">Pedido</span>
-          <span className="w-28">Total</span>
-          <span className="w-32 text-right">Acción</span>
-        </div>
-        <div className="divide-y divide-brand-950/[0.06]">
-          {orders?.length === 0 && (
-            <p className="p-5 text-sm text-brand-950/40 font-light">No hay cuentas pendientes por pagar.</p>
-          )}
-          {orders?.map((o) => (
-            <div key={o.id} className="flex items-center justify-between gap-3 px-5 py-4">
-              <div className="flex items-center gap-2 min-w-0">
-                <Clock className="h-4 w-4 text-amber-500 shrink-0" />
-                <div className="min-w-0">
-                  <p className="font-medium text-brand-950 truncate">
-                    #{o.orderNumber}
-                    {o.customerName && <span className="font-normal text-brand-950/60"> · {o.customerName}</span>}
-                  </p>
-                  <p className="text-xs text-brand-950/40 font-light">
-                    {CHANNEL_ROW_LABELS[o.channel]} · {new Date(o.createdAt).toLocaleString('es-VE')}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                <span className="text-sm font-semibold text-brand-950">{formatBase(o.totalBase, symbol)}</span>
-                <TextureButton
-                  variant="brand"
-                  size="sm"
-                  className="!w-auto"
-                  disabled={busyId === o.id}
-                  onClick={() => markPaid(o.id)}
-                >
-                  Marcar pagado
-                </TextureButton>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}

@@ -15,6 +15,8 @@ router.post('/switch-to-parent', branchController.switchToParent);
 
 router.get('/reports/summary', branchController.consolidatedSummary);
 router.get('/reports/sales', branchController.salesByBranch);
+// Comparativa administrativa entre sedes (ventas, ticket, costo, gastos y utilidad).
+router.get('/reports/comparison', branchController.branchComparison);
 router.get('/reports/sales/:branchId', branchController.branchSalesDetail);
 router.get('/reports/inventory', branchController.inventoryByBranch);
 router.get('/reports/top-products', branchController.topProductsByBranch);

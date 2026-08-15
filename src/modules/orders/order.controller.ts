@@ -197,8 +197,10 @@ export const orderController = {
 
   /** GET /api/v1/orders/reports/payment-methods — movimiento por método de pago (solo plan Premium). */
   paymentMethodReport: asyncHandler(async (req: Request, res: Response) => {
-    const { range, date } = orderHistoryQuerySchema.pick({ range: true, date: true }).parse(req.query);
-    const rows = await orderService.getPaymentMethodStats(req.restaurantId!, range, date);
+    const { range, date, from, to } = orderHistoryQuerySchema
+      .pick({ range: true, date: true, from: true, to: true })
+      .parse(req.query);
+    const rows = await orderService.getPaymentMethodStats(req.restaurantId!, range, date, from, to);
     res.json({ data: rows });
   }),
 
