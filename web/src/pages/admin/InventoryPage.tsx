@@ -1415,6 +1415,9 @@ function RecetasTab({ insumos }: { insumos: InventoryItem[] }) {
   const [rows, setRows] = useState<RecipeOverviewRow[] | null>(null);
   const [preparations, setPreparations] = useState<PreparationOverviewRow[]>([]);
   const [openProductId, setOpenProductId] = useState<string | null>(null);
+  // Filtro por categoría del menú (la del producto). '' = todas; 'SIN_RECETA' = solo los
+  // productos que todavía no tienen receta, para atacar primero lo que falta.
+  const [category, setCategory] = useState<string>('');
 
   function load() {
     api.get('/inventory/recipes').then((res) => setRows(res.data.data));
@@ -1422,6 +1425,18 @@ function RecetasTab({ insumos }: { insumos: InventoryItem[] }) {
   }
 
   useEffect(load, []);
+
+  const categories = [...new Set((rows ?? []).map((r) => r.categoryName ?? 'Sin categoría'))].sort((a, b) =>
+    a.localeCompare(b, 'es'),
+  );
+  const pendingCount = (rows ?? []).filter((r) => !r.hasRecipe).length;
+  const visible = (rows ?? []).filter((r) =>
+    category === ''
+      ? true
+      : category === 'SIN_RECETA'
+        ? !r.hasRecipe
+        : (r.categoryName ?? 'Sin categoría') === category,
+  );
 
   return (
     <div className="space-y-5">
@@ -1431,9 +1446,32 @@ function RecetasTab({ insumos }: { insumos: InventoryItem[] }) {
         </p>
       )}
 
+      {rows && rows.length > 0 && (
+        <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex w-max items-center gap-1.5">
+            <FilterPill active={category === ''} onClick={() => setCategory('')}>
+              Todas <span className="opacity-60">{rows.length}</span>
+            </FilterPill>
+            {pendingCount > 0 && (
+              <FilterPill active={category === 'SIN_RECETA'} onClick={() => setCategory('SIN_RECETA')} tone="amber">
+                Sin receta <span className="opacity-70">{pendingCount}</span>
+              </FilterPill>
+            )}
+            {categories.map((c) => (
+              <FilterPill key={c} active={category === c} onClick={() => setCategory(c)}>
+                {c} <span className="opacity-60">{rows.filter((r) => (r.categoryName ?? 'Sin categoría') === c).length}</span>
+              </FilterPill>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
         {rows?.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">No tienes productos todavía.</p>}
-        {rows?.map((r) => (
+        {rows && rows.length > 0 && visible.length === 0 && (
+          <p className="p-5 text-sm text-brand-950/40 font-light">Ningún producto en esta categoría.</p>
+        )}
+        {visible.map((r) => (
           <div key={r.productId} className="flex items-center justify-between gap-3 px-5 py-4">
             <div className="flex items-center gap-3 min-w-0">
               {r.photoUrl ? (
@@ -1444,6 +1482,7 @@ function RecetasTab({ insumos }: { insumos: InventoryItem[] }) {
               <div className="min-w-0">
                 <p className="font-medium text-brand-950 truncate">{r.name}</p>
                 <p className="text-xs text-brand-950/40 font-light">
+                  {r.categoryName && category === '' && `${r.categoryName} · `}
                   {r.hasRecipe ? `${r.ingredientCount} ingrediente(s) · Costo: $${r.totalCostBase}` : 'Sin receta'}
                 </p>
               </div>
@@ -1470,6 +1509,37 @@ function RecetasTab({ insumos }: { insumos: InventoryItem[] }) {
         />
       )}
     </div>
+  );
+}
+
+/** Píldora de filtro de la pestaña Recetas (categoría del menú / sin receta). */
+function FilterPill({
+  active,
+  tone,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  tone?: 'amber';
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+        active
+          ? tone === 'amber'
+            ? 'bg-amber-500 text-white'
+            : 'bg-brand-500 text-white'
+          : tone === 'amber'
+            ? 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+            : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+      }`}
+    >
+      {children}
+    </button>
   );
 }
 
