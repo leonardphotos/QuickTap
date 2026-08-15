@@ -149,6 +149,53 @@ async function cloneCatalog(tx: Prisma.TransactionClient, sourceRestaurantId: st
   }
 }
 
+/**
+ * Copia el catálogo de un LOCAL (ShopProduct + variantes con stock en 0 + categorías) a su
+ * sucursal nueva. Es el equivalente de cloneCatalog() para businessType SHOP: la sucursal
+ * arranca con los mismos productos y precios pero sin existencias — el stock es de cada sede.
+ */
+async function cloneShopCatalog(tx: Prisma.TransactionClient, fromRestaurantId: string, toRestaurantId: string) {
+  const [products, categories, subcategories] = await Promise.all([
+    tx.shopProduct.findMany({ where: { restaurantId: fromRestaurantId }, include: { variants: true } }),
+    tx.shopCategory.findMany({ where: { restaurantId: fromRestaurantId } }),
+    tx.shopSubcategory.findMany({ where: { restaurantId: fromRestaurantId } }),
+  ]);
+  for (const c of categories) {
+    await tx.shopCategory.create({ data: { restaurantId: toRestaurantId, name: c.name } });
+  }
+  for (const sc of subcategories) {
+    await tx.shopSubcategory.create({ data: { restaurantId: toRestaurantId, category: sc.category, name: sc.name } });
+  }
+  for (const p of products) {
+    await tx.shopProduct.create({
+      data: {
+        restaurantId: toRestaurantId,
+        name: p.name,
+        category: p.category,
+        subcategory: p.subcategory,
+        sku: p.sku,
+        location: p.location,
+        price: p.price,
+        cost: p.cost,
+        minStock: p.minStock,
+        photoUrl: p.photoUrl,
+        isPublished: p.isPublished,
+        wholesalePrice: p.wholesalePrice,
+        wholesaleMinQty: p.wholesaleMinQty,
+        promoPrice: p.promoPrice,
+        expiryDate: p.expiryDate,
+        brand: p.brand,
+        pricingMode: p.pricingMode,
+        rollWidths: p.rollWidths ?? undefined,
+        rollLengthM: p.rollLengthM,
+        variants: {
+          create: p.variants.map((v) => ({ v1: v.v1, v2: v.v2, stock: 0, soldByWeight: v.soldByWeight })),
+        },
+      },
+    });
+  }
+}
+
 export const branchService = {
   /** Sucursales de la sede principal (restaurantId = sede principal). */
   async list(restaurantId: string) {
@@ -178,6 +225,8 @@ export const branchService = {
           customInventoryRecipe: true,
           customAccountsPayable: true,
           parentRestaurantId: true,
+          businessType: true,
+          shopRubro: true,
         },
       }),
       prisma.restaurant.count({ where: { parentRestaurantId: restaurantId } }),
@@ -211,6 +260,10 @@ export const branchService = {
           subscriptionStatus: 'ACTIVE',
           subscriptionPlan: restaurant.subscriptionPlan,
           billingCycle: restaurant.billingCycle,
+          // Una sucursal es del mismo vertical que su sede: un local abre otro local (con
+          // el mismo rubro), un restaurante otro restaurante.
+          businessType: restaurant.businessType,
+          shopRubro: restaurant.shopRubro,
           customAdministration: restaurant.customAdministration,
           customInventoryBasic: restaurant.customInventoryBasic,
           customInventoryRecipe: restaurant.customInventoryRecipe,
@@ -228,7 +281,8 @@ export const branchService = {
       });
 
       if (input.copyCatalog) {
-        await cloneCatalog(tx, restaurantId, created.id);
+        if (restaurant.businessType === 'SHOP') await cloneShopCatalog(tx, restaurantId, created.id);
+        else await cloneCatalog(tx, restaurantId, created.id);
       }
 
       return created;
@@ -290,21 +344,58 @@ export const branchService = {
   /** ids [sede principal, ...sucursales] + nombre de cada uno, reutilizado por los 5 reportes. */
   async resolveScope(restaurantId: string) {
     const [self, branches] = await Promise.all([
-      prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { id: true, name: true } }),
+      prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { id: true, name: true, businessType: true } }),
       prisma.restaurant.findMany({ where: { parentRestaurantId: restaurantId }, select: { id: true, name: true } }),
     ]);
     if (!self) throw notFound('Restaurante no encontrado.');
     const scope = [self, ...branches];
-    return { ids: scope.map((s) => s.id), names: new Map(scope.map((s) => [s.id, s.name])), mainId: self.id };
+    return {
+      ids: scope.map((s) => s.id),
+      names: new Map(scope.map((s) => [s.id, s.name])),
+      mainId: self.id,
+      businessType: self.businessType,
+    };
+  },
+
+  /**
+   * Ventas del período por sede, en la forma común (sede, monto base, monto Bs). Un
+   * restaurante vende Orders; un local, ShopSales — el consolidado y el desglose por sede
+   * leen de acá para no repetir la bifurcación.
+   */
+  async salesRows(
+    ids: string[],
+    businessType: string,
+    range: ReportRange,
+    date?: string,
+  ): Promise<{ restaurantId: string; totalBase: Prisma.Decimal; totalBs: Prisma.Decimal }[]> {
+    const dateFilter = resolveDateFilter({ range, date });
+    if (businessType === 'SHOP') {
+      const [sales, rate] = await Promise.all([
+        prisma.shopSale.findMany({
+          where: { restaurantId: { in: ids }, returned: false, time: dateFilter },
+          select: { restaurantId: true, total: true },
+        }),
+        prisma.exchangeRate.findUnique({ where: { currency: 'USD' } }),
+      ]);
+      const rateBs = toDecimal(rate?.rateBs ?? 0);
+      return sales.map((s) => ({
+        restaurantId: s.restaurantId,
+        totalBase: toDecimal(s.total),
+        // Las ventas de local no congelan tasa: se muestra el equivalente a la tasa de hoy.
+        totalBs: round2(toDecimal(s.total).mul(rateBs)),
+      }));
+    }
+    const orders = await prisma.order.findMany({
+      where: { restaurantId: { in: ids }, status: { not: 'CANCELLED' }, createdAt: dateFilter },
+      select: { restaurantId: true, totalBase: true, totalBs: true },
+    });
+    return orders;
   },
 
   /** Ventas totales de la sede principal + todas sus sucursales juntas. */
   async getConsolidatedSummary(restaurantId: string, range: ReportRange, date?: string) {
-    const { ids } = await this.resolveScope(restaurantId);
-    const orders = await prisma.order.findMany({
-      where: { restaurantId: { in: ids }, status: { not: 'CANCELLED' }, createdAt: resolveDateFilter({ range, date }) },
-      select: { totalBase: true, totalBs: true },
-    });
+    const { ids, businessType } = await this.resolveScope(restaurantId);
+    const orders = await this.salesRows(ids, businessType, range, date);
     return {
       branchCount: ids.length - 1,
       ordersCount: orders.length,
@@ -315,11 +406,8 @@ export const branchService = {
 
   /** Ventas desglosadas por sede (principal + cada sucursal). */
   async getSalesByBranch(restaurantId: string, range: ReportRange, date?: string) {
-    const { ids, names, mainId } = await this.resolveScope(restaurantId);
-    const orders = await prisma.order.findMany({
-      where: { restaurantId: { in: ids }, status: { not: 'CANCELLED' }, createdAt: resolveDateFilter({ range, date }) },
-      select: { restaurantId: true, totalBase: true, totalBs: true },
-    });
+    const { ids, names, mainId, businessType } = await this.resolveScope(restaurantId);
+    const orders = await this.salesRows(ids, businessType, range, date);
 
     return ids.map((id) => {
       const own = orders.filter((o) => o.restaurantId === id);

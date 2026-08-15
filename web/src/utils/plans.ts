@@ -9,6 +9,7 @@ export type PlanId =
   | 'DELIVERY_SUCURSALES'
   | 'ELITE'
   | 'SHOP'
+  | 'ELITE_SHOP'
   | 'CLUB';
 export type BillingCycle = 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL';
 export type SubscriptionPaymentMethod = 'PAGO_MOVIL' | 'BINANCE' | 'BANK_TRANSFER';
@@ -19,7 +20,7 @@ export const BILLING_CYCLE_LABEL: Record<BillingCycle, string> = {
   SEMIANNUAL: '6 meses',
 };
 
-export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP' | 'CLUB';
+export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP' | 'ELITE_SHOP' | 'CLUB';
 
 /**
  * Precios fijos por plan y ciclo de facturación (USD/mes). Espejo del cálculo
@@ -35,6 +36,7 @@ export const FIXED_PLAN_PRICES: Record<PurchasablePlan, Record<BillingCycle, num
   PRO: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99 },
   ELITE: { MONTHLY: 39.99, QUARTERLY: 35.49, SEMIANNUAL: 30.99 },
   SHOP: { MONTHLY: 20, QUARTERLY: 18, SEMIANNUAL: 16 },
+  ELITE_SHOP: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40 },
   CLUB: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40 },
 };
 

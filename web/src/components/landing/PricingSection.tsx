@@ -25,9 +25,22 @@ const SHOP_DEFAULT_FEATURES = [
   'Punto de venta con escaneo por cámara o lector, y carrito flotante con el total en $ y Bs',
   'Acepta Efectivo Bs/$, Pago Móvil, Zelle, Binance y ventas fiadas (completas o con abono)',
   'Caja: apertura, cierre y arqueo con historial de informes',
-  'Ingresos por método de pago, margen de utilidad y productos más vendidos',
+  'Cuentas por cobrar de ventas fiadas',
+  'CRM: clientes por segmento y promociones con código canjeable',
+  'Ingresos por método de pago, gastos y productos más vendidos',
   'Alertas de stock bajo y productos próximos a vencer',
-  'Directorio de clientes y roles de equipo (Dueño, Administrador, Cajero)',
+  'Roles de equipo (Dueño, Administrador, Cajero)',
+];
+
+const ELITE_SHOP_DEFAULT_FEATURES = [
+  'Todo QuickTap Shop en cada sucursal',
+  'Contabilidad completa: libro de ingresos y egresos con exportación e importación en Excel',
+  'Cuentas bancarias por método de pago con saldo automático y transferencias',
+  'Proveedores con relación de cuenta y órdenes de pago con retenciones',
+  'Libros de compras y ventas',
+  'Margen de utilidad y punto de equilibrio',
+  'Sucursales: catálogo copiado, inventario y caja por sede, y ventas consolidadas',
+  'Soporte prioritario por WhatsApp',
 ];
 
 const CLUB_DEFAULT_FEATURES = [
@@ -88,16 +101,28 @@ export function PricingSection() {
       </div>
 
       {vertical === 'shop' && (
-        <SinglePlanCard
-          plan="SHOP"
-          defaultName="QuickTap Shop"
-          defaultSubtitle="Todos los beneficios de QuickTap para tiendas, ropa, calzado, ferreterías, farmacias y más"
-          defaultFeatures={SHOP_DEFAULT_FEATURES}
-          rateBs={rateBs}
-          billingCycle={billingCycle}
-          onBillingCycleChange={setBillingCycle}
-          onChoosePlan={choosePlan}
-        />
+        <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+          <SinglePlanCard
+            plan="SHOP"
+            defaultName="QuickTap Shop"
+            defaultSubtitle="La operación diaria de tu local: tiendas, ropa, calzado, ferreterías, farmacias y más"
+            defaultFeatures={SHOP_DEFAULT_FEATURES}
+            rateBs={rateBs}
+            billingCycle={billingCycle}
+            onBillingCycleChange={setBillingCycle}
+            onChoosePlan={choosePlan}
+          />
+          <SinglePlanCard
+            plan="ELITE_SHOP"
+            defaultName="Elite Shop"
+            defaultSubtitle="Todo lo de QuickTap Shop + administración completa y sucursales"
+            defaultFeatures={ELITE_SHOP_DEFAULT_FEATURES}
+            rateBs={rateBs}
+            billingCycle={billingCycle}
+            onBillingCycleChange={setBillingCycle}
+            onChoosePlan={choosePlan}
+          />
+        </div>
       )}
       {vertical === 'club' && (
         <SinglePlanCard

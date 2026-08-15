@@ -57,7 +57,7 @@ export function renderTemplate(template: string, vars: Record<string, string>): 
     .trim();
 }
 
-export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP' | 'CLUB';
+export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP' | 'ELITE_SHOP' | 'CLUB';
 export type PlanBillingCycle = 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL';
 
 export interface PlanContentEntry {
@@ -104,24 +104,27 @@ export const DEFAULT_PLAN_CONTENT: PlanContent = {
   },
   PRO: {
     name: 'Plan Pro',
-    subtitle: 'Todos los beneficios de QuickTap',
+    subtitle: 'La operación completa de tu restaurante',
     capacity: 'Mesas y pedidos ilimitados',
     features: [
       'Usuarios ilimitados',
-      'Administración, propinas y reportes de ventas',
-      'Margen de utilidad por producto',
+      'Administración: resumen, estadísticas, productos, delivery y métodos de pago',
       'Inventario por stock: existencias, compras y alertas de agotados',
-      'Gastos y cuentas por pagar',
+      'Registro de gastos',
       ...CHATBOT_FEATURES,
     ],
     prices: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99 },
   },
   ELITE: {
     name: 'Plan Elite',
-    subtitle: 'Todo lo del Plan Pro + beneficios exclusivos, sin límite de sucursales',
+    subtitle: 'Todo lo del Plan Pro + administración completa, sin límite de sucursales',
     capacity: 'Sucursales ilimitadas, cada una con mesas y pedidos ilimitados',
     features: [
       'Todo el Plan Pro en cada sucursal',
+      'Administración completa: contabilidad con Excel, cuentas bancarias, proveedores, libros fiscales y órdenes de pago',
+      'CRM: clientes por segmento y promociones con código canjeable',
+      'Historial de pedidos, margen de utilidad y cuentas por cobrar',
+      'Inventario por receta y producción',
       'Catálogo, inventario y equipo por sucursal',
       'Reporte consolidado de ventas entre sucursales',
       'Productos más vendidos por sucursal',
@@ -135,19 +138,37 @@ export const DEFAULT_PLAN_CONTENT: PlanContent = {
   },
   SHOP: {
     name: 'QuickTap Shop',
-    subtitle: 'Todos los beneficios de QuickTap para tiendas, ropa, calzado, ferreterías, farmacias y más',
-    capacity: 'Un solo plan, con todo incluido',
+    subtitle: 'La operación diaria de tu local: tiendas, ropa, calzado, ferreterías, farmacias y más',
+    capacity: 'Un solo local, ventas ilimitadas',
     features: [
       'Punto Pago: sube tu QR de Pago Móvil una sola vez y cóbralo con el monto en Bs y la tasa del día en una sola pantalla',
       'Inventario con foto obligatoria, variantes de talla/color o stock básico',
       'Punto de venta con escaneo por cámara o lector, y carrito flotante con el total en $ y Bs',
       'Acepta Efectivo Bs/$, Pago Móvil, Zelle, Binance y ventas fiadas (completas o con abono)',
       'Caja: apertura, cierre y arqueo con historial de informes',
-      'Ingresos por método de pago, margen de utilidad y productos más vendidos',
+      'Cuentas por cobrar de ventas fiadas',
+      'CRM: clientes por segmento y promociones con código canjeable',
+      'Ingresos por método de pago, gastos y productos más vendidos',
       'Alertas de stock bajo y productos próximos a vencer',
-      'Directorio de clientes y roles de equipo (Dueño, Administrador, Cajero)',
+      'Roles de equipo (Dueño, Administrador, Cajero)',
     ],
     prices: { MONTHLY: 20, QUARTERLY: 18, SEMIANNUAL: 16 },
+  },
+  ELITE_SHOP: {
+    name: 'Elite Shop',
+    subtitle: 'Todo lo de QuickTap Shop + administración completa y sucursales',
+    capacity: 'Sucursales ilimitadas, cada una con su propio inventario y caja',
+    features: [
+      'Todo QuickTap Shop en cada sucursal',
+      'Contabilidad completa: libro de ingresos y egresos con exportación e importación en Excel',
+      'Cuentas bancarias por método de pago con saldo automático y transferencias',
+      'Proveedores con relación de cuenta y órdenes de pago con retenciones',
+      'Libros de compras y ventas',
+      'Margen de utilidad y punto de equilibrio',
+      'Sucursales: catálogo copiado, inventario y caja por sede, y ventas consolidadas',
+      'Soporte prioritario por WhatsApp',
+    ],
+    prices: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40 },
   },
   CLUB: {
     name: 'QuickTap Club',

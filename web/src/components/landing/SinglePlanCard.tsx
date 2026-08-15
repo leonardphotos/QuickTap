@@ -15,7 +15,7 @@ interface FetchedPlan {
 }
 
 /** Los dos verticales con un solo plan (sin niveles) — Locales Comerciales y Canchas. */
-export type SinglePlan = 'SHOP' | 'CLUB';
+export type SinglePlan = 'SHOP' | 'ELITE_SHOP' | 'CLUB';
 
 interface Props {
   plan: SinglePlan;

@@ -72,7 +72,16 @@ export function graceHoursRemaining(restaurant: { periodEnd: Date }): number | n
  * CUSTOM se activan una por una según lo que el restaurante haya contratado
  * (campos customAdministration/customInventoryBasic/... en Restaurant).
  */
-export type FeatureFlag = 'administration' | 'inventoryBasic' | 'inventoryRecipe' | 'accountsPayable';
+/**
+ * - administration: Administración básica (Resumen, Estadísticas, Productos, Delivery,
+ *   Métodos de pago) + Gastos.
+ * - inventoryBasic / inventoryRecipe: Inventario por stock / por receta.
+ * - accountsPayable: cuentas por cobrar a clientes (deuda en pedidos, ventas fiadas).
+ * - accounting: contabilidad avanzada — órdenes de pago, libro de movimientos con Excel,
+ *   cuentas bancarias, proveedores, libros fiscales, historial de pedidos y margen de utilidad.
+ * - crm: CRM (directorio con segmentos y promociones con código canjeable).
+ */
+export type FeatureFlag = 'administration' | 'inventoryBasic' | 'inventoryRecipe' | 'accountsPayable' | 'accounting' | 'crm';
 
 interface FeatureCheckRestaurant {
   subscriptionPlan?: string | null;
@@ -80,13 +89,18 @@ interface FeatureCheckRestaurant {
   customInventoryBasic?: boolean;
   customInventoryRecipe?: boolean;
   customAccountsPayable?: boolean;
+  /** Locales con plan Shop pagado antes de existir Elite Shop: conservan todo hasta esta fecha. */
+  legacyFullAccessUntil?: Date | string | null;
 }
 
-const CUSTOM_FLAG_FIELD: Record<FeatureFlag, keyof FeatureCheckRestaurant> = {
+const CUSTOM_FLAG_FIELD: Partial<Record<FeatureFlag, keyof FeatureCheckRestaurant>> = {
   administration: 'customAdministration',
   inventoryBasic: 'customInventoryBasic',
   inventoryRecipe: 'customInventoryRecipe',
   accountsPayable: 'customAccountsPayable',
+  // accounting/crm no tienen adicional en CUSTOM: van con accountsPayable/administration.
+  accounting: 'customAccountsPayable',
+  crm: 'customAdministration',
 };
 
 /**
@@ -96,8 +110,10 @@ const CUSTOM_FLAG_FIELD: Record<FeatureFlag, keyof FeatureCheckRestaurant> = {
  * pruebe TODO el producto antes de elegir. Vive aquí y no repetido en
  * auth.service porque se usa en los dos caminos de registro (normal y Google).
  */
-export function trialPlanFor(businessType?: string | null): 'SHOP' | 'CLUB' | 'ELITE' {
-  if (businessType === 'SHOP') return 'SHOP';
+export function trialPlanFor(businessType?: string | null): 'ELITE_SHOP' | 'CLUB' | 'ELITE' {
+  // El local arranca en Elite Shop por la misma razón que el restaurante en Elite: que
+  // pruebe TODO (contabilidad, bancos, sucursales) antes de elegir.
+  if (businessType === 'SHOP') return 'ELITE_SHOP';
   if (businessType === 'SPORTS_CLUB') return 'CLUB';
   return 'ELITE';
 }
@@ -105,6 +121,12 @@ export function trialPlanFor(businessType?: string | null): 'SHOP' | 'CLUB' | 'E
 /** Planes "completos" (todos los beneficios de Administración/Inventario/etc.), con o sin sucursales. */
 export function isFullTierPlan(plan?: string | null): boolean {
   return plan === 'PRO' || plan === 'PREMIUM' || plan === 'SUCURSALES' || plan === 'ELITE';
+}
+
+/** Un local con plan Shop base que todavía está dentro de su ventana de acceso completo heredado. */
+function hasLegacyFullAccess(restaurant: FeatureCheckRestaurant): boolean {
+  if (restaurant.subscriptionPlan !== 'SHOP' || !restaurant.legacyFullAccessUntil) return false;
+  return new Date(restaurant.legacyFullAccessUntil).getTime() > Date.now();
 }
 
 /** Planes "Solo Delivery" (sin mesas/QR, acceso directo a Cocina), con o sin sucursales. */
@@ -123,6 +145,7 @@ export function allowsBranches(plan?: string | null): boolean {
   return (
     plan === 'DELIVERY' ||
     plan === 'ELITE' ||
+    plan === 'ELITE_SHOP' ||
     plan === 'SUCURSALES' ||
     plan === 'DELIVERY_SUCURSALES'
   );
@@ -138,15 +161,23 @@ export function maxBranchesFor(plan?: string | null): number | null {
 }
 
 export function hasFeature(restaurant: FeatureCheckRestaurant, feature: FeatureFlag): boolean {
-  // Plan Pro: completo SALVO el inventario por receta (y con él, Producción/preparaciones,
-  // que cuelga del mismo flag) — Pro incluye solo inventario por stock; recetas son de Elite.
-  if (restaurant.subscriptionPlan === 'PRO') return feature !== 'inventoryRecipe';
+  const plan = restaurant.subscriptionPlan;
+  // Plan Pro (restaurante): Administración básica (Resumen, Estadísticas, Productos, Delivery,
+  // Métodos de pago), Gastos e inventario por stock. Lo demás — recetas, cuentas por cobrar,
+  // contabilidad avanzada, CRM — es de Elite.
+  if (plan === 'PRO') return feature === 'administration' || feature === 'inventoryBasic';
   // Premium/Sucursales (legados) y Elite: todos los beneficios.
-  if (isFullTierPlan(restaurant.subscriptionPlan)) return true;
-  // QuickTap Shop y QuickTap Club tienen un plan único: no hay nada a lo que mejorar, así que
-  // su plan incluye todo lo que el negocio necesita. Sin esto, el botón "Añadir egreso"
-  // respondía 403 (Gastos y Proveedores viven en rutas marcadas como 'administration').
-  if (restaurant.subscriptionPlan === 'SHOP' || restaurant.subscriptionPlan === 'CLUB') return true;
-  if (restaurant.subscriptionPlan === 'CUSTOM') return Boolean(restaurant[CUSTOM_FLAG_FIELD[feature]]);
+  if (isFullTierPlan(plan)) return true;
+  // Locales: Shop base = operación diaria (Administración básica, inventario, cuentas por
+  // cobrar, CRM); Elite Shop suma la contabilidad avanzada y las sucursales. Un Shop pagado
+  // antes de la separación conserva todo hasta que venza (legacyFullAccessUntil).
+  if (plan === 'ELITE_SHOP') return true;
+  if (plan === 'SHOP') return feature !== 'accounting' || hasLegacyFullAccess(restaurant);
+  // QuickTap Club: plan único con todo incluido.
+  if (plan === 'CLUB') return true;
+  if (plan === 'CUSTOM') {
+    const field = CUSTOM_FLAG_FIELD[feature];
+    return field ? Boolean(restaurant[field]) : false;
+  }
   return false;
 }

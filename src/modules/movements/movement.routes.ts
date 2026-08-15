@@ -12,11 +12,12 @@ router.use(requireFeature('administration'));
 // dos habilidades que Cajero conserva siempre, sin depender de `cashierFullAccess`. Crear/borrar
 // movimientos y marcar créditos pagados sí requiere acceso completo (dueño/admin, o cajero con el flag).
 router.get('/', requireRole('OWNER', 'ADMIN', 'CASHIER'), movementController.list);
-router.get('/export', requireRole('OWNER', 'ADMIN', 'CASHIER'), movementController.exportExcel);
+// Export/import Excel del libro son contabilidad avanzada (Elite / Elite Shop / Club).
+router.get('/export', requireRole('OWNER', 'ADMIN', 'CASHIER'), requireFeature('accounting'), movementController.exportExcel);
 const mutate = requireRoleOrCashierFullAccess('OWNER', 'ADMIN');
 // Carga del historial financiero por Excel (Contabilidad): plantilla + import masivo.
-router.get('/import-template', mutate, movementController.downloadImportTemplate);
-router.post('/import', mutate, uploadSpreadsheet, movementController.importExcel);
+router.get('/import-template', mutate, requireFeature('accounting'), movementController.downloadImportTemplate);
+router.post('/import', mutate, requireFeature('accounting'), uploadSpreadsheet, movementController.importExcel);
 router.post('/', mutate, movementController.create);
 router.post('/upload-receipt', mutate, uploadExpenseReceipt, optimizeImage(1400, 1400), movementController.uploadReceipt);
 router.post('/upload-quote', mutate, uploadExpenseQuote, optimizeImage(1400, 1400), movementController.uploadQuote);

@@ -1,10 +1,12 @@
 import { Router } from 'express';
-import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
+import { requireFeature, requireRole, tenantGuard } from '../../middlewares/auth.middleware';
 import { promotionController } from './promotion.controller';
 
 /** Base: /api/v1/promotions — campañas del CRM con código canjeable. */
 const router = Router();
 router.use(tenantGuard);
+// El CRM (promociones) es de Elite / Shop / Elite Shop / Club — no de Pro.
+router.use(requireFeature('crm'));
 
 // Validar un código lo hace quien cobra (cajero incluido); administrar campañas, no.
 router.get('/validate', requireRole('OWNER', 'ADMIN', 'CASHIER', 'WAITER'), promotionController.validate);

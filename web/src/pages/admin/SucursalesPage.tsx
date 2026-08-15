@@ -651,7 +651,7 @@ function EmployeesTab() {
   );
 }
 
-function AddBranchDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+export function AddBranchDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const { restaurant } = useAuth();
   const [name, setName] = useState('');
   const [whatsappPhone, setWhatsappPhone] = useState('');

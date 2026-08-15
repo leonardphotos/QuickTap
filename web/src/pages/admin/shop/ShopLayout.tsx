@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Home, Receipt, Boxes, Users, Settings, Calculator, FileText, HandCoins, Landmark, ShoppingBag, CreditCard } from 'lucide-react';
+import { Home, Receipt, Boxes, Users, Settings, Calculator, FileText, HandCoins, Landmark, ShoppingBag, CreditCard, Building2, Lock } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getShopRubro } from '@/data/shopRubros';
-import { daysRemaining, graceHoursRemaining } from '@/utils/subscription';
 import { TextureButton } from '@/components/ui/texture-button';
 import { DailyRatesBadge } from '@/components/DailyRatesBadge';
 import { QuoteManager } from '@/components/admin/QuoteManager';
@@ -18,17 +17,23 @@ import ShopReceivablesPage from './ShopReceivablesPage';
 import ShopBillingPage from './ShopBillingPage';
 import { PayablesSection } from '@/components/admin/PayablesSection';
 import { AccountingHub } from '@/components/admin/AccountingHub';
+import { PlanUpgradeNotice } from '@/components/admin/PlanUpgradeNotice';
+import { allowsBranches, daysRemaining, graceHoursRemaining, hasFeature, type FeatureFlag } from '@/utils/subscription';
+import ShopSucursalesPage from './ShopSucursalesPage';
 
-export type ShopScreen = 'admin' | 'venta' | 'pedidos' | 'inventario' | 'clientes' | 'ajustes' | 'cotizaciones' | 'cuentas' | 'ordenes' | 'contabilidad' | 'factura';
+export type ShopScreen = 'admin' | 'venta' | 'pedidos' | 'inventario' | 'clientes' | 'ajustes' | 'cotizaciones' | 'cuentas' | 'ordenes' | 'contabilidad' | 'sucursales' | 'factura';
 
 // Cotizaciones, Cuentas por Cobrar y Facturación no van en el dock flotante de celular (ya tiene
 // 5 iconos, más lo dejaría apretado) — se llega a ellas desde los accesos de Inicio
 // (ShopDashboardPage), el aviso de vencimiento de abajo y, en escritorio, estos botones extra.
-const MORE_TABS: { id: ShopScreen; label: string; icon: typeof FileText }[] = [
+// `feature` marca las pantallas de Elite Shop: con el plan Shop base se ven (con candado)
+// pero abren el aviso de mejora — así el dueño sabe qué gana al subir de plan.
+const MORE_TABS: { id: ShopScreen; label: string; icon: typeof FileText; feature?: FeatureFlag | 'branches' }[] = [
   { id: 'cotizaciones', label: 'Cotizaciones', icon: FileText },
   { id: 'cuentas', label: 'Cuentas por Cobrar', icon: Landmark },
-  { id: 'ordenes', label: 'Órdenes de pago', icon: HandCoins },
-  { id: 'contabilidad', label: 'Contabilidad', icon: Calculator },
+  { id: 'ordenes', label: 'Órdenes de pago', icon: HandCoins, feature: 'accounting' },
+  { id: 'contabilidad', label: 'Contabilidad', icon: Calculator, feature: 'accounting' },
+  { id: 'sucursales', label: 'Sucursales', icon: Building2, feature: 'branches' },
   { id: 'factura', label: 'Facturación', icon: CreditCard },
 ];
 
@@ -55,12 +60,14 @@ function getTabs(rubroId: string | undefined): { id: ShopScreen; label: string; 
  * muestra como pestañas dentro de la cabecera.
  */
 export default function ShopLayout() {
-  const { user, restaurant, logout } = useAuth();
+  const { user, restaurant, logout, switchToParent } = useAuth();
   const [searchParams] = useSearchParams();
   // Entrada desde "Elegir plan" de la landing seguido de registro (?plan=SHOP&cycle=Y, o de
   // vuelta del checkout de Ramblay): arranca directo en Facturación en vez de Venta.
   const [screen, setScreen] = useState<ShopScreen>(() =>
-    searchParams.get('plan') === 'SHOP' || searchParams.get('ramblay') === 'success' ? 'factura' : 'venta',
+    ['SHOP', 'ELITE_SHOP'].includes(searchParams.get('plan') ?? '') || searchParams.get('ramblay') === 'success'
+      ? 'factura'
+      : 'venta',
   );
   const rubro = getShopRubro(restaurant?.shopRubro);
   const session = useShopSession(rubro?.categories ?? []);
@@ -93,6 +100,13 @@ export default function ShopLayout() {
   }
 
   const canSeeMoney = user.role === 'OWNER' || user.role === 'ADMIN';
+  const isEliteShop = restaurant.subscriptionPlan === 'ELITE_SHOP';
+  const canAccounting = hasFeature(restaurant, 'accounting');
+  const canBranches = allowsBranches(restaurant.subscriptionPlan);
+  // Una sucursal no ve la pestaña Sucursales (no puede tener las suyas); solo Dueño/Admin.
+  const moreTabs = MORE_TABS.filter((t) => t.id !== 'sucursales' || (canSeeMoney && !restaurant.parentRestaurantId));
+  const isLocked = (t: (typeof MORE_TABS)[number]) =>
+    t.feature === 'branches' ? !canBranches : t.feature ? !hasFeature(restaurant, t.feature) : false;
   const daysLeft = daysRemaining(restaurant.periodEnd);
   const graceHours = graceHoursRemaining(restaurant.periodEnd);
   const showExpirationWarning = daysLeft <= 3;
@@ -115,12 +129,23 @@ export default function ShopLayout() {
         <div className="max-w-7xl mx-auto px-5 sm:px-6 h-14 flex items-center justify-between gap-3">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="text-[13px] font-bold tracking-tight truncate">{restaurant.name}</span>
-            <span className="shrink-0 text-[8px] font-bold bg-brand-500/10 text-brand-500 px-1.5 py-0.5 rounded-full">SHOP</span>
+            <span className="shrink-0 text-[8px] font-bold bg-brand-500/10 text-brand-500 px-1.5 py-0.5 rounded-full">
+              {isEliteShop ? 'ELITE SHOP' : 'SHOP'}
+            </span>
+            {restaurant.parentRestaurantId && (
+              <button
+                type="button"
+                onClick={switchToParent}
+                className="shrink-0 rounded-full border border-brand-950/15 px-2 py-0.5 text-[10px] font-semibold text-brand-950/60 hover:bg-brand-950/[0.04]"
+              >
+                ← Sede principal
+              </button>
+            )}
           </div>
 
           {/* Escritorio: pestañas dentro de la cabecera (no hay dock flotante en lg+). */}
-          <nav className="hidden lg:flex items-center gap-1 bg-brand-950/[0.05] p-1 rounded-full shrink-0">
-            {[...tabs, ...MORE_TABS].map((t) => (
+          <nav className="hidden lg:flex items-center gap-1 bg-brand-950/[0.05] p-1 rounded-full min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {[...tabs.map((t) => ({ ...t, locked: false })), ...moreTabs.map((t) => ({ ...t, locked: isLocked(t) }))].map((t) => (
               <button
                 key={t.id}
                 type="button"
@@ -129,7 +154,8 @@ export default function ShopLayout() {
                   screen === t.id ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
                 }`}
               >
-                {t.label}
+                <span className={t.locked ? 'opacity-60' : ''}>{t.label}</span>
+                {t.locked && <Lock className="ml-1 inline h-3 w-3 text-brand-950/35" />}
               </button>
             ))}
           </nav>
@@ -157,7 +183,10 @@ export default function ShopLayout() {
         {screen === 'factura' && <ShopBillingPage restaurant={restaurant} onDone={() => setScreen('admin')} />}
         {screen === 'cotizaciones' && <QuoteManager />}
         {screen === 'cuentas' && <ShopReceivablesPage />}
-        {screen === 'ordenes' && (
+        {screen === 'ordenes' && !canAccounting && (
+          <PlanUpgradeNotice feature="Órdenes de pago" onGoToBilling={() => setScreen('factura')} />
+        )}
+        {screen === 'ordenes' && canAccounting && (
           <div className="space-y-5">
             <div>
               <h1 className="text-2xl font-semibold text-brand-950">Órdenes de pago</h1>
@@ -168,7 +197,14 @@ export default function ShopLayout() {
             <PayablesSection />
           </div>
         )}
-        {screen === 'contabilidad' && (
+        {screen === 'contabilidad' && !canAccounting && (
+          <PlanUpgradeNotice feature="La Contabilidad" onGoToBilling={() => setScreen('factura')} />
+        )}
+        {screen === 'sucursales' && !canBranches && (
+          <PlanUpgradeNotice feature="Sucursales" onGoToBilling={() => setScreen('factura')} />
+        )}
+        {screen === 'sucursales' && canBranches && <ShopSucursalesPage />}
+        {screen === 'contabilidad' && canAccounting && (
           <div className="space-y-5">
             <div>
               <h1 className="text-2xl font-semibold text-brand-950">Contabilidad</h1>

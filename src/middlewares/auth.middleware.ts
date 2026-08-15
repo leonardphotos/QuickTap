@@ -216,6 +216,7 @@ export function requireFeature(feature: FeatureFlag) {
           customInventoryBasic: true,
           customInventoryRecipe: true,
           customAccountsPayable: true,
+          legacyFullAccessUntil: true,
         },
       })
       .then((restaurant) => {

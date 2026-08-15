@@ -6,7 +6,7 @@ export const createPlanRequestSchema = z.object({
   // Comerciales, CLUB el único de Canchas. SUCURSALES/DELIVERY_SUCURSALES son
   // planes legados — ya no se ofrecen por este flujo (solo el master puede
   // reactivar/extenderlos, ver activateRestaurantSchema).
-  plan: z.enum(['DELIVERY', 'PRO', 'ELITE', 'SHOP', 'CLUB']),
+  plan: z.enum(['DELIVERY', 'PRO', 'ELITE', 'SHOP', 'ELITE_SHOP', 'CLUB']),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL']),
   paymentMethod: z.enum(['PAGO_MOVIL', 'BINANCE', 'BANK_TRANSFER']),
   // Número de referencia de la transferencia/pago móvil/Binance (reemplaza
@@ -92,7 +92,7 @@ export type UpdatePlanRequestInput = z.infer<typeof updatePlanRequestSchema>;
 // (planes legados, quedan disponibles acá únicamente para gestionar a los restaurantes
 // que ya los tenían contratados — no se ofrecen a clientes nuevos).
 export const activateRestaurantSchema = z.object({
-  plan: z.enum(['DELIVERY', 'PRO', 'ELITE', 'SUCURSALES', 'DELIVERY_SUCURSALES', 'SHOP', 'CLUB']),
+  plan: z.enum(['DELIVERY', 'PRO', 'ELITE', 'SUCURSALES', 'DELIVERY_SUCURSALES', 'SHOP', 'ELITE_SHOP', 'CLUB']),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL']),
 });
 
@@ -100,7 +100,7 @@ export type ActivateRestaurantInput = z.infer<typeof activateRestaurantSchema>;
 
 // GET /plan-requests/quote — desglose (mensualidad + cargos adicionales) antes de cobrar.
 export const quoteQuerySchema = z.object({
-  plan: z.enum(['DELIVERY', 'PRO', 'ELITE', 'SHOP', 'CLUB']),
+  plan: z.enum(['DELIVERY', 'PRO', 'ELITE', 'SHOP', 'ELITE_SHOP', 'CLUB']),
   billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL']),
   promoCode: z.string().max(40).optional(),
 });

@@ -1,4 +1,4 @@
-import type { LucideIcon } from 'lucide-react';
+import { Lock, type LucideIcon } from 'lucide-react';
 
 export interface AdminSectionNavItem {
   id: string;
@@ -6,6 +6,8 @@ export interface AdminSectionNavItem {
   icon?: LucideIcon;
   /** Cantidad a mostrar en un globo ámbar (ej. cuentas por pagar pendientes). */
   badge?: number;
+  /** Sección de un plan superior: se ve (con candado) pero abre el aviso de mejora. */
+  locked?: boolean;
 }
 
 interface AdminSectionNavProps {
@@ -38,7 +40,8 @@ export function AdminSectionNav({ items, activeId, onChange }: AdminSectionNavPr
               }`}
             >
               {item.icon && <item.icon className="h-4 w-4 shrink-0" />}
-              <span className="truncate flex-1 text-left">{item.label}</span>
+              <span className={`truncate flex-1 text-left ${item.locked ? 'opacity-60' : ''}`}>{item.label}</span>
+              {item.locked && <Lock className="h-3.5 w-3.5 shrink-0 text-brand-950/35" />}
               {!!item.badge && (
                 <span className="shrink-0 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{item.badge}</span>
               )}
@@ -60,7 +63,8 @@ export function AdminSectionNav({ items, activeId, onChange }: AdminSectionNavPr
                   active ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
                 }`}
               >
-                {item.label}
+                <span className={item.locked ? 'opacity-60' : ''}>{item.label}</span>
+                {item.locked && <Lock className="ml-1 inline h-3 w-3 text-brand-950/35" />}
                 {!!item.badge && (
                   <span className="ml-1.5 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-bold text-white">{item.badge}</span>
                 )}

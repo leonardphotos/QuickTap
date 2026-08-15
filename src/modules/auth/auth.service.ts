@@ -112,6 +112,7 @@ const RESTAURANT_SELECT = {
   customInventoryBasic: true,
   customInventoryRecipe: true,
   customAccountsPayable: true,
+  legacyFullAccessUntil: true,
   parentRestaurantId: true,
   pendingWelcomePlan: true,
   deleteOrderPinHash: true,
@@ -169,6 +170,7 @@ type RestaurantRow = {
   customInventoryBasic: boolean;
   customInventoryRecipe: boolean;
   customAccountsPayable: boolean;
+  legacyFullAccessUntil: Date | null;
   parentRestaurantId: string | null;
   pendingWelcomePlan: string | null;
   deleteOrderPinHash: string | null;
@@ -252,6 +254,7 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
     customInventoryBasic: restaurant.customInventoryBasic,
     customInventoryRecipe: restaurant.customInventoryRecipe,
     customAccountsPayable: restaurant.customAccountsPayable,
+    legacyFullAccessUntil: restaurant.legacyFullAccessUntil,
     parentRestaurantId: restaurant.parentRestaurantId,
     pendingWelcomePlan: restaurant.pendingWelcomePlan,
     hasDeleteOrderPin: !!restaurant.deleteOrderPinHash,

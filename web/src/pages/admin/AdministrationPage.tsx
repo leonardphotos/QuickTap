@@ -3,10 +3,11 @@ import { ChevronDown, Clock, DollarSign, Plus, Receipt, Trash2, TrendingUp, Wall
 import { api } from '@/api/client';
 import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
 import { useAuth } from '@/context/AuthContext';
-import { hasFeature } from '@/utils/subscription';
+import { hasFeature, type FeatureFlag } from '@/utils/subscription';
 import { TextureButton } from '@/components/ui/texture-button';
 import { InlinePanel } from '@/components/admin/InlinePanel';
 import { AdminSectionNav } from '@/components/admin/AdminSectionNav';
+import { PlanUpgradeNotice } from '@/components/admin/PlanUpgradeNotice';
 import { MetricCard } from '@/components/admin/MetricCard';
 import { BreakEvenCard } from '@/components/admin/BreakEvenCard';
 import { PayablesSection } from '@/components/admin/PayablesSection';
@@ -22,25 +23,32 @@ import { IncomeForm, INCOME_CATEGORY_LABELS, type IncomeCategory } from '@/compo
 import type { ReportData } from '@/components/admin/ReportReceipt';
 import type { PaymentMethod as AnyPaymentMethod } from '@/types';
 
-const BASE_TABS = [
-  { id: 'summary', label: 'Resumen' },
-  { id: 'stats', label: 'Estadísticas' },
-  { id: 'history', label: 'Historial de pedidos' },
-  { id: 'products', label: 'Productos' },
-  { id: 'margin', label: 'Margen de utilidad' },
-  { id: 'delivery', label: 'Delivery' },
+/**
+ * Pestañas de Administración y el flag de plan que las habilita. `null` = va en Administración
+ * básica (Plan Pro); las demás son del Plan Elite (contabilidad avanzada / CRM / cuentas por
+ * cobrar). Con el flag apagado la pestaña se sigue viendo pero abre el aviso de mejora de plan —
+ * así el dueño sabe qué gana con Elite en vez de no enterarse de que existe.
+ */
+const ALL_TABS = [
+  { id: 'summary', label: 'Resumen', feature: null },
+  { id: 'stats', label: 'Estadísticas', feature: null },
+  { id: 'history', label: 'Historial de pedidos', feature: 'accounting' },
+  { id: 'products', label: 'Productos', feature: null },
+  { id: 'margin', label: 'Margen de utilidad', feature: 'accounting' },
+  { id: 'delivery', label: 'Delivery', feature: null },
   // Clientes con segmentos + promociones personalizadas con código canjeable.
-  { id: 'crm', label: 'CRM' },
-  { id: 'payments', label: 'Métodos de pago' },
+  { id: 'crm', label: 'CRM', feature: 'crm' },
+  { id: 'payments', label: 'Métodos de pago', feature: null },
   // Cuentas por pagar a PROVEEDORES (gastos a crédito + órdenes de pago) — no confundir con
   // la pestaña "Cuentas por pagar" de abajo, que son los CLIENTES que deben al restaurante.
-  { id: 'paymentOrders', label: 'Órdenes de pago' },
-  { id: 'ledger', label: 'Contabilidad' },
-  { id: 'suppliers', label: 'Proveedores' },
-  { id: 'books', label: 'Libros fiscales' },
-  { id: 'banks', label: 'Cuentas bancarias' },
-] as const;
-const PAYABLE_TAB = { id: 'payable', label: 'Cuentas por pagar' } as const;
+  { id: 'paymentOrders', label: 'Órdenes de pago', feature: 'accounting' },
+  { id: 'ledger', label: 'Contabilidad', feature: 'accounting' },
+  { id: 'suppliers', label: 'Proveedores', feature: 'accounting' },
+  { id: 'books', label: 'Libros fiscales', feature: 'accounting' },
+  { id: 'banks', label: 'Cuentas bancarias', feature: 'accounting' },
+  { id: 'payable', label: 'Cuentas por pagar', feature: 'accountsPayable' },
+] as const satisfies readonly { id: string; label: string; feature: FeatureFlag | null }[];
+type TabId = (typeof ALL_TABS)[number]['id'];
 
 /** Administración: resumen, historial de pedidos, propinas y reporte de productos. Planes Pro/Premium.
  * Menú propio (`AdminSectionNav`, sidebar en escritorio) + todo desplegado en línea, sin ventanas
@@ -49,9 +57,16 @@ export default function AdministrationPage() {
   const { restaurant } = useAuth();
   const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
   const [payableCount, setPayableCount] = useState<number | null>(null);
-  const TABS = canAccountsPayable ? [...BASE_TABS, { ...PAYABLE_TAB, badge: payableCount ?? undefined }] : [...BASE_TABS];
-  const [tab, setTab] = useState<(typeof TABS)[number]['id']>('summary');
+  const TABS = ALL_TABS.map((t) => ({
+    id: t.id,
+    label: t.label,
+    badge: t.id === 'payable' && canAccountsPayable ? (payableCount ?? undefined) : undefined,
+    locked: t.feature != null && !hasFeature(restaurant, t.feature),
+  }));
+  const [tab, setTab] = useState<TabId>('summary');
   const [showReport, setShowReport] = useState(false);
+  const activeTab = ALL_TABS.find((t) => t.id === tab)!;
+  const tabLocked = activeTab.feature != null && !hasFeature(restaurant, activeTab.feature);
 
   useEffect(() => {
     if (!canAccountsPayable) return;
@@ -79,22 +94,23 @@ export default function AdministrationPage() {
       {showReport && <ReportPanel onClose={() => setShowReport(false)} />}
 
       <div className="lg:flex lg:flex-row lg:gap-6">
-        <AdminSectionNav items={TABS} activeId={tab} onChange={(id) => setTab(id as (typeof TABS)[number]['id'])} />
+        <AdminSectionNav items={TABS} activeId={tab} onChange={(id) => setTab(id as TabId)} />
         <div className="mt-5 lg:mt-0 min-w-0 flex-1">
-          {tab === 'summary' && <SummaryTab />}
-          {tab === 'stats' && <StatsTab />}
-          {tab === 'history' && <HistoryTab />}
-          {tab === 'products' && <ProductsTab />}
-          {tab === 'margin' && <MarginTab />}
-          {tab === 'delivery' && <DeliveryTab />}
-          {tab === 'crm' && <CrmHub />}
-          {tab === 'payments' && <PaymentsTab />}
-          {tab === 'paymentOrders' && <PayablesSection />}
-          {tab === 'ledger' && <MovementsLedgerSection />}
-          {tab === 'suppliers' && <SuppliersSection />}
-          {tab === 'books' && <FiscalBooksSection />}
-          {tab === 'banks' && <BankAccountsSection symbol={restaurant?.currencySymbol ?? '$'} />}
-          {tab === 'payable' && <PayableTab />}
+          {tabLocked && <PlanUpgradeNotice feature={activeTab.label} />}
+          {!tabLocked && tab === 'summary' && <SummaryTab />}
+          {!tabLocked && tab === 'stats' && <StatsTab />}
+          {!tabLocked && tab === 'history' && <HistoryTab />}
+          {!tabLocked && tab === 'products' && <ProductsTab />}
+          {!tabLocked && tab === 'margin' && <MarginTab />}
+          {!tabLocked && tab === 'delivery' && <DeliveryTab />}
+          {!tabLocked && tab === 'crm' && <CrmHub />}
+          {!tabLocked && tab === 'payments' && <PaymentsTab />}
+          {!tabLocked && tab === 'paymentOrders' && <PayablesSection />}
+          {!tabLocked && tab === 'ledger' && <MovementsLedgerSection />}
+          {!tabLocked && tab === 'suppliers' && <SuppliersSection />}
+          {!tabLocked && tab === 'books' && <FiscalBooksSection />}
+          {!tabLocked && tab === 'banks' && <BankAccountsSection symbol={restaurant?.currencySymbol ?? '$'} />}
+          {!tabLocked && tab === 'payable' && <PayableTab />}
         </div>
       </div>
     </div>

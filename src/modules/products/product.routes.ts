@@ -31,7 +31,8 @@ router.post('/upload-photo', mutate, uploadProductPhoto, optimizeImage(900, 900)
 // Carga masiva de fotos: cada archivo se vincula al producto cuyo nombre coincida con el
 // nombre del archivo (sin extensión) — ver product-photo-bulk.service.ts.
 router.post('/bulk-photos', mutate, uploadProductPhotosBulk, optimizeImages(900, 900), productController.bulkUploadPhotos);
-router.get('/margin', mutate, requireFeature('administration'), productController.margin);
+// Margen de utilidad por producto: contabilidad avanzada (Elite / Elite Shop / Club).
+router.get('/margin', mutate, requireFeature('accounting'), productController.margin);
 router.get('/breakeven', mutate, requireFeature('administration'), productController.breakEven);
 
 // Carga masiva de productos por Excel: plantilla descargable + subida que crea/actualiza por

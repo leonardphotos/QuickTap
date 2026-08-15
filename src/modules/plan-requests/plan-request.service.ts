@@ -31,6 +31,7 @@ const PLAN_LABELS: Record<SubscriptionPlan, string> = {
   DELIVERY_SUCURSALES: 'Plan Delivery Sucursales',
   ELITE: 'Plan Elite',
   SHOP: 'Plan QuickTap Shop',
+  ELITE_SHOP: 'Plan Elite Shop',
   CLUB: 'Plan QuickTap Club',
 };
 
@@ -38,14 +39,15 @@ const PLAN_LABELS: Record<SubscriptionPlan, string> = {
 const PLAN_BENEFITS: Record<SubscriptionPlan, string> = {
   TRIAL: 'Mesas y códigos QR ilimitados durante tu prueba.',
   STARTER: 'Hasta 5-6 mesas, 500 pedidos al mes y 4 usuarios de tu equipo.',
-  PRO: 'Todos los beneficios: mesas, pedidos y sucursales ilimitadas, usuarios ilimitados, Administración, Estadísticas, Inventario por receta, Gastos y Cuentas por pagar.',
+  PRO: 'Mesas, pedidos y usuarios ilimitados, Administración (resumen, estadísticas, productos, delivery y métodos de pago), Gastos e Inventario por stock.',
   PREMIUM: 'Mesas y pedidos ilimitados, hasta 20 usuarios, Administración e Inventario por receta.',
   DELIVERY: 'Productos, Cocinas, sección de Delivery, pedidos ilimitados y sucursales ilimitadas. Hasta 6 usuarios de tu equipo.',
   CUSTOM: 'Tu plan armado a la medida de tu restaurante.',
   SUCURSALES: 'Todos los beneficios del Plan Pro, más hasta 5 sucursales con reporte consolidado de ventas, inventario y equipo.',
   DELIVERY_SUCURSALES: 'Todos los beneficios del Plan Solo Delivery, más hasta 5 sucursales con reporte consolidado de ventas, inventario y equipo.',
-  ELITE: 'Todos los beneficios del Plan Pro, sucursales ilimitadas, soporte prioritario 24/7, gerente de cuenta dedicado y onboarding sin costo.',
-  SHOP: 'Punto de venta, inventario con variantes, caja y reportes para tu local comercial.',
+  ELITE: 'Todos los beneficios: Administración completa (contabilidad, bancos, proveedores, libros fiscales, órdenes de pago, CRM), inventario por receta, sucursales ilimitadas, soporte prioritario 24/7, gerente de cuenta dedicado y onboarding sin costo.',
+  SHOP: 'Punto de venta, inventario con variantes, caja, cuentas por cobrar, CRM con promociones y reportes para tu local comercial.',
+  ELITE_SHOP: 'Todo el Plan Shop más contabilidad completa (bancos, proveedores, libros fiscales, órdenes de pago, Excel) y sucursales ilimitadas.',
   CLUB: 'Reservas de canchas 24/7, calendario en vivo, control de acceso por QR, caja y tienda para tu club.',
 };
 
@@ -72,7 +74,7 @@ function buildPaymentNotReceivedMessage(): string {
   ].join('\n\n');
 }
 
-export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP' | 'CLUB';
+export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP' | 'ELITE_SHOP' | 'CLUB';
 
 /**
  * Precios fijos por plan y ciclo de facturación (USD/mes). Única fuente de
@@ -90,6 +92,7 @@ const FIXED_PLAN_PRICES: Record<PurchasablePlan, Record<BillingCycle, number>> =
   PRO: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99 },
   ELITE: { MONTHLY: 39.99, QUARTERLY: 35.49, SEMIANNUAL: 30.99 },
   SHOP: { MONTHLY: 20, QUARTERLY: 18, SEMIANNUAL: 16 },
+  ELITE_SHOP: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40 },
   CLUB: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40 },
 };
 
@@ -100,6 +103,7 @@ const BUSINESS_TYPE_FOR_PLAN: Record<PurchasablePlan, 'RESTAURANT' | 'SHOP' | 'S
   PRO: 'RESTAURANT',
   ELITE: 'RESTAURANT',
   SHOP: 'SHOP',
+  ELITE_SHOP: 'SHOP',
   CLUB: 'SPORTS_CLUB',
 };
 
@@ -148,6 +152,9 @@ async function applyActivation(
       // Primera activación o cambio de plan (no una renovación del mismo
       // plan): marca que falta mostrar la pantalla de bienvenida una vez.
       ...(restaurant.subscriptionPlan !== plan ? { pendingWelcomePlan: plan } : {}),
+      // La ventana de acceso completo heredado (Shop pagado antes de Elite Shop) termina
+      // con la primera activación/renovación: desde acá manda solo el plan elegido.
+      legacyFullAccessUntil: null,
       ...customFlags,
     },
   });

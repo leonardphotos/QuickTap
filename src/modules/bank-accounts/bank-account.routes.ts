@@ -5,7 +5,8 @@ import { bankAccountController } from './bank-account.controller';
 /** Base: /api/v1/bank-accounts — cuentas bancarias, caja chica y su libro de movimientos. */
 const router = Router();
 router.use(tenantGuard);
-router.use(requireFeature('administration'));
+// Cuentas bancarias son contabilidad avanzada (Elite / Elite Shop / Club).
+router.use(requireFeature('accounting'));
 
 // Mismo criterio que /movements: ver saldos es parte del trabajo del cajero; crear cuentas,
 // transferir y ajustar es de dueño/admin (o cajero con acceso completo).

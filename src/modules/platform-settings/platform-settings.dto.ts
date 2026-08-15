@@ -49,6 +49,7 @@ export const updatePlanContentSchema = z.object({
   DELIVERY: planContentEntrySchema.optional(),
   PRO: planContentEntrySchema.optional(),
   ELITE: planContentEntrySchema.optional(),
+  ELITE_SHOP: planContentEntrySchema.optional(),
   SHOP: planContentEntrySchema.optional(),
   CLUB: planContentEntrySchema.optional(),
 });

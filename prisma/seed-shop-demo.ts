@@ -96,7 +96,8 @@ async function main() {
       baseCurrency: 'USD',
       periodEnd: trialPeriodEnd(),
       subscriptionStatus: 'ACTIVE',
-      subscriptionPlan: 'PRO',
+      // Elite Shop: la demo enseña TODO (contabilidad, bancos, sucursales).
+      subscriptionPlan: 'ELITE_SHOP',
       theme: { primary: '#1E293B', accent: '#F59E0B' },
       paymentMethodsConfig: {
         CASH: { enabled: true },

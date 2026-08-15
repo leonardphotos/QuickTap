@@ -15,7 +15,7 @@ interface PlanEntry {
 type PlanContent = Record<PurchasablePlan, PlanEntry>;
 
 const RESTAURANT_PLAN_ORDER: PurchasablePlan[] = ['DELIVERY', 'PRO', 'ELITE'];
-const SHOP_PLAN_ORDER: PurchasablePlan[] = ['SHOP'];
+const SHOP_PLAN_ORDER: PurchasablePlan[] = ['SHOP', 'ELITE_SHOP'];
 const CLUB_PLAN_ORDER: PurchasablePlan[] = ['CLUB'];
 const PLAN_ORDER: PurchasablePlan[] = [...RESTAURANT_PLAN_ORDER, ...SHOP_PLAN_ORDER, ...CLUB_PLAN_ORDER];
 const BILLING_CYCLES: BillingCycle[] = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL'];

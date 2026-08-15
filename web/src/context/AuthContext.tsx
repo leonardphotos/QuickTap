@@ -78,7 +78,7 @@ export interface AuthRestaurant {
   screenPageIntervalSec: number;
   screenItemsPerPage: number;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';
-  subscriptionPlan: 'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM' | 'CUSTOM' | 'SUCURSALES' | 'DELIVERY_SUCURSALES' | 'ELITE' | 'SHOP' | null;
+  subscriptionPlan: 'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM' | 'CUSTOM' | 'SUCURSALES' | 'DELIVERY_SUCURSALES' | 'ELITE' | 'SHOP' | 'ELITE_SHOP' | 'CLUB' | null;
   billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | null;
   /** Fin del período vigente (prueba o ciclo pagado). El bloqueo por vencimiento se calcula a partir de esto. */
   periodEnd: string;
@@ -90,6 +90,8 @@ export interface AuthRestaurant {
   customInventoryBasic: boolean;
   customInventoryRecipe: boolean;
   customAccountsPayable: boolean;
+  /** Shop pagado antes de Elite Shop: acceso completo hasta esta fecha (ver hasFeature). */
+  legacyFullAccessUntil?: string | null;
   /** Si esta cuenta es una sucursal, el id de su sede principal (ver src/modules/branches/). */
   parentRestaurantId?: string | null;
   /** Plan que acaba de activarse y todavía no se le mostró la pantalla de bienvenida. */

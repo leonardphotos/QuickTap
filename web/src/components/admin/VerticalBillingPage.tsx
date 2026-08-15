@@ -9,11 +9,20 @@ import { ChargeBreakdown } from '@/components/landing/ChargeBreakdown';
 import { PaymentForm, type SelectedPlan } from '@/components/landing/PaymentForm';
 import { TextureButton } from '@/components/ui/texture-button';
 
+export interface VerticalPlanOption {
+  plan: SinglePlan;
+  defaultName: string;
+  defaultSubtitle: string;
+  defaultFeatures: string[];
+}
+
 interface Props {
   plan: SinglePlan;
   defaultName: string;
   defaultSubtitle: string;
   defaultFeatures: string[];
+  /** Planes adicionales del mismo vertical (ej. Elite Shop junto a Shop): una tarjeta por cada uno. */
+  extraPlans?: VerticalPlanOption[];
   /** Bajo el título "Activar plan", mientras dura la prueba gratis. */
   trialingMessage: string;
   restaurant: AuthRestaurant;
@@ -29,7 +38,7 @@ interface Props {
  * a Bs (tasa BCV del día) salen de SinglePlanCard, que a su vez los trae de /public/plans →
  * DEFAULT_PLAN_CONTENT, editable desde el Dashboard maestro → Planes.
  */
-export function VerticalBillingPage({ plan, defaultName, defaultSubtitle, defaultFeatures, trialingMessage, restaurant, onDone }: Props) {
+export function VerticalBillingPage({ plan, defaultName, defaultSubtitle, defaultFeatures, extraPlans = [], trialingMessage, restaurant, onDone }: Props) {
   const { user, refresh } = useAuth();
   const [searchParams] = useSearchParams();
   const [rateBs, setRateBs] = useState<string | null>(null);
@@ -53,8 +62,10 @@ export function VerticalBillingPage({ plan, defaultName, defaultSubtitle, defaul
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  function choosePlan(cycle: BillingCycle = billingCycle) {
-    setSelected({ plan, billingCycle: cycle, priceUsd: FIXED_PLAN_PRICES[plan][cycle] });
+  const options: VerticalPlanOption[] = [{ plan, defaultName, defaultSubtitle, defaultFeatures }, ...extraPlans];
+
+  function choosePlan(cycle: BillingCycle = billingCycle, which: SinglePlan = plan) {
+    setSelected({ plan: which, billingCycle: cycle, priceUsd: FIXED_PLAN_PRICES[which][cycle] });
     requestAnimationFrame(() => {
       document.getElementById('billing-payment')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
@@ -63,12 +74,14 @@ export function VerticalBillingPage({ plan, defaultName, defaultSubtitle, defaul
   // Entrada desde "Elegir plan" de la landing seguido de registro (?plan=X&cycle=Y):
   // pre-selecciona el ciclo y muestra el formulario de pago directamente.
   useEffect(() => {
-    if (searchParams.get('plan') !== plan) return;
+    const planParam = searchParams.get('plan');
+    const match = options.find((o) => o.plan === planParam);
+    if (!match) return;
     const cycleParam = searchParams.get('cycle');
     const cycle: BillingCycle =
       cycleParam === 'QUARTERLY' || cycleParam === 'SEMIANNUAL' ? cycleParam : 'MONTHLY';
     setBillingCycle(cycle);
-    choosePlan(cycle);
+    choosePlan(cycle, match.plan);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -85,20 +98,25 @@ export function VerticalBillingPage({ plan, defaultName, defaultSubtitle, defaul
         </p>
       </div>
 
-      <SinglePlanCard
-        plan={plan}
-        defaultName={defaultName}
-        defaultSubtitle={defaultSubtitle}
-        defaultFeatures={defaultFeatures}
-        rateBs={rateBs}
-        billingCycle={billingCycle}
-        onBillingCycleChange={setBillingCycle}
-        onChoosePlan={() => choosePlan()}
-      />
+      <div className={options.length > 1 ? 'grid gap-5 lg:grid-cols-2 lg:items-start' : ''}>
+        {options.map((o) => (
+          <SinglePlanCard
+            key={o.plan}
+            plan={o.plan}
+            defaultName={o.defaultName}
+            defaultSubtitle={o.defaultSubtitle}
+            defaultFeatures={o.defaultFeatures}
+            rateBs={rateBs}
+            billingCycle={billingCycle}
+            onBillingCycleChange={setBillingCycle}
+            onChoosePlan={() => choosePlan(billingCycle, o.plan)}
+          />
+        ))}
+      </div>
 
       {selected && (
         <div id="billing-payment" className="scroll-mt-24 space-y-4">
-          <ChargeBreakdown plan={plan} billingCycle={selected.billingCycle} />
+          <ChargeBreakdown plan={selected.plan as SinglePlan} billingCycle={selected.billingCycle} />
           <PaymentForm
             selected={selected}
             rateBs={rateBs}
