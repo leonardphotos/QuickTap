@@ -1,5 +1,12 @@
 import { z } from 'zod';
 
+/** Filtro de período para Administración → Margen de utilidad (margen sobre lo realmente vendido). */
+export const marginReportQuerySchema = z.object({
+  range: z.enum(['day', 'week', 'month', 'year', 'all']).optional().default('month'),
+  // Fecha exacta ("YYYY-MM-DD"): si viene, ignora `range` y filtra ese día completo.
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
 export const bulkDeleteProductsSchema = z.object({
   ids: z.array(z.string().min(1)).min(1, 'Selecciona al menos un producto.'),
 });

@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest } from '../../utils/http-error';
-import { bulkDeleteProductsSchema, createProductSchema, updateProductSchema } from './product.dto';
+import { bulkDeleteProductsSchema, createProductSchema, marginReportQuerySchema, updateProductSchema } from './product.dto';
 import { productService } from './product.service';
 import { productImportService } from './product-import.service';
 import { productPhotoBulkService } from './product-photo-bulk.service';
@@ -19,8 +19,9 @@ export const productController = {
   }),
 
   margin: asyncHandler(async (req: Request, res: Response) => {
-    const rows = await productService.listWithMargin(req.restaurantId!);
-    res.json({ data: rows });
+    const { range, date } = marginReportQuerySchema.parse(req.query);
+    const result = await productService.listWithMargin(req.restaurantId!, range, date);
+    res.json({ data: result });
   }),
 
   getOne: asyncHandler(async (req: Request, res: Response) => {

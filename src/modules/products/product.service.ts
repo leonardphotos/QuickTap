@@ -1,7 +1,9 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { round2, toDecimal } from '../../utils/money';
 import { startOfDayCaracas } from '../../utils/timezone';
+import { resolveDateFilter, ReportRange } from '../../utils/date-range';
 import { resolveInventoryScope } from '../inventory/inventory-scope';
 import { CreateProductInput, UpdateProductInput } from './product.dto';
 
@@ -181,36 +183,90 @@ export const productService = {
     return { deleted: ownedIds.length };
   },
 
-  /** Administración → Margen de utilidad: costo efectivo (receta o manual) vs. precio, por producto. */
-  async listWithMargin(restaurantId: string) {
-    const [products, recipeSums] = await Promise.all([
+  /** Administración → Margen de utilidad: margen (ingreso − costo) de lo REALMENTE vendido
+   * en el período, no todo el catálogo. El costo usado es el ACTUAL del producto (costo
+   * manual o receta en vivo) — a diferencia de unitPrice/productName, el costo no queda
+   * congelado por pedido, así que si cambió a mitad del período el reporte lo aplica
+   * retroactivo a todo el rango (misma aproximación que ya usaba el food cost). */
+  async listWithMargin(restaurantId: string, range: ReportRange, date?: string) {
+    const [items, products, recipeSums] = await Promise.all([
+      prisma.orderItem.findMany({
+        where: { order: { restaurantId, status: { not: 'CANCELLED' }, createdAt: resolveDateFilter({ range, date }) } },
+        select: { productId: true, productName: true, variantName: true, quantity: true, lineTotal: true },
+      }),
       prisma.product.findMany({
         where: { restaurantId },
-        orderBy: [{ categoryId: 'asc' }, { priority: 'asc' }, { name: 'asc' }],
-        include: { category: { select: { name: true } } },
+        select: { id: true, costSource: true, costBase: true, category: { select: { name: true } } },
       }),
       prisma.recipeIngredient.groupBy({ by: ['productId'], where: { restaurantId }, _sum: { costBase: true } }),
     ]);
 
     const recipeCostByProduct = new Map(recipeSums.map((r) => [r.productId, toDecimal(r._sum.costBase ?? 0)]));
+    const productById = new Map(products.map((p) => [p.id, p]));
 
-    return products.map((p) => {
-      const costBase =
-        p.costSource === 'RECIPE' ? (recipeCostByProduct.get(p.id) ?? toDecimal(0)) : toDecimal(p.costBase ?? 0);
-      const marginBase = round2(toDecimal(p.price).sub(costBase));
-      const marginPercent = Number(p.price) > 0 ? round2(marginBase.div(p.price).mul(100)) : toDecimal(0);
+    function unitCostFor(productId: string | null): Prisma.Decimal {
+      const p = productId ? productById.get(productId) : undefined;
+      if (!p) return toDecimal(0);
+      return p.costSource === 'RECIPE' ? (recipeCostByProduct.get(p.id) ?? toDecimal(0)) : toDecimal(p.costBase ?? 0);
+    }
 
-      return {
-        id: p.id,
-        name: p.name,
-        categoryName: p.category.name,
-        price: p.price.toFixed(2),
-        costSource: p.costSource,
-        costBase: round2(costBase).toFixed(2),
-        marginBase: marginBase.toFixed(2),
-        marginPercent: marginPercent.toFixed(1),
-      };
-    });
+    const byProduct = new Map<
+      string,
+      { productId: string | null; name: string; categoryName: string; quantity: number; revenueBase: Prisma.Decimal; costBase: Prisma.Decimal }
+    >();
+    for (const item of items) {
+      const name = item.variantName ? `${item.productName} (${item.variantName})` : item.productName;
+      const key = `${item.productId ?? `name:${item.productName}`}:${item.variantName ?? ''}`;
+      const lineCost = unitCostFor(item.productId).mul(item.quantity);
+      const existing = byProduct.get(key);
+      if (existing) {
+        existing.quantity += item.quantity;
+        existing.revenueBase = existing.revenueBase.add(item.lineTotal);
+        existing.costBase = existing.costBase.add(lineCost);
+      } else {
+        byProduct.set(key, {
+          productId: item.productId,
+          name,
+          categoryName: (item.productId && productById.get(item.productId)?.category.name) ?? 'Sin categoría',
+          quantity: item.quantity,
+          revenueBase: toDecimal(item.lineTotal),
+          costBase: lineCost,
+        });
+      }
+    }
+
+    const grouped = Array.from(byProduct.values());
+    const totalRevenue = grouped.reduce((acc, r) => acc.add(r.revenueBase), toDecimal(0));
+    const totalCost = grouped.reduce((acc, r) => acc.add(r.costBase), toDecimal(0));
+    const totalMargin = round2(totalRevenue.sub(totalCost));
+    const totalMarginPercent = totalRevenue.gt(0) ? round2(totalMargin.div(totalRevenue).mul(100)) : toDecimal(0);
+
+    const rows = grouped
+      .map((r) => {
+        const marginBase = round2(r.revenueBase.sub(r.costBase));
+        const marginPercent = r.revenueBase.gt(0) ? round2(marginBase.div(r.revenueBase).mul(100)) : toDecimal(0);
+        return {
+          id: r.productId,
+          name: r.name,
+          categoryName: r.categoryName,
+          quantity: r.quantity,
+          revenueBase: round2(r.revenueBase).toFixed(2),
+          costBase: round2(r.costBase).toFixed(2),
+          marginBase: marginBase.toFixed(2),
+          marginPercent: marginPercent.toFixed(1),
+        };
+      })
+      .sort((a, b) => Number(b.marginBase) - Number(a.marginBase));
+
+    return {
+      summary: {
+        revenueBase: round2(totalRevenue).toFixed(2),
+        costBase: round2(totalCost).toFixed(2),
+        marginBase: totalMargin.toFixed(2),
+        marginPercent: totalMarginPercent.toFixed(1),
+      },
+      rows,
+    };
   },
 };
 

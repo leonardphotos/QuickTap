@@ -1238,37 +1238,93 @@ function ProductsTab() {
 //  Margen de utilidad: precio vs. costo (manual o desde receta) por producto
 // -----------------------------------------------------------------------------
 
-interface MarginRow {
-  id: string;
-  name: string;
-  categoryName: string;
-  price: string;
-  costSource: 'MANUAL' | 'RECIPE';
+interface MarginSummary {
+  revenueBase: string;
   costBase: string;
   marginBase: string;
   marginPercent: string;
 }
 
+interface MarginRow {
+  id: string | null;
+  name: string;
+  categoryName: string;
+  quantity: number;
+  revenueBase: string;
+  costBase: string;
+  marginBase: string;
+  marginPercent: string;
+}
+
+/** Margen de utilidad TOTAL de lo vendido en el período (no todo el catálogo) — día, semana,
+ * mes, año o fecha exacta, mismo patrón de filtro que Resumen. */
 function MarginTab() {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
+  const [range, setRange] = useState<Range>('month');
+  const [date, setDate] = useState('');
+  const [summary, setSummary] = useState<MarginSummary | null>(null);
   const [rows, setRows] = useState<MarginRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const periodLabel = date ? new Date(date + 'T12:00:00').toLocaleDateString('es-VE') : RANGE_LABELS[range];
+
   useEffect(() => {
     api
-      .get('/products/margin')
-      .then((res) => setRows(res.data.data))
+      .get('/products/margin', { params: { range, date: date || undefined } })
+      .then((res) => {
+        setSummary(res.data.data.summary);
+        setRows(res.data.data.rows);
+      })
       .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar el margen de utilidad.'));
-  }, []);
+  }, [range, date]);
 
   if (error) return <p className="text-sm text-red-600">{error}</p>;
 
   return (
     <div className="space-y-5">
+      <div className="flex flex-wrap items-center gap-2">
+        {(['day', 'week', 'month', 'year'] as Range[]).map((r) => (
+          <button
+            key={r}
+            onClick={() => {
+              setRange(r);
+              setDate('');
+            }}
+            className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+              !date && range === r ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+            }`}
+          >
+            {RANGE_LABELS[r]}
+          </button>
+        ))}
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className={`text-xs font-medium px-2.5 py-1 rounded-full border-none ${
+            date ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+          }`}
+        />
+      </div>
+
+      {summary && (
+        <div className="grid sm:grid-cols-3 gap-4">
+          <MetricCard icon={Wallet} title={`Ingresos · ${periodLabel}`} value={formatBase(summary.revenueBase, symbol)} />
+          <MetricCard icon={Receipt} title="Costo de lo vendido" value={formatBase(summary.costBase, symbol)} />
+          <MetricCard
+            icon={TrendingUp}
+            title="Margen de utilidad total"
+            value={formatBase(summary.marginBase, symbol)}
+            valueTone={Number(summary.marginBase) < 0 ? 'danger' : 'success'}
+            trend={`${summary.marginPercent}% margen`}
+          />
+        </div>
+      )}
+
       <p className="text-sm text-brand-950/60 font-light">
-        Margen = precio − costo. El costo viene del campo "Costo" del producto, o de su receta armada en
-        Inventario → Recetas si eligió "Desde receta".
+        Margen = ingreso − costo de lo vendido en el período. El costo viene del campo "Costo" del producto, o de su
+        receta armada en Inventario → Recetas si eligió "Desde receta".
       </p>
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm overflow-hidden">
         <div className="hidden sm:flex items-center gap-3 px-5 py-2 border-b border-brand-950/[0.06] text-[11px] font-medium uppercase tracking-wide text-brand-950/40">
@@ -1276,14 +1332,13 @@ function MarginTab() {
           <span className="w-52 text-right">Margen</span>
         </div>
         <div className="divide-y divide-brand-950/[0.06]">
-        {rows?.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">No tienes productos todavía.</p>}
+        {rows?.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin ventas en este período.</p>}
         {rows?.map((r) => (
-          <div key={r.id} className="flex items-center justify-between gap-3 px-5 py-3">
+          <div key={`${r.id ?? 'x'}-${r.name}`} className="flex items-center justify-between gap-3 px-5 py-3">
             <div className="min-w-0">
               <p className="text-sm font-medium text-brand-950 truncate">{r.name}</p>
               <p className="text-xs text-brand-950/40">
-                {r.categoryName} · Precio {formatBase(r.price, symbol)} · Costo {formatBase(r.costBase, symbol)}
-                {r.costSource === 'RECIPE' && ' (receta)'}
+                {r.categoryName} · {r.quantity} vendidos · Ingreso {formatBase(r.revenueBase, symbol)}
               </p>
             </div>
             <div className="text-right shrink-0">
