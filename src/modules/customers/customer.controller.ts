@@ -8,6 +8,10 @@ export const customerController = {
     const query = customerQuerySchema.parse(req.query);
     res.json({ data: await customerService.list(req.restaurantId!, query) });
   }),
+  /** GET /customers/:id — la ficha del CRM: datos, historial, promos y canjes. */
+  profile: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await customerService.profile(req.restaurantId!, req.params.id) });
+  }),
   create: asyncHandler(async (req: Request, res: Response) => {
     const input = createCustomerSchema.parse(req.body);
     res.status(201).json({ data: await customerService.create(req.restaurantId!, input) });

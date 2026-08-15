@@ -24,6 +24,12 @@ export const productController = {
     res.json({ data: result });
   }),
 
+  breakEven: asyncHandler(async (req: Request, res: Response) => {
+    const { range, date } = marginReportQuerySchema.parse(req.query);
+    const result = await productService.getBreakEven(req.restaurantId!, range, date);
+    res.json({ data: result });
+  }),
+
   getOne: asyncHandler(async (req: Request, res: Response) => {
     const product = await productService.getById(req.restaurantId!, req.params.id);
     res.json({ data: product });

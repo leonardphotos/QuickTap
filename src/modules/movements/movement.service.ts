@@ -2,8 +2,9 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { baseToBs, bsToBase, round2, toDecimal } from '../../utils/money';
-import { resolveDateFilter } from '../../utils/date-range';
+import { ReportRange, resolveDateFilter } from '../../utils/date-range';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
+import { bankLedgerService } from '../bank-accounts/bank-ledger.service';
 import { CreateMovementInput, MovementQuery, UpdateMovementInput } from './movement.dto';
 
 export const movementService = {
@@ -46,6 +47,13 @@ export const movementService = {
           referenceNumber: input.referenceNumber,
           receiptImageUrl: input.receiptImageUrl,
           spentByName: input.spentByName,
+          quoteImageUrl: input.quoteImageUrl,
+          paymentProofImageUrl: input.paymentProofImageUrl,
+          notes: input.notes,
+          documentType: input.documentType,
+          isRecurring: input.isRecurring,
+          // Mediodía por la misma razón que expenseDate: que no se corra de día en otra zona horaria.
+          invoiceDueDate: input.invoiceDueDate ? new Date(`${input.invoiceDueDate}T12:00:00`) : undefined,
         },
         include: { createdByUser: { select: { name: true } }, supplier: true, inventoryItem: true },
       });
@@ -60,6 +68,21 @@ export const movementService = {
         });
       }
 
+      // Cuentas bancarias: un ingreso con método suma a la cuenta vinculada; un gasto pagado
+      // de contado resta. Un gasto A CRÉDITO no mueve dinero todavía — lo hará su orden de pago.
+      if (input.paymentMethod && (input.type === 'INCOME' || !input.isCredit)) {
+        await bankLedgerService.applyMethodPayment(tx, {
+          restaurantId,
+          method: input.paymentMethod,
+          direction: input.type === 'INCOME' ? 'CREDIT' : 'DEBIT',
+          amountBase,
+          bankAccountId: input.bankAccountId,
+          description: `${input.type === 'INCOME' ? 'Ingreso' : 'Gasto'}: ${input.description}`,
+          movementId: movement.id,
+          createdByUserId: userId ?? null,
+        });
+      }
+
       return movement;
     });
   },
@@ -68,7 +91,12 @@ export const movementService = {
   async list(restaurantId: string, query: MovementQuery) {
     const where = query.onlyPendingCredit
       ? { restaurantId, isCredit: true, creditPaidAt: null }
-      : { restaurantId, createdAt: resolveDateFilter({ range: query.range, date: query.date }) };
+      : {
+          restaurantId,
+          createdAt: resolveDateFilter({ range: query.range, date: query.date }),
+          category: query.category,
+          supplierId: query.supplierId,
+        };
 
     const movements = await prisma.movement.findMany({
       where,
@@ -102,7 +130,7 @@ export const movementService = {
         incomeCategory: m.incomeCategory,
         paymentMethod: m.paymentMethod,
         category: m.category,
-        supplier: m.supplier ? { id: m.supplier.id, name: m.supplier.name } : null,
+        supplier: m.supplier ? { id: m.supplier.id, name: m.supplier.name, taxId: m.supplier.taxId } : null,
         inventoryItem: m.inventoryItem ? { id: m.inventoryItem.id, name: m.inventoryItem.name } : null,
         inventoryQuantity: m.inventoryQuantity?.toFixed(2) ?? null,
         isCredit: m.isCredit,
@@ -114,8 +142,48 @@ export const movementService = {
         referenceNumber: m.referenceNumber,
         receiptImageUrl: m.receiptImageUrl,
         spentByName: m.spentByName,
+        quoteImageUrl: m.quoteImageUrl,
+        paymentProofImageUrl: m.paymentProofImageUrl,
+        notes: m.notes,
+        documentType: m.documentType,
+        isRecurring: m.isRecurring,
+        invoiceDueDate: m.invoiceDueDate,
       })),
     };
+  },
+
+  /**
+   * Gastos fijos del período, agrupados por categoría — para el Punto de equilibrio (CF de
+   * `PE = CF / %MC`, ver src/utils/breakeven.ts). "Fijo" = `isRecurring: true`, el mismo
+   * campo que ya usa el módulo de Gastos ("Gasto que se repite periódicamente: alquiler,
+   * nómina, servicios") — no hace falta una clasificación nueva, es la que el usuario ya
+   * elige al cargar cada gasto. Compartido tal cual por Restaurante, Shop y Club: `Movement`
+   * no tiene ningún campo específico de vertical.
+   */
+  async summarizeFixedCosts(restaurantId: string, range: ReportRange, date?: string) {
+    const grouped = await prisma.movement.groupBy({
+      by: ['category'],
+      where: {
+        restaurantId,
+        type: 'EXPENSE',
+        isRecurring: true,
+        createdAt: resolveDateFilter({ range, date }),
+      },
+      _sum: { amountBase: true },
+    });
+
+    const byCategory = grouped
+      .map((g) => ({
+        // Un gasto marcado recurrente sin categoría elegida cae en "OTHER" — nunca se pierde
+        // del total, solo queda sin agrupar.
+        category: g.category ?? 'OTHER',
+        amountBase: round2(toDecimal(g._sum.amountBase ?? 0)).toFixed(2),
+      }))
+      .sort((a, b) => Number(b.amountBase) - Number(a.amountBase));
+
+    const totalBase = round2(byCategory.reduce((acc, c) => acc.add(toDecimal(c.amountBase)), toDecimal(0))).toFixed(2);
+
+    return { totalBase, byCategory };
   },
 
   /**
@@ -190,6 +258,17 @@ export const movementService = {
           referenceNumber: input.referenceNumber,
           receiptImageUrl: input.receiptImageUrl,
           spentByName: input.spentByName,
+          quoteImageUrl: input.quoteImageUrl,
+          paymentProofImageUrl: input.paymentProofImageUrl,
+          notes: input.notes,
+          documentType: input.documentType,
+          isRecurring: input.isRecurring,
+          invoiceDueDate:
+            input.invoiceDueDate === undefined
+              ? undefined
+              : input.invoiceDueDate === null
+                ? null
+                : new Date(`${input.invoiceDueDate}T12:00:00`),
         },
         include: { createdByUser: { select: { name: true } }, supplier: true, inventoryItem: true },
       });
@@ -215,6 +294,10 @@ export const movementService = {
     return prisma.$transaction(async (tx) => {
       const existing = await tx.movement.findFirst({ where: { id, restaurantId } });
       if (!existing) throw notFound('Movimiento no encontrado.');
+
+      // Revierte el asiento bancario que este movimiento haya generado, por la misma razón
+      // que se revierte el reabastecimiento: borrar el gasto no puede dejar el saldo torcido.
+      await bankLedgerService.reverseMovement(tx, restaurantId, existing.id);
 
       if (existing.inventoryItemId && existing.inventoryQuantity) {
         const item = await tx.inventoryItem.findFirst({

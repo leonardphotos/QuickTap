@@ -48,6 +48,7 @@ router.get('/stats/consumption', admin, clubController.consumption);
 // Ingresos por método de pago y por origen (cancha/tienda/academia), y quién debe.
 router.get('/stats/finance', admin, clubController.finance);
 router.get('/stats/debts', admin, clubController.debts);
+router.get('/stats/breakeven', admin, clubController.breakEven);
 
 router.get('/panel-courts', staff, clubController.panelCourts);
 router.get('/calendar', staff, clubController.calendar);
@@ -61,6 +62,11 @@ router.post('/bookings/check-in/:accessToken', reception, clubController.checkIn
 // Caja: Pagar / Pago fraccionado / Deuda.
 router.post('/bookings/:id/payments', reception, clubController.addBookingPayment);
 router.patch('/bookings/:id/awaiting-payment', reception, clubController.setBookingAwaitingPayment);
+
+// Pagos que los jugadores reportan desde la tablet: recepción los verifica desde
+// el aviso de la pantalla Canchas y, al aprobar, se cobra de verdad.
+router.get('/reported-payments', staff, clubController.listReportedPayments);
+router.patch('/reported-payments/:id', reception, clubController.reviewReportedPayment);
 router.post(
   '/upload-payment-proof',
   reception,

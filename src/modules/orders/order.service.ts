@@ -17,6 +17,8 @@ import {
 import { emitToKitchen, emitToTable, SocketEvents } from '../../sockets';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { resolveDateFilter } from '../../utils/date-range';
+import { bankLedgerService } from '../bank-accounts/bank-ledger.service';
+import { promotionDiscountOf, recordPromotionRedemption, resolvePromotionForRedeem } from '../promotions/promotion.service';
 import { hourCaracas, startOfTodayCaracas, startOfWeekCaracas } from '../../utils/timezone';
 import { assertRestaurantOpen } from '../../utils/business-hours';
 import { effectiveProductPrice } from '../../utils/promo-price';
@@ -1955,12 +1957,30 @@ export const orderService = {
         throw badRequest(`El monto excede el saldo pendiente (${balance.toFixed(2)}).`);
       }
 
-      const discountBase =
+      let discountBase =
         input.discountAmount != null
           ? toDecimal(input.discountAmount)
           : input.discountPercent
             ? round2(balance.mul(input.discountPercent).div(100))
             : undefined;
+
+      // Código de promoción (CRM): valida lista/vigencia/canjes, suma su descuento al
+      // del cajero (los dos condonan deuda) y deja el canje registrado en esta misma
+      // transacción — o quedan cobro y canje juntos, o no queda nada.
+      let promoRedeem: { promotionId: string; customerId: string | null; discount: Prisma.Decimal } | null = null;
+      if (input.promoCode) {
+        const { promotion, customerId } = await resolvePromotionForRedeem(
+          tx,
+          restaurantId,
+          input.promoCode,
+          order.customerPhone,
+        );
+        const promoDiscount = promotionDiscountOf(promotion, balance);
+        if (promoDiscount.lte(0)) throw badRequest('El descuento de la promoción no aplica a este saldo.');
+        discountBase = round2((discountBase ?? toDecimal(0)).add(promoDiscount));
+        promoRedeem = { promotionId: promotion.id, customerId, discount: promoDiscount };
+      }
+
       if (discountBase && discountBase.gt(balance.add(0.01))) {
         throw badRequest('El descuento no puede superar el saldo pendiente.');
       }
@@ -1987,6 +2007,30 @@ export const orderService = {
           referenceNumber: input.referenceNumber,
           proofImageUrl: input.proofImageUrl,
         },
+      });
+
+      if (promoRedeem) {
+        await recordPromotionRedemption(tx, {
+          restaurantId,
+          promotionId: promoRedeem.promotionId,
+          customerId: promoRedeem.customerId,
+          sourceRef: order.id,
+          amountBase: promoRedeem.discount,
+        });
+      }
+
+      // Cuentas bancarias: el cobro suma a la cuenta vinculada al método. Solo lo COBRADO
+      // (descuentos/ajustes condonan deuda, no mueven dinero). Para cuentas en Bs se usa la
+      // tasa congelada del pedido — la misma que vio el cliente al pagar.
+      await bankLedgerService.applyMethodPayment(tx, {
+        restaurantId,
+        method: input.method,
+        direction: 'CREDIT',
+        amountBase,
+        rateBs: order.exchangeRate,
+        bankAccountId: input.bankAccountId,
+        description: `Cobro pedido #${order.orderNumber}`,
+        sourceRef: order.id,
       });
 
       if (input.items?.length) {

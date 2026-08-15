@@ -47,9 +47,28 @@ export interface RestaurantTheme {
 
 export type PaymentMethodKey = 'CASH' | 'CASH_USD' | 'MOBILE_PAYMENT' | 'ZELLE' | 'BINANCE' | 'PAYPAL' | 'TRANSFER' | 'CARD';
 
+/** Una cuenta receptora ADICIONAL de un método (el segundo Zelle, el segundo Pago Móvil…).
+ *  `key` es su id estable en la UI; `label` la distingue al elegir en caja ("Zelle Chase"). */
+export interface PaymentMethodExtraAccount {
+  key: string;
+  label?: string;
+  banco?: string;
+  telefono?: string;
+  cedula?: string;
+  titular?: string;
+  correo?: string;
+  id?: string;
+  cuenta?: string;
+  rif?: string;
+  qrImageUrl?: string;
+  /** Cuenta bancaria registrada a la que suma el cobro que entre por acá. */
+  bankAccountId?: string | null;
+}
+
 /** Datos propios de cada método de pago (los que apliquen); todos opcionales. */
 export interface PaymentMethodFields {
   enabled?: boolean;
+  label?: string;
   banco?: string;
   telefono?: string;
   cedula?: string;
@@ -60,6 +79,10 @@ export interface PaymentMethodFields {
   rif?: string;
   /** QR que el cliente escanea al cobrar: Pago Móvil (banco/Suiche 7B), Zelle y Binance. */
   qrImageUrl?: string;
+  /** Cuenta bancaria registrada vinculada a la cuenta principal del método. */
+  bankAccountId?: string | null;
+  /** Cuentas adicionales del mismo método: varios Zelle, varios Pago Móvil… */
+  extraAccounts?: PaymentMethodExtraAccount[];
 }
 
 export type PaymentMethodsConfig = Partial<Record<PaymentMethodKey, PaymentMethodFields>>;
@@ -86,6 +109,8 @@ export interface Restaurant {
   isOpen?: boolean;
   closedReason?: string | null;
   requireOrderConfirmation: boolean;
+  /** CRM: el checkout de delivery exige nombre y teléfono (ya son obligatorios igual). */
+  requireCustomerData?: boolean;
   /** Si es false, la tablet de la cancha deja de ofrecer "Pagar" (solo detalle de cuenta). */
   clubTabletPaymentsEnabled: boolean;
   serviceChargeEnabled: boolean;

@@ -14,8 +14,11 @@ import {
   referenceLabel,
 } from '@/utils/payments';
 import { useToast } from '@/hooks/useToast';
+import { methodAccountsOf } from '@/utils/payment-accounts';
 import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
 import { PaymentClientScreen } from '@/components/admin/PaymentClientScreen';
+import { MethodAccountPicker } from '@/components/admin/MethodAccountPicker';
+import { PromoCodeField, promoDiscountAmount, type AppliedPromo } from '@/components/admin/crm/PromoCodeField';
 import { sendWhatsappOrOpen } from '@/utils/sendWhatsapp';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -29,7 +32,7 @@ import { describePrint, formatRollWidths, quotePrint, rollWidthLabel } from './p
 
 interface Props {
   session: ShopSession;
-  restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate' | 'name' | 'paymentMethodsConfig'>;
+  restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate' | 'name' | 'paymentMethodsConfig' | 'requireCustomerData'>;
   rubro: ShopRubro;
 }
 
@@ -179,6 +182,8 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const [custName, setCustName] = useState('');
   const [custPhone, setCustPhone] = useState('');
   const [discount, setDiscount] = useState(0);
+  // Promoción del CRM aplicada con su código: descuenta del total y el backend registra el canje.
+  const [posPromo, setPosPromo] = useState<AppliedPromo | null>(null);
 
   const [weightOpen, setWeightOpen] = useState(false);
   // Impresión de gran formato (rubro Agencia de Publicidad): medidas de la pieza a imprimir.
@@ -206,6 +211,8 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   // Binance, PayPal, Transferencia y Punto de Venta pasan por la misma para capturar su
   // referencia o comprobante (efectivo sigue cerrando de una, no deja rastro que pedir).
   const [pmMethodKey, setPmMethodKey] = useState<PaymentMethodKey>('MOBILE_PAYMENT');
+  // Cuenta receptora elegida cuando el método tiene varias (varios Zelle / varios Pago Móvil).
+  const [pmAccountKey, setPmAccountKey] = useState('main');
   // Pantalla completa que ve el cliente antes de que el cajero cargue referencia/comprobante.
   const [clientScreenOpen, setClientScreenOpen] = useState(false);
   const [pmReference, setPmReference] = useState('');
@@ -249,18 +256,25 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const [successOpen, setSuccessOpen] = useState(false);
 
   const subtotal = cart.reduce((a, c) => a + lineTotal(c), 0);
-  const total = subtotal * (1 - discount / 100);
+  const totalBeforePromo = subtotal * (1 - discount / 100);
+  const posPromoDiscount = posPromo ? promoDiscountAmount(posPromo, totalBeforePromo) : 0;
+  const total = Math.max(0, Math.round((totalBeforePromo - posPromoDiscount + Number.EPSILON) * 100) / 100);
   // Datos de cobro que se le muestran al cliente: los del BARBERO si tiene los suyos cargados
   // (le paga directo a él), si no los del local. La venta se registra igual en el local.
   const payToConfig = qsPendingPayment ? restaurant.paymentMethodsConfig : (activeProvider?.paymentMethodsConfig ?? restaurant.paymentMethodsConfig);
   const payToName = !qsPendingPayment && activeProvider?.paymentMethodsConfig ? activeProvider.name : restaurant.name;
   const payToIsStaff = !qsPendingPayment && Boolean(activeProvider?.paymentMethodsConfig);
+  // Cuentas receptoras del método elegido (la principal + las adicionales). Solo aplican
+  // cuando el cobro va al LOCAL: si va a la cuenta personal del barbero, no hay banco del
+  // negocio que sumar y el selector no aparece.
+  const payAccounts = payToIsStaff ? [] : methodAccountsOf(restaurant.paymentMethodsConfig, pmMethodKey);
+  const selectedPayAccount = payAccounts.find((a) => a.key === pmAccountKey) ?? payAccounts[0] ?? null;
   // El QR del local no aplica si el cobro va a la cuenta del barbero. Solo Pago Móvil, Zelle
   // y Binance tienen QR que enseñar; el resto se paga con los datos escritos.
   const qrImageUrl =
     payToIsStaff || !METHODS_WITH_QR.includes(pmMethodKey)
       ? undefined
-      : restaurant.paymentMethodsConfig?.[pmMethodKey]?.qrImageUrl;
+      : selectedPayAccount?.qrImageUrl ?? undefined;
   const pmMethodLabel = PAYMENT_METHOD_META.find((m) => m.key === pmMethodKey)?.label ?? 'Pago Móvil';
   const pmAllowsProof = METHODS_ALLOWING_PROOF.includes(pmMethodKey);
   // Solo se ofrecen al cobrar los métodos que el dueño activó en Ajustes > Métodos de pago —
@@ -384,6 +398,12 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   }
 
   function openQuickSaleDialog() {
+    // La venta rápida no captura cliente: con datos obligatorios activos se usa el
+    // carrito normal (que sí los pide) — el backend igual rechazaría la venta.
+    if (restaurant.requireCustomerData) {
+      show('Con datos del cliente obligatorios (CRM), usa el carrito para vender: la venta rápida no captura cliente.');
+      return;
+    }
     setQsName('');
     setQsCategory('');
     setQsCost('');
@@ -408,6 +428,7 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
     if (qsMethodKey && METHODS_REQUIRING_PROOF_OR_REFERENCE.includes(qsMethodKey)) {
       setQuickSaleOpen(false);
       setPmMethodKey(qsMethodKey);
+      setPmAccountKey('main');
       setPmReference('');
       setPmProofUrl(null);
       setPmProofError(null);
@@ -483,14 +504,24 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
     if (sent) show('Mensaje enviado');
   }
 
+  /** CRM: con el interruptor de datos obligatorios activo, no se cobra sin cliente. */
+  function customerDataMissing(): boolean {
+    if (!restaurant.requireCustomerData) return false;
+    if (custName.trim() && custPhone.trim()) return false;
+    show('Este negocio exige nombre y teléfono del cliente en cada venta (CRM).');
+    return true;
+  }
+
   function startCheckout() {
     if (!till || cart.length === 0) return;
+    if (customerDataMissing()) return;
     setSaleMode({ kind: 'direct' });
     setPaymethodOpen(true);
   }
 
   function startFiado() {
     if (!till || cart.length === 0) return;
+    if (customerDataMissing()) return;
     setFiadoStep('choose');
     setFiadoAbono('');
     setFiadoOpen(true);
@@ -515,19 +546,28 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
     setSaleMode({ kind: 'direct' });
   }
 
-  function finalizeSale(method: PaymentMethod, meta: PaymentMeta | null) {
+  function finalizeSale(method: PaymentMethod, meta: PaymentMeta | null, bankAccountId?: string | null) {
     const customer =
       custName.trim() || custPhone.trim()
         ? { name: custName.trim() || null, phone: custPhone.trim().replace(/\D/g, '') || null }
         : null;
     const credit = saleMode.kind === 'fiado' ? { terms: saleMode.terms, amountPaidNow: saleMode.amountPaidNow } : null;
-    const sale = checkout(method, meta, customer, discount, credit);
+    const sale = checkout(
+      method,
+      meta,
+      customer,
+      discount,
+      credit,
+      bankAccountId,
+      posPromo ? { code: posPromo.code, discountBase: posPromoDiscount } : null,
+    );
     // Fiado a pago completo no cobra nada hoy (queda todo pendiente) — el sonido de caja es
     // para cuando efectivamente entra dinero: venta directa o el abono de un fiado fraccionado.
     if (credit?.terms !== 'FULL') playCashSound();
     setCustName('');
     setCustPhone('');
     setDiscount(0);
+    setPosPromo(null);
     setSaleMode({ kind: 'direct' });
     return sale;
   }
@@ -543,6 +583,7 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
     const methodKey = PAYMENT_METHOD_META.find((m) => m.label === method)?.key;
     if (methodKey && METHODS_REQUIRING_PROOF_OR_REFERENCE.includes(methodKey)) {
       setPmMethodKey(methodKey);
+      setPmAccountKey('main');
       setPmReference('');
       setPmProofUrl(null);
       setPmProofError(null);
@@ -591,14 +632,22 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
       const category = qsCategory.trim();
       const price = Number(qsPrice.replace(',', '.'));
       const cost = Number(qsCost.replace(',', '.')) || 0;
-      quickSale({ name, category, cost, price, paymentMethod: pmMethodLabel, paymentMeta: meta });
+      quickSale({
+        name,
+        category,
+        cost,
+        price,
+        paymentMethod: pmMethodLabel,
+        paymentMeta: meta,
+        bankAccountId: selectedPayAccount?.bankAccountId ?? undefined,
+      });
       setPagoMovilOpen(false);
       setQsPendingPayment(false);
       setAddToInventoryPrompt({ name, category, cost, price, photoUrl: qsPhotoUrl });
       return;
     }
 
-    const sale = finalizeSale(pmMethodLabel, meta);
+    const sale = finalizeSale(pmMethodLabel, meta, selectedPayAccount?.bankAccountId ?? undefined);
     setPagoMovilOpen(false);
     setSuccessOpen(true);
     setTimeout(() => {
@@ -880,16 +929,24 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
             <input
               value={custName}
               onChange={(e) => setCustName(e.target.value)}
-              placeholder="Cliente (opcional)"
+              placeholder={restaurant.requireCustomerData ? 'Cliente *' : 'Cliente (opcional)'}
               className="flex-1 min-w-0 border border-brand-950/15 rounded-lg px-2.5 py-2 text-[13px]"
             />
             <input
               value={custPhone}
               onChange={(e) => setCustPhone(e.target.value)}
-              placeholder="Teléfono (opcional)"
+              placeholder={restaurant.requireCustomerData ? 'Teléfono *' : 'Teléfono (opcional)'}
               className="flex-1 min-w-0 border border-brand-950/15 rounded-lg px-2.5 py-2 text-[13px]"
             />
           </div>
+          {restaurant.requireCustomerData && (
+            <p className="text-[11px] font-light text-brand-950/40">
+              Este negocio exige nombre y teléfono del cliente en cada venta (CRM).
+            </p>
+          )}
+
+          {/* Código de promoción del CRM: valida contra la lista del cliente del ticket. */}
+          <PromoCodeField phone={custPhone} applied={posPromo} onApplied={setPosPromo} symbol={restaurant.currencySymbol} />
 
           <div className="border-t border-brand-950/[0.06] pt-3.5 flex flex-col gap-2">
             <div className="flex items-center justify-between text-[13px] text-brand-950/50">
@@ -913,6 +970,12 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
                 %
               </span>
             </div>
+            {posPromoDiscount > 0 && posPromo && (
+              <div className="flex items-center justify-between text-[13px] font-medium text-emerald-600">
+                <span>Promoción {posPromo.code}</span>
+                <span>−{money(posPromoDiscount)}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between text-[17px] font-bold text-brand-950">
               <span>Total</span>
               <span className="text-right">
@@ -1118,7 +1181,8 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
           }
           details={
             (() => {
-              const pm = payToConfig?.[pmMethodKey];
+              // Con varias cuentas del local, se muestran los datos de la CUENTA elegida.
+              const pm = selectedPayAccount ? selectedPayAccount.fields : payToConfig?.[pmMethodKey];
               if (!pm?.telefono && !pm?.cedula && !pm?.correo && !pm?.id && !pm?.cuenta) return null;
               return (
                 <div className="rounded-2xl border border-brand-950/10 bg-brand-950/[0.03] p-3.5 text-left">
@@ -1182,6 +1246,15 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
                     )}
                   </p>
                 )}
+              </div>
+
+              <div className="text-left">
+                <MethodAccountPicker
+                  accounts={payAccounts}
+                  value={selectedPayAccount?.key ?? 'main'}
+                  onChange={setPmAccountKey}
+                  label="¿A cuál cuenta te pagan?"
+                />
               </div>
 
               <label className="block text-sm text-left">

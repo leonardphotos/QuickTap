@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ChevronRight, Clock, CreditCard, ShoppingBag, SplitSquareHorizontal, Users, Utensils } from 'lucide-react';
+import { BellRing, ChevronRight, Clock, CreditCard, ShoppingBag, SplitSquareHorizontal, Users, Utensils } from 'lucide-react';
 import type { AuthRestaurant } from '@/context/AuthContext';
-import { formatBase } from '@/utils/format';
+import { formatBase, formatBsAbsolute } from '@/utils/format';
 import { cn } from '@/lib/utils';
-import { clubApi, COURT_TYPE_LABELS, type ClubBooking, type PanelCourt } from './clubApi';
+import { PAYMENT_LABELS } from '@/components/admin/PaymentDialog';
+import { clubApi, COURT_TYPE_LABELS, type ClubBooking, type PanelCourt, type ReportedPayment } from './clubApi';
 import { card, CourtIllustration } from './clubStyle';
 import { ClubPaymentDialog } from './ClubPaymentDialog';
 
@@ -58,9 +59,15 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt, canPay }: 
   const [courts, setCourts] = useState<PanelCourt[] | null>(null);
   const [payment, setPayment] = useState<{ booking: ClubBooking; mode: 'full' | 'split' } | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Pagos reportados desde la tablet, pendientes de verificar: el aviso que permite
+  // confirmar el pago y liberar la cancha sin que el jugador pase por caja.
+  const [reported, setReported] = useState<ReportedPayment[]>([]);
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     clubApi.panelCourts().then((d) => setCourts(d.courts)).catch(() => setCourts([]));
+    clubApi.reportedPayments().then(setReported).catch(() => setReported([]));
   }, []);
 
   // El dato envejece por minuto: se refresca solo mientras la pantalla está abierta.
@@ -80,8 +87,22 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt, canPay }: 
     }
   }
 
+  async function review(id: string, status: 'CONFIRMED' | 'REJECTED') {
+    setReviewingId(id);
+    setReviewError(null);
+    try {
+      await clubApi.reviewReportedPayment(id, status);
+      load();
+    } catch (err: any) {
+      setReviewError(err.response?.data?.error ?? 'No se pudo verificar el pago.');
+    } finally {
+      setReviewingId(null);
+    }
+  }
+
   const money = (n: number) => formatBase(n, restaurant.currencySymbol);
   const playing = courts?.filter((c) => c.busy).length ?? 0;
+  const pendingBookings = new Set(reported.map((p) => p.bookingId));
 
   return (
     <div className="flex flex-col gap-5">
@@ -93,6 +114,62 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt, canPay }: 
           </p>
         )}
       </div>
+
+      {/* Aviso de pagos por verificar: cuando el jugador paga desde la tablet de la
+          cancha, el reporte cae acá para que recepción lo confirme (cobra de verdad
+          y, si salda la cuenta, la cancha queda liberada) o lo rechace. */}
+      {reported.length > 0 && (
+        <section className={cn(card, 'overflow-hidden !border-amber-300')}>
+          <div className="flex items-center gap-2 bg-amber-50 px-4 py-2.5">
+            <BellRing className="h-4 w-4 shrink-0 text-amber-600" />
+            <p className="text-[13px] font-bold text-amber-900">
+              {reported.length === 1 ? '1 pago por verificar' : `${reported.length} pagos por verificar`} · reportados
+              desde la cancha
+            </p>
+          </div>
+          {reviewError && <p className="px-4 pt-2 text-[12px] font-medium text-red-600">{reviewError}</p>}
+          <div className="divide-y divide-brand-950/[0.06]">
+            {reported.map((p) => (
+              <div key={p.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[14px] font-semibold text-brand-950">
+                    {p.playerName} · {p.courtName}
+                  </p>
+                  <p className="truncate text-[12px] font-light text-brand-950/50">
+                    {PAYMENT_LABELS[p.method] ?? p.method}
+                    {p.referenceNumber && ` · Ref. ${p.referenceNumber}`}
+                    {` · ${hhmm(p.createdAt)}`}
+                  </p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <p className="text-[15px] font-bold text-brand-950">{money(Number(p.amountBase))}</p>
+                  <p className="text-[11px] font-light text-brand-950/40">{formatBsAbsolute(p.amountBs)}</p>
+                </div>
+                {canPay && (
+                  <div className="flex shrink-0 gap-1.5">
+                    <button
+                      type="button"
+                      disabled={reviewingId === p.id}
+                      onClick={() => review(p.id, 'CONFIRMED')}
+                      className="rounded-full bg-emerald-600 px-3.5 py-2 text-[12px] font-bold text-white transition-colors hover:bg-emerald-700 disabled:opacity-40"
+                    >
+                      Confirmar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={reviewingId === p.id}
+                      onClick={() => review(p.id, 'REJECTED')}
+                      className="rounded-full border border-brand-950/15 px-3.5 py-2 text-[12px] font-medium text-brand-950/60 transition-colors hover:bg-brand-950/[0.04] disabled:opacity-40"
+                    >
+                      Rechazar
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {courts === null && <p className="font-light text-brand-950/40">Cargando…</p>}
 
@@ -167,6 +244,17 @@ export default function ClubCourtsLivePage({ restaurant, onOpenCourt, canPay }: 
                       </div>
                       <Figure value={humanMinutes(cur.remainingMinutes)} label="restante" align="right" />
                     </div>
+
+                    {/* El jugador reportó un pago desde la tablet: hay que verificarlo
+                        (aviso de arriba) antes de poder liberar la cancha. */}
+                    {cur.booking && pendingBookings.has(cur.booking.id) && (
+                      <div className="mt-2.5 flex items-center gap-2 rounded-2xl bg-amber-100 px-3.5 py-2.5">
+                        <BellRing className="h-4 w-4 shrink-0 text-amber-600" />
+                        <span className="text-[12px] font-semibold text-amber-900">
+                          Pago por verificar — revisa el aviso de arriba
+                        </span>
+                      </div>
+                    )}
 
                     {/* Lo que evita que alguien se vaya debiendo el agua. */}
                     {cur.openTab ? (

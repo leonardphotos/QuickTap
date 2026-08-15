@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { api } from '@/api/client';
+import { useAuth } from '@/context/AuthContext';
+import { methodAccountsOf } from '@/utils/payment-accounts';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { PAYMENT_LABELS } from './PaymentDialog';
+import { MethodAccountPicker } from './MethodAccountPicker';
 import type { PaymentMethod } from '@/types';
 
 export type IncomeCategory = 'TIP' | 'DEBT' | 'OTHER';
@@ -21,13 +24,19 @@ const INCOME_METHODS: PaymentMethod[] = ['CASH', 'CASH_USD', 'MOBILE_PAYMENT', '
  * los dos consumidores, para que todo ingreso manual quede siempre registrado igual sin
  * importar desde dónde se cargue. */
 export function IncomeForm({ onCreated }: { onCreated: () => void }) {
+  const { restaurant } = useAuth();
   const [amount, setAmount] = useState('');
   const [amountCurrency, setAmountCurrency] = useState<'BASE' | 'BS'>('BASE');
   const [category, setCategory] = useState<IncomeCategory>('TIP');
   const [method, setMethod] = useState<PaymentMethod>('CASH');
+  // Cuenta receptora elegida cuando el método tiene varias (varios Zelle…).
+  const [accountKey, setAccountKey] = useState('main');
   const [description, setDescription] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const methodAccounts = methodAccountsOf(restaurant?.paymentMethodsConfig, method);
+  const selectedAccount = methodAccounts.find((a) => a.key === accountKey) ?? methodAccounts[0] ?? null;
 
   async function submit() {
     const amountBase = Number(amount);
@@ -45,6 +54,7 @@ export function IncomeForm({ onCreated }: { onCreated: () => void }) {
         description: description.trim() || INCOME_CATEGORY_LABELS[category],
         incomeCategory: category,
         paymentMethod: method,
+        bankAccountId: selectedAccount?.bankAccountId ?? undefined,
       });
       onCreated();
     } catch (e: any) {
@@ -81,7 +91,10 @@ export function IncomeForm({ onCreated }: { onCreated: () => void }) {
             <button
               key={m}
               type="button"
-              onClick={() => setMethod(m)}
+              onClick={() => {
+                setMethod(m);
+                setAccountKey('main');
+              }}
               className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
                 method === m ? 'bg-emerald-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
               }`}
@@ -90,6 +103,7 @@ export function IncomeForm({ onCreated }: { onCreated: () => void }) {
             </button>
           ))}
         </div>
+        <MethodAccountPicker accounts={methodAccounts} value={selectedAccount?.key ?? 'main'} onChange={setAccountKey} />
       </div>
 
       <div className="grid grid-cols-3 gap-2">

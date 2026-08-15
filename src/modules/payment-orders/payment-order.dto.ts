@@ -14,10 +14,23 @@ export const createPaymentOrderSchema = z.object({
 
 export type CreatePaymentOrderInput = z.infer<typeof createPaymentOrderSchema>;
 
-/** Marcarla pagada: con qué se pagó y su referencia, para conciliar contra el banco. */
+/** Marcarla pagada: con qué se pagó, su referencia y el detalle fiscal del pago. */
 export const payPaymentOrderSchema = z.object({
   paymentMethod: z.enum(PAYMENT_METHODS).nullish(),
   referenceNumber: z.string().max(80).nullish(),
+  // Lo realmente pagado. Si viene en "BS" el service lo convierte a moneda base con la tasa
+  // BCV del momento del pago — el monto congelado de la orden ya no aplica si la tasa cambió.
+  paidAmount: z.coerce.number().positive().max(100000000).nullish(),
+  paidCurrency: z.enum(['BASE', 'BS']).optional().default('BASE'),
+  // Retenciones (el negocio como agente de retención) y nota de crédito, en moneda base.
+  islrRetentionBase: z.coerce.number().nonnegative().max(1000000).nullish(),
+  ivaRetentionBase: z.coerce.number().nonnegative().max(1000000).nullish(),
+  creditNoteBase: z.coerce.number().nonnegative().max(1000000).nullish(),
+  // Desglose informativo de la factura.
+  ivaAmountBase: z.coerce.number().nonnegative().max(1000000).nullish(),
+  totalWithIvaBase: z.coerce.number().nonnegative().max(10000000).nullish(),
+  // De cuál cuenta bancaria salió el dinero, cuando el método tiene varias.
+  bankAccountId: z.string().max(60).nullish(),
 });
 
 export type PayPaymentOrderInput = z.infer<typeof payPaymentOrderSchema>;

@@ -4,6 +4,7 @@ import { clubStatsService } from './club-stats.service';
 import { badRequest } from '../../utils/http-error';
 import {
   availabilityQuerySchema,
+  breakEvenQuerySchema,
   calendarQuerySchema,
   createBookingSchema,
   createCourtSchema,
@@ -11,6 +12,7 @@ import {
   createScheduleSchema,
   listBookingsQuerySchema,
   recordBookingPaymentSchema,
+  reviewReportedPaymentSchema,
   setBookingAwaitingPaymentSchema,
   updateCourtSchema,
   updateScheduleSchema,
@@ -92,6 +94,15 @@ export const clubController = {
     const input = setBookingAwaitingPaymentSchema.parse(req.body);
     res.json({ data: await clubService.setBookingAwaitingPayment(req.restaurantId!, req.params.id, input.awaitingPayment) });
   }),
+
+  // Pagos reportados desde la tablet (aviso "Pago por verificar" en Canchas)
+  listReportedPayments: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await clubService.listReportedPayments(req.restaurantId!) });
+  }),
+  reviewReportedPayment: asyncHandler(async (req: Request, res: Response) => {
+    const input = reviewReportedPaymentSchema.parse(req.body);
+    res.json({ data: await clubService.reviewReportedPayment(req.restaurantId!, req.params.id, input.status) });
+  }),
   uploadPaymentProof: asyncHandler(async (req: Request, res: Response) => {
     if (!req.file) throw badRequest('No se recibió ningún archivo.');
     res.status(201).json({ data: { url: `/uploads/club-payment-proofs/${req.file.filename}` } });
@@ -159,5 +170,10 @@ export const clubController = {
 
   debts: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await clubStatsService.debts(req.restaurantId!) });
+  }),
+
+  breakEven: asyncHandler(async (req: Request, res: Response) => {
+    const { range, date } = breakEvenQuerySchema.parse(req.query);
+    res.json({ data: await clubStatsService.breakEven(req.restaurantId!, range, date) });
   }),
 };

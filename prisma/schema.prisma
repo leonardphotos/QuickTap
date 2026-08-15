@@ -75,6 +75,13 @@ enum ExpenseCategory {
   OTHER // Otros
 }
 
+// Soporte documental de un gasto: factura fiscal (deducible/declarable) vs. nota de entrega
+// (el proveedor no maneja factura fiscal, solo comprobante de despacho).
+enum ExpenseDocumentType {
+  FISCAL_INVOICE // Factura fiscal
+  DELIVERY_NOTE // Nota de entrega
+}
+
 enum CashSessionStatus {
   OPEN
   CLOSED
@@ -349,6 +356,10 @@ model Restaurant {
   // "Pagar": al acabarse el tiempo solo muestra el detalle de cada cuenta y su
   // monto, para que el jugador pague en persona. No afecta poder pedir.
   clubTabletPaymentsEnabled Boolean @default(true)
+  // CRM: si es true, toda venta/checkout exige nombre y teléfono del cliente
+  // (POS del Local, checkout de delivery). Mesa QR y reservas de cancha ya los
+  // piden siempre. El interruptor vive en el CRM.
+  requireCustomerData Boolean @default(false)
 
   // --- Precio de delivery ---
   // Ubicación del local, usada como origen para calcular distancia al cliente.
@@ -512,11 +523,15 @@ model Restaurant {
   deliveryZones          DeliveryZone[]
   movements              Movement[]
   paymentOrders          PaymentOrder[]
+  bankAccounts           BankAccount[]
+  bankTransactions       BankTransaction[]
   employees              Employee[]
   employeePayments       EmployeePayment[]
   cashSessions           CashSession[]
   suppliers              Supplier[]
   customers              Customer[]
+  promotions             Promotion[]
+  promotionRedemptions   PromotionRedemption[]
   modifierCategories     ModifierCategory[]
   modifiers              Modifier[]
   productVariants        ProductVariant[]
@@ -1509,9 +1524,25 @@ model Movement {
   expenseDate       DateTime?
   // Nº de factura/recibo/referencia de la transferencia, para conciliar con el soporte físico.
   referenceNumber   String?
-  // Foto del recibo (gasolinera, hotel, restaurante). Clave en gastos de viaje: el soporte
-  // se pierde y sin él no hay cómo justificar el egreso.
+  // Foto del recibo/factura (gasolinera, hotel, restaurante). Clave en gastos de viaje: el
+  // soporte se pierde y sin él no hay cómo justificar el egreso.
   receiptImageUrl   String?
+  // Foto del presupuesto/cotización que se aprobó antes de pagar (aparte de la factura).
+  quoteImageUrl        String?
+  // Foto del comprobante de pago (transferencia/Pago Móvil), aparte de la factura en sí —
+  // un proveedor puede mandar ambos por separado.
+  paymentProofImageUrl String?
+  // Nota libre adicional a `description` (condiciones, por qué del gasto, detalle largo).
+  notes                String?
+  // Factura fiscal vs. nota de entrega — para poder distinguir de un vistazo al filtrar
+  // por categoría cuáles gastos tienen soporte fiscal y cuáles no. Null = sin especificar.
+  documentType         ExpenseDocumentType?
+  // Fecha de vencimiento de la factura del proveedor: alimenta la alerta de "facturas por
+  // vencer/vencidas" en Cuentas por pagar. Null = sin vencimiento definido.
+  invoiceDueDate       DateTime?
+  // Gasto que se repite periódicamente (alquiler, nómina, servicios). Solo una etiqueta para
+  // identificarlo/filtrarlo — no crea el siguiente movimiento automáticamente.
+  isRecurring          Boolean              @default(false)
   // Quién hizo el gasto, cuando no fue quien lo registra (ej. el chofer que cargó gasolina).
   spentByName       String?
 
@@ -1619,6 +1650,23 @@ model PaymentOrder {
   referenceNumber String?
   note            String?
 
+  /// --- Detalle fiscal del pago (se llena al marcarla pagada; todos opcionales) ---
+  /// Lo REALMENTE pagado, en moneda base. Existe aparte de `amountBase` (lo autorizado al
+  /// emitirla) porque entre emisión y pago la tasa Bs/$ cambia — el pago en Bs ya no equivale
+  /// al monto congelado de la orden.
+  paidAmountBase     Decimal? @db.Decimal(12, 2)
+  /// Si el pago se hizo en bolívares, el monto tal cual se pagó (antes de convertirlo a base
+  /// con la tasa BCV del momento) — para conciliar contra el banco sin rehacer la conversión.
+  paidAmountBs       Decimal? @db.Decimal(14, 2)
+  /// Retenciones aplicadas por el negocio como agente de retención, en moneda base.
+  islrRetentionBase  Decimal? @db.Decimal(12, 2)
+  ivaRetentionBase   Decimal? @db.Decimal(12, 2)
+  /// Nota de crédito del proveedor que descuenta del total a pagar.
+  creditNoteBase     Decimal? @db.Decimal(12, 2)
+  /// Desglose informativo de la factura: IVA y total con IVA.
+  ivaAmountBase      Decimal? @db.Decimal(12, 2)
+  totalWithIvaBase   Decimal? @db.Decimal(12, 2)
+
   createdByUserId String?
   createdAt       DateTime  @default(now())
   paidByUserId    String?
@@ -1635,6 +1683,81 @@ model PaymentOrder {
   @@index([restaurantId, status])
   @@index([restaurantId, orderNumber])
   @@map("payment_orders")
+}
+
+/// Moneda de una cuenta bancaria: la moneda base del negocio ($/€) o bolívares.
+enum BankAccountCurrency {
+  BASE
+  BS
+}
+
+enum BankTransactionType {
+  CREDIT // entra dinero (cobro de venta, ingreso manual, saldo inicial, ajuste +)
+  DEBIT // sale dinero (gasto de contado, orden de pago, ajuste −)
+  TRANSFER_IN // recibido de otra cuenta propia
+  TRANSFER_OUT // enviado a otra cuenta propia
+}
+
+/// Cuenta bancaria (o caja chica) del negocio. Cada método de pago puede vincularse a UNA
+/// cuenta: al registrar un cobro con ese método el saldo sube, y al registrar un gasto de
+/// contado u orden de pago con ese método el saldo baja — ver bank-ledger.service.ts.
+model BankAccount {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  name        String
+  currency    BankAccountCurrency
+  /// Caja chica: efectivo físico del día a día. Se comporta igual que una cuenta (se le
+  /// vincula Efectivo, recibe transferencias), solo se distingue visualmente.
+  isPettyCash Boolean @default(false)
+  /// Métodos de pago vinculados. El service valida que un método esté en UNA sola cuenta
+  /// por negocio — si no, un cobro no sabría a qué banco sumar.
+  paymentMethods PaymentMethod[]
+  /// Saldo actual EN LA MONEDA DE LA CUENTA, denormalizado: se actualiza en la misma
+  /// transacción que crea cada BankTransaction, nunca por fuera.
+  balance Decimal @default(0) @db.Decimal(16, 2)
+
+  createdAt DateTime @default(now())
+
+  restaurant   Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  transactions BankTransaction[]
+
+  @@index([restaurantId])
+  @@map("bank_accounts")
+}
+
+/// Libro mayor de una cuenta bancaria: cada crédito/débito/transferencia queda como fila,
+/// para que el saldo siempre sea auditable movimiento por movimiento.
+model BankTransaction {
+  id           String @id @default(cuid())
+  restaurantId String
+  accountId    String
+
+  type BankTransactionType
+  /// Monto en la moneda de la cuenta, siempre positivo (el signo lo da `type`).
+  amount     Decimal @db.Decimal(16, 2)
+  /// Equivalente en moneda base del negocio, para totalizar cuentas Bs y $ juntas.
+  amountBase Decimal @db.Decimal(12, 2)
+
+  description   String
+  paymentMethod PaymentMethod?
+  /// Gasto/ingreso manual que originó este asiento — al borrar ese movimiento, el asiento
+  /// se revierte (ver movement.service.remove).
+  movementId String?
+  /// Id del cobro/orden de pago origen, solo trazabilidad (esos no se borran).
+  sourceRef String?
+  /// Transferencias entre cuentas propias: la cuenta del otro lado.
+  counterpartAccountId String?
+
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  restaurant Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  account    BankAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, accountId, createdAt])
+  @@index([movementId])
+  @@map("bank_transactions")
 }
 
 // Proveedor al que se le compran insumos/servicios (módulo de Gastos).
@@ -1669,6 +1792,11 @@ model Customer {
   phone    String
   idNumber String?
   address  String?
+  // --- Ficha CRM (opcionales; alimentan los segmentos y las promos personalizadas) ---
+  email    String?
+  /// Fecha de cumpleaños (solo importa mes y día; el año puede ser el real o 1900).
+  birthday DateTime?
+  notes    String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1683,10 +1811,101 @@ model Customer {
   clubPlayerAccount ClubPlayerAccount?
   clubBlacklist     ClubBlacklistEntry[]
   clubLoyalty       ClubLoyaltyEntry[]
+  // CRM: campañas en las que está incluido y códigos que canjeó.
+  promotionTargets     PromotionTarget[]
+  promotionRedemptions PromotionRedemption[]
 
   @@unique([restaurantId, phone])
   @@index([restaurantId, name])
   @@map("customers")
+}
+
+// ============================================================================
+// CRM: promociones personalizadas con código canjeable
+// ============================================================================
+
+enum PromotionDiscountType {
+  PERCENT
+  AMOUNT
+}
+
+/// Una campaña de descuento dirigida a una lista de clientes del CRM. El código
+/// lo escribe el cajero al cobrar: ahí se aplica el descuento Y queda el canje
+/// registrado (PromotionRedemption) — sin código no hay trazabilidad de la promo.
+model Promotion {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  name    String
+  /// Mensaje de WhatsApp con placeholders {{nombre}}, {{codigo}}, {{descuento}} y {{vigencia}}.
+  message String?
+  /// Código canjeable. Único por negocio (se guarda en MAYÚSCULAS).
+  code    String
+
+  discountType  PromotionDiscountType
+  /// % (0-100) si PERCENT; monto en moneda base si AMOUNT.
+  discountValue Decimal               @db.Decimal(12, 2)
+
+  /// Vigencia opcional. Fuera de rango el código no valida.
+  startsAt DateTime?
+  endsAt   DateTime?
+  isActive Boolean   @default(true)
+
+  /// Con qué segmento del CRM se armó la lista (ALL/FREQUENT/NEW/INACTIVE/BIRTHDAY/MANUAL) — informativo.
+  segment String?
+  /// Máximo de canjes por cliente (0 = sin límite).
+  maxPerCustomer Int @default(1)
+  /// Si es true, el código solo vale para los clientes de la lista; si es false,
+  /// cualquiera que lo tenga puede canjearlo.
+  restrictToTargets Boolean @default(true)
+
+  createdAt DateTime @default(now())
+
+  restaurant  Restaurant            @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  targets     PromotionTarget[]
+  redemptions PromotionRedemption[]
+
+  @@unique([restaurantId, code])
+  @@index([restaurantId, isActive])
+  @@map("promotions")
+}
+
+/// Un cliente incluido en la lista de una campaña. `sentAt` marca cuándo se le
+/// envió el mensaje por WhatsApp (el envío es 1 a 1, con un clic por cliente).
+model PromotionTarget {
+  id          String    @id @default(cuid())
+  promotionId String
+  customerId  String
+  sentAt      DateTime?
+
+  promotion Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  customer  Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([promotionId, customerId])
+  @@map("promotion_targets")
+}
+
+/// Un canje real del código en caja, con el descuento que efectivamente se aplicó.
+model PromotionRedemption {
+  id           String  @id @default(cuid())
+  restaurantId String
+  promotionId  String
+  customerId   String?
+  /// Id del pedido/venta/reserva donde se canjeó — trazabilidad, texto libre.
+  sourceRef    String?
+  /// Descuento aplicado, congelado en moneda base.
+  amountBase   Decimal @db.Decimal(12, 2)
+
+  redeemedByUserId String?
+  createdAt        DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  promotion  Promotion  @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  customer   Customer?  @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@index([promotionId])
+  @@index([restaurantId, createdAt])
+  @@map("promotion_redemptions")
 }
 
 // Turno de caja (botón "Abrir Caja" / "Cerrar Caja" en Administración → Resumen).
@@ -3055,6 +3274,9 @@ model ClubBookingPayment {
   id              String        @id @default(cuid())
   bookingId       String
   amountBase      Decimal       @db.Decimal(12, 2)
+  /// Descuento de promoción (CRM) perdonado en este cobro: cuenta como saldado
+  /// igual que el dinero, pero no es dinero — el arqueo y el banco no lo suman.
+  discountBase    Decimal       @default(0) @db.Decimal(12, 2)
   method          PaymentMethod
   referenceNumber String?
   proofImageUrl   String?

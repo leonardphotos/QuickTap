@@ -1,5 +1,12 @@
 import { z } from 'zod';
 
+/** Filtro de período para Panel administrativo → Punto de equilibrio. */
+export const breakEvenQuerySchema = z.object({
+  range: z.enum(['day', 'week', 'month', 'year', 'all']).optional().default('month'),
+  // Fecha exacta ("YYYY-MM-DD"): si viene, ignora `range` y filtra ese día completo.
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
 const variantSchema = z.object({
   v1: z.string().min(1).max(60),
   v2: z.string().max(60).optional().default(''),
@@ -82,12 +89,20 @@ export const createShopSaleSchema = z.object({
   // Fecha en que el cliente se compromete a pagar el saldo — solo tiene sentido si creditTerms
   // no es null. Texto libre ISO yyyy-mm-dd, igual que ShopProduct.expiryDate.
   dueDate: z.string().max(10).nullable().optional(),
+  // A cuál cuenta bancaria entró el dinero, cuando el método tiene varias (varios Zelle…).
+  bankAccountId: z.string().max(60).nullish(),
+  // Código de promoción del CRM aplicado a esta venta. `total` ya viene con el
+  // descuento restado (el POS calcula el total); el servidor valida el código,
+  // recalcula el descuento sobre el total original y registra el canje.
+  promoCode: z.string().max(40).nullish(),
+  promoDiscountBase: z.coerce.number().nonnegative().max(1000000).nullish(),
 });
 
 // Cuentas por Cobrar: abono posterior contra una venta fiada.
 export const createShopSalePaymentSchema = z.object({
   amount: z.coerce.number().positive(),
   method: z.string().max(60).optional(),
+  bankAccountId: z.string().max(60).nullish(),
 });
 
 export const setShopSaleDueDateSchema = z.object({

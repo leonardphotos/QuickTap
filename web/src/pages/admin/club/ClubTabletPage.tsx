@@ -1284,9 +1284,11 @@ function PayFlow({
 
             <p className="mt-5 text-[13px] font-medium text-brand-950/70">¿Cómo vas a pagar?</p>
             <div className="mt-2 space-y-2">
-              {tab.methods.map((m) => (
+              {/* Un método puede venir varias veces (varios Zelle, varios Pago Móvil):
+                  cada cuenta es su propia opción, distinguida por su nombre. */}
+              {tab.methods.map((m, i) => (
                 <button
-                  key={m.method}
+                  key={`${m.method}-${i}`}
                   onClick={() => {
                     setMethod(m);
                     setAmount(shareBase.toFixed(2));
@@ -1294,8 +1296,9 @@ function PayFlow({
                   }}
                   className="flex w-full items-center justify-between gap-3 rounded-2xl border border-brand-950/10 px-4 py-3.5 text-left transition-colors hover:border-brand-500 hover:bg-brand-500/[0.04]"
                 >
-                  <span className="text-base font-bold text-brand-950">
+                  <span className="min-w-0 text-base font-bold text-brand-950">
                     {PAY_METHOD_LABELS[m.method] ?? m.method}
+                    {m.label && <span className="block truncate text-[12px] font-medium text-brand-950/50">{m.label}</span>}
                   </span>
                   {m.qrImageUrl && <QrCode className="h-4 w-4 shrink-0 text-brand-500" />}
                 </button>

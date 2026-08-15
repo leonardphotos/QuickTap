@@ -13,9 +13,12 @@ import {
   referenceLabel,
 } from '@/utils/payments';
 import type { PaymentMethod } from '@/types';
+import { methodAccountsOf } from '@/utils/payment-accounts';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { PaymentClientScreen } from '@/components/admin/PaymentClientScreen';
+import { MethodAccountPicker } from '@/components/admin/MethodAccountPicker';
+import { PromoCodeField, promoDiscountAmount, type AppliedPromo } from '@/components/admin/crm/PromoCodeField';
 import type { LiveOrder, LiveOrderPayment } from './LiveOrdersPanel';
 
 export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
@@ -92,11 +95,17 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
     : DEFAULT_PAYMENT_OPTIONS;
 
   const [method, setMethod] = useState<PaymentMethod>(paymentOptions[0] ?? 'CASH');
+  // Cuenta receptora elegida cuando el método tiene varias (varios Zelle…). Decide qué
+  // datos/QR se muestran y a cuál cuenta bancaria se asienta el cobro.
+  const [accountKey, setAccountKey] = useState('main');
   const [amount, setAmount] = useState(mode === 'split' ? '' : balanceBase.toFixed(2));
   // Descuento y ajuste de servicio de ESTE cobro puntual — cada uno se puede escribir en % o en
   // monto fijo (discountMode/serviceMode eligen cuál de los dos interpreta discountValue/serviceValue).
   const [discountMode, setDiscountMode] = useState<'percent' | 'amount'>('percent');
   const [discountValue, setDiscountValue] = useState('');
+  // Promoción del CRM aplicada con su código: descuenta sobre el saldo, y el backend
+  // registra el canje al cobrar. Independiente del descuento manual del cajero.
+  const [promo, setPromo] = useState<AppliedPromo | null>(null);
   const [serviceMode, setServiceMode] = useState<'percent' | 'amount'>('percent');
   const [serviceValue, setServiceValue] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
@@ -118,10 +127,11 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   // Pagos registrados durante esta sesión del diálogo (para el desglose final, junto a order.payments).
   const [sessionPayments, setSessionPayments] = useState<LiveOrderPayment[]>([]);
 
-  const selectedDetails = paymentConfig?.[method];
+  const methodAccounts = methodAccountsOf(paymentConfig, method);
+  const selectedAccount = methodAccounts.find((a) => a.key === accountKey) ?? methodAccounts[0] ?? null;
   const needsReference = METHODS_REQUIRING_PROOF_OR_REFERENCE.includes(method);
   const needsProof = METHODS_ALLOWING_PROOF.includes(method);
-  const qrImageUrl = METHODS_WITH_QR.includes(method) ? selectedDetails?.qrImageUrl ?? null : null;
+  const qrImageUrl = METHODS_WITH_QR.includes(method) ? selectedAccount?.qrImageUrl ?? null : null;
 
   function round2(n: number) {
     return Math.round(n * 100) / 100;
@@ -145,7 +155,9 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
     : serviceMode === 'amount'
       ? Math.min(serviceChargeBaseNum, Math.max(0, Number(serviceValue) || 0))
       : round2(serviceChargeBaseNum * (servicePct / 100));
-  const discountedBalance = round2(Math.max(0, balanceBase - discountAmt - serviceAdjAmt));
+  // Espejo del cálculo del backend: la promo descuenta sobre el saldo completo.
+  const promoAmt = promo ? promoDiscountAmount(promo, balanceBase) : 0;
+  const discountedBalance = round2(Math.max(0, balanceBase - discountAmt - serviceAdjAmt - promoAmt));
 
   function remainingQty(item: LiveOrder['items'][number]) {
     return Math.max(0, item.quantity - item.paidQuantity);
@@ -169,6 +181,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
    *  cliente con el botón "Mostrar datos". */
   function selectMethod(next: PaymentMethod) {
     setMethod(next);
+    setAccountKey('main');
     setError(null);
   }
 
@@ -176,15 +189,15 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
     (it) => `${it.quantity}x ${it.productName}${it.variantName ? ` (${it.variantName})` : ''}`,
   );
 
-  // Datos de cobro del método (correo de Zelle, cuenta, teléfono…): los ve tanto el
-  // cajero en el diálogo como el cliente en la pantalla completa — sin ellos no puede
-  // pagar un método que no lleva QR.
-  const paymentDetailsBlock = selectedDetails ? (
+  // Datos de cobro de la CUENTA elegida del método (correo de Zelle, cuenta, teléfono…):
+  // los ve tanto el cajero en el diálogo como el cliente en la pantalla completa — sin
+  // ellos no puede pagar un método que no lleva QR.
+  const paymentDetailsBlock = selectedAccount && Object.keys(selectedAccount.fields).length > 0 ? (
     <div className="text-xs text-brand-950/60 bg-brand-950/[0.03] rounded-lg px-2.5 py-2 space-y-1">
       {(Object.keys(PAYMENT_FIELD_LABELS) as (keyof typeof PAYMENT_FIELD_LABELS)[])
-        .filter((f) => selectedDetails[f as keyof typeof selectedDetails])
+        .filter((f) => selectedAccount.fields[f])
         .map((f) => {
-          const value = String(selectedDetails[f as keyof typeof selectedDetails]);
+          const value = selectedAccount.fields[f];
           return (
             <div key={f} className="flex items-center justify-between gap-2">
               <p className="truncate">
@@ -318,6 +331,8 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
         serviceChargeDiscountAmount: serviceMode === 'amount' && serviceAdjAmt > 0 ? serviceAdjAmt : undefined,
         referenceNumber: needsReference ? referenceNumber.trim() : undefined,
         proofImageUrl: needsProof ? proofUrl ?? undefined : undefined,
+        bankAccountId: selectedAccount?.bankAccountId ?? undefined,
+        promoCode: promo?.code ?? undefined,
       });
       // El endpoint devuelve el pedido completo (no solo el pago nuevo). Se identifica el/los
       // pago(s) recién creados comparando contra los que ya conocíamos ANTES de este POST — así
@@ -705,6 +720,12 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                       <span>-{formatBase(discountAmt, symbol)}</span>
                     </div>
                   )}
+                  {promoAmt > 0 && promo && (
+                    <div className="flex items-center justify-between text-xs text-emerald-600">
+                      <span>Promoción {promo.code}</span>
+                      <span>-{formatBase(promoAmt, symbol)}</span>
+                    </div>
+                  )}
                   {serviceAdjAmt > 0 && (
                     <div className="flex items-center justify-between text-xs text-brand-950/50">
                       <span>Ajuste de servicio</span>
@@ -717,6 +738,9 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                   </div>
                 </div>
               )}
+
+              {/* Código de promoción del CRM: valida contra la lista del cliente del pedido. */}
+              <PromoCodeField phone={order.customerPhone} applied={promo} onApplied={setPromo} symbol={symbol} />
 
               {/* Método y "Mostrar datos" van juntos y al final, pegados a "Registrar pago":
                   el cajero elige cómo le pagan, se lo enseña al cliente en pantalla completa
@@ -737,6 +761,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     </button>
                   ))}
                 </div>
+                <MethodAccountPicker accounts={methodAccounts} value={selectedAccount?.key ?? 'main'} onChange={setAccountKey} />
                 {(qrImageUrl || paymentDetailsBlock) && (
                   <TextureButton
                     variant="minimal"

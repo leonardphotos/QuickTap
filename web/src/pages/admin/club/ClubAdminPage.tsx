@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarCheck, HandCoins, Receipt, ShoppingBag, TrendingUp, Wallet } from 'lucide-react';
+import { CalendarCheck, ChevronRight, HandCoins, Receipt, ShoppingBag, TrendingUp, Wallet } from 'lucide-react';
 import { api } from '@/api/client';
-import type { AuthRestaurant } from '@/context/AuthContext';
+import { useAuth, type AuthRestaurant } from '@/context/AuthContext';
+import { methodAccountsOf } from '@/utils/payment-accounts';
+import { MethodAccountPicker } from '@/components/admin/MethodAccountPicker';
 import { formatBase, formatBs } from '@/utils/format';
 import { Toast } from '@/components/ui/toast';
 import { useToast } from '@/hooks/useToast';
@@ -11,9 +13,10 @@ import { ExpenseFormDialog } from '@/components/admin/ExpenseFormDialog';
 import { CashSessionControl } from '@/components/admin/CashSessionControl';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
-import ClubPayablesPage from './ClubPayablesPage';
+import { PayablesSection } from '@/components/admin/PayablesSection';
+import { AccountingHub } from '@/components/admin/AccountingHub';
 import ClubOccupancyPage from './ClubOccupancyPage';
-import ClubCustomersPage from './ClubCustomersPage';
+import { CrmHub } from '@/components/admin/crm/CrmHub';
 import ClubConsumptionPage from './ClubConsumptionPage';
 import ClubPayrollPage from './ClubPayrollPage';
 import ClubHistoryTab from './ClubHistoryTab';
@@ -21,6 +24,7 @@ import { clubApi, todayCaracas, type ClubBooking } from './clubApi';
 import { clubStoreApi, type StoreSale } from './clubStoreApi';
 import { academyApi } from './academia/academyApi';
 import { card } from './clubStyle';
+import { BreakEvenCard } from '@/components/admin/BreakEvenCard';
 
 interface Props {
   restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate'>;
@@ -44,12 +48,14 @@ interface MovementsResponse {
 }
 
 const TAB_LABELS: Record<string, string> = {
+  breakeven: 'Punto de equilibrio',
   resumen: 'Resumen',
   deudas: 'Deudas',
   ocupacion: 'Ocupación',
   clientes: 'Clientes',
   consumo: 'Consumo',
   cuentas: 'Cuentas por pagar',
+  contabilidad: 'Contabilidad',
   nomina: 'Nómina',
   historial: 'Historial',
 };
@@ -108,13 +114,24 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
   const [finance, setFinance] = useState<Finance | null>(null);
   const [debts, setDebts] = useState<Debts | null>(null);
   // Globo de "Cuentas por pagar": gastos a crédito sin saldar + órdenes de pago
-  // pendientes — mismo criterio que lista ClubPayablesPage.
+  // pendientes — mismo criterio que lista PayablesSection.
   const [payablesCount, setPayablesCount] = useState(0);
   const [collecting, setCollecting] = useState<{ source: DebtSource; row: DebtRow } | null>(null);
+  // Acceso rápido de Deudas: null = las tres listas; una fuente = solo esa.
+  const [debtFilter, setDebtFilter] = useState<DebtSource | null>(null);
   const [tab, setTab] = useState<
-    'resumen' | 'deudas' | 'ocupacion' | 'clientes' | 'consumo' | 'cuentas' | 'nomina' | 'historial'
+    | 'breakeven'
+    | 'resumen'
+    | 'deudas'
+    | 'ocupacion'
+    | 'clientes'
+    | 'consumo'
+    | 'cuentas'
+    | 'contabilidad'
+    | 'nomina'
+    | 'historial'
   >(
-    'resumen',
+    'breakeven',
   );
   const { show, toastMessage } = useToast();
 
@@ -189,7 +206,9 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
           lugar estiraba la página, que en un celular se podía arrastrar 245px de lado. */}
       <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex w-max items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
-          {(['resumen', 'deudas', 'ocupacion', 'clientes', 'consumo', 'cuentas', 'nomina', 'historial'] as const).map((t) => (
+          {(
+            ['breakeven', 'resumen', 'deudas', 'ocupacion', 'clientes', 'consumo', 'cuentas', 'contabilidad', 'nomina', 'historial'] as const
+          ).map((t) => (
             <button
               key={t}
               type="button"
@@ -228,30 +247,60 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
           </div>
         ) : (
           <div className="flex flex-col gap-5">
-            <div className={cn(card, 'grid grid-cols-3 gap-3 p-5 text-center')}>
-              <DebtTotal label="Canchas" value={money(Number(debts.totals.bookings))} />
-              <DebtTotal label="Tienda" value={money(Number(debts.totals.store))} />
-              <DebtTotal label="Academia" value={money(Number(debts.totals.academy))} />
+            {/* Accesos rápidos: cada categoría es un botón con su total y su gente.
+                Tocarlo abre TODAS las deudas de esa categoría; tocarlo otra vez
+                vuelve a la vista completa. */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <DebtQuickAccess
+                label="Deudas de cancha"
+                total={money(Number(debts.totals.bookings))}
+                count={debts.bookings.length}
+                active={debtFilter === 'bookings'}
+                onClick={() => setDebtFilter((f) => (f === 'bookings' ? null : 'bookings'))}
+              />
+              <DebtQuickAccess
+                label="Deudas de tienda"
+                total={money(Number(debts.totals.store))}
+                count={debts.store.length}
+                active={debtFilter === 'store'}
+                onClick={() => setDebtFilter((f) => (f === 'store' ? null : 'store'))}
+              />
+              <DebtQuickAccess
+                label="Mensualidad de academia"
+                total={money(Number(debts.totals.academy))}
+                count={debts.academy.length}
+                active={debtFilter === 'academy'}
+                onClick={() => setDebtFilter((f) => (f === 'academy' ? null : 'academy'))}
+              />
             </div>
 
-            <DebtList
-              title="Reservas sin pagar"
-              rows={debts.bookings}
-              money={money}
-              onCollect={(row) => setCollecting({ source: 'bookings', row })}
-            />
-            <DebtList
-              title="Ventas fiadas en tienda"
-              rows={debts.store}
-              money={money}
-              onCollect={(row) => setCollecting({ source: 'store', row })}
-            />
-            <DebtList
-              title="Mensualidades de academia"
-              rows={debts.academy}
-              money={money}
-              onCollect={(row) => setCollecting({ source: 'academy', row })}
-            />
+            {(debtFilter === null || debtFilter === 'bookings') && (
+              <DebtList
+                title="Reservas sin pagar"
+                rows={debts.bookings}
+                money={money}
+                emptyText={debtFilter === 'bookings' ? 'Nadie debe cancha ahora mismo.' : undefined}
+                onCollect={(row) => setCollecting({ source: 'bookings', row })}
+              />
+            )}
+            {(debtFilter === null || debtFilter === 'store') && (
+              <DebtList
+                title="Ventas fiadas en tienda"
+                rows={debts.store}
+                money={money}
+                emptyText={debtFilter === 'store' ? 'No hay ventas fiadas pendientes.' : undefined}
+                onCollect={(row) => setCollecting({ source: 'store', row })}
+              />
+            )}
+            {(debtFilter === null || debtFilter === 'academy') && (
+              <DebtList
+                title="Mensualidades de academia"
+                rows={debts.academy}
+                money={money}
+                emptyText={debtFilter === 'academy' ? 'No hay mensualidades pendientes.' : undefined}
+                onCollect={(row) => setCollecting({ source: 'academy', row })}
+              />
+            )}
           </div>
         ))}
 
@@ -269,11 +318,16 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
         />
       )}
 
+      {tab === 'breakeven' && <BreakEvenCard fetchUrl="/club/stats/breakeven" />}
       {tab === 'ocupacion' && <ClubOccupancyPage restaurant={restaurant} />}
-      {tab === 'clientes' && <ClubCustomersPage restaurant={restaurant} />}
+      {/* CRM compartido: directorio con segmentos + promociones con código canjeable
+          (reemplaza a la vieja tabla de clientes frecuentes — el segmento
+          "Frecuentes" cubre lo mismo, con ficha e historial por cliente). */}
+      {tab === 'clientes' && <CrmHub />}
       {tab === 'consumo' && <ClubConsumptionPage restaurant={restaurant} />}
       {tab === 'nomina' && <ClubPayrollPage restaurant={restaurant} />}
-      {tab === 'cuentas' && <ClubPayablesPage restaurant={restaurant} />}
+      {tab === 'cuentas' && <PayablesSection />}
+      {tab === 'contabilidad' && <AccountingHub />}
       {tab === 'historial' && <ClubHistoryTab restaurant={restaurant} />}
 
       {tab === 'resumen' && (
@@ -482,31 +536,79 @@ function Metric({
   );
 }
 
-function DebtTotal({ label, value }: { label: string; value: string }) {
+/** Acceso rápido a una categoría de deudas: total, cuánta gente, y filtro al tocar. */
+function DebtQuickAccess({
+  label,
+  total,
+  count,
+  active,
+  onClick,
+}: {
+  label: string;
+  total: string;
+  count: number;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
-    <div>
-      <p className="text-[18px] font-bold tracking-tight text-brand-950">{value}</p>
-      <p className="text-[12px] font-light text-brand-950/45">{label}</p>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        card,
+        'flex items-center gap-3 p-4 text-left transition-colors',
+        active ? 'border-brand-500 ring-2 ring-brand-400/30' : 'hover:border-brand-400',
+      )}
+    >
+      <div
+        className={cn(
+          'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl',
+          count > 0 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700',
+        )}
+      >
+        <HandCoins className="h-4.5 w-4.5" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[17px] font-bold leading-none tracking-tight text-brand-950">{total}</p>
+        <p className="mt-1 truncate text-[12px] font-medium text-brand-950/50">{label}</p>
+        <p className="text-[11px] font-light text-brand-950/35">
+          {count === 0 ? 'Sin deudas' : `${count} por cobrar · toca para ver`}
+        </p>
+      </div>
+      <ChevronRight
+        className={cn('h-4 w-4 shrink-0 transition-transform', active ? 'rotate-90 text-brand-500' : 'text-brand-950/30')}
+      />
+    </button>
   );
 }
 
-/** Un bloque de deudas. Se oculta solo si está vacío, para no dejar tres títulos
- *  con "nada por acá" cuando la deuda viene de una sola fuente. Cada fila es un
- *  botón: tocar a la persona abre la pasarela de pago para abonarle ahí mismo,
+/** Un bloque de deudas. En la vista completa se oculta si está vacío, para no
+ *  dejar tres títulos con "nada por acá"; con el acceso rápido activo (`emptyText`)
+ *  sí se muestra el vacío, porque el usuario pidió ver esa categoría. Cada fila es
+ *  un botón: tocar a la persona abre la pasarela de pago para abonarle ahí mismo,
  *  sin tener que ir a buscarla a Canchas, Tienda o Academia. */
 function DebtList({
   title,
   rows,
   money,
+  emptyText,
   onCollect,
 }: {
   title: string;
   rows: DebtRow[];
   money: (n: number) => string;
+  emptyText?: string;
   onCollect: (row: DebtRow) => void;
 }) {
-  if (rows.length === 0) return null;
+  if (rows.length === 0 && !emptyText) return null;
+  if (rows.length === 0) {
+    return (
+      <section>
+        <h2 className="mb-2.5 text-[14px] font-bold text-brand-950">{title}</h2>
+        <p className={cn(card, 'p-6 text-center text-[13px] font-light text-brand-950/45')}>{emptyText}</p>
+      </section>
+    );
+  }
   return (
     <section>
       <h2 className="mb-2.5 text-[14px] font-bold text-brand-950">{title}</h2>
@@ -584,12 +686,18 @@ function DebtPaymentDialog({
   onPaid: () => void;
 }) {
   const balance = Number(row.balanceBase);
+  const { restaurant: authRestaurant } = useAuth();
   const [amount, setAmount] = useState(balance.toFixed(2));
   const [method, setMethod] = useState<PaymentMethod>('CASH_USD');
+  // Cuenta receptora elegida cuando el método tiene varias (varios Zelle…).
+  const [accountKey, setAccountKey] = useState('main');
   const [reference, setReference] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+
+  const methodAccounts = methodAccountsOf(authRestaurant?.paymentMethodsConfig, method);
+  const selectedAccount = methodAccounts.find((a) => a.key === accountKey) ?? methodAccounts[0] ?? null;
 
   async function submit() {
     const n = Number(amount);
@@ -603,6 +711,7 @@ function DebtPaymentDialog({
           amountBase: n,
           method,
           referenceNumber: reference.trim() || undefined,
+          bankAccountId: selectedAccount?.bankAccountId ?? undefined,
         });
       } else if (source === 'academy') {
         if (!row.studentId) throw new Error('missing studentId');
@@ -620,6 +729,7 @@ function DebtPaymentDialog({
         await api.post(`/shop/sales/${row.id}/payments`, {
           amount: n,
           method: DEBT_METHODS.find((m) => m.value === method)?.label,
+          bankAccountId: selectedAccount?.bankAccountId ?? undefined,
         });
       }
       setDone(true);
@@ -668,7 +778,10 @@ function DebtPaymentDialog({
                   <button
                     key={m.value}
                     type="button"
-                    onClick={() => setMethod(m.value)}
+                    onClick={() => {
+                      setMethod(m.value);
+                      setAccountKey('main');
+                    }}
                     className={cn(
                       'rounded-full px-3 py-1.5 text-xs font-medium transition-colors',
                       method === m.value
@@ -680,6 +793,7 @@ function DebtPaymentDialog({
                   </button>
                 ))}
               </div>
+              <MethodAccountPicker accounts={methodAccounts} value={selectedAccount?.key ?? 'main'} onChange={setAccountKey} />
               {/* Pago Móvil y Efectivo Bs se cobran en bolívares aunque el precio esté
                   en $/€: sin esto quien cobra no sabe cuánto pedir que transfieran. */}
               {(method === 'MOBILE_PAYMENT' || method === 'CASH') && rateBs && Number(amount) > 0 && (

@@ -609,6 +609,10 @@ export function useShopSession(initialCategories: string[] = []) {
     customer: { name: string | null; phone: string | null } | null,
     generalDiscountPct: number,
     credit?: { terms: CreditTerms; amountPaidNow: number } | null,
+    bankAccountId?: string | null,
+    // Promoción del CRM aplicada en el POS: su descuento ya se restó del total que
+    // ve el cajero; acá se resta igual y el backend valida el código y registra el canje.
+    promo?: { code: string; discountBase: number } | null,
   ): Sale {
     const saleItems: SaleItem[] = cart.map((c) => {
       const product = products.find((p) => p.id === c.productId);
@@ -640,7 +644,9 @@ export function useShopSession(initialCategories: string[] = []) {
     // cantidades fraccionadas (Kg, o m² de impresión) el total casi nunca cae en un céntimo
     // exacto — un banner de 1,096 m² a 12 € da 13,152: la pantalla mostraba 13,15 pero se
     // guardaba 13,152, y esa diferencia se iba acumulando en los reportes de ventas.
-    const total = Math.round((subtotal * (1 - generalDiscountPct / 100) + Number.EPSILON) * 100) / 100;
+    const totalBeforePromo = Math.round((subtotal * (1 - generalDiscountPct / 100) + Number.EPSILON) * 100) / 100;
+    const promoDiscount = promo ? Math.min(promo.discountBase, totalBeforePromo) : 0;
+    const total = Math.round((totalBeforePromo - promoDiscount + Number.EPSILON) * 100) / 100;
     const sale: Sale = {
       id: `s${Date.now()}`,
       items: saleItems,
@@ -671,6 +677,9 @@ export function useShopSession(initialCategories: string[] = []) {
         paymentMeta: sale.paymentMeta,
         creditTerms: sale.creditTerms,
         amountPaidNow: sale.amountPaidNow,
+        bankAccountId: bankAccountId ?? undefined,
+        promoCode: promo?.code,
+        promoDiscountBase: promoDiscount || undefined,
       })
       .catch((err) => console.error('No se pudo guardar la venta en el servidor', err));
 
@@ -694,6 +703,7 @@ export function useShopSession(initialCategories: string[] = []) {
     // Pago Móvil pasa por su propia pantalla (QR/referencia/comprobante) antes de llegar acá —
     // ver confirmPagoMovil en ShopPosPage.tsx. Null para el resto de los métodos.
     paymentMeta?: PaymentMeta | null;
+    bankAccountId?: string | null;
   }): Sale {
     const saleItems: SaleItem[] = [
       { productId: '', v1: '', v2: '', name: input.name, category: input.category || null, qty: 1, price: input.price, cost: input.cost },
@@ -726,6 +736,7 @@ export function useShopSession(initialCategories: string[] = []) {
         paymentMeta,
         creditTerms: null,
         amountPaidNow: null,
+        bankAccountId: input.bankAccountId ?? undefined,
       })
       .catch((err) => console.error('No se pudo guardar la venta en el servidor', err));
     return sale;

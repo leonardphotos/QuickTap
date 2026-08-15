@@ -23,6 +23,8 @@ router.post('/upload-payment-proof', uploadShopPaymentProof, optimizeImage(1200,
 router.post('/sales', shopController.recordSale);
 router.post('/sales/:id/return', shopController.returnSale);
 
+router.get('/breakeven', requireRole('OWNER', 'ADMIN'), shopController.breakEven);
+
 router.get('/receivables', shopController.listReceivables);
 router.get('/receivables/history', shopController.listAllCredit);
 router.post('/sales/:id/payments', shopController.addSalePayment);

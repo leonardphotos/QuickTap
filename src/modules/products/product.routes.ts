@@ -32,6 +32,7 @@ router.post('/upload-photo', mutate, uploadProductPhoto, optimizeImage(900, 900)
 // nombre del archivo (sin extensión) — ver product-photo-bulk.service.ts.
 router.post('/bulk-photos', mutate, uploadProductPhotosBulk, optimizeImages(900, 900), productController.bulkUploadPhotos);
 router.get('/margin', mutate, requireFeature('administration'), productController.margin);
+router.get('/breakeven', mutate, requireFeature('administration'), productController.breakEven);
 
 // Carga masiva de productos por Excel: plantilla descargable + subida que crea/actualiza por
 // nombre. Van ANTES de `/:id` para que "import-template" no se lea como un id de producto.

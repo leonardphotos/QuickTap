@@ -3,6 +3,10 @@ import { prisma } from '../../config/prisma';
 import { round2, toDecimal } from '../../utils/money';
 import { PAYMENT_METHOD_LABELS, shopMethodToEnum } from '../../utils/payment-method';
 import { atTimeCaracas, caracasPartsOf, startOfDayCaracas } from '../../utils/timezone';
+import { resolveDateFilter, type ReportRange } from '../../utils/date-range';
+import { computeBreakEven, monthLabel, type BreakEvenResponse } from '../../utils/breakeven';
+import { movementService } from '../movements/movement.service';
+import { shopSalesCogsSummary } from '../shop/shop.service';
 
 /**
  * ============================================================================
@@ -507,7 +511,7 @@ async function debts(restaurantId: string) {
         OR: [{ awaitingPayment: true }, { block: { endsAt: { lt: now } } }],
       },
       include: {
-        payments: { select: { amountBase: true } },
+        payments: { select: { amountBase: true, discountBase: true } },
         // Solo lo que cobra el club: la cancha y su tienda propia. Lo pedido a
         // una tienda vinculada se lo cobra ella, así que no es deuda de acá.
         tabOrders: {
@@ -554,7 +558,8 @@ async function debts(restaurantId: string) {
     .map((b) => {
       const consumo = b.tabOrders.reduce((acc, o) => acc.add(o.totalBase), toDecimal(0));
       const due = round2(b.totalBase.add(consumo));
-      const paid = b.payments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0));
+      // El descuento de promoción (CRM) condona deuda igual que el dinero cobrado.
+      const paid = b.payments.reduce((acc, p) => acc.add(p.amountBase).add(p.discountBase), toDecimal(0));
       const balance = round2(due.sub(paid));
       return {
         id: b.id,
@@ -627,4 +632,47 @@ async function debts(restaurantId: string) {
   };
 }
 
-export const clubStatsService = { occupancy, frequentCustomers, consumption, finance, debts };
+/**
+ * Punto de equilibrio del mes: cancha y academia no tienen costo variable en el schema (se
+ * cobra por hora/mensualidad, sin campo de costo — margen ≈100%), así que el único costo
+ * variable real es el de la tienda del club, reutilizando `shopSalesCogsSummary` del módulo
+ * de Shop (mismo modelo `ShopSale`). No reutiliza `finance()` porque esa usa ventana móvil de
+ * N días y acá hace falta mes calendario para combinar con `movementService.summarizeFixedCosts`
+ * — ver src/utils/breakeven.ts para la fórmula compartida con Restaurante y Shop.
+ */
+async function breakEven(restaurantId: string, range: ReportRange, date?: string): Promise<BreakEvenResponse> {
+  const dateFilter = resolveDateFilter({ range, date });
+
+  const [courtPayments, academyPayments, store, fixedCosts] = await Promise.all([
+    prisma.clubBookingPayment.aggregate({
+      where: { booking: { restaurantId }, createdAt: dateFilter },
+      _sum: { amountBase: true },
+    }),
+    prisma.clubAcademyPayment.aggregate({
+      where: { restaurantId, createdAt: dateFilter },
+      _sum: { amountBase: true },
+    }),
+    shopSalesCogsSummary(restaurantId, range, date),
+    movementService.summarizeFixedCosts(restaurantId, range, date),
+  ]);
+
+  const court = toDecimal(courtPayments._sum.amountBase ?? 0);
+  const academy = toDecimal(academyPayments._sum.amountBase ?? 0);
+  const totalRevenue = court.add(academy).add(store.totalRevenue);
+  const totalCost = store.totalCost;
+
+  const periodStart = dateFilter?.gte ?? new Date();
+
+  return {
+    period: { label: monthLabel(periodStart), start: periodStart.toISOString(), end: new Date().toISOString() },
+    fixedCosts,
+    breakEven: computeBreakEven({
+      salesBase: totalRevenue,
+      cvBase: totalCost,
+      fixedCostsBase: fixedCosts.totalBase,
+      periodStart,
+    }),
+  };
+}
+
+export const clubStatsService = { occupancy, frequentCustomers, consumption, finance, debts, breakEven };

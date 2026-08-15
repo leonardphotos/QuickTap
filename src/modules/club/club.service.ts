@@ -10,6 +10,8 @@ import { customerService } from '../customers/customer.service';
 import { clubTabletService } from '../club-tablet/club-tablet.service';
 import { emitToKitchen, SocketEvents } from '../../sockets';
 import { CURRENCY_SYMBOLS, round2, toDecimal } from '../../utils/money';
+import { bankLedgerService } from '../bank-accounts/bank-ledger.service';
+import { promotionDiscountOf, recordPromotionRedemption, resolvePromotionForRedeem } from '../promotions/promotion.service';
 import type {
   CreateBookingInput,
   CreateCourtInput,
@@ -64,7 +66,7 @@ const bookingMoneyInclude = {
 function withBookingMoney<
   T extends {
     totalBase: Prisma.Decimal;
-    payments: { amountBase: Prisma.Decimal }[];
+    payments: { amountBase: Prisma.Decimal; discountBase?: Prisma.Decimal }[];
     tabOrders?: { totalBase: Prisma.Decimal; status: string; kitchenRestaurantId: string | null }[];
   },
 >(booking: T) {
@@ -74,7 +76,11 @@ function withBookingMoney<
       .reduce((acc, o) => acc.add(o.totalBase), toDecimal(0)),
   );
   const dueBase = round2(booking.totalBase.add(consumoBase));
-  const paidBase = round2(booking.payments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0)));
+  // "Pagado" incluye el descuento de promoción (CRM) perdonado en cada cobro:
+  // condona esa parte de la deuda igual que el dinero, aunque no sea dinero.
+  const paidBase = round2(
+    booking.payments.reduce((acc, p) => acc.add(p.amountBase).add(p.discountBase ?? 0), toDecimal(0)),
+  );
   const balanceBase = round2(Prisma.Decimal.max(0, dueBase.sub(paidBase)));
   return {
     ...booking,
@@ -465,28 +471,73 @@ export const clubService = {
         .filter((o) => o.kitchenRestaurantId === null)
         .reduce((acc, o) => acc.add(o.totalBase), toDecimal(0));
       const due = round2(booking.totalBase.add(consumo));
-      const alreadyPaid = booking.payments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0));
+      const alreadyPaid = booking.payments.reduce(
+        (acc, p) => acc.add(p.amountBase).add(p.discountBase ?? 0),
+        toDecimal(0),
+      );
       const balance = round2(due.sub(alreadyPaid));
       const amountBase = toDecimal(input.amountBase);
-      if (amountBase.gt(balance.add(0.01))) {
-        throw badRequest(`El monto no puede superar el saldo pendiente (${balance.toFixed(2)}).`);
+
+      // Código de promoción (CRM): valida lista/vigencia/canjes, perdona su
+      // descuento sobre el saldo y deja el canje registrado en esta misma
+      // transacción — el dinero cobrado (amountBase) sigue siendo solo dinero.
+      let promoDiscount = toDecimal(0);
+      let promoRedeem: { promotionId: string; customerId: string | null } | null = null;
+      if (input.promoCode) {
+        const { promotion, customerId } = await resolvePromotionForRedeem(
+          tx,
+          restaurantId,
+          input.promoCode,
+          booking.playerPhone,
+        );
+        promoDiscount = promotionDiscountOf(promotion, balance);
+        if (promoDiscount.lte(0)) throw badRequest('El descuento de la promoción no aplica a este saldo.');
+        promoRedeem = { promotionId: promotion.id, customerId };
+      }
+
+      if (amountBase.gt(balance.sub(promoDiscount).add(0.01))) {
+        throw badRequest(`El monto no puede superar el saldo pendiente (${round2(balance.sub(promoDiscount)).toFixed(2)}).`);
       }
 
       await tx.clubBookingPayment.create({
         data: {
           bookingId,
           amountBase,
+          discountBase: promoDiscount,
           method: input.method,
           referenceNumber: input.referenceNumber,
           proofImageUrl: input.proofImageUrl,
         },
       });
+      if (promoRedeem) {
+        await recordPromotionRedemption(tx, {
+          restaurantId,
+          promotionId: promoRedeem.promotionId,
+          customerId: promoRedeem.customerId,
+          sourceRef: bookingId,
+          amountBase: promoDiscount,
+        });
+      }
 
-      const settled = round2(alreadyPaid.add(amountBase));
+      // Cuentas bancarias: el cobro de la reserva suma a la cuenta vinculada al método.
+      await bankLedgerService.applyMethodPayment(tx, {
+        restaurantId,
+        method: input.method,
+        direction: 'CREDIT',
+        amountBase,
+        bankAccountId: input.bankAccountId,
+        description: 'Cobro reserva de cancha',
+        sourceRef: bookingId,
+      });
+
+      const settled = round2(alreadyPaid.add(amountBase).add(promoDiscount));
       const fullyPaid = settled.gte(due);
+      // Pago parcial → deuda automática: si tras el abono queda saldo, la reserva cae sola
+      // en Deudas de Canchas (antes recepción tenía que marcarla a mano como cuenta abierta,
+      // y una reserva futura abonada a medias no aparecía como deuda hasta jugarse).
       const updated = await tx.clubBooking.update({
         where: { id: bookingId },
-        data: fullyPaid ? { awaitingPayment: false } : {},
+        data: { awaitingPayment: !fullyPaid },
         include: { block: { include: { court: true } }, ...bookingMoneyInclude },
       });
       return withBookingMoney(updated);
@@ -494,6 +545,119 @@ export const clubService = {
       emitToKitchen(restaurantId, SocketEvents.CLUB_BOOKING_UPDATED, { id: bookingId });
       return booking;
     });
+  },
+
+  // ------------------------------------- Pagos reportados desde la tablet
+  /**
+   * Los pagos que los jugadores reportaron desde la tablet A ESTE CLUB
+   * (`payeeRestaurantId: null`; los de las tiendas vinculadas los revisa cada
+   * tienda en su propio panel, ver club-link.service.ts). Es la cola que
+   * alimenta el aviso "Pago por verificar" de la pantalla Canchas.
+   */
+  async listReportedPayments(restaurantId: string) {
+    const payments = await prisma.clubReportedPayment.findMany({
+      where: { restaurantId, payeeRestaurantId: null, status: 'PENDING' },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+      include: {
+        booking: {
+          select: {
+            playerName: true,
+            playerPhone: true,
+            block: { select: { startsAt: true, court: { select: { name: true } } } },
+          },
+        },
+      },
+    });
+    return payments.map((p) => ({
+      id: p.id,
+      bookingId: p.bookingId,
+      amountBase: p.amountBase.toFixed(2),
+      amountBs: p.amountBs.toFixed(2),
+      method: p.method,
+      referenceNumber: p.referenceNumber,
+      createdAt: p.createdAt,
+      playerName: p.booking.playerName,
+      playerPhone: p.booking.playerPhone,
+      courtName: p.booking.block.court.name,
+      startsAt: p.booking.block.startsAt,
+    }));
+  },
+
+  /**
+   * Recepción verifica un pago reportado desde la tablet. Aprobar crea el
+   * ClubBookingPayment REAL con el mismo criterio que la Caja (tope de saldo,
+   * asiento en la cuenta bancaria, deuda automática si queda saldo) — hasta ese
+   * momento el reporte era solo un aviso. Rechazar solo lo marca: nunca movió plata.
+   */
+  async reviewReportedPayment(restaurantId: string, paymentId: string, status: 'CONFIRMED' | 'REJECTED') {
+    const result = await prisma.$transaction(async (tx) => {
+      const reported = await tx.clubReportedPayment.findFirst({
+        where: { id: paymentId, restaurantId, payeeRestaurantId: null },
+      });
+      if (!reported) throw notFound('Ese pago no existe.');
+      if (reported.status !== 'PENDING') throw badRequest('Ese pago ya fue revisado.');
+
+      if (status === 'REJECTED') {
+        await tx.clubReportedPayment.update({ where: { id: paymentId }, data: { status, reviewedAt: new Date() } });
+        return { bookingId: reported.bookingId };
+      }
+
+      const booking = await tx.clubBooking.findFirst({
+        where: { id: reported.bookingId, restaurantId },
+        include: bookingMoneyInclude,
+      });
+      if (!booking) throw notFound('Reserva no encontrada.');
+      if (booking.status === 'CANCELLED') throw badRequest('La reserva de este pago fue cancelada. Recházalo.');
+
+      // Mismo tope que addBookingPayment: cancha + consumo de la tienda propia.
+      const consumo = booking.tabOrders
+        .filter((o) => o.kitchenRestaurantId === null)
+        .reduce((acc, o) => acc.add(o.totalBase), toDecimal(0));
+      const due = round2(booking.totalBase.add(consumo));
+      const alreadyPaid = booking.payments.reduce(
+        (acc, p) => acc.add(p.amountBase).add(p.discountBase ?? 0),
+        toDecimal(0),
+      );
+      const balance = round2(due.sub(alreadyPaid));
+      if (reported.amountBase.gt(balance.add(0.01))) {
+        throw badRequest(`El pago supera el saldo pendiente (${balance.toFixed(2)}). Si ya se cobró en caja, recházalo.`);
+      }
+
+      const bookingPayment = await tx.clubBookingPayment.create({
+        data: {
+          bookingId: reported.bookingId,
+          amountBase: reported.amountBase,
+          method: reported.method,
+          referenceNumber: reported.referenceNumber,
+        },
+        select: { id: true },
+      });
+
+      await bankLedgerService.applyMethodPayment(tx, {
+        restaurantId,
+        method: reported.method,
+        direction: 'CREDIT',
+        amountBase: reported.amountBase,
+        // El jugador transfirió un Bs exacto (congelado al reportar): ese entra al banco.
+        bsAmount: reported.amountBs,
+        description: 'Cobro reserva de cancha (tablet)',
+        sourceRef: reported.bookingId,
+      });
+
+      const fullyPaid = round2(alreadyPaid.add(reported.amountBase)).gte(due);
+      await tx.clubBooking.update({ where: { id: reported.bookingId }, data: { awaitingPayment: !fullyPaid } });
+      await tx.clubReportedPayment.update({
+        where: { id: paymentId },
+        data: { status, reviewedAt: new Date(), bookingPaymentId: bookingPayment.id },
+      });
+      return { bookingId: reported.bookingId };
+    });
+
+    // El panel refresca la reserva; la tablet del jugador, su saldo "en verificación".
+    emitToKitchen(restaurantId, SocketEvents.CLUB_BOOKING_UPDATED, { id: result.bookingId });
+    emitToKitchen(restaurantId, SocketEvents.CLUB_TAB_ORDER_UPDATED, { paymentId });
+    return { id: paymentId, status };
   },
 
   /** "Deuda" (botón Caja en Canchas) — recepción marca que sabe que se debe, sin

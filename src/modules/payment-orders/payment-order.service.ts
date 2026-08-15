@@ -1,7 +1,9 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
-import { round2, toDecimal } from '../../utils/money';
+import { bsToBase, round2, toDecimal } from '../../utils/money';
+import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
+import { bankLedgerService } from '../bank-accounts/bank-ledger.service';
 import type { CreatePaymentOrderInput, PayPaymentOrderInput } from './payment-order.dto';
 
 /**
@@ -56,6 +58,7 @@ async function listPayables(restaurantId: string, supplierId?: string) {
       amountBase: true,
       category: true,
       expenseDate: true,
+      invoiceDueDate: true,
       createdAt: true,
       referenceNumber: true,
       supplier: { select: { id: true, name: true } },
@@ -137,8 +140,23 @@ async function create(restaurantId: string, userId: string | undefined, input: C
   });
 }
 
-/** Marca la orden pagada y salda de una vez todos sus gastos. */
+/** Marca la orden pagada y salda de una vez todos sus gastos, con el detalle fiscal del pago. */
 async function pay(restaurantId: string, id: string, userId: string | undefined, input: PayPaymentOrderInput) {
+  // Conversión Bs → base ANTES de la transacción (getRate puede salir a la red): lo pagado en
+  // bolívares se congela a la tasa BCV del momento del pago, no a la de cuando se emitió.
+  let paidAmountBase: Prisma.Decimal | null = null;
+  let paidAmountBs: Prisma.Decimal | null = null;
+  if (input.paidAmount != null) {
+    if (input.paidCurrency === 'BS') {
+      const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { baseCurrency: true } });
+      const rate = await exchangeRateService.getRate(restaurant?.baseCurrency ?? 'USD', restaurantId);
+      paidAmountBs = round2(toDecimal(input.paidAmount));
+      paidAmountBase = bsToBase(input.paidAmount, rate.rateBs);
+    } else {
+      paidAmountBase = round2(toDecimal(input.paidAmount));
+    }
+  }
+
   return prisma.$transaction(async (tx) => {
     const order = await tx.paymentOrder.findFirst({ where: { id, restaurantId } });
     if (!order) throw notFound('Orden de pago no encontrada.');
@@ -156,8 +174,31 @@ async function pay(restaurantId: string, id: string, userId: string | undefined,
         paidByUserId: userId,
         paymentMethod: input.paymentMethod ?? null,
         referenceNumber: input.referenceNumber ?? null,
+        paidAmountBase,
+        paidAmountBs,
+        islrRetentionBase: input.islrRetentionBase ?? null,
+        ivaRetentionBase: input.ivaRetentionBase ?? null,
+        creditNoteBase: input.creditNoteBase ?? null,
+        ivaAmountBase: input.ivaAmountBase ?? null,
+        totalWithIvaBase: input.totalWithIvaBase ?? null,
       },
     });
+
+    // Cuentas bancarias: pagar la orden resta de la cuenta vinculada al método. Se usa lo
+    // REALMENTE pagado (y el Bs exacto si el pago fue en bolívares), no el monto autorizado.
+    if (input.paymentMethod) {
+      await bankLedgerService.applyMethodPayment(tx, {
+        restaurantId,
+        method: input.paymentMethod,
+        direction: 'DEBIT',
+        amountBase: paidAmountBase ?? order.amountBase,
+        bsAmount: paidAmountBs,
+        bankAccountId: input.bankAccountId,
+        description: `Orden de pago #${order.orderNumber}`,
+        sourceRef: order.id,
+        createdByUserId: userId ?? null,
+      });
+    }
 
     return tx.paymentOrder.findFirstOrThrow({ where: { id: order.id }, include: ORDER_INCLUDE });
   });

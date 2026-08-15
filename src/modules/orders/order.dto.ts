@@ -174,6 +174,12 @@ export const recordPaymentSchema = z
     referenceNumber: z.string().max(60).optional(),
     // Foto del comprobante — alternativa válida a la referencia, no un extra opcional.
     proofImageUrl: z.string().optional(),
+    // A cuál cuenta bancaria entró el dinero, cuando el método tiene varias (varios
+    // Zelle / varios Pago Móvil). Sin esto, se asienta en la vinculada al método.
+    bankAccountId: z.string().max(60).nullish(),
+    // Código de promoción del CRM: el servidor valida, aplica su descuento sobre el
+    // saldo y registra el canje en la misma transacción del cobro.
+    promoCode: z.string().max(40).nullish(),
     // Fraccionar por ítems: qué se está cobrando en este pago puntual (cantidad por OrderItem).
     items: z.array(z.object({ orderItemId: z.string().min(1), quantity: z.coerce.number().int().positive() })).optional(),
   })

@@ -44,6 +44,8 @@ export const CLUB_STORE_ID = 'CLUB';
 /** Cómo pagarle a un cobrador. Los campos son los de Ajustes → Métodos de pago. */
 export interface TabletPayMethod {
   method: string;
+  /** Nombre con que el negocio distingue esta cuenta ("Zelle Chase") cuando tiene varias. */
+  label?: string;
   banco?: string;
   telefono?: string;
   cedula?: string;

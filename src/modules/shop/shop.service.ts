@@ -1,6 +1,13 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
+import { bankLedgerService } from '../bank-accounts/bank-ledger.service';
+import { customerService } from '../customers/customer.service';
+import { round2, toDecimal } from '../../utils/money';
+import { promotionDiscountOf, recordPromotionRedemption, resolvePromotionForRedeem } from '../promotions/promotion.service';
+import { movementService } from '../movements/movement.service';
+import { resolveDateFilter, type ReportRange } from '../../utils/date-range';
+import { computeBreakEven, monthLabel, type BreakEvenResponse } from '../../utils/breakeven';
 import type {
   CreateShopProductInput,
   UpdateShopProductInput,
@@ -254,6 +261,12 @@ export const shopService = {
   // --- Ventas ---
 
   async recordSale(restaurantId: string, userId: string, input: CreateShopSaleInput) {
+    // CRM: la venta con datos de contacto crea/actualiza al cliente en el directorio —
+    // sin esto el CRM del Local se quedaba vacío aunque el POS capturara los datos.
+    await customerService.upsertFromOrder(restaurantId, {
+      name: input.customerName,
+      phone: input.customerPhone,
+    });
     // Comisión de cada profesional que aparece en el ticket, congelada al momento de vender:
     // si mañana le cambian el %, lo ya liquidado no se mueve.
     const staffIds = [...new Set(input.items.map((it) => it.staffUserId).filter((v): v is string => !!v))];
@@ -261,6 +274,16 @@ export const shopService = {
       ? await prisma.user.findMany({ where: { id: { in: staffIds }, restaurantId }, select: { id: true, commissionPercent: true } })
       : [];
     const commissionByUser = new Map(staff.map((u) => [u.id, u.commissionPercent ?? 0]));
+
+    // CRM: con el interruptor de datos obligatorios activo, ninguna venta entra sin
+    // nombre y teléfono — es lo que alimenta las listas de clientes de las promos.
+    const shopConfig = await prisma.restaurant.findUniqueOrThrow({
+      where: { id: restaurantId },
+      select: { requireCustomerData: true },
+    });
+    if (shopConfig.requireCustomerData && (!input.customerName?.trim() || !input.customerPhone?.trim())) {
+      throw badRequest('Este negocio exige nombre y teléfono del cliente en cada venta (CRM → datos obligatorios).');
+    }
 
     // Quién cobró: viene del JWT (req.auth.userId), nunca del cliente — así no se puede
     // reportar una venta a nombre de otro. El nombre se congela para no depender de un JOIN
@@ -340,6 +363,45 @@ export const shopService = {
         data: { stock: 0 },
       });
 
+      // Código de promoción (CRM): el POS ya restó el descuento del total; acá se valida el
+      // código (lista, vigencia, canjes) y se registra el canje con el descuento RECALCULADO
+      // sobre el total original — el monto que reclame el cliente no se toma tal cual.
+      if (input.promoCode) {
+        const { promotion, customerId } = await resolvePromotionForRedeem(
+          tx,
+          restaurantId,
+          input.promoCode,
+          input.customerPhone ?? null,
+        );
+        const originalTotal = toDecimal(input.total).add(input.promoDiscountBase ?? 0);
+        const promoDiscount = promotionDiscountOf(promotion, originalTotal);
+        await recordPromotionRedemption(tx, {
+          restaurantId,
+          promotionId: promotion.id,
+          customerId,
+          sourceRef: sale.id,
+          amountBase: promoDiscount,
+          redeemedByUserId: userId,
+        });
+      }
+
+      // Cuentas bancarias: lo COBRADO ahora suma a la cuenta vinculada al método — el total
+      // si la venta se pagó completa, o solo el abono inicial si quedó fiada (el resto sumará
+      // con cada abono, ver addSalePayment).
+      const paidNow = input.creditTerms ? (input.amountPaidNow ?? 0) : input.total;
+      if (paidNow > 0) {
+        await bankLedgerService.applyMethodPayment(tx, {
+          restaurantId,
+          method: input.paymentMethod,
+          direction: 'CREDIT',
+          amountBase: paidNow,
+          bankAccountId: input.bankAccountId,
+          description: input.customerName ? `Venta: ${input.customerName}` : 'Venta de mostrador',
+          sourceRef: sale.id,
+          createdByUserId: userId,
+        });
+      }
+
       return sale;
     });
   },
@@ -369,6 +431,20 @@ export const shopService = {
       }
       // Y devuelve al inventario los insumos que esos servicios habían consumido.
       await applySupplyConsumption(tx, restaurantId, sale.items, 1);
+
+      // Cuentas bancarias: devolver una venta pagada saca del banco lo que había entrado.
+      // Las fiadas no — lo abonado se ajusta a mano si aplica (caso raro).
+      if (!sale.creditTerms) {
+        await bankLedgerService.applyMethodPayment(tx, {
+          restaurantId,
+          method: sale.paymentMethod,
+          direction: 'DEBIT',
+          amountBase: sale.total,
+          description: sale.customerName ? `Devolución venta: ${sale.customerName}` : 'Devolución de venta',
+          sourceRef: sale.id,
+        });
+      }
+
       return tx.shopSale.update({ where: { id }, data: { returned: true }, include: { items: true } });
     });
   },
@@ -488,7 +564,11 @@ export const shopService = {
    * Registra un abono contra una venta fiada. Si el abono cubre todo lo que faltaba, marca
    * settledAt — de ahí en adelante la venta deja de aparecer en listReceivables().
    */
-  async addSalePayment(restaurantId: string, saleId: string, input: { amount: number; method?: string }) {
+  async addSalePayment(
+    restaurantId: string,
+    saleId: string,
+    input: { amount: number; method?: string; bankAccountId?: string | null },
+  ) {
     const sale = await prisma.shopSale.findFirst({ where: { id: saleId, restaurantId }, include: { payments: true } });
     if (!sale) throw notFound('Venta no encontrada.');
     if (!sale.creditTerms) throw badRequest('Esta venta no es una venta fiada.');
@@ -508,6 +588,18 @@ export const shopService = {
       if (newBalance <= 0.01) {
         await tx.shopSale.update({ where: { id: saleId }, data: { settledAt: new Date() } });
       }
+
+      // Cuentas bancarias: el abono suma a la cuenta vinculada al método con que se cobró.
+      await bankLedgerService.applyMethodPayment(tx, {
+        restaurantId,
+        method: input.method,
+        direction: 'CREDIT',
+        amountBase: input.amount,
+        bankAccountId: input.bankAccountId,
+        description: `Abono venta fiada${sale.customerName ? `: ${sale.customerName}` : ''}`,
+        sourceRef: saleId,
+      });
+
       return payment;
     });
   },
@@ -518,7 +610,55 @@ export const shopService = {
     if (!sale.creditTerms) throw badRequest('Esta venta no es una venta fiada.');
     return prisma.shopSale.update({ where: { id: saleId }, data: { dueDate } });
   },
+
+  /**
+   * Punto de equilibrio del mes: ventas y costo variable salen de `shopSalesCogsSummary`
+   * (lo efectivamente vendido, no compras de inventario), combinado con los gastos fijos de
+   * `movementService.summarizeFixedCosts` — ver src/utils/breakeven.ts para la fórmula
+   * compartida con Restaurante y Club.
+   */
+  async getBreakEven(restaurantId: string, range: ReportRange, date?: string): Promise<BreakEvenResponse> {
+    const [{ totalRevenue, totalCost }, fixedCosts] = await Promise.all([
+      shopSalesCogsSummary(restaurantId, range, date),
+      movementService.summarizeFixedCosts(restaurantId, range, date),
+    ]);
+
+    const periodStart = resolveDateFilter({ range, date })?.gte ?? new Date();
+
+    return {
+      period: { label: monthLabel(periodStart), start: periodStart.toISOString(), end: new Date().toISOString() },
+      fixedCosts,
+      breakEven: computeBreakEven({
+        salesBase: totalRevenue,
+        cvBase: totalCost,
+        fixedCostsBase: fixedCosts.totalBase,
+        periodStart,
+      }),
+    };
+  },
 };
+
+/**
+ * Ventas y costo variable de lo efectivamente vendido en el período (excluye devueltas). El
+ * ingreso es `ShopSale.total` (ya neto de descuentos/promos — el POS lo resta antes de crear
+ * la venta), y el costo variable es `cost * qty` sumado de todas las líneas — nunca compras de
+ * inventario, que no reflejan lo que realmente se vendió. Exportada porque Club reutiliza esto
+ * mismo para su propia tienda (ver club-stats.service.ts#breakEven).
+ */
+export async function shopSalesCogsSummary(restaurantId: string, range: ReportRange, date?: string) {
+  const sales = await prisma.shopSale.findMany({
+    where: { restaurantId, returned: false, time: resolveDateFilter({ range, date }) },
+    select: { total: true, items: { select: { cost: true, qty: true } } },
+  });
+
+  const totalRevenue = sales.reduce((acc, s) => acc.add(toDecimal(s.total)), toDecimal(0));
+  const totalCost = sales.reduce(
+    (acc, s) => acc.add(s.items.reduce((itemAcc, it) => itemAcc.add(toDecimal(it.cost).mul(it.qty)), toDecimal(0))),
+    toDecimal(0),
+  );
+
+  return { totalRevenue: round2(totalRevenue), totalCost: round2(totalCost) };
+}
 
 function round(n: number): number {
   return Math.round(n * 100) / 100;

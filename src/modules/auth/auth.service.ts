@@ -95,6 +95,7 @@ const RESTAURANT_SELECT = {
   deliveryAutoAssignOnPaid: true,
   deliveryAutoAssignOnAccept: true,
   paymentMethodsConfig: true,
+  requireCustomerData: true,
   fullscreenImageEnabled: true,
   fullscreenImageUrl: true,
   screenDisplayMode: true,
@@ -151,6 +152,7 @@ type RestaurantRow = {
   deliveryAutoAssignOnPaid: boolean;
   deliveryAutoAssignOnAccept: boolean;
   paymentMethodsConfig: unknown;
+  requireCustomerData: boolean;
   fullscreenImageEnabled: boolean;
   fullscreenImageUrl: string | null;
   screenDisplayMode: string;
@@ -233,6 +235,7 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
     deliveryAutoAssignOnPaid: restaurant.deliveryAutoAssignOnPaid,
     deliveryAutoAssignOnAccept: restaurant.deliveryAutoAssignOnAccept,
     paymentMethodsConfig: restaurant.paymentMethodsConfig,
+    requireCustomerData: restaurant.requireCustomerData,
     fullscreenImageEnabled: restaurant.fullscreenImageEnabled,
     fullscreenImageUrl: restaurant.fullscreenImageUrl,
     screenDisplayMode: restaurant.screenDisplayMode,

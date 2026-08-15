@@ -36,8 +36,30 @@ export const restaurantThemeSchema = z.object({
 // Métodos de pago que el restaurante ofrece a SUS clientes en el checkout de
 // delivery/pickup. Cada uno se puede activar/desactivar y traer sus propios
 // datos (cuenta, correo, etc.) para que el cliente sepa a dónde pagar.
+
+// Una cuenta receptora ADICIONAL de un método (el segundo Zelle, el segundo Pago
+// Móvil…). Mismos campos que la cuenta principal, más `key` (id estable para la UI)
+// y `label` (cómo distinguirla al elegir en caja: "Zelle Chase", "PM Banesco").
+const paymentMethodExtraAccountSchema = z.object({
+  key: z.string().min(1).max(40),
+  label: z.string().max(60).optional(),
+  banco: z.string().max(80).optional(),
+  telefono: z.string().max(30).optional(),
+  cedula: z.string().max(30).optional(),
+  titular: z.string().max(120).optional(),
+  correo: z.string().max(120).optional(),
+  id: z.string().max(80).optional(),
+  cuenta: z.string().max(40).optional(),
+  rif: z.string().max(30).optional(),
+  qrImageUrl: z.string().min(1).optional(),
+  // Vínculo con una cuenta bancaria registrada (Administración → Cuentas bancarias):
+  // el cobro que entre por esta cuenta suma su saldo allá. null = sin vincular.
+  bankAccountId: z.string().max(60).nullish(),
+});
+
 const paymentMethodFieldsSchema = z.object({
   enabled: z.boolean().optional(),
+  label: z.string().max(60).optional(),
   banco: z.string().max(80).optional(),
   telefono: z.string().max(30).optional(),
   cedula: z.string().max(30).optional(),
@@ -49,10 +71,17 @@ const paymentMethodFieldsSchema = z.object({
   // QR que se muestra al cliente en pantalla al cobrar, para que lo escanee: Pago Móvil
   // (banco/Suiche 7B), Zelle y Binance. Los demás métodos no lo usan.
   qrImageUrl: z.string().min(1).optional(),
+  // Cuenta bancaria vinculada a la cuenta principal del método (ver arriba).
+  bankAccountId: z.string().max(60).nullish(),
+  // Cuentas adicionales del mismo método: varios Zelle, varios Pago Móvil…
+  extraAccounts: z.array(paymentMethodExtraAccountSchema).max(10).optional(),
 });
 
 export const paymentMethodsConfigSchema = z.object({
   CASH: paymentMethodFieldsSchema.optional(),
+  // La UI ofrece "Efectivo $" desde siempre; sin esta llave, z.object la
+  // recortaba en silencio al guardar y el interruptor nunca persistía.
+  CASH_USD: paymentMethodFieldsSchema.optional(),
   MOBILE_PAYMENT: paymentMethodFieldsSchema.optional(),
   ZELLE: paymentMethodFieldsSchema.optional(),
   BINANCE: paymentMethodFieldsSchema.optional(),
@@ -88,6 +117,8 @@ export const updateRestaurantSchema = z.object({
   shopDeliveryFee: z.coerce.number().min(0).max(100000).optional(),
   // Si es true, los pedidos de mesa (QR) quedan pendientes de aceptar por un mesero antes de ir a cocina.
   requireOrderConfirmation: z.boolean().optional(),
+  // CRM: exigir nombre y teléfono del cliente en toda venta (POS del Local, delivery).
+  requireCustomerData: z.boolean().optional(),
   // Si es false, la tablet de la cancha deja de ofrecer "Pagar" (solo detalle de cuenta).
   clubTabletPaymentsEnabled: z.boolean().optional(),
 

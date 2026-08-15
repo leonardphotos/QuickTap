@@ -25,6 +25,7 @@ import type { ShopScreen } from './ShopLayout';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { CATEGORY_LABELS, ExpenseFormDialog, type ExpenseCategory } from '@/components/admin/ExpenseFormDialog';
+import { BreakEvenCard } from '@/components/admin/BreakEvenCard';
 
 /** Gasto del local tal como lo devuelve GET /movements (solo los campos que se pintan acá). */
 interface ShopExpense {
@@ -255,6 +256,8 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
           {new Date().toLocaleDateString('es-VE', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
       </div>
+
+      {canSeeMoney && <BreakEvenCard fetchUrl="/shop/breakeven" />}
 
       {/* Cotizaciones y Cuentas por Cobrar no viven en el dock de navegación (ya tiene 5 iconos) —
           se llega desde acá, el punto de partida de todos los días. */}

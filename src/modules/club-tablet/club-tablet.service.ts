@@ -145,6 +145,8 @@ interface TabItem {
 /** Los datos que el jugador necesita para pagarle a alguien. */
 interface PayMethod {
   method: string;
+  /** Nombre con que el negocio distingue esta cuenta ("Zelle Chase") cuando tiene varias. */
+  label?: string;
   banco?: string;
   telefono?: string;
   cedula?: string;
@@ -167,16 +169,28 @@ const PAY_FIELDS = ['banco', 'telefono', 'cedula', 'titular', 'correo', 'cuenta'
  */
 function payMethodsOf(config: unknown): PayMethod[] {
   if (!config || typeof config !== 'object') return [];
-  return Object.entries(config as Record<string, Record<string, unknown>>)
-    .filter(([, v]) => v && typeof v === 'object' && v.enabled === true)
-    .map(([method, v]) => {
-      const out: PayMethod = { method };
+  const out: PayMethod[] = [];
+  for (const [method, v] of Object.entries(config as Record<string, Record<string, unknown>>)) {
+    if (!v || typeof v !== 'object' || v.enabled !== true) continue;
+    const push = (src: Record<string, unknown>) => {
+      const entry: PayMethod = { method };
+      if (typeof src.label === 'string' && src.label.trim()) entry.label = src.label;
       for (const f of PAY_FIELDS) {
-        const value = v[f];
-        if (typeof value === 'string' && value.trim()) out[f] = value;
+        const value = src[f];
+        if (typeof value === 'string' && value.trim()) entry[f] = value;
       }
-      return out;
-    });
+      out.push(entry);
+    };
+    push(v);
+    // Cuentas adicionales del mismo método (varios Zelle / varios Pago Móvil): cada una
+    // es una opción de pago aparte para el jugador, con sus propios datos.
+    if (Array.isArray(v.extraAccounts)) {
+      for (const acc of v.extraAccounts) {
+        if (acc && typeof acc === 'object') push(acc as Record<string, unknown>);
+      }
+    }
+  }
+  return out;
 }
 
 /**
@@ -303,7 +317,7 @@ async function loadSession(clubId: string, accessToken: string) {
     where: { accessToken },
     include: {
       block: { include: { court: { select: { id: true, name: true } } } },
-      payments: { select: { amountBase: true } },
+      payments: { select: { amountBase: true, discountBase: true } },
       tabOrders: {
         where: { status: { not: 'CANCELLED' } },
         orderBy: { createdAt: 'desc' },
@@ -408,7 +422,7 @@ export const clubTabletService = {
     }
 
     const consumoBase = consumoOf(booking.tabOrders);
-    const paidBase = round2(booking.payments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0)));
+    const paidBase = round2(booking.payments.reduce((acc, p) => acc.add(p.amountBase).add(p.discountBase ?? 0), toDecimal(0)));
     const dueBase = round2(booking.totalBase.add(consumoBase));
 
     // Una cuenta por cobrador. El club cobra la cancha + su tienda propia; cada
@@ -770,7 +784,7 @@ export const clubTabletService = {
     // cliente se podrían reportar pagos por cualquier cifra y ensuciar la cola
     // de aprobación del cobrador.
     const consumoBase = consumoOf(booking.tabOrders);
-    const paidBase = round2(booking.payments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0)));
+    const paidBase = round2(booking.payments.reduce((acc, p) => acc.add(p.amountBase).add(p.discountBase ?? 0), toDecimal(0)));
     const dueBase = round2(booking.totalBase.add(consumoBase));
     const tabs = await buildTabs(clubId, booking, dueBase, paidBase);
     const tab = tabs.find((t) => t.payeeId === input.payeeId);

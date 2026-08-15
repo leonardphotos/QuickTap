@@ -67,6 +67,8 @@ export interface AuthRestaurant {
   deliveryAutoAssignOnPaid: boolean;
   deliveryAutoAssignOnAccept: boolean;
   paymentMethodsConfig?: PaymentMethodsConfig | null;
+  /** CRM: exigir nombre y teléfono del cliente en toda venta (POS del Local, delivery). */
+  requireCustomerData: boolean;
   fullscreenImageEnabled: boolean;
   fullscreenImageUrl?: string | null;
   /** Ajustes -> Pantalla: qué muestra el carrusel del rol SCREEN (ver ScreenPage.tsx). */

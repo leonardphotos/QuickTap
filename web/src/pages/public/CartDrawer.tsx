@@ -3,6 +3,7 @@ import { ArrowLeft, Check, Copy, Lock, MapPin, MessageCircle } from 'lucide-reac
 import { api } from '../../api/client';
 import type { CartLine, PaymentMethod, Restaurant } from '../../types';
 import { cartLineUnitPrice, formatModifierLabel, publicPriceLabel } from '../../utils/format';
+import { methodAccountsOf } from '../../utils/payment-accounts';
 import { TextureButton } from '@/components/ui/texture-button';
 import { AddressAutocomplete, reverseGeocode } from '@/components/AddressAutocomplete';
 import {
@@ -131,7 +132,11 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paymentOptions.join(',')]);
 
-  const selectedPaymentDetails = paymentConfig?.[payment];
+  // Todas las cuentas del método elegido (varios Zelle, varios Pago Móvil…): el cliente
+  // ve cada una con sus datos y elige a cuál pagar.
+  const selectedPaymentAccounts = methodAccountsOf(paymentConfig, payment).filter(
+    (a) => Object.keys(a.fields).length > 0,
+  );
 
   // Apenas el cliente comparte su ubicación (mesa de delivery), se cotiza el
   // envío en vivo para mostrarlo antes de enviar el pedido.
@@ -756,12 +761,23 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                                 </option>
                               ))}
                             </select>
-                            {selectedPaymentDetails && (
-                              <div className="text-xs text-brand-950/60 bg-brand-950/[0.03] rounded-lg px-2.5 py-2 space-y-1">
+                            {selectedPaymentAccounts.map((account) => (
+                              <div
+                                key={account.key}
+                                className="text-xs text-brand-950/60 bg-brand-950/[0.03] rounded-lg px-2.5 py-2 space-y-1"
+                              >
+                                {/* Con varias cuentas del mismo método, cada bloque lleva su nombre
+                                    para que el cliente sepa a cuál está pagando. */}
+                                {selectedPaymentAccounts.length > 1 && (
+                                  <p className="text-[11px] font-bold uppercase tracking-wide text-brand-950/45">
+                                    {account.label}
+                                  </p>
+                                )}
                                 {(Object.keys(PAYMENT_FIELD_LABELS) as (keyof typeof PAYMENT_FIELD_LABELS)[])
-                                  .filter((f) => selectedPaymentDetails[f as keyof typeof selectedPaymentDetails])
+                                  .filter((f) => account.fields[f])
                                   .map((f) => {
-                                    const value = String(selectedPaymentDetails[f as keyof typeof selectedPaymentDetails]);
+                                    const value = account.fields[f];
+                                    const copyKey = `${account.key}:${f}`;
                                     return (
                                       <div key={f} className="flex items-center justify-between gap-2">
                                         <p className="truncate">
@@ -769,11 +785,11 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                                         </p>
                                         <button
                                           type="button"
-                                          onClick={() => copyField(f, value)}
+                                          onClick={() => copyField(copyKey, value)}
                                           aria-label={`Copiar ${PAYMENT_FIELD_LABELS[f]}`}
                                           className="shrink-0 flex items-center gap-1 text-brand-500 hover:text-brand-400 font-medium"
                                         >
-                                          {copiedField === f ? (
+                                          {copiedField === copyKey ? (
                                             <>
                                               <Check className="h-3 w-3" /> Copiado
                                             </>
@@ -785,7 +801,7 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                                     );
                                   })}
                               </div>
-                            )}
+                            ))}
                             <input
                               value={note}
                               onChange={(e) => setNote(e.target.value)}

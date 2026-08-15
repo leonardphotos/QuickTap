@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Home, Receipt, Boxes, Users, Settings, FileText, Landmark, ShoppingBag, CreditCard } from 'lucide-react';
+import { Home, Receipt, Boxes, Users, Settings, Calculator, FileText, HandCoins, Landmark, ShoppingBag, CreditCard } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getShopRubro } from '@/data/shopRubros';
 import { daysRemaining, graceHoursRemaining } from '@/utils/subscription';
@@ -12,12 +12,14 @@ import ShopDashboardPage from './ShopDashboardPage';
 import ShopPosPage from './ShopPosPage';
 import ShopOrdersPage from './ShopOrdersPage';
 import ShopInventoryPage from './ShopInventoryPage';
-import ShopCustomersPage from './ShopCustomersPage';
+import { CrmHub } from '@/components/admin/crm/CrmHub';
 import ShopSettingsPage from './ShopSettingsPage';
 import ShopReceivablesPage from './ShopReceivablesPage';
 import ShopBillingPage from './ShopBillingPage';
+import { PayablesSection } from '@/components/admin/PayablesSection';
+import { AccountingHub } from '@/components/admin/AccountingHub';
 
-export type ShopScreen = 'admin' | 'venta' | 'pedidos' | 'inventario' | 'clientes' | 'ajustes' | 'cotizaciones' | 'cuentas' | 'factura';
+export type ShopScreen = 'admin' | 'venta' | 'pedidos' | 'inventario' | 'clientes' | 'ajustes' | 'cotizaciones' | 'cuentas' | 'ordenes' | 'contabilidad' | 'factura';
 
 // Cotizaciones, Cuentas por Cobrar y Facturación no van en el dock flotante de celular (ya tiene
 // 5 iconos, más lo dejaría apretado) — se llega a ellas desde los accesos de Inicio
@@ -25,6 +27,8 @@ export type ShopScreen = 'admin' | 'venta' | 'pedidos' | 'inventario' | 'cliente
 const MORE_TABS: { id: ShopScreen; label: string; icon: typeof FileText }[] = [
   { id: 'cotizaciones', label: 'Cotizaciones', icon: FileText },
   { id: 'cuentas', label: 'Cuentas por Cobrar', icon: Landmark },
+  { id: 'ordenes', label: 'Órdenes de pago', icon: HandCoins },
+  { id: 'contabilidad', label: 'Contabilidad', icon: Calculator },
   { id: 'factura', label: 'Facturación', icon: CreditCard },
 ];
 
@@ -143,11 +147,38 @@ export default function ShopLayout() {
         )}
         {screen === 'pedidos' && <ShopOrdersPage restaurant={restaurant} />}
         {screen === 'inventario' && <ShopInventoryPage session={session} rubro={rubro} restaurant={restaurant} />}
-        {screen === 'clientes' && <ShopCustomersPage session={session} restaurant={restaurant} />}
+        {screen === 'clientes' && (
+          <div className="flex flex-col gap-5">
+            <h1 className="text-[20px] font-bold tracking-tight text-brand-950">Clientes</h1>
+            <CrmHub />
+          </div>
+        )}
         {screen === 'ajustes' && <ShopSettingsPage onBack={() => setScreen('admin')} session={session} />}
         {screen === 'factura' && <ShopBillingPage restaurant={restaurant} onDone={() => setScreen('admin')} />}
         {screen === 'cotizaciones' && <QuoteManager />}
         {screen === 'cuentas' && <ShopReceivablesPage />}
+        {screen === 'ordenes' && (
+          <div className="space-y-5">
+            <div>
+              <h1 className="text-2xl font-semibold text-brand-950">Órdenes de pago</h1>
+              <p className="text-sm text-brand-950/50 font-light mt-0.5">
+                Cuentas por pagar a proveedores: gastos a crédito, retenciones y pagos.
+              </p>
+            </div>
+            <PayablesSection />
+          </div>
+        )}
+        {screen === 'contabilidad' && (
+          <div className="space-y-5">
+            <div>
+              <h1 className="text-2xl font-semibold text-brand-950">Contabilidad</h1>
+              <p className="text-sm text-brand-950/50 font-light mt-0.5">
+                Cuentas bancarias, proveedores y libros de compras/ventas.
+              </p>
+            </div>
+            <AccountingHub />
+          </div>
+        )}
       </main>
 
       {/* Dock flotante y redondeado: mismo patrón visual que el dock del panel de restaurante

@@ -15,6 +15,7 @@ import {
   createShopSalePaymentSchema,
   setShopSaleDueDateSchema,
   setShopServiceSuppliesSchema,
+  breakEvenQuerySchema,
 } from './shop.dto';
 import { shopService } from './shop.service';
 
@@ -110,6 +111,11 @@ export const shopController = {
   setSaleDueDate: asyncHandler(async (req: Request, res: Response) => {
     const input = setShopSaleDueDateSchema.parse(req.body);
     res.json({ data: await shopService.setSaleDueDate(req.restaurantId!, req.params.id, input.dueDate) });
+  }),
+
+  breakEven: asyncHandler(async (req: Request, res: Response) => {
+    const { range, date } = breakEvenQuerySchema.parse(req.query);
+    res.json({ data: await shopService.getBreakEven(req.restaurantId!, range, date) });
   }),
 
   uploadProductPhoto: asyncHandler(async (req: Request, res: Response) => {

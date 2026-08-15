@@ -79,6 +79,22 @@ export interface ClubBooking {
   block?: { startsAt: string; endsAt: string; court: ClubCourt };
 }
 
+/** Pago que un jugador reportó desde la tablet de la cancha, pendiente de que
+ *  recepción lo verifique (aviso "Pago por verificar" en Canchas). */
+export interface ReportedPayment {
+  id: string;
+  bookingId: string;
+  amountBase: string;
+  amountBs: string;
+  method: PaymentMethod;
+  referenceNumber: string | null;
+  createdAt: string;
+  playerName: string;
+  playerPhone: string | null;
+  courtName: string;
+  startsAt: string;
+}
+
 export interface ClubBlock {
   id: string;
   courtId: string;
@@ -180,10 +196,22 @@ export const clubApi = {
   // Caja: Pagar / Pago fraccionado / Deuda.
   addBookingPayment: (
     id: string,
-    body: { amountBase: number; method: PaymentMethod; referenceNumber?: string; proofImageUrl?: string },
+    body: {
+      amountBase: number;
+      method: PaymentMethod;
+      referenceNumber?: string;
+      proofImageUrl?: string;
+      bankAccountId?: string;
+      promoCode?: string;
+    },
   ) => api.post<{ data: ClubBooking }>(`/club/bookings/${id}/payments`, body).then((r) => r.data.data),
   setAwaitingPayment: (id: string, awaitingPayment: boolean) =>
     api.patch<{ data: ClubBooking }>(`/club/bookings/${id}/awaiting-payment`, { awaitingPayment }).then((r) => r.data.data),
+
+  // Pagos reportados desde la tablet: verlos y verificarlos (aprobar cobra de verdad).
+  reportedPayments: () => api.get<{ data: ReportedPayment[] }>('/club/reported-payments').then((r) => r.data.data),
+  reviewReportedPayment: (id: string, status: 'CONFIRMED' | 'REJECTED') =>
+    api.patch<{ data: { id: string; status: string } }>(`/club/reported-payments/${id}`, { status }).then((r) => r.data.data),
   uploadPaymentProof: (file: File) => {
     const form = new FormData();
     form.append('photo', file);

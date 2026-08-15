@@ -8,6 +8,13 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { InlinePanel } from '@/components/admin/InlinePanel';
 import { AdminSectionNav } from '@/components/admin/AdminSectionNav';
 import { MetricCard } from '@/components/admin/MetricCard';
+import { BreakEvenCard } from '@/components/admin/BreakEvenCard';
+import { PayablesSection } from '@/components/admin/PayablesSection';
+import { SuppliersSection } from '@/components/admin/SuppliersSection';
+import { FiscalBooksSection } from '@/components/admin/FiscalBooksSection';
+import { BankAccountsSection } from '@/components/admin/BankAccountsSection';
+import { MovementsLedgerSection } from '@/components/admin/MovementsLedgerSection';
+import { CrmHub } from '@/components/admin/crm/CrmHub';
 import { CashSessionPanel } from '@/components/admin/CashSessionControl';
 import { ReportPickerForm, ReportResult } from '@/components/admin/ReportDialog';
 import { PAYMENT_LABELS as ALL_PAYMENT_LABELS } from '@/components/admin/PaymentDialog';
@@ -16,13 +23,23 @@ import type { ReportData } from '@/components/admin/ReportReceipt';
 import type { PaymentMethod as AnyPaymentMethod } from '@/types';
 
 const BASE_TABS = [
+  { id: 'breakeven', label: 'Punto de equilibrio' },
   { id: 'summary', label: 'Resumen' },
   { id: 'stats', label: 'Estadísticas' },
   { id: 'history', label: 'Historial de pedidos' },
   { id: 'products', label: 'Productos' },
   { id: 'margin', label: 'Margen de utilidad' },
   { id: 'delivery', label: 'Delivery' },
+  // Clientes con segmentos + promociones personalizadas con código canjeable.
+  { id: 'crm', label: 'CRM' },
   { id: 'payments', label: 'Métodos de pago' },
+  // Cuentas por pagar a PROVEEDORES (gastos a crédito + órdenes de pago) — no confundir con
+  // la pestaña "Cuentas por pagar" de abajo, que son los CLIENTES que deben al restaurante.
+  { id: 'paymentOrders', label: 'Órdenes de pago' },
+  { id: 'ledger', label: 'Contabilidad' },
+  { id: 'suppliers', label: 'Proveedores' },
+  { id: 'books', label: 'Libros fiscales' },
+  { id: 'banks', label: 'Cuentas bancarias' },
 ] as const;
 const PAYABLE_TAB = { id: 'payable', label: 'Cuentas por pagar' } as const;
 
@@ -34,7 +51,7 @@ export default function AdministrationPage() {
   const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
   const [payableCount, setPayableCount] = useState<number | null>(null);
   const TABS = canAccountsPayable ? [...BASE_TABS, { ...PAYABLE_TAB, badge: payableCount ?? undefined }] : [...BASE_TABS];
-  const [tab, setTab] = useState<(typeof TABS)[number]['id']>('summary');
+  const [tab, setTab] = useState<(typeof TABS)[number]['id']>('breakeven');
   const [showReport, setShowReport] = useState(false);
 
   useEffect(() => {
@@ -65,13 +82,20 @@ export default function AdministrationPage() {
       <div className="lg:flex lg:flex-row lg:gap-6">
         <AdminSectionNav items={TABS} activeId={tab} onChange={(id) => setTab(id as (typeof TABS)[number]['id'])} />
         <div className="mt-5 lg:mt-0 min-w-0 flex-1">
+          {tab === 'breakeven' && <BreakEvenCard fetchUrl="/products/breakeven" />}
           {tab === 'summary' && <SummaryTab />}
           {tab === 'stats' && <StatsTab />}
           {tab === 'history' && <HistoryTab />}
           {tab === 'products' && <ProductsTab />}
           {tab === 'margin' && <MarginTab />}
           {tab === 'delivery' && <DeliveryTab />}
+          {tab === 'crm' && <CrmHub />}
           {tab === 'payments' && <PaymentsTab />}
+          {tab === 'paymentOrders' && <PayablesSection />}
+          {tab === 'ledger' && <MovementsLedgerSection />}
+          {tab === 'suppliers' && <SuppliersSection />}
+          {tab === 'books' && <FiscalBooksSection />}
+          {tab === 'banks' && <BankAccountsSection symbol={restaurant?.currencySymbol ?? '$'} />}
           {tab === 'payable' && <PayableTab />}
         </div>
       </div>

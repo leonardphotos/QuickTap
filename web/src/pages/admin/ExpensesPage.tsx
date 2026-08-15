@@ -5,7 +5,13 @@ import { useAuth } from '@/context/AuthContext';
 import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard } from '@/components/ui/texture-card';
-import { ExpenseFormDialog, CATEGORY_LABELS, type ExpenseCategory } from '@/components/admin/ExpenseFormDialog';
+import {
+  ExpenseFormDialog,
+  CATEGORY_LABELS,
+  DOCUMENT_TYPE_LABELS,
+  type ExpenseCategory,
+  type ExpenseDocumentType,
+} from '@/components/admin/ExpenseFormDialog';
 
 type Range = 'day' | 'week' | 'month' | 'year';
 const RANGE_LABELS: Record<Range, string> = { day: 'Hoy', week: 'Semana', month: 'Este mes', year: 'Este año' };
@@ -23,6 +29,8 @@ interface MovementRow {
   creditPaidAt: string | null;
   createdByName: string | null;
   createdAt: string;
+  documentType: ExpenseDocumentType | null;
+  isRecurring: boolean;
 }
 
 interface MovementResult {
@@ -36,16 +44,17 @@ export default function ExpensesPage() {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [range, setRange] = useState<Range>('month');
+  const [category, setCategory] = useState<ExpenseCategory | ''>('');
   const [result, setResult] = useState<MovementResult | null>(null);
   const [pending, setPending] = useState<MovementRow[]>([]);
   const [showFormDialog, setShowFormDialog] = useState(false);
 
   function load() {
-    api.get('/movements', { params: { range } }).then((res) => setResult(res.data.data));
+    api.get('/movements', { params: { range, category: category || undefined } }).then((res) => setResult(res.data.data));
     api.get('/movements', { params: { onlyPendingCredit: true } }).then((res) => setPending(res.data.data.movements));
   }
 
-  useEffect(load, [range]);
+  useEffect(load, [range, category]);
 
   async function markPaid(id: string) {
     await api.patch(`/movements/${id}/mark-paid`);
@@ -61,7 +70,7 @@ export default function ExpensesPage() {
         </TextureButton>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {(['day', 'week', 'month', 'year'] as Range[]).map((r) => (
           <button
             key={r}
@@ -73,6 +82,18 @@ export default function ExpensesPage() {
             {RANGE_LABELS[r]}
           </button>
         ))}
+        <select
+          value={category}
+          onChange={(e) => setCategory(e.target.value as ExpenseCategory | '')}
+          className="text-xs font-medium border border-brand-950/15 rounded-full px-2.5 py-1 text-brand-950/60"
+        >
+          <option value="">Todas las categorías</option>
+          {(Object.keys(CATEGORY_LABELS) as ExpenseCategory[]).map((c) => (
+            <option key={c} value={c}>
+              {CATEGORY_LABELS[c]}
+            </option>
+          ))}
+        </select>
       </div>
 
       {result && (
@@ -135,6 +156,20 @@ export default function ExpensesPage() {
                     {' · '}
                     {new Date(m.createdAt).toLocaleDateString('es-VE')}
                   </p>
+                  {(m.documentType || m.isRecurring) && (
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {m.documentType && (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-950/[0.06] text-brand-950/50">
+                          {DOCUMENT_TYPE_LABELS[m.documentType]}
+                        </span>
+                      )}
+                      {m.isRecurring && (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                          Recurrente
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <span className={`font-semibold shrink-0 ${m.type === 'INCOME' ? 'text-emerald-600' : 'text-red-600'}`}>
                   {m.type === 'INCOME' ? '+' : '−'}

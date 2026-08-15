@@ -20,7 +20,8 @@ export function CustomerPicker({ onSelect }: Props) {
 
   useEffect(() => {
     const t = setTimeout(() => {
-      api.get('/customers', { params: { search: search || undefined } }).then((res) => setResults(res.data.data));
+      // El endpoint del CRM devuelve { customers, summary }; acá solo interesa la lista.
+      api.get('/customers', { params: { search: search || undefined } }).then((res) => setResults(res.data.data.customers));
     }, 300);
     return () => clearTimeout(t);
   }, [search]);

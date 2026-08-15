@@ -30,6 +30,8 @@ const PAYMENT_METHODS = [
   'TRANSFER',
 ] as const;
 
+const DOCUMENT_TYPES = ['FISCAL_INVOICE', 'DELIVERY_NOTE'] as const;
+
 /** Botón "Añadir movimiento" en Administración → Resumen: ingreso/egreso/propina manual.
  * También cubre el módulo de Gastos: categoría, proveedor, reabastecimiento de inventario y crédito. */
 export const createMovementSchema = z
@@ -43,6 +45,8 @@ export const createMovementSchema = z
     // Solo aplican cuando type = INCOME (botón "Añadir ingreso").
     incomeCategory: z.enum(INCOME_CATEGORIES).optional(),
     paymentMethod: z.enum(PAYMENT_METHODS).optional(),
+    // A cuál cuenta bancaria entró/salió el dinero, cuando el método tiene varias.
+    bankAccountId: z.string().max(60).nullish(),
     category: z.enum(EXPENSE_CATEGORIES).optional(),
     supplierId: z.string().optional(),
     // Si viene, además de registrar el gasto suma `inventoryQuantity` al insumo.
@@ -59,6 +63,17 @@ export const createMovementSchema = z
     referenceNumber: z.string().max(60).optional(),
     receiptImageUrl: z.string().max(300).optional(),
     spentByName: z.string().max(120).optional(),
+    // --- Soporte documental adicional (factura ya cubierta por receiptImageUrl) ---
+    quoteImageUrl: z.string().max(300).optional(),
+    paymentProofImageUrl: z.string().max(300).optional(),
+    notes: z.string().max(1000).optional(),
+    documentType: z.enum(DOCUMENT_TYPES).optional(),
+    isRecurring: z.boolean().optional().default(false),
+    // Vencimiento de la factura del proveedor — alimenta la alerta de Cuentas por pagar.
+    invoiceDueDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida.')
+      .optional(),
   })
   .refine((v) => !v.inventoryItemId || v.inventoryQuantity != null, {
     message: 'Indica la cantidad recibida del insumo.',
@@ -91,6 +106,16 @@ export const updateMovementSchema = z.object({
   referenceNumber: z.string().max(60).nullable().optional(),
   receiptImageUrl: z.string().max(300).nullable().optional(),
   spentByName: z.string().max(120).nullable().optional(),
+  quoteImageUrl: z.string().max(300).nullable().optional(),
+  paymentProofImageUrl: z.string().max(300).nullable().optional(),
+  notes: z.string().max(1000).nullable().optional(),
+  documentType: z.enum(DOCUMENT_TYPES).nullable().optional(),
+  isRecurring: z.boolean().optional(),
+  invoiceDueDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Fecha inválida.')
+    .nullable()
+    .optional(),
 });
 
 /** Filtro de rango, igual que el resto de Administración. */
@@ -99,6 +124,11 @@ export const movementQuerySchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   // "Pendientes con proveedores": ignora range/date, muestra todo lo que sigue a crédito sin pagar.
   onlyPendingCredit: z.coerce.boolean().optional(),
+  // Filtro del módulo de Gastos: ver solo una categoría (para revisar de un vistazo cuáles
+  // de esos gastos tienen factura fiscal y cuáles nota de entrega).
+  category: z.enum(EXPENSE_CATEGORIES).optional(),
+  // Relación de cuenta por proveedor (Administración → Proveedores): solo sus compras.
+  supplierId: z.string().optional(),
 });
 
 export type CreateMovementInput = z.infer<typeof createMovementSchema>;

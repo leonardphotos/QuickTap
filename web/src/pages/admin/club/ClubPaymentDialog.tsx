@@ -11,9 +11,12 @@ import {
   referenceLabel,
 } from '@/utils/payments';
 import type { PaymentMethod } from '@/types';
+import { methodAccountsOf } from '@/utils/payment-accounts';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { PaymentClientScreen } from '@/components/admin/PaymentClientScreen';
+import { MethodAccountPicker } from '@/components/admin/MethodAccountPicker';
+import { PromoCodeField, promoDiscountAmount, type AppliedPromo } from '@/components/admin/crm/PromoCodeField';
 import { clubApi, type ClubBooking, type ClubBookingPayment } from './clubApi';
 
 // Mismas etiquetas y reglas que el cobro de comandas (PaymentDialog.tsx) — es
@@ -82,6 +85,10 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
     : DEFAULT_PAYMENT_OPTIONS;
 
   const [method, setMethod] = useState<PaymentMethod>(paymentOptions[0] ?? 'CASH');
+  // Cuenta receptora elegida cuando el método tiene varias (varios Zelle…).
+  const [accountKey, setAccountKey] = useState('main');
+  // Promoción del CRM aplicada con su código: descuenta del saldo y el backend registra el canje.
+  const [promo, setPromo] = useState<AppliedPromo | null>(null);
   const [amount, setAmount] = useState(mode === 'split' ? '' : balanceBase.toFixed(2));
   const [referenceNumber, setReferenceNumber] = useState('');
   const [proofUrl, setProofUrl] = useState<string | null>(null);
@@ -96,16 +103,21 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
   const [paidNow, setPaidNow] = useState<number | null>(null);
   const [latestBooking, setLatestBooking] = useState(booking);
 
-  const selectedDetails = paymentConfig?.[method];
+  const methodAccounts = methodAccountsOf(paymentConfig, method);
+  const selectedAccount = methodAccounts.find((a) => a.key === accountKey) ?? methodAccounts[0] ?? null;
   const needsReference = METHODS_REQUIRING_PROOF_OR_REFERENCE.includes(method);
   const needsProof = METHODS_ALLOWING_PROOF.includes(method);
-  const amountToCharge = mode === 'split' ? Number(amount) || 0 : balanceBase;
-  const qrImageUrl = METHODS_WITH_QR.includes(method) ? selectedDetails?.qrImageUrl ?? null : null;
+  // Espejo del backend: la promo descuenta sobre el saldo; lo cobrable es el resto.
+  const promoAmt = promo ? promoDiscountAmount(promo, balanceBase) : 0;
+  const chargeableBalance = Math.max(0, Math.round((balanceBase - promoAmt) * 100) / 100);
+  const amountToCharge = mode === 'split' ? Number(amount) || 0 : chargeableBalance;
+  const qrImageUrl = METHODS_WITH_QR.includes(method) ? selectedAccount?.qrImageUrl ?? null : null;
 
   /** Elegir método no abre nada solo: recepción decide cuándo enseñarle los datos al
    *  jugador con el botón "Mostrar datos". */
   function selectMethod(next: PaymentMethod) {
     setMethod(next);
+    setAccountKey('main');
     setError(null);
   }
 
@@ -117,12 +129,12 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
 
   // Datos de cobro del método (correo de Zelle, cuenta, teléfono…): los ve tanto el
   // cajero en el diálogo como el jugador en la pantalla completa.
-  const paymentDetailsBlock = selectedDetails ? (
+  const paymentDetailsBlock = selectedAccount && Object.keys(selectedAccount.fields).length > 0 ? (
     <div className="space-y-1 rounded-lg bg-brand-950/[0.03] px-2.5 py-2 text-xs text-brand-950/60">
       {(Object.keys(PAYMENT_FIELD_LABELS) as (keyof typeof PAYMENT_FIELD_LABELS)[])
-        .filter((f) => selectedDetails[f as keyof typeof selectedDetails])
+        .filter((f) => selectedAccount.fields[f])
         .map((f) => {
-          const value = String(selectedDetails[f as keyof typeof selectedDetails]);
+          const value = selectedAccount.fields[f];
           return (
             <div key={f} className="flex items-center justify-between gap-2">
               <p className="truncate">
@@ -175,13 +187,13 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
   }
 
   async function submit() {
-    const amountBase = mode === 'split' ? Number(amount) : balanceBase;
+    const amountBase = mode === 'split' ? Number(amount) : chargeableBalance;
     if (!amountBase || amountBase <= 0) {
       setError('Escribe un monto válido.');
       return;
     }
-    if (amountBase > balanceBase + 0.01) {
-      setError(`El monto no puede superar el saldo pendiente (${formatBase(balanceBase, symbol)}).`);
+    if (amountBase > chargeableBalance + 0.01) {
+      setError(`El monto no puede superar el saldo pendiente (${formatBase(chargeableBalance, symbol)}).`);
       return;
     }
     const docError = paymentDocumentError(method, referenceNumber, proofUrl);
@@ -197,6 +209,8 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
         method,
         referenceNumber: needsReference ? referenceNumber.trim() : undefined,
         proofImageUrl: needsProof ? proofUrl ?? undefined : undefined,
+        bankAccountId: selectedAccount?.bankAccountId ?? undefined,
+        promoCode: promo?.code ?? undefined,
       });
       setLatestBooking(updated);
       onPaid(updated);
@@ -374,16 +388,27 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
                     autoFocus
                     value={amount}
                     onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
-                    placeholder={`Máx. ${balanceBase.toFixed(2)}`}
+                    placeholder={`Máx. ${chargeableBalance.toFixed(2)}`}
                     className="w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
                   />
                 </div>
               ) : (
-                <div className="flex items-center justify-between pt-1 text-sm font-semibold">
-                  <span>Monto a cobrar</span>
-                  <span>{formatBase(balanceBase, symbol)}</span>
+                <div className="space-y-1 pt-1">
+                  {promoAmt > 0 && promo && (
+                    <div className="flex items-center justify-between text-xs text-emerald-600">
+                      <span>Promoción {promo.code}</span>
+                      <span>-{formatBase(promoAmt, symbol)}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between text-sm font-semibold">
+                    <span>Monto a cobrar</span>
+                    <span>{formatBase(chargeableBalance, symbol)}</span>
+                  </div>
                 </div>
               )}
+
+              {/* Código de promoción del CRM: valida contra la lista del jugador. */}
+              <PromoCodeField phone={booking.playerPhone} applied={promo} onApplied={setPromo} symbol={symbol} />
 
               {/* Método y "Mostrar datos" van juntos y al final, pegados a "Registrar pago":
                   recepción elige cómo le pagan, se lo enseña al jugador en pantalla completa
@@ -403,6 +428,7 @@ export function ClubPaymentDialog({ booking, mode, onClose, onPaid }: Props) {
                     </button>
                   ))}
                 </div>
+                <MethodAccountPicker accounts={methodAccounts} value={selectedAccount?.key ?? 'main'} onChange={setAccountKey} />
                 {(qrImageUrl || paymentDetailsBlock) && (
                   <TextureButton
                     variant="minimal"

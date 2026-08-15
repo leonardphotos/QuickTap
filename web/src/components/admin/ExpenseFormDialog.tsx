@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
+import { methodAccountsOf } from '@/utils/payment-accounts';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { SupplierPicker } from './SupplierPicker';
+import { MethodAccountPicker } from './MethodAccountPicker';
 import type { Supplier } from '@/types';
 
 export type ExpenseCategory =
@@ -37,6 +39,13 @@ export const CATEGORY_LABELS: Record<ExpenseCategory, string> = {
   MEALS: 'Comidas',
   LODGING: 'Hospedaje / hotel',
   OTHER: 'Otros',
+};
+
+export type ExpenseDocumentType = 'FISCAL_INVOICE' | 'DELIVERY_NOTE';
+
+export const DOCUMENT_TYPE_LABELS: Record<ExpenseDocumentType, string> = {
+  FISCAL_INVOICE: 'Factura fiscal',
+  DELIVERY_NOTE: 'Nota de entrega',
 };
 
 /** Categorías de gasto de operación/viaje: para estas, el formulario ofrece de una vez los
@@ -73,7 +82,57 @@ export interface EditableExpense {
   referenceNumber?: string | null;
   spentByName?: string | null;
   receiptImageUrl?: string | null;
+  quoteImageUrl?: string | null;
+  paymentProofImageUrl?: string | null;
+  notes?: string | null;
+  documentType?: ExpenseDocumentType | null;
   isCredit?: boolean;
+  isRecurring?: boolean;
+  invoiceDueDate?: string | null;
+}
+
+/** Casilla de "adjuntar foto" reusada 3 veces (factura, presupuesto, comprobante de pago) —
+ * mismo look que el recibo de siempre, solo parametrizado por etiqueta/url/estado. */
+function AttachmentField({
+  label,
+  url,
+  uploading,
+  onUpload,
+  onRemove,
+}: {
+  label: string;
+  url: string;
+  uploading: boolean;
+  onUpload: (file: File) => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div className="rounded-lg border border-brand-950/10 px-2.5 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm text-brand-950/70">{url ? `✓ ${label} adjunto` : uploading ? 'Subiendo…' : label}</span>
+        {url ? (
+          <button type="button" onClick={onRemove} className="text-xs font-medium text-red-600 hover:text-red-700 shrink-0">
+            Quitar
+          </button>
+        ) : (
+          <label className="text-xs font-medium text-brand-500 hover:text-brand-600 shrink-0 cursor-pointer">
+            Adjuntar
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) onUpload(f);
+              }}
+            />
+          </label>
+        )}
+      </div>
+      {url && <img src={url} alt={label} className="mt-2 max-h-32 rounded-md border border-brand-950/10" />}
+    </div>
+  );
 }
 
 /** Cuerpo de "Agregar/Editar gasto" — egreso con categoría, proveedor y reabastecimiento
@@ -107,26 +166,38 @@ export function ExpenseForm({ onCreated, expense }: { onCreated: () => void; exp
   const [error, setError] = useState<string | null>(null);
   // --- Soporte del gasto ---
   const [paymentMethod, setPaymentMethod] = useState(expense?.paymentMethod ?? '');
+  // Cuenta del método de la que salió el dinero, cuando tiene varias (varios Zelle…).
+  const [accountKey, setAccountKey] = useState('main');
   const [expenseDate, setExpenseDate] = useState(expense?.expenseDate ? expense.expenseDate.slice(0, 10) : '');
   const [referenceNumber, setReferenceNumber] = useState(expense?.referenceNumber ?? '');
   const [spentByName, setSpentByName] = useState(expense?.spentByName ?? '');
   const [receiptImageUrl, setReceiptImageUrl] = useState(expense?.receiptImageUrl ?? '');
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
+  const [quoteImageUrl, setQuoteImageUrl] = useState(expense?.quoteImageUrl ?? '');
+  const [uploadingQuote, setUploadingQuote] = useState(false);
+  const [paymentProofImageUrl, setPaymentProofImageUrl] = useState(expense?.paymentProofImageUrl ?? '');
+  const [uploadingPaymentProof, setUploadingPaymentProof] = useState(false);
+  const [notes, setNotes] = useState(expense?.notes ?? '');
+  const [documentType, setDocumentType] = useState<ExpenseDocumentType | ''>(expense?.documentType ?? '');
+  const [isRecurring, setIsRecurring] = useState(expense?.isRecurring ?? false);
+  const [invoiceDueDate, setInvoiceDueDate] = useState(expense?.invoiceDueDate ? expense.invoiceDueDate.slice(0, 10) : '');
 
   const isFieldTrip = category !== '' && FIELD_TRIP_CATEGORIES.has(category);
+  const methodAccounts = paymentMethod ? methodAccountsOf(restaurant?.paymentMethodsConfig, paymentMethod) : [];
+  const selectedAccount = methodAccounts.find((a) => a.key === accountKey) ?? methodAccounts[0] ?? null;
 
-  async function uploadReceipt(file: File) {
-    setUploadingReceipt(true);
+  async function uploadAttachment(endpoint: string, file: File, setUrl: (u: string) => void, setUploading: (b: boolean) => void) {
+    setUploading(true);
     setError(null);
     try {
       const form = new FormData();
       form.append('photo', file);
-      const res = await api.post('/movements/upload-receipt', form, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setReceiptImageUrl(res.data.data.url);
+      const res = await api.post(endpoint, form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setUrl(res.data.data.url);
     } catch (e: any) {
-      setError(e.response?.data?.error ?? 'No se pudo subir el recibo.');
+      setError(e.response?.data?.error ?? 'No se pudo subir la foto.');
     } finally {
-      setUploadingReceipt(false);
+      setUploading(false);
     }
   }
 
@@ -165,10 +236,18 @@ export function ExpenseForm({ onCreated, expense }: { onCreated: () => void; exp
         inventoryQuantity: isRestock ? Number(inventoryQuantity) : isEdit ? null : undefined,
         isCredit,
         paymentMethod: paymentMethod || (isEdit ? null : undefined),
+        // Solo al crear: la edición no vuelve a tocar el banco (el asiento ya quedó hecho).
+        bankAccountId: isEdit ? undefined : selectedAccount?.bankAccountId ?? undefined,
         expenseDate: expenseDate || (isEdit ? null : undefined),
         referenceNumber: referenceNumber.trim() || (isEdit ? null : undefined),
         spentByName: spentByName.trim() || (isEdit ? null : undefined),
         receiptImageUrl: receiptImageUrl || (isEdit ? null : undefined),
+        quoteImageUrl: quoteImageUrl || (isEdit ? null : undefined),
+        paymentProofImageUrl: paymentProofImageUrl || (isEdit ? null : undefined),
+        notes: notes.trim() || (isEdit ? null : undefined),
+        documentType: documentType || (isEdit ? null : undefined),
+        isRecurring,
+        invoiceDueDate: invoiceDueDate || (isEdit ? null : undefined),
       };
       if (isEdit) await api.patch(`/movements/${expense!.id}`, payload);
       else await api.post('/movements', { type: 'EXPENSE', ...payload });
@@ -252,7 +331,10 @@ export function ExpenseForm({ onCreated, expense }: { onCreated: () => void; exp
           <p className="text-xs font-medium text-brand-950/50 mb-1.5">¿Con qué se pagó?</p>
           <select
             value={paymentMethod}
-            onChange={(e) => setPaymentMethod(e.target.value)}
+            onChange={(e) => {
+              setPaymentMethod(e.target.value);
+              setAccountKey('main');
+            }}
             className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
           >
             <option value="">Sin especificar</option>
@@ -262,6 +344,14 @@ export function ExpenseForm({ onCreated, expense }: { onCreated: () => void; exp
               </option>
             ))}
           </select>
+          {!isEdit && (
+            <MethodAccountPicker
+              accounts={methodAccounts}
+              value={selectedAccount?.key ?? 'main'}
+              onChange={setAccountKey}
+              label="¿De cuál cuenta salió?"
+            />
+          )}
         </div>
         <div>
           <p className="text-xs font-medium text-brand-950/50 mb-1.5">Fecha del gasto</p>
@@ -300,40 +390,72 @@ export function ExpenseForm({ onCreated, expense }: { onCreated: () => void; exp
         </div>
       </div>
 
-      {/* Recibo: en gastos de viaje es el soporte que se pierde y sin el cual no hay
-          cómo justificar el egreso, por eso se destaca en esas categorías. */}
-      <div className={`rounded-lg border px-2.5 py-2 ${isFieldTrip ? 'border-brand-500/30 bg-brand-500/[0.04]' : 'border-brand-950/10'}`}>
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm text-brand-950/70">
-            {receiptImageUrl ? '✓ Recibo adjunto' : uploadingReceipt ? 'Subiendo…' : 'Foto del recibo'}
-          </span>
-          {receiptImageUrl ? (
+      <div>
+        <p className="text-xs font-medium text-brand-950/50 mb-1.5">Vencimiento de la factura (opcional)</p>
+        <input
+          type="date"
+          value={invoiceDueDate}
+          onChange={(e) => setInvoiceDueDate(e.target.value)}
+          className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+        />
+        <p className="text-[11px] text-brand-950/40 font-light mt-1">
+          Si la cargas, Cuentas por pagar te avisa cuando la factura esté por vencer o vencida.
+        </p>
+      </div>
+
+      {/* Soporte del gasto: en gastos de viaje es lo que se pierde y sin lo cual no hay cómo
+          justificar el egreso, por eso se destaca en esas categorías. */}
+      <div className={`space-y-2 rounded-lg ${isFieldTrip ? 'border border-brand-500/30 bg-brand-500/[0.04] p-2' : ''}`}>
+        <AttachmentField
+          label="Factura"
+          url={receiptImageUrl}
+          uploading={uploadingReceipt}
+          onUpload={(f) => uploadAttachment('/movements/upload-receipt', f, setReceiptImageUrl, setUploadingReceipt)}
+          onRemove={() => setReceiptImageUrl('')}
+        />
+        <AttachmentField
+          label="Presupuesto"
+          url={quoteImageUrl}
+          uploading={uploadingQuote}
+          onUpload={(f) => uploadAttachment('/movements/upload-quote', f, setQuoteImageUrl, setUploadingQuote)}
+          onRemove={() => setQuoteImageUrl('')}
+        />
+        <AttachmentField
+          label="Comprobante de pago"
+          url={paymentProofImageUrl}
+          uploading={uploadingPaymentProof}
+          onUpload={(f) => uploadAttachment('/movements/upload-payment-proof', f, setPaymentProofImageUrl, setUploadingPaymentProof)}
+          onRemove={() => setPaymentProofImageUrl('')}
+        />
+      </div>
+
+      <div>
+        <p className="text-xs font-medium text-brand-950/50 mb-1.5">Tipo de documento (opcional)</p>
+        <div className="flex flex-wrap gap-1.5">
+          {(Object.keys(DOCUMENT_TYPE_LABELS) as ExpenseDocumentType[]).map((d) => (
             <button
+              key={d}
               type="button"
-              onClick={() => setReceiptImageUrl('')}
-              className="text-xs font-medium text-red-600 hover:text-red-700 shrink-0"
+              onClick={() => setDocumentType((prev) => (prev === d ? '' : d))}
+              className={`text-xs font-medium px-3 py-1.5 rounded-full transition-colors ${
+                documentType === d ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+              }`}
             >
-              Quitar
+              {DOCUMENT_TYPE_LABELS[d]}
             </button>
-          ) : (
-            <label className="text-xs font-medium text-brand-500 hover:text-brand-600 shrink-0 cursor-pointer">
-              Adjuntar
-              <input
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (f) uploadReceipt(f);
-                }}
-              />
-            </label>
-          )}
+          ))}
         </div>
-        {receiptImageUrl && (
-          <img src={receiptImageUrl} alt="Recibo" className="mt-2 max-h-32 rounded-md border border-brand-950/10" />
-        )}
+      </div>
+
+      <div>
+        <p className="text-xs font-medium text-brand-950/50 mb-1.5">Nota (opcional)</p>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          placeholder="Detalle adicional, condiciones, por qué del gasto…"
+          rows={2}
+          className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5 resize-none"
+        />
       </div>
 
       <div className="flex items-center justify-between rounded-lg border border-brand-950/10 px-2.5 py-2">
@@ -381,6 +503,11 @@ export function ExpenseForm({ onCreated, expense }: { onCreated: () => void; exp
       <label className="flex items-center gap-1.5 text-sm">
         <input type="checkbox" checked={isCredit} onChange={(e) => setIsCredit(e.target.checked)} />
         ¿A crédito? (queda pendiente por pagar al proveedor)
+      </label>
+
+      <label className="flex items-center gap-1.5 text-sm">
+        <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} />
+        ¿Es un gasto recurrente? (alquiler, nómina, servicios…)
       </label>
 
       {error && <p className="text-sm text-red-600">{error}</p>}

@@ -183,6 +183,11 @@ export const shopApi = {
     paymentMeta: PaymentMeta | null;
     creditTerms: CreditTerms | null;
     amountPaidNow: number | null;
+    /** A cuál cuenta bancaria entró el cobro, cuando el método tiene varias. */
+    bankAccountId?: string | null;
+    /** Promoción del CRM aplicada: el backend valida el código y registra el canje. */
+    promoCode?: string | null;
+    promoDiscountBase?: number | null;
   }): Promise<RawShopSale> {
     const { data } = await api.post('/shop/sales', payload);
     return data.data;

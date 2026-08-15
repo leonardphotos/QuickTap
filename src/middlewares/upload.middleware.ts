@@ -115,8 +115,12 @@ export const uploadPaymentQr = makeImageUpload('payment-qr', 'photo');
 // (screenshot de la transferencia/Pago Móvil que sube el cajero al cobrar).
 export const uploadShopProductPhoto = makeImageUpload('shop-products', 'photo');
 export const uploadShopPaymentProof = makeImageUpload('shop-payment-proofs', 'photo');
-// Recibo de un gasto (factura de gasolinera, hotel, restaurante) — ver módulo de Gastos.
+// Recibo/factura de un gasto (factura de gasolinera, hotel, restaurante) — ver módulo de Gastos.
 export const uploadExpenseReceipt = makeImageUpload('expense-receipts', 'photo');
+// Presupuesto/cotización aprobado antes de pagar el gasto.
+export const uploadExpenseQuote = makeImageUpload('expense-quotes', 'photo');
+// Comprobante de pago del gasto (transferencia/Pago Móvil), aparte de la factura en sí.
+export const uploadExpensePaymentProof = makeImageUpload('expense-payment-proofs', 'photo');
 // Comprobante de cada abono del "pago fraccionado" de mensualidad/inscripción (ver plan-requests/).
 export const uploadPlanPaymentProof = makeImageUpload('plan-payment-proofs', 'photo');
 // Comprobante de pago de una comanda (botón "Cobrar" del panel de Pedidos/Mesero) — ver

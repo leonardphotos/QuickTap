@@ -1,5 +1,12 @@
 import { z } from 'zod';
 
+/** Filtro de período para Administración → Punto de equilibrio. */
+export const breakEvenQuerySchema = z.object({
+  range: z.enum(['day', 'week', 'month', 'year', 'all']).optional().default('month'),
+  // Fecha exacta ("YYYY-MM-DD"): si viene, ignora `range` y filtra ese día completo.
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const YYYYMMDD = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -121,6 +128,10 @@ export const recordBookingPaymentSchema = z
     method: paymentMethodSchema,
     referenceNumber: z.string().max(60).optional(),
     proofImageUrl: z.string().optional(),
+    // A cuál cuenta bancaria entró el dinero, cuando el método tiene varias.
+    bankAccountId: z.string().max(60).nullish(),
+    // Código de promoción del CRM: aplica su descuento y registra el canje.
+    promoCode: z.string().max(40).nullish(),
   })
   .superRefine((data, ctx) => {
     // Basta con uno de los dos: quien tiene la captura no siempre transcribe el número, y
@@ -139,6 +150,11 @@ export const recordBookingPaymentSchema = z
 /** "Deuda" en Canchas: recepción marca que sabe que esto se debe, sin registrar cobro. */
 export const setBookingAwaitingPaymentSchema = z.object({
   awaitingPayment: z.coerce.boolean().optional().default(true),
+});
+
+/** Verificación de un pago reportado desde la tablet: aprobar cobra de verdad, rechazar solo marca. */
+export const reviewReportedPaymentSchema = z.object({
+  status: z.enum(['CONFIRMED', 'REJECTED']),
 });
 
 export type CreateCourtInput = z.infer<typeof createCourtSchema>;
