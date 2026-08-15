@@ -4,7 +4,7 @@ import { round2, toDecimal } from '../../utils/money';
 import { PAYMENT_METHOD_LABELS, shopMethodToEnum } from '../../utils/payment-method';
 import { atTimeCaracas, caracasPartsOf, startOfDayCaracas } from '../../utils/timezone';
 import { resolveDateFilter, type ReportRange } from '../../utils/date-range';
-import { computeBreakEven, monthLabel, type BreakEvenResponse } from '../../utils/breakeven';
+import { bucketSalesByDay, computeBreakEven, monthLabel, type BreakEvenResponse } from '../../utils/breakeven';
 import { movementService } from '../movements/movement.service';
 import { shopSalesCogsSummary } from '../shop/shop.service';
 
@@ -643,35 +643,50 @@ async function debts(restaurantId: string) {
 async function breakEven(restaurantId: string, range: ReportRange, date?: string): Promise<BreakEvenResponse> {
   const dateFilter = resolveDateFilter({ range, date });
 
-  const [courtPayments, academyPayments, store, fixedCosts] = await Promise.all([
-    prisma.clubBookingPayment.aggregate({
+  const [courtPayments, academyPayments, storeSales, store, fixedCosts] = await Promise.all([
+    prisma.clubBookingPayment.findMany({
       where: { booking: { restaurantId }, createdAt: dateFilter },
-      _sum: { amountBase: true },
+      select: { createdAt: true, amountBase: true },
     }),
-    prisma.clubAcademyPayment.aggregate({
+    prisma.clubAcademyPayment.findMany({
       where: { restaurantId, createdAt: dateFilter },
-      _sum: { amountBase: true },
+      select: { createdAt: true, amountBase: true },
+    }),
+    prisma.shopSale.findMany({
+      where: { restaurantId, returned: false, time: dateFilter },
+      select: { time: true, total: true },
     }),
     shopSalesCogsSummary(restaurantId, range, date),
     movementService.summarizeFixedCosts(restaurantId, range, date),
   ]);
 
-  const court = toDecimal(courtPayments._sum.amountBase ?? 0);
-  const academy = toDecimal(academyPayments._sum.amountBase ?? 0);
+  const court = courtPayments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0));
+  const academy = academyPayments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0));
   const totalRevenue = court.add(academy).add(store.totalRevenue);
   const totalCost = store.totalCost;
 
   const periodStart = dateFilter?.gte ?? new Date();
+  const result = computeBreakEven({
+    salesBase: totalRevenue,
+    cvBase: totalCost,
+    fixedCostsBase: fixedCosts.totalBase,
+    periodStart,
+  });
 
   return {
     period: { label: monthLabel(periodStart), start: periodStart.toISOString(), end: new Date().toISOString() },
     fixedCosts,
-    breakEven: computeBreakEven({
-      salesBase: totalRevenue,
-      cvBase: totalCost,
-      fixedCostsBase: fixedCosts.totalBase,
+    breakEven: result,
+    // Las tres fuentes del club en un solo acumulado por día.
+    dailySales: bucketSalesByDay(
+      [
+        ...courtPayments.map((p) => ({ at: p.createdAt, amount: p.amountBase })),
+        ...academyPayments.map((p) => ({ at: p.createdAt, amount: p.amountBase })),
+        ...storeSales.map((s) => ({ at: s.time, amount: s.total })),
+      ],
       periodStart,
-    }),
+      result.daysElapsed,
+    ),
   };
 }
 

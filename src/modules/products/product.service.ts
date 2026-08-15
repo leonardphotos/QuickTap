@@ -4,7 +4,7 @@ import { badRequest, notFound } from '../../utils/http-error';
 import { round2, toDecimal } from '../../utils/money';
 import { startOfDayCaracas } from '../../utils/timezone';
 import { resolveDateFilter, ReportRange } from '../../utils/date-range';
-import { BreakEvenResponse, computeBreakEven, monthLabel } from '../../utils/breakeven';
+import { BreakEvenResponse, bucketSalesByDay, computeBreakEven, monthLabel } from '../../utils/breakeven';
 import { resolveInventoryScope } from '../inventory/inventory-scope';
 import { movementService } from '../movements/movement.service';
 import { CreateProductInput, UpdateProductInput } from './product.dto';
@@ -231,22 +231,34 @@ export const productService = {
    * src/utils/breakeven.ts para la fórmula compartida con Shop y Club.
    */
   async getBreakEven(restaurantId: string, range: ReportRange, date?: string): Promise<BreakEvenResponse> {
-    const [{ totalRevenue, totalCost }, fixedCosts] = await Promise.all([
+    const dateFilter = resolveDateFilter({ range, date });
+    const [{ totalRevenue, totalCost }, fixedCosts, orders] = await Promise.all([
       revenueAndCostByProduct(restaurantId, range, date),
       movementService.summarizeFixedCosts(restaurantId, range, date),
+      // Ventas por día para el gráfico de acumulado contra el equilibrio.
+      prisma.order.findMany({
+        where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: dateFilter },
+        select: { createdAt: true, totalBase: true },
+      }),
     ]);
 
-    const periodStart = resolveDateFilter({ range, date })?.gte ?? new Date();
+    const periodStart = dateFilter?.gte ?? new Date();
+    const breakEven = computeBreakEven({
+      salesBase: totalRevenue,
+      cvBase: totalCost,
+      fixedCostsBase: fixedCosts.totalBase,
+      periodStart,
+    });
 
     return {
       period: { label: monthLabel(periodStart), start: periodStart.toISOString(), end: new Date().toISOString() },
       fixedCosts,
-      breakEven: computeBreakEven({
-        salesBase: totalRevenue,
-        cvBase: totalCost,
-        fixedCostsBase: fixedCosts.totalBase,
+      breakEven,
+      dailySales: bucketSalesByDay(
+        orders.map((o) => ({ at: o.createdAt, amount: o.totalBase })),
         periodStart,
-      }),
+        breakEven.daysElapsed,
+      ),
     };
   },
 };

@@ -120,6 +120,33 @@ export interface BreakEvenResponse {
   period: { label: string; start: string; end: string };
   fixedCosts: { totalBase: string; byCategory: FixedCostCategory[] };
   breakEven: BreakEvenResult;
+  /** Ventas por día del período (índice 0 = día 1), solo los días transcurridos.
+   * Alimenta el gráfico de ventas acumuladas contra el equilibrio. */
+  dailySales: string[];
+}
+
+/**
+ * Agrupa ventas sueltas (fecha, monto) en un arreglo por día del mes, en hora de
+ * Caracas — el negocio cierra el día por su reloj, no por UTC. Devuelve un valor
+ * por cada día transcurrido del período (días sin ventas quedan en "0.00").
+ */
+export function bucketSalesByDay(
+  rows: { at: Date; amount: DecimalLike }[],
+  periodStart: Date,
+  daysElapsed: number,
+): string[] {
+  const buckets = new Array<ReturnType<typeof toDecimal>>(daysElapsed).fill(toDecimal(0));
+  for (const r of rows) {
+    // Día del mes en Caracas (UTC−4, sin horario de verano).
+    const local = new Date(r.at.getTime() - 4 * 3600_000);
+    const sameMonth =
+      local.getUTCFullYear() === periodStart.getFullYear() && local.getUTCMonth() === periodStart.getMonth();
+    if (!sameMonth) continue;
+    const idx = local.getUTCDate() - 1;
+    if (idx < 0 || idx >= daysElapsed) continue;
+    buckets[idx] = buckets[idx].add(toDecimal(r.amount));
+  }
+  return buckets.map((b) => round2(b).toFixed(2));
 }
 
 /** Nombre del mes ("Agosto 2026") para el encabezado de la tarjeta. */

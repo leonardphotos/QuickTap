@@ -7,7 +7,7 @@ import { round2, toDecimal } from '../../utils/money';
 import { promotionDiscountOf, recordPromotionRedemption, resolvePromotionForRedeem } from '../promotions/promotion.service';
 import { movementService } from '../movements/movement.service';
 import { resolveDateFilter, type ReportRange } from '../../utils/date-range';
-import { computeBreakEven, monthLabel, type BreakEvenResponse } from '../../utils/breakeven';
+import { bucketSalesByDay, computeBreakEven, monthLabel, type BreakEvenResponse } from '../../utils/breakeven';
 import type {
   CreateShopProductInput,
   UpdateShopProductInput,
@@ -618,22 +618,34 @@ export const shopService = {
    * compartida con Restaurante y Club.
    */
   async getBreakEven(restaurantId: string, range: ReportRange, date?: string): Promise<BreakEvenResponse> {
-    const [{ totalRevenue, totalCost }, fixedCosts] = await Promise.all([
+    const dateFilter = resolveDateFilter({ range, date });
+    const [{ totalRevenue, totalCost }, fixedCosts, sales] = await Promise.all([
       shopSalesCogsSummary(restaurantId, range, date),
       movementService.summarizeFixedCosts(restaurantId, range, date),
+      // Ventas por día para el gráfico de acumulado contra el equilibrio.
+      prisma.shopSale.findMany({
+        where: { restaurantId, returned: false, time: dateFilter },
+        select: { time: true, total: true },
+      }),
     ]);
 
-    const periodStart = resolveDateFilter({ range, date })?.gte ?? new Date();
+    const periodStart = dateFilter?.gte ?? new Date();
+    const breakEven = computeBreakEven({
+      salesBase: totalRevenue,
+      cvBase: totalCost,
+      fixedCostsBase: fixedCosts.totalBase,
+      periodStart,
+    });
 
     return {
       period: { label: monthLabel(periodStart), start: periodStart.toISOString(), end: new Date().toISOString() },
       fixedCosts,
-      breakEven: computeBreakEven({
-        salesBase: totalRevenue,
-        cvBase: totalCost,
-        fixedCostsBase: fixedCosts.totalBase,
+      breakEven,
+      dailySales: bucketSalesByDay(
+        sales.map((s) => ({ at: s.time, amount: s.total })),
         periodStart,
-      }),
+        breakEven.daysElapsed,
+      ),
     };
   },
 };
