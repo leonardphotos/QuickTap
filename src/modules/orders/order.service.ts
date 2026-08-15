@@ -314,6 +314,10 @@ async function computeEnvaseFee(
  * dentro de una transacción.
  */
 async function nextOrderNumber(tx: Prisma.TransactionClient, restaurantId: string): Promise<number> {
+  // Candado por restaurante dentro de la transacción (se suelta solo al confirmar/abortar):
+  // dos pedidos que entran en el mismo instante ya no leen el mismo máximo y chocan en el
+  // índice único (restaurantId, orderNumber) — el segundo espera y toma el siguiente número.
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'order:' + restaurantId}))`;
   const last = await tx.order.findFirst({
     where: { restaurantId },
     orderBy: { orderNumber: 'desc' },
