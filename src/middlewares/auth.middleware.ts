@@ -219,7 +219,14 @@ export function requireFeature(feature: FeatureFlag) {
         },
       })
       .then((restaurant) => {
-        if (!restaurant || !hasFeature(restaurant, feature)) {
+        if (!restaurant) {
+          // El restaurante de esta sesión ya no existe — típico del Entorno Demo Efímero
+          // (el barrido de inactividad borra y recrea el demo con otro id mientras la
+          // pestaña seguía abierta). No es un límite de plan sino una sesión inválida:
+          // 401 para que el interceptor del frontend limpie el token viejo.
+          throw unauthorized('Tu sesión expiró. Vuelve a iniciar sesión.');
+        }
+        if (!hasFeature(restaurant, feature)) {
           throw forbidden('Esta función no está disponible en tu plan actual.');
         }
         next();
