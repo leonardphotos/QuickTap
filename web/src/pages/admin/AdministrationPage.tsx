@@ -26,7 +26,6 @@ import {
   type Channel,
   type HistoryResult,
 } from '@/components/admin/OrderHistorySection';
-import { QuoteManager } from '@/components/admin/QuoteManager';
 import ExpensesPage from '@/pages/admin/ExpensesPage';
 import { CashSessionPanel } from '@/components/admin/CashSessionControl';
 import { ReportPickerForm, ReportResult } from '@/components/admin/ReportDialog';
@@ -47,9 +46,7 @@ const ALL_TABS = [
   { id: 'history', label: 'Historial de pedidos', feature: 'accounting' },
   { id: 'products', label: 'Productos', feature: null },
   { id: 'margin', label: 'Margen de utilidad', feature: 'accounting' },
-  // Cotizaciones, Gastos y Compras también viven en el menú lateral; acá se repiten para
-  // tener toda la administración en un solo lugar.
-  { id: 'quotes', label: 'Cotizaciones', feature: null },
+  // Gastos vive acá (ya no en el menú lateral); Cotizaciones está dentro de Compras.
   { id: 'expenses', label: 'Gastos', feature: null },
   { id: 'purchases', label: 'Compras', feature: null },
   // Clientes con segmentos + promociones personalizadas con código canjeable.
@@ -108,7 +105,6 @@ export default function AdministrationPage() {
           {!tabLocked && tab === 'history' && <HistoryTab />}
           {!tabLocked && tab === 'products' && <ProductsTab />}
           {!tabLocked && tab === 'margin' && <MarginTab />}
-          {!tabLocked && tab === 'quotes' && <QuoteManager />}
           {!tabLocked && tab === 'expenses' && <ExpensesPage embedded />}
           {!tabLocked && tab === 'purchases' && <PurchasesHub />}
           {!tabLocked && tab === 'crm' && <CrmHub />}

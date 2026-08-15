@@ -60,16 +60,18 @@ export const ADMINISTRATION_NAV_LINK: AdminNavLink = {
 };
 // Visible con Inventario "normal" o "por receta" (cualquiera de los dos).
 export const INVENTORY_NAV_LINK: AdminNavLink = { to: '/admin/inventory', label: 'Inventario', icon: Boxes };
-// Módulo de Gastos: proveedores, categorías de egreso y balance. Mismo flag que Administración.
+// Módulo de Gastos: ya no va en el menú (vive como pestaña de Administración), pero la ruta
+// sigue viva para los enlaces guardados y para abrirlo embebido.
 export const EXPENSES_NAV_LINK: AdminNavLink = { to: '/admin/expenses', label: 'Gastos', icon: Receipt };
-// Módulo de Compras (debajo de Gastos): registro de compras con reabastecimiento, proveedores,
+// Módulo de Compras: registro de compras con reabastecimiento, cotizaciones, proveedores,
 // libro de compras y calificación de proveedores. Mismo flag que Administración.
 export const PURCHASES_NAV_LINK: AdminNavLink = { to: '/admin/purchases', label: 'Compras', icon: ShoppingCart };
 // Visible solo con Plan Sucursales / Delivery Sucursales (crear sucursales + reporte consolidado).
 export const SUCURSALES_NAV_LINK: AdminNavLink = { to: '/admin/sucursales', label: 'Sucursales', icon: Building2 };
 // Reservas hechas desde el botón "Mesa" del menú público: solo dueño/admin/cajero, que son quienes las aceptan.
 export const RESERVATIONS_NAV_LINK: AdminNavLink = { to: '/admin/reservations', label: 'Reservas', icon: CalendarDays };
-// Presupuestos/cotizaciones: un total para aprobar sin cobrar ni tocar cocina todavía.
+// Presupuestos/cotizaciones: un total para aprobar sin cobrar ni tocar cocina todavía. Fuera
+// del menú desde que vive dentro de Compras; la ruta se conserva para enlaces ya repartidos.
 export const QUOTES_NAV_LINK: AdminNavLink = { to: '/admin/quotes', label: 'Cotizaciones', icon: FileText };
 // Pedidos que llegan desde las canchas de un club vinculado (Ajustes → Vincular canchas).
 // Solo aparece si hay al menos un club vinculado (Restaurant.linkedClubs).
@@ -124,9 +126,11 @@ export function visibleNavLinks(
   }
   if (!isRestricted && restaurant) {
     const extra: AdminNavLink[] = [];
-    if (isAdminCashier(role, cashierFullAccess)) extra.push(RESERVATIONS_NAV_LINK, QUOTES_NAV_LINK);
+    if (isAdminCashier(role, cashierFullAccess)) extra.push(RESERVATIONS_NAV_LINK);
+    // Gastos y Cotizaciones no se listan: el primero es una pestaña de Administración y el
+    // segundo vive dentro de Compras — repetirlos en el menú solo alargaba la lista.
     if (isAdminCashier(role, cashierFullAccess) && hasFeature(restaurant, 'administration')) {
-      extra.push(ADMINISTRATION_NAV_LINK, EXPENSES_NAV_LINK, PURCHASES_NAV_LINK);
+      extra.push(ADMINISTRATION_NAV_LINK, PURCHASES_NAV_LINK);
     }
     if (hasFeature(restaurant, 'inventoryBasic') || hasFeature(restaurant, 'inventoryRecipe')) {
       extra.push(INVENTORY_NAV_LINK);

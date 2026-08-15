@@ -4,11 +4,15 @@ import { hasFeature } from '@/utils/subscription';
 import { SuppliersSection } from '@/components/admin/SuppliersSection';
 import { FiscalBooksSection } from '@/components/admin/FiscalBooksSection';
 import { PlanUpgradeNotice } from '@/components/admin/PlanUpgradeNotice';
+import { QuoteManager } from '@/components/admin/QuoteManager';
 import { PurchasesRegisterSection } from './PurchasesRegisterSection';
 import { SupplierRatingsSection } from './SupplierRatingsSection';
 
 const TABS = [
   { id: 'register', label: 'Registro de compras' },
+  // Cotizaciones vive acá (antes tenía su propia entrada en el menú lateral): pedir
+  // presupuesto es el paso previo a la compra, no un módulo aparte.
+  { id: 'quotes', label: 'Cotizaciones' },
   { id: 'suppliers', label: 'Proveedores' },
   { id: 'book', label: 'Libro de compras' },
   { id: 'ratings', label: 'Calificación de proveedores' },
@@ -17,8 +21,8 @@ type TabId = (typeof TABS)[number]['id'];
 
 /**
  * Módulo de Compras (debajo de Gastos en el menú): registro de compras a proveedores — el
- * único lugar donde una compra reabastece el inventario —, directorio y relación de cuenta
- * de proveedores, libro de compras y calificación de proveedores.
+ * único lugar donde una compra reabastece el inventario —, cotizaciones, directorio y
+ * relación de cuenta de proveedores, libro de compras y calificación de proveedores.
  */
 export function PurchasesHub({ initialTab = 'register' }: { initialTab?: TabId }) {
   const { restaurant } = useAuth();
@@ -47,6 +51,7 @@ export function PurchasesHub({ initialTab = 'register' }: { initialTab?: TabId }
       </div>
 
       {tab === 'register' && <PurchasesRegisterSection />}
+      {tab === 'quotes' && <QuoteManager />}
       {tab === 'suppliers' && <SuppliersSection />}
       {tab === 'book' && (canBook ? <FiscalBooksSection only="compras" /> : <PlanUpgradeNotice feature="El Libro de compras" />)}
       {tab === 'ratings' && <SupplierRatingsSection />}
