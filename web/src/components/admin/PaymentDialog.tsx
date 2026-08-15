@@ -390,7 +390,10 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
           method={method}
           methodLabel={PAYMENT_LABELS[method]}
           qrImageUrl={qrImageUrl}
-          amountBase={amountToCharge}
+          // En fraccionado, mientras el cajero no escriba el abono, al cliente se le muestra
+          // el saldo pendiente en vez de un 0,00 que no le dice nada.
+          amountBase={amountToCharge > 0 ? amountToCharge : discountedBalance}
+          amountLabel={amountToCharge > 0 ? 'Monto a cobrar' : 'Saldo pendiente'}
           symbol={symbol}
           rateBs={restaurant?.exchangeRate?.rateBs}
           detailTitle={`Detalle del pedido (${order.items.length} ${order.items.length === 1 ? 'ítem' : 'ítems'})`}
@@ -762,17 +765,19 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                   ))}
                 </div>
                 <MethodAccountPicker accounts={methodAccounts} value={selectedAccount?.key ?? 'main'} onChange={setAccountKey} />
-                {(qrImageUrl || paymentDetailsBlock) && (
-                  <TextureButton
-                    variant="minimal"
-                    size="default"
-                    className="mt-2 w-full justify-center"
-                    onClick={() => setClientScreenOpen(true)}
-                  >
-                    <QrCode className="h-4 w-4" />
-                    Mostrar datos
-                  </TextureButton>
-                )}
+                {/* Siempre disponible, tenga o no datos cargados ese método: aunque el
+                    restaurante no haya configurado su cuenta, la pantalla del cliente sirve
+                    para enseñarle cuánto tiene que pagar (en Bs y en divisa) — antes el
+                    botón desaparecía y el cajero se quedaba sin cómo mostrárselo. */}
+                <TextureButton
+                  variant="minimal"
+                  size="default"
+                  className="mt-2 w-full justify-center"
+                  onClick={() => setClientScreenOpen(true)}
+                >
+                  <QrCode className="h-4 w-4" />
+                  Mostrar datos
+                </TextureButton>
               </div>
 
               {error && <p className="text-sm text-red-600">{error}</p>}

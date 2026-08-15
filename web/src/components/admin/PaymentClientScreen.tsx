@@ -10,6 +10,9 @@ interface Props {
   methodLabel: string;
   qrImageUrl?: string | null;
   amountBase: number;
+  /** Título junto al monto grande. Por defecto "Monto a cobrar"; en un abono todavía sin
+   *  monto escrito se usa "Saldo pendiente", que es lo que el cliente necesita ver. */
+  amountLabel?: string;
   symbol: string;
   rateBs?: string | number | null;
   /** Encabezado del recuadro de detalle, ej. "Detalle del pedido (3 ítems)". */
@@ -36,6 +39,7 @@ export function PaymentClientScreen({
   methodLabel,
   qrImageUrl,
   amountBase,
+  amountLabel = 'Monto a cobrar',
   symbol,
   rateBs,
   detailTitle,
@@ -129,11 +133,11 @@ export function PaymentClientScreen({
             </div>
           )}
 
-          {details}
+          {details ?? (!qrImageUrl && <MissingDetailsNotice methodLabel={methodLabel} />)}
 
           <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <p className="text-[22px] font-bold leading-tight tracking-tight text-brand-950 sm:text-[26px]">
-              Monto a<br className="hidden sm:block" /> cobrar
+              {amountLabel}
             </p>
             <div className="text-right">
               <div className="text-[44px] font-extrabold leading-none tracking-tight text-emerald-600 sm:text-[64px]">
@@ -160,5 +164,21 @@ export function PaymentClientScreen({
       </div>
     </div>,
     document.body,
+  );
+}
+
+/**
+ * El método elegido no tiene cuenta ni QR cargados en Ajustes → Métodos de pago. La pantalla
+ * se muestra igual (el monto a cobrar es lo que el cliente necesita ver), con un aviso para
+ * que el negocio sepa por qué no salen los datos y dónde cargarlos.
+ */
+function MissingDetailsNotice({ methodLabel }: { methodLabel: string }) {
+  return (
+    <div className="rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4">
+      <p className="text-[15px] font-bold text-amber-900">Sin datos de {methodLabel}</p>
+      <p className="mt-0.5 text-[13px] font-light text-amber-900/80">
+        Carga el teléfono, la cédula/RIF, el banco o el QR en Ajustes → Métodos de pago y aparecerán acá cada vez que cobres.
+      </p>
+    </div>
   );
 }
