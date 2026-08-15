@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+type OrderChannelValue = 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR';
+
 /** Un ítem del carrito tal como lo envía el cliente/mesero. */
 export const cartItemSchema = z.object({
   productId: z.string().min(1),
@@ -259,16 +261,36 @@ export const orderHistoryQuerySchema = z.object({
   range: z.enum(['day', 'week', 'month', 'year', 'all']).optional().default('day'),
   // Fecha exacta ("YYYY-MM-DD"): si viene, ignora `range` y filtra ese día completo.
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  // Tramo libre desde–hasta (inclusivos, "YYYY-MM-DD"): si viene alguno, manda sobre `range` y `date`.
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   channel: z.enum(['DINE_IN', 'DELIVERY', 'PICKUP', 'BAR']).optional(),
+  // Varios canales a la vez, separados por coma ("DELIVERY,PICKUP"): lo usa la pantalla
+  // de Delivery, que solo muestra su propio historial. `channel` (uno solo) tiene prioridad.
+  channels: z
+    .string()
+    .optional()
+    .transform((v) =>
+      v
+        ? (v.split(',').filter((c) => ['DINE_IN', 'DELIVERY', 'PICKUP', 'BAR'].includes(c)) as OrderChannelValue[])
+        : undefined,
+    ),
   paymentMethod: z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER']).optional(),
-  // Solo aplica a channel=DINE_IN: 'staff' = cargado por un mesero, 'customer' = el cliente desde su teléfono.
-  placedBy: z.enum(['staff', 'customer']).optional(),
+  // Quién cargó el pedido: 'staff' = un mesero/cajero, 'customer' = el cliente desde su
+  // teléfono (QR de la mesa / delivery), 'kiosk' = autoservicio en la tablet Comanda.
+  placedBy: z.enum(['staff', 'customer', 'kiosk']).optional(),
   // Filtra por el mesero/staff específico que cargó el pedido (Historial > "Mesero").
   placedByUserId: z.string().optional(),
   // Filtra pedidos que incluyan este producto (drill-down desde Productos).
   productId: z.string().optional(),
   page: z.coerce.number().int().min(1).optional().default(1),
   pageSize: z.coerce.number().int().min(1).max(100).optional().default(20),
+});
+
+/** Tramo desde–hasta opcional de Administración → Estadísticas. */
+export const statsPeriodQuerySchema = z.object({
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 export type ReportRange = z.infer<typeof orderHistoryQuerySchema>['range'];

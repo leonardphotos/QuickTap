@@ -5,6 +5,9 @@ export const marginReportQuerySchema = z.object({
   range: z.enum(['day', 'week', 'month', 'year', 'all']).optional().default('month'),
   // Fecha exacta ("YYYY-MM-DD"): si viene, ignora `range` y filtra ese día completo.
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  // Tramo libre desde–hasta (inclusivos): manda sobre `range` y `date`.
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
 });
 
 export const bulkDeleteProductsSchema = z.object({

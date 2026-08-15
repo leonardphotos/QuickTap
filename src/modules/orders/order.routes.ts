@@ -27,6 +27,8 @@ router.get('/history', adminOnly, requireFeature('administration'), orderControl
 // Sin requireFeature: es la copia de seguridad de sus propios datos, la tienen todos los
 // planes y los dos verticales (restaurante y local).
 router.get('/export/sales-history', requireRole('OWNER', 'ADMIN'), orderController.exportSalesHistory);
+// Exporta el Historial de pedidos tal como se está viendo (mismos filtros y rango de fechas).
+router.get('/export/history', adminOnly, requireFeature('administration'), orderController.exportHistory);
 router.get('/waiters', adminOnly, requireFeature('administration'), orderController.waiters);
 router.get('/reports/products', adminOnly, requireFeature('administration'), orderController.productReport);
 router.get('/reports/couriers', adminOnly, requireFeature('administration'), orderController.courierReport);

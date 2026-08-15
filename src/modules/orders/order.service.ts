@@ -19,7 +19,7 @@ import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { resolveDateFilter } from '../../utils/date-range';
 import { bankLedgerService } from '../bank-accounts/bank-ledger.service';
 import { promotionDiscountOf, recordPromotionRedemption, resolvePromotionForRedeem } from '../promotions/promotion.service';
-import { hourCaracas, startOfTodayCaracas, startOfWeekCaracas } from '../../utils/timezone';
+import { hourCaracas, startOfDayCaracas, startOfTodayCaracas, startOfWeekCaracas } from '../../utils/timezone';
 import { assertRestaurantOpen } from '../../utils/business-hours';
 import { effectiveProductPrice } from '../../utils/promo-price';
 import { whatsappBotService } from '../whatsapp-bot/whatsapp-bot.service';
@@ -718,6 +718,19 @@ async function emitOrderAccepted(restaurantId: string, order: { id: string; chan
 
 function salesStatsPeriodStart(range: 'week' | 'month', now: Date): Date {
   return range === 'week' ? startOfWeekCaracas() : new Date(now.getFullYear(), now.getMonth(), 1);
+}
+
+/**
+ * Tramo desde–hasta de Estadísticas (fechas "YYYY-MM-DD", hora de Caracas, ambas inclusivas).
+ * Si solo viene una de las dos, la otra se completa con hoy. Devuelve null si no vino ninguna.
+ */
+function resolveCustomPeriod(from?: string, to?: string): { start: Date; end: Date } | null {
+  if (!from && !to) return null;
+  const DAY_MS = 24 * 60 * 60 * 1000;
+  const start = from ? startOfDayCaracas(from) : startOfTodayCaracas();
+  const end = to ? new Date(startOfDayCaracas(to).getTime() + DAY_MS) : new Date(startOfTodayCaracas().getTime() + DAY_MS);
+  // Fechas invertidas: se ordenan solas en vez de devolver un rango vacío.
+  return start <= end ? { start, end } : { start: end, end: start };
 }
 
 export const orderService = {
@@ -2425,19 +2438,28 @@ export const orderService = {
     return updated;
   },
 
-  /** Historial de pedidos con filtros (Administración, solo Premium). Incluye el desglose completo de cada venta. */
-  async getOrderHistory(restaurantId: string, query: OrderHistoryQuery) {
+  /** Filtro Prisma común del historial de pedidos (listado, totales y exportación a Excel). */
+  historyWhere(restaurantId: string, query: OrderHistoryQuery): Prisma.OrderWhereInput {
     const where: Prisma.OrderWhereInput = {
       restaurantId,
       status: { not: 'CANCELLED' },
-      createdAt: resolveDateFilter({ range: query.range, date: query.date }),
+      createdAt: resolveDateFilter({ range: query.range, date: query.date, from: query.from, to: query.to }),
     };
     if (query.channel) where.channel = query.channel;
+    else if (query.channels?.length) where.channel = { in: query.channels };
     if (query.paymentMethod) where.paymentMethod = query.paymentMethod;
-    if (query.placedBy === 'staff') where.placedByUserId = { not: null };
+    // Autoservicio (tablet Comanda) también tiene placedByUserId, así que "staff" excluye ese rol.
+    if (query.placedBy === 'staff') where.placedByUser = { role: { not: 'COMANDA' } };
     if (query.placedBy === 'customer') where.placedByUserId = null;
+    if (query.placedBy === 'kiosk') where.placedByUser = { role: 'COMANDA' };
     if (query.placedByUserId) where.placedByUserId = query.placedByUserId;
     if (query.productId) where.items = { some: { productId: query.productId } };
+    return where;
+  },
+
+  /** Historial de pedidos con filtros (Administración, solo Premium). Incluye el desglose completo de cada venta. */
+  async getOrderHistory(restaurantId: string, query: OrderHistoryQuery) {
+    const where = this.historyWhere(restaurantId, query);
 
     const [total, orders, totalsAgg] = await Promise.all([
       prisma.order.count({ where }),
@@ -2463,7 +2485,7 @@ export const orderService = {
           customerName: true,
           createdAt: true,
           table: { select: { number: true } },
-          placedByUser: { select: { name: true } },
+          placedByUser: { select: { name: true, role: true } },
           items: { select: { productId: true, productName: true, quantity: true, unitPrice: true, lineTotal: true } },
           payments: {
             select: { method: true, referenceNumber: true, amountBase: true, discountBase: true, createdAt: true },
@@ -2474,13 +2496,16 @@ export const orderService = {
       prisma.order.aggregate({ where, _sum: { totalBase: true, totalBs: true, tipBase: true } }),
     ]);
 
+    const historyTotalBase = round2(toDecimal(totalsAgg._sum.totalBase ?? 0));
+
     return {
       total,
       page: query.page,
       pageSize: query.pageSize,
-      totalBase: round2(toDecimal(totalsAgg._sum.totalBase ?? 0)).toFixed(2),
+      totalBase: historyTotalBase.toFixed(2),
       totalBs: round2(toDecimal(totalsAgg._sum.totalBs ?? 0)).toFixed(2),
       totalTipBase: round2(toDecimal(totalsAgg._sum.tipBase ?? 0)).toFixed(2),
+      avgTicketBase: total > 0 ? round2(historyTotalBase.div(total)).toFixed(2) : '0.00',
       orders: orders.map((o) => ({
         id: o.id,
         orderNumber: o.orderNumber,
@@ -2497,6 +2522,9 @@ export const orderService = {
         currency: o.currency,
         customerName: o.customerName,
         placedByName: o.placedByUser?.name ?? null,
+        placedByRole: o.placedByUser?.role ?? null,
+        // Origen legible del pedido: autoservicio (tablet Comanda), mesero/cajero o el propio cliente.
+        source: o.placedByUser ? (o.placedByUser.role === 'COMANDA' ? 'KIOSK' : 'STAFF') : 'CUSTOMER',
         table: o.table?.number ?? null,
         createdAt: o.createdAt,
         items: o.items.map((i) => ({
@@ -2622,20 +2650,28 @@ export const orderService = {
    * período (semana o mes en curso) vs. el mismo período inmediatamente anterior
    * (para el % de variación), más el desglose de ventas por usuario que cargó el pedido.
    */
-  async getSalesStats(restaurantId: string, range: 'week' | 'month') {
+  async getSalesStats(restaurantId: string, range: 'week' | 'month', from?: string, to?: string) {
     const now = new Date();
-    const currentStart = salesStatsPeriodStart(range, now);
-    const previousStart =
-      range === 'week'
+    // Con un tramo desde–hasta explícito, el período anterior es el mismo número de días
+    // inmediatamente antes; sin él, el preset de semana/mes en curso vs. el anterior.
+    const custom = resolveCustomPeriod(from, to);
+    const currentStart = custom?.start ?? salesStatsPeriodStart(range, now);
+    const currentEnd = custom?.end ?? null;
+    const previousStart = custom
+      ? new Date(custom.start.getTime() - (custom.end.getTime() - custom.start.getTime()))
+      : range === 'week'
         ? new Date(currentStart.getTime() - 7 * 24 * 60 * 60 * 1000)
         : new Date(currentStart.getFullYear(), currentStart.getMonth() - 1, 1);
 
+    const currentFilter = { gte: currentStart, ...(currentEnd ? { lt: currentEnd } : {}) };
+
     const [currentOrders, previousOrders] = await Promise.all([
       prisma.order.findMany({
-        where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: { gte: currentStart } },
+        where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: currentFilter },
         select: {
           totalBase: true,
           totalBs: true,
+          tipBase: true,
           placedByUserId: true,
           placedByUser: { select: { name: true } },
         },
@@ -2667,13 +2703,26 @@ export const orderService = {
       }
     }
 
+    const avgTicketBase = currentOrders.length > 0 ? round2(totalBase.div(currentOrders.length)) : toDecimal(0);
+    const avgTicketBs = currentOrders.length > 0 ? round2(totalBs.div(currentOrders.length)) : toDecimal(0);
+    const previousAvgTicketBase =
+      previousOrders.length > 0 ? round2(previousTotalBase.div(previousOrders.length)) : toDecimal(0);
+    const totalTipBase = round2(currentOrders.reduce((acc, o) => acc.add(o.tipBase), toDecimal(0)));
+
     return {
       range,
       periodStart: currentStart.toISOString(),
+      periodEnd: currentEnd?.toISOString() ?? null,
+      custom: !!custom,
       ordersCount: currentOrders.length,
       totalBase: totalBase.toFixed(2),
       totalBs: totalBs.toFixed(2),
+      avgTicketBase: avgTicketBase.toFixed(2),
+      avgTicketBs: avgTicketBs.toFixed(2),
+      previousAvgTicketBase: previousAvgTicketBase.toFixed(2),
+      totalTipBase: totalTipBase.toFixed(2),
       previousTotalBase: previousTotalBase.toFixed(2),
+      previousOrdersCount: previousOrders.length,
       changePercent,
       byUser: Array.from(byUser.entries())
         .map(([userId, v]) => ({ userId, name: v.name, count: v.count, totalBase: round2(v.totalBase).toFixed(2) }))
@@ -2687,14 +2736,15 @@ export const orderService = {
    * userId acepta un id de usuario real, "CUSTOMER" (bucket de autoservicio) o "ALL"
    * (todas las ventas del período, sin filtrar por quién la cargó).
    */
-  async getSalesStatsUserOrders(restaurantId: string, range: 'week' | 'month', userId: string) {
-    const currentStart = salesStatsPeriodStart(range, new Date());
+  async getSalesStatsUserOrders(restaurantId: string, range: 'week' | 'month', userId: string, from?: string, to?: string) {
+    const custom = resolveCustomPeriod(from, to);
+    const currentStart = custom?.start ?? salesStatsPeriodStart(range, new Date());
 
     const orders = await prisma.order.findMany({
       where: {
         restaurantId,
         status: { not: 'CANCELLED' },
-        createdAt: { gte: currentStart },
+        createdAt: { gte: currentStart, ...(custom ? { lt: custom.end } : {}) },
         ...(userId === 'ALL' ? {} : { placedByUserId: userId === 'CUSTOMER' ? null : userId }),
       },
       orderBy: { createdAt: 'desc' },

@@ -17,6 +17,15 @@ import { BankAccountsSection } from '@/components/admin/BankAccountsSection';
 import { MovementsLedgerSection } from '@/components/admin/MovementsLedgerSection';
 import { CrmHub } from '@/components/admin/crm/CrmHub';
 import { PurchasesHub } from '@/components/admin/purchases/PurchasesHub';
+import {
+  OrderHistorySection,
+  OrderDetailRow,
+  CHANNEL_ROW_LABELS,
+  RANGE_LABELS,
+  type Range,
+  type Channel,
+  type HistoryResult,
+} from '@/components/admin/OrderHistorySection';
 import { QuoteManager } from '@/components/admin/QuoteManager';
 import ExpensesPage from '@/pages/admin/ExpensesPage';
 import { CashSessionPanel } from '@/components/admin/CashSessionControl';
@@ -38,7 +47,6 @@ const ALL_TABS = [
   { id: 'history', label: 'Historial de pedidos', feature: 'accounting' },
   { id: 'products', label: 'Productos', feature: null },
   { id: 'margin', label: 'Margen de utilidad', feature: 'accounting' },
-  { id: 'delivery', label: 'Delivery', feature: null },
   // Cotizaciones, Gastos y Compras también viven en el menú lateral; acá se repiten para
   // tener toda la administración en un solo lugar.
   { id: 'quotes', label: 'Cotizaciones', feature: null },
@@ -110,7 +118,6 @@ export default function AdministrationPage() {
           {!tabLocked && tab === 'history' && <HistoryTab />}
           {!tabLocked && tab === 'products' && <ProductsTab />}
           {!tabLocked && tab === 'margin' && <MarginTab />}
-          {!tabLocked && tab === 'delivery' && <DeliveryTab />}
           {!tabLocked && tab === 'quotes' && <QuoteManager />}
           {!tabLocked && tab === 'expenses' && <ExpensesPage embedded />}
           {!tabLocked && tab === 'purchases' && <PurchasesHub />}
@@ -439,10 +446,16 @@ interface SalesStatsUserRow {
 
 interface SalesStats {
   range: 'week' | 'month';
+  custom: boolean;
   ordersCount: number;
   totalBase: string;
   totalBs: string;
+  avgTicketBase: string;
+  avgTicketBs: string;
+  previousAvgTicketBase: string;
+  totalTipBase: string;
   previousTotalBase: string;
+  previousOrdersCount: number;
   changePercent: string | null;
   byUser: SalesStatsUserRow[];
 }
@@ -481,6 +494,21 @@ interface UserSale {
 const STATS_RANGE_LABELS = { week: 'Esta semana', month: 'Este mes' } as const;
 const STATS_PREVIOUS_LABELS = { week: 'la semana pasada', month: 'el mes pasado' } as const;
 
+/** Etiqueta del tramo desde–hasta elegido a mano en Estadísticas. */
+function describePeriod(from: string, to: string): string {
+  const fmt = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('es-VE');
+  if (from && to) return `${fmt(from)} – ${fmt(to)}`;
+  if (from) return `desde ${fmt(from)}`;
+  return `hasta ${fmt(to)}`;
+}
+
+/** Variación del ticket promedio contra el período anterior, ya formateada con signo. */
+function ticketChange(stats: SalesStats): string {
+  const prev = Number(stats.previousAvgTicketBase);
+  const diff = ((Number(stats.avgTicketBase) - prev) / prev) * 100;
+  return `${diff >= 0 ? '+' : ''}${diff.toFixed(1)}%`;
+}
+
 /** Ventas por usuario/período: 3 vistas en línea, nunca superpuestas — `stats` (tarjetas + lista
  * por usuario), `allSales` (todas las ventas del período) y `saleDetail` (comanda + pagos de una
  * venta). Antes `allSales` y `saleDetail` eran diálogos flotantes que podían estar abiertos los
@@ -490,6 +518,8 @@ function StatsTab() {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [range, setRange] = useState<'week' | 'month'>('week');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const [stats, setStats] = useState<SalesStats | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedUserId, setExpandedUserId] = useState<string | null>(null);
@@ -501,12 +531,20 @@ function StatsTab() {
   const [allSales, setAllSales] = useState<UserSale[] | null>(null);
   const [loadingAllSales, setLoadingAllSales] = useState(false);
 
+  // Un tramo desde–hasta manda sobre el preset semana/mes; el backend lo aplica igual
+  // al drill-down por usuario para que las dos vistas hablen del mismo período.
+  const statsParams = { range, from: from || undefined, to: to || undefined };
+  const periodLabel = from || to ? describePeriod(from, to) : STATS_RANGE_LABELS[range];
+  // Con un tramo a mano el backend compara contra la misma cantidad de días justo antes.
+  const previousLabel = from || to ? 'el período anterior' : STATS_PREVIOUS_LABELS[range];
+
   useEffect(() => {
     api
-      .get('/orders/reports/sales-stats', { params: { range } })
+      .get('/orders/reports/sales-stats', { params: statsParams })
       .then((res) => setStats(res.data.data))
       .catch((err) => setError(err.response?.data?.error ?? 'No se pudieron cargar las estadísticas.'));
-  }, [range]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [range, from, to]);
 
   function toggleUser(userId: string) {
     if (expandedUserId === userId) {
@@ -518,7 +556,7 @@ function StatsTab() {
     setUserSales(null);
     setLoadingSales(true);
     api
-      .get(`/orders/reports/sales-stats/user/${userId}`, { params: { range } })
+      .get(`/orders/reports/sales-stats/user/${userId}`, { params: statsParams })
       .then((res) => setUserSales(res.data.data))
       .finally(() => setLoadingSales(false));
   }
@@ -528,14 +566,14 @@ function StatsTab() {
     setAllSales(null);
     setLoadingAllSales(true);
     api
-      .get('/orders/reports/sales-stats/user/ALL', { params: { range } })
+      .get('/orders/reports/sales-stats/user/ALL', { params: statsParams })
       .then((res) => setAllSales(res.data.data))
       .finally(() => setLoadingAllSales(false));
   }
 
-  function openSaleDetail(sale: UserSale, from: 'stats' | 'allSales') {
+  function openSaleDetail(sale: UserSale, cameFrom: 'stats' | 'allSales') {
     setSelectedSale(sale);
-    setSaleDetailFrom(from);
+    setSaleDetailFrom(cameFrom);
     setView('saleDetail');
   }
 
@@ -557,7 +595,7 @@ function StatsTab() {
   if (view === 'allSales') {
     return (
       <SalesListPanel
-        title={`Ventas · ${stats ? STATS_RANGE_LABELS[stats.range] : ''}`}
+        title={`Ventas · ${periodLabel}`}
         sales={allSales}
         loading={loadingAllSales}
         symbol={symbol}
@@ -571,48 +609,95 @@ function StatsTab() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {(['week', 'month'] as const).map((r) => (
           <button
             key={r}
-            onClick={() => setRange(r)}
+            onClick={() => {
+              setRange(r);
+              setFrom('');
+              setTo('');
+            }}
             className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-              range === r ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+              !from && !to && range === r ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
             }`}
           >
             {STATS_RANGE_LABELS[r]}
           </button>
         ))}
+        <label className="flex items-center gap-1 text-xs text-brand-950/50">
+          Desde
+          <input
+            type="date"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+            className={`rounded-full border-none px-2.5 py-1 text-xs font-medium ${
+              from || to ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+            }`}
+          />
+        </label>
+        <label className="flex items-center gap-1 text-xs text-brand-950/50">
+          Hasta
+          <input
+            type="date"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            className={`rounded-full border-none px-2.5 py-1 text-xs font-medium ${
+              from || to ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+            }`}
+          />
+        </label>
+        {(from || to) && (
+          <button
+            onClick={() => {
+              setFrom('');
+              setTo('');
+            }}
+            className="text-xs font-medium text-brand-950/50 underline"
+          >
+            Limpiar fechas
+          </button>
+        )}
       </div>
 
       {stats && (
-        <div className="grid sm:grid-cols-3 gap-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard
             icon={Wallet}
-            title={`Ventas · ${STATS_RANGE_LABELS[stats.range]}`}
+            title={`Ventas · ${periodLabel}`}
             value={formatBsAbsolute(stats.totalBs)}
             caption={formatBase(stats.totalBase, symbol)}
             onClick={openAllSales}
           />
+          <MetricCard icon={Receipt} title={`Pedidos · ${periodLabel}`} value={String(stats.ordersCount)} onClick={openAllSales} />
           <MetricCard
             icon={Receipt}
-            title={`Pedidos · ${STATS_RANGE_LABELS[stats.range]}`}
-            value={String(stats.ordersCount)}
-            onClick={openAllSales}
+            title="Ticket promedio"
+            value={formatBase(stats.avgTicketBase, symbol)}
+            caption={formatBsAbsolute(stats.avgTicketBs)}
+            trend={
+              Number(stats.previousAvgTicketBase) > 0
+                ? `${ticketChange(stats)} vs. ${previousLabel} (${formatBase(stats.previousAvgTicketBase, symbol)})`
+                : undefined
+            }
           />
           {stats.changePercent == null ? (
-            <MetricCard icon={TrendingUp} title="Cambio" caption={`Sin datos de ${STATS_PREVIOUS_LABELS[stats.range]}.`} value="—" />
+            <MetricCard icon={TrendingUp} title="Cambio" caption={`Sin datos de ${previousLabel}.`} value="—" />
           ) : (
             <MetricCard
               icon={TrendingUp}
               title="Cambio"
               value={`${changeUp ? '+' : ''}${stats.changePercent}%`}
               valueTone={changeUp ? 'success' : 'danger'}
-              trend={`vs. ${STATS_PREVIOUS_LABELS[stats.range]} (${formatBase(stats.previousTotalBase, symbol)})`}
+              trend={`vs. ${previousLabel} (${formatBase(stats.previousTotalBase, symbol)})`}
             />
           )}
         </div>
       )}
+
+      {/* Margen de utilidad del mismo período, con "Ver más" para el detalle por producto. */}
+      <MarginSummaryCard range={range} from={from} to={to} periodLabel={periodLabel} />
+
 
       <div>
         <p className="text-sm font-medium text-brand-950/70 mb-3">Ventas por usuario · {stats ? STATS_RANGE_LABELS[stats.range] : ''}</p>
@@ -666,6 +751,106 @@ function StatsTab() {
           })}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Margen de utilidad dentro de Estadísticas: el total del período (ingreso, costo de lo
+ * vendido y utilidad) más los productos que más margen dejan. Arranca mostrando los 5
+ * primeros y "Ver más" despliega el resto sin salir de la pestaña.
+ */
+function MarginSummaryCard({
+  range,
+  from,
+  to,
+  periodLabel,
+}: {
+  range: 'week' | 'month';
+  from: string;
+  to: string;
+  periodLabel: string;
+}) {
+  const { restaurant } = useAuth();
+  const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
+  const [summary, setSummary] = useState<MarginSummary | null>(null);
+  const [rows, setRows] = useState<MarginRow[] | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api
+      .get('/products/margin', { params: { range, from: from || undefined, to: to || undefined } })
+      .then((res) => {
+        setSummary(res.data.data.summary);
+        setRows(res.data.data.rows);
+        setExpanded(false);
+      })
+      .catch((err) => setError(err.response?.data?.error ?? null));
+  }, [range, from, to]);
+
+  // Sin plan de contabilidad el endpoint responde 403: la pestaña Margen ya muestra el
+  // aviso de mejora, así que aquí simplemente no se dibuja el bloque.
+  if (error || !summary) return null;
+
+  const visible = expanded ? (rows ?? []) : (rows ?? []).slice(0, 5);
+  const negative = Number(summary.marginBase) < 0;
+
+  return (
+    <div className="rounded-2xl border border-brand-950/10 bg-white p-5 shadow-sm">
+      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+        <p className="text-sm font-medium text-brand-950/70">Margen de utilidad · {periodLabel}</p>
+        <p className="text-xs font-light text-brand-950/45">Ingreso − costo de lo vendido</p>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div>
+          <p className="text-xs font-light text-brand-950/45">Ingresos</p>
+          <p className="text-lg font-semibold text-brand-950">{formatBase(summary.revenueBase, symbol)}</p>
+        </div>
+        <div>
+          <p className="text-xs font-light text-brand-950/45">Costo de lo vendido</p>
+          <p className="text-lg font-semibold text-brand-950">{formatBase(summary.costBase, symbol)}</p>
+        </div>
+        <div>
+          <p className="text-xs font-light text-brand-950/45">Utilidad</p>
+          <p className={`text-lg font-semibold ${negative ? 'text-red-600' : 'text-emerald-600'}`}>
+            {formatBase(summary.marginBase, symbol)}{' '}
+            <span className="text-xs font-normal text-brand-950/45">{summary.marginPercent}%</span>
+          </p>
+        </div>
+      </div>
+
+      {visible.length > 0 && (
+        <div className="mt-4 divide-y divide-brand-950/[0.06] border-t border-brand-950/[0.06]">
+          {visible.map((r) => (
+            <div key={`${r.id ?? 'x'}-${r.name}`} className="flex items-center justify-between gap-3 py-2.5">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-brand-950">{r.name}</p>
+                <p className="text-xs text-brand-950/40">
+                  {r.quantity} vendidos · Ingreso {formatBase(r.revenueBase, symbol)}
+                </p>
+              </div>
+              <div className="shrink-0 text-right">
+                <p className={`text-sm font-semibold ${Number(r.marginBase) < 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                  {formatBase(r.marginBase, symbol)}
+                </p>
+                <p className="text-xs font-light text-brand-950/50">{r.marginPercent}% margen</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {(rows?.length ?? 0) > 5 && (
+        <button
+          onClick={() => setExpanded((e) => !e)}
+          className="mt-3 text-xs font-semibold text-brand-500 hover:underline"
+        >
+          {expanded ? 'Ver menos' : `Ver más (${(rows?.length ?? 0) - 5} productos)`}
+        </button>
+      )}
+      {rows?.length === 0 && <p className="mt-3 text-sm font-light text-brand-950/40">Sin ventas en este período.</p>}
     </div>
   );
 }
@@ -780,170 +965,6 @@ function SaleDetailPanel({ sale, symbol, onClose }: { sale: UserSale; symbol: st
 //  Historial de pedidos + propinas
 // -----------------------------------------------------------------------------
 
-type Range = 'day' | 'week' | 'month' | 'year' | 'all';
-type Channel = 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR';
-type PaymentMethod = 'MOBILE_PAYMENT' | 'ZELLE' | 'CASH' | 'CARD';
-
-const RANGE_LABELS: Record<Range, string> = { day: 'Hoy', week: 'Semana', month: 'Este mes', year: 'Este año', all: 'Todo' };
-const CHANNEL_ROW_LABELS: Record<Channel, string> = { DINE_IN: 'Mesa', DELIVERY: 'Delivery', PICKUP: 'Pickup', BAR: 'Barra' };
-const PAYMENT_LABELS: Record<PaymentMethod, string> = {
-  MOBILE_PAYMENT: 'Pago Móvil',
-  ZELLE: 'Zelle',
-  CASH: 'Efectivo',
-  CARD: 'Tarjeta',
-};
-
-interface HistoryOrderItem {
-  productId: string | null;
-  productName: string;
-  quantity: number;
-  unitPrice: string;
-  lineTotal: string;
-}
-
-interface HistoryOrderPayment {
-  method: string;
-  referenceNumber: string | null;
-  amountBase: string;
-  discountBase: string | null;
-  createdAt: string;
-}
-
-interface HistoryOrder {
-  id: string;
-  orderNumber: number;
-  channel: Channel;
-  status: string;
-  paymentMethod: PaymentMethod | null;
-  subtotalBase: string;
-  serviceChargeBase: string;
-  ivaBase: string;
-  deliveryFeeBase: string;
-  totalBase: string;
-  totalBs: string;
-  tipBase: string;
-  currency: string;
-  customerName: string | null;
-  placedByName: string | null;
-  table: string | null;
-  createdAt: string;
-  items: HistoryOrderItem[];
-  payments: HistoryOrderPayment[];
-}
-
-interface HistoryResult {
-  total: number;
-  page: number;
-  pageSize: number;
-  totalBase: string;
-  totalBs: string;
-  totalTipBase: string;
-  orders: HistoryOrder[];
-}
-
-/** Fila expandible de una venta: resumen + detalle completo (productos, IVA, servicio, envío). */
-function OrderDetailRow({
-  order,
-  symbol,
-  highlightProductId,
-}: {
-  order: HistoryOrder;
-  symbol: string;
-  highlightProductId?: string | null;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const highlightItem = highlightProductId ? order.items.find((i) => i.productId === highlightProductId) : null;
-
-  return (
-    <div className="px-5 py-3">
-      <button onClick={() => setExpanded((e) => !e)} className="w-full flex items-center justify-between gap-3 text-left">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-brand-950">
-            #{order.orderNumber}
-            {order.customerName && <span className="font-normal text-brand-950/60"> · {order.customerName}</span>}
-          </p>
-          <p className="text-xs text-brand-950/40">
-            {CHANNEL_ROW_LABELS[order.channel]}
-            {order.table && ` ${order.table}`} · {new Date(order.createdAt).toLocaleString('es-VE')}
-            {highlightItem && ` · ${highlightItem.quantity}x`}
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-sm font-semibold text-brand-950">{formatBase(order.totalBase, symbol)}</span>
-          <ChevronDown className={`h-4 w-4 text-brand-950/30 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-        </div>
-      </button>
-      {expanded && (
-        <div className="mt-3 space-y-2 border-t border-brand-950/10 pt-3">
-          <ul className="space-y-1">
-            {order.items.map((it, idx) => (
-              <li
-                key={idx}
-                className={`flex justify-between gap-2 text-xs ${
-                  it.productId && it.productId === highlightProductId ? 'text-brand-500 font-medium' : 'text-brand-950/70'
-                }`}
-              >
-                <span className="truncate">
-                  {it.quantity}x {it.productName} · {formatBase(it.unitPrice, symbol)} c/u
-                </span>
-                <span className="shrink-0">{formatBase(it.lineTotal, symbol)}</span>
-              </li>
-            ))}
-          </ul>
-          <div className="text-xs text-brand-950/60 space-y-1 pt-2 border-t border-brand-950/10">
-            <div className="flex justify-between">
-              <span>Subtotal</span>
-              <span>{formatBase(order.subtotalBase, symbol)}</span>
-            </div>
-            {Number(order.serviceChargeBase) > 0 && (
-              <div className="flex justify-between">
-                <span>Servicio</span>
-                <span>{formatBase(order.serviceChargeBase, symbol)}</span>
-              </div>
-            )}
-            {Number(order.ivaBase) > 0 && (
-              <div className="flex justify-between">
-                <span>IVA</span>
-                <span>{formatBase(order.ivaBase, symbol)}</span>
-              </div>
-            )}
-            {Number(order.deliveryFeeBase) > 0 && (
-              <div className="flex justify-between">
-                <span>Envío</span>
-                <span>{formatBase(order.deliveryFeeBase, symbol)}</span>
-              </div>
-            )}
-            <div className="flex justify-between font-semibold text-brand-950">
-              <span>Total</span>
-              <span>{formatBase(order.totalBase, symbol)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Equivalente en Bs</span>
-              <span>{formatBsAbsolute(order.totalBs)}</span>
-            </div>
-          </div>
-          {order.payments.length > 0 ? (
-            <div className="pt-1 space-y-1">
-              {order.payments.map((p, i) => (
-                <p key={i} className="text-xs text-brand-950/50">
-                  {ALL_PAYMENT_LABELS[p.method as AnyPaymentMethod] ?? p.method}
-                  {p.referenceNumber && ` · Ref: ${p.referenceNumber}`}
-                  {order.payments.length > 1 && ` · ${formatBase(p.amountBase, symbol)}`}
-                </p>
-              ))}
-            </div>
-          ) : (
-            <p className="text-xs text-brand-950/40">
-              {order.paymentMethod ? PAYMENT_METHOD_LABELS[order.paymentMethod] ?? order.paymentMethod : 'Sin método de pago registrado'}
-            </p>
-          )}
-          {order.placedByName && <p className="text-xs text-brand-950/40">Mesero: {order.placedByName}</p>}
-        </div>
-      )}
-    </div>
-  );
-}
-
 /** Panel con el listado detallado de pedidos que cumplen un filtro (drill-down desde Productos / Métodos de pago). */
 function OrdersListPanel({
   title,
@@ -999,186 +1020,7 @@ function OrdersListPanel({
 }
 
 function HistoryTab() {
-  const { restaurant } = useAuth();
-  const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
-  const [range, setRange] = useState<Range>('day');
-  const [channel, setChannel] = useState<Channel | ''>('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | ''>('');
-  const [placedBy, setPlacedBy] = useState<'staff' | 'customer' | ''>('');
-  const [waiterId, setWaiterId] = useState('');
-  const [waiters, setWaiters] = useState<{ id: string; name: string }[]>([]);
-  const [page, setPage] = useState(1);
-  const [result, setResult] = useState<HistoryResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [editingTip, setEditingTip] = useState<string | null>(null);
-  const [tipDraft, setTipDraft] = useState('');
-
-  useEffect(() => {
-    api.get('/orders/waiters').then((res) => setWaiters(res.data.data));
-  }, []);
-
-  function load() {
-    api
-      .get('/orders/history', {
-        params: {
-          range,
-          channel: channel || undefined,
-          paymentMethod: paymentMethod || undefined,
-          placedBy: placedBy || undefined,
-          placedByUserId: waiterId || undefined,
-          page,
-        },
-      })
-      .then((res) => setResult(res.data.data))
-      .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar el historial.'));
-  }
-
-  useEffect(load, [range, channel, paymentMethod, placedBy, waiterId, page]);
-  useEffect(() => setPage(1), [range, channel, paymentMethod, placedBy, waiterId]);
-
-  async function saveTip(orderId: string) {
-    try {
-      await api.patch(`/orders/${orderId}/tip`, { tipBase: Number(tipDraft) || 0 });
-      setEditingTip(null);
-      load();
-    } catch (err: any) {
-      setError(err.response?.data?.error ?? 'No se pudo guardar la propina.');
-    }
-  }
-
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
-
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap gap-2">
-        {(Object.keys(RANGE_LABELS) as Range[]).map((r) => (
-          <button
-            key={r}
-            onClick={() => setRange(r)}
-            className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-              range === r ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
-            }`}
-          >
-            {RANGE_LABELS[r]}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        <select value={channel} onChange={(e) => setChannel(e.target.value as Channel | '')} className="text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5">
-          <option value="">Todos los canales</option>
-          <option value="DINE_IN">En mesa</option>
-          <option value="BAR">Barra</option>
-          <option value="DELIVERY">Delivery</option>
-          <option value="PICKUP">Pickup</option>
-        </select>
-        <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod | '')} className="text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5">
-          <option value="">Todos los métodos de pago</option>
-          {(Object.keys(PAYMENT_LABELS) as PaymentMethod[]).map((p) => (
-            <option key={p} value={p}>
-              {PAYMENT_LABELS[p]}
-            </option>
-          ))}
-        </select>
-        {(channel === 'DINE_IN' || channel === '') && (
-          <select value={placedBy} onChange={(e) => setPlacedBy(e.target.value as 'staff' | 'customer' | '')} className="text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5">
-            <option value="">Mesa: cliente o mesero</option>
-            <option value="customer">Solo pedido por el cliente</option>
-            <option value="staff">Solo cargado por un mesero</option>
-          </select>
-        )}
-        {waiters.length > 0 && (
-          <select value={waiterId} onChange={(e) => setWaiterId(e.target.value)} className="text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5">
-            <option value="">Mesero: todos</option>
-            {waiters.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-
-      {result && (
-        <div className="grid sm:grid-cols-4 gap-4">
-          <MetricCard icon={Wallet} title="Ingresos en Bs" value={formatBsAbsolute(result.totalBs)} />
-          <MetricCard icon={DollarSign} title={`Ingresos en ${symbol}`} value={formatBase(result.totalBase, symbol)} />
-          <MetricCard icon={Receipt} title="Propinas" value={formatBase(result.totalTipBase, symbol)} />
-          <MetricCard icon={Receipt} title="Pedidos" value={String(result.total)} />
-        </div>
-      )}
-
-      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm overflow-x-auto">
-        <div className="flex items-center gap-3 px-5 py-2 border-b border-brand-950/[0.06] text-[11px] font-medium uppercase tracking-wide text-brand-950/40 min-w-[560px]">
-          <span className="w-16 shrink-0">Pedido</span>
-          <span className="w-24 shrink-0">Canal</span>
-          <span className="w-28 shrink-0">Mesero / Pago</span>
-          <span className="w-28 shrink-0">Total</span>
-          <span className="w-28 shrink-0">Propina</span>
-          <span className="flex-1 text-right">Fecha</span>
-        </div>
-        <div className="divide-y divide-brand-950/[0.06]">
-        {result?.orders.length === 0 && <p className="p-5 text-sm text-brand-950/40 font-light">Sin pedidos en este filtro.</p>}
-        {result?.orders.map((o) => (
-          <div key={o.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm min-w-[560px]">
-            <div className="w-16 shrink-0 font-medium text-brand-950">#{o.orderNumber}</div>
-            <div className="w-24 shrink-0 text-brand-950/60">{CHANNEL_ROW_LABELS[o.channel]}</div>
-            <div className="w-28 shrink-0 text-brand-950/60">
-              {o.channel === 'DINE_IN' ? (o.placedByName ? `Mesero: ${o.placedByName}` : 'Cliente') : (o.paymentMethod ? PAYMENT_LABELS[o.paymentMethod] : '—')}
-            </div>
-            <div className="w-28 shrink-0 text-brand-950">{formatBsAbsolute(o.totalBs)}</div>
-            <div className="w-28 shrink-0">
-              {editingTip === o.id ? (
-                <div className="flex items-center gap-1">
-                  <input
-                    autoFocus
-                    value={tipDraft}
-                    onChange={(e) => setTipDraft(e.target.value.replace(/[^0-9.]/g, ''))}
-                    className="w-16 border border-brand-950/15 rounded px-1.5 py-0.5 text-xs"
-                  />
-                  <button onClick={() => saveTip(o.id)} className="text-xs text-brand-500 font-medium">
-                    Guardar
-                  </button>
-                </div>
-              ) : (
-                <button
-                  onClick={() => {
-                    setEditingTip(o.id);
-                    setTipDraft(o.tipBase);
-                  }}
-                  className="text-brand-950/60 hover:text-brand-500"
-                >
-                  {formatBase(o.tipBase, symbol)} ✎
-                </button>
-              )}
-            </div>
-            <div className="flex-1 text-right text-xs text-brand-950/40">{new Date(o.createdAt).toLocaleString('es-VE')}</div>
-          </div>
-        ))}
-        </div>
-      </div>
-
-      {result && result.total > result.pageSize && (
-        <div className="flex items-center justify-center gap-3">
-          <TextureButton variant="minimal" size="sm" className="!w-auto" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
-            Anterior
-          </TextureButton>
-          <span className="text-xs text-brand-950/50">
-            Página {result.page} de {Math.ceil(result.total / result.pageSize)}
-          </span>
-          <TextureButton
-            variant="minimal"
-            size="sm"
-            className="!w-auto"
-            disabled={page >= Math.ceil(result.total / result.pageSize)}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Siguiente
-          </TextureButton>
-        </div>
-      )}
-    </div>
-  );
+  return <OrderHistorySection />;
 }
 
 // -----------------------------------------------------------------------------
@@ -1418,88 +1260,6 @@ function foodCostPercent(marginPercent: string): string {
 function foodCostClass(marginPercent: string): string {
   const fc = 100 - Number(marginPercent);
   return fc <= 35 ? 'text-emerald-600 font-medium ' : fc <= 45 ? 'text-amber-600 font-medium ' : 'text-red-600 font-medium ';
-}
-
-// -----------------------------------------------------------------------------
-//  Delivery: movimiento por repartidor
-// -----------------------------------------------------------------------------
-
-interface CourierStatsRow {
-  courierId: string;
-  name: string;
-  whatsappPhone: string;
-  isActive: boolean;
-  deliveries: number;
-  totalBase: string;
-  totalBs: string;
-  totalTipBase: string;
-}
-
-function DeliveryTab() {
-  const { restaurant } = useAuth();
-  const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
-  const [range, setRange] = useState<Range>('month');
-  const [rows, setRows] = useState<CourierStatsRow[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    api
-      .get('/orders/reports/couriers', { params: { range } })
-      .then((res) => setRows(res.data.data))
-      .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar el movimiento de delivery.'));
-  }, [range]);
-
-  if (error) return <p className="text-sm text-red-600">{error}</p>;
-
-  return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap gap-2">
-        {(Object.keys(RANGE_LABELS) as Range[]).map((r) => (
-          <button
-            key={r}
-            onClick={() => setRange(r)}
-            className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-              range === r ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
-            }`}
-          >
-            {RANGE_LABELS[r]}
-          </button>
-        ))}
-      </div>
-
-      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm overflow-hidden">
-        <div className="hidden sm:flex items-center gap-3 px-5 py-2 border-b border-brand-950/[0.06] text-[11px] font-medium uppercase tracking-wide text-brand-950/40">
-          <span className="flex-1">Repartidor</span>
-          <span className="w-40 text-right">Entregas / Total</span>
-        </div>
-        <div className="divide-y divide-brand-950/[0.06]">
-        {rows?.length === 0 && (
-          <p className="p-5 text-sm text-brand-950/40 font-light">
-            Agrega repartidores en Ajustes → Equipo de Delivery para ver su movimiento aquí.
-          </p>
-        )}
-        {rows?.map((r) => (
-          <div key={r.courierId} className="flex items-center justify-between gap-3 px-5 py-4">
-            <div>
-              <p className="font-medium text-brand-950 flex items-center gap-1.5">
-                {r.name}
-                {!r.isActive && <span className="text-xs text-brand-950/40 font-light">(inactivo)</span>}
-              </p>
-              <p className="text-xs text-brand-950/40 font-light">{r.whatsappPhone}</p>
-            </div>
-            <div className="text-right shrink-0">
-              <p className="text-sm font-semibold text-brand-950">{r.deliveries} entregas</p>
-              <p className="text-xs text-brand-950/50 font-light">
-                {formatBase(r.totalBase, symbol)}
-                {Number(r.totalTipBase) > 0 && ` · propinas ${formatBase(r.totalTipBase, symbol)}`}
-              </p>
-            </div>
-          </div>
-        ))}
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // -----------------------------------------------------------------------------

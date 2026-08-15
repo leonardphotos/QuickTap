@@ -8,8 +8,25 @@ import { formatModifierLabel } from '../../utils/format';
 import { TextureCard, TextureCardContent } from '@/components/ui/texture-card';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { OrderHistorySection } from '@/components/admin/OrderHistorySection';
+import { CourierStatsSection } from '@/components/admin/CourierStatsSection';
+import { useAuth } from '@/context/AuthContext';
+import { hasFeature } from '@/utils/subscription';
+import { PlanUpgradeNotice } from '@/components/admin/PlanUpgradeNotice';
+import { hasFullAccess } from '@/utils/roles';
+
+const TABS = [
+  { id: 'live', label: 'En curso' },
+  { id: 'couriers', label: 'Repartidores' },
+  { id: 'history', label: 'Historial de pedidos' },
+] as const;
+type DeliveryTabId = (typeof TABS)[number]['id'];
 
 export default function DeliveryPage() {
+  const { restaurant, user } = useAuth();
+  // Repartidores e historial son datos administrativos: solo para quien ya ve Administración.
+  const canManage = hasFullAccess(user?.role, user?.cashierFullAccess);
+  const [tab, setTab] = useState<DeliveryTabId>('live');
   const [orders, setOrders] = useState<OrderView[]>([]);
   const [connected, setConnected] = useState(false);
   const [editing, setEditing] = useState<OrderView | null>(null);
@@ -57,11 +74,38 @@ export default function DeliveryPage() {
         </span>
       </div>
 
-      {orders.length === 0 && (
+      {canManage && (
+        <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="flex w-max items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
+                className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[13px] font-semibold transition-colors ${
+                  tab === t.id ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {canManage && tab === 'couriers' && <CourierStatsSection />}
+      {canManage && tab === 'history' &&
+        (hasFeature(restaurant, 'accounting') ? (
+          <OrderHistorySection channels={['DELIVERY', 'PICKUP']} defaultRange="week" />
+        ) : (
+          <PlanUpgradeNotice feature="El historial de pedidos" />
+        ))}
+
+      {tab === 'live' && orders.length === 0 && (
         <p className="text-sm text-brand-950/40 py-10 text-center font-light">No hay pedidos de delivery/pickup pendientes.</p>
       )}
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className={`grid sm:grid-cols-2 lg:grid-cols-3 gap-4 ${tab === 'live' ? '' : 'hidden'}`}>
         {orders.map((o) => (
           <TextureCard key={o.id} className="transition-shadow duration-300 hover:shadow-md">
             <TextureCardContent className="px-4 py-4 space-y-2">

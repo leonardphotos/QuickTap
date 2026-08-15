@@ -16,6 +16,7 @@ import {
   recordPaymentSchema,
   setAwaitingPaymentSchema,
   setTipSchema,
+  statsPeriodQuerySchema,
   updateOrderCustomerSchema,
   updateOrderItemsSchema,
   updateStatusSchema,
@@ -161,6 +162,19 @@ export const orderController = {
     res.end();
   }),
 
+  /**
+   * GET /api/v1/orders/export/history — botón "Exportar" del Historial de pedidos:
+   * el mismo listado que se está viendo (con sus filtros y su rango de fechas) en Excel.
+   */
+  exportHistory: asyncHandler(async (req: Request, res: Response) => {
+    const query = orderHistoryQuerySchema.parse(req.query);
+    const { workbook, filename } = await salesExportService.buildOrderHistoryWorkbook(req.restaurantId!, query);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(filename)}"`);
+    await workbook.xlsx.write(res);
+    res.end();
+  }),
+
   /** GET /api/v1/orders/waiters — personal que ha cargado pedidos, para el filtro "Mesero" (solo plan Premium). */
   waiters: asyncHandler(async (req: Request, res: Response) => {
     const rows = await orderService.listWaiters(req.restaurantId!);
@@ -236,17 +250,19 @@ export const orderController = {
     res.json({ data: result });
   }),
 
-  /** GET /api/v1/orders/reports/sales-stats — botón "Estadísticas": semana/mes vs. período anterior + por usuario. */
+  /** GET /api/v1/orders/reports/sales-stats — botón "Estadísticas": semana/mes (o tramo desde–hasta) vs. período anterior + por usuario. */
   salesStats: asyncHandler(async (req: Request, res: Response) => {
     const range = req.query.range === 'month' ? 'month' : 'week';
-    const stats = await orderService.getSalesStats(req.restaurantId!, range);
+    const { from, to } = statsPeriodQuerySchema.parse(req.query);
+    const stats = await orderService.getSalesStats(req.restaurantId!, range, from, to);
     res.json({ data: stats });
   }),
 
   /** GET /api/v1/orders/reports/sales-stats/user/:userId — drill-down: ventas del período de un usuario (o "CUSTOMER" = autoservicio). */
   salesStatsUserOrders: asyncHandler(async (req: Request, res: Response) => {
     const range = req.query.range === 'month' ? 'month' : 'week';
-    const orders = await orderService.getSalesStatsUserOrders(req.restaurantId!, range, req.params.userId);
+    const { from, to } = statsPeriodQuerySchema.parse(req.query);
+    const orders = await orderService.getSalesStatsUserOrders(req.restaurantId!, range, req.params.userId, from, to);
     res.json({ data: orders });
   }),
 };

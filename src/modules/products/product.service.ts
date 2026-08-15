@@ -190,8 +190,8 @@ export const productService = {
    * manual o receta en vivo) — a diferencia de unitPrice/productName, el costo no queda
    * congelado por pedido, así que si cambió a mitad del período el reporte lo aplica
    * retroactivo a todo el rango (misma aproximación que ya usaba el food cost). */
-  async listWithMargin(restaurantId: string, range: ReportRange, date?: string) {
-    const { grouped, totalRevenue, totalCost } = await revenueAndCostByProduct(restaurantId, range, date);
+  async listWithMargin(restaurantId: string, range: ReportRange, date?: string, from?: string, to?: string) {
+    const { grouped, totalRevenue, totalCost } = await revenueAndCostByProduct(restaurantId, range, date, from, to);
 
     const totalMargin = round2(totalRevenue.sub(totalCost));
     const totalMarginPercent = totalRevenue.gt(0) ? round2(totalMargin.div(totalRevenue).mul(100)) : toDecimal(0);
@@ -295,10 +295,10 @@ async function assertPackagingItemBelongs(
 /** Agregación compartida entre `listWithMargin` y `getBreakEven`: revenue/costo real por
  * `OrderItem` vendido en el período (nunca compras de inventario), usando el costo vivo del
  * producto (receta o manual). */
-async function revenueAndCostByProduct(restaurantId: string, range: ReportRange, date?: string) {
+async function revenueAndCostByProduct(restaurantId: string, range: ReportRange, date?: string, from?: string, to?: string) {
   const [items, products, recipeSums] = await Promise.all([
     prisma.orderItem.findMany({
-      where: { order: { restaurantId, status: { not: 'CANCELLED' }, createdAt: resolveDateFilter({ range, date }) } },
+      where: { order: { restaurantId, status: { not: 'CANCELLED' }, createdAt: resolveDateFilter({ range, date, from, to }) } },
       select: { productId: true, productName: true, variantName: true, quantity: true, lineTotal: true },
     }),
     prisma.product.findMany({

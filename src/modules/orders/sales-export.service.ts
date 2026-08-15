@@ -3,7 +3,10 @@ import { PaymentMethod } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { PAYMENT_LABELS } from '../../utils/whatsapp';
 import { round2, toDecimal } from '../../utils/money';
+import { describeDateSpec } from '../../utils/date-range';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
+import type { OrderHistoryQuery } from './order.dto';
+import { orderService } from './order.service';
 
 const CHANNEL_LABELS: Record<string, string> = {
   DINE_IN: 'Mesa',
@@ -91,6 +94,138 @@ export const salesExportService = {
       workbook,
       filename: `Historial de ventas - ${(restaurant?.name ?? 'QuickTap').replace(/[\\/:*?"<>|]/g, '')}.xlsx`,
       rows,
+    };
+  },
+
+  /**
+   * Botón "Exportar" del Historial de pedidos: un renglón por pedido con los mismos
+   * filtros que el usuario tiene puestos en pantalla (rango/fechas, canal, método de
+   * pago, origen y mesero), más una hoja con el detalle de productos de cada pedido.
+   */
+  async buildOrderHistoryWorkbook(restaurantId: string, query: OrderHistoryQuery) {
+    const [restaurant, orders] = await Promise.all([
+      prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { name: true } }),
+      prisma.order.findMany({
+        where: orderService.historyWhere(restaurantId, query),
+        orderBy: { createdAt: 'desc' },
+        select: {
+          orderNumber: true,
+          channel: true,
+          status: true,
+          paymentMethod: true,
+          subtotalBase: true,
+          serviceChargeBase: true,
+          ivaBase: true,
+          deliveryFeeBase: true,
+          totalBase: true,
+          totalBs: true,
+          tipBase: true,
+          exchangeRate: true,
+          customerName: true,
+          createdAt: true,
+          table: { select: { number: true } },
+          placedByUser: { select: { name: true, role: true } },
+          items: { select: { productName: true, variantName: true, quantity: true, unitPrice: true, lineTotal: true } },
+          payments: { select: { method: true, referenceNumber: true, amountBase: true } },
+        },
+      }),
+    ]);
+
+    const workbook = new ExcelJS.Workbook();
+    workbook.creator = 'QuickTap.club';
+    workbook.created = new Date();
+
+    const sheet = workbook.addWorksheet('Pedidos');
+    sheet.columns = [
+      { header: 'Fecha', key: 'fecha', width: 12 },
+      { header: 'Hora', key: 'hora', width: 8 },
+      { header: 'Pedido N.°', key: 'orderNumber', width: 11 },
+      { header: 'Canal', key: 'channel', width: 12 },
+      { header: 'Mesa', key: 'table', width: 12 },
+      { header: 'Origen', key: 'source', width: 16 },
+      { header: 'Atendido por', key: 'placedBy', width: 22 },
+      { header: 'Cliente', key: 'customer', width: 24 },
+      { header: 'Método de pago', key: 'method', width: 18 },
+      { header: 'Referencias', key: 'reference', width: 22 },
+      { header: 'Subtotal $', key: 'subtotal', width: 12 },
+      { header: 'Servicio $', key: 'service', width: 12 },
+      { header: 'IVA $', key: 'iva', width: 10 },
+      { header: 'Envío $', key: 'delivery', width: 10 },
+      { header: 'Propina $', key: 'tip', width: 11 },
+      { header: 'Total $', key: 'total', width: 12 },
+      { header: 'Total Bs', key: 'totalBs', width: 16 },
+      { header: 'Tasa usada', key: 'rate', width: 12 },
+      { header: 'Estado', key: 'status', width: 14 },
+    ];
+    styleHeader(sheet);
+
+    const detail = workbook.addWorksheet('Detalle de productos');
+    detail.columns = [
+      { header: 'Pedido N.°', key: 'orderNumber', width: 11 },
+      { header: 'Fecha', key: 'fecha', width: 12 },
+      { header: 'Producto', key: 'product', width: 34 },
+      { header: 'Cantidad', key: 'quantity', width: 10 },
+      { header: 'Precio unitario $', key: 'unitPrice', width: 16 },
+      { header: 'Total línea $', key: 'lineTotal', width: 14 },
+    ];
+    styleHeader(detail);
+
+    for (const o of orders) {
+      const { fecha, hora } = caracasParts(o.createdAt);
+      sheet.addRow({
+        fecha,
+        hora,
+        orderNumber: o.orderNumber,
+        channel: CHANNEL_LABELS[o.channel] ?? o.channel,
+        table: o.table?.number ?? '',
+        source: o.placedByUser ? (o.placedByUser.role === 'COMANDA' ? 'Autoservicio' : 'Personal') : 'Cliente',
+        placedBy: o.placedByUser?.role === 'COMANDA' ? 'Autoservicio (tablet)' : (o.placedByUser?.name ?? ''),
+        customer: o.customerName ?? '',
+        method: o.payments.length
+          ? o.payments.map((p) => PAYMENT_LABELS[p.method] ?? p.method).join(' + ')
+          : o.paymentMethod
+            ? PAYMENT_LABELS[o.paymentMethod] ?? o.paymentMethod
+            : '',
+        reference: o.payments.map((p) => p.referenceNumber).filter(Boolean).join(' / '),
+        subtotal: round2(toDecimal(o.subtotalBase)).toNumber(),
+        service: round2(toDecimal(o.serviceChargeBase)).toNumber(),
+        iva: round2(toDecimal(o.ivaBase)).toNumber(),
+        delivery: round2(toDecimal(o.deliveryFeeBase)).toNumber(),
+        tip: round2(toDecimal(o.tipBase)).toNumber(),
+        total: round2(toDecimal(o.totalBase)).toNumber(),
+        totalBs: round2(toDecimal(o.totalBs)).toNumber(),
+        rate: round2(toDecimal(o.exchangeRate)).toNumber(),
+        status: o.status,
+      });
+
+      for (const i of o.items) {
+        detail.addRow({
+          orderNumber: o.orderNumber,
+          fecha,
+          product: i.variantName ? `${i.productName} (${i.variantName})` : i.productName,
+          quantity: i.quantity,
+          unitPrice: round2(toDecimal(i.unitPrice)).toNumber(),
+          lineTotal: round2(toDecimal(i.lineTotal)).toNumber(),
+        });
+      }
+    }
+
+    applyMoneyFormat(sheet, ['subtotal', 'service', 'iva', 'delivery', 'tip', 'total', 'totalBs', 'rate']);
+    applyMoneyFormat(detail, ['unitPrice', 'lineTotal']);
+
+    const totalsRow = sheet.addRow({
+      method: 'TOTALES',
+      tip: round2(orders.reduce((acc, o) => acc.add(o.tipBase), toDecimal(0))).toNumber(),
+      total: round2(orders.reduce((acc, o) => acc.add(o.totalBase), toDecimal(0))).toNumber(),
+      totalBs: round2(orders.reduce((acc, o) => acc.add(o.totalBs), toDecimal(0))).toNumber(),
+    });
+    totalsRow.font = { bold: true };
+
+    const period = describeDateSpec({ range: query.range, date: query.date, from: query.from, to: query.to });
+    return {
+      workbook,
+      filename: `Historial de pedidos ${period} - ${(restaurant?.name ?? 'QuickTap').replace(/[\\/:*?"<>|]/g, '')}.xlsx`,
+      rows: orders.length,
     };
   },
 };

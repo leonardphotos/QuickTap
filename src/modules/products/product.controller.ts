@@ -19,8 +19,8 @@ export const productController = {
   }),
 
   margin: asyncHandler(async (req: Request, res: Response) => {
-    const { range, date } = marginReportQuerySchema.parse(req.query);
-    const result = await productService.listWithMargin(req.restaurantId!, range, date);
+    const { range, date, from, to } = marginReportQuerySchema.parse(req.query);
+    const result = await productService.listWithMargin(req.restaurantId!, range, date, from, to);
     res.json({ data: result });
   }),
 
