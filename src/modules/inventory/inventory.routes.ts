@@ -22,6 +22,8 @@ const mutate = requireRoleOrCashierFullAccess('OWNER', 'ADMIN', 'STAFF');
 // Categorías de insumos / stock de productos.
 router.get('/categories', requireFeature('inventoryBasic'), requireInventoryAccess, inventoryCategoryController.list);
 router.post('/categories', requireFeature('inventoryBasic'), mutate, inventoryCategoryController.create);
+// Va antes de '/categories/:id' para que 'assign' no se lea como un id.
+router.post('/categories/assign', requireFeature('inventoryBasic'), mutate, inventoryCategoryController.bulkAssign);
 router.patch('/categories/:id', requireFeature('inventoryBasic'), mutate, inventoryCategoryController.update);
 router.delete('/categories/:id', requireFeature('inventoryBasic'), mutate, inventoryCategoryController.remove);
 

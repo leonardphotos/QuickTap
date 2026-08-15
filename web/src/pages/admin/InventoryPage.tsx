@@ -540,6 +540,22 @@ function InsumosTab({
     setSelected((prev) => (prev.size === allIds.length ? new Set() : new Set(allIds)));
   }
 
+  // Mover los insumos seleccionados a una categoría de un solo golpe ('' = "Sin categoría").
+  const [bulkMoving, setBulkMoving] = useState(false);
+  async function bulkMove(categoryId: string) {
+    if (selected.size === 0) return;
+    setBulkMoving(true);
+    try {
+      await api.post('/inventory/categories/assign', { itemIds: Array.from(selected), categoryId: categoryId || null });
+      setSelected(new Set());
+      onChanged();
+    } finally {
+      setBulkMoving(false);
+    }
+  }
+  // Gestor de categorías (crear fuera del insumo, renombrar, eliminar).
+  const [showCategoryManager, setShowCategoryManager] = useState(false);
+
   async function bulkRemove() {
     if (selected.size === 0) return;
     if (!confirm(`¿Eliminar ${selected.size} insumo${selected.size === 1 ? '' : 's'} seleccionado${selected.size === 1 ? '' : 's'}?`)) return;
@@ -847,16 +863,44 @@ function InsumosTab({
             </label>
           )}
           {selected.size > 0 && (
-            <TextureButton
-              variant="minimal"
-              size="sm"
-              className="!w-auto flex items-center gap-1.5 whitespace-nowrap !text-red-600"
-              disabled={bulkDeleting}
-              onClick={bulkRemove}
-            >
-              <Trash2 className="h-3.5 w-3.5" /> {bulkDeleting ? 'Borrando…' : `Eliminar ${selected.size}`}
-            </TextureButton>
+            <>
+              <select
+                value=""
+                disabled={bulkMoving}
+                onChange={(e) => {
+                  if (e.target.value === '__none__') bulkMove('');
+                  else if (e.target.value) bulkMove(e.target.value);
+                }}
+                className="rounded-full border border-brand-950/15 bg-white px-2.5 py-1 text-xs font-medium text-brand-950/70 disabled:opacity-50"
+              >
+                <option value="">{bulkMoving ? 'Moviendo…' : `Mover ${selected.size} a categoría…`}</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+                <option value="__none__">Sin categoría</option>
+              </select>
+              <TextureButton
+                variant="minimal"
+                size="sm"
+                className="!w-auto flex items-center gap-1.5 whitespace-nowrap !text-red-600"
+                disabled={bulkDeleting}
+                onClick={bulkRemove}
+              >
+                <Trash2 className="h-3.5 w-3.5" /> {bulkDeleting ? 'Borrando…' : `Eliminar ${selected.size}`}
+              </TextureButton>
+            </>
           )}
+          <button
+            type="button"
+            onClick={() => setShowCategoryManager((v) => !v)}
+            className={`rounded-full px-2.5 py-1 text-xs font-medium transition-colors ${
+              showCategoryManager ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+            }`}
+          >
+            Categorías {categories.length > 0 && <span className="opacity-70">{categories.length}</span>}
+          </button>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {printSent && <span className="text-xs text-emerald-600 font-medium">Enviado a la estación de impresión</span>}
@@ -898,6 +942,17 @@ function InsumosTab({
           </TextureButton>
         </div>
       </div>
+
+      {showCategoryManager && (
+        <CategoryManager
+          categories={categories}
+          items={items ?? []}
+          onChanged={() => {
+            onCategoriesChanged();
+            onChanged();
+          }}
+        />
+      )}
 
       {importResult && (
         <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-4 text-sm space-y-1">
@@ -1003,6 +1058,164 @@ function InsumosTab({
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Gestor de categorías de insumos, fuera del formulario del insumo: crear, renombrar y
+ * eliminar. Al eliminar, sus insumos quedan "Sin categoría" (no se borran — el FK es SetNull).
+ */
+function CategoryManager({
+  categories,
+  items,
+  onChanged,
+}: {
+  categories: InventoryCategory[];
+  items: InventoryItem[];
+  onChanged: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const countFor = (id: string) => items.filter((i) => i.categoryId === id).length;
+
+  async function create() {
+    if (!name.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await api.post('/inventory/categories', { name: name.trim() });
+      setName('');
+      onChanged();
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo crear la categoría.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function rename(id: string) {
+    if (!editName.trim()) return;
+    setSaving(true);
+    setError(null);
+    try {
+      await api.patch(`/inventory/categories/${id}`, { name: editName.trim() });
+      setEditingId(null);
+      onChanged();
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo renombrar.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function remove(id: string) {
+    if (confirmDeleteId !== id) {
+      setConfirmDeleteId(id);
+      setTimeout(() => setConfirmDeleteId((c) => (c === id ? null : c)), 3000);
+      return;
+    }
+    setSaving(true);
+    setError(null);
+    try {
+      await api.delete(`/inventory/categories/${id}`);
+      setConfirmDeleteId(null);
+      onChanged();
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo eliminar.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputCls = 'rounded-lg border border-brand-950/15 px-3 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40';
+
+  return (
+    <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-4 space-y-3">
+      <div>
+        <p className="text-sm font-semibold text-brand-950">Categorías de insumos</p>
+        <p className="text-xs text-brand-950/45 font-light">
+          Crea categorías acá y luego marca varios insumos y usa "Mover a categoría…". Al eliminar una, sus insumos quedan sin
+          categoría (no se borran).
+        </p>
+      </div>
+      <div className="flex gap-2">
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              create();
+            }
+          }}
+          placeholder="Nueva categoría (ej. Carnes, Lácteos, Empaques)"
+          className={`${inputCls} flex-1`}
+        />
+        <TextureButton variant="brand" size="sm" className="!w-auto" disabled={saving || !name.trim()} onClick={create}>
+          Crear
+        </TextureButton>
+      </div>
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      <div className="divide-y divide-brand-950/[0.06]">
+        {categories.length === 0 && <p className="py-2 text-xs text-brand-950/40 font-light">Todavía no hay categorías.</p>}
+        {categories.map((c) => (
+          <div key={c.id} className="flex items-center gap-2 py-2">
+            {editingId === c.id ? (
+              <>
+                <input
+                  autoFocus
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') rename(c.id);
+                    if (e.key === 'Escape') setEditingId(null);
+                  }}
+                  className={`${inputCls} flex-1`}
+                />
+                <TextureButton variant="brand" size="sm" className="!w-auto" disabled={saving} onClick={() => rename(c.id)}>
+                  Guardar
+                </TextureButton>
+                <button type="button" onClick={() => setEditingId(null)} className="text-xs text-brand-950/50 hover:text-brand-950">
+                  Cancelar
+                </button>
+              </>
+            ) : (
+              <>
+                <span className="min-w-0 flex-1 truncate text-sm font-medium text-brand-950">{c.name}</span>
+                <span className="shrink-0 text-xs text-brand-950/40">
+                  {countFor(c.id)} insumo{countFor(c.id) === 1 ? '' : 's'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingId(c.id);
+                    setEditName(c.name);
+                  }}
+                  className="shrink-0 rounded-full px-2 py-1 text-xs font-medium text-brand-950/60 hover:bg-brand-950/[0.05]"
+                >
+                  Renombrar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => remove(c.id)}
+                  disabled={saving}
+                  className={`flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs font-medium transition-colors ${
+                    confirmDeleteId === c.id ? 'bg-red-600 text-white' : 'text-red-600 hover:bg-red-50'
+                  }`}
+                >
+                  <Trash2 className="h-3 w-3" /> {confirmDeleteId === c.id ? '¿Seguro?' : 'Eliminar'}
+                </button>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

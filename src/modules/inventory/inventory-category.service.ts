@@ -1,6 +1,6 @@
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
-import { CreateInventoryCategoryInput, UpdateInventoryCategoryInput } from './inventory-category.dto';
+import { BulkAssignCategoryInput, CreateInventoryCategoryInput, UpdateInventoryCategoryInput } from './inventory-category.dto';
 import { resolveInventoryScope } from './inventory-scope';
 
 /** Categorías de insumos y de "Stock de productos" en Inventario. Aisladas por restaurantId,
@@ -39,6 +39,21 @@ export const inventoryCategoryService = {
     if (!existing) throw notFound('Categoría no encontrada.');
     await prisma.inventoryCategory.delete({ where: { id } });
     return { deleted: true };
+  },
+
+  /**
+   * Mueve varios insumos a una categoría de un solo golpe (o los deja "Sin categoría" con
+   * null). Solo toca insumos del mismo scope de inventario — un id ajeno simplemente no
+   * cambia — y la categoría destino tiene que ser de ese mismo scope.
+   */
+  async bulkAssign(restaurantId: string, parentRestaurantId: string | null | undefined, input: BulkAssignCategoryInput) {
+    const effectiveId = await resolveInventoryScope(restaurantId, parentRestaurantId);
+    if (input.categoryId) await this.assertBelongs(effectiveId, input.categoryId);
+    const result = await prisma.inventoryItem.updateMany({
+      where: { id: { in: input.itemIds }, restaurantId: effectiveId },
+      data: { categoryId: input.categoryId },
+    });
+    return { updated: result.count };
   },
 
   /** La categoría debe pertenecer al mismo restaurante (evita fugas de tenant). `restaurantId`

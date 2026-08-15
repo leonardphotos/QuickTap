@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
-import { createInventoryCategorySchema, updateInventoryCategorySchema } from './inventory-category.dto';
+import { bulkAssignCategorySchema, createInventoryCategorySchema, updateInventoryCategorySchema } from './inventory-category.dto';
 import { inventoryCategoryService } from './inventory-category.service';
 
 export const inventoryCategoryController = {
@@ -19,5 +19,10 @@ export const inventoryCategoryController = {
   }),
   remove: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await inventoryCategoryService.remove(req.restaurantId!, req.auth?.parentRestaurantId, req.params.id) });
+  }),
+  /** POST /inventory/categories/assign — mover varios insumos a una categoría (o a ninguna). */
+  bulkAssign: asyncHandler(async (req: Request, res: Response) => {
+    const input = bulkAssignCategorySchema.parse(req.body);
+    res.json({ data: await inventoryCategoryService.bulkAssign(req.restaurantId!, req.auth?.parentRestaurantId, input) });
   }),
 };
