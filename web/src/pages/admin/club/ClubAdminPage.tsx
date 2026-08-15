@@ -48,7 +48,6 @@ interface MovementsResponse {
 }
 
 const TAB_LABELS: Record<string, string> = {
-  breakeven: 'Punto de equilibrio',
   resumen: 'Resumen',
   deudas: 'Deudas',
   ocupacion: 'Ocupación',
@@ -120,7 +119,6 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
   // Acceso rápido de Deudas: null = las tres listas; una fuente = solo esa.
   const [debtFilter, setDebtFilter] = useState<DebtSource | null>(null);
   const [tab, setTab] = useState<
-    | 'breakeven'
     | 'resumen'
     | 'deudas'
     | 'ocupacion'
@@ -131,7 +129,7 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
     | 'nomina'
     | 'historial'
   >(
-    'breakeven',
+    'resumen',
   );
   const { show, toastMessage } = useToast();
 
@@ -207,7 +205,7 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
       <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex w-max items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
           {(
-            ['breakeven', 'resumen', 'deudas', 'ocupacion', 'clientes', 'consumo', 'cuentas', 'contabilidad', 'nomina', 'historial'] as const
+            ['resumen', 'deudas', 'ocupacion', 'clientes', 'consumo', 'cuentas', 'contabilidad', 'nomina', 'historial'] as const
           ).map((t) => (
             <button
               key={t}
@@ -318,7 +316,6 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
         />
       )}
 
-      {tab === 'breakeven' && <BreakEvenCard fetchUrl="/club/stats/breakeven" />}
       {tab === 'ocupacion' && <ClubOccupancyPage restaurant={restaurant} />}
       {/* CRM compartido: directorio con segmentos + promociones con código canjeable
           (reemplaza a la vieja tabla de clientes frecuentes — el segmento
@@ -332,6 +329,9 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
 
       {tab === 'resumen' && (
       <>
+      {/* Punto de equilibrio: vive dentro de Resumen, no como pestaña aparte. */}
+      <BreakEvenCard fetchUrl="/club/stats/breakeven" />
+
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
         <Metric
           icon={CalendarCheck}

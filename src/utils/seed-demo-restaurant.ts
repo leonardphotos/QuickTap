@@ -555,6 +555,323 @@ async function seedHistory(
   }
 }
 
+/**
+ * Movimientos administrativos del demo: proveedores, gastos de todas las categorías
+ * (con factura fiscal / nota de entrega, método de pago, algunos recurrentes y algunos
+ * a crédito con su orden de pago), ingresos manuales y cuentas bancarias con saldo.
+ * Es lo que hace que Contabilidad, Libros fiscales, Proveedores, Órdenes de pago y
+ * Cuentas bancarias se vean llenos en la cuenta de demostración.
+ */
+async function seedAdministrativeMovements(
+  prisma: PrismaClient,
+  restaurantId: string,
+  opts: { adminUserId: string; days: number },
+) {
+  const now = new Date();
+
+  const suppliers = await Promise.all(
+    [
+      { name: 'Distribuidora La Carne C.A.', taxId: 'J-40123456-7', phone: '04141112233' },
+      { name: 'Panadería El Trigal', taxId: 'J-29876543-1', phone: '04242223344' },
+      { name: 'Bebidas del Centro', taxId: 'J-31234567-8', phone: '04123334455' },
+      { name: 'Inmobiliaria Plaza Norte', taxId: 'J-50011223-4', phone: '02125556677' },
+      { name: 'Servicios Técnicos Frío Total', taxId: 'V-12345678-9', phone: '04164445566' },
+      { name: 'Agencia Creativa Sabor', taxId: 'J-41122334-5', phone: '04145557788' },
+    ].map((s) => prisma.supplier.create({ data: { restaurantId, ...s } })),
+  );
+  const [carne, pan, bebidas, inmobiliaria, tecnico, agencia] = suppliers;
+
+  // Cuentas bancarias con saldo inicial (los cobros nuevos suman acá solos).
+  await prisma.bankAccount.create({
+    data: {
+      restaurantId,
+      name: 'Banesco (Pago Móvil)',
+      currency: 'BS',
+      paymentMethods: ['MOBILE_PAYMENT', 'TRANSFER'],
+      balance: 185000,
+      transactions: {
+        create: { restaurantId, type: 'CREDIT', amount: 185000, amountBase: 0, description: 'Saldo inicial' },
+      },
+    },
+  });
+  await prisma.bankAccount.create({
+    data: {
+      restaurantId,
+      name: 'Zelle Chase',
+      currency: 'BASE',
+      paymentMethods: ['ZELLE'],
+      balance: 1240,
+      transactions: {
+        create: { restaurantId, type: 'CREDIT', amount: 1240, amountBase: 1240, description: 'Saldo inicial' },
+      },
+    },
+  });
+  await prisma.bankAccount.create({
+    data: {
+      restaurantId,
+      name: 'Caja chica',
+      currency: 'BASE',
+      isPettyCash: true,
+      paymentMethods: ['CASH_USD'],
+      balance: 320,
+      transactions: {
+        create: { restaurantId, type: 'CREDIT', amount: 320, amountBase: 320, description: 'Saldo inicial' },
+      },
+    },
+  });
+
+  const at = (daysAgo: number, hour = 10) => {
+    const d = new Date(now);
+    d.setDate(d.getDate() - daysAgo);
+    d.setHours(hour, randomInt(0, 59), 0, 0);
+    return d;
+  };
+  const dateOnly = (daysAgo: number) => {
+    const d = at(daysAgo, 12);
+    d.setMinutes(0, 0, 0);
+    return d;
+  };
+
+  const monthsBack = Math.min(12, Math.floor(opts.days / 30));
+  let orderNumber = 1;
+
+  for (let m = monthsBack; m >= 0; m--) {
+    const base = m * 30;
+
+    // Fijos mensuales (recurrentes, factura fiscal, transferencia/pago móvil).
+    await prisma.movement.createMany({
+      data: [
+        {
+          restaurantId,
+          type: 'EXPENSE',
+          amountBase: '850',
+          description: 'Arriendo del local',
+          category: 'RENT',
+          supplierId: inmobiliaria.id,
+          paymentMethod: 'TRANSFER',
+          documentType: 'FISCAL_INVOICE',
+          isRecurring: true,
+          referenceNumber: `TR-${randomInt(100000, 999999)}`,
+          createdByUserId: opts.adminUserId,
+          expenseDate: dateOnly(base + 2),
+          createdAt: at(base + 2),
+        },
+        {
+          restaurantId,
+          type: 'EXPENSE',
+          amountBase: String(randomInt(1400, 1900)),
+          description: 'Nómina quincenal (1ra)',
+          category: 'PAYROLL',
+          paymentMethod: 'MOBILE_PAYMENT',
+          isRecurring: true,
+          createdByUserId: opts.adminUserId,
+          expenseDate: dateOnly(base + 15),
+          createdAt: at(base + 15),
+        },
+        {
+          restaurantId,
+          type: 'EXPENSE',
+          amountBase: String(randomInt(1400, 1900)),
+          description: 'Nómina quincenal (2da)',
+          category: 'PAYROLL',
+          paymentMethod: 'MOBILE_PAYMENT',
+          isRecurring: true,
+          createdByUserId: opts.adminUserId,
+          expenseDate: dateOnly(base + 1),
+          createdAt: at(base + 1),
+        },
+        {
+          restaurantId,
+          type: 'EXPENSE',
+          amountBase: String(randomInt(120, 210)),
+          description: 'Electricidad (CORPOELEC)',
+          category: 'UTILITIES',
+          paymentMethod: 'MOBILE_PAYMENT',
+          documentType: 'FISCAL_INVOICE',
+          isRecurring: true,
+          referenceNumber: `PM-${randomInt(100000, 999999)}`,
+          createdByUserId: opts.adminUserId,
+          expenseDate: dateOnly(base + 8),
+          createdAt: at(base + 8),
+        },
+        {
+          restaurantId,
+          type: 'EXPENSE',
+          amountBase: String(randomInt(45, 80)),
+          description: 'Internet y telefonía',
+          category: 'UTILITIES',
+          paymentMethod: 'MOBILE_PAYMENT',
+          documentType: 'FISCAL_INVOICE',
+          isRecurring: true,
+          createdByUserId: opts.adminUserId,
+          expenseDate: dateOnly(base + 6),
+          createdAt: at(base + 6),
+        },
+        {
+          restaurantId,
+          type: 'EXPENSE',
+          amountBase: String(randomInt(90, 260)),
+          description: pick(['Pauta en Instagram', 'Diseño de menú y flyers', 'Campaña de delivery']),
+          category: 'MARKETING',
+          supplierId: agencia.id,
+          paymentMethod: 'ZELLE',
+          documentType: 'FISCAL_INVOICE',
+          createdByUserId: opts.adminUserId,
+          expenseDate: dateOnly(base + 12),
+          createdAt: at(base + 12),
+        },
+        {
+          restaurantId,
+          type: 'EXPENSE',
+          amountBase: String(randomInt(35, 120)),
+          description: pick(['Papelería y facturas', 'Honorarios contador', 'Licencia de software']),
+          category: 'ADMINISTRATIVE',
+          paymentMethod: 'CASH_USD',
+          documentType: 'DELIVERY_NOTE',
+          createdByUserId: opts.adminUserId,
+          expenseDate: dateOnly(base + 18),
+          createdAt: at(base + 18),
+        },
+        {
+          restaurantId,
+          type: 'EXPENSE',
+          amountBase: String(randomInt(25, 70)),
+          description: pick(['Gasolina de la moto de delivery', 'Flete de mercancía']),
+          category: pick(['FUEL', 'TRANSPORT'] as const),
+          paymentMethod: 'CASH',
+          documentType: 'DELIVERY_NOTE',
+          createdByUserId: opts.adminUserId,
+          expenseDate: dateOnly(base + 21),
+          createdAt: at(base + 21),
+        },
+      ],
+    });
+
+    // Compras semanales a proveedores (algunas a crédito).
+    for (const week of [3, 10, 17, 24]) {
+      const supplier = pick([carne, pan, bebidas]);
+      const credit = Math.random() < 0.3;
+      const amount = String(randomInt(120, 420));
+      const mov = await prisma.movement.create({
+        data: {
+          restaurantId,
+          type: 'EXPENSE',
+          amountBase: amount,
+          description:
+            supplier.id === carne.id
+              ? 'Compra de carne molida y pollo'
+              : supplier.id === pan.id
+                ? 'Panes de hamburguesa y perro'
+                : 'Refrescos, jugos y agua',
+          category: 'SUPPLIES',
+          supplierId: supplier.id,
+          paymentMethod: credit ? null : pick(['TRANSFER', 'MOBILE_PAYMENT', 'CASH_USD'] as const),
+          documentType: Math.random() < 0.7 ? 'FISCAL_INVOICE' : 'DELIVERY_NOTE',
+          isCredit: credit,
+          invoiceDueDate: credit ? dateOnly(base + week - 20) : null,
+          referenceNumber: credit ? null : `FAC-${randomInt(1000, 9999)}`,
+          createdByUserId: opts.adminUserId,
+          expenseDate: dateOnly(base + week),
+          createdAt: at(base + week),
+        },
+      });
+
+      // Los créditos viejos ya se pagaron con orden de pago; los recientes siguen pendientes.
+      if (credit && m >= 1) {
+        const paidAt = at(base + week - 12, 15);
+        await prisma.paymentOrder.create({
+          data: {
+            restaurantId,
+            orderNumber: orderNumber++,
+            supplierId: supplier.id,
+            status: 'PAID',
+            amountBase: amount,
+            paidAmountBase: amount,
+            paymentMethod: 'TRANSFER',
+            referenceNumber: `TR-${randomInt(100000, 999999)}`,
+            ivaAmountBase: round2(Number(amount) * 0.16),
+            totalWithIvaBase: round2(Number(amount) * 1.16),
+            createdByUserId: opts.adminUserId,
+            createdAt: at(base + week - 14, 9),
+            paidAt,
+            movements: { connect: { id: mov.id } },
+          },
+        });
+        await prisma.movement.update({ where: { id: mov.id }, data: { creditPaidAt: paidAt } });
+      }
+    }
+
+    // Mantenimiento ocasional (cada dos meses) y un ingreso manual (propinas / otro).
+    if (m % 2 === 0) {
+      await prisma.movement.create({
+        data: {
+          restaurantId,
+          type: 'EXPENSE',
+          amountBase: String(randomInt(60, 240)),
+          description: pick(['Servicio de nevera y freidora', 'Recarga de extintores', 'Plomería del baño']),
+          category: 'MAINTENANCE',
+          supplierId: tecnico.id,
+          paymentMethod: 'CASH_USD',
+          documentType: 'DELIVERY_NOTE',
+          createdByUserId: opts.adminUserId,
+          expenseDate: dateOnly(base + 26),
+          createdAt: at(base + 26),
+        },
+      });
+    }
+    await prisma.movement.create({
+      data: {
+        restaurantId,
+        type: 'INCOME',
+        amountBase: String(randomInt(40, 160)),
+        description: pick(['Propinas del mes', 'Alquiler de la terraza para evento', 'Cobro de deuda de cliente']),
+        incomeCategory: pick(['TIP', 'OTHER', 'DEBT'] as const),
+        paymentMethod: pick(['CASH_USD', 'ZELLE', 'MOBILE_PAYMENT'] as const),
+        createdByUserId: opts.adminUserId,
+        createdAt: at(base + 4, 19),
+      },
+    });
+  }
+
+  // Una orden de pago PENDIENTE hoy con dos facturas a crédito, para que Cuentas por pagar
+  // no arranque vacío.
+  const pending = await Promise.all(
+    [
+      { d: 'Compra de carne — factura pendiente', s: carne.id, a: '380' },
+      { d: 'Refrescos — factura pendiente', s: bebidas.id, a: '145' },
+    ].map((x) =>
+      prisma.movement.create({
+        data: {
+          restaurantId,
+          type: 'EXPENSE',
+          amountBase: x.a,
+          description: x.d,
+          category: 'SUPPLIES',
+          supplierId: x.s,
+          documentType: 'FISCAL_INVOICE',
+          isCredit: true,
+          invoiceDueDate: dateOnly(-5),
+          createdByUserId: opts.adminUserId,
+          expenseDate: dateOnly(3),
+          createdAt: at(3),
+        },
+      }),
+    ),
+  );
+  await prisma.paymentOrder.create({
+    data: {
+      restaurantId,
+      orderNumber: orderNumber++,
+      supplierId: carne.id,
+      status: 'PENDING',
+      amountBase: '380',
+      createdByUserId: opts.adminUserId,
+      createdAt: at(1, 9),
+      movements: { connect: { id: pending[0].id } },
+    },
+  });
+}
+
 /** Actividad "de hoy". `full=true` cubre las 5 etapas (usado por el restaurante principal); `full=false` es una versión reducida para sucursales. */
 async function seedTodayActivity(
   prisma: PrismaClient,
@@ -868,6 +1185,10 @@ export async function resetAndSeedDemoRestaurant(prisma: PrismaClient): Promise<
     inventoryItems,
     createOrder,
   });
+
+  // --- Movimientos administrativos: proveedores, gastos por categoría, órdenes de pago,
+  //     ingresos manuales y cuentas bancarias (llenan Contabilidad y compañía) ---
+  await seedAdministrativeMovements(prisma, restaurant.id, { adminUserId: usersByRole.ADMIN, days: 365 });
 
   // --- Actividad "de hoy": las 5 etapas del flujo ---
   await seedTodayActivity(prisma, restaurant.id, {

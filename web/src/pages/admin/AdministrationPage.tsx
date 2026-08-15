@@ -23,7 +23,6 @@ import type { ReportData } from '@/components/admin/ReportReceipt';
 import type { PaymentMethod as AnyPaymentMethod } from '@/types';
 
 const BASE_TABS = [
-  { id: 'breakeven', label: 'Punto de equilibrio' },
   { id: 'summary', label: 'Resumen' },
   { id: 'stats', label: 'Estadísticas' },
   { id: 'history', label: 'Historial de pedidos' },
@@ -51,7 +50,7 @@ export default function AdministrationPage() {
   const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
   const [payableCount, setPayableCount] = useState<number | null>(null);
   const TABS = canAccountsPayable ? [...BASE_TABS, { ...PAYABLE_TAB, badge: payableCount ?? undefined }] : [...BASE_TABS];
-  const [tab, setTab] = useState<(typeof TABS)[number]['id']>('breakeven');
+  const [tab, setTab] = useState<(typeof TABS)[number]['id']>('summary');
   const [showReport, setShowReport] = useState(false);
 
   useEffect(() => {
@@ -82,7 +81,6 @@ export default function AdministrationPage() {
       <div className="lg:flex lg:flex-row lg:gap-6">
         <AdminSectionNav items={TABS} activeId={tab} onChange={(id) => setTab(id as (typeof TABS)[number]['id'])} />
         <div className="mt-5 lg:mt-0 min-w-0 flex-1">
-          {tab === 'breakeven' && <BreakEvenCard fetchUrl="/products/breakeven" />}
           {tab === 'summary' && <SummaryTab />}
           {tab === 'stats' && <StatsTab />}
           {tab === 'history' && <HistoryTab />}
@@ -192,6 +190,9 @@ function SummaryTab() {
 
   return (
     <div className="space-y-5">
+      {/* Punto de equilibrio: vive dentro de Resumen, no como pestaña aparte. */}
+      <BreakEvenCard fetchUrl="/products/breakeven" />
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
           {(['day', 'week', 'month', 'year'] as Range[]).map((r) => (
