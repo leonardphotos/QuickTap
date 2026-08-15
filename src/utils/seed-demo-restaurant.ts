@@ -1048,7 +1048,8 @@ async function seedBranch(
       demoLastActivityAt: new Date(),
       parentRestaurantId: parentId,
       subscriptionStatus: 'ACTIVE',
-      subscriptionPlan: 'SUCURSALES',
+      // Las sucursales heredan el plan de la sede principal (Elite).
+      subscriptionPlan: 'ELITE',
       billingCycle: 'MONTHLY',
       periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     },
@@ -1138,8 +1139,9 @@ export async function resetAndSeedDemoRestaurant(prisma: PrismaClient): Promise<
       // llegue a usarlo.
       demoLastActivityAt: new Date(),
       subscriptionStatus: 'ACTIVE',
-      // Plan Sucursales: habilita el switcher de sucursales y las 3 que se crean abajo.
-      subscriptionPlan: 'SUCURSALES',
+      // Plan Elite: la demo enseña TODO (Administración completa, CRM, contabilidad, bancos,
+      // inventario por receta) y habilita el switcher de sucursales y las 3 que se crean abajo.
+      subscriptionPlan: 'ELITE',
       billingCycle: 'MONTHLY',
       periodEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     },
