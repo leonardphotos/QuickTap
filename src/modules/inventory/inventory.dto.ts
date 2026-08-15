@@ -9,6 +9,11 @@ const expiryDate = z
   .nullable()
   .optional();
 
+/** Igual que arriba pero OBLIGATORIA: al crear un insumo la fecha de caducidad no puede faltar. */
+const requiredExpiryDate = z
+  .string({ required_error: 'La fecha de caducidad es obligatoria.' })
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha de caducidad es obligatoria (formato YYYY-MM-DD).');
+
 export const createInventoryItemSchema = z.object({
   name: z.string().min(1, 'El nombre es obligatorio.').max(120),
   unit: z.enum(['kg', 'lt', 'ml', 'unidad']),
@@ -20,8 +25,9 @@ export const createInventoryItemSchema = z.object({
   priceCurrency: z.enum(['BASE', 'BS']).optional().default('BASE'),
   photoUrl: z.string().min(1).nullable().optional(),
   categoryId: z.string().min(1).nullable().optional(),
-  // Fecha de caducidad del lote en stock (opcional).
-  expiryDate,
+  // Fecha de caducidad del lote en stock — obligatoria al crear (los insumos viejos que
+  // no la tienen se pueden editar igual: updateInventoryItemSchema la deja opcional).
+  expiryDate: requiredExpiryDate,
   // No nulo = este insumo queda disponible para vincularse como envase de un producto.
   packagingType: z.enum(['ENVASE', 'CAJA', 'BOLSA']).nullable().optional(),
   // Precio que se le cobra al cliente por unidad de envase (solo aplica junto a packagingType).
@@ -35,7 +41,7 @@ export const createInventoryItemSchema = z.object({
   correctionPercent: z.coerce.number().min(0, 'El factor de corrección no puede ser negativo.').optional(),
 });
 
-export const updateInventoryItemSchema = createInventoryItemSchema.partial();
+export const updateInventoryItemSchema = createInventoryItemSchema.partial().extend({ expiryDate });
 
 // GET /inventory?locationScope=... — qué ventana de insumos se está listando.
 export const listInventoryQuerySchema = z.object({

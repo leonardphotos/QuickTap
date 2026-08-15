@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { canManageTeam, isAdminCashier } from '../../utils/roles';
 import { allowsBranches, daysRemaining, graceHoursRemaining, hasFeature } from '../../utils/subscription';
 import { hasSeenOnboardingTutorial, OnboardingTutorial } from '@/components/admin/OnboardingTutorial';
+import { InventoryAlertsPopup } from '@/components/admin/InventoryAlertsPopup';
 import { DailySalesSummary } from '@/components/admin/DailySalesSummary';
 import { SalesDashboard } from '@/components/admin/SalesDashboard';
 import { TodayOrdersList } from '@/components/admin/TodayOrdersList';
@@ -189,6 +190,9 @@ export default function DashboardPage() {
       </div>
 
       <NavMenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
+
+      {/* Aviso de inventario en alerta: sale al entrar y vuelve a salir hasta que se resuelva. */}
+      {!showTutorial && <InventoryAlertsPopup />}
 
       {showTutorial && <OnboardingTutorial restaurantId={restaurant.id} onClose={() => setShowTutorial(false)} />}
     </div>

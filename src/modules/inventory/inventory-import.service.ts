@@ -22,7 +22,7 @@ const HEADERS = [
   'Cantidad mínima',
   'Costo',
   'Categoría',
-  'Caducidad (AAAA-MM-DD)',
+  'Caducidad (AAAA-MM-DD) *',
 ] as const;
 
 /** Sinónimos aceptados por columna. El primero de cada lista es el de la plantilla oficial. */
@@ -103,6 +103,11 @@ async function importFromExcel(
     const price = cellNumber(row, columns.price);
     const categoryName = cellText(row, columns.category);
     const expiry = cellDate(row, columns.expiryDate);
+    // La caducidad es obligatoria en los insumos: una fila sin fecha no crea ni actualiza nada.
+    if (!expiry) {
+      result.errors.push({ row: rowNumber, message: 'Falta la fecha de caducidad (obligatoria).' });
+      continue;
+    }
 
     let categoryId: string | undefined;
     if (categoryName) {

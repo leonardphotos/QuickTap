@@ -32,6 +32,7 @@ const BillingPage = lazy(() => import('./pages/admin/BillingPage'));
 const AdministrationPage = lazy(() => import('./pages/admin/AdministrationPage'));
 const InventoryPage = lazy(() => import('./pages/admin/InventoryPage'));
 const ExpensesPage = lazy(() => import('./pages/admin/ExpensesPage'));
+const PurchasesPage = lazy(() => import('./pages/admin/PurchasesPage'));
 const SucursalesPage = lazy(() => import('./pages/admin/SucursalesPage'));
 const ReservationsPage = lazy(() => import('./pages/admin/ReservationsPage'));
 const QuotesPage = lazy(() => import('./pages/admin/QuotesPage'));
@@ -137,6 +138,7 @@ export default function App() {
               <Route path="administration" element={<AdministrationPage />} />
               <Route path="inventory" element={<InventoryPage />} />
               <Route path="expenses" element={<ExpensesPage />} />
+              <Route path="purchases" element={<PurchasesPage />} />
               <Route path="sucursales" element={<SucursalesPage />} />
               <Route path="reservations" element={<ReservationsPage />} />
               <Route path="quotes" element={<QuotesPage />} />

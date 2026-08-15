@@ -482,6 +482,10 @@ function InsumosTab({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
+    if (!form.expiryDate) {
+      setError('La fecha de caducidad es obligatoria.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -722,13 +726,19 @@ function InsumosTab({
             />
           </label>
           <label className="block text-sm sm:col-span-2">
-            <span className="text-brand-950/70">Fecha de caducidad (opcional)</span>
+            <span className="text-brand-950/70">
+              Fecha de caducidad <span className="text-red-500">*</span>
+            </span>
             <input
               value={form.expiryDate}
               onChange={(e) => setForm({ ...form, expiryDate: e.target.value })}
               type="date"
+              required
               className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
             />
+            <span className="mt-1 block text-[11px] font-light text-brand-950/40">
+              Obligatoria: con ella el sistema te avisa en el Dashboard cuando el lote está por vencer.
+            </span>
           </label>
           <label className="block text-sm">
             <span className="text-brand-950/70">

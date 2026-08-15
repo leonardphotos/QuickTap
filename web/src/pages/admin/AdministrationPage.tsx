@@ -16,6 +16,9 @@ import { FiscalBooksSection } from '@/components/admin/FiscalBooksSection';
 import { BankAccountsSection } from '@/components/admin/BankAccountsSection';
 import { MovementsLedgerSection } from '@/components/admin/MovementsLedgerSection';
 import { CrmHub } from '@/components/admin/crm/CrmHub';
+import { PurchasesHub } from '@/components/admin/purchases/PurchasesHub';
+import { QuoteManager } from '@/components/admin/QuoteManager';
+import ExpensesPage from '@/pages/admin/ExpensesPage';
 import { CashSessionPanel } from '@/components/admin/CashSessionControl';
 import { ReportPickerForm, ReportResult } from '@/components/admin/ReportDialog';
 import { PAYMENT_LABELS as ALL_PAYMENT_LABELS } from '@/components/admin/PaymentDialog';
@@ -36,6 +39,11 @@ const ALL_TABS = [
   { id: 'products', label: 'Productos', feature: null },
   { id: 'margin', label: 'Margen de utilidad', feature: 'accounting' },
   { id: 'delivery', label: 'Delivery', feature: null },
+  // Cotizaciones, Gastos y Compras también viven en el menú lateral; acá se repiten para
+  // tener toda la administración en un solo lugar.
+  { id: 'quotes', label: 'Cotizaciones', feature: null },
+  { id: 'expenses', label: 'Gastos', feature: null },
+  { id: 'purchases', label: 'Compras', feature: null },
   // Clientes con segmentos + promociones personalizadas con código canjeable.
   { id: 'crm', label: 'CRM', feature: 'crm' },
   { id: 'payments', label: 'Métodos de pago', feature: null },
@@ -103,6 +111,9 @@ export default function AdministrationPage() {
           {!tabLocked && tab === 'products' && <ProductsTab />}
           {!tabLocked && tab === 'margin' && <MarginTab />}
           {!tabLocked && tab === 'delivery' && <DeliveryTab />}
+          {!tabLocked && tab === 'quotes' && <QuoteManager />}
+          {!tabLocked && tab === 'expenses' && <ExpensesPage embedded />}
+          {!tabLocked && tab === 'purchases' && <PurchasesHub />}
           {!tabLocked && tab === 'crm' && <CrmHub />}
           {!tabLocked && tab === 'payments' && <PaymentsTab />}
           {!tabLocked && tab === 'paymentOrders' && <PayablesSection />}

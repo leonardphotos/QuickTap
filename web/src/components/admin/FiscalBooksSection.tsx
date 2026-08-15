@@ -52,10 +52,10 @@ interface SalesResult {
  * RIF/nº de factura/tipo de documento y cada venta con su desglose de IVA — filtrado por fecha
  * y resumido por categoría. Compartido por los tres verticales.
  */
-export function FiscalBooksSection() {
+export function FiscalBooksSection({ only }: { only?: 'compras' | 'ventas' } = {}) {
   const { restaurant } = useAuth();
   const symbol = restaurant?.currencySymbol ?? '$';
-  const [book, setBook] = useState<'compras' | 'ventas'>('compras');
+  const [book, setBook] = useState<'compras' | 'ventas'>(only ?? 'compras');
   const [range, setRange] = useState<Range>('month');
   const [date, setDate] = useState('');
 
@@ -64,6 +64,8 @@ export function FiscalBooksSection() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center gap-2">
+        {/* Con `only` (ej. el módulo Compras muestra solo el libro de compras) no hay conmutador. */}
+        {!only && (
         <div className="flex items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
           {(['compras', 'ventas'] as const).map((b) => (
             <button
@@ -77,7 +79,8 @@ export function FiscalBooksSection() {
             </button>
           ))}
         </div>
-        <span className="w-px h-4 bg-brand-950/10 mx-1" />
+        )}
+        {!only && <span className="w-px h-4 bg-brand-950/10 mx-1" />}
         {(['day', 'week', 'month', 'year', 'all'] as Range[]).map((r) => (
           <button
             key={r}

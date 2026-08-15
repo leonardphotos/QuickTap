@@ -140,19 +140,34 @@ function AttachmentField({
  * usada en el Dashboard y en el módulo de Gastos) y Administración de Canchas/Locales
  * (panel en línea) son los consumidores, para que todo egreso quede siempre vinculado a la
  * misma sección sin importar desde dónde se cargue. */
-export function ExpenseForm({ onCreated, expense }: { onCreated: () => void; expense?: EditableExpense }) {
+export function ExpenseForm({
+  onCreated,
+  expense,
+  mode = 'expense',
+}: {
+  onCreated: () => void;
+  expense?: EditableExpense;
+  /** 'purchase' = módulo Compras: categoría "Compra de producto e insumos" por defecto y el
+   * bloque de reabastecimiento de inventario. En 'expense' (Gastos) el restock no se ofrece —
+   * las compras de insumos se registran desde Compras. */
+  mode?: 'expense' | 'purchase';
+}) {
   const { restaurant } = useAuth();
   const isEdit = !!expense;
   // El reabastecimiento descuenta contra InventoryItem (insumos de restaurante). Un local
   // comercial y un club manejan su stock en ShopProduct, así que ahí ese bloque no aplica:
-  // mostraría una lista vacía y, si se llenara, tocaría un inventario que no usan.
-  const supportsRestock = restaurant?.businessType !== 'SHOP' && restaurant?.businessType !== 'SPORTS_CLUB';
+  // mostraría una lista vacía y, si se llenara, tocaría un inventario que no usan. Y solo se
+  // ofrece desde el módulo de Compras, no desde Gastos.
+  const supportsRestock =
+    mode === 'purchase' && restaurant?.businessType !== 'SHOP' && restaurant?.businessType !== 'SPORTS_CLUB';
   // Al editar se arranca con lo que ya tenía el gasto; el monto siempre en moneda base,
   // que es como quedó guardado (la conversión desde Bs ya se aplicó al crearlo).
   const [amount, setAmount] = useState(expense ? Number(expense.amountBase).toFixed(2) : '');
   const [amountCurrency, setAmountCurrency] = useState<'BASE' | 'BS'>('BASE');
   const [description, setDescription] = useState(expense?.description ?? '');
-  const [category, setCategory] = useState<ExpenseCategory | ''>((expense?.category as ExpenseCategory) ?? '');
+  const [category, setCategory] = useState<ExpenseCategory | ''>(
+    (expense?.category as ExpenseCategory) ?? (mode === 'purchase' ? 'SUPPLIES' : ''),
+  );
   const [supplier, setSupplier] = useState<Supplier | null>(
     expense?.supplier ? ({ id: expense.supplier.id, name: expense.supplier.name } as Supplier) : null,
   );
@@ -513,7 +528,7 @@ export function ExpenseForm({ onCreated, expense }: { onCreated: () => void; exp
       {error && <p className="text-sm text-red-600">{error}</p>}
 
       <TextureButton variant="brand" size="default" disabled={saving} onClick={submit} className="disabled:opacity-50">
-        {saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : 'Guardar gasto'}
+        {saving ? 'Guardando…' : isEdit ? 'Guardar cambios' : mode === 'purchase' ? 'Guardar compra' : 'Guardar gasto'}
       </TextureButton>
     </div>
   );
@@ -526,19 +541,23 @@ export function ExpenseFormDialog({
   onClose,
   onCreated,
   expense,
+  mode = 'expense',
 }: {
   onClose: () => void;
   onCreated: () => void;
   /** Si viene, el diálogo edita ese gasto en vez de crear uno nuevo. */
   expense?: EditableExpense;
+  mode?: 'expense' | 'purchase';
 }) {
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{expense ? 'Editar gasto' : 'Agregar gasto'}</DialogTitle>
+          <DialogTitle>
+            {expense ? (mode === 'purchase' ? 'Editar compra' : 'Editar gasto') : mode === 'purchase' ? 'Registrar compra' : 'Agregar gasto'}
+          </DialogTitle>
         </DialogHeader>
-        <ExpenseForm onCreated={onCreated} expense={expense} />
+        <ExpenseForm onCreated={onCreated} expense={expense} mode={mode} />
       </DialogContent>
     </Dialog>
   );

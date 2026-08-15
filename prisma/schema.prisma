@@ -535,6 +535,7 @@ model Restaurant {
   employeePayments       EmployeePayment[]
   cashSessions           CashSession[]
   suppliers              Supplier[]
+  supplierRatings        SupplierRating[]
   customers              Customer[]
   promotions             Promotion[]
   promotionRedemptions   PromotionRedemption[]
@@ -1781,9 +1782,34 @@ model Supplier {
   restaurant    Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   movements     Movement[]
   paymentOrders PaymentOrder[]
+  ratings       SupplierRating[]
 
   @@index([restaurantId])
   @@map("suppliers")
+}
+
+/// Calificación de un proveedor (módulo Compras → Calificación de proveedores). Cada evaluación
+/// es una fila (quién, cuándo, 4 criterios de 1 a 5 y comentario); el promedio se calcula al leer.
+model SupplierRating {
+  id           String @id @default(cuid())
+  restaurantId String
+  supplierId   String
+
+  /// Criterios de 1 a 5.
+  quality     Int
+  price       Int
+  punctuality Int
+  service     Int
+  comment     String?
+
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  supplier   Supplier   @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, supplierId])
+  @@map("supplier_ratings")
 }
 
 // Directorio de clientes del restaurante: se crea/actualiza automáticamente

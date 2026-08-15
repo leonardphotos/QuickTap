@@ -40,7 +40,8 @@ interface MovementResult {
   movements: MovementRow[];
 }
 
-export default function ExpensesPage() {
+/** `embedded` = montado como pestaña dentro de Administración (título compacto). */
+export default function ExpensesPage({ embedded = false }: { embedded?: boolean } = {}) {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [range, setRange] = useState<Range>('month');
@@ -64,7 +65,7 @@ export default function ExpensesPage() {
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between gap-2 flex-wrap">
-        <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Gastos</h1>
+        <h1 className={embedded ? 'text-lg font-semibold text-brand-950' : 'text-3xl font-semibold tracking-tight text-brand-950'}>Gastos</h1>
         <TextureButton variant="brand" size="default" className="!w-auto flex items-center gap-1.5" onClick={() => setShowFormDialog(true)}>
           <Plus className="h-4 w-4" /> Agregar gasto
         </TextureButton>
