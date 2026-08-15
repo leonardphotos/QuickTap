@@ -141,7 +141,7 @@ export function BreakEvenCard({ fetchUrl }: { fetchUrl: string }) {
             />
           </div>
         </div>
-        <div className="flex items-center justify-between text-[13px] text-brand-950/60">
+        <div className="flex flex-col gap-1 text-[13px] text-brand-950/60 sm:flex-row sm:items-center sm:justify-between">
           <span>
             Vendido: <span className="font-bold text-brand-950">{money(sales, symbol)}</span>
           </span>
@@ -151,8 +151,8 @@ export function BreakEvenCard({ fetchUrl }: { fetchUrl: string }) {
         </div>
       </div>
 
-      {/* --- Las 5 métricas --- */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {/* --- Las 5 métricas, en una sola tarjeta --- */}
+      <div className={`${card} grid grid-cols-2 overflow-hidden sm:grid-cols-3 lg:grid-cols-5`}>
         <Metric label="Ventas del mes" value={money(sales, symbol)} caption={`${be.daysElapsed} días`} />
         <Metric
           label="Costo variable"
@@ -270,16 +270,16 @@ function Metric({
   tone?: 'success' | 'danger';
 }) {
   return (
-    <div className={`${card} p-4 ${highlighted ? '!border-brand-400/60 !bg-brand-500/[0.06]' : ''}`}>
-      <p className="text-[13px] font-semibold text-brand-950/55">{label}</p>
+    <div className="border-b border-r border-brand-950/[0.06] p-4 last:border-r-0 lg:border-b-0 [&:nth-child(2n)]:border-r-0 sm:[&:nth-child(2n)]:border-r sm:[&:nth-child(3n)]:border-r-0 lg:[&:nth-child(3n)]:border-r lg:[&:nth-child(5n)]:border-r-0">
+      <p className="text-[12px] font-medium text-brand-950/50">{label}</p>
       <p
-        className={`mt-1.5 text-[26px] font-bold leading-none tracking-tight ${
+        className={`mt-1.5 text-[22px] font-semibold leading-none tracking-tight ${
           tone === 'danger' ? 'text-red-600' : tone === 'success' ? 'text-emerald-600' : highlighted ? 'text-brand-500' : 'text-brand-950'
         }`}
       >
         {value}
       </p>
-      <p className="mt-1.5 text-[12px] font-light text-brand-950/45">{caption}</p>
+      <p className="mt-1.5 text-[11px] font-light text-brand-950/45">{caption}</p>
     </div>
   );
 }
@@ -301,12 +301,17 @@ function CumulativeChart({
   pace: number;
   symbol: string;
 }) {
-  const W = 760;
-  const H = 300;
-  const padL = 62;
-  const padR = 16;
+  // En pantallas angostas el SVG se escala mucho: se dibuja con un lienzo más chico
+  // (menos ancho, textos relativamente más grandes) para que ejes y etiquetas se lean sin
+  // scroll horizontal.
+  const compact = useIsCompact();
+  const W = compact ? 420 : 760;
+  const H = compact ? 260 : 300;
+  const padL = compact ? 44 : 62;
+  const padR = compact ? 12 : 16;
   const padT = 22;
   const padB = 34;
+  const fs = compact ? 12 : 11;
   const plotW = W - padL - padR;
   const plotH = H - padT - padB;
 
@@ -345,13 +350,16 @@ function CumulativeChart({
 
   const ticks = 4;
   const yTicks = Array.from({ length: ticks + 1 }, (_, i) => (yMax / ticks) * i);
-  const xTicks = [1, 5, 10, 15, 20, 25, daysInPeriod].filter((d, i, a) => d <= daysInPeriod && a.indexOf(d) === i);
+  const xTicks = (compact ? [1, 10, 20, daysInPeriod] : [1, 5, 10, 15, 20, 25, daysInPeriod]).filter(
+    (d, i, a) => d <= daysInPeriod && a.indexOf(d) === i,
+  );
   const short = (v: number) =>
     v >= 1000 ? `${symbol}${(v / 1000).toFixed(v % 1000 === 0 ? 0 : 1).replace('.', ',')}k` : `${symbol}${Math.round(v)}`;
+  const beLabel = compact ? `Equilibrio ${money(breakEven ?? 0, symbol)}` : `Punto de equilibrio ${money(breakEven ?? 0, symbol)}`;
 
   return (
-    <div className="mt-4 overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full min-w-[520px]" role="img" aria-label="Ventas acumuladas contra el punto de equilibrio">
+    <div className="mt-4">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" role="img" aria-label="Ventas acumuladas contra el punto de equilibrio">
         {/* Zona de utilidad (sobre el equilibrio) */}
         {breakEven != null && (
           <rect x={padL} y={padT} width={plotW} height={Math.max(0, y(breakEven) - padT)} fill="#10b981" fillOpacity="0.06" />
@@ -360,28 +368,28 @@ function CumulativeChart({
         {yTicks.map((v) => (
           <g key={v}>
             <line x1={padL} x2={W - padR} y1={y(v)} y2={y(v)} stroke="#0f172a" strokeOpacity="0.08" />
-            <text x={padL - 8} y={y(v) + 4} textAnchor="end" fontSize="11" fill="#64748b">
+            <text x={padL - 6} y={y(v) + 4} textAnchor="end" fontSize={fs} fill="#64748b">
               {short(v)}
             </text>
           </g>
         ))}
         {/* Eje X */}
         {xTicks.map((d) => (
-          <text key={d} x={x(d)} y={H - 10} textAnchor="middle" fontSize="11" fill="#64748b">
+          <text key={d} x={x(d)} y={H - 10} textAnchor="middle" fontSize={fs} fill="#64748b">
             {d}
           </text>
         ))}
         {/* Hoy */}
         <line x1={x(today)} x2={x(today)} y1={padT} y2={padT + plotH} stroke="#0f172a" strokeOpacity="0.15" />
-        <text x={x(today)} y={padT - 8} textAnchor="middle" fontSize="11" fontWeight="700" fill="#94a3b8">
+        <text x={x(today)} y={padT - 8} textAnchor="middle" fontSize={fs} fontWeight="700" fill="#94a3b8">
           hoy
         </text>
         {/* Equilibrio */}
         {breakEven != null && (
           <>
             <line x1={padL} x2={W - padR} y1={y(breakEven)} y2={y(breakEven)} stroke="#0f172a" strokeWidth="2" strokeDasharray="6 5" />
-            <text x={W - padR} y={y(breakEven) - 8} textAnchor="end" fontSize="12" fontWeight="700" fill="#0f172a">
-              Punto de equilibrio {money(breakEven, symbol)}
+            <text x={W - padR} y={y(breakEven) - 8} textAnchor="end" fontSize={fs + 1} fontWeight="500" fill="#0f172a">
+              {beLabel}
             </text>
           </>
         )}
@@ -396,7 +404,7 @@ function CumulativeChart({
         {crossDay != null && breakEven != null && (
           <>
             <circle cx={x(crossDay)} cy={y(breakEven)} r="5.5" fill="#10b981" />
-            <text x={x(crossDay)} y={y(breakEven) + 22} textAnchor="middle" fontSize="12" fontWeight="700" fill="#059669">
+            <text x={x(crossDay)} y={y(breakEven) + 22} textAnchor="middle" fontSize={fs + 1} fontWeight="700" fill="#059669">
               día {Math.ceil(crossDay)}
             </text>
           </>
@@ -410,6 +418,19 @@ function CumulativeChart({
       </div>
     </div>
   );
+}
+
+/** true por debajo de 640px (breakpoint `sm`), reaccionando al cambio de tamaño. */
+function useIsCompact(): boolean {
+  const [compact, setCompact] = useState(() => (typeof window !== 'undefined' ? window.innerWidth < 640 : false));
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const onChange = () => setCompact(mq.matches);
+    onChange();
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return compact;
 }
 
 function Legend({ color, dashed, children }: { color: string; dashed?: boolean; children: React.ReactNode }) {
