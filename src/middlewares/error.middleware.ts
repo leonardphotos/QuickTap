@@ -28,6 +28,19 @@ export function errorMiddleware(err: unknown, _req: Request, res: Response, _nex
     return res.status(400).json({ error: 'No se pudo procesar el archivo subido.', details: err.message });
   }
 
+  // Errores del parseo del body (express.json): un cuerpo más grande que el límite de 1MB o un
+  // JSON mal formado. Antes caían al 500 genérico — ruido en el log y un código engañoso ante
+  // lo que en realidad es una petición mal hecha, no una falla del servidor.
+  if (err && typeof err === 'object' && 'type' in err) {
+    const type = (err as { type?: string }).type;
+    if (type === 'entity.too.large') {
+      return res.status(413).json({ error: 'El contenido enviado es demasiado grande.' });
+    }
+    if (type === 'entity.parse.failed' || type === 'encoding.unsupported') {
+      return res.status(400).json({ error: 'El cuerpo de la solicitud no es un JSON válido.' });
+    }
+  }
+
   // Violación de restricción única de Prisma (ej: slug o email duplicado).
   if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
     return res.status(409).json({

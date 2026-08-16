@@ -18,6 +18,16 @@ server {
     # ver upload.middleware.ts): sin esto Nginx corta en 1 MB y ninguna foto real sube.
     client_max_body_size 25m;
 
+    # Cabeceras de seguridad de todo lo que sirve Nginx directo (el HTML de la SPA y los
+    # estáticos). /api y /uploads las traen de Helmet porque van proxied al backend. OJO: en
+    # Nginx `add_header` NO se hereda dentro de un location que define sus propios add_header
+    # — por eso se repiten en `location = /index.html` de abajo (si no, todo el HTML del panel
+    # saldría sin X-Frame-Options y sería enmarcable / clickjacking).
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "no-referrer" always;
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
     # Compresión: sin listar los tipos, nginx por defecto solo comprime
     # text/html — los bundles JS/CSS (cientos de KB cada uno) viajarían sin
     # comprimir. gzip suele reducirlos ~65-75%.
@@ -100,6 +110,17 @@ server {
         proxy_set_header Connection "upgrade";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+    }
+
+    # index.html NUNCA se cachea: es el único archivo que apunta a los bundles con hash, así
+    # que un index viejo en caché seguiría cargando la versión anterior tras cada despliegue.
+    # Repite las cabeceras de seguridad porque su add_header propio corta la herencia del server.
+    location = /index.html {
+        add_header Cache-Control "no-cache, must-revalidate" always;
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header Referrer-Policy "no-referrer" always;
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     }
 
     # Frontend: SPA de React Router, cualquier ruta que no matchee un archivo
