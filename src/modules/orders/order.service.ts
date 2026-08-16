@@ -1939,9 +1939,15 @@ export const orderService = {
     return prisma.$transaction(async (tx) => {
       // Candado por PEDIDO durante toda la transacción: dos cajeros cobrando la misma
       // comanda a la vez (o un doble toque del botón) leían los dos el saldo completo y
-      // ambos pasaban la validación de abajo — la cuenta terminaba cobrada dos veces. Con
-      // esto el segundo espera, relee el saldo ya actualizado y se le rechaza el exceso.
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'order-payment:' + orderId}))`;
+      // ambos pasaban la validación de abajo — la cuenta terminaba cobrada dos veces.
+      //
+      // Es `try_lock` y no el bloqueante: si el candado está tomado, se responde al toque
+      // en vez de hacer cola. Esperando, las transacciones en espera se pasaban del límite
+      // de 5 s de Prisma y morían con un error técnico feo en vez de un aviso entendible.
+      const [{ locked }] = await tx.$queryRaw<{ locked: boolean }[]>`
+        SELECT pg_try_advisory_xact_lock(hashtext(${'order-payment:' + orderId})) AS locked
+      `;
+      if (!locked) throw badRequest('Se está registrando otro cobro de esta cuenta. Espera un momento y vuelve a intentar.');
 
       const order = await tx.order.findFirst({
         where: { id: orderId, restaurantId },

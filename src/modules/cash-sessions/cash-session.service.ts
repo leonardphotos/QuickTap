@@ -240,7 +240,10 @@ export const cashSessionService = {
     // Mismo candado que el cierre: dos "Abrir Caja" simultáneos dejaban dos cajas abiertas
     // y a partir de ahí los cierres no cuadraban con nada.
     return prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'cash-session:' + restaurantId}))`;
+      const [{ locked }] = await tx.$queryRaw<{ locked: boolean }[]>`
+        SELECT pg_try_advisory_xact_lock(hashtext(${'cash-session:' + restaurantId})) AS locked
+      `;
+      if (!locked) throw badRequest('Ya se está abriendo la caja. Espera un momento y recarga.');
 
       const existing = await tx.cashSession.findFirst({ where: { restaurantId, status: 'OPEN' } });
       if (existing) throw badRequest('Ya hay una caja abierta. Ciérrala antes de abrir una nueva.');
@@ -283,8 +286,12 @@ export const cashSessionService = {
     const { closed, clearedCount } = await prisma.$transaction(async (tx) => {
       // Candado por NEGOCIO: sin él, varios "Confirmar cierre" a la vez (dos pestañas, un
       // doble toque) cerraban la misma caja varias veces y todas se llevaban el mismo
-      // número de cierre. El segundo entra cuando el primero ya cerró y se le rechaza.
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'cash-session:' + restaurantId}))`;
+      // número de cierre. No bloqueante a propósito: el que llega segundo recibe un aviso
+      // claro al instante en vez de esperar y morir por el límite de tiempo de la transacción.
+      const [{ locked }] = await tx.$queryRaw<{ locked: boolean }[]>`
+        SELECT pg_try_advisory_xact_lock(hashtext(${'cash-session:' + restaurantId})) AS locked
+      `;
+      if (!locked) throw badRequest('Ya se está cerrando esta caja. Espera un momento y revisa el resultado.');
 
       const session = await tx.cashSession.findFirst({ where: { id, restaurantId, status: 'OPEN' } });
       if (!session) {
@@ -325,7 +332,7 @@ export const cashSessionService = {
       });
 
       return { closed, clearedCount };
-    });
+    }, { timeout: 20000 });
 
     // Fuera de la transacción: los paneles abiertos (Pedidos, cocina) recargan solos
     // en vez de quedarse mostrando comandas que ya salieron de la pantalla.
