@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { ArrowDownRight, ArrowUpRight, ChevronDown, DollarSign, Receipt, Target, TrendingUp, Wallet } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
@@ -30,11 +29,11 @@ interface GeneralKpis {
   };
 }
 
-/** Recordar si el panel quedó abierto o cerrado, por si el dueño prefiere el Resumen corto. */
+/** Recordar si el panel de KPI quedó abierto o cerrado, según lo prefiera el dueño. */
 const OPEN_KEY = 'quicktap_kpis_open';
 
 /**
- * Resumen del negocio en el Dashboard, justo debajo de "Ventas de hoy": las cinco cifras que
+ * KPI del negocio en el Dashboard, justo debajo de "Ventas de hoy": las cinco cifras que
  * se miran a diario — punto de equilibrio, ventas, ticket promedio, utilidad neta y food
  * cost — en fichas grandes de dos columnas, con la variación contra el período anterior.
  * Es desplegable: quien no quiere números al entrar lo deja cerrado y no vuelve a estorbar.
@@ -72,6 +71,8 @@ export function GeneralKpisCard() {
     foodCostNum === 0 ? '' : foodCostNum <= 35 ? 'text-emerald-600' : foodCostNum <= 45 ? 'text-amber-600' : 'text-red-600';
   const netTone = data && Number(data.net.base) < 0 ? 'text-red-600' : 'text-emerald-600';
   const progress = data?.breakEven.progressPercent ? Math.min(100, Number(data.breakEven.progressPercent)) : 0;
+  // Hay punto de equilibrio real solo si el objetivo es mayor que cero (hay costos fijos).
+  const hasBreakEven = !!data?.breakEven.targetBase && Number(data.breakEven.targetBase) > 0;
 
   return (
     <div className="w-full rounded-3xl border border-brand-950/10 bg-white shadow-sm">
@@ -82,7 +83,7 @@ export function GeneralKpisCard() {
         className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
       >
         <span>
-          <span className="block text-[17px] font-bold text-brand-950">Resumen</span>
+          <span className="block text-[17px] font-bold text-brand-950">KPI</span>
           <span className="block text-xs font-light text-brand-950/45">
             {open ? `Comparado con ${PREVIOUS_LABELS[range]}` : 'Ventas, ticket, utilidad, food cost y equilibrio'}
           </span>
@@ -118,10 +119,12 @@ export function GeneralKpisCard() {
               <KpiCell
                 ring={progress}
                 label="Equilibrio"
-                value={data.breakEven.targetBase == null ? '—' : `${Math.round(progress)}%`}
+                // Sin costos fijos cargados el objetivo es 0: ahí no hay nada que "cubrir",
+                // así que se dice qué falta en vez de cantar un 0% ya cubierto.
+                value={hasBreakEven ? `${Math.round(progress)}%` : '—'}
                 hint={
-                  data.breakEven.targetBase == null
-                    ? 'sin datos'
+                  !hasBreakEven
+                    ? 'carga tus gastos fijos'
                     : data.breakEven.achieved
                       ? 'ya cubierto'
                       : `faltan ${formatBase(Math.abs(Number(data.breakEven.gapBase ?? 0)).toFixed(2), symbol)}`
@@ -156,13 +159,6 @@ export function GeneralKpisCard() {
               />
             </div>
           )}
-
-          <div className="flex flex-wrap gap-2 border-t border-brand-950/[0.07] px-5 py-3">
-            <QuickLink to="/admin/administration">Administración</QuickLink>
-            <QuickLink to="/admin/table-orders">Órdenes de mesa</QuickLink>
-            <QuickLink to="/admin/purchases">Registrar compra</QuickLink>
-            <QuickLink to="/admin/inventory">Inventario</QuickLink>
-          </div>
         </>
       )}
     </div>
@@ -251,16 +247,5 @@ function ProgressRing({ value }: { value: number }) {
       </svg>
       <Target className="absolute h-4 w-4 text-brand-500" />
     </span>
-  );
-}
-
-function QuickLink({ to, children }: { to: string; children: React.ReactNode }) {
-  return (
-    <Link
-      to={to}
-      className="rounded-full bg-brand-950/[0.05] px-3 py-1.5 text-xs font-semibold text-brand-950/70 transition-colors hover:bg-brand-950/10 hover:text-brand-950"
-    >
-      {children}
-    </Link>
   );
 }

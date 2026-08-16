@@ -129,8 +129,8 @@ export default function DashboardPage() {
           </a>
           {isAdminCashier(user?.role, user?.cashierFullAccess) && <DailySalesSummary />}
 
-          {/* Resumen del negocio: va justo debajo de "Ventas de hoy" y se puede plegar, para
-              que quien solo quiere cobrar no tenga los indicadores encima todo el día. */}
+          {/* KPI del negocio: va justo debajo de "Ventas de hoy" y se puede plegar, para que
+              quien solo quiere cobrar no tenga los indicadores encima todo el día. */}
           {isAdminCashier(user?.role, user?.cashierFullAccess) && (
             <div className="mt-4 w-full">
               <GeneralKpisCard />
