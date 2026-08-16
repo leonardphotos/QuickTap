@@ -1,14 +1,19 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowDownRight, ArrowUpRight, Target } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, ChevronDown, DollarSign, Receipt, Target, TrendingUp, Wallet } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
 import { hasFeature } from '@/utils/subscription';
 
 type Range = 'day' | 'week' | 'month' | 'year';
-const RANGE_LABELS: Record<Range, string> = { day: 'Hoy', week: 'Semana', month: 'Este mes', year: 'Este año' };
-const PREVIOUS_LABELS: Record<Range, string> = { day: 'ayer', week: 'la semana pasada', month: 'el mes pasado', year: 'el año pasado' };
+const RANGE_LABELS: Record<Range, string> = { day: 'Hoy', week: 'Semana', month: 'Mes', year: 'Año' };
+const PREVIOUS_LABELS: Record<Range, string> = {
+  day: 'ayer',
+  week: 'la semana pasada',
+  month: 'el mes pasado',
+  year: 'el año pasado',
+};
 
 interface GeneralKpis {
   range: Range;
@@ -25,165 +30,227 @@ interface GeneralKpis {
   };
 }
 
+/** Recordar si el panel quedó abierto o cerrado, por si el dueño prefiere el Resumen corto. */
+const OPEN_KEY = 'quicktap_kpis_open';
+
 /**
- * Panel general del Dashboard: las cinco cifras que de verdad se miran a diario —ventas,
- * ticket promedio, utilidad neta, food cost y punto de equilibrio—, cada una con su
- * comparación contra el período anterior. Es lo primero que se ve al entrar, para no tener
- * que buscar en Administración qué tal va el negocio.
+ * Resumen del negocio en el Dashboard, justo debajo de "Ventas de hoy": las cinco cifras que
+ * se miran a diario — punto de equilibrio, ventas, ticket promedio, utilidad neta y food
+ * cost — en fichas grandes de dos columnas, con la variación contra el período anterior.
+ * Es desplegable: quien no quiere números al entrar lo deja cerrado y no vuelve a estorbar.
  */
 export function GeneralKpisCard() {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
+  const [open, setOpen] = useState(() => localStorage.getItem(OPEN_KEY) !== 'false');
   const [range, setRange] = useState<Range>('month');
   const [data, setData] = useState<GeneralKpis | null>(null);
   const [failed, setFailed] = useState(false);
 
+  const enabled = hasFeature(restaurant, 'administration');
+
   useEffect(() => {
-    if (!hasFeature(restaurant, 'administration')) return;
+    if (!enabled || !open) return;
     api
       .get('/kpis/general', { params: { range } })
       .then((res) => setData(res.data.data))
       .catch(() => setFailed(true));
-  }, [range, restaurant]);
+  }, [range, enabled, open]);
+
+  function toggle() {
+    setOpen((o) => {
+      localStorage.setItem(OPEN_KEY, String(!o));
+      return !o;
+    });
+  }
 
   // Sin plan con Administración (o si el endpoint falla) el Dashboard sigue como siempre.
-  if (!hasFeature(restaurant, 'administration') || failed) return null;
+  if (!enabled || failed) return null;
 
   const foodCostNum = data ? Number(data.foodCost.percent) : 0;
-  const foodCostTone = foodCostNum === 0 ? 'text-brand-950' : foodCostNum <= 35 ? 'text-emerald-600' : foodCostNum <= 45 ? 'text-amber-600' : 'text-red-600';
-  const netNegative = data ? Number(data.net.base) < 0 : false;
+  const foodCostTone =
+    foodCostNum === 0 ? '' : foodCostNum <= 35 ? 'text-emerald-600' : foodCostNum <= 45 ? 'text-amber-600' : 'text-red-600';
+  const netTone = data && Number(data.net.base) < 0 ? 'text-red-600' : 'text-emerald-600';
+  const progress = data?.breakEven.progressPercent ? Math.min(100, Number(data.breakEven.progressPercent)) : 0;
 
   return (
-    <div className="rounded-3xl border border-brand-950/10 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-sm font-bold text-brand-950">¿Cómo va el negocio?</p>
-          <p className="text-xs font-light text-brand-950/45">Las cinco cifras que importan, comparadas con {PREVIOUS_LABELS[range]}.</p>
-        </div>
-        <div className="flex items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
-          {(Object.keys(RANGE_LABELS) as Range[]).map((r) => (
-            <button
-              key={r}
-              type="button"
-              onClick={() => setRange(r)}
-              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-                range === r ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
-              }`}
-            >
-              {RANGE_LABELS[r]}
-            </button>
-          ))}
-        </div>
-      </div>
+    <div className="w-full rounded-3xl border border-brand-950/10 bg-white shadow-sm">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
+      >
+        <span>
+          <span className="block text-[17px] font-bold text-brand-950">Resumen</span>
+          <span className="block text-xs font-light text-brand-950/45">
+            {open ? `Comparado con ${PREVIOUS_LABELS[range]}` : 'Ventas, ticket, utilidad, food cost y equilibrio'}
+          </span>
+        </span>
+        <ChevronDown className={`h-5 w-5 shrink-0 text-brand-950/40 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
 
-      {!data ? (
-        <p className="py-6 text-center text-sm font-light text-brand-950/40">Calculando…</p>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Kpi
-            title="Ventas"
-            value={formatBase(data.sales.totalBase, symbol)}
-            caption={`${data.sales.count} ticket${data.sales.count === 1 ? '' : 's'}`}
-            change={data.sales.changePercent}
-          />
-          <Kpi
-            title="Ticket promedio"
-            value={formatBase(data.avgTicket.base, symbol)}
-            caption={`antes ${formatBase(data.avgTicket.previousBase, symbol)}`}
-            change={data.avgTicket.changePercent}
-          />
-          <Kpi
-            title="Utilidad neta"
-            value={formatBase(data.net.base, symbol)}
-            valueClass={netNegative ? 'text-red-600' : 'text-emerald-600'}
-            caption={`gastos ${formatBase(data.net.expensesBase, symbol)}${data.net.marginPercent ? ` · ${data.net.marginPercent}%` : ''}`}
-          />
-          <Kpi
-            title="Food cost"
-            value={`${data.foodCost.percent}%`}
-            valueClass={foodCostTone}
-            caption={`costo ${formatBase(data.foodCost.costBase, symbol)}`}
-          />
-          <BreakEvenKpi data={data} symbol={symbol} />
-        </div>
+      {open && (
+        <>
+          <div className="flex flex-wrap gap-1 px-5 pb-3">
+            {(Object.keys(RANGE_LABELS) as Range[]).map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setRange(r)}
+                className={`rounded-full px-3 py-1 text-[12px] font-semibold transition-colors ${
+                  range === r ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/55 hover:bg-brand-950/10'
+                }`}
+              >
+                {RANGE_LABELS[r]}
+              </button>
+            ))}
+          </div>
+
+          {!data ? (
+            <p className="px-5 pb-5 text-sm font-light text-brand-950/40">Calculando…</p>
+          ) : (
+            // Dos columnas en celular (donde el Resumen ocupa todo el ancho) y una sola en
+            // escritorio: ahí la tarjeta vive en la columna lateral de 250px y dos columnas
+            // dejarían los números apretados.
+            <div className="grid grid-cols-2 border-t border-brand-950/[0.07] lg:grid-cols-1">
+              {/* Punto de equilibrio: el anillo dice de un vistazo cuánto se lleva del objetivo. */}
+              <KpiCell
+                ring={progress}
+                label="Equilibrio"
+                value={data.breakEven.targetBase == null ? '—' : `${Math.round(progress)}%`}
+                hint={
+                  data.breakEven.targetBase == null
+                    ? 'sin datos'
+                    : data.breakEven.achieved
+                      ? 'ya cubierto'
+                      : `faltan ${formatBase(Math.abs(Number(data.breakEven.gapBase ?? 0)).toFixed(2), symbol)}`
+                }
+              />
+              <KpiCell
+                icon={Wallet}
+                label="Ventas"
+                value={formatBase(data.sales.totalBase, symbol)}
+                change={data.sales.changePercent}
+              />
+              <KpiCell
+                icon={Receipt}
+                label="Ticket promedio"
+                value={formatBase(data.avgTicket.base, symbol)}
+                change={data.avgTicket.changePercent}
+              />
+              <KpiCell icon={Receipt} label="Pedidos" value={String(data.sales.count)} hint="en el período" />
+              <KpiCell
+                icon={TrendingUp}
+                label="Utilidad neta"
+                value={formatBase(data.net.base, symbol)}
+                valueTone={netTone}
+                hint={`gastos ${formatBase(data.net.expensesBase, symbol)}`}
+              />
+              <KpiCell
+                icon={DollarSign}
+                label="Food cost"
+                value={`${data.foodCost.percent}%`}
+                valueTone={foodCostTone}
+                hint={`costo ${formatBase(data.foodCost.costBase, symbol)}`}
+              />
+            </div>
+          )}
+
+          <div className="flex flex-wrap gap-2 border-t border-brand-950/[0.07] px-5 py-3">
+            <QuickLink to="/admin/administration">Administración</QuickLink>
+            <QuickLink to="/admin/table-orders">Órdenes de mesa</QuickLink>
+            <QuickLink to="/admin/purchases">Registrar compra</QuickLink>
+            <QuickLink to="/admin/inventory">Inventario</QuickLink>
+          </div>
+        </>
       )}
-
-      <div className="mt-4 flex flex-wrap gap-2 border-t border-brand-950/[0.06] pt-3">
-        <QuickLink to="/admin/administration">Ver administración</QuickLink>
-        <QuickLink to="/admin/table-orders">Órdenes de mesa</QuickLink>
-        <QuickLink to="/admin/purchases">Registrar compra</QuickLink>
-        <QuickLink to="/admin/inventory">Inventario</QuickLink>
-      </div>
     </div>
   );
 }
 
-function Kpi({
-  title,
+/**
+ * Ficha de un KPI: icono en círculo (o anillo de progreso) a la izquierda, etiqueta chica y
+ * el número grande debajo. Las celdas se separan con líneas, sin bordes por ficha, para que
+ * la cuadrícula se lea de corrido como una tabla.
+ */
+function KpiCell({
+  icon: Icon,
+  ring,
+  label,
   value,
-  caption,
+  hint,
   change,
-  valueClass = 'text-brand-950',
+  valueTone = '',
 }: {
-  title: string;
+  icon?: typeof Wallet;
+  /** 0-100: dibuja un anillo de progreso en vez del icono. */
+  ring?: number;
+  label: string;
   value: string;
-  caption?: string;
+  hint?: string;
   change?: string | null;
-  valueClass?: string;
+  valueTone?: string;
 }) {
   const changeNum = change != null ? Number(change) : null;
+
   return (
-    <div className="rounded-2xl border border-brand-950/[0.08] px-4 py-3">
-      <p className="text-[11px] font-medium uppercase tracking-wide text-brand-950/40">{title}</p>
-      <p className={`mt-1 text-xl font-bold leading-tight ${valueClass}`}>{value}</p>
-      <div className="mt-1 flex flex-wrap items-center gap-1.5">
-        {changeNum != null && (
-          <span
-            className={`inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
-              changeNum >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
-            }`}
-          >
-            {changeNum >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-            {Math.abs(changeNum)}%
-          </span>
-        )}
-        {caption && <span className="text-[11px] font-light text-brand-950/45">{caption}</span>}
+    <div className="flex items-center gap-3 border-b border-brand-950/[0.07] px-4 py-4 [&:nth-last-child(-n+2)]:border-b-0 lg:[&:nth-last-child(-n+2)]:border-b lg:last:border-b-0">
+      {ring != null ? (
+        <ProgressRing value={ring} />
+      ) : (
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-500 text-white">
+          {Icon && <Icon className="h-5 w-5" />}
+        </span>
+      )}
+      <div className="min-w-0">
+        <p className="text-[13px] font-medium leading-tight text-brand-950/60">{label}</p>
+        <p className={`text-[22px] font-extrabold leading-tight tracking-tight ${valueTone || 'text-brand-950'}`}>
+          {value}
+        </p>
+        <div className="flex flex-wrap items-center gap-1">
+          {changeNum != null && (
+            <span
+              className={`inline-flex items-center gap-0.5 text-[11px] font-bold ${
+                changeNum >= 0 ? 'text-emerald-600' : 'text-red-600'
+              }`}
+            >
+              {changeNum >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+              {Math.abs(changeNum)}%
+            </span>
+          )}
+          {hint && <span className="text-[11px] font-light leading-tight text-brand-950/40">{hint}</span>}
+        </div>
       </div>
     </div>
   );
 }
 
-/** El punto de equilibrio no es una cifra suelta: se lee como "cuánto llevo del objetivo". */
-function BreakEvenKpi({ data, symbol }: { data: GeneralKpis; symbol: string }) {
-  const { breakEven } = data;
-  const progress = breakEven.progressPercent ? Math.min(100, Number(breakEven.progressPercent)) : 0;
+/** Anillo de progreso (0-100) dibujado con un solo círculo SVG, sin librerías. */
+function ProgressRing({ value }: { value: number }) {
+  const radius = 18;
+  const circumference = 2 * Math.PI * radius;
+  const filled = Math.max(0, Math.min(100, value));
 
   return (
-    <div className="rounded-2xl border border-brand-950/[0.08] px-4 py-3">
-      <p className="flex items-center gap-1 text-[11px] font-medium uppercase tracking-wide text-brand-950/40">
-        <Target className="h-3 w-3" /> Punto de equilibrio
-      </p>
-      {breakEven.targetBase == null ? (
-        <>
-          <p className="mt-1 text-xl font-bold leading-tight text-brand-950">—</p>
-          <p className="mt-1 text-[11px] font-light text-brand-950/45">Carga costos y precios para calcularlo.</p>
-        </>
-      ) : (
-        <>
-          <p className={`mt-1 text-xl font-bold leading-tight ${breakEven.achieved ? 'text-emerald-600' : 'text-brand-950'}`}>
-            {breakEven.achieved
-              ? '¡Cubierto!'
-              : formatBase(Math.abs(Number(breakEven.gapBase ?? 0)).toFixed(2), symbol)}
-          </p>
-          <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-brand-950/[0.07]">
-            <div className={`h-full rounded-full ${breakEven.achieved ? 'bg-emerald-500' : 'bg-brand-500'}`} style={{ width: `${progress}%` }} />
-          </div>
-          <p className="mt-1 text-[11px] font-light text-brand-950/45">
-            {breakEven.achieved ? 'ya cubriste los costos fijos' : `falta para cubrir ${formatBase(breakEven.fixedCostsBase, symbol)}`}
-          </p>
-        </>
-      )}
-    </div>
+    <span className="relative flex h-11 w-11 shrink-0 items-center justify-center">
+      <svg viewBox="0 0 44 44" className="h-11 w-11 -rotate-90">
+        <circle cx="22" cy="22" r={radius} fill="none" stroke="currentColor" strokeWidth="5" className="text-brand-500/15" />
+        <circle
+          cx="22"
+          cy="22"
+          r={radius}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="5"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={circumference - (circumference * filled) / 100}
+          className="text-brand-500"
+        />
+      </svg>
+      <Target className="absolute h-4 w-4 text-brand-500" />
+    </span>
   );
 }
 

@@ -103,10 +103,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Panel general: lo primero que se ve al entrar — las cinco cifras del negocio y los
-          accesos a lo que se usa a diario, sin tener que ir a buscarlo al menú. */}
-      {isAdminCashier(user?.role, user?.cashierFullAccess) && <GeneralKpisCard />}
-
       {isAdminCashier(user?.role, user?.cashierFullAccess) && <SalesDashboard />}
 
       <div className="flex flex-col items-center text-center lg:flex-row lg:items-start lg:text-left lg:gap-8">
@@ -132,6 +128,14 @@ export default function DashboardPage() {
             </TextureButton>
           </a>
           {isAdminCashier(user?.role, user?.cashierFullAccess) && <DailySalesSummary />}
+
+          {/* Resumen del negocio: va justo debajo de "Ventas de hoy" y se puede plegar, para
+              que quien solo quiere cobrar no tenga los indicadores encima todo el día. */}
+          {isAdminCashier(user?.role, user?.cashierFullAccess) && (
+            <div className="mt-4 w-full">
+              <GeneralKpisCard />
+            </div>
+          )}
 
           {/* Solo en celular: en escritorio ya está la barra lateral con estas mismas
               secciones, así que esta cuadrícula sería redundante ahí. */}
