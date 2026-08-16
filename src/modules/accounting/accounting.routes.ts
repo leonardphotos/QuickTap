@@ -35,4 +35,12 @@ router.get(
   }),
 );
 
+router.get(
+  '/cost-analysis',
+  asyncHandler(async (req: Request, res: Response) => {
+    const { taxRate: _taxRate, ...spec } = querySchema.parse(req.query);
+    res.json({ data: await accountingService.costAnalysis(req.restaurantId!, spec) });
+  }),
+);
+
 export default router;

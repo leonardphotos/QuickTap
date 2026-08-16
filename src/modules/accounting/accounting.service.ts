@@ -286,4 +286,161 @@ export const accountingService = {
       checks: { balanced: round2(totalAssets).eq(round2(totalLiabilities.add(equity))) },
     };
   },
+
+  /**
+   * Análisis de costo (Contabilidad): responde "¿cuánto me costó vender lo que vendí, y
+   * cuánto se me fue por el camino?".
+   *
+   *  - Costo TEÓRICO: lo que las recetas dicen que debió costar lo vendido en el período.
+   *  - Costo REAL aproximado: compras de insumos del período (base de caja). No es el costo
+   *    contable exacto —para eso haría falta inventario inicial y final del período, que
+   *    QuickTap no fotografía— así que se dice explícitamente que es una aproximación.
+   *  - Merma registrada: lo que se anotó como perdido (ver módulo Merma). Es la parte de la
+   *    desviación que SÍ está explicada.
+   *  - Desviación = real − teórico − merma: lo que falta por explicar (compras que aún están
+   *    en nevera, robo, porciones más grandes que la receta, precios desactualizados).
+   *
+   * Además desglosa el costo por categoría de producto y deja el ranking de productos por
+   * costo y por margen, que es donde se decide qué plato ajustar.
+   */
+  async costAnalysis(restaurantId: string, spec: DateSpec) {
+    const restaurant = await businessTypeOf(restaurantId);
+    const createdAt = resolveDateFilter(spec);
+
+    const [items, products, recipeSums, purchases, waste, orders, config] = await Promise.all([
+      prisma.orderItem.findMany({
+        where: { order: { restaurantId, status: { not: 'CANCELLED' }, createdAt } },
+        select: { productId: true, productName: true, variantName: true, quantity: true, lineTotal: true },
+      }),
+      prisma.product.findMany({
+        where: { restaurantId },
+        select: { id: true, costSource: true, costBase: true, category: { select: { name: true } } },
+      }),
+      prisma.recipeIngredient.groupBy({ by: ['productId'], where: { restaurantId }, _sum: { costBase: true } }),
+      // Compras de insumos del período = costo real aproximado (base de caja).
+      prisma.movement.aggregate({
+        where: { restaurantId, type: 'EXPENSE', category: 'SUPPLIES', createdAt },
+        _sum: { amountBase: true },
+        _count: true,
+      }),
+      prisma.wasteRecord.aggregate({ where: { restaurantId, occurredAt: createdAt }, _sum: { costBase: true }, _count: true }),
+      prisma.order.aggregate({
+        where: { restaurantId, status: { not: 'CANCELLED' }, createdAt },
+        _sum: { subtotalBase: true },
+        _count: true,
+      }),
+      prisma.costStructureConfig.findUnique({ where: { restaurantId }, select: { items: true, targetNetMarginPercent: true } }),
+    ]);
+
+    const recipeCost = new Map(recipeSums.map((r) => [r.productId, D(r._sum.costBase)]));
+    const byId = new Map(products.map((p) => [p.id, p]));
+    const unitCostOf = (id: string | null) => {
+      const p = id ? byId.get(id) : undefined;
+      if (!p) return toDecimal(0);
+      return p.costSource === 'RECIPE' ? (recipeCost.get(p.id) ?? toDecimal(0)) : D(p.costBase);
+    };
+
+    // --- Agregación por producto y por categoría ---
+    type Agg = { name: string; categoryName: string; quantity: number; revenue: Prisma.Decimal; cost: Prisma.Decimal; hasCost: boolean };
+    const byProduct = new Map<string, Agg>();
+    const byCategory = new Map<string, { revenue: Prisma.Decimal; cost: Prisma.Decimal }>();
+    let theoreticalCost = toDecimal(0);
+    let revenue = toDecimal(0);
+    let revenueWithoutCost = toDecimal(0);
+
+    for (const it of items) {
+      const unit = unitCostOf(it.productId);
+      const lineCost = unit.mul(it.quantity);
+      const name = it.variantName ? `${it.productName} (${it.variantName})` : it.productName;
+      const categoryName = (it.productId && byId.get(it.productId)?.category.name) ?? 'Sin categoría';
+      const key = `${it.productId ?? `name:${it.productName}`}:${it.variantName ?? ''}`;
+
+      theoreticalCost = theoreticalCost.add(lineCost);
+      revenue = revenue.add(it.lineTotal);
+      if (unit.lte(0)) revenueWithoutCost = revenueWithoutCost.add(it.lineTotal);
+
+      const cur = byProduct.get(key) ?? { name, categoryName, quantity: 0, revenue: toDecimal(0), cost: toDecimal(0), hasCost: unit.gt(0) };
+      cur.quantity += it.quantity;
+      cur.revenue = cur.revenue.add(it.lineTotal);
+      cur.cost = cur.cost.add(lineCost);
+      cur.hasCost = cur.hasCost || unit.gt(0);
+      byProduct.set(key, cur);
+
+      const cat = byCategory.get(categoryName) ?? { revenue: toDecimal(0), cost: toDecimal(0) };
+      cat.revenue = cat.revenue.add(it.lineTotal);
+      cat.cost = cat.cost.add(lineCost);
+      byCategory.set(categoryName, cat);
+    }
+
+    theoreticalCost = round2(theoreticalCost);
+    revenue = round2(revenue);
+    const realCost = round2(D(purchases._sum.amountBase));
+    const wasteCost = round2(D(waste._sum.costBase));
+    const deviation = round2(realCost.sub(theoreticalCost).sub(wasteCost));
+
+    const rows = [...byProduct.values()]
+      .map((p) => {
+        const margin = round2(p.revenue.sub(p.cost));
+        return {
+          name: p.name,
+          categoryName: p.categoryName,
+          quantity: p.quantity,
+          revenueBase: money(p.revenue),
+          costBase: money(p.cost),
+          marginBase: money(margin),
+          foodCostPercent: pct(p.cost, p.revenue),
+          marginPercent: pct(margin, p.revenue),
+          /** Sin costo cargado el food cost sale 0 % y engaña: la pantalla lo marca. */
+          hasCost: p.hasCost,
+        };
+      })
+      .sort((a, b) => Number(b.costBase) - Number(a.costBase));
+
+    const categories = [...byCategory.entries()]
+      .map(([name, v]) => {
+        const margin = round2(v.revenue.sub(v.cost));
+        return {
+          name,
+          revenueBase: money(v.revenue),
+          costBase: money(v.cost),
+          marginBase: money(margin),
+          foodCostPercent: pct(v.cost, v.revenue),
+          shareOfCostPercent: pct(v.cost, theoreticalCost),
+        };
+      })
+      .sort((a, b) => Number(b.costBase) - Number(a.costBase));
+
+    // Food cost objetivo de la estructura de costo, para contrastar el real del período.
+    const cfgItems = Array.isArray(config?.items)
+      ? (config!.items as unknown as { id: string; kind: string; percent: number; enabled: boolean }[])
+      : [];
+    const budgetedWaste = cfgItems.find((i) => i.id === 'waste' && i.enabled);
+
+    return {
+      period: { label: describeDateSpec(spec), ...spec },
+      currency: restaurant.baseCurrency,
+      ordersCount: orders._count,
+      revenueBase: money(revenue),
+      theoretical: { costBase: money(theoreticalCost), foodCostPercent: pct(theoreticalCost, revenue) },
+      real: { costBase: money(realCost), purchases: purchases._count, foodCostPercent: pct(realCost, revenue) },
+      waste: {
+        costBase: money(wasteCost),
+        records: waste._count,
+        percentOfSales: pct(wasteCost, revenue),
+        budgetedPercent: budgetedWaste ? Number(budgetedWaste.percent).toFixed(2) : null,
+      },
+      deviation: {
+        amountBase: money(deviation),
+        percentOfSales: pct(deviation.abs(), revenue),
+        /** Positiva = compraste más de lo que la receta consumió (queda en inventario o se perdió sin registrar). */
+        direction: deviation.gt(0) ? ('OVER' as const) : deviation.lt(0) ? ('UNDER' as const) : ('EVEN' as const),
+      },
+      coverage: {
+        revenueWithoutCostBase: money(round2(revenueWithoutCost)),
+        percentWithoutCost: pct(round2(revenueWithoutCost), revenue),
+      },
+      categories,
+      rows,
+    };
+  },
 };

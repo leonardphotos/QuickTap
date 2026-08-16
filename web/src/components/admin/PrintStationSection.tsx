@@ -55,8 +55,8 @@ export function PrintStationSection() {
             <li>
               Si tienes varias ticketeras conectadas (una por cocina, y otra en caja), entra a{' '}
               <span className="font-medium">⚙️ Configuración → Impresoras</span> dentro de la app, conecta cada una y
-              asígnale su cocina o "Caja" — cada comanda sale sola en la impresora correcta, y los recibos de caja
-              incluyen el texto "Factura no fiscal".
+              asígnale su cocina o "Caja" — cada comanda sale sola en la impresora correcta, y las notas de entrega de
+              caja incluyen el texto "Factura no fiscal".
             </li>
           </ol>
         </div>

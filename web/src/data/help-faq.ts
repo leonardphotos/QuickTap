@@ -122,11 +122,11 @@ export const HELP_FAQ: HelpFaqEntry[] = [
   {
     id: 'print-comanda',
     category: 'cobros',
-    question: '¿Cómo imprimo la comanda o el recibo?',
-    keywords: ['imprimir', 'comanda', 'ticket', 'recibo', 'factura', 'impresora'],
+    question: '¿Cómo imprimo la comanda o la nota de entrega?',
+    keywords: ['imprimir', 'comanda', 'ticket', 'nota de entrega', 'recibo', 'factura', 'impresora'],
     roles: ['OWNER', 'ADMIN', 'CASHIER', 'WAITER'],
     answer:
-      'Dentro del pedido (o al cobrar), toca "Imprimir" — se manda a la Estación de Impresión conectada en la caja/cocina. También puedes "Descargar" el recibo como imagen si no tienes impresora a mano.',
+      'Dentro del pedido (o al cobrar), toca "Imprimir" — se manda a la Estación de Impresión conectada en la caja/cocina. También puedes "Descargar" la nota de entrega como imagen si no tienes impresora a mano.',
   },
   {
     id: 'charge-order',

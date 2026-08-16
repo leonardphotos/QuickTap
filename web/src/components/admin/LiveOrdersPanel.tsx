@@ -1001,15 +1001,17 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
     }
   }
 
-  /** Botón "Recibo": reenvía el recibo detallado (precio en Bs y $, desglose completo) a la
-   * impresora de Caja — independiente de "Comanda", que nunca imprime el recibo. */
+  /** Botón "Nota de entrega": reenvía el documento detallado (precio en Bs y $, desglose
+   * completo) a la impresora de Caja — independiente de "Comanda", que nunca lo imprime.
+   * El tipo interno sigue siendo `recibo`: es la clave del protocolo con la estación de
+   * impresión y de su configuración guardada, renombrarla rompería instalaciones existentes. */
   async function printReceiptFull() {
     setPrintingReceipt(true);
     setError(null);
     try {
       await api.post(`/orders/${order.id}/print-receipt`);
     } catch (e: any) {
-      setError(e.response?.data?.error ?? 'No se pudo enviar el recibo a la estación de impresión.');
+      setError(e.response?.data?.error ?? 'No se pudo enviar la nota de entrega a la estación de impresión.');
     } finally {
       setPrintingReceipt(false);
     }
@@ -1491,7 +1493,7 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
               className="!w-auto"
               onClick={() => setShowReciboMenu((s) => !s)}
             >
-              <Receipt className="h-3.5 w-3.5" /> Recibo
+              <Receipt className="h-3.5 w-3.5" /> Nota de entrega
             </TextureButton>
             {isMesa ? (
               <TextureButton

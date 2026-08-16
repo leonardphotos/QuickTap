@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
 import { AddStockDialog } from '@/components/admin/AddStockDialog';
 import { InventoryAlertsTab } from '@/components/admin/InventoryAlertsTab';
+import { WasteSection } from '@/components/admin/waste/WasteSection';
 import { EXPIRY_CLASS, expiryLabel, expiryStatus } from '@/utils/expiry';
 import { UNIT_LABELS, SUB_UNITS } from '@/utils/inventoryUnits';
 
@@ -84,6 +85,7 @@ export default function InventoryPage() {
     ...(canRecipes ? [{ id: 'preparaciones', label: 'Preparaciones' }] : []),
     ...(canRecipes ? [{ id: 'recetas', label: 'Recetas' }] : []),
     { id: 'stock', label: 'Stock de productos' },
+    { id: 'merma', label: 'Merma' },
     { id: 'alertas', label: 'Alertas' },
     ...(showCasaMatriz ? [{ id: 'casa-matriz', label: 'Casa Matriz' }] : []),
     { id: 'transferencias', label: 'Transferencia de insumos' },
@@ -152,6 +154,7 @@ export default function InventoryPage() {
       {tab === 'preparaciones' && canRecipes && <PreparacionesTab insumos={items ?? []} />}
       {tab === 'recetas' && canRecipes && <RecetasTab insumos={items ?? []} />}
       {tab === 'stock' && <StockTab />}
+      {tab === 'merma' && <WasteSection />}
       {tab === 'alertas' && <InventoryAlertsTab />}
       {tab === 'casa-matriz' && (
         <InsumosTab

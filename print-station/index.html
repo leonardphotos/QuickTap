@@ -411,10 +411,10 @@
 
       <div class="card">
         <h3>Personalizar tickets</h3>
-        <p class="muted small" style="margin-bottom:10px;line-height:1.5;">Elige qué información aparece en la comanda de cocina y en el recibo, y en qué orden salen los datos del pedido (Orden/Canal/Mesa…). El botón "Comanda" siempre imprime solo comandas; el recibo solo sale con el botón "Recibo" o al saldar la cuenta.</p>
+        <p class="muted small" style="margin-bottom:10px;line-height:1.5;">Elige qué información aparece en la comanda de cocina y en la nota de entrega, y en qué orden salen los datos del pedido (Orden/Canal/Mesa…). El botón "Comanda" siempre imprime solo comandas; la nota de entrega solo sale con el botón "Nota de entrega" o al saldar la cuenta.</p>
         <div style="display:flex;gap:6px;margin-bottom:12px;">
           <button type="button" class="btn btn-sm" id="ticketCfgTabComanda" style="flex:1;">Comanda</button>
-          <button type="button" class="btn btn-sm" id="ticketCfgTabRecibo" style="flex:1;">Recibo</button>
+          <button type="button" class="btn btn-sm" id="ticketCfgTabRecibo" style="flex:1;">Nota de entrega</button>
         </div>
         <div id="ticketCfgBody"></div>
       </div>
@@ -1251,7 +1251,7 @@ function renderPrintersList(){
   }
   const options = [
     '<option value="">Sin asignar</option>',
-    '<option value="CAJA">Caja (recibo)</option>',
+    '<option value="CAJA">Caja (nota de entrega)</option>',
     '<option value="DELIVERY">🛵 Delivery (comanda de delivery)</option>',
   ]
     .concat(state.kitchens.map(k => `<option value="${esc(k.name)}">${esc(k.name)}</option>`))

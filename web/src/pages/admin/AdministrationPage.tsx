@@ -107,7 +107,7 @@ export default function AdministrationPage() {
           {!tabLocked && tab === 'purchases' && <PurchasesHub />}
           {!tabLocked && tab === 'crm' && <CrmHub />}
           {!tabLocked && tab === 'payments' && <PaymentsTab />}
-          {!tabLocked && tab === 'ledger' && <AccountingHub sections={['ledger', 'income', 'balance', 'hr']} />}
+          {!tabLocked && tab === 'ledger' && <AccountingHub sections={['ledger', 'income', 'balance', 'cost', 'hr']} />}
           {!tabLocked && tab === 'books' && <FiscalBooksSection />}
           {!tabLocked && tab === 'banks' && <BankAccountsSection symbol={restaurant?.currencySymbol ?? '$'} />}
         </div>

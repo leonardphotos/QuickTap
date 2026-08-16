@@ -348,11 +348,11 @@ model Restaurant {
   // --- Control de pedidos ---
   // Si es false, el menú público queda solo para ver: sin carrito ni checkout
   // (ni en mesa ni por delivery/pickup).
-  orderingEnabled          Boolean @default(true)
+  orderingEnabled           Boolean @default(true)
   // Si es true, los pedidos que el cliente envía desde la mesa (QR) quedan en
   // NEEDS_CONFIRMATION hasta que un mesero los acepte; recién ahí pasan a la
   // cocina. No aplica a pedidos cargados manualmente por el staff.
-  requireOrderConfirmation Boolean @default(false)
+  requireOrderConfirmation  Boolean @default(false)
   // Si es false, la tablet de la cancha (vertical Canchas) deja de ofrecer
   // "Pagar": al acabarse el tiempo solo muestra el detalle de cada cuenta y su
   // monto, para que el jugador pague en persona. No afecta poder pedir.
@@ -360,7 +360,7 @@ model Restaurant {
   // CRM: si es true, toda venta/checkout exige nombre y teléfono del cliente
   // (POS del Local, checkout de delivery). Mesa QR y reservas de cancha ya los
   // piden siempre. El interruptor vive en el CRM.
-  requireCustomerData Boolean @default(false)
+  requireCustomerData       Boolean @default(false)
 
   // --- Precio de delivery ---
   // Ubicación del local, usada como origen para calcular distancia al cliente.
@@ -477,10 +477,10 @@ model Restaurant {
   // plan (ver src/utils/subscription.ts, hasFeature()); estos 4 campos solo
   // importan cuando subscriptionPlan = CUSTOM, marcados al aprobar la
   // solicitud con esos adicionales elegidos.
-  customAdministration  Boolean @default(false)
-  customInventoryBasic  Boolean @default(false)
-  customInventoryRecipe Boolean @default(false)
-  customAccountsPayable Boolean @default(false)
+  customAdministration  Boolean   @default(false)
+  customInventoryBasic  Boolean   @default(false)
+  customInventoryRecipe Boolean   @default(false)
+  customAccountsPayable Boolean   @default(false)
   // Locales que ya tenían el plan Shop pagado cuando se separó Elite Shop:
   // conservan TODO (contabilidad, bancos, órdenes de pago…) hasta esta fecha
   // (= su periodEnd de entonces). Al renovar/activar cualquier plan se limpia
@@ -488,7 +488,7 @@ model Restaurant {
   legacyFullAccessUntil DateTime?
   // Bloqueo manual desde el Dashboard maestro, independiente del vencimiento
   // del plan. Si es true, la cuenta queda bloqueada sin importar periodEnd.
-  suspended             Boolean @default(false)
+  suspended             Boolean   @default(false)
 
   // Cuenta de demostración (sembrada con `npm run seed:demo`): sus pedidos y
   // su facturación se excluyen del reporte financiero del Dashboard maestro.
@@ -538,6 +538,7 @@ model Restaurant {
   supplierRatings        SupplierRating[]
   costStructureConfig    CostStructureConfig?
   productCostStructures  ProductCostStructure[]
+  wasteRecords           WasteRecord[]
   customers              Customer[]
   promotions             Promotion[]
   promotionRedemptions   PromotionRedemption[]
@@ -563,11 +564,11 @@ model Restaurant {
 
   // --- QuickTap Club (businessType = SPORTS_CLUB): canchas y reservas por franja
   // horaria, sin relación con Table/Order — ver web/src/pages/admin/club/. ---
-  clubCourts    ClubCourt[]
-  clubSchedules ClubSchedule[]
-  clubBlocks    ClubCourtBlock[]
-  clubBookings  ClubBooking[]
-  clubTabOrders ClubTabOrder[]   @relation("ClubTabOrderClub")
+  clubCourts            ClubCourt[]
+  clubSchedules         ClubSchedule[]
+  clubBlocks            ClubCourtBlock[]
+  clubBookings          ClubBooking[]
+  clubTabOrders         ClubTabOrder[]                @relation("ClubTabOrderClub")
   clubDebtReminders     ClubDebtReminder[]
   clubDebtVerifications ClubDebtPaymentVerification[]
 
@@ -891,6 +892,7 @@ model Product {
   orderItems         OrderItem[]
   recipeIngredients  RecipeIngredient[]
   costStructure      ProductCostStructure?
+  wasteRecords       WasteRecord[]
   modifierCategories ProductModifierCategory[]
   variants           ProductVariant[]
 
@@ -1531,30 +1533,30 @@ model Movement {
   paymentMethod  PaymentMethod?
 
   // --- Módulo de Gastos (todos opcionales; no afectan ingresos/propinas) ---
-  category          ExpenseCategory?
-  supplierId        String?
+  category             ExpenseCategory?
+  supplierId           String?
   // Insumo reabastecido por este gasto (ej: compra de agua) y cantidad recibida:
   // al crear el movimiento, se suma automáticamente a InventoryItem.quantity.
-  inventoryItemId   String?
-  inventoryQuantity Decimal?         @db.Decimal(12, 2)
+  inventoryItemId      String?
+  inventoryQuantity    Decimal?             @db.Decimal(12, 2)
   // Gasto tomado a crédito con el proveedor: cuenta pendiente por pagar
   // (al revés de Order.awaitingPayment, que es lo que el cliente le debe
   // al restaurante). El balance del período lo resta igual, ya esté pagado
   // o no — esto solo lleva el seguimiento de si ya se le pagó al proveedor.
-  isCredit          Boolean          @default(false)
-  creditPaidAt      DateTime?
+  isCredit             Boolean              @default(false)
+  creditPaidAt         DateTime?
   // Orden de pago que lo saldó (o que lo tiene incluido, si todavía está por autorizar).
   // Null = deuda suelta, sin orden. Ver PaymentOrder.
-  paymentOrderId    String?
+  paymentOrderId       String?
   // Fecha real del gasto cuando no es hoy (factura de hace unos días que se carga después).
   // Null = vale createdAt. El balance del período usa esta fecha si está, para que el gasto
   // caiga en el día que ocurrió y no en el que alguien lo escribió.
-  expenseDate       DateTime?
+  expenseDate          DateTime?
   // Nº de factura/recibo/referencia de la transferencia, para conciliar con el soporte físico.
-  referenceNumber   String?
+  referenceNumber      String?
   // Foto del recibo/factura (gasolinera, hotel, restaurante). Clave en gastos de viaje: el
   // soporte se pierde y sin él no hay cómo justificar el egreso.
-  receiptImageUrl   String?
+  receiptImageUrl      String?
   // Foto del presupuesto/cotización que se aprobó antes de pagar (aparte de la factura).
   quoteImageUrl        String?
   // Foto del comprobante de pago (transferencia/Pago Móvil), aparte de la factura en sí —
@@ -1577,7 +1579,7 @@ model Movement {
   // identificarlo/filtrarlo — no crea el siguiente movimiento automáticamente.
   isRecurring          Boolean              @default(false)
   // Quién hizo el gasto, cuando no fue quien lo registra (ej. el chofer que cargó gasolina).
-  spentByName       String?
+  spentByName          String?
 
   restaurant    Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   createdByUser User?          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -1687,18 +1689,18 @@ model PaymentOrder {
   /// Lo REALMENTE pagado, en moneda base. Existe aparte de `amountBase` (lo autorizado al
   /// emitirla) porque entre emisión y pago la tasa Bs/$ cambia — el pago en Bs ya no equivale
   /// al monto congelado de la orden.
-  paidAmountBase     Decimal? @db.Decimal(12, 2)
+  paidAmountBase    Decimal? @db.Decimal(12, 2)
   /// Si el pago se hizo en bolívares, el monto tal cual se pagó (antes de convertirlo a base
   /// con la tasa BCV del momento) — para conciliar contra el banco sin rehacer la conversión.
-  paidAmountBs       Decimal? @db.Decimal(14, 2)
+  paidAmountBs      Decimal? @db.Decimal(14, 2)
   /// Retenciones aplicadas por el negocio como agente de retención, en moneda base.
-  islrRetentionBase  Decimal? @db.Decimal(12, 2)
-  ivaRetentionBase   Decimal? @db.Decimal(12, 2)
+  islrRetentionBase Decimal? @db.Decimal(12, 2)
+  ivaRetentionBase  Decimal? @db.Decimal(12, 2)
   /// Nota de crédito del proveedor que descuenta del total a pagar.
-  creditNoteBase     Decimal? @db.Decimal(12, 2)
+  creditNoteBase    Decimal? @db.Decimal(12, 2)
   /// Desglose informativo de la factura: IVA y total con IVA.
-  ivaAmountBase      Decimal? @db.Decimal(12, 2)
-  totalWithIvaBase   Decimal? @db.Decimal(12, 2)
+  ivaAmountBase     Decimal? @db.Decimal(12, 2)
+  totalWithIvaBase  Decimal? @db.Decimal(12, 2)
 
   createdByUserId String?
   createdAt       DateTime  @default(now())
@@ -1718,7 +1720,7 @@ model PaymentOrder {
   attachments   Json?
 
   /// Los gastos que esta orden salda.
-  movements     Movement[]
+  movements Movement[]
 
   @@index([restaurantId, status])
   @@index([restaurantId, orderNumber])
@@ -1745,21 +1747,21 @@ model BankAccount {
   id           String @id @default(cuid())
   restaurantId String
 
-  name        String
-  currency    BankAccountCurrency
+  name           String
+  currency       BankAccountCurrency
   /// Caja chica: efectivo físico del día a día. Se comporta igual que una cuenta (se le
   /// vincula Efectivo, recibe transferencias), solo se distingue visualmente.
-  isPettyCash Boolean @default(false)
+  isPettyCash    Boolean             @default(false)
   /// Bóveda: donde se guarda el efectivo que sale de la caja al cerrar el turno. Igual que
   /// caja chica es una cuenta normal; la marca sirve para ofrecerla como destino del
   /// traspaso al cerrar caja y para que no se confunda con el efectivo del día.
-  isVault     Boolean @default(false)
+  isVault        Boolean             @default(false)
   /// Métodos de pago vinculados. El service valida que un método esté en UNA sola cuenta
   /// por negocio — si no, un cobro no sabría a qué banco sumar.
   paymentMethods PaymentMethod[]
   /// Saldo actual EN LA MONEDA DE LA CUENTA, denormalizado: se actualiza en la misma
   /// transacción que crea cada BankTransaction, nunca por fuera.
-  balance Decimal @default(0) @db.Decimal(16, 2)
+  balance        Decimal             @default(0) @db.Decimal(16, 2)
 
   createdAt DateTime @default(now())
 
@@ -1777,19 +1779,19 @@ model BankTransaction {
   restaurantId String
   accountId    String
 
-  type BankTransactionType
+  type       BankTransactionType
   /// Monto en la moneda de la cuenta, siempre positivo (el signo lo da `type`).
-  amount     Decimal @db.Decimal(16, 2)
+  amount     Decimal             @db.Decimal(16, 2)
   /// Equivalente en moneda base del negocio, para totalizar cuentas Bs y $ juntas.
-  amountBase Decimal @db.Decimal(12, 2)
+  amountBase Decimal             @db.Decimal(12, 2)
 
-  description   String
-  paymentMethod PaymentMethod?
+  description          String
+  paymentMethod        PaymentMethod?
   /// Gasto/ingreso manual que originó este asiento — al borrar ese movimiento, el asiento
   /// se revierte (ver movement.service.remove).
-  movementId String?
+  movementId           String?
   /// Id del cobro/orden de pago origen, solo trazabilidad (esos no se borran).
-  sourceRef String?
+  sourceRef            String?
   /// Transferencias entre cuentas propias: la cuenta del otro lado.
   counterpartAccountId String?
 
@@ -1816,7 +1818,7 @@ model Supplier {
 
   createdAt DateTime @default(now())
 
-  restaurant    Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurant    Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   movements     Movement[]
   paymentOrders PaymentOrder[]
   ratings       SupplierRating[]
@@ -1908,6 +1910,65 @@ model ProductCostStructure {
   @@map("product_cost_structures")
 }
 
+/// Motivo por el que se perdió mercancía. Sirve para saber DÓNDE atacar la merma: no es lo
+/// mismo que se venza el inventario (compras mal dimensionadas) que que se queme un plato
+/// (proceso de cocina) o que el cliente devuelva (calidad/servicio).
+enum WasteReason {
+  EXPIRED /// Vencido / caducado
+  DAMAGED /// Dañado, roto o mal almacenado
+  PREPARATION /// Error de preparación (se quemó, salió mal)
+  CUSTOMER_RETURN /// Devolución del cliente
+  SPILLAGE /// Derrame o accidente
+  THEFT /// Faltante / robo
+  OTHER /// Otro
+}
+
+/// Un registro de merma: mercancía que se perdió y NO se vendió. Puede ser un insumo del
+/// inventario (se dañó la carne) o un producto terminado (se quemó una hamburguesa, el
+/// cliente devolvió el plato). Es un asiento inmutable — se borra si se cargó por error,
+/// nunca se "corrige" en sitio, para que el indicador de merma sea auditable.
+///
+/// `costBase` se congela al registrar (costo vivo del insumo o del producto en ese momento):
+/// si mañana sube el precio del proveedor, la merma de ayer sigue valiendo lo que valía.
+model WasteRecord {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  /// Exactamente uno de los dos (validado en el DTO): insumo o producto del menú.
+  inventoryItemId String?
+  productId       String?
+  /// Snapshot del nombre, igual criterio que OrderItem.productName: si luego borran el
+  /// insumo/producto, el histórico de merma sigue diciendo qué se perdió.
+  itemName        String
+  /// Unidad en la que se registró (la del insumo, o "und" para productos terminados).
+  unit            String
+
+  quantity Decimal @db.Decimal(12, 3)
+  /// Costo total de lo perdido (cantidad × costo unitario vigente al registrar).
+  costBase Decimal @db.Decimal(12, 2)
+
+  reason WasteReason
+  note   String?
+
+  /// Si descontó existencia al registrarse. Falso cuando el insumo/producto no lleva stock.
+  stockAdjusted Boolean @default(false)
+
+  createdByUserId String?
+  createdByName   String?
+  /// Fecha real de la merma (puede ser de ayer). Mediodía Caracas, igual que Movement.expenseDate.
+  occurredAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  restaurant    Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  product       Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId, occurredAt])
+  @@index([restaurantId, productId])
+  @@index([restaurantId, inventoryItemId])
+  @@map("waste_records")
+}
+
 // Directorio de clientes del restaurante: se crea/actualiza automáticamente
 // (upsert por teléfono) cada vez que se abre una cuenta de mesa o se hace un
 // pedido de delivery/pickup/manual con teléfono, para poder buscarlo después
@@ -1929,16 +1990,16 @@ model Customer {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurant        Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurant           Restaurant            @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   // Historial de cancha del jugador (vertical SPORTS_CLUB).
-  clubBookings      ClubBooking[]
+  clubBookings         ClubBooking[]
   /// Ficha de academia, si además es alumno. La identidad es esta misma: el
   /// alumno no es una persona distinta del jugador que alquila cancha.
-  clubStudent       ClubStudent?
+  clubStudent          ClubStudent?
   /// Cuenta de jugador, lista negra y puntos de fidelización.
-  clubPlayerAccount ClubPlayerAccount?
-  clubBlacklist     ClubBlacklistEntry[]
-  clubLoyalty       ClubLoyaltyEntry[]
+  clubPlayerAccount    ClubPlayerAccount?
+  clubBlacklist        ClubBlacklistEntry[]
+  clubLoyalty          ClubLoyaltyEntry[]
   // CRM: campañas en las que está incluido y códigos que canjeó.
   promotionTargets     PromotionTarget[]
   promotionRedemptions PromotionRedemption[]
@@ -1980,9 +2041,9 @@ model Promotion {
   isActive Boolean   @default(true)
 
   /// Con qué segmento del CRM se armó la lista (ALL/FREQUENT/NEW/INACTIVE/BIRTHDAY/MANUAL) — informativo.
-  segment String?
+  segment           String?
   /// Máximo de canjes por cliente (0 = sin límite).
-  maxPerCustomer Int @default(1)
+  maxPerCustomer    Int     @default(1)
   /// Si es true, el código solo vale para los clientes de la lista; si es false,
   /// cualquiera que lo tenga puede canjearlo.
   restrictToTargets Boolean @default(true)
@@ -2098,14 +2159,14 @@ model OrderItem {
   // Snapshot de la cocina asignada al producto al momento del pedido (null =
   // sin asignar). Se congela igual que productName: si luego el producto
   // cambia de cocina, este ítem no se mueve retroactivamente de comanda.
-  kitchenName    String?
+  kitchenName      String?
   // Cuándo la cocina empezó a preparar esta parte de la comanda ("En proceso"):
   // marca visual para que el cocinero sepa qué ya está en fuego sin haberlo servido.
   // Es solo informativa (no cambia el estado del pedido); se congela al primer toque.
   kitchenStartedAt DateTime?
   // Cuándo esa estación de cocina marcó su parte de la comanda como lista.
   // El pedido completo pasa a SERVED solo cuando todos sus ítems tienen esto.
-  kitchenReadyAt DateTime?
+  kitchenReadyAt   DateTime?
 
   order     Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product   Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
@@ -2448,33 +2509,33 @@ enum PlatformQuoteStatus {
 /// placas, etc.), enviada por WhatsApp. No confundir con Quote, que son las
 /// cotizaciones que un tenant le hace a SUS clientes.
 model PlatformQuote {
-  id           String              @id @default(cuid())
-  quoteNumber  Int                 @unique @default(autoincrement())
-  clientName   String
-  clientPhone  String
-  businessName String?
+  id                String              @id @default(cuid())
+  quoteNumber       Int                 @unique @default(autoincrement())
+  clientName        String
+  clientPhone       String
+  businessName      String?
   /// Plan sugerido (etiqueta libre: "Pro", "Sucursales", "Canchas"…).
-  planName     String
+  planName          String
   /// Precio del plan por ciclo, editable — no se ata al precio vigente del plan.
-  planPriceUsd Decimal             @db.Decimal(12, 2)
+  planPriceUsd      Decimal             @db.Decimal(12, 2)
   /// "Mensual" | "Trimestral" | "Semestral" (etiqueta libre).
-  planCycle    String              @default("Mensual")
+  planCycle         String              @default("Mensual")
   /// Cargos únicos personalizables: [{ label: "Instalación", amountUsd: 60 }, …].
-  items        Json                @default("[]")
+  items             Json                @default("[]")
   /// Cargos recurrentes MENSUALES adicionales al plan (ej. Homologación de facturas):
   /// [{ label: "Homologación (100 facturas)", amountUsd: 60 }, …]. Se facturan cada mes
   /// aparte del ciclo del plan, no entran en el pago inicial de instalación.
-  recurringItems    Json          @default("[]")
+  recurringItems    Json                @default("[]")
   /// planPriceUsd + suma de items — congelado al guardar, para listar sin recalcular.
-  totalUsd     Decimal             @db.Decimal(12, 2)
+  totalUsd          Decimal             @db.Decimal(12, 2)
   /// Suma de recurringItems — congelado al guardar, igual criterio que totalUsd.
-  recurringTotalUsd Decimal       @db.Decimal(12, 2) @default(0)
-  note         String?
-  status       PlatformQuoteStatus @default(PENDING)
-  sentAt       DateTime?
-  approvedAt   DateTime?
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  recurringTotalUsd Decimal             @default(0) @db.Decimal(12, 2)
+  note              String?
+  status            PlatformQuoteStatus @default(PENDING)
+  sentAt            DateTime?
+  approvedAt        DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
 
   @@index([status, createdAt])
   @@map("platform_quotes")
@@ -2578,6 +2639,7 @@ model InventoryItem {
   restaurant        Restaurant              @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   category          InventoryCategory?      @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   recipeLines       RecipeIngredient[]
+  wasteRecords      WasteRecord[]
   preparationLines  PreparationIngredient[]
   modifiers         Modifier[]
   movements         Movement[]
@@ -2844,22 +2906,22 @@ model ShopSale {
   id           String @id @default(cuid())
   restaurantId String
 
-  total         Float
-  time          DateTime @default(now())
-  customerName  String?
-  customerPhone String?
-  returned      Boolean  @default(false)
-  paymentMethod String?
+  total          Float
+  time           DateTime @default(now())
+  customerName   String?
+  customerPhone  String?
+  returned       Boolean  @default(false)
+  paymentMethod  String?
   // Quién cobró esta venta (cajero/vendedor) — igual que ShopSaleItem.staffUserId, sin relación
   // FK y con el nombre congelado: si el usuario se borra o se le cambia el nombre, la venta
   // histórica sigue mostrando quién la hizo tal como era en ese momento.
   soldByUserId   String?
   soldByUserName String?
   // { reference?, hasProof? } — comprobante de Pago Móvil.
-  paymentMeta   Json?
+  paymentMeta    Json?
   // 'FULL' | 'INSTALLMENT' | null — venta fiada (se paga todo después, o se abonó algo ahora).
-  creditTerms   String?
-  amountPaidNow Float?
+  creditTerms    String?
+  amountPaidNow  Float?
 
   // --- Cuentas por cobrar (solo aplica cuando creditTerms no es null) ---
   // Fecha en que el cliente se comprometió a pagar el saldo — igual que expiryDate en

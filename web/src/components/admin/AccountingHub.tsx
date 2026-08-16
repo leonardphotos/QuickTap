@@ -5,12 +5,14 @@ import { SuppliersSection } from './SuppliersSection';
 import { FiscalBooksSection } from './FiscalBooksSection';
 import { BankAccountsSection } from './BankAccountsSection';
 import { BalanceSheetSection, IncomeStatementSection } from './accounting/FinancialStatementsSection';
+import { CostAnalysisSection } from './accounting/CostAnalysisSection';
 import ClubPayrollPage from '@/pages/admin/club/ClubPayrollPage';
 
 const ALL_TABS = [
   { id: 'ledger', label: 'Movimientos' },
   { id: 'income', label: 'Estado de resultados' },
   { id: 'balance', label: 'Situación financiera' },
+  { id: 'cost', label: 'Análisis de costo' },
   // Nómina vive aquí adentro (Contabilidad → Desarrollo Humano), no como pestaña suelta.
   { id: 'hr', label: 'Desarrollo Humano' },
   { id: 'banks', label: 'Cuentas bancarias' },
@@ -55,6 +57,7 @@ export function AccountingHub({ sections }: { sections?: AccountingTabId[] } = {
       {tab === 'ledger' && <MovementsLedgerSection />}
       {tab === 'income' && <IncomeStatementSection />}
       {tab === 'balance' && <BalanceSheetSection />}
+      {tab === 'cost' && <CostAnalysisSection />}
       {tab === 'hr' && restaurant && <ClubPayrollPage restaurant={restaurant} />}
       {tab === 'banks' && <BankAccountsSection symbol={symbol} />}
       {tab === 'suppliers' && <SuppliersSection />}
