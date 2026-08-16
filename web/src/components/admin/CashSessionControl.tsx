@@ -11,6 +11,16 @@ import type { UserRole } from '@/types';
 import { CashSessionReceipt, PAYMENT_METHOD_LABELS, type CashSessionData, type CashSessionSummary } from './CashSessionReceipt';
 import { OpenComandasDialog } from './OpenComandasDialog';
 
+/** Cuenta bancaria vista desde el cierre de caja: solo lo necesario para el traspaso. */
+interface VaultAccount {
+  id: string;
+  name: string;
+  currency: 'BASE' | 'BS';
+  isPettyCash: boolean;
+  isVault: boolean;
+  balance: string;
+}
+
 // CASH_USD faltaba: sin él no había forma de declarar el efectivo en dólares al abrir, así que
 // al cerrar siempre aparecía como sobrante. Es el enum PaymentMethod completo (ver schema.prisma).
 const PAYMENT_METHODS = ['CASH', 'CASH_USD', 'MOBILE_PAYMENT', 'ZELLE', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER'];
@@ -251,6 +261,10 @@ function CloseCashForm({
   // hace arqueo. Al encenderlo se compara contra lo esperado y se guarda el descuadre.
   const [counting, setCounting] = useState(false);
   const [counted, setCounted] = useState<Record<string, string>>({});
+  // Traspaso a bóveda: cuánto efectivo sale de cada cuenta de caja hacia la bóveda al cerrar.
+  const [accounts, setAccounts] = useState<VaultAccount[]>([]);
+  const [vaultId, setVaultId] = useState('');
+  const [vaultAmounts, setVaultAmounts] = useState<Record<string, string>>({});
   const receiptRef = useRef<HTMLDivElement>(null);
   const symbol = currency === 'USD' ? '$' : '€';
 
@@ -264,10 +278,26 @@ function CloseCashForm({
         ([, v]) => Number(v) !== 0,
       )
     : [];
+  // Origen del traspaso: la caja chica (efectivo del día). Si no hay ninguna marcada, se
+  // ofrecen todas las cuentas que no son bóveda para no dejar al cajero sin opción.
+  const vaults = accounts.filter((a) => a.isVault);
+  const cashAccounts = accounts.filter((a) => !a.isVault && (a.isPettyCash || accounts.every((x) => !x.isPettyCash)));
   const totalDifference = methodsToCount.reduce(
     (acc, [m, expected]) => acc + ((Number(counted[m]) || 0) - Number(expected)),
     0,
   );
+
+  // Cuentas de efectivo (origen) y bóvedas (destino) para el traspaso del cierre.
+  useEffect(() => {
+    api
+      .get('/bank-accounts')
+      .then((res) => {
+        const rows = (res.data.data.accounts ?? res.data.data) as VaultAccount[];
+        setAccounts(rows);
+        setVaultId(rows.find((a) => a.isVault)?.id ?? '');
+      })
+      .catch(() => setAccounts([]));
+  }, []);
 
   useEffect(() => {
     api
@@ -281,11 +311,20 @@ function CloseCashForm({
     setSaving(true);
     setError(null);
     try {
+      const transfers = vaultId
+        ? cashAccounts
+            .map((a) => ({ fromAccountId: a.id, toAccountId: vaultId, amount: Number(vaultAmounts[a.id]) || 0 }))
+            .filter((t) => t.amount > 0)
+        : [];
       const res = await api.post(`/cash-sessions/${session.id}/close`, {
         countedBalances: counting
           ? Object.fromEntries(methodsToCount.map(([m]) => [m, Number(counted[m]) || 0]))
           : null,
+        vaultTransfers: transfers.length > 0 ? transfers : undefined,
       });
+      // El cierre ya quedó hecho aunque un traspaso falle: se avisa sin borrar el cierre.
+      const failures: string[] = res.data.data.vaultErrors ?? [];
+      if (failures.length > 0) setError(`Caja cerrada, pero el traspaso a bóveda falló: ${failures.join(' · ')}`);
       onClosed(res.data.data);
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo cerrar la caja.');
@@ -409,6 +448,54 @@ function CloseCashForm({
                   )}
                 </div>
               )}
+
+              {/* Traspaso a bóveda: el efectivo que el cajero entrega al cerrar el turno.
+                  Sale de la caja y entra a la bóveda como transferencia entre cuentas, con
+                  el número de cierre como concepto. */}
+              {vaults.length > 0 && cashAccounts.length > 0 && (
+                  <div className="rounded-xl border border-brand-950/10 p-3">
+                    <p className="text-sm font-medium text-brand-950">Traspaso a bóveda (opcional)</p>
+                    <p className="mt-0.5 text-xs font-light text-brand-950/50">
+                      Cuánto efectivo sale de la caja y se guarda en la bóveda al cerrar este turno.
+                    </p>
+                    {vaults.length > 1 && (
+                      <select
+                        value={vaultId}
+                        onChange={(e) => setVaultId(e.target.value)}
+                        className="mt-2 w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                      >
+                        {vaults.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <div className="mt-2 space-y-2">
+                      {cashAccounts.map((a) => (
+                        <div key={a.id} className="flex items-center gap-2">
+                          <span className="min-w-0 flex-1 truncate text-sm text-brand-950/80">
+                            {a.name}
+                            <span className="font-light text-brand-950/40">
+                              {' '}
+                              · saldo {a.currency === 'BS' ? 'Bs ' : symbol}
+                              {Number(a.balance).toFixed(2)}
+                            </span>
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={vaultAmounts[a.id] ?? ''}
+                            onChange={(e) => setVaultAmounts((v) => ({ ...v, [a.id]: e.target.value }))}
+                            placeholder="0.00"
+                            className="w-28 shrink-0 rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
             </>
           )}
 

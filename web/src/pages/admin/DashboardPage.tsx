@@ -6,6 +6,7 @@ import { canManageTeam, isAdminCashier } from '../../utils/roles';
 import { allowsBranches, daysRemaining, graceHoursRemaining, hasFeature } from '../../utils/subscription';
 import { hasSeenOnboardingTutorial, OnboardingTutorial } from '@/components/admin/OnboardingTutorial';
 import { InventoryAlertsPopup } from '@/components/admin/InventoryAlertsPopup';
+import { GeneralKpisCard } from '@/components/admin/GeneralKpisCard';
 import { DailySalesSummary } from '@/components/admin/DailySalesSummary';
 import { SalesDashboard } from '@/components/admin/SalesDashboard';
 import { TodayOrdersList } from '@/components/admin/TodayOrdersList';
@@ -101,6 +102,10 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* Panel general: lo primero que se ve al entrar — las cinco cifras del negocio y los
+          accesos a lo que se usa a diario, sin tener que ir a buscarlo al menú. */}
+      {isAdminCashier(user?.role, user?.cashierFullAccess) && <GeneralKpisCard />}
 
       {isAdminCashier(user?.role, user?.cashierFullAccess) && <SalesDashboard />}
 

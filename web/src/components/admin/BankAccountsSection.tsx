@@ -14,6 +14,7 @@ interface BankAccount {
   name: string;
   currency: AccountCurrency;
   isPettyCash: boolean;
+  isVault: boolean;
   paymentMethods: PaymentMethod[];
   balance: string;
 }
@@ -167,6 +168,9 @@ export function BankAccountsSection({ symbol = '$' }: { symbol?: string }) {
               {a.isPettyCash && (
                 <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">Caja chica</span>
               )}
+              {a.isVault && (
+                <span className="rounded-full bg-brand-950/[0.08] px-2 py-0.5 text-[10px] font-bold text-brand-950/70">Bóveda</span>
+              )}
               {a.paymentMethods.map((m) => (
                 <span key={m} className="rounded-full bg-brand-500/10 px-2 py-0.5 text-[10px] font-medium text-brand-600">
                   {PAYMENT_LABELS[m]}
@@ -215,6 +219,7 @@ function AccountForm({
   const [name, setName] = useState(account?.name ?? '');
   const [currency, setCurrency] = useState<AccountCurrency>(account?.currency ?? 'BS');
   const [isPettyCash, setIsPettyCash] = useState(account?.isPettyCash ?? false);
+  const [isVault, setIsVault] = useState(account?.isVault ?? false);
   const [methods, setMethods] = useState<Set<PaymentMethod>>(new Set(account?.paymentMethods ?? []));
   const [initialBalance, setInitialBalance] = useState('');
   const [saving, setSaving] = useState(false);
@@ -242,6 +247,7 @@ function AccountForm({
         await api.patch(`/bank-accounts/${account.id}`, {
           name: name.trim(),
           isPettyCash,
+          isVault,
           paymentMethods: [...methods],
         });
       } else {
@@ -249,6 +255,7 @@ function AccountForm({
           name: name.trim(),
           currency,
           isPettyCash,
+          isVault,
           paymentMethods: [...methods],
           initialBalance: Number(initialBalance) || undefined,
         });
@@ -360,8 +367,29 @@ function AccountForm({
         )}
 
         <label className="flex items-center gap-1.5 text-sm">
-          <input type="checkbox" checked={isPettyCash} onChange={(e) => setIsPettyCash(e.target.checked)} />
+          <input
+            type="checkbox"
+            checked={isPettyCash}
+            onChange={(e) => {
+              setIsPettyCash(e.target.checked);
+              if (e.target.checked) setIsVault(false);
+            }}
+          />
           ¿Es caja chica? (efectivo físico del día a día)
+        </label>
+
+        {/* Bóveda: adonde va el efectivo al cerrar el turno. Excluyente con caja chica —
+            una cuenta es el efectivo del día o el que se guarda, no las dos cosas. */}
+        <label className="flex items-center gap-1.5 text-sm">
+          <input
+            type="checkbox"
+            checked={isVault}
+            onChange={(e) => {
+              setIsVault(e.target.checked);
+              if (e.target.checked) setIsPettyCash(false);
+            }}
+          />
+          ¿Es la bóveda? (donde se guarda el efectivo al cerrar caja)
         </label>
 
         {error && <p className="text-sm text-red-600">{error}</p>}

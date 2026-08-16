@@ -3,6 +3,7 @@ import { prisma } from '../../config/prisma';
 import { round2, toDecimal } from '../../utils/money';
 import { badRequest, notFound } from '../../utils/http-error';
 import { emitToKitchen, SocketEvents } from '../../sockets';
+import { bankAccountService } from '../bank-accounts/bank-account.service';
 import { PAYMENT_METHODS, shopMethodToEnum } from '../../utils/payment-method';
 import { OpenCashSessionInput } from './cash-session.dto';
 
@@ -265,7 +266,13 @@ export const cashSessionService = {
   },
 
   /** Botón "Confirmar cierre": congela el resumen del turno y asigna el número de cierre. */
-  async close(restaurantId: string, id: string, userId: string | undefined, countedBalances?: Record<string, string> | null) {
+  async close(
+    restaurantId: string,
+    id: string,
+    userId: string | undefined,
+    countedBalances?: Record<string, string> | null,
+    vaultTransfers?: { fromAccountId: string; toAccountId: string; amount: number }[],
+  ) {
     const businessType = await businessTypeOf(restaurantId);
     const { closed, clearedCount } = await prisma.$transaction(async (tx) => {
       const session = await tx.cashSession.findFirst({ where: { id, restaurantId, status: 'OPEN' } });
@@ -310,7 +317,25 @@ export const cashSessionService = {
     // en vez de quedarse mostrando comandas que ya salieron de la pantalla.
     if (clearedCount > 0) emitToKitchen(restaurantId, SocketEvents.ORDERS_CLEARED, { clearedCount });
 
-    return closed;
+    // Traspaso a bóveda: el efectivo que el cajero entrega al cerrar. Va después del cierre
+    // (ya con su número) para que el movimiento del banco diga a qué cierre pertenece. Si
+    // alguno falla, el cierre NO se deshace — se informa cuál quedó pendiente, que es lo
+    // honesto: la caja ya está cerrada y el traspaso se puede repetir a mano.
+    const vaultErrors: string[] = [];
+    for (const t of vaultTransfers ?? []) {
+      try {
+        await bankAccountService.transfer(restaurantId, userId, {
+          fromId: t.fromAccountId,
+          toId: t.toAccountId,
+          amount: t.amount,
+          note: `Traspaso a bóveda · cierre de caja #${closed.closeNumber}`,
+        });
+      } catch (err) {
+        vaultErrors.push(err instanceof Error ? err.message : 'No se pudo traspasar a la bóveda.');
+      }
+    }
+
+    return { ...closed, vaultErrors };
   },
 
   async getById(restaurantId: string, id: string) {

@@ -16,11 +16,13 @@ export const cashSessionController = {
   }),
   close: asyncHandler(async (req: Request, res: Response) => {
     // Body vacío = cierre de siempre, sin arqueo (ver closeCashSessionSchema).
-    const { countedBalances } = closeCashSessionSchema.parse(req.body ?? {});
+    const { countedBalances, vaultTransfers } = closeCashSessionSchema.parse(req.body ?? {});
     const counted = countedBalances
       ? Object.fromEntries(Object.entries(countedBalances).map(([m, v]) => [m, String(v)]))
       : null;
-    res.json({ data: await cashSessionService.close(req.restaurantId!, req.params.id, req.auth?.userId, counted) });
+    res.json({
+      data: await cashSessionService.close(req.restaurantId!, req.params.id, req.auth?.userId, counted, vaultTransfers),
+    });
   }),
   getById: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await cashSessionService.getById(req.restaurantId!, req.params.id) });

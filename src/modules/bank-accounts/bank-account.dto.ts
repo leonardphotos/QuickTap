@@ -9,6 +9,8 @@ export const createBankAccountSchema = z.object({
   name: z.string().min(1, 'Escribe el nombre de la cuenta.').max(120),
   currency: z.enum(['BASE', 'BS']),
   isPettyCash: z.boolean().optional().default(false),
+  // Bóveda: destino del efectivo que sale de la caja al cerrar el turno.
+  isVault: z.boolean().optional().default(false),
   paymentMethods: z.array(z.enum(PAYMENT_METHODS)).max(8).optional().default([]),
   // Saldo inicial en la moneda de la cuenta — queda como primer asiento del libro.
   initialBalance: z.coerce.number().nonnegative().max(1000000000).optional(),
@@ -17,6 +19,7 @@ export const createBankAccountSchema = z.object({
 export const updateBankAccountSchema = z.object({
   name: z.string().min(1).max(120).optional(),
   isPettyCash: z.boolean().optional(),
+  isVault: z.boolean().optional(),
   paymentMethods: z.array(z.enum(PAYMENT_METHODS)).max(8).optional(),
 });
 

@@ -47,13 +47,14 @@ export const bankAccountService = {
   async list(restaurantId: string) {
     const accounts = await prisma.bankAccount.findMany({
       where: { restaurantId },
-      orderBy: [{ isPettyCash: 'desc' }, { createdAt: 'asc' }],
+      orderBy: [{ isPettyCash: 'desc' }, { isVault: 'desc' }, { createdAt: 'asc' }],
     });
     return accounts.map((a) => ({
       id: a.id,
       name: a.name,
       currency: a.currency,
       isPettyCash: a.isPettyCash,
+      isVault: a.isVault,
       paymentMethods: a.paymentMethods,
       balance: a.balance.toFixed(2),
       createdAt: a.createdAt,
@@ -74,6 +75,7 @@ export const bankAccountService = {
           name: input.name,
           currency: input.currency,
           isPettyCash: input.isPettyCash,
+          isVault: input.isVault,
           paymentMethods: input.paymentMethods,
           balance: initial,
         },
@@ -101,7 +103,12 @@ export const bankAccountService = {
     if (input.paymentMethods) await assertMethodsFree(restaurantId, input.paymentMethods, id);
     return prisma.bankAccount.update({
       where: { id },
-      data: { name: input.name, isPettyCash: input.isPettyCash, paymentMethods: input.paymentMethods },
+      data: {
+        name: input.name,
+        isPettyCash: input.isPettyCash,
+        isVault: input.isVault,
+        paymentMethods: input.paymentMethods,
+      },
     });
   },
 

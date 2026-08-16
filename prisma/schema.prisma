@@ -1739,6 +1739,10 @@ model BankAccount {
   /// Caja chica: efectivo físico del día a día. Se comporta igual que una cuenta (se le
   /// vincula Efectivo, recibe transferencias), solo se distingue visualmente.
   isPettyCash Boolean @default(false)
+  /// Bóveda: donde se guarda el efectivo que sale de la caja al cerrar el turno. Igual que
+  /// caja chica es una cuenta normal; la marca sirve para ofrecerla como destino del
+  /// traspaso al cerrar caja y para que no se confunda con el efectivo del día.
+  isVault     Boolean @default(false)
   /// Métodos de pago vinculados. El service valida que un método esté en UNA sola cuenta
   /// por negocio — si no, un cobro no sabría a qué banco sumar.
   paymentMethods PaymentMethod[]
