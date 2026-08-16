@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ArrowDownRight, ArrowUpRight, ChevronDown, DollarSign, Receipt, Target, TrendingUp, Wallet } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
@@ -45,6 +45,23 @@ export function GeneralKpisCard() {
   const [range, setRange] = useState<Range>('month');
   const [data, setData] = useState<GeneralKpis | null>(null);
   const [failed, setFailed] = useState(false);
+  // Altura real del contenido para poder animar el despliegue: `height: auto` no es
+  // animable, así que se mide y se anima hasta ese alto exacto. Un ResizeObserver la
+  // mantiene al día cuando cambian los datos (otro período, otra cifra más larga).
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [contentHeight, setContentHeight] = useState(0);
+
+  // useLayoutEffect y no useEffect: la primera medición ocurre ANTES de pintar, así el panel
+  // abre ya con su alto correcto en vez de "crecer" solo al cargar la pantalla.
+  useLayoutEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const measure = () => setContentHeight(el.scrollHeight);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [data, open]);
 
   const enabled = hasFeature(restaurant, 'administration');
 
@@ -91,8 +108,22 @@ export function GeneralKpisCard() {
         <ChevronDown className={`h-5 w-5 shrink-0 text-brand-950/40 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
 
-      {open && (
-        <>
+      {/* Despliegue animado: el truco de grid-rows 0fr→1fr anima la altura real del
+          contenido sin tener que medirla en JS, y se acompaña de un fade + leve subida.
+          `motion-reduce` lo apaga para quien pidió menos animación en su sistema. */}
+      <div
+        aria-hidden={!open}
+        style={{ maxHeight: open ? contentHeight : 0 }}
+        className={`overflow-hidden transition-[max-height,opacity] duration-300 ease-out motion-reduce:transition-none ${
+          open ? 'opacity-100' : 'pointer-events-none opacity-0'
+        }`}
+      >
+        <div
+          ref={contentRef}
+          className={`transition-transform duration-300 ease-out motion-reduce:transition-none ${
+            open ? 'translate-y-0' : '-translate-y-2'
+          }`}
+        >
           <div className="flex flex-wrap gap-1 px-5 pb-3">
             {(Object.keys(RANGE_LABELS) as Range[]).map((r) => (
               <button
@@ -159,8 +190,8 @@ export function GeneralKpisCard() {
               />
             </div>
           )}
-        </>
-      )}
+        </div>
+      </div>
     </div>
   );
 }
