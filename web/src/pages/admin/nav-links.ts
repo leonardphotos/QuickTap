@@ -127,10 +127,10 @@ export function visibleNavLinks(
   if (!isRestricted && restaurant) {
     const extra: AdminNavLink[] = [];
     if (isAdminCashier(role, cashierFullAccess)) extra.push(RESERVATIONS_NAV_LINK);
-    // Gastos y Cotizaciones no se listan: el primero es una pestaña de Administración y el
-    // segundo vive dentro de Compras — repetirlos en el menú solo alargaba la lista.
+    // Gastos, Cotizaciones y Compras no se listan en el menú: son pestañas de Administración
+    // (Compras vive dentro de Administración → Compras) — repetirlas acá solo alargaba la lista.
     if (isAdminCashier(role, cashierFullAccess) && hasFeature(restaurant, 'administration')) {
-      extra.push(ADMINISTRATION_NAV_LINK, PURCHASES_NAV_LINK);
+      extra.push(ADMINISTRATION_NAV_LINK);
     }
     if (hasFeature(restaurant, 'inventoryBasic') || hasFeature(restaurant, 'inventoryRecipe')) {
       extra.push(INVENTORY_NAV_LINK);

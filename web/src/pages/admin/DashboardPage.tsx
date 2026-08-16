@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Menu, ExternalLink, Plus } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { canManageTeam, isAdminCashier } from '../../utils/roles';
 import { allowsBranches, daysRemaining, graceHoursRemaining, hasFeature } from '../../utils/subscription';
@@ -13,8 +13,6 @@ import { TodayOrdersList } from '@/components/admin/TodayOrdersList';
 import { TopProductsCard } from '@/components/admin/TopProductsCard';
 import { InventoryByBranchCard } from '@/components/admin/InventoryByBranchCard';
 import { LiveOrdersPanel } from '@/components/admin/LiveOrdersPanel';
-import { NavMenuDrawer } from '@/components/admin/NavMenuDrawer';
-import { TextureButton } from '@/components/ui/texture-button';
 import { DailyRatesBadge } from '@/components/DailyRatesBadge';
 import { dashboardSectionLinks, PLAN_LABELS } from './nav-links';
 
@@ -35,9 +33,6 @@ const SHORTCUT_COLORS = [
 export default function DashboardPage() {
   const { user, restaurant } = useAuth();
   const [showTutorial, setShowTutorial] = useState(() => !!restaurant && !hasSeenOnboardingTutorial(restaurant.id));
-  const [menuOpen, setMenuOpen] = useState(false);
-  // El diálogo lo monta LiveOrdersPanel; acá solo vive el botón que lo abre (ver más abajo).
-  const [createOrderOpen, setCreateOrderOpen] = useState(false);
 
   if (!restaurant) return null;
 
@@ -93,46 +88,23 @@ export default function DashboardPage() {
           >
             {expiryLabel}
           </Link>
-          <button
-            onClick={() => setMenuOpen(true)}
-            aria-label="Abrir menú"
-            className="lg:hidden h-9 w-9 rounded-full bg-brand-950/[0.06] hover:bg-brand-950/10 flex items-center justify-center shrink-0"
-          >
-            <Menu className="h-4.5 w-4.5 text-brand-950/70" />
-          </button>
         </div>
       </div>
 
       {isAdminCashier(user?.role, user?.cashierFullAccess) && <SalesDashboard />}
 
-      <div className="flex flex-col items-center text-center lg:flex-row lg:items-start lg:text-left lg:gap-8">
+      <div className="flex flex-col items-center gap-6 text-center lg:flex-row lg:items-start lg:gap-8 lg:text-left">
         <div className="lg:w-72 lg:shrink-0 lg:sticky lg:top-24 flex flex-col items-center lg:items-stretch">
-          {/* Celular: "Crear pedido" es la acción principal del turno, así que va arriba de todo.
-              En escritorio este lugar lo sigue ocupando "Ver mi menú" — allí no hay cuadrícula de
-              accesos rápidos donde reubicarlo, y la cola de pedidos vive aparte en Comandas. */}
-          <button
-            onClick={() => setCreateOrderOpen(true)}
-            className="lg:hidden mb-4 w-full max-w-xs flex items-center justify-center gap-1.5 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold py-3 shadow-sm transition-colors"
-          >
-            <Plus className="h-4 w-4" strokeWidth={2.5} /> Crear pedido
-          </button>
-
-          <a
-            href={`/r/${restaurant.slug}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hidden lg:block mb-4 lg:self-start"
-          >
-            <TextureButton variant="minimal" size="sm" className="!w-auto">
-              <ExternalLink className="h-3.5 w-3.5 mr-1.5" /> Ver mi menú
-            </TextureButton>
-          </a>
+          {/* "Crear pedido" ahora vive como botón verde global en el dock flotante de
+              AdminLayout (celular) — disponible desde cualquier pestaña, no solo Resumen. */}
           {isAdminCashier(user?.role, user?.cashierFullAccess) && <DailySalesSummary />}
 
           {/* KPI del negocio: va justo debajo de "Ventas de hoy" y se puede plegar, para que
-              quien solo quiere cobrar no tenga los indicadores encima todo el día. */}
+              quien solo quiere cobrar no tenga los indicadores encima todo el día. Solo en
+              celular — en escritorio el KPI vive arriba, en el lugar de "Ventas por hora"
+              (ver SalesDashboard), así que repetirlo acá sería redundante. */}
           {isAdminCashier(user?.role, user?.cashierFullAccess) && (
-            <div className="mt-4 w-full">
+            <div className="mt-4 w-full lg:hidden">
               <GeneralKpisCard />
             </div>
           )}
@@ -180,11 +152,7 @@ export default function DashboardPage() {
               ser el resto de "Resumen": pedidos de hoy de solo lectura, productos más
               vendidos e inventario por sucursal. */}
           <div className="lg:hidden">
-            <LiveOrdersPanel
-              hideCreateButton
-              createOrderOpen={createOrderOpen}
-              onCreateOrderOpenChange={setCreateOrderOpen}
-            />
+            <LiveOrdersPanel hideCreateButton />
           </div>
           {isAdminCashier(user?.role, user?.cashierFullAccess) && (
             <div className="hidden lg:flex lg:flex-col lg:gap-5">
@@ -197,8 +165,6 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
-
-      <NavMenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
 
       {/* Aviso de inventario en alerta: sale al entrar y vuelve a salir hasta que se resuelva. */}
       {!showTutorial && <InventoryAlertsPopup />}

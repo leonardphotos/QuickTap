@@ -552,7 +552,10 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
 
   return (
     <>
-      <div className="fixed inset-0 z-50 bg-[#f4f6f9] flex flex-col">
+      <div
+        className="fixed inset-0 z-50 bg-[#f4f6f9] flex flex-col motion-reduce:!animate-none"
+        style={{ animation: 'var(--animate-window-pop)' }}
+      >
         {/* ---------- topline ---------- */}
         <div className="px-4 md:px-5 py-3 border-b border-brand-950/10 bg-white shrink-0 space-y-2 md:space-y-0 md:flex md:items-center md:gap-3">
           <div className="flex items-center gap-3 md:flex-1 md:min-w-0">

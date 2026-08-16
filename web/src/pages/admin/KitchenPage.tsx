@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
-import { Check, ChefHat } from 'lucide-react';
+import { Check, ChefHat, Flame } from 'lucide-react';
 import { api, getToken } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { hasFullAccess, isAdminCashier } from '../../utils/roles';
@@ -90,6 +90,11 @@ export default function KitchenPage() {
     load();
   }
 
+  async function markStarted(orderId: string, kitchenName: string | null) {
+    await api.patch(`/orders/${orderId}/kitchen-start`, { kitchenName });
+    load();
+  }
+
   async function acceptOrder(orderId: string) {
     await api.post(`/orders/${orderId}/accept`);
     load();
@@ -175,11 +180,14 @@ export default function KitchenPage() {
               </span>
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {lane.tickets.map((ticket) => (
+              {lane.tickets.map((ticket) => {
+                // "En proceso": la estación ya tocó el botón en todos sus ítems de esta comanda.
+                const started = ticket.items.length > 0 && ticket.items.every((it) => it.kitchenStartedAt);
+                return (
                 <TextureCard
                   key={`${lane.key}-${ticket.order.id}`}
                   className={`transition-shadow duration-300 hover:shadow-md ${
-                    ticket.order.status === 'PENDING' ? 'ring-1 ring-amber-300' : ''
+                    ticket.order.status === 'PENDING' ? 'ring-1 ring-amber-300' : started ? 'ring-1 ring-orange-300' : ''
                   }`}
                 >
                   <TextureCardContent className="px-4 py-4 space-y-2">
@@ -199,6 +207,11 @@ export default function KitchenPage() {
                     {ticket.order.status === 'PENDING' && (
                       <span className="inline-block text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
                         Pendiente de aceptar
+                      </span>
+                    )}
+                    {ticket.order.status !== 'PENDING' && started && (
+                      <span className="inline-flex items-center gap-1 text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-medium">
+                        <Flame className="h-3 w-3" /> En proceso
                       </span>
                     )}
                     <ul className="text-sm space-y-1 font-light">
@@ -229,12 +242,22 @@ export default function KitchenPage() {
                         <p className="text-center text-xs text-brand-950/40 py-2">Esperando que Caja lo acepte…</p>
                       )
                     ) : (
-                      <button
-                        onClick={() => markReady(ticket.order.id, lane.key === UNASSIGNED_KEY ? null : lane.key)}
-                        className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium py-2 transition-colors"
-                      >
-                        <Check className="h-4 w-4" /> Listo
-                      </button>
+                      <div className="space-y-2">
+                        {!started && (
+                          <button
+                            onClick={() => markStarted(ticket.order.id, lane.key === UNASSIGNED_KEY ? null : lane.key)}
+                            className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-orange-100 hover:bg-orange-200 text-orange-700 text-sm font-medium py-2 transition-colors"
+                          >
+                            <Flame className="h-4 w-4" /> En proceso
+                          </button>
+                        )}
+                        <button
+                          onClick={() => markReady(ticket.order.id, lane.key === UNASSIGNED_KEY ? null : lane.key)}
+                          className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium py-2 transition-colors"
+                        >
+                          <Check className="h-4 w-4" /> Listo
+                        </button>
+                      </div>
                     )}
                     <button
                       onClick={() => cancelOrder(ticket.order.id)}
@@ -244,7 +267,8 @@ export default function KitchenPage() {
                     </button>
                   </TextureCardContent>
                 </TextureCard>
-              ))}
+                );
+              })}
             </div>
           </div>
         ))}

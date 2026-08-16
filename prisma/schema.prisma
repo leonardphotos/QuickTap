@@ -2029,6 +2029,10 @@ model OrderItem {
   // sin asignar). Se congela igual que productName: si luego el producto
   // cambia de cocina, este ítem no se mueve retroactivamente de comanda.
   kitchenName    String?
+  // Cuándo la cocina empezó a preparar esta parte de la comanda ("En proceso"):
+  // marca visual para que el cocinero sepa qué ya está en fuego sin haberlo servido.
+  // Es solo informativa (no cambia el estado del pedido); se congela al primer toque.
+  kitchenStartedAt DateTime?
   // Cuándo esa estación de cocina marcó su parte de la comanda como lista.
   // El pedido completo pasa a SERVED solo cuando todos sus ítems tienen esto.
   kitchenReadyAt DateTime?

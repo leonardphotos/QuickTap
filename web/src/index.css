@@ -100,6 +100,9 @@
   --animate-check-pop: check-pop 420ms var(--ease-out-strong) 1320ms both;
   --animate-check-draw: check-draw 420ms ease-out 1500ms both;
   --animate-rise: rise 380ms var(--ease-out-strong) both;
+  /* Apertura del wizard "Crear pedido" (pantalla completa): entra con un pequeño rebote
+     en vez de aparecer de golpe. */
+  --animate-window-pop: window-pop 360ms var(--ease-out-strong) both;
 }
 
 @keyframes menu-slide-in {
@@ -110,6 +113,21 @@
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+@keyframes window-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 

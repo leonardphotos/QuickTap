@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
-import { TrendingUp, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { api, getToken } from '@/api/client';
 import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute } from '@/utils/format';
-import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ExpenseFormDialog, CATEGORY_LABELS, type ExpenseCategory } from './ExpenseFormDialog';
 import { IncomeFormDialog, INCOME_CATEGORY_LABELS, type IncomeCategory } from './IncomeFormDialog';
@@ -149,55 +148,7 @@ export function DailySalesSummary() {
         </div>
       </div>
 
-      {/* Pantallas anchas: la ventana solo trae Balance/Ingresos/Egresos desglosados hacia
-          abajo; "Añadir egreso" y los últimos movimientos quedan debajo, fuera de la ventana. */}
-      <div className="hidden lg:block mb-4 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm px-5 py-4 text-left">
-        <div className="flex items-center gap-2 mb-4">
-          <TrendingUp className="h-5 w-5 text-brand-500" />
-          <p className="text-sm font-semibold text-brand-950">Movimientos del día</p>
-        </div>
-
-        <div className="space-y-4">
-          <div>
-            <p className="text-xs text-brand-950/50 font-medium">Balance</p>
-            <p className={`text-2xl font-semibold ${Number(summary.balanceBase) < 0 ? 'text-red-600' : 'text-brand-950'}`}>
-              {formatBsAbsolute(summary.balanceBs)}
-            </p>
-            <p className="text-xs text-brand-950/40 font-light">{formatBase(summary.balanceBase, symbol)}</p>
-          </div>
-          <div className="pt-3 border-t border-brand-950/[0.06]">
-            <p className="text-xs text-brand-950/50 font-medium">Ingresos</p>
-            <p className="text-lg font-semibold text-emerald-600">{formatBsAbsolute(summary.ingresosBs)}</p>
-            <p className="text-xs text-brand-950/40 font-light">{formatBase(summary.ingresosBase, symbol)}</p>
-          </div>
-          <div className="pt-3 border-t border-brand-950/[0.06]">
-            <p className="text-xs text-brand-950/50 font-medium">Egresos</p>
-            <p className="text-lg font-semibold text-red-600">{formatBsAbsolute(summary.egresosBs)}</p>
-            <p className="text-xs text-brand-950/40 font-light">{formatBase(summary.egresosBase, symbol)}</p>
-          </div>
-        </div>
-      </div>
-
       <div className="hidden lg:block">
-        <div className="flex items-center gap-2 mb-4">
-          <TextureButton
-            variant="secondary"
-            size="sm"
-            className="!w-auto flex items-center gap-1.5 !text-amber-600"
-            onClick={() => setShowExpenseDialog(true)}
-          >
-            <Plus className="h-3.5 w-3.5" /> Añadir egreso
-          </TextureButton>
-          <TextureButton
-            variant="secondary"
-            size="sm"
-            className="!w-auto flex items-center gap-1.5 !text-emerald-600"
-            onClick={() => setShowIncomeDialog(true)}
-          >
-            <Plus className="h-3.5 w-3.5" /> Añadir ingreso
-          </TextureButton>
-        </div>
-
         <p className="text-xs font-semibold text-brand-950/50 uppercase tracking-wide mb-2">Últimos movimientos</p>
         {movements.length === 0 ? (
           <p className="text-sm text-brand-950/40 font-light">Sin movimientos todavía.</p>

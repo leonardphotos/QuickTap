@@ -123,6 +123,13 @@ export const orderController = {
     res.json({ data: order });
   }),
 
+  /** PATCH /api/v1/orders/:id/kitchen-start — una estación marca su parte como "En proceso". */
+  markKitchenStarted: asyncHandler(async (req: Request, res: Response) => {
+    const { kitchenName } = markKitchenReadySchema.parse(req.body);
+    const order = await orderService.markKitchenStarted(req.restaurantId!, req.params.id, kitchenName);
+    res.json({ data: order });
+  }),
+
   /** GET /api/v1/orders/summary/today — resumen de ventas del día (Dashboard). */
   todaySummary: asyncHandler(async (req: Request, res: Response) => {
     const summary = await orderService.getTodaySummary(req.restaurantId!);

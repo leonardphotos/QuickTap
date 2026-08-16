@@ -123,9 +123,9 @@ export function GeneralKpisCard() {
         aria-expanded={open}
         className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
       >
-        <span>
+        <span className="min-w-0">
           <span className="block text-[17px] font-bold text-brand-950">KPI</span>
-          <span className="block text-xs font-light text-brand-950/45">
+          <span className="block truncate text-xs font-light text-brand-950/45">
             {open ? `Comparado con ${PREVIOUS_LABELS[range]}` : 'Ventas, ticket, utilidad, food cost y equilibrio'}
           </span>
         </span>
@@ -183,10 +183,10 @@ export function GeneralKpisCard() {
           ) : !data ? (
             <p className="px-5 pb-5 text-sm font-light text-brand-950/40">Calculando…</p>
           ) : (
-            // Dos columnas en celular (donde el Resumen ocupa todo el ancho) y una sola en
-            // escritorio: ahí la tarjeta vive en la columna lateral de 250px y dos columnas
-            // dejarían los números apretados.
-            <div className="grid grid-cols-2 border-t border-brand-950/[0.07] lg:grid-cols-1">
+            // Dos columnas en celular; en escritorio la tarjeta ahora vive en "Panel de
+            // ventas" (ancho completo, reemplaza a "Ventas por hora"), así que se reparte en
+            // tres columnas — se lee de corrido, en horizontal, como el resto de esa fila.
+            <div className="grid grid-cols-2 border-t border-brand-950/[0.07] lg:grid-cols-3">
               {/* Punto de equilibrio: el anillo dice de un vistazo cuánto se lleva del objetivo. */}
               <KpiCell
                 ring={progress}
@@ -261,9 +261,12 @@ function KpiCell({
   valueTone?: string;
 }) {
   const changeNum = change != null ? Number(change) : null;
+  // Números largos (montos de 6+ cifras) se achican en vez de desbordar la tarjeta —
+  // siempre se ve completo el valor, nunca cortado.
+  const valueSizeClass = value.length > 12 ? 'text-[15px]' : value.length > 9 ? 'text-[18px]' : 'text-[22px]';
 
   return (
-    <div className="flex items-center gap-3 border-b border-brand-950/[0.07] px-4 py-4 [&:nth-last-child(-n+2)]:border-b-0 lg:[&:nth-last-child(-n+2)]:border-b lg:last:border-b-0">
+    <div className="flex items-center gap-3 border-b border-brand-950/[0.07] px-4 py-4 [&:nth-last-child(-n+2)]:border-b-0 lg:[&:nth-last-child(-n+3)]:border-b-0">
       {ring != null ? (
         <ProgressRing value={ring} />
       ) : (
@@ -273,7 +276,7 @@ function KpiCell({
       )}
       <div className="min-w-0">
         <p className="text-[13px] font-medium leading-tight text-brand-950/60">{label}</p>
-        <p className={`text-[22px] font-extrabold leading-tight tracking-tight ${valueTone || 'text-brand-950'}`}>
+        <p className={`${valueSizeClass} font-extrabold leading-tight tracking-tight ${valueTone || 'text-brand-950'}`}>
           {value}
         </p>
         <div className="flex flex-wrap items-center gap-1">

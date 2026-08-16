@@ -447,6 +447,8 @@ export interface OrderItemView {
   note?: string | null;
   /** Cocina asignada al producto al momento del pedido (snapshot). null = sin asignar. */
   kitchenName?: string | null;
+  /** Cuándo la cocina empezó a prepararlo ("En proceso"). null = todavía sin arrancar. */
+  kitchenStartedAt?: string | null;
   /** Cuándo esa estación marcó su parte lista. null = todavía pendiente. */
   kitchenReadyAt?: string | null;
 }

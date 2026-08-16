@@ -1,6 +1,7 @@
 import { lazy, useState } from 'react';
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Boxes, CalendarDays, Home, Menu, Share2, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, Boxes, CalendarDays, Home, Menu, PanelLeftOpen, Plus, Share2, TriangleAlert } from 'lucide-react';
+import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Toast } from '@/components/ui/toast';
@@ -12,7 +13,9 @@ import { LowStockAlert } from '@/components/admin/LowStockAlert';
 import { NewOrderAlert } from '@/components/admin/NewOrderAlert';
 import { OrderReadyToast } from '@/components/admin/OrderReadyToast';
 import { LockScreen } from '@/components/admin/LockScreen';
-import { HelpChatWidget } from '@/components/admin/HelpChatWidget';
+import { CreateOrderDialog } from '@/components/admin/CreateOrderDialog';
+import { EditOrderDialog, type LiveOrder } from '@/components/admin/LiveOrdersPanel';
+import { PaymentDialog } from '@/components/admin/PaymentDialog';
 import { useCopyToast } from '../../hooks/useCopyToast';
 import { usePendingReservationsCount } from '../../hooks/usePendingReservations';
 import { useLowStockItems } from '../../hooks/useLowStockItems';
@@ -46,10 +49,35 @@ export default function AdminLayout() {
   const navigate = useNavigate();
   const { copy, toastMessage } = useCopyToast();
   const [menuOpen, setMenuOpen] = useState(false);
+  // Menú lateral oculto a voluntad (escritorio/iPad horizontal): se recuerda entre
+  // navegaciones para que no reaparezca en cada cambio de pestaña.
+  const [sidebarHidden, setSidebarHidden] = useState(() => localStorage.getItem('qt-sidebar-hidden') === '1');
+  function toggleSidebar() {
+    setSidebarHidden((h) => {
+      const next = !h;
+      localStorage.setItem('qt-sidebar-hidden', next ? '1' : '0');
+      return next;
+    });
+  }
   const pendingReservations = usePendingReservationsCount(user?.role, user?.cashierFullAccess);
   const lowStockItems = useLowStockItems(user?.role, user?.canAccessInventory, user?.cashierFullAccess);
   const lockScreen = useLockScreen();
   const isLandscapeTablet = useIsLandscapeTablet();
+
+  // "Crear pedido" global (botón + verde del dock de celular): igual que en WaiterLayout, vive
+  // acá arriba de todo para poder abrirse desde cualquier pestaña del panel, no solo desde el
+  // Dashboard — antes solo existía como botón suelto en Resumen, atado a LiveOrdersPanel.
+  const [createOrderOpen, setCreateOrderOpen] = useState(false);
+  const [existingOrders, setExistingOrders] = useState<LiveOrder[]>([]);
+  const [editingOrder, setEditingOrder] = useState<LiveOrder | null>(null);
+  const [paymentDialog, setPaymentDialog] = useState<{ order: LiveOrder; mode: 'full' | 'split' } | null>(null);
+  function loadExistingOrders() {
+    api.get('/orders/live').then((res) => setExistingOrders(res.data.data));
+  }
+  function openCreateOrder() {
+    loadExistingOrders();
+    setCreateOrderOpen(true);
+  }
 
   if (loading) return <div className="p-10 text-center text-brand-950/50 font-light">Cargando…</div>;
   if (!user || !restaurant) return <Navigate to="/admin/login" replace />;
@@ -174,6 +202,97 @@ export default function AdminLayout() {
   const graceHours = graceHoursRemaining(restaurant.periodEnd);
   const showExpirationWarning = daysLeft <= 3;
   const navLinks = visibleNavLinks(user.role, restaurant, user.canAccessInventory, user.cashierFullAccess);
+  const canCreateOrder = isAdminCashier(user.role, user.cashierFullAccess);
+
+  // Dock flotante de celular: se arma como lista (en vez de JSX fijo) para poder insertar el
+  // botón verde "Crear pedido" justo en el medio de los íconos, sin importar cuáles de los
+  // condicionales (Volver/Reservas/Inventario) terminen apareciendo.
+  const dockItems: { key: string; node: React.ReactNode }[] = [
+    {
+      key: 'home',
+      node: (
+        <Link to="/admin">
+          <TextureButton variant="icon" size="icon" className="!h-11 !w-11" aria-label="Inicio">
+            <Home className="h-5 w-5 text-brand-950/70" />
+          </TextureButton>
+        </Link>
+      ),
+    },
+  ];
+  if (pathname !== '/admin') {
+    dockItems.push({
+      key: 'back',
+      node: (
+        <TextureButton variant="icon" size="icon" className="!h-11 !w-11" aria-label="Regresar" onClick={() => navigate(-1)}>
+          <ArrowLeft className="h-5 w-5 text-brand-950/70" />
+        </TextureButton>
+      ),
+    });
+  }
+  dockItems.push({
+    key: 'share',
+    node: (
+      <TextureButton
+        variant="icon"
+        size="icon"
+        className="!h-11 !w-11"
+        aria-label="Compartir enlace del menú"
+        onClick={() => copy(`${window.location.origin}/r/${restaurant.slug}`, 'Enlace copiado')}
+      >
+        <Share2 className="h-5 w-5 text-brand-950/70" />
+      </TextureButton>
+    ),
+  });
+  if (isAdminCashier(user.role, user.cashierFullAccess)) {
+    dockItems.push({
+      key: 'reservations',
+      node: (
+        <Link to="/admin/reservations" className="relative" aria-label="Reservas">
+          <div
+            className={`flex items-center justify-center h-11 w-11 rounded-full transition-colors ${
+              pendingReservations > 0
+                ? 'bg-red-500 shadow-[0_8px_20px_-6px_rgba(220,38,38,0.6)] animate-pulse'
+                : 'bg-white border border-brand-950/10'
+            }`}
+          >
+            <CalendarDays className={`h-5 w-5 ${pendingReservations > 0 ? 'text-white' : 'text-brand-950/70'}`} />
+          </div>
+          {pendingReservations > 0 && (
+            <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-white text-red-600 text-[10px] font-bold flex items-center justify-center ring-2 ring-red-500">
+              {pendingReservations}
+            </span>
+          )}
+        </Link>
+      ),
+    });
+  }
+  if (canSeeInventory) {
+    dockItems.push({
+      key: 'inventory',
+      node: (
+        <Link to="/admin/inventory" className="relative">
+          <TextureButton variant="icon" size="icon" className="!h-11 !w-11" aria-label="Inventario">
+            <Boxes className="h-5 w-5 text-brand-950/70" />
+          </TextureButton>
+          {isAdminCashier(user.role, user.cashierFullAccess) && lowStockItems.length > 0 && (
+            <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
+              {lowStockItems.length}
+            </span>
+          )}
+        </Link>
+      ),
+    });
+  }
+  if (canCreateOrder) {
+    dockItems.splice(Math.ceil(dockItems.length / 2), 0, {
+      key: 'create-order',
+      node: (
+        <TextureButton variant="success" size="icon" className="!h-12 !w-12" aria-label="Crear pedido" onClick={openCreateOrder}>
+          <Plus className="h-5 w-5" strokeWidth={2.5} />
+        </TextureButton>
+      ),
+    });
+  }
 
   return (
     <div className="min-h-screen bg-[#fafafa]">
@@ -188,20 +307,64 @@ export default function AdminLayout() {
         </Link>
       )}
 
+      {/* Menú hamburguesa de celular: botón suelto arriba a la derecha, sin barra ni logo —
+          en pantallas anchas lo reemplaza el menú lateral. */}
+      <button
+        type="button"
+        onClick={() => setMenuOpen(true)}
+        aria-label="Abrir menú"
+        className="lg:hidden fixed top-4 right-4 z-30 h-9 w-9 rounded-full bg-white border border-brand-950/10 flex items-center justify-center shadow-sm"
+      >
+        <Menu className="h-4.5 w-4.5 text-brand-950/70" />
+      </button>
+
       {/* Menú lateral: solo en pantallas anchas (tablet horizontal / escritorio) — en
           celular la navegación sigue siendo el dock flotante de abajo, más cómodo con el pulgar.
           Insumos por agotarse, compartir y abrir el menú (Ajustes/Cerrar sesión) viven ahí dentro,
-          junto al perfil — no hace falta una barra de utilidades aparte arriba del contenido. */}
+          junto al perfil — no hace falta una barra de utilidades aparte arriba del contenido.
+          Siempre montado (nunca se desmonta) para poder deslizarlo con una transición en vez de
+          aparecer/desaparecer de golpe; oculto se saca de foco/tabulación con `inert`. */}
       <AdminSidebar
         navLinks={navLinks}
         pendingReservations={pendingReservations}
         lowStockItems={isAdminCashier(user.role, user.cashierFullAccess) ? lowStockItems : []}
         onShare={() => copy(`${window.location.origin}/r/${restaurant.slug}`, 'Enlace copiado')}
         onOpenMenu={() => setMenuOpen(true)}
+        onHide={toggleSidebar}
+        hidden={sidebarHidden}
+        onCreateOrder={canCreateOrder ? openCreateOrder : null}
       />
 
-      <div className="lg:pl-[264px]">
-        <main className="max-w-5xl lg:max-w-7xl mx-auto px-6 lg:px-8 pt-10 lg:pt-8 pb-28 lg:pb-12">
+      {/* Con el menú oculto: botón flotante para volver a mostrarlo (solo en pantallas anchas,
+          donde existe el menú lateral; en celular la navegación es el dock de abajo). Entra con
+          una pequeña aparición (fade + subida) en vez de aparecer de golpe. */}
+      {sidebarHidden && (
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          aria-label="Mostrar menú lateral"
+          title="Mostrar menú lateral"
+          style={{ animation: 'var(--animate-rise)' }}
+          className="hidden lg:flex motion-reduce:!opacity-100 fixed top-5 left-5 z-40 items-center justify-center h-10 w-10 rounded-xl bg-brand-950 text-white/80 hover:text-white shadow-lg shadow-brand-950/20 hover:bg-brand-900 transition-colors"
+        >
+          <PanelLeftOpen className="h-[18px] w-[18px]" />
+        </button>
+      )}
+
+      {/* Con el menú oculto, el contenido recupera el ancho completo; en pantallas grandes se le
+          deja un poco más de margen superior (lg:pt-20 más abajo) para que el título de cada
+          página no quede pegado al botón flotante de arriba. La transición del padding acompaña
+          la del menú lateral, para que ambos se sientan como un solo movimiento. */}
+      <div
+        className={`transition-[padding-left] duration-300 ease-out motion-reduce:transition-none ${
+          sidebarHidden ? 'lg:pl-0' : 'lg:pl-[264px]'
+        }`}
+      >
+        <main
+          className={`max-w-5xl lg:max-w-7xl mx-auto px-6 lg:px-8 pt-10 pb-28 lg:pb-12 transition-[padding-top] duration-300 ease-out motion-reduce:transition-none ${
+            sidebarHidden ? 'lg:pt-20' : 'lg:pt-8'
+          }`}
+        >
           {/* Cajero SIN acceso completo no ve Administración en absoluto (ver canAccessPath) —
               abrir/cerrar caja y ver movimientos del día por método de pago son las dos
               habilidades que conserva igual, así que van sueltas acá arriba en vez de perderse. */}
@@ -215,67 +378,18 @@ export default function AdminLayout() {
         </main>
       </div>
 
-      {/* Dock flotante: navegación en celular/tablet vertical (la barra superior la reemplaza en pantallas anchas). */}
+      {/* Dock flotante: navegación en celular/tablet vertical (la barra superior fija ya cubre logo +
+          menú; este dock es para las acciones frecuentes — Inicio, Compartir, etc. — más el botón
+          verde de "Crear pedido" en el centro). */}
       <div className="lg:hidden fixed bottom-5 inset-x-0 z-30 flex justify-center pointer-events-none">
         <div className="pointer-events-auto flex items-center gap-2.5 rounded-full bg-white/90 backdrop-blur-md border border-brand-950/[0.08] shadow-lg shadow-brand-950/10 px-3 py-3">
-          <Link to="/admin">
-            <TextureButton variant="icon" size="icon" className="!h-11 !w-11" aria-label="Inicio">
-              <Home className="h-5 w-5 text-brand-950/70" />
-            </TextureButton>
-          </Link>
-          {pathname !== '/admin' && (
-            <TextureButton variant="icon" size="icon" className="!h-11 !w-11" aria-label="Regresar" onClick={() => navigate(-1)}>
-              <ArrowLeft className="h-5 w-5 text-brand-950/70" />
-            </TextureButton>
-          )}
-          <TextureButton
-            variant="icon"
-            size="icon"
-            className="!h-11 !w-11"
-            aria-label="Compartir enlace del menú"
-            onClick={() => copy(`${window.location.origin}/r/${restaurant.slug}`, 'Enlace copiado')}
-          >
-            <Share2 className="h-5 w-5 text-brand-950/70" />
-          </TextureButton>
-          {isAdminCashier(user.role, user.cashierFullAccess) && (
-            <Link to="/admin/reservations" className="relative" aria-label="Reservas">
-              <div
-                className={`flex items-center justify-center h-11 w-11 rounded-full transition-colors ${
-                  pendingReservations > 0
-                    ? 'bg-red-500 shadow-[0_8px_20px_-6px_rgba(220,38,38,0.6)] animate-pulse'
-                    : 'bg-white border border-brand-950/10'
-                }`}
-              >
-                <CalendarDays className={`h-5 w-5 ${pendingReservations > 0 ? 'text-white' : 'text-brand-950/70'}`} />
-              </div>
-              {pendingReservations > 0 && (
-                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-white text-red-600 text-[10px] font-bold flex items-center justify-center ring-2 ring-red-500">
-                  {pendingReservations}
-                </span>
-              )}
-            </Link>
-          )}
-          {canSeeInventory && (
-            <Link to="/admin/inventory" className="relative">
-              <TextureButton variant="icon" size="icon" className="!h-11 !w-11" aria-label="Inventario">
-                <Boxes className="h-5 w-5 text-brand-950/70" />
-              </TextureButton>
-              {isAdminCashier(user.role, user.cashierFullAccess) && lowStockItems.length > 0 && (
-                <span className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center ring-2 ring-white">
-                  {lowStockItems.length}
-                </span>
-              )}
-            </Link>
-          )}
-          <TextureButton variant="icon" size="icon" className="!h-11 !w-11" aria-label="Abrir menú" onClick={() => setMenuOpen(true)}>
-            <Menu className="h-5 w-5 text-brand-950/70" />
-          </TextureButton>
+          {dockItems.map((item) => (
+            <div key={item.key}>{item.node}</div>
+          ))}
         </div>
       </div>
 
       <NavMenuDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
-
-      <HelpChatWidget />
 
       <Toast message={toastMessage} />
       <LowStockAlert />
@@ -285,6 +399,37 @@ export default function AdminLayout() {
       {/* Pedido nuevo que espera aceptación (mesa del cliente, o delivery/pickup): Caja/Admin/
           Dueño lo ven aquí para poder aceptarlo aunque estén con otro diálogo abierto. */}
       {isAdminCashier(user.role, user.cashierFullAccess) && <NewOrderAlert onNavigate={() => navigate('/admin')} />}
+
+      {/* "Crear pedido" global (botón verde del dock): mismo wizard de 3 pasos que en
+          WaiterLayout, disponible desde cualquier pestaña del panel. */}
+      {createOrderOpen && (
+        <CreateOrderDialog
+          existingOrders={existingOrders}
+          onClose={() => setCreateOrderOpen(false)}
+          onCreated={(newOrder, paymentMode) => {
+            setCreateOrderOpen(false);
+            if (newOrder && paymentMode) setPaymentDialog({ order: newOrder, mode: paymentMode });
+          }}
+          onSelectExisting={(orderId) => {
+            setCreateOrderOpen(false);
+            const target = existingOrders.find((o) => o.id === orderId);
+            if (target) setEditingOrder(target);
+          }}
+        />
+      )}
+
+      {editingOrder && (
+        <EditOrderDialog order={editingOrder} onClose={() => setEditingOrder(null)} onSaved={loadExistingOrders} />
+      )}
+
+      {paymentDialog && (
+        <PaymentDialog
+          order={paymentDialog.order}
+          mode={paymentDialog.mode}
+          onClose={() => setPaymentDialog(null)}
+          onPaid={loadExistingOrders}
+        />
+      )}
     </div>
   );
 }

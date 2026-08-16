@@ -1772,6 +1772,28 @@ export const orderService = {
   },
 
   /**
+   * Una estación marca su parte de la comanda como "En proceso": solo pinta la tarjeta
+   * (para que el cocinero sepa qué ya arrancó) sin cambiar el estado del pedido ni tocar
+   * inventario. Sella kitchenStartedAt en los ítems de esa cocina que aún no lo tenían;
+   * el aviso por socket sincroniza las demás pantallas de cocina.
+   */
+  async markKitchenStarted(restaurantId: string, orderId: string, kitchenName: string | null) {
+    const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });
+    if (!existing) throw notFound('Comanda no encontrada.');
+    if (existing.status !== 'PENDING' && existing.status !== 'KITCHEN') {
+      throw badRequest('Este pedido ya no está en cocina.');
+    }
+
+    await prisma.orderItem.updateMany({
+      where: { orderId, kitchenName, kitchenStartedAt: null, kitchenReadyAt: null },
+      data: { kitchenStartedAt: new Date() },
+    });
+
+    emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: existing.status });
+    return prisma.order.findUnique({ where: { id: orderId }, include: { items: { include: { modifiers: true } }, table: { select: { number: true } } } });
+  },
+
+  /**
    * Acepta un pedido que llegó solo (sin staff detrás) en NEEDS_CONFIRMATION/PENDING:
    * recién ahí llega a cocina. Cocina nunca puede aceptar — solo cocina lo que ya está
    * aceptado. Delivery/Pickup, además, solo lo puede aceptar Caja/Admin/Dueño (nunca

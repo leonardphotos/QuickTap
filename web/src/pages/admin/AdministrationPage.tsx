@@ -10,7 +10,6 @@ import { AdminSectionNav } from '@/components/admin/AdminSectionNav';
 import { PlanUpgradeNotice } from '@/components/admin/PlanUpgradeNotice';
 import { MetricCard } from '@/components/admin/MetricCard';
 import { BreakEvenCard } from '@/components/admin/BreakEvenCard';
-import { SuppliersSection } from '@/components/admin/SuppliersSection';
 import { FiscalBooksSection } from '@/components/admin/FiscalBooksSection';
 import { BankAccountsSection } from '@/components/admin/BankAccountsSection';
 import { MovementsLedgerSection } from '@/components/admin/MovementsLedgerSection';
@@ -52,7 +51,7 @@ const ALL_TABS = [
   { id: 'crm', label: 'CRM', feature: 'crm' },
   { id: 'payments', label: 'Métodos de pago', feature: null },
   { id: 'ledger', label: 'Contabilidad', feature: 'accounting' },
-  { id: 'suppliers', label: 'Proveedores', feature: 'accounting' },
+  // Proveedores ya no vive acá: es una pestaña de Compras (evita el duplicado).
   { id: 'books', label: 'Libros fiscales', feature: 'accounting' },
   { id: 'banks', label: 'Cuentas bancarias', feature: 'accounting' },
 ] as const satisfies readonly { id: string; label: string; feature: FeatureFlag | null }[];
@@ -105,7 +104,6 @@ export default function AdministrationPage() {
           {!tabLocked && tab === 'crm' && <CrmHub />}
           {!tabLocked && tab === 'payments' && <PaymentsTab />}
           {!tabLocked && tab === 'ledger' && <MovementsLedgerSection />}
-          {!tabLocked && tab === 'suppliers' && <SuppliersSection />}
           {!tabLocked && tab === 'books' && <FiscalBooksSection />}
           {!tabLocked && tab === 'banks' && <BankAccountsSection symbol={restaurant?.currencySymbol ?? '$'} />}
         </div>
