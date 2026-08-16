@@ -237,15 +237,21 @@ export const cashSessionService = {
 
   /** Botón "Abrir Caja": no puede haber dos sesiones abiertas a la vez. */
   async open(restaurantId: string, userId: string | undefined, input: OpenCashSessionInput) {
-    const existing = await prisma.cashSession.findFirst({ where: { restaurantId, status: 'OPEN' } });
-    if (existing) throw badRequest('Ya hay una caja abierta. Ciérrala antes de abrir una nueva.');
+    // Mismo candado que el cierre: dos "Abrir Caja" simultáneos dejaban dos cajas abiertas
+    // y a partir de ahí los cierres no cuadraban con nada.
+    return prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'cash-session:' + restaurantId}))`;
 
-    return prisma.cashSession.create({
-      data: {
-        restaurantId,
-        openedByUserId: userId,
-        openingBalances: input.openingBalances,
-      },
+      const existing = await tx.cashSession.findFirst({ where: { restaurantId, status: 'OPEN' } });
+      if (existing) throw badRequest('Ya hay una caja abierta. Ciérrala antes de abrir una nueva.');
+
+      return tx.cashSession.create({
+        data: {
+          restaurantId,
+          openedByUserId: userId,
+          openingBalances: input.openingBalances,
+        },
+      });
     });
   },
 
@@ -275,8 +281,16 @@ export const cashSessionService = {
   ) {
     const businessType = await businessTypeOf(restaurantId);
     const { closed, clearedCount } = await prisma.$transaction(async (tx) => {
+      // Candado por NEGOCIO: sin él, varios "Confirmar cierre" a la vez (dos pestañas, un
+      // doble toque) cerraban la misma caja varias veces y todas se llevaban el mismo
+      // número de cierre. El segundo entra cuando el primero ya cerró y se le rechaza.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'cash-session:' + restaurantId}))`;
+
       const session = await tx.cashSession.findFirst({ where: { id, restaurantId, status: 'OPEN' } });
-      if (!session) throw notFound('Caja abierta no encontrada.');
+      if (!session) {
+        const already = await tx.cashSession.findFirst({ where: { id, restaurantId } });
+        throw already ? badRequest('Esta caja ya fue cerrada.') : notFound('Caja abierta no encontrada.');
+      }
 
       const base = await computeSummary(
         restaurantId,

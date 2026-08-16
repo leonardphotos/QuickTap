@@ -44,7 +44,11 @@ export function GeneralKpisCard() {
   const [open, setOpen] = useState(() => localStorage.getItem(OPEN_KEY) !== 'false');
   const [range, setRange] = useState<Range>('month');
   const [data, setData] = useState<GeneralKpis | null>(null);
-  const [failed, setFailed] = useState(false);
+  // `error` NO oculta el panel: antes cualquier fallo puntual (red del celular, un timeout)
+  // lo desaparecía del Dashboard hasta recargar. Ahora se avisa y se puede reintentar,
+  // además de un reintento automático a los 4 segundos.
+  const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   // Altura real del contenido para poder animar el despliegue: `height: auto` no es
   // animable, así que se mide y se anima hasta ese alto exacto. Un ResizeObserver la
   // mantiene al día cuando cambian los datos (otro período, otra cifra más larga).
@@ -67,11 +71,31 @@ export function GeneralKpisCard() {
 
   useEffect(() => {
     if (!enabled || !open) return;
+    // `cancelled` evita que una respuesta lenta de un rango anterior pise a la del rango
+    // que el usuario está viendo ahora.
+    let cancelled = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+
     api
       .get('/kpis/general', { params: { range } })
-      .then((res) => setData(res.data.data))
-      .catch(() => setFailed(true));
-  }, [range, enabled, open]);
+      .then((res) => {
+        if (cancelled) return;
+        setData(res.data.data);
+        setError(null);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err.response?.status === 403 ? null : 'No se pudieron cargar los indicadores.');
+        // Un solo reintento automático: cubre el bache de red típico del celular sin
+        // convertirse en un bucle de peticiones contra el servidor.
+        retry = setTimeout(() => setReloadKey((k) => k + 1), 4000);
+      });
+
+    return () => {
+      cancelled = true;
+      if (retry) clearTimeout(retry);
+    };
+  }, [range, enabled, open, reloadKey]);
 
   function toggle() {
     setOpen((o) => {
@@ -80,8 +104,8 @@ export function GeneralKpisCard() {
     });
   }
 
-  // Sin plan con Administración (o si el endpoint falla) el Dashboard sigue como siempre.
-  if (!enabled || failed) return null;
+  // Sin plan con Administración el Dashboard sigue como siempre (el panel es de Administración).
+  if (!enabled) return null;
 
   const foodCostNum = data ? Number(data.foodCost.percent) : 0;
   const foodCostTone =
@@ -124,6 +148,12 @@ export function GeneralKpisCard() {
             open ? 'translate-y-0' : '-translate-y-2'
           }`}
         >
+          {data && error && (
+            <p className="px-5 pb-2 text-[11px] font-light text-amber-700">
+              Mostrando los últimos datos: no se pudo actualizar.
+            </p>
+          )}
+
           <div className="flex flex-wrap gap-1 px-5 pb-3">
             {(Object.keys(RANGE_LABELS) as Range[]).map((r) => (
               <button
@@ -139,7 +169,18 @@ export function GeneralKpisCard() {
             ))}
           </div>
 
-          {!data ? (
+          {!data && error ? (
+            <div className="flex flex-wrap items-center gap-2 px-5 pb-5">
+              <p className="text-sm font-light text-brand-950/50">{error}</p>
+              <button
+                type="button"
+                onClick={() => setReloadKey((k) => k + 1)}
+                className="rounded-full bg-brand-950/[0.06] px-3 py-1 text-xs font-semibold text-brand-950/70 hover:bg-brand-950/10"
+              >
+                Reintentar
+              </button>
+            </div>
+          ) : !data ? (
             <p className="px-5 pb-5 text-sm font-light text-brand-950/40">Calculando…</p>
           ) : (
             // Dos columnas en celular (donde el Resumen ocupa todo el ancho) y una sola en

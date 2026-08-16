@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma';
 import { toDecimal } from './money';
 import { DEMO_SLUG } from './seed-demo-restaurant';
+import { demoResetService } from './demo-reset.service';
 import { orderService } from '../modules/orders/order.service';
 
 /**
@@ -149,6 +150,9 @@ async function createSimulatedOrder(restaurantId: string): Promise<void> {
 export const demoSimulatorService = {
   /** Cada 20s (ver server.ts): 50% avanza el pedido más viejo, 50% crea uno nuevo. */
   async tickOrder(): Promise<void> {
+    // El restaurante demo se está borrando/recreando: crear pedidos ahora choca con el
+    // correlativo que arma el seed.
+    if (demoResetService.isResetting()) return;
     const restaurant = await getDemoRestaurant();
     if (!restaurant) return;
 
@@ -158,6 +162,7 @@ export const demoSimulatorService = {
 
   /** Cada 6s (ver server.ts): consume un poco de un insumo al azar; repone si queda muy bajo. */
   async tickInventory(): Promise<void> {
+    if (demoResetService.isResetting()) return;
     const restaurant = await getDemoRestaurant();
     if (!restaurant) return;
 

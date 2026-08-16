@@ -1937,6 +1937,12 @@ export const orderService = {
    * líneas — el `amountBase` que mande el cliente se ignora en ese caso. */
   async addPayment(restaurantId: string, orderId: string, input: RecordPaymentInput) {
     return prisma.$transaction(async (tx) => {
+      // Candado por PEDIDO durante toda la transacción: dos cajeros cobrando la misma
+      // comanda a la vez (o un doble toque del botón) leían los dos el saldo completo y
+      // ambos pasaban la validación de abajo — la cuenta terminaba cobrada dos veces. Con
+      // esto el segundo espera, relee el saldo ya actualizado y se le rechaza el exceso.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${'order-payment:' + orderId}))`;
+
       const order = await tx.order.findFirst({
         where: { id: orderId, restaurantId },
         include: { payments: true, items: true },

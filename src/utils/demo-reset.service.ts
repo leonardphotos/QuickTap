@@ -19,6 +19,13 @@ export const demoResetService = {
     return resetInFlight;
   },
 
+  /** ¿Hay un reset en curso? El simulador de la demo lo consulta para no crear pedidos
+   * mientras el restaurante se está borrando y recreando: esa carrera es la que dejaba
+   * `Unique constraint failed (restaurantId, orderNumber)` en el log del servidor. */
+  isResetting(): boolean {
+    return resetInFlight !== null;
+  },
+
   /** Restaurantes demo cuya última actividad quedó vieja (pestaña cerrada/abandonada) — o que nunca tuvieron actividad registrada. */
   async findStaleDemoRestaurants(olderThanMs: number) {
     const cutoff = new Date(Date.now() - olderThanMs);

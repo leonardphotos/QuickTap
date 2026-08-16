@@ -1,6 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { round2, toDecimal } from '../../utils/money';
 import { resolveDateFilter, type ReportRange } from '../../utils/date-range';
+import { startOfTodayCaracas, startOfWeekCaracas } from '../../utils/timezone';
 import { productService } from '../products/product.service';
 import { shopService } from '../shop/shop.service';
 
@@ -15,42 +16,49 @@ import { shopService } from '../shop/shop.service';
  *  5. Punto de equilibrio — cuánto falta (o cuánto sobra) para cubrir los costos fijos del mes.
  *
  * Vive aparte de Administración porque lo consume el Dashboard, que es la primera pantalla
- * que ve todo el mundo al entrar.
+ * que ve todo el mundo al entrar — y por eso mismo tiene que ser barato: los totales se
+ * resuelven con agregaciones en la base, no trayendo las filas del período a Node.
  */
 
+type Window = { gte?: Date; lt?: Date } | undefined;
+
 /** Ventas del período por vertical: el restaurante factura Order; el local, ShopSale. */
-async function salesFor(restaurantId: string, businessType: string, range: ReportRange, date?: string) {
-  const createdAt = resolveDateFilter({ range, date });
+async function salesFor(restaurantId: string, businessType: string, window: Window) {
   if (businessType === 'SHOP') {
-    const sales = await prisma.shopSale.findMany({
-      where: { restaurantId, returned: false, time: createdAt },
-      select: { total: true },
+    const agg = await prisma.shopSale.aggregate({
+      where: { restaurantId, returned: false, time: window },
+      _sum: { total: true },
+      _count: true,
     });
-    return {
-      count: sales.length,
-      totalBase: round2(sales.reduce((acc, s) => acc.add(toDecimal(s.total)), toDecimal(0))),
-    };
+    return { count: agg._count, totalBase: round2(toDecimal(agg._sum.total ?? 0)) };
   }
-  const orders = await prisma.order.findMany({
-    where: { restaurantId, status: { not: 'CANCELLED' }, createdAt },
-    select: { totalBase: true },
+  const agg = await prisma.order.aggregate({
+    where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: window },
+    _sum: { totalBase: true },
+    _count: true,
   });
-  return {
-    count: orders.length,
-    totalBase: round2(orders.reduce((acc, o) => acc.add(o.totalBase), toDecimal(0))),
-  };
+  return { count: agg._count, totalBase: round2(toDecimal(agg._sum.totalBase ?? 0)) };
 }
 
-/** El período inmediatamente anterior del mismo tamaño, para el "vs." de cada KPI. */
-function previousRange(range: ReportRange): { range: ReportRange; date?: string } {
+/** Ventana del período anterior equivalente, para el "vs." de cada KPI. */
+function previousWindow(range: ReportRange): { gte: Date; lt: Date } {
   const now = new Date();
+  const DAY = 24 * 60 * 60 * 1000;
   if (range === 'day') {
-    const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    return { range: 'day', date: yesterday.toISOString().slice(0, 10) };
+    const start = startOfTodayCaracas();
+    return { gte: new Date(start.getTime() - DAY), lt: start };
   }
-  // Semana/mes/año anterior no tienen preset propio: se resuelven con `from`/`to` en el
-  // service de abajo. Acá solo se marca que hay que calcularlo aparte.
-  return { range };
+  if (range === 'week') {
+    const start = startOfWeekCaracas();
+    return { gte: new Date(start.getTime() - 7 * DAY), lt: start };
+  }
+  if (range === 'month') {
+    return {
+      gte: new Date(now.getFullYear(), now.getMonth() - 1, 1),
+      lt: new Date(now.getFullYear(), now.getMonth(), 1),
+    };
+  }
+  return { gte: new Date(now.getFullYear() - 1, 0, 1), lt: new Date(now.getFullYear(), 0, 1) };
 }
 
 export const kpiService = {
@@ -61,55 +69,26 @@ export const kpiService = {
     });
     const businessType = restaurant?.businessType ?? 'RESTAURANT';
 
-    const [sales, prevSales, expenses, breakEven, margin] = await Promise.all([
-      salesFor(restaurantId, businessType, range),
-      (async () => {
-        const prev = previousRange(range);
-        if (prev.date) return salesFor(restaurantId, businessType, 'day', prev.date);
-        // Para semana/mes/año se compara contra el mismo rango del período anterior usando
-        // el filtro de fechas explícito que ya sabe armar resolveDateFilter.
-        const now = new Date();
-        const start =
-          range === 'week'
-            ? new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
-            : range === 'month'
-              ? new Date(now.getFullYear(), now.getMonth() - 1, 1)
-              : new Date(now.getFullYear() - 1, 0, 1);
-        const end =
-          range === 'week'
-            ? new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-            : range === 'month'
-              ? new Date(now.getFullYear(), now.getMonth(), 1)
-              : new Date(now.getFullYear(), 0, 1);
-        const rows =
-          businessType === 'SHOP'
-            ? await prisma.shopSale.findMany({
-                where: { restaurantId, returned: false, time: { gte: start, lt: end } },
-                select: { total: true },
-              })
-            : await prisma.order.findMany({
-                where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: { gte: start, lt: end } },
-                select: { totalBase: true },
-              });
-        const total = rows.reduce(
-          (acc: ReturnType<typeof toDecimal>, r: { total?: unknown; totalBase?: unknown }) =>
-            acc.add(toDecimal((r.totalBase ?? r.total) as never)),
-          toDecimal(0),
-        );
-        return { count: rows.length, totalBase: round2(total) };
-      })(),
+    // Una sola pasada del cálculo pesado: `getBreakEven` ya agrega ventas y costo variable
+    // por producto, así que el costo de lo vendido sale de ahí en vez de recorrer los
+    // OrderItem del período por segunda vez (antes se llamaba también a listWithMargin).
+    const [sales, prevSales, expenses, breakEven] = await Promise.all([
+      salesFor(restaurantId, businessType, resolveDateFilter({ range })),
+      salesFor(restaurantId, businessType, previousWindow(range)),
       prisma.movement.aggregate({
         where: { restaurantId, type: 'EXPENSE', createdAt: resolveDateFilter({ range }) },
         _sum: { amountBase: true },
       }),
-      businessType === 'SHOP' ? shopService.getBreakEven(restaurantId, range) : productService.getBreakEven(restaurantId, range),
-      businessType === 'SHOP' ? null : productService.listWithMargin(restaurantId, range),
+      businessType === 'SHOP'
+        ? shopService.getBreakEven(restaurantId, range)
+        : productService.getBreakEven(restaurantId, range),
     ]);
 
     const expensesBase = round2(toDecimal(expenses._sum.amountBase ?? 0));
-    // Costo de lo vendido: en restaurante sale del margen por producto; en local, del costo
-    // variable que ya calcula el punto de equilibrio (ShopSaleItem congela su costo).
-    const costBase = margin ? round2(toDecimal(margin.summary.costBase)) : round2(toDecimal(breakEven.breakEven.cvBase));
+    // Costo de lo vendido = costo variable del punto de equilibrio: en restaurante son los
+    // OrderItem valorados con el costo vivo del producto; en local, el costo congelado en
+    // cada ShopSaleItem.
+    const costBase = round2(toDecimal(breakEven.breakEven.cvBase));
     const netBase = round2(sales.totalBase.sub(costBase).sub(expensesBase));
     const avgTicket = sales.count > 0 ? round2(sales.totalBase.div(sales.count)) : toDecimal(0);
     const prevAvgTicket = prevSales.count > 0 ? round2(prevSales.totalBase.div(prevSales.count)) : toDecimal(0);
