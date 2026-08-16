@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Search } from 'lucide-react';
+import { ChefHat, Search } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { CURRENCY_SYMBOLS, cartLineUnitPrice, formatBase, modifierSelectionKey } from '@/utils/format';
@@ -32,6 +32,9 @@ export function ManualOrderDialog({ tableId, tableNumber, sessions, products, on
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const needsNewAccount = sessions.length === 0 || accountChoice === 'new';
+  // Dos pasos: primero de quién es la cuenta (datos del cliente), después el menú. Con una
+  // sola cuenta ya abierta se entra directo al menú — ese cliente ya está identificado.
+  const [step, setStep] = useState<'cliente' | 'menu'>(sessions.length === 1 ? 'menu' : 'cliente');
 
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
 
@@ -51,6 +54,20 @@ export function ManualOrderDialog({ tableId, tableNumber, sessions, products, on
   }, [products, search, categoryFilter]);
 
   const totalBase = lines.reduce((acc, l) => acc + cartLineUnitPrice(l) * l.quantity, 0);
+
+  /** Paso 1 → 2: exige elegir la cuenta y, si es nueva, los datos del cliente. */
+  function continueToMenu() {
+    if (sessions.length > 1 && !accountChoice) {
+      setError('Elige a cuál cuenta va el pedido, o abre una nueva.');
+      return;
+    }
+    if (needsNewAccount && (!customerName.trim() || !customerIdNumber.trim() || !customerPhone.trim())) {
+      setError('Escribe el nombre, la cédula y el teléfono del cliente para abrir la cuenta.');
+      return;
+    }
+    setError(null);
+    setStep('menu');
+  }
 
   /** Línea armada en ProductOptionsDialog: se fusiona con una idéntica si existe. */
   function addPickedLine(line: CartLine) {
@@ -120,11 +137,13 @@ export function ManualOrderDialog({ tableId, tableNumber, sessions, products, on
       <Dialog open onOpenChange={(o) => !o && onClose()}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Generar orden · Mesa {tableNumber}</DialogTitle>
+            <DialogTitle>
+              {step === 'cliente' ? 'Datos del cliente' : 'Menú'} · Mesa {tableNumber}
+            </DialogTitle>
           </DialogHeader>
 
           <div className="space-y-4">
-            {sessions.length > 0 && (
+            {step === 'cliente' && sessions.length > 0 && (
               <div className="space-y-1.5">
                 <p className="text-xs font-medium text-brand-950/50">
                   {sessions.length > 1 ? 'Elige a cuál cuenta agregar, o abre una nueva:' : 'Esta mesa ya tiene una cuenta abierta:'}
@@ -155,7 +174,7 @@ export function ManualOrderDialog({ tableId, tableNumber, sessions, products, on
               </div>
             )}
 
-            {needsNewAccount && (
+            {step === 'cliente' && needsNewAccount && (
               <div className="space-y-2">
                 <p className="text-sm font-semibold text-brand-950">Datos para abrir la cuenta</p>
                 <input
@@ -180,6 +199,20 @@ export function ManualOrderDialog({ tableId, tableNumber, sessions, products, on
               </div>
             )}
 
+            {step === 'cliente' && (
+              <>
+                {error && <p className="text-sm text-red-600">{error}</p>}
+                <TextureButton variant="brand" size="default" onClick={continueToMenu}>
+                  Continuar al menú
+                </TextureButton>
+                <p className="-mt-1 text-center text-xs font-light text-brand-950/45">
+                  La cuenta queda abierta: se van sumando pedidos y se cobra al final.
+                </p>
+              </>
+            )}
+
+            {step === 'menu' && (
+              <>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-950/30" />
               <input
@@ -254,9 +287,30 @@ export function ManualOrderDialog({ tableId, tableNumber, sessions, products, on
 
             {error && <p className="text-sm text-red-600">{error}</p>}
 
-            <TextureButton variant="brand" size="default" disabled={sending} onClick={submit} className="disabled:opacity-50">
-              {sending ? 'Enviando…' : 'Enviar pedido a cocina'}
+            <TextureButton
+              variant="brand"
+              size="default"
+              disabled={sending || lines.length === 0}
+              onClick={submit}
+              className="disabled:opacity-50"
+            >
+              <ChefHat className="mr-1.5 h-4 w-4" />
+              {sending ? 'Enviando…' : 'Enviar a cocina'}
             </TextureButton>
+            <p className="-mt-1 text-center text-xs font-light text-brand-950/45">
+              Va directo a la cocina y la cuenta queda abierta — se cobra cuando el cliente termine.
+            </p>
+            {sessions.length !== 1 && (
+              <button
+                type="button"
+                onClick={() => setStep('cliente')}
+                className="text-center text-xs font-medium text-brand-950/50 hover:text-brand-500"
+              >
+                ← Volver a los datos del cliente
+              </button>
+            )}
+              </>
+            )}
           </div>
         </DialogContent>
       </Dialog>

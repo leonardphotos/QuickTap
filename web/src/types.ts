@@ -408,6 +408,12 @@ export interface FloorPlanTable {
   serviceRequest: ServiceRequestType | null;
   /** Tiene una reserva confirmada para hoy y no está ocupada ahora mismo. */
   reserved: boolean;
+  /** Planimetría: posición en % del lienzo de su zona. null = todavía sin ubicar en el plano. */
+  planX: number | null;
+  planY: number | null;
+  planShape: 'ROUND' | 'SQUARE';
+  /** Factor de tamaño con que se dibuja (1 = normal). */
+  planSize: number;
 }
 
 export interface FloorPlan {

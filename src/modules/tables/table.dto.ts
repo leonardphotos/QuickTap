@@ -13,5 +13,25 @@ export const updateTableSchema = z.object({
   zoneId: z.string().min(1).nullable().optional(),
 });
 
+/**
+ * PATCH /tables/floor-plan — guarda de una sola vez la ubicación de las mesas que se
+ * movieron en el plano. Posición en % del lienzo (0-100) para que el plano se vea igual en
+ * cualquier pantalla; `planX: null` saca la mesa del plano y la devuelve a "sin ubicar".
+ */
+export const saveFloorPlanSchema = z.object({
+  tables: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        planX: z.number().min(0).max(100).nullable(),
+        planY: z.number().min(0).max(100).nullable(),
+        planShape: z.enum(['ROUND', 'SQUARE']).optional(),
+        planSize: z.number().min(0.6).max(2).optional(),
+      }),
+    )
+    .max(300),
+});
+
 export type CreateTableInput = z.infer<typeof createTableSchema>;
 export type UpdateTableInput = z.infer<typeof updateTableSchema>;
+export type SaveFloorPlanInput = z.infer<typeof saveFloorPlanSchema>;

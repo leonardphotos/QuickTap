@@ -162,7 +162,14 @@ export const recipeService = {
   async getCascade(restaurantId: string, productId: string) {
     const product = await prisma.product.findFirst({
       where: { id: productId, restaurantId },
-      select: { id: true, price: true, recipeBufferPercent: true, recipeTargetFoodCostPercent: true },
+      select: {
+        id: true,
+        price: true,
+        recipeBufferPercent: true,
+        recipeTargetFoodCostPercent: true,
+        recipeApplyService: true,
+        recipeApplyIva: true,
+      },
     });
     if (!product) throw notFound('Producto no encontrado.');
 
@@ -177,8 +184,10 @@ export const recipeService = {
     const baseSugerida = product.recipeTargetFoodCostPercent.greaterThan(0)
       ? round2(costoReceta.mul(100).div(product.recipeTargetFoodCostPercent))
       : toDecimal(0);
-    const servicioPercent = restaurant?.serviceChargeEnabled ? 10 : 0;
-    const ivaPercent = restaurant?.ivaEnabled ? 16 : 0;
+    // El restaurante define si cobra servicio/IVA; el producto define si su PVP sugerido
+    // los suma. Apagado cualquiera de los dos, ese cargo no entra en la sugerencia.
+    const servicioPercent = restaurant?.serviceChargeEnabled && product.recipeApplyService ? 10 : 0;
+    const ivaPercent = restaurant?.ivaEnabled && product.recipeApplyIva ? 16 : 0;
     const servicioInfo = round2(baseSugerida.mul(servicioPercent).div(100));
     const ivaInfo = round2(baseSugerida.mul(ivaPercent).div(100));
     const precioActual = toDecimal(product.price);
@@ -194,8 +203,14 @@ export const recipeService = {
       baseSugerida: baseSugerida.toFixed(2),
       servicioPercent,
       servicioInfo: servicioInfo.toFixed(2),
+      // Si el restaurante no cobra servicio/IVA, el interruptor no aplica: se informa
+      // aparte para que la pantalla pueda explicar por qué está en gris.
+      servicioDisponible: !!restaurant?.serviceChargeEnabled,
+      aplicaServicio: product.recipeApplyService,
       ivaPercent,
       ivaInfo: ivaInfo.toFixed(2),
+      ivaDisponible: !!restaurant?.ivaEnabled,
+      aplicaIva: product.recipeApplyIva,
       pvpSugeridoConImpuestos: baseSugerida.add(servicioInfo).add(ivaInfo).toFixed(2),
       precioActual: precioActual.toFixed(2),
       foodCostReal: round2(foodCostReal.mul(100)).toFixed(1),

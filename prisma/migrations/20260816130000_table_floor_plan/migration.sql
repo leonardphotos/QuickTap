@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "tables" ADD COLUMN     "planShape" TEXT NOT NULL DEFAULT 'ROUND',
+ADD COLUMN     "planSize" DECIMAL(3,2) NOT NULL DEFAULT 1,
+ADD COLUMN     "planX" DECIMAL(5,2),
+ADD COLUMN     "planY" DECIMAL(5,2);

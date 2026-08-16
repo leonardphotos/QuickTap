@@ -11,6 +11,8 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { ManualOrderDialog } from '@/components/admin/ManualOrderDialog';
 import { EditOrderDialog, getPaymentStatus, type LiveOrder } from '@/components/admin/LiveOrdersPanel';
 import { PaymentDialog } from '@/components/admin/PaymentDialog';
+import { FloorPlanCanvas, SaveFloorPlanButton, saveFloorPlan, type FloorPlanPatch } from '@/components/admin/FloorPlanCanvas';
+import { isAdminCashier } from '@/utils/roles';
 
 const STATUS_LABEL: Record<string, string> = {
   NEEDS_CONFIRMATION: 'Por confirmar',
@@ -71,6 +73,30 @@ export default function TableOrdersPage() {
       socket.disconnect();
     };
   }, []);
+
+  // Vista del salón: lista de siempre o plano (planimetría). El editor del plano solo para
+  // quien administra las mesas; un mesero ve el plano pero no lo mueve.
+  const [view, setView] = useState<'lista' | 'plano'>('lista');
+  const [editingPlan, setEditingPlan] = useState(false);
+  const [planPatches, setPlanPatches] = useState<Record<string, FloorPlanPatch[]>>({});
+  const [savingPlan, setSavingPlan] = useState(false);
+  const canEditPlan = isAdminCashier(user?.role, user?.cashierFullAccess);
+  const pendingPatches = Object.values(planPatches).flat();
+
+  async function persistFloorPlan() {
+    setSavingPlan(true);
+    setError(null);
+    try {
+      await saveFloorPlan(pendingPatches);
+      setPlanPatches({});
+      setEditingPlan(false);
+      load();
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo guardar el plano.');
+    } finally {
+      setSavingPlan(false);
+    }
+  }
 
   const sections = useMemo(() => {
     if (!plan) return [];
@@ -411,7 +437,51 @@ export default function TableOrdersPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Órdenes de Mesa</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Órdenes de Mesa</h1>
+        {sections.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
+              {(['lista', 'plano'] as const).map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => {
+                    setView(v);
+                    if (v === 'lista') setEditingPlan(false);
+                  }}
+                  className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
+                    view === v ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
+                  }`}
+                >
+                  {v === 'lista' ? 'Lista' : 'Plano del salón'}
+                </button>
+              ))}
+            </div>
+            {view === 'plano' && canEditPlan && !editingPlan && (
+              <TextureButton variant="secondary" size="sm" className="!w-auto" onClick={() => setEditingPlan(true)}>
+                Editar plano
+              </TextureButton>
+            )}
+            {view === 'plano' && editingPlan && (
+              <>
+                <SaveFloorPlanButton dirty={pendingPatches.length > 0} saving={savingPlan} onSave={persistFloorPlan} />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingPlan(false);
+                    setPlanPatches({});
+                    load();
+                  }}
+                  className="text-xs font-medium text-brand-950/50 hover:text-brand-950"
+                >
+                  Cancelar
+                </button>
+              </>
+            )}
+          </div>
+        )}
+      </div>
 
       {sections.length === 0 && (
         <p className="text-sm text-brand-950/40 py-10 text-center font-light">
@@ -439,6 +509,15 @@ export default function TableOrdersPage() {
         {sections.map((zone) => (
           <div key={zone.id}>
             <h2 className="text-sm font-semibold text-brand-950/70 mb-4">{zone.name}</h2>
+            {view === 'plano' ? (
+              <FloorPlanCanvas
+                zoneId={zone.id}
+                tables={zone.tables}
+                editing={editingPlan}
+                onOpenTable={openTable}
+                onPatches={(zoneId, patches) => setPlanPatches((prev) => ({ ...prev, [zoneId]: patches }))}
+              />
+            ) : (
             <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
               {zone.tables.map((t) => (
                 <div key={t.id} className="relative">
@@ -502,6 +581,7 @@ export default function TableOrdersPage() {
                 </div>
               ))}
             </div>
+            )}
           </div>
         ))}
       </div>

@@ -11,6 +11,8 @@ const mutate = requireRoleOrCashierFullAccess('OWNER', 'ADMIN');
 
 router.get('/', tableController.list);
 router.get('/floor-plan', tableController.floorPlan);
+// Guardar el plano del salón: mismo permiso que crear/mover mesas.
+router.patch('/floor-plan', mutate, tableController.saveFloorPlan);
 router.post('/', mutate, tableController.create);
 router.patch('/:id', mutate, tableController.update);
 router.patch('/:id/service-request/ack', tableController.acknowledgeServiceRequest);

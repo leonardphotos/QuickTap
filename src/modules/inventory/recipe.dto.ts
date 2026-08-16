@@ -23,9 +23,10 @@ export const updateRecipeIngredientSchema = z
     message: 'Elige un insumo o una preparación, no ambos.',
   });
 
-// PATCH /inventory/recipes/:productId/cascade — resguardo % y food cost objetivo % de la
-// cascada de precio sugerido. Servicio/IVA se leen de la config real del restaurante,
-// nunca se editan por receta (ver recipe.service.ts#getCascade).
+// PATCH /inventory/recipes/:productId/cascade — resguardo %, food cost objetivo % y los
+// interruptores de servicio/IVA de la cascada de precio sugerido. Los PORCENTAJES de
+// servicio/IVA siguen saliendo de la config real del restaurante; acá solo se decide si
+// este producto los suma o no a su PVP sugerido (ver recipe.service.ts#getCascade).
 export const updateCascadeConfigSchema = z.object({
   recipeBufferPercent: z.coerce.number().min(0, 'El resguardo no puede ser negativo.').optional(),
   recipeTargetFoodCostPercent: z.coerce
@@ -33,6 +34,8 @@ export const updateCascadeConfigSchema = z.object({
     .positive('El food cost objetivo debe ser mayor a 0%.')
     .max(100, 'El food cost objetivo no puede superar 100%.')
     .optional(),
+  recipeApplyService: z.boolean().optional(),
+  recipeApplyIva: z.boolean().optional(),
 });
 
 export type CreateRecipeIngredientInput = z.infer<typeof createRecipeIngredientSchema>;

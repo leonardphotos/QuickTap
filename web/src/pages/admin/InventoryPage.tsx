@@ -2045,8 +2045,13 @@ interface CascadeData {
   baseSugerida: string;
   servicioPercent: number;
   servicioInfo: string;
+  /** El restaurante cobra servicio (si no, el interruptor va en gris). */
+  servicioDisponible: boolean;
+  aplicaServicio: boolean;
   ivaPercent: number;
   ivaInfo: string;
+  ivaDisponible: boolean;
+  aplicaIva: boolean;
   pvpSugeridoConImpuestos: string;
   precioActual: string;
   foodCostReal: string;
@@ -2078,12 +2083,13 @@ function PriceCascadeSection({ productId }: { productId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  async function save() {
+  async function save(extra?: { recipeApplyService?: boolean; recipeApplyIva?: boolean }) {
     setSaving(true);
     try {
       const res = await api.patch(`/inventory/recipes/${productId}/cascade`, {
         recipeBufferPercent: Number(resguardo) || 0,
         recipeTargetFoodCostPercent: Number(targetFoodCost) || 40,
+        ...extra,
       });
       setData(res.data.data);
     } finally {
@@ -2124,7 +2130,28 @@ function PriceCascadeSection({ productId }: { productId: string }) {
               />
             </label>
           </div>
-          <TextureButton variant="minimal" size="sm" className="!w-auto" disabled={saving} onClick={save}>
+          {/* Interruptores de Servicio e IVA: deciden si el PVP sugerido los suma. No tocan
+              lo que se le cobra al cliente — eso lo manda Ajustes del restaurante. */}
+          {data && (
+            <div className="flex flex-wrap gap-2">
+              <CascadeToggle
+                label={`Servicio ${data.servicioDisponible ? `${data.servicioPercent || 10}%` : ''}`.trim()}
+                checked={data.aplicaServicio}
+                disabled={!data.servicioDisponible || saving}
+                disabledHint="Tu restaurante no cobra servicio"
+                onChange={(v) => save({ recipeApplyService: v })}
+              />
+              <CascadeToggle
+                label={`IVA ${data.ivaDisponible ? `${data.ivaPercent || 16}%` : ''}`.trim()}
+                checked={data.aplicaIva}
+                disabled={!data.ivaDisponible || saving}
+                disabledHint="Tu restaurante no cobra IVA"
+                onChange={(v) => save({ recipeApplyIva: v })}
+              />
+            </div>
+          )}
+
+          <TextureButton variant="minimal" size="sm" className="!w-auto" disabled={saving} onClick={() => save()}>
             {saving ? 'Guardando…' : 'Recalcular'}
           </TextureButton>
 
@@ -2207,6 +2234,46 @@ function PriceCascadeSection({ productId }: { productId: string }) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Interruptor de la cascada (Servicio / IVA): se guarda al tocarlo y recalcula el PVP. */
+function CascadeToggle({
+  label,
+  checked,
+  disabled,
+  disabledHint,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  disabled?: boolean;
+  disabledHint?: string;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      title={disabled ? disabledHint : undefined}
+      onClick={() => onChange(!checked)}
+      className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-45 ${
+        checked && !disabled
+          ? 'border-brand-500/30 bg-brand-500/10 text-brand-700'
+          : 'border-brand-950/10 bg-brand-950/[0.04] text-brand-950/50'
+      }`}
+    >
+      <span
+        className={`relative h-4 w-7 shrink-0 rounded-full transition-colors ${
+          checked && !disabled ? 'bg-brand-500' : 'bg-brand-950/20'
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all ${checked && !disabled ? 'left-[14px]' : 'left-0.5'}`}
+        />
+      </span>
+      {label}
+    </button>
   );
 }
 

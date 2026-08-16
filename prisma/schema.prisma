@@ -804,6 +804,11 @@ model Product {
   // sugiere un precio (costoConResguardo * 100 / este %). Ver recipe.service.ts#getCascade.
   recipeBufferPercent         Decimal @default(10) @db.Decimal(5, 2)
   recipeTargetFoodCostPercent Decimal @default(40) @db.Decimal(5, 2)
+  // Interruptores del PVP sugerido: si el restaurante cobra servicio/IVA, decide si ESTE
+  // producto los suma al precio sugerido. Apagarlos no toca lo que se le cobra al cliente
+  // (eso lo manda la config del restaurante), solo el precio que la cascada recomienda.
+  recipeApplyService          Boolean @default(true)
+  recipeApplyIva              Boolean @default(true)
 
   // Disponibilidad para la venta.
   isAvailable Boolean @default(true)
@@ -1093,6 +1098,16 @@ model Table {
   // solo le aparecen a él en el Dashboard — el resto de los roles sigue
   // viendo todos los pedidos sin importar esto.
   assignedWaiterId String?
+
+  // --- Planimetría del salón (Órdenes de Mesa → "Plano") ---
+  // Posición de la mesa dentro del plano de SU zona, en porcentaje del lienzo (0-100), no en
+  // píxeles: así el mismo plano se ve igual en el celular del mesero y en el monitor de caja.
+  // null = todavía sin ubicar; esas mesas se listan aparte para arrastrarlas al plano.
+  planX     Decimal? @db.Decimal(5, 2)
+  planY     Decimal? @db.Decimal(5, 2)
+  // Forma y tamaño con que se dibuja: 'ROUND' | 'SQUARE', y un factor 1 = normal, 1.5 = grande.
+  planShape String   @default("ROUND")
+  planSize  Decimal  @default(1) @db.Decimal(3, 2)
 
   restaurant     Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   zone           Zone?          @relation(fields: [zoneId], references: [id], onDelete: SetNull)

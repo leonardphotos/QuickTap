@@ -1,10 +1,10 @@
 import { nanoid } from 'nanoid';
-import { ServiceRequestType } from '@prisma/client';
+import { Prisma, ServiceRequestType } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { emitToKitchen, emitToTable, SocketEvents } from '../../sockets';
 import { startOfTodayCaracas } from '../../utils/timezone';
-import { CreateTableInput, UpdateTableInput } from './table.dto';
+import { CreateTableInput, SaveFloorPlanInput, UpdateTableInput } from './table.dto';
 
 async function assertZoneBelongs(restaurantId: string, zoneId: string) {
   const zone = await prisma.zone.findFirst({ where: { id: zoneId, restaurantId }, select: { id: true } });
@@ -145,7 +145,15 @@ export const tableService = {
     }
     const reservedTableIds = new Set(todaysReservations.flatMap((r) => r.tables.map((t) => t.id)));
 
-    const mapTable = (table: { id: string; number: string; serviceRequest: ServiceRequestType | null }) => {
+    const mapTable = (table: {
+      id: string;
+      number: string;
+      serviceRequest: ServiceRequestType | null;
+      planX: Prisma.Decimal | null;
+      planY: Prisma.Decimal | null;
+      planShape: string;
+      planSize: Prisma.Decimal;
+    }) => {
       const sessions = sessionByTable.get(table.id) ?? [];
       return {
         id: table.id,
@@ -153,6 +161,11 @@ export const tableService = {
         sessions: sessions.map(serializeSession),
         serviceRequest: table.serviceRequest,
         reserved: sessions.length === 0 && reservedTableIds.has(table.id),
+        // Planimetría: null = todavía sin ubicar en el plano de su zona.
+        planX: table.planX != null ? Number(table.planX) : null,
+        planY: table.planY != null ? Number(table.planY) : null,
+        planShape: table.planShape,
+        planSize: Number(table.planSize),
       };
     };
 
@@ -164,6 +177,33 @@ export const tableService = {
       })),
       unzoned: unzonedTables.map(mapTable),
     };
+  },
+
+  /**
+   * Guarda el plano del salón: la posición (en % del lienzo), la forma y el tamaño de cada
+   * mesa que se movió. Se manda solo lo que cambió, en un solo golpe, para que arrastrar
+   * diez mesas no sean diez peticiones.
+   */
+  async saveFloorPlan(restaurantId: string, input: SaveFloorPlanInput) {
+    if (input.tables.length === 0) return { updated: 0 };
+    const ids = input.tables.map((t) => t.id);
+    const count = await prisma.table.count({ where: { id: { in: ids }, restaurantId } });
+    if (count !== ids.length) throw badRequest('Alguna mesa no existe o no pertenece a este restaurante.');
+
+    await prisma.$transaction(
+      input.tables.map((t) =>
+        prisma.table.update({
+          where: { id: t.id },
+          data: {
+            planX: t.planX,
+            planY: t.planY,
+            ...(t.planShape ? { planShape: t.planShape } : {}),
+            ...(t.planSize != null ? { planSize: t.planSize } : {}),
+          },
+        }),
+      ),
+    );
+    return { updated: input.tables.length };
   },
 
   /** El comensal llama al mesero o pide la cuenta desde el menú público (vía qrToken de su mesa). */
