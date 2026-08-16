@@ -86,6 +86,9 @@ export interface EditableExpense {
   paymentProofImageUrl?: string | null;
   notes?: string | null;
   documentType?: ExpenseDocumentType | null;
+  /** Detalle fiscal (Libro de compras): base imponible e IVA incluidos en amountBase. */
+  taxableBase?: string | null;
+  ivaBase?: string | null;
   isCredit?: boolean;
   isRecurring?: boolean;
   invoiceDueDate?: string | null;
@@ -194,10 +197,24 @@ export function ExpenseForm({
   const [uploadingPaymentProof, setUploadingPaymentProof] = useState(false);
   const [notes, setNotes] = useState(expense?.notes ?? '');
   const [documentType, setDocumentType] = useState<ExpenseDocumentType | ''>(expense?.documentType ?? '');
+  // IVA de la factura (Libro de compras). Con IVA activado en el restaurante y factura fiscal es
+  // obligatorio; se sugiere el 16 % desglosado del total y el usuario lo corrige si la factura
+  // trae otro monto (exentos, alícuota reducida). Siempre en la misma moneda que el monto.
+  const [ivaAmount, setIvaAmount] = useState(expense?.ivaBase != null ? Number(expense.ivaBase).toFixed(2) : '');
+  const [ivaTouched, setIvaTouched] = useState(expense?.ivaBase != null);
+  const ivaEnabled = !!restaurant?.ivaEnabled;
+  const ivaRequired = ivaEnabled && documentType === 'FISCAL_INVOICE';
   const [isRecurring, setIsRecurring] = useState(expense?.isRecurring ?? false);
   const [invoiceDueDate, setInvoiceDueDate] = useState(expense?.invoiceDueDate ? expense.invoiceDueDate.slice(0, 10) : '');
 
   const isFieldTrip = category !== '' && FIELD_TRIP_CATEGORIES.has(category);
+
+  // Sugerencia automática del IVA: total ÷ 1.16 × 0.16, mientras el usuario no lo haya editado.
+  useEffect(() => {
+    if (!ivaRequired || ivaTouched) return;
+    const total = Number(amount);
+    setIvaAmount(total > 0 ? ((total / 1.16) * 0.16).toFixed(2) : '');
+  }, [amount, ivaRequired, ivaTouched]);
   const methodAccounts = paymentMethod ? methodAccountsOf(restaurant?.paymentMethodsConfig, paymentMethod) : [];
   const selectedAccount = methodAccounts.find((a) => a.key === accountKey) ?? methodAccounts[0] ?? null;
 
@@ -242,6 +259,14 @@ export function ExpenseForm({
       setError('Escoge con qué se pagó.');
       return;
     }
+    if (ivaRequired && (ivaAmount === '' || Number.isNaN(Number(ivaAmount)))) {
+      setError('Indica el IVA de la factura: es obligatorio para el Libro de compras.');
+      return;
+    }
+    if (ivaAmount !== '' && Number(ivaAmount) > amountBase) {
+      setError('El IVA no puede ser mayor que el total de la compra.');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -267,6 +292,8 @@ export function ExpenseForm({
         paymentProofImageUrl: paymentProofImageUrl || (isEdit ? null : undefined),
         notes: notes.trim() || (isEdit ? null : undefined),
         documentType: documentType || (isEdit ? null : undefined),
+        // Solo IVA: el backend deriva la base imponible (total − IVA) en la misma moneda.
+        ivaBase: ivaAmount !== '' ? Number(ivaAmount) : isEdit ? null : undefined,
         isRecurring,
         invoiceDueDate: invoiceDueDate || (isEdit ? null : undefined),
       };
@@ -466,6 +493,56 @@ export function ExpenseForm({
             </button>
           ))}
         </div>
+        {ivaEnabled && (documentType === 'FISCAL_INVOICE' || ivaAmount !== '') && (
+          <div className="mt-3 rounded-xl border border-brand-950/10 bg-brand-50/40 p-3">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <label className="text-xs font-medium text-brand-950/60">
+                IVA incluido en el total {ivaRequired ? <span className="text-red-500">*</span> : '(opcional)'}
+                <div className="relative mt-1">
+                  <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-brand-950/40">
+                    {amountCurrency === 'BS' ? 'Bs' : restaurant?.currencySymbol ?? '$'}
+                  </span>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={ivaAmount}
+                    onChange={(e) => {
+                      setIvaTouched(true);
+                      setIvaAmount(e.target.value);
+                    }}
+                    className="w-40 rounded-lg border border-brand-950/15 py-1.5 pl-8 pr-2 text-sm font-semibold text-brand-950"
+                  />
+                </div>
+              </label>
+              <div className="text-right text-xs text-brand-950/60">
+                <p>
+                  Base imponible:{' '}
+                  <span className="font-semibold text-brand-950">
+                    {amountCurrency === 'BS' ? 'Bs ' : restaurant?.currencySymbol ?? '$'}
+                    {Math.max(0, (Number(amount) || 0) - (Number(ivaAmount) || 0)).toFixed(2)}
+                  </span>
+                </p>
+                {ivaTouched && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIvaTouched(false);
+                      const total = Number(amount);
+                      setIvaAmount(total > 0 ? ((total / 1.16) * 0.16).toFixed(2) : '');
+                    }}
+                    className="text-[11px] font-medium text-brand-500 hover:underline"
+                  >
+                    Recalcular al 16 %
+                  </button>
+                )}
+              </div>
+            </div>
+            <p className="mt-2 text-[11px] font-light text-brand-950/50">
+              Este IVA es el crédito fiscal que va al Libro de compras. Si la factura tiene renglones exentos, corrige el monto a mano.
+            </p>
+          </div>
+        )}
       </div>
 
       <div>

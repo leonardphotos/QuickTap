@@ -3,7 +3,9 @@ import { z } from 'zod';
 export const createCustomerSchema = z.object({
   name: z.string().min(1, 'El nombre es obligatorio.').max(120),
   phone: z.string().min(1, 'El teléfono es obligatorio.').max(30),
-  idNumber: z.string().max(30).nullable().optional(),
+  // RIF / cédula: obligatorio al crear (es el dato que pide el Libro de ventas y la factura);
+  // en la edición sigue siendo parcial para no bloquear fichas viejas sin RIF.
+  idNumber: z.string({ required_error: 'El RIF o cédula es obligatorio.' }).trim().min(1, 'El RIF o cédula es obligatorio.').max(30),
   address: z.string().max(300).nullable().optional(),
   // --- Ficha CRM ---
   email: z.string().max(120).nullable().optional(),
@@ -16,7 +18,9 @@ export const createCustomerSchema = z.object({
   notes: z.string().max(500).nullable().optional(),
 });
 
-export const updateCustomerSchema = createCustomerSchema.partial();
+export const updateCustomerSchema = createCustomerSchema.partial().extend({
+  idNumber: z.string().trim().max(30).nullable().optional(),
+});
 
 /** Segmentos del CRM: las "listas de clientes" con las que se arman las promos. */
 export const CUSTOMER_SEGMENTS = ['ALL', 'FREQUENT', 'NEW', 'INACTIVE', 'BIRTHDAY'] as const;

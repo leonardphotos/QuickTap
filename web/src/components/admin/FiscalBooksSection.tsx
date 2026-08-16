@@ -21,6 +21,8 @@ interface PurchaseRow {
   description: string;
   category: ExpenseCategory | null;
   documentType: ExpenseDocumentType | null;
+  taxableBase?: string | null;
+  ivaBase?: string | null;
   referenceNumber: string | null;
   supplier: { id: string; name: string; taxId: string | null } | null;
   expenseDate: string | null;
@@ -62,16 +64,21 @@ export function FiscalBooksSection({ only }: { only?: 'compras' | 'ventas' } = {
   const [downloading, setDownloading] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  /** Descarga el libro que se está viendo, con el mismo período que muestra la pantalla. */
-  async function exportBook() {
+  /** Descarga el libro que se está viendo, con el mismo período que muestra la pantalla.
+   * `fiscal` (solo ventas): la versión SENIAT — fecha, RIF, cliente, base, IVA y total en Bs. */
+  async function exportBook(format: 'full' | 'fiscal' = 'full') {
     setDownloading(true);
     setExportError(null);
     try {
       const path = book === 'compras' ? '/movements/export/purchase-book' : '/movements/export/sales-book';
-      const res = await api.get(path, { params: { range, date: date || undefined }, responseType: 'blob' });
+      const res = await api.get(path, {
+        params: { range, date: date || undefined, ...(format === 'fiscal' ? { format: 'fiscal' } : {}) },
+        responseType: 'blob',
+      });
       const link = document.createElement('a');
       link.href = URL.createObjectURL(res.data);
-      link.download = `${book === 'compras' ? 'Libro de compras' : 'Libro de ventas'} - ${(restaurant?.name ?? 'QuickTap').replace(/[\\/:*?"<>|]/g, '').trim()}.xlsx`;
+      const bookLabel = book === 'compras' ? 'Libro de compras' : format === 'fiscal' ? 'Libro de ventas (fiscal)' : 'Libro de ventas';
+      link.download = `${bookLabel} - ${(restaurant?.name ?? 'QuickTap').replace(/[\\/:*?"<>|]/g, '').trim()}.xlsx`;
       link.click();
       URL.revokeObjectURL(link.href);
     } catch {
@@ -125,9 +132,21 @@ export function FiscalBooksSection({ only }: { only?: 'compras' | 'ventas' } = {
             date ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
           }`}
         />
-        <div className="ml-auto">
-          <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={downloading} onClick={exportBook}>
-            <Download className="mr-1 h-3.5 w-3.5" /> {downloading ? 'Generando…' : 'Exportar Excel'}
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {book === 'ventas' && (
+            <TextureButton
+              variant="secondary"
+              size="sm"
+              className="!w-auto"
+              disabled={downloading}
+              onClick={() => exportBook('fiscal')}
+              title="Solo fecha, RIF, cliente, base imponible, IVA y total en Bs (formato SENIAT)"
+            >
+              <Download className="mr-1 h-3.5 w-3.5" /> {downloading ? 'Generando…' : 'Exportar fiscal'}
+            </TextureButton>
+          )}
+          <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={downloading} onClick={() => exportBook('full')}>
+            <Download className="mr-1 h-3.5 w-3.5" /> {downloading ? 'Generando…' : book === 'ventas' ? 'Exportar completo' : 'Exportar Excel'}
           </TextureButton>
         </div>
       </div>
@@ -281,6 +300,7 @@ function PurchasesBook({ symbol, range, date, periodLabel }: { symbol: string; r
           <span className="w-28 shrink-0">Nº factura</span>
           <span className="w-28 shrink-0">Tipo doc.</span>
           <span className="w-36 shrink-0">Categoría</span>
+          <span className="w-16 shrink-0 text-right">IVA</span>
           <span className="w-20 shrink-0 text-right">Monto</span>
         </div>
         <div className="divide-y divide-brand-950/[0.06]">
@@ -304,6 +324,7 @@ function PurchasesBook({ symbol, range, date, periodLabel }: { symbol: string; r
               <span className="w-36 shrink-0 truncate text-xs text-brand-950/60">
                 {r.category ? CATEGORY_LABELS[r.category] : '—'}
               </span>
+              <span className="w-16 shrink-0 text-right text-xs text-brand-950/60">{r.ivaBase != null ? formatBase(r.ivaBase, symbol) : '—'}</span>
               <span className="w-20 shrink-0 text-right font-semibold text-brand-950">{formatBase(r.amountBase, symbol)}</span>
             </div>
           ))}

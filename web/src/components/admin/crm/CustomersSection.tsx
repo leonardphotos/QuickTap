@@ -227,8 +227,8 @@ function CustomerForm({ symbol: _symbol, onClose, onSaved }: { symbol: string; o
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
   async function submit() {
-    if (!form.name.trim() || !form.phone.trim()) {
-      setError('Nombre y teléfono son obligatorios.');
+    if (!form.name.trim() || !form.phone.trim() || !form.idNumber.trim()) {
+      setError('Nombre, teléfono y RIF/cédula son obligatorios.');
       return;
     }
     setSaving(true);
@@ -237,7 +237,7 @@ function CustomerForm({ symbol: _symbol, onClose, onSaved }: { symbol: string; o
       await crmApi.createCustomer({
         name: form.name.trim(),
         phone: form.phone.trim(),
-        idNumber: form.idNumber.trim() || null,
+        idNumber: form.idNumber.trim(),
         email: form.email.trim() || null,
         birthday: form.birthday || null,
         address: form.address.trim() || null,
@@ -251,11 +251,11 @@ function CustomerForm({ symbol: _symbol, onClose, onSaved }: { symbol: string; o
   }
 
   return (
-    <InlinePanel title="Añadir cliente" description="Nombre y teléfono son obligatorios; el resto suma para las promos." onClose={onClose}>
+    <InlinePanel title="Añadir cliente" description="Nombre, teléfono y RIF/cédula son obligatorios; el resto suma para las promos." onClose={onClose}>
       <div className="grid gap-2 sm:grid-cols-2">
         <input value={form.name} onChange={set('name')} placeholder="Nombre *" className={inputCls} />
         <input value={form.phone} onChange={set('phone')} placeholder="Teléfono *" className={inputCls} />
-        <input value={form.idNumber} onChange={set('idNumber')} placeholder="Cédula/RIF" className={inputCls} />
+        <input value={form.idNumber} onChange={set('idNumber')} placeholder="RIF / Cédula *" required className={inputCls} />
         <input value={form.email} onChange={set('email')} placeholder="Correo" className={inputCls} />
         <label className="block">
           <span className="mb-1 block text-[12px] font-medium text-brand-950/50">Cumpleaños</span>

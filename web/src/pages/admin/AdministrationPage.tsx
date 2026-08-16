@@ -12,7 +12,7 @@ import { MetricCard } from '@/components/admin/MetricCard';
 import { BreakEvenCard } from '@/components/admin/BreakEvenCard';
 import { FiscalBooksSection } from '@/components/admin/FiscalBooksSection';
 import { BankAccountsSection } from '@/components/admin/BankAccountsSection';
-import { MovementsLedgerSection } from '@/components/admin/MovementsLedgerSection';
+import { AccountingHub } from '@/components/admin/AccountingHub';
 import { CrmHub } from '@/components/admin/crm/CrmHub';
 import { PurchasesHub } from '@/components/admin/purchases/PurchasesHub';
 import { CostStructureHub } from '@/components/admin/cost-structure/CostStructureHub';
@@ -107,7 +107,7 @@ export default function AdministrationPage() {
           {!tabLocked && tab === 'purchases' && <PurchasesHub />}
           {!tabLocked && tab === 'crm' && <CrmHub />}
           {!tabLocked && tab === 'payments' && <PaymentsTab />}
-          {!tabLocked && tab === 'ledger' && <MovementsLedgerSection />}
+          {!tabLocked && tab === 'ledger' && <AccountingHub sections={['ledger', 'income', 'balance', 'hr']} />}
           {!tabLocked && tab === 'books' && <FiscalBooksSection />}
           {!tabLocked && tab === 'banks' && <BankAccountsSection symbol={restaurant?.currencySymbol ?? '$'} />}
         </div>

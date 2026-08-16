@@ -36,6 +36,8 @@ export const updateCascadeConfigSchema = z.object({
     .optional(),
   recipeApplyService: z.boolean().optional(),
   recipeApplyIva: z.boolean().optional(),
+  // Observaciones de la receta (técnica, emplatado, alérgenos). "" o null la borran.
+  recipeNotes: z.string().trim().max(3000, 'Las observaciones no pueden pasar de 3000 caracteres.').nullable().optional(),
 });
 
 export type CreateRecipeIngredientInput = z.infer<typeof createRecipeIngredientSchema>;

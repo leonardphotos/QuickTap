@@ -1794,6 +1794,11 @@ function RecipeDialog({
   const [productName, setProductName] = useState('');
   const [lines, setLines] = useState<RecipeLine[] | null>(null);
   const [totalCostBase, setTotalCostBase] = useState('0.00');
+  // Observaciones de la receta (técnica, emplatado, alérgenos): se guardan aparte de los
+  // ingredientes, con su propio botón, para no disparar un PATCH por cada tecla.
+  const [notes, setNotes] = useState('');
+  const [savedNotes, setSavedNotes] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
   const [adding, setAdding] = useState(false);
   const [newItem, setNewItem] = useState({ ref: '', quantity: '', subUnit: '' });
   const [error, setError] = useState<string | null>(null);
@@ -1815,7 +1820,24 @@ function RecipeDialog({
       setProductName(res.data.data.productName);
       setLines(res.data.data.ingredients);
       setTotalCostBase(res.data.data.totalCostBase);
+      const n = res.data.data.recipeNotes ?? '';
+      setNotes(n);
+      setSavedNotes(n);
     });
+  }
+
+  async function saveNotes() {
+    setSavingNotes(true);
+    setError(null);
+    try {
+      await api.patch(`/inventory/recipes/${productId}/cascade`, { recipeNotes: notes.trim() || null });
+      setSavedNotes(notes.trim());
+      setNotes(notes.trim());
+    } catch (err) {
+      setError((err as { response?: { data?: { error?: string } } }).response?.data?.error ?? 'No se pudieron guardar las observaciones.');
+    } finally {
+      setSavingNotes(false);
+    }
   }
 
   useEffect(load, [productId]);
@@ -2027,6 +2049,34 @@ function RecipeDialog({
           <div className="pt-3 border-t border-brand-950/10 flex items-center justify-between">
             <span className="text-sm text-brand-950/60">Costo total del producto</span>
             <span className="text-lg font-semibold text-brand-950">${totalCostBase}</span>
+          </div>
+
+          {/* Observaciones: técnica de preparación, emplatado, alérgenos, notas para cocina. */}
+          <div className="pt-3 border-t border-brand-950/10">
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <label htmlFor={`recipe-notes-${productId}`} className="text-sm font-medium text-brand-950">
+                Observaciones
+              </label>
+              <span className="text-[11px] text-brand-950/40">{notes.length}/3000</span>
+            </div>
+            <textarea
+              id={`recipe-notes-${productId}`}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value.slice(0, 3000))}
+              rows={3}
+              placeholder="Ej: Sellar la carne 2 min por lado; el pan va tostado con mantequilla; contiene gluten y lácteos."
+              className="w-full resize-y rounded-xl border border-brand-950/15 px-3 py-2 text-sm text-brand-950 placeholder:text-brand-950/30"
+            />
+            {notes.trim() !== savedNotes && (
+              <div className="mt-2 flex items-center gap-2">
+                <TextureButton variant="brand" size="sm" className="!w-auto" onClick={saveNotes} disabled={savingNotes}>
+                  {savingNotes ? 'Guardando…' : 'Guardar observaciones'}
+                </TextureButton>
+                <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={() => setNotes(savedNotes)} disabled={savingNotes}>
+                  Descartar
+                </TextureButton>
+              </div>
+            )}
           </div>
 
           <PriceCascadeSection productId={productId} />

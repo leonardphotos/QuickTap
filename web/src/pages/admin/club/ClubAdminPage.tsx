@@ -18,7 +18,6 @@ import { AccountingHub } from '@/components/admin/AccountingHub';
 import ClubOccupancyPage from './ClubOccupancyPage';
 import { CrmHub } from '@/components/admin/crm/CrmHub';
 import ClubConsumptionPage from './ClubConsumptionPage';
-import ClubPayrollPage from './ClubPayrollPage';
 import ClubHistoryTab from './ClubHistoryTab';
 import { clubApi, todayCaracas, type ClubBooking } from './clubApi';
 import { clubStoreApi, type StoreSale } from './clubStoreApi';
@@ -55,7 +54,6 @@ const TAB_LABELS: Record<string, string> = {
   consumo: 'Consumo',
   cuentas: 'Cuentas por pagar',
   contabilidad: 'Contabilidad',
-  nomina: 'Nómina',
   historial: 'Historial',
 };
 
@@ -126,7 +124,6 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
     | 'consumo'
     | 'cuentas'
     | 'contabilidad'
-    | 'nomina'
     | 'historial'
   >(
     'resumen',
@@ -205,7 +202,7 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
       <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="flex w-max items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
           {(
-            ['resumen', 'deudas', 'ocupacion', 'clientes', 'consumo', 'cuentas', 'contabilidad', 'nomina', 'historial'] as const
+            ['resumen', 'deudas', 'ocupacion', 'clientes', 'consumo', 'cuentas', 'contabilidad', 'historial'] as const
           ).map((t) => (
             <button
               key={t}
@@ -322,7 +319,6 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
           "Frecuentes" cubre lo mismo, con ficha e historial por cliente). */}
       {tab === 'clientes' && <CrmHub />}
       {tab === 'consumo' && <ClubConsumptionPage restaurant={restaurant} />}
-      {tab === 'nomina' && <ClubPayrollPage restaurant={restaurant} />}
       {tab === 'cuentas' && <PayablesSection />}
       {tab === 'contabilidad' && <AccountingHub />}
       {tab === 'historial' && <ClubHistoryTab restaurant={restaurant} />}

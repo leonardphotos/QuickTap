@@ -53,7 +53,9 @@ export const movementController = {
 
   exportSalesBook: asyncHandler(async (req: Request, res: Response) => {
     const { range, date, from, to } = movementQuerySchema.parse(req.query);
-    const { workbook, filename } = await fiscalExportService.buildSalesBookWorkbook(req.restaurantId!, { range, date, from, to });
+    // ?format=fiscal → solo las columnas del Libro de ventas SENIAT, en Bs.
+    const format = req.query.format === 'fiscal' ? 'fiscal' : 'full';
+    const { workbook, filename } = await fiscalExportService.buildSalesBookWorkbook(req.restaurantId!, { range, date, from, to }, format);
     sendWorkbook(res, workbook, filename);
   }),
 

@@ -7,16 +7,77 @@ import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { bankLedgerService } from '../bank-accounts/bank-ledger.service';
 import { CreateMovementInput, MovementQuery, UpdateMovementInput } from './movement.dto';
 
+
+/**
+ * Detalle fiscal de una compra (Libro de compras): base imponible e IVA incluidos en el total.
+ * Reglas:
+ *  - Con IVA activado en el restaurante, todo egreso con soporte "factura fiscal" DEBE traer
+ *    IVA (base o IVA, el otro se deriva del total) — es lo que el Libro de compras necesita.
+ *  - Nota de entrega / sin soporte: el IVA es opcional (no hay crédito fiscal que declarar).
+ *  - Si vienen los dos, base + IVA tiene que cuadrar con el total (tolerancia de 2 centavos).
+ * Los montos llegan en la misma moneda que el total (`amountCurrency`) y se convierten con
+ * la misma tasa; `rateBs` es null cuando el total ya viene en moneda base.
+ * Devuelve `undefined` cuando no hay que tocar los campos (edición sin cambios fiscales).
+ */
+async function resolveFiscalDetail(
+  restaurantId: string,
+  args: {
+    type: 'INCOME' | 'EXPENSE';
+    documentType: 'FISCAL_INVOICE' | 'DELIVERY_NOTE' | null | undefined;
+    totalBase: Prisma.Decimal;
+    taxableBase: number | null | undefined;
+    ivaBase: number | null | undefined;
+    rateBs: Prisma.Decimal | null;
+    /** true al crear (los undefined cuentan como "no vino"); false al editar (undefined = no tocar). */
+    creating: boolean;
+  },
+): Promise<{ taxableBase: Prisma.Decimal | null; ivaBase: Prisma.Decimal | null } | undefined> {
+  const touched = args.taxableBase !== undefined || args.ivaBase !== undefined || args.creating;
+  if (!touched) return undefined;
+
+  const conv = (n: number) => (args.rateBs ? bsToBase(n, args.rateBs) : round2(toDecimal(n)));
+  let taxable = args.taxableBase != null ? conv(args.taxableBase) : null;
+  let iva = args.ivaBase != null ? conv(args.ivaBase) : null;
+
+  if (args.type === 'EXPENSE') {
+    const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { ivaEnabled: true } });
+    if (restaurant?.ivaEnabled && args.documentType === 'FISCAL_INVOICE' && taxable == null && iva == null) {
+      throw badRequest('Con IVA activado, una factura fiscal necesita el IVA (o la base imponible) para el Libro de compras.');
+    }
+  }
+  if (taxable == null && iva == null) return { taxableBase: null, ivaBase: null };
+
+  // Derivar el que falte a partir del total pagado.
+  if (taxable == null && iva != null) taxable = round2(args.totalBase.sub(iva));
+  if (iva == null && taxable != null) iva = round2(args.totalBase.sub(taxable));
+  if (taxable!.lt(0) || iva!.lt(0)) throw badRequest('El IVA no puede ser mayor que el total de la compra.');
+  if (taxable!.add(iva!).sub(args.totalBase).abs().gt(0.02)) {
+    throw badRequest('Base imponible + IVA no cuadra con el total pagado.');
+  }
+  return { taxableBase: taxable, ivaBase: iva };
+}
+
 export const movementService = {
   /** Botón "Añadir movimiento" / módulo de Gastos: ingreso/egreso manual, opcionalmente con
    * categoría, proveedor, reabastecimiento de inventario y marca de "a crédito". */
   async create(restaurantId: string, userId: string | undefined, input: CreateMovementInput) {
     let amountBase = toDecimal(input.amountBase);
+    let rateBs: Prisma.Decimal | null = null;
     if (input.amountCurrency === 'BS') {
       const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { baseCurrency: true } });
       const rate = await exchangeRateService.getRate(restaurant?.baseCurrency ?? 'USD', restaurantId);
+      rateBs = toDecimal(rate.rateBs);
       amountBase = bsToBase(input.amountBase, rate.rateBs);
     }
+    const fiscal = await resolveFiscalDetail(restaurantId, {
+      type: input.type,
+      documentType: input.documentType,
+      totalBase: amountBase,
+      taxableBase: input.taxableBase,
+      ivaBase: input.ivaBase,
+      rateBs,
+      creating: true,
+    });
 
     // El proveedor es opcional, pero si viene tiene que ser de este restaurante — si no se
     // valida, un id de proveedor de otro restaurante queda enlazado igual (y su nombre/
@@ -51,6 +112,8 @@ export const movementService = {
           paymentProofImageUrl: input.paymentProofImageUrl,
           notes: input.notes,
           documentType: input.documentType,
+          taxableBase: fiscal?.taxableBase ?? null,
+          ivaBase: fiscal?.ivaBase ?? null,
           isRecurring: input.isRecurring,
           // Mediodía por la misma razón que expenseDate: que no se corra de día en otra zona horaria.
           invoiceDueDate: input.invoiceDueDate ? new Date(`${input.invoiceDueDate}T12:00:00`) : undefined,
@@ -146,6 +209,8 @@ export const movementService = {
         paymentProofImageUrl: m.paymentProofImageUrl,
         notes: m.notes,
         documentType: m.documentType,
+        taxableBase: m.taxableBase != null ? m.taxableBase.toFixed(2) : null,
+        ivaBase: m.ivaBase != null ? m.ivaBase.toFixed(2) : null,
         isRecurring: m.isRecurring,
         invoiceDueDate: m.invoiceDueDate,
       })),
@@ -202,14 +267,38 @@ export const movementService = {
     }
 
     let amountBase: Prisma.Decimal | undefined;
+    let rateBs: Prisma.Decimal | null = null;
     if (input.amountBase != null) {
       amountBase = toDecimal(input.amountBase);
       if (input.amountCurrency === 'BS') {
         const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { baseCurrency: true } });
         const rate = await exchangeRateService.getRate(restaurant?.baseCurrency ?? 'USD', restaurantId);
+        rateBs = toDecimal(rate.rateBs);
         amountBase = bsToBase(input.amountBase, rate.rateBs);
       }
     }
+    // Detalle fiscal: se revalida si mandaron base/IVA, o si cambió el total o el tipo de
+    // documento (una factura que pasa a fiscal con IVA activado tiene que traer su IVA).
+    const nextDocumentType = input.documentType === undefined ? existing.documentType : input.documentType;
+    const fiscalTouched =
+      input.taxableBase !== undefined || input.ivaBase !== undefined || amountBase !== undefined || input.documentType !== undefined;
+    const fiscal = fiscalTouched
+      ? await resolveFiscalDetail(restaurantId, {
+          type: existing.type,
+          documentType: nextDocumentType,
+          totalBase: amountBase ?? toDecimal(existing.amountBase),
+          // Si mandaron base y/o IVA se usa SOLO lo que mandaron (el otro se deriva del total);
+          // si solo cambió el total/documento, se conserva lo guardado (ya en moneda base).
+          ...(input.taxableBase !== undefined || input.ivaBase !== undefined
+            ? { taxableBase: input.taxableBase ?? undefined, ivaBase: input.ivaBase ?? undefined, rateBs }
+            : {
+                taxableBase: existing.taxableBase != null ? Number(existing.taxableBase) : undefined,
+                ivaBase: existing.ivaBase != null ? Number(existing.ivaBase) : undefined,
+                rateBs: null,
+              }),
+          creating: true,
+        })
+      : undefined;
 
     // `undefined` = no lo mandaron, se deja como está. `null` = lo están limpiando.
     const nextItemId = input.inventoryItemId === undefined ? existing.inventoryItemId : input.inventoryItemId;
@@ -262,6 +351,7 @@ export const movementService = {
           paymentProofImageUrl: input.paymentProofImageUrl,
           notes: input.notes,
           documentType: input.documentType,
+          ...(fiscal ? { taxableBase: fiscal.taxableBase, ivaBase: fiscal.ivaBase } : {}),
           isRecurring: input.isRecurring,
           invoiceDueDate:
             input.invoiceDueDate === undefined

@@ -58,7 +58,10 @@ export const recipeService = {
 
   /** Líneas de receta de un producto puntual, con el insumo o preparación vinculada. */
   async getByProduct(restaurantId: string, productId: string) {
-    const product = await prisma.product.findFirst({ where: { id: productId, restaurantId }, select: { id: true, name: true } });
+    const product = await prisma.product.findFirst({
+      where: { id: productId, restaurantId },
+      select: { id: true, name: true, recipeNotes: true },
+    });
     if (!product) throw notFound('Producto no encontrado.');
 
     const lines = await prisma.recipeIngredient.findMany({
@@ -75,6 +78,7 @@ export const recipeService = {
     return {
       productId: product.id,
       productName: product.name,
+      recipeNotes: product.recipeNotes ?? '',
       totalCostBase: totalCostBase.toFixed(2),
       ingredients: lines.map((l) => ({
         id: l.id,
@@ -221,7 +225,11 @@ export const recipeService = {
   async updateCascadeConfig(restaurantId: string, productId: string, input: UpdateCascadeConfigInput) {
     const product = await prisma.product.findFirst({ where: { id: productId, restaurantId }, select: { id: true } });
     if (!product) throw notFound('Producto no encontrado.');
-    await prisma.product.update({ where: { id: productId }, data: input });
+    const { recipeNotes, ...rest } = input;
+    await prisma.product.update({
+      where: { id: productId },
+      data: { ...rest, ...(recipeNotes !== undefined ? { recipeNotes: recipeNotes ? recipeNotes : null } : {}) },
+    });
     return this.getCascade(restaurantId, productId);
   },
 

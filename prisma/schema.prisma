@@ -811,6 +811,9 @@ model Product {
   // (eso lo manda la config del restaurante), solo el precio que la cascada recomienda.
   recipeApplyService          Boolean @default(true)
   recipeApplyIva              Boolean @default(true)
+  // Observaciones de la receta (Inventario → Recetas): técnica, emplatado, alérgenos, notas
+  // para cocina. Texto libre, opcional; no afecta el costeo.
+  recipeNotes                 String?
 
   // Disponibilidad para la venta.
   isAvailable Boolean @default(true)
@@ -1562,6 +1565,11 @@ model Movement {
   // Factura fiscal vs. nota de entrega — para poder distinguir de un vistazo al filtrar
   // por categoría cuáles gastos tienen soporte fiscal y cuáles no. Null = sin especificar.
   documentType         ExpenseDocumentType?
+  // Detalle fiscal de la compra para el Libro de compras (SENIAT): base imponible e IVA
+  // incluidos en `amountBase` (total pagado = base + IVA). Obligatorios cuando el
+  // restaurante tiene IVA activado y el soporte es factura fiscal; opcionales si no.
+  taxableBase          Decimal?             @db.Decimal(12, 2)
+  ivaBase              Decimal?             @db.Decimal(12, 2)
   // Fecha de vencimiento de la factura del proveedor: alimenta la alerta de "facturas por
   // vencer/vencidas" en Cuentas por pagar. Null = sin vencimiento definido.
   invoiceDueDate       DateTime?

@@ -68,6 +68,12 @@ export const createMovementSchema = z
     paymentProofImageUrl: z.string().max(300).optional(),
     notes: z.string().max(1000).optional(),
     documentType: z.enum(DOCUMENT_TYPES).optional(),
+    // Detalle fiscal para el Libro de compras: base imponible e IVA INCLUIDOS en amountBase,
+    // en la misma moneda que amountBase (amountCurrency). Basta con mandar uno de los dos:
+    // el service deriva el otro (base = total − IVA). Obligatorio con IVA activado y factura
+    // fiscal — lo valida el service, que es quien conoce la config del restaurante.
+    taxableBase: z.coerce.number().min(0).max(1000000).optional(),
+    ivaBase: z.coerce.number().min(0).max(1000000).optional(),
     isRecurring: z.boolean().optional().default(false),
     // Vencimiento de la factura del proveedor — alimenta la alerta de Cuentas por pagar.
     invoiceDueDate: z
@@ -117,6 +123,8 @@ export const updateMovementSchema = z.object({
   paymentProofImageUrl: z.string().max(300).nullable().optional(),
   notes: z.string().max(1000).nullable().optional(),
   documentType: z.enum(DOCUMENT_TYPES).nullable().optional(),
+  taxableBase: z.coerce.number().min(0).max(1000000).nullable().optional(),
+  ivaBase: z.coerce.number().min(0).max(1000000).nullable().optional(),
   isRecurring: z.boolean().optional(),
   invoiceDueDate: z
     .string()

@@ -1,4 +1,5 @@
 import ExcelJS from 'exceljs';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { PAYMENT_LABELS } from '../../utils/whatsapp';
 import { round2, toDecimal } from '../../utils/money';
@@ -64,6 +65,8 @@ export const fiscalExportService = {
         select: {
           description: true,
           amountBase: true,
+          taxableBase: true,
+          ivaBase: true,
           category: true,
           documentType: true,
           referenceNumber: true,
@@ -91,12 +94,23 @@ export const fiscalExportService = {
       { header: 'Condición', key: 'condition', width: 18 },
       { header: 'Método de pago', key: 'method', width: 18 },
       { header: 'Vence', key: 'dueDate', width: 12 },
+      { header: 'Base imponible $', key: 'taxable', width: 16 },
+      { header: 'IVA $', key: 'iva', width: 12 },
       { header: 'Total $', key: 'total', width: 14 },
     ];
     styleHeader(sheet);
 
     for (const m of movements) {
       const { fecha } = caracasParts(m.expenseDate ?? m.createdAt);
+      // Sin desglose fiscal cargado (nota de entrega, gasto viejo) la base es el total y el
+      // IVA va en blanco — no se inventa un 16 % que el soporte no respalda.
+      const iva = m.ivaBase != null ? round2(toDecimal(m.ivaBase)).toNumber() : null;
+      const taxable =
+        m.taxableBase != null
+          ? round2(toDecimal(m.taxableBase)).toNumber()
+          : iva != null
+            ? round2(toDecimal(m.amountBase).sub(iva)).toNumber()
+            : round2(toDecimal(m.amountBase)).toNumber();
       sheet.addRow({
         fecha,
         supplier: m.supplier?.name ?? '',
@@ -108,13 +122,19 @@ export const fiscalExportService = {
         condition: m.isCredit ? (m.creditPaidAt ? 'Crédito · pagada' : 'Crédito · pendiente') : 'De contado',
         method: m.paymentMethod ? PAYMENT_LABELS[m.paymentMethod] ?? m.paymentMethod : '',
         dueDate: m.invoiceDueDate ? caracasParts(m.invoiceDueDate).fecha : '',
+        taxable,
+        iva: iva ?? '',
         total: round2(toDecimal(m.amountBase)).toNumber(),
       });
     }
 
-    applyMoneyFormat(sheet, ['total']);
+    applyMoneyFormat(sheet, ['taxable', 'iva', 'total']);
     const totalsRow = sheet.addRow({
       description: 'TOTALES',
+      taxable: round2(
+        movements.reduce((acc, m) => acc.add(m.taxableBase ?? (m.ivaBase != null ? toDecimal(m.amountBase).sub(m.ivaBase) : m.amountBase)), toDecimal(0)),
+      ).toNumber(),
+      iva: round2(movements.reduce((acc, m) => acc.add(m.ivaBase ?? 0), toDecimal(0))).toNumber(),
       total: round2(movements.reduce((acc, m) => acc.add(m.amountBase), toDecimal(0))).toNumber(),
     });
     totalsRow.font = { bold: true };
@@ -127,7 +147,7 @@ export const fiscalExportService = {
    * comercial factura `ShopSale`, que no separa IVA — ahí la columna va en blanco y el total
    * es la venta completa.
    */
-  async buildSalesBookWorkbook(restaurantId: string, spec: DateSpec) {
+  async buildSalesBookWorkbook(restaurantId: string, spec: DateSpec, format: 'full' | 'fiscal' = 'full') {
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
       select: { name: true, businessType: true },
@@ -184,6 +204,7 @@ export const fiscalExportService = {
         orderNumber: true,
         channel: true,
         customerName: true,
+        customerIdNumber: true,
         paymentMethod: true,
         subtotalBase: true,
         serviceChargeBase: true,
@@ -195,11 +216,57 @@ export const fiscalExportService = {
       },
     });
 
+    // Versión fiscal (SENIAT): solo lo que pide el Libro de ventas, todo en bolívares a la
+    // tasa congelada en cada pedido — fecha, RIF/cédula, cliente, base imponible, IVA y total.
+    if (format === 'fiscal') {
+      const toBs = (base: Prisma.Decimal | number, rate: Prisma.Decimal) => round2(toDecimal(base).mul(rate));
+      sheet.columns = [
+        { header: 'Fecha', key: 'fecha', width: 12 },
+        { header: 'RIF / Cédula', key: 'taxId', width: 16 },
+        { header: 'Cliente', key: 'customer', width: 30 },
+        { header: 'Base imponible Bs', key: 'taxableBs', width: 18 },
+        { header: 'IVA Bs', key: 'ivaBs', width: 16 },
+        { header: 'Total Bs', key: 'totalBs', width: 18 },
+      ];
+      styleHeader(sheet);
+      let sumTaxable = toDecimal(0);
+      let sumIva = toDecimal(0);
+      let sumTotal = toDecimal(0);
+      for (const o of orders) {
+        // Base imponible fiscal = subtotal + servicio (el servicio también es venta gravable);
+        // Total Bs = lo cobrado (subtotal + servicio + IVA) a la tasa del pedido.
+        const taxableBs = toBs(toDecimal(o.subtotalBase).add(o.serviceChargeBase), o.exchangeRate);
+        const ivaBs = toBs(o.ivaBase, o.exchangeRate);
+        const totalBs = round2(toDecimal(o.totalBs));
+        sumTaxable = sumTaxable.add(taxableBs);
+        sumIva = sumIva.add(ivaBs);
+        sumTotal = sumTotal.add(totalBs);
+        sheet.addRow({
+          fecha: caracasParts(o.createdAt).fecha,
+          taxId: o.customerIdNumber ?? '',
+          customer: o.customerName ?? '',
+          taxableBs: taxableBs.toNumber(),
+          ivaBs: ivaBs.toNumber(),
+          totalBs: totalBs.toNumber(),
+        });
+      }
+      applyMoneyFormat(sheet, ['taxableBs', 'ivaBs', 'totalBs']);
+      const totals = sheet.addRow({
+        customer: 'TOTALES',
+        taxableBs: round2(sumTaxable).toNumber(),
+        ivaBs: round2(sumIva).toNumber(),
+        totalBs: round2(sumTotal).toNumber(),
+      });
+      totals.font = { bold: true };
+      return { workbook, filename: fileName('Libro de ventas (fiscal)', restaurant?.name ?? 'QuickTap', spec), rows: orders.length };
+    }
+
     sheet.columns = [
       { header: 'Fecha', key: 'fecha', width: 12 },
       { header: 'Hora', key: 'hora', width: 8 },
       { header: 'Pedido N.°', key: 'orderNumber', width: 11 },
       { header: 'Canal', key: 'channel', width: 12 },
+      { header: 'RIF / Cédula', key: 'taxId', width: 16 },
       { header: 'Cliente', key: 'customer', width: 28 },
       { header: 'Método de pago', key: 'method', width: 18 },
       { header: 'Base imponible $', key: 'subtotal', width: 16 },
@@ -218,6 +285,7 @@ export const fiscalExportService = {
         hora,
         orderNumber: o.orderNumber,
         channel: CHANNEL_LABELS[o.channel] ?? o.channel,
+        taxId: o.customerIdNumber ?? '',
         customer: o.customerName ?? '',
         method: o.paymentMethod ? PAYMENT_LABELS[o.paymentMethod] ?? o.paymentMethod : '',
         subtotal: round2(toDecimal(o.subtotalBase)).toNumber(),

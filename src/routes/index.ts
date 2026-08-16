@@ -43,6 +43,7 @@ import payrollRoutes from '../modules/payroll/payroll.routes';
 import cashSessionRoutes from '../modules/cash-sessions/cash-session.routes';
 import kpiRoutes from '../modules/reports/kpi.routes';
 import costStructureRoutes from '../modules/cost-structure/cost-structure.routes';
+import accountingRoutes from '../modules/accounting/accounting.routes';
 import deliveryCourierRoutes from '../modules/delivery-couriers/delivery-courier.routes';
 import deliveryZoneRoutes from '../modules/delivery-zones/delivery-zone.routes';
 import kitchenRoutes from '../modules/kitchens/kitchen.routes';
@@ -117,6 +118,8 @@ router.use('/cash-sessions', cashSessionRoutes);
 router.use('/kpis', kpiRoutes);
 // Estructura de costo por producto (calculadora + estadísticas), Administración.
 router.use('/cost-structure', costStructureRoutes);
+// Estados financieros NIIF (Estado de resultados / Situación financiera), Contabilidad.
+router.use('/accounting', accountingRoutes);
 router.use('/delivery-couriers', deliveryCourierRoutes);
 router.use('/delivery-zones', deliveryZoneRoutes);
 router.use('/quotes', quoteRoutes);
