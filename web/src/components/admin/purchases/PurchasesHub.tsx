@@ -5,6 +5,7 @@ import { SuppliersSection } from '@/components/admin/SuppliersSection';
 import { FiscalBooksSection } from '@/components/admin/FiscalBooksSection';
 import { PlanUpgradeNotice } from '@/components/admin/PlanUpgradeNotice';
 import { QuoteManager } from '@/components/admin/QuoteManager';
+import { PayablesSection } from '@/components/admin/PayablesSection';
 import { PurchasesRegisterSection } from './PurchasesRegisterSection';
 import { SupplierRatingsSection } from './SupplierRatingsSection';
 
@@ -13,6 +14,9 @@ const TABS = [
   // Cotizaciones vive acá (antes tenía su propia entrada en el menú lateral): pedir
   // presupuesto es el paso previo a la compra, no un módulo aparte.
   { id: 'quotes', label: 'Cotizaciones' },
+  // Órdenes de pago a proveedores: es el paso siguiente de una compra a crédito, así que
+  // vive acá y ya no como pestaña suelta de Administración.
+  { id: 'orders', label: 'Órdenes de pago' },
   { id: 'suppliers', label: 'Proveedores' },
   { id: 'book', label: 'Libro de compras' },
   { id: 'ratings', label: 'Calificación de proveedores' },
@@ -52,6 +56,7 @@ export function PurchasesHub({ initialTab = 'register' }: { initialTab?: TabId }
 
       {tab === 'register' && <PurchasesRegisterSection />}
       {tab === 'quotes' && <QuoteManager />}
+      {tab === 'orders' && (canBook ? <PayablesSection /> : <PlanUpgradeNotice feature="Las órdenes de pago" />)}
       {tab === 'suppliers' && <SuppliersSection />}
       {tab === 'book' && (canBook ? <FiscalBooksSection only="compras" /> : <PlanUpgradeNotice feature="El Libro de compras" />)}
       {tab === 'ratings' && <SupplierRatingsSection />}

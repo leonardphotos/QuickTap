@@ -10,7 +10,6 @@ import { AdminSectionNav } from '@/components/admin/AdminSectionNav';
 import { PlanUpgradeNotice } from '@/components/admin/PlanUpgradeNotice';
 import { MetricCard } from '@/components/admin/MetricCard';
 import { BreakEvenCard } from '@/components/admin/BreakEvenCard';
-import { PayablesSection } from '@/components/admin/PayablesSection';
 import { SuppliersSection } from '@/components/admin/SuppliersSection';
 import { FiscalBooksSection } from '@/components/admin/FiscalBooksSection';
 import { BankAccountsSection } from '@/components/admin/BankAccountsSection';
@@ -52,10 +51,6 @@ const ALL_TABS = [
   // Clientes con segmentos + promociones personalizadas con código canjeable.
   { id: 'crm', label: 'CRM', feature: 'crm' },
   { id: 'payments', label: 'Métodos de pago', feature: null },
-  // Lo que el restaurante le debe a sus PROVEEDORES: gastos a crédito + órdenes de pago.
-  // (La pestaña "Cuentas por pagar" se eliminó: era el mismo concepto con otro nombre —
-  // las cuentas abiertas de clientes se siguen manejando desde Pedidos, con el reloj.)
-  { id: 'paymentOrders', label: 'Órdenes de pago', feature: 'accounting' },
   { id: 'ledger', label: 'Contabilidad', feature: 'accounting' },
   { id: 'suppliers', label: 'Proveedores', feature: 'accounting' },
   { id: 'books', label: 'Libros fiscales', feature: 'accounting' },
@@ -109,7 +104,6 @@ export default function AdministrationPage() {
           {!tabLocked && tab === 'purchases' && <PurchasesHub />}
           {!tabLocked && tab === 'crm' && <CrmHub />}
           {!tabLocked && tab === 'payments' && <PaymentsTab />}
-          {!tabLocked && tab === 'paymentOrders' && <PayablesSection />}
           {!tabLocked && tab === 'ledger' && <MovementsLedgerSection />}
           {!tabLocked && tab === 'suppliers' && <SuppliersSection />}
           {!tabLocked && tab === 'books' && <FiscalBooksSection />}
