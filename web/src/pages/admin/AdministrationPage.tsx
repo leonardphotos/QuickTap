@@ -15,6 +15,7 @@ import { BankAccountsSection } from '@/components/admin/BankAccountsSection';
 import { MovementsLedgerSection } from '@/components/admin/MovementsLedgerSection';
 import { CrmHub } from '@/components/admin/crm/CrmHub';
 import { PurchasesHub } from '@/components/admin/purchases/PurchasesHub';
+import { CostStructureHub } from '@/components/admin/cost-structure/CostStructureHub';
 import {
   OrderHistorySection,
   OrderDetailRow,
@@ -44,6 +45,8 @@ const ALL_TABS = [
   { id: 'history', label: 'Historial de pedidos', feature: 'accounting' },
   { id: 'products', label: 'Productos', feature: null },
   { id: 'margin', label: 'Margen de utilidad', feature: 'accounting' },
+  // Calculadora de estructura de costo por producto (material + % fijos y variables) y sus estadísticas.
+  { id: 'costStructure', label: 'Estructura de costo', feature: 'accounting' },
   // Gastos vive acá (ya no en el menú lateral); Cotizaciones está dentro de Compras.
   { id: 'expenses', label: 'Gastos', feature: null },
   { id: 'purchases', label: 'Compras', feature: null },
@@ -99,6 +102,7 @@ export default function AdministrationPage() {
           {!tabLocked && tab === 'history' && <HistoryTab />}
           {!tabLocked && tab === 'products' && <ProductsTab />}
           {!tabLocked && tab === 'margin' && <MarginTab />}
+          {!tabLocked && tab === 'costStructure' && <CostStructureHub />}
           {!tabLocked && tab === 'expenses' && <ExpensesPage embedded />}
           {!tabLocked && tab === 'purchases' && <PurchasesHub />}
           {!tabLocked && tab === 'crm' && <CrmHub />}

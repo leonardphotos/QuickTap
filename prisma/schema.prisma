@@ -536,6 +536,8 @@ model Restaurant {
   cashSessions           CashSession[]
   suppliers              Supplier[]
   supplierRatings        SupplierRating[]
+  costStructureConfig    CostStructureConfig?
+  productCostStructures  ProductCostStructure[]
   customers              Customer[]
   promotions             Promotion[]
   promotionRedemptions   PromotionRedemption[]
@@ -885,6 +887,7 @@ model Product {
   packagingItem      InventoryItem?            @relation("ProductPackaging", fields: [packagingItemId], references: [id], onDelete: SetNull)
   orderItems         OrderItem[]
   recipeIngredients  RecipeIngredient[]
+  costStructure      ProductCostStructure?
   modifierCategories ProductModifierCategory[]
   variants           ProductVariant[]
 
@@ -1836,6 +1839,65 @@ model SupplierRating {
 
   @@index([restaurantId, supplierId])
   @@map("supplier_ratings")
+}
+
+/// Estructura de costo del restaurante (Administración → Estructura de costo): los elementos
+/// fijos y variables que se le cargan a CADA producto vendido, expresados como % del precio de
+/// venta (base imponible, sin servicio/IVA). Los fijos (arriendo, nómina, servicios…) se
+/// prorratean así porque el costo por plato depende del volumen; la calculadora sugiere el %
+/// real cruzando gastos recurrentes ÷ ventas del período. Una fila por restaurante, creada con
+/// los elementos fundamentales la primera vez que se abre la pestaña.
+model CostStructureConfig {
+  id           String @id @default(cuid())
+  restaurantId String @unique
+
+  /// [{ id, label, kind: 'FIXED' | 'VARIABLE', percent, enabled }] — ver cost-structure.dto.ts.
+  items Json
+
+  /// Utilidad neta objetivo por producto (%). Con ella la calculadora sugiere el precio.
+  targetNetMarginPercent Decimal @default(20) @db.Decimal(5, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@map("cost_structure_configs")
+}
+
+/// Estructura de costo guardada de UN producto: el material utilizado (líneas editables, sean
+/// de la receta o cargadas a mano) más el snapshot del cálculo al momento de guardar. Es un
+/// snapshot a propósito: si mañana cambian los % del restaurante o el precio, la ficha guardada
+/// sigue diciendo con qué números se decidió — la calculadora avisa si quedó desactualizada.
+model ProductCostStructure {
+  id           String @id @default(cuid())
+  restaurantId String
+  productId    String @unique
+
+  /// [{ name, quantity, unit, unitCost, totalCost, inventoryItemId? }]
+  materials         Json
+  materialsCostBase Decimal @db.Decimal(12, 2)
+
+  /// % aplicados al guardar (suma de los items habilitados de cada tipo).
+  variablePercent Decimal @db.Decimal(6, 2)
+  fixedPercent    Decimal @db.Decimal(6, 2)
+
+  /// Precio de venta usado y resultado del cálculo (moneda base).
+  salePriceBase    Decimal @db.Decimal(12, 2)
+  variableCostBase Decimal @db.Decimal(12, 2)
+  fixedCostBase    Decimal @db.Decimal(12, 2)
+  totalCostBase    Decimal @db.Decimal(12, 2)
+  netProfitBase    Decimal @db.Decimal(12, 2)
+  netMarginPercent Decimal @db.Decimal(6, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  product    Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+  @@map("product_cost_structures")
 }
 
 // Directorio de clientes del restaurante: se crea/actualiza automáticamente

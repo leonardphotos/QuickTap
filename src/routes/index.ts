@@ -42,6 +42,7 @@ import bankAccountRoutes from '../modules/bank-accounts/bank-account.routes';
 import payrollRoutes from '../modules/payroll/payroll.routes';
 import cashSessionRoutes from '../modules/cash-sessions/cash-session.routes';
 import kpiRoutes from '../modules/reports/kpi.routes';
+import costStructureRoutes from '../modules/cost-structure/cost-structure.routes';
 import deliveryCourierRoutes from '../modules/delivery-couriers/delivery-courier.routes';
 import deliveryZoneRoutes from '../modules/delivery-zones/delivery-zone.routes';
 import kitchenRoutes from '../modules/kitchens/kitchen.routes';
@@ -114,6 +115,8 @@ router.use('/payroll', payrollRoutes);
 router.use('/cash-sessions', cashSessionRoutes);
 // Panel general de KPIs del Dashboard.
 router.use('/kpis', kpiRoutes);
+// Estructura de costo por producto (calculadora + estadísticas), Administración.
+router.use('/cost-structure', costStructureRoutes);
 router.use('/delivery-couriers', deliveryCourierRoutes);
 router.use('/delivery-zones', deliveryZoneRoutes);
 router.use('/quotes', quoteRoutes);
