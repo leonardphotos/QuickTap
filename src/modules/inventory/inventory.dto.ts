@@ -39,6 +39,8 @@ export const createInventoryItemSchema = z.object({
   // el costo real que usan recetas y preparaciones (ver src/modules/inventory/costing.ts).
   yieldPercent: z.coerce.number().positive('El rendimiento debe ser mayor a 0.').max(100, 'El rendimiento no puede superar 100%.').optional(),
   correctionPercent: z.coerce.number().min(0, 'El factor de corrección no puede ser negativo.').optional(),
+  // Disponible en el picker curado de Inventario → Recetas → Toppings, al crear un modificador.
+  isTopping: z.boolean().optional().default(false),
 });
 
 export const updateInventoryItemSchema = createInventoryItemSchema.partial().extend({ expiryDate });

@@ -40,6 +40,9 @@ interface InventoryItem {
   salePriceBase?: string | null;
   /** "YYYY-MM-DD" o null. Ver web/src/utils/expiry.ts. */
   expiryDate?: string | null;
+  // Disponible en el picker curado de "Toppings" al crear un modificador (ver
+  // ModifierCategoriesDialog.tsx) — sigue siendo un insumo normal en todo lo demás.
+  isTopping?: boolean;
 }
 
 const PACKAGING_TYPE_LABELS: Record<string, string> = { ENVASE: 'Envase', CAJA: 'Caja', BOLSA: 'Bolsa' };
@@ -70,6 +73,7 @@ const emptyForm = {
   expiryDate: '',
   yieldPercent: '100',
   correctionPercent: '0',
+  isTopping: false,
 };
 
 /** Inventario: insumos con stock directo ("normal", Pro+), o por receta vinculada al producto (solo Premium). */
@@ -84,6 +88,7 @@ export default function InventoryPage() {
     { id: 'insumos', label: 'Insumos (normal)' },
     ...(canRecipes ? [{ id: 'preparaciones', label: 'Preparaciones' }] : []),
     ...(canRecipes ? [{ id: 'recetas', label: 'Recetas' }] : []),
+    ...(canRecipes ? [{ id: 'toppings', label: 'Toppings' }] : []),
     { id: 'stock', label: 'Stock de productos' },
     { id: 'merma', label: 'Merma' },
     { id: 'alertas', label: 'Alertas' },
@@ -153,6 +158,18 @@ export default function InventoryPage() {
       )}
       {tab === 'preparaciones' && canRecipes && <PreparacionesTab insumos={items ?? []} />}
       {tab === 'recetas' && canRecipes && <RecetasTab insumos={items ?? []} />}
+      {tab === 'toppings' && canRecipes && (
+        <InsumosTab
+          locationScope="LOCAL"
+          items={(items ?? []).filter((i) => i.isTopping)}
+          categories={categories}
+          onChanged={loadItems}
+          onCategoriesChanged={loadCategories}
+          showModifierLinkToggle={false}
+          canRecipes={canRecipes}
+          toppingsOnly
+        />
+      )}
       {tab === 'stock' && <StockTab />}
       {tab === 'merma' && <WasteSection />}
       {tab === 'alertas' && <InventoryAlertsTab />}
@@ -343,6 +360,7 @@ function InsumosTab({
   onCategoriesChanged,
   showModifierLinkToggle = true,
   canRecipes = false,
+  toppingsOnly = false,
 }: {
   /** "LOCAL" (Insumos de siempre) o "CASA_MATRIZ" (ventana aparte, ver InventoryPage). */
   locationScope: 'LOCAL' | 'CASA_MATRIZ';
@@ -356,10 +374,14 @@ function InsumosTab({
   /** Rendimiento/factor de corrección solo tienen efecto con Recetas (Premium) — se
    * ocultan del formulario si el plan no las incluye. */
   canRecipes?: boolean;
+  /** Pestaña "Toppings": misma tabla de insumos, filtrada a los marcados como topping, con el
+   * formulario listo para crear el siguiente ya marcado (ver InventoryPage#toppings). */
+  toppingsOnly?: boolean;
 }) {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
-  const [form, setForm] = useState(emptyForm);
+  const initialForm = toppingsOnly ? { ...emptyForm, isTopping: true } : emptyForm;
+  const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -473,6 +495,7 @@ function InsumosTab({
       expiryDate: item.expiryDate ?? '',
       yieldPercent: item.yieldPercent ?? '100',
       correctionPercent: item.correctionPercent ?? '0',
+      isTopping: !!item.isTopping,
     });
   }
 
@@ -480,7 +503,7 @@ function InsumosTab({
 
   function cancelEdit() {
     setEditingId(null);
-    setForm(emptyForm);
+    setForm(initialForm);
   }
 
   async function onSubmit(e: FormEvent) {
@@ -508,6 +531,7 @@ function InsumosTab({
         // Cadena vacía = el backend la interpreta como "borrar la fecha".
         expiryDate: form.expiryDate,
         locationScope,
+        isTopping: form.isTopping,
         ...(canRecipes
           ? { yieldPercent: Number(form.yieldPercent) || 100, correctionPercent: Number(form.correctionPercent) || 0 }
           : {}),
@@ -578,6 +602,12 @@ function InsumosTab({
 
   return (
     <div className="space-y-8">
+      {toppingsOnly && (
+        <p className="text-sm text-brand-950/60 font-light -mt-2">
+          Insumos marcados como Topping: aparecen en un picker aparte al crear un modificador (Productos → Modificadores),
+          para vincularlo a inventario sin buscarlo entre todos los insumos.
+        </p>
+      )}
       {/* Interruptor del vínculo modificador -> insumo. Se deja arriba de todo
           porque cambia el comportamiento de TODA la venta: con esto apagado, los
           modificadores no tocan el stock aunque tengan el insumo configurado. Ajuste único
@@ -812,6 +842,15 @@ function InsumosTab({
           <label className="flex items-center gap-2 text-sm text-brand-950/70">
             <input
               type="checkbox"
+              checked={form.isTopping}
+              onChange={(e) => setForm({ ...form, isTopping: e.target.checked })}
+              className="rounded border-brand-950/30"
+            />
+            Es un Topping (aparece en ese picker al crear un modificador)
+          </label>
+          <label className="flex items-center gap-2 text-sm text-brand-950/70">
+            <input
+              type="checkbox"
               checked={form.isPackaging}
               onChange={(e) => setForm({ ...form, isPackaging: e.target.checked })}
               className="rounded border-brand-950/30"
@@ -987,7 +1026,9 @@ function InsumosTab({
 
       {items?.length === 0 && (
         <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5">
-          <p className="text-sm text-brand-950/40 font-light">Sin insumos todavía.</p>
+          <p className="text-sm text-brand-950/40 font-light">
+            {toppingsOnly ? 'Sin toppings todavía — marca "Es un Topping" al crear el primero.' : 'Sin insumos todavía.'}
+          </p>
         </div>
       )}
 
@@ -1027,6 +1068,11 @@ function InsumosTab({
                       {item.packagingType && (
                         <span className="text-[10px] font-medium uppercase tracking-wide text-brand-500 bg-brand-500/10 rounded-full px-2 py-0.5">
                           {PACKAGING_TYPE_LABELS[item.packagingType]}
+                        </span>
+                      )}
+                      {!toppingsOnly && item.isTopping && (
+                        <span className="text-[10px] font-medium uppercase tracking-wide text-amber-600 bg-amber-500/10 rounded-full px-2 py-0.5">
+                          Topping
                         </span>
                       )}
                       {/* Solo se muestra cuando ya importa: un lote que vence dentro de meses no aporta ruido. */}
@@ -1771,9 +1817,16 @@ function FilterPill({
 
 interface RecipeLine {
   id: string;
-  type: 'insumo' | 'preparacion';
+  type: 'insumo' | 'preparacion' | 'cliente';
   inventoryItemId: string | null;
   preparationId: string | null;
+  // "A elección del cliente": se resuelve al servir según el modificador de esta categoría
+  // que el cliente eligió (ver order.service.ts#computeRecipeStockDeltas).
+  customerChoiceModifierCategoryId: string | null;
+  customerChoiceCategoryName: string | null;
+  // Tamaño al que aplica esta línea — null = todos los tamaños.
+  productVariantId: string | null;
+  variantName: string | null;
   name: string;
   unit: string;
   stockQuantity: string | null;
@@ -1797,6 +1850,13 @@ function RecipeDialog({
   const [productName, setProductName] = useState('');
   const [lines, setLines] = useState<RecipeLine[] | null>(null);
   const [totalCostBase, setTotalCostBase] = useState('0.00');
+  // Tamaños (variantes de precio) y categorías de modificadores del producto — para el
+  // selector de "tamaño" de cada línea y el picker de "A elección del cliente".
+  const [variants, setVariants] = useState<{ id: string; name: string }[]>([]);
+  const [modifierCategories, setModifierCategories] = useState<{ id: string; name: string }[]>([]);
+  // Pestaña de tamaño activa: '' = "Todos los tamaños" (líneas compartidas). Solo se muestra
+  // si el producto tiene variantes — cada receta puede tener sus propias porciones por tamaño.
+  const [activeVariantId, setActiveVariantId] = useState('');
   // Observaciones de la receta (técnica, emplatado, alérgenos): se guardan aparte de los
   // ingredientes, con su propio botón, para no disparar un PATCH por cada tecla.
   const [notes, setNotes] = useState('');
@@ -1815,14 +1875,19 @@ function RecipeDialog({
   const [refType, refId] = newItem.ref.split(':');
   const selectedInsumo = refType === 'insumo' ? insumos.find((i) => i.id === refId) : undefined;
   const selectedPrep = refType === 'prep' ? preparations.find((p) => p.id === refId) : undefined;
-  const selectedUnit = selectedInsumo?.unit ?? selectedPrep?.unit ?? '';
+  // "A elección del cliente" siempre se declara en gramos, sin importar la unidad del topping
+  // que termine eligiendo el cliente — por eso usa las sub-unidades de "kg" (Kg/Gr) fijas.
+  const selectedUnit = refType === 'cliente' ? 'kg' : (selectedInsumo?.unit ?? selectedPrep?.unit ?? '');
   const subUnitOptions = selectedUnit ? SUB_UNITS[selectedUnit] ?? SUB_UNITS.unidad : [];
+  const visibleLines = (lines ?? []).filter((l) => (l.productVariantId ?? '') === activeVariantId);
 
   function load() {
     api.get(`/inventory/recipes/${productId}`).then((res) => {
       setProductName(res.data.data.productName);
       setLines(res.data.data.ingredients);
       setTotalCostBase(res.data.data.totalCostBase);
+      setVariants(res.data.data.variants ?? []);
+      setModifierCategories(res.data.data.modifierCategories ?? []);
       const n = res.data.data.recipeNotes ?? '';
       setNotes(n);
       setSavedNotes(n);
@@ -1857,6 +1922,8 @@ function RecipeDialog({
       await api.post(`/inventory/recipes/${productId}`, {
         inventoryItemId: refType === 'insumo' ? refId : undefined,
         preparationId: refType === 'prep' ? refId : undefined,
+        customerChoiceModifierCategoryId: refType === 'cliente' ? refId : undefined,
+        productVariantId: activeVariantId || null,
         quantity: quantityInBaseUnit,
       });
       setNewItem({ ref: '', quantity: '', subUnit: '' });
@@ -1954,16 +2021,47 @@ function RecipeDialog({
             </div>
           )}
 
-          {lines?.length === 0 && !adding && (
-            <p className="text-sm text-brand-950/40 font-light">Este producto todavía no tiene ingredientes.</p>
+          {variants.length > 0 && (
+            <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <div className="flex w-max items-center gap-1.5">
+                <FilterPill active={activeVariantId === ''} onClick={() => setActiveVariantId('')}>
+                  Todos los tamaños
+                </FilterPill>
+                {variants.map((v) => (
+                  <FilterPill key={v.id} active={activeVariantId === v.id} onClick={() => setActiveVariantId(v.id)}>
+                    {v.name}
+                  </FilterPill>
+                ))}
+              </div>
+            </div>
+          )}
+          {variants.length > 0 && (
+            <p className="text-xs text-brand-950/40 font-light -mt-1">
+              {activeVariantId === ''
+                ? 'Ingredientes compartidos: se usan sin importar el tamaño que se venda.'
+                : `Ingredientes solo de "${variants.find((v) => v.id === activeVariantId)?.name}" — además de los compartidos.`}
+            </p>
+          )}
+
+          {visibleLines.length === 0 && !adding && (
+            <p className="text-sm text-brand-950/40 font-light">
+              {variants.length > 0 && activeVariantId !== ''
+                ? 'Este tamaño todavía no tiene ingredientes propios.'
+                : 'Este producto todavía no tiene ingredientes.'}
+            </p>
           )}
 
           <ul className="space-y-2 max-h-64 overflow-y-auto">
-            {lines?.map((l) => (
+            {visibleLines.map((l) => (
               <li key={l.id} className="flex items-center justify-between gap-2 border-b border-brand-950/10 pb-2">
                 <div className="text-sm">
                   <p className="font-medium text-brand-950 flex items-center gap-1.5">
                     {l.type === 'preparacion' && <span title="Preparación">🍯</span>}
+                    {l.type === 'cliente' && (
+                      <span className="text-[10px] font-medium uppercase tracking-wide text-brand-500 bg-brand-500/10 rounded-full px-2 py-0.5">
+                        A elección del cliente
+                      </span>
+                    )}
                     {l.name}
                   </p>
                   <p className="text-xs text-brand-950/50 font-light">
@@ -1984,6 +2082,10 @@ function RecipeDialog({
                 value={newItem.ref}
                 onChange={(e) => {
                   const [t, rid] = e.target.value.split(':');
+                  if (t === 'cliente') {
+                    setNewItem({ ref: e.target.value, quantity: '', subUnit: 'gr' });
+                    return;
+                  }
                   const item = t === 'insumo' ? insumos.find((i) => i.id === rid) : preparations.find((p) => p.id === rid);
                   const u = t === 'insumo' ? (item as InventoryItem | undefined)?.unit : (item as PreparationOverviewRow | undefined)?.unit;
                   const defaultSubUnit = u ? (SUB_UNITS[u] ?? SUB_UNITS.unidad)[0]?.value ?? '' : '';
@@ -2008,7 +2110,28 @@ function RecipeDialog({
                     ))}
                   </optgroup>
                 )}
+                {modifierCategories.length > 0 && (
+                  <optgroup label="A elección del cliente">
+                    {modifierCategories.map((c) => (
+                      <option key={c.id} value={`cliente:${c.id}`}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
+              {refType === 'cliente' && (
+                <p className="text-xs text-brand-950/50 font-light">
+                  Al servir el pedido, se descuentan estos gramos del topping que el cliente eligió en "
+                  {modifierCategories.find((c) => c.id === refId)?.name}" — no de un insumo fijo.
+                </p>
+              )}
+              {modifierCategories.length === 0 && (
+                <p className="text-xs text-brand-950/40 font-light">
+                  Para agregar "A elección del cliente" primero asocia una categoría de modificadores a este producto
+                  (Productos → Modificadores → Asociar / Desasociar).
+                </p>
+              )}
               <div className="grid grid-cols-2 gap-2">
                 <input
                   value={newItem.quantity}

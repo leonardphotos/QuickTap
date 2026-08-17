@@ -120,7 +120,9 @@ async function importFromExcel(
       categoryId = category.id;
     }
 
-    const input: CreateInventoryItemInput = {
+    // Sin isTopping a propósito: la importación masiva nunca debe tocar esa marca (crear la deja
+    // en su default `false`; actualizar un insumo existente no debe desmarcarlo si ya era topping).
+    const input: Omit<CreateInventoryItemInput, 'isTopping'> = {
       name,
       unit,
       quantity,
@@ -140,7 +142,9 @@ async function importFromExcel(
         await inventoryService.update(restaurantId, parentRestaurantId, existing.id, input);
         result.updated += 1;
       } else {
-        const created = await inventoryService.create(restaurantId, parentRestaurantId, input);
+        // Nuevo insumo: nunca llega marcado como topping desde la planilla — se marca a mano
+        // después desde Inventario → Recetas → Toppings, si corresponde.
+        const created = await inventoryService.create(restaurantId, parentRestaurantId, { ...input, isTopping: false });
         itemByName.set(name.toLowerCase(), created);
         result.created += 1;
       }

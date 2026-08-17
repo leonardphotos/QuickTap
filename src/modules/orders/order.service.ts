@@ -348,19 +348,44 @@ function sumQuantityByProduct(items: { productId: string | null; quantity: numbe
   return byProduct;
 }
 
+/** Igual que arriba, pero solo para líneas de receta que aplican a UN tamaño puntual
+ * (RecipeIngredient.productVariantId no nulo) — se agrupa por producto+nombre de variante, ya
+ * que OrderItem solo congela `variantName` (snapshot), no un id de variante. */
+function sumQuantityByProductVariant(items: { productId: string | null; variantName: string | null; quantity: number }[]): Map<string, number> {
+  const byKey = new Map<string, number>();
+  for (const item of items) {
+    if (!item.productId || !item.variantName) continue;
+    const key = `${item.productId}::${item.variantName}`;
+    byKey.set(key, (byKey.get(key) ?? 0) + item.quantity);
+  }
+  return byKey;
+}
+
 /** Une las líneas de receta vendidas con el grafo de costeo para saber, en definitiva,
  * cuánto de cada INSUMO (nunca una preparación — no tiene stock propio) hay que
  * descontar/devolver. Una preparación usada en 2 platos vendidos a la vez se resuelve
- * correctamente sumando ambos consumos en el mismo Map antes de tocar la DB. */
+ * correctamente sumando ambos consumos en el mismo Map antes de tocar la DB. Una línea con
+ * `productVariantId` solo cuenta las unidades vendidas de ESE tamaño; sin variante, cuenta
+ * todas las unidades del producto sin importar el tamaño. */
 async function resolveRecipeInventoryDeltas(
   restaurantId: string,
-  recipeLines: { productId: string; inventoryItemId: string | null; preparationId: string | null; quantity: Prisma.Decimal }[],
+  recipeLines: {
+    productId: string;
+    inventoryItemId: string | null;
+    preparationId: string | null;
+    quantity: Prisma.Decimal;
+    productVariantId: string | null;
+    productVariant: { name: string } | null;
+  }[],
   qtyByProduct: Map<string, number>,
+  qtyByProductVariant: Map<string, number>,
 ): Promise<Map<string, Prisma.Decimal>> {
   const graph = await buildCostGraph(prisma, restaurantId);
   const acc = new Map<string, Prisma.Decimal>();
   for (const line of recipeLines) {
-    const soldQty = qtyByProduct.get(line.productId) ?? 0;
+    const soldQty = line.productVariantId
+      ? (qtyByProductVariant.get(`${line.productId}::${line.productVariant?.name ?? ''}`) ?? 0)
+      : (qtyByProduct.get(line.productId) ?? 0);
     if (soldQty <= 0) continue;
     const used = toDecimal(line.quantity).mul(soldQty);
     resolveConsumedInventoryItems(graph, { inventoryItemId: line.inventoryItemId, preparationId: line.preparationId }, used, acc);
@@ -368,17 +393,96 @@ async function resolveRecipeInventoryDeltas(
   return acc;
 }
 
-async function deductRecipeStock(restaurantId: string, items: { productId: string | null; quantity: number }[]) {
+type RecipeStockItem = {
+  productId: string | null;
+  variantName: string | null;
+  quantity: number;
+  modifiers: { modifierId: string | null; quantity: number }[];
+};
+
+/** Cuánto de cada insumo hay que descontar/devolver por receta, incluyendo las líneas "A
+ * elección del cliente": para esas, se resuelve el insumo EXACTO que el cliente eligió (el
+ * modificador de esa categoría que marcó en el pedido) y se usan los gramos de la RECETA —
+ * no la cantidad propia que tenga configurada ese modificador. Compartida por deduct/restore
+ * para no duplicar la resolución (solo cambia si al final se decrementa o se incrementa). */
+async function computeRecipeStockDeltas(restaurantId: string, items: RecipeStockItem[]): Promise<Map<string, Prisma.Decimal>> {
   const productIds = items.map((i) => i.productId).filter((id): id is string => Boolean(id));
-  if (productIds.length === 0) return;
+  if (productIds.length === 0) return new Map();
 
   const recipeLines = await prisma.recipeIngredient.findMany({
     where: { restaurantId, productId: { in: productIds } },
+    include: { productVariant: { select: { name: true } } },
   });
-  if (recipeLines.length === 0) return;
+  if (recipeLines.length === 0) return new Map();
 
   const qtyByProduct = sumQuantityByProduct(items);
-  const deltas = await resolveRecipeInventoryDeltas(restaurantId, recipeLines, qtyByProduct);
+  const qtyByProductVariant = sumQuantityByProductVariant(items);
+  const fixedLines = recipeLines.filter((l) => !l.customerChoiceModifierCategoryId);
+  const deltas = await resolveRecipeInventoryDeltas(restaurantId, fixedLines, qtyByProduct, qtyByProductVariant);
+
+  const customerChoiceLines = recipeLines.filter((l) => l.customerChoiceModifierCategoryId);
+  if (customerChoiceLines.length > 0) {
+    const modifierIds = [
+      ...new Set(items.flatMap((i) => i.modifiers.map((m) => m.modifierId).filter((id): id is string => Boolean(id)))),
+    ];
+    const modifiers = modifierIds.length
+      ? await prisma.modifier.findMany({
+          where: { id: { in: modifierIds }, restaurantId, inventoryItemId: { not: null } },
+          select: { id: true, categoryId: true, inventoryItemId: true },
+        })
+      : [];
+    const modifierById = new Map(modifiers.map((m) => [m.id, m]));
+
+    for (const item of items) {
+      if (!item.productId) continue;
+      const applicableLines = customerChoiceLines.filter(
+        (l) => l.productId === item.productId && (l.productVariantId == null || l.productVariant?.name === item.variantName),
+      );
+      if (applicableLines.length === 0) continue;
+      for (const line of applicableLines) {
+        for (const chosen of item.modifiers) {
+          if (!chosen.modifierId) continue;
+          const mod = modifierById.get(chosen.modifierId);
+          if (!mod || mod.categoryId !== line.customerChoiceModifierCategoryId || !mod.inventoryItemId) continue;
+          const used = toDecimal(line.quantity).mul(chosen.quantity).mul(item.quantity);
+          deltas.set(mod.inventoryItemId, (deltas.get(mod.inventoryItemId) ?? toDecimal(0)).add(used));
+        }
+      }
+    }
+  }
+
+  return deltas;
+}
+
+/** Categorías de modificadores que la receta de CADA ítem vendido ya resuelve por sí misma
+ * ("A elección del cliente", ver computeRecipeStockDeltas) — deductModifierStock/
+ * restoreModifierStock no deben volver a tocar esos mismos modificadores con su propia
+ * cantidad configurada, porque el gramaje de la receta ya se aplicó (evita descontar dos veces
+ * el mismo insumo). Devuelve, por índice de `items`, el set de categoryId a excluir. */
+async function loadCustomerChoiceCategoriesByItem(
+  restaurantId: string,
+  items: { productId: string | null; variantName: string | null }[],
+): Promise<Set<string>[]> {
+  const productIds = items.map((i) => i.productId).filter((id): id is string => Boolean(id));
+  if (productIds.length === 0) return items.map(() => new Set<string>());
+  const lines = await prisma.recipeIngredient.findMany({
+    where: { restaurantId, productId: { in: productIds }, customerChoiceModifierCategoryId: { not: null } },
+    include: { productVariant: { select: { name: true } } },
+  });
+  if (lines.length === 0) return items.map(() => new Set<string>());
+  return items.map((item) => {
+    const set = new Set<string>();
+    for (const line of lines) {
+      if (line.productId !== item.productId) continue;
+      if (line.productVariantId != null && line.productVariant?.name !== item.variantName) continue;
+      if (line.customerChoiceModifierCategoryId) set.add(line.customerChoiceModifierCategoryId);
+    }
+    return set;
+  });
+}
+
+async function deductRecipeStock(restaurantId: string, items: RecipeStockItem[]) {
+  const deltas = await computeRecipeStockDeltas(restaurantId, items);
   let deducted = false;
 
   for (const [inventoryItemId, used] of deltas) {
@@ -411,7 +515,7 @@ async function deductRecipeStock(restaurantId: string, items: { productId: strin
  */
 async function deductModifierStock(
   restaurantId: string,
-  items: { quantity: number; modifiers: { modifierId: string | null; quantity: number }[] }[],
+  items: { productId: string | null; variantName: string | null; quantity: number; modifiers: { modifierId: string | null; quantity: number }[] }[],
 ) {
   const restaurant = await prisma.restaurant.findUnique({
     where: { id: restaurantId },
@@ -429,23 +533,28 @@ async function deductModifierStock(
 
   const modifiers = await prisma.modifier.findMany({
     where: { id: { in: modifierIds }, restaurantId, inventoryItemId: { not: null } },
-    select: { id: true, inventoryItemId: true, inventoryQuantity: true },
+    select: { id: true, categoryId: true, inventoryItemId: true, inventoryQuantity: true },
   });
   if (modifiers.length === 0) return;
   const byModifierId = new Map(modifiers.map((m) => [m.id, m]));
+  const excludedCategoriesByItem = await loadCustomerChoiceCategoriesByItem(restaurantId, items);
 
-  for (const item of items) {
+  items.forEach((item, index) => {
+    const excluded = excludedCategoriesByItem[index];
     for (const chosen of item.modifiers) {
       if (!chosen.modifierId) continue;
       const link = byModifierId.get(chosen.modifierId);
       if (!link?.inventoryItemId || !link.inventoryQuantity) continue;
+      // La receta de este producto ya resuelve esta categoría con sus propios gramos (ver
+      // computeRecipeStockDeltas) — no descontar dos veces el mismo insumo.
+      if (excluded.has(link.categoryId)) continue;
 
       // (consumo por unidad) x (veces elegido) x (unidades del producto vendidas)
       const used = toDecimal(link.inventoryQuantity).mul(chosen.quantity).mul(item.quantity);
       const prev = usedByInventoryItem.get(link.inventoryItemId) ?? toDecimal(0);
       usedByInventoryItem.set(link.inventoryItemId, prev.add(used));
     }
-  }
+  });
   if (usedByInventoryItem.size === 0) return;
 
   let deducted = false;
@@ -543,17 +652,8 @@ async function deductPackagingStock(
  * original sí se clampeaba en 0, un pedido que agotó el insumo por completo puede devolver
  * de más — imprecisión aceptada, igual que en movement.service.ts.
  */
-async function restoreRecipeStock(restaurantId: string, items: { productId: string | null; quantity: number }[]) {
-  const productIds = items.map((i) => i.productId).filter((id): id is string => Boolean(id));
-  if (productIds.length === 0) return;
-
-  const recipeLines = await prisma.recipeIngredient.findMany({
-    where: { restaurantId, productId: { in: productIds } },
-  });
-  if (recipeLines.length === 0) return;
-
-  const qtyByProduct = sumQuantityByProduct(items);
-  const deltas = await resolveRecipeInventoryDeltas(restaurantId, recipeLines, qtyByProduct);
+async function restoreRecipeStock(restaurantId: string, items: RecipeStockItem[]) {
+  const deltas = await computeRecipeStockDeltas(restaurantId, items);
   for (const [inventoryItemId, used] of deltas) {
     await prisma.inventoryItem
       .update({ where: { id: inventoryItemId }, data: { quantity: { increment: used } } })
@@ -563,7 +663,7 @@ async function restoreRecipeStock(restaurantId: string, items: { productId: stri
 
 async function restoreModifierStock(
   restaurantId: string,
-  items: { quantity: number; modifiers: { modifierId: string | null; quantity: number }[] }[],
+  items: { productId: string | null; variantName: string | null; quantity: number; modifiers: { modifierId: string | null; quantity: number }[] }[],
 ) {
   const restaurant = await prisma.restaurant.findUnique({
     where: { id: restaurantId },
@@ -579,21 +679,24 @@ async function restoreModifierStock(
 
   const modifiers = await prisma.modifier.findMany({
     where: { id: { in: modifierIds }, restaurantId, inventoryItemId: { not: null } },
-    select: { id: true, inventoryItemId: true, inventoryQuantity: true },
+    select: { id: true, categoryId: true, inventoryItemId: true, inventoryQuantity: true },
   });
   if (modifiers.length === 0) return;
   const byModifierId = new Map(modifiers.map((m) => [m.id, m]));
+  const excludedCategoriesByItem = await loadCustomerChoiceCategoriesByItem(restaurantId, items);
 
-  for (const item of items) {
+  items.forEach((item, index) => {
+    const excluded = excludedCategoriesByItem[index];
     for (const chosen of item.modifiers) {
       if (!chosen.modifierId) continue;
       const link = byModifierId.get(chosen.modifierId);
       if (!link?.inventoryItemId || !link.inventoryQuantity) continue;
+      if (excluded.has(link.categoryId)) continue;
       const used = toDecimal(link.inventoryQuantity).mul(chosen.quantity).mul(item.quantity);
       const prev = usedByInventoryItem.get(link.inventoryItemId) ?? toDecimal(0);
       usedByInventoryItem.set(link.inventoryItemId, prev.add(used));
     }
-  }
+  });
 
   for (const [inventoryItemId, used] of usedByInventoryItem) {
     await prisma.inventoryItem
@@ -660,7 +763,10 @@ async function restorePackagingStock(
 /** Corre las cuatro reversiones de una — llamarla cuando un pedido que ya estaba SERVED se cancela o se borra. */
 async function restoreServedOrderStock(
   restaurantId: string,
-  order: { channel: OrderChannel; items: { productId: string | null; quantity: number; modifiers: { modifierId: string | null; quantity: number }[] }[] },
+  order: {
+    channel: OrderChannel;
+    items: { productId: string | null; variantName: string | null; quantity: number; modifiers: { modifierId: string | null; quantity: number }[] }[];
+  },
 ) {
   await restoreRecipeStock(restaurantId, order.items);
   await restoreProductStock(restaurantId, order.items);

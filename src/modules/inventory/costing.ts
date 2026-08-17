@@ -102,6 +102,33 @@ export function resolveCostPerBaseUnit(graph: CostGraph, ref: IngredientRef, see
   return toDecimal(0);
 }
 
+/**
+ * Costo estimado de una línea de receta "A elección del cliente": promedio del costo por
+ * unidad base entre los modificadores de esa categoría que ya tienen insumo vinculado — no se
+ * sabe cuál va a elegir el cliente hasta el pedido, así que el promedio es la mejor estimación
+ * para el costeo de la receta y la cascada de precio sugerido. El descuento REAL de stock, en
+ * cambio, sí usa el insumo exacto que el cliente eligió (ver deductRecipeStock en
+ * order.service.ts), esto es solo para mostrar un costo de referencia. Sin modificadores
+ * vinculados todavía en esa categoría, cuesta 0.
+ */
+export async function resolveCustomerChoiceCostPerUnit(
+  tx: TxClient,
+  graph: CostGraph,
+  restaurantId: string,
+  categoryId: string,
+): Promise<Prisma.Decimal> {
+  const modifiers = await tx.modifier.findMany({
+    where: { restaurantId, categoryId, inventoryItemId: { not: null } },
+    select: { inventoryItemId: true },
+  });
+  if (modifiers.length === 0) return toDecimal(0);
+  const total = modifiers.reduce(
+    (acc, m) => acc.add(resolveCostPerBaseUnit(graph, { inventoryItemId: m.inventoryItemId })),
+    toDecimal(0),
+  );
+  return total.div(modifiers.length);
+}
+
 /** Recalcula y persiste (solo lo que cambió) el costBase de TODAS las líneas de
  * preparación y de receta del restaurante, a partir de un grafo fresco. Se llama
  * dentro de la misma transacción cuando cambia algo que puede afectar costos aguas
@@ -125,7 +152,9 @@ export async function recomputeDependentCosts(tx: TxClient, restaurantId: string
   }
 
   for (const ri of recipeIngredients) {
-    const perUnit = resolveCostPerBaseUnit(graph, { inventoryItemId: ri.inventoryItemId, preparationId: ri.preparationId });
+    const perUnit = ri.customerChoiceModifierCategoryId
+      ? await resolveCustomerChoiceCostPerUnit(tx, graph, restaurantId, ri.customerChoiceModifierCategoryId)
+      : resolveCostPerBaseUnit(graph, { inventoryItemId: ri.inventoryItemId, preparationId: ri.preparationId });
     const costBase = round2(perUnit.mul(ri.quantity));
     if (!costBase.equals(ri.costBase)) {
       await tx.recipeIngredient.update({ where: { id: ri.id }, data: { costBase } });

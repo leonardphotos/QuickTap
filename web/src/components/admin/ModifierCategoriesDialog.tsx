@@ -22,6 +22,7 @@ interface InsumoOption {
   id: string;
   name: string;
   unit: string;
+  isTopping?: boolean;
 }
 import { CURRENCY_SYMBOLS } from '@/utils/format';
 import type { ModifierCategory, Modifier } from '@/types';
@@ -201,6 +202,12 @@ function CategoryEditor({
   const linkEnabled = !!restaurant?.modifierInventoryLinkEnabled;
   const [allProducts, setAllProducts] = useState<VariantProductOption[] | null>(null);
   const [linkedProducts, setLinkedProducts] = useState<LinkedProduct[] | null>(null);
+  // Agregar modificador: "Escribir" (de siempre, un nombre libre) o "Desde Toppings" (elegir un
+  // insumo ya marcado como topping — ver InventoryPage#toppings — y crear el modificador con su
+  // nombre y ya vinculado a ese insumo, listo para descontar inventario al venderse).
+  const [addMode, setAddMode] = useState<'escribir' | 'toppings'>('escribir');
+  const [newModifierName, setNewModifierName] = useState('');
+  const [selectedToppingId, setSelectedToppingId] = useState('');
 
   useEffect(() => setName(category.name), [category.id, category.name]);
   useEffect(() => setMaxSelectionsInput(category.maxSelections?.toString() ?? ''), [category.id, category.maxSelections]);
@@ -218,14 +225,15 @@ function CategoryEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category.id]);
 
-  // Los insumos solo hacen falta si el vínculo con inventario está activo.
+  // Se cargan siempre (no solo con linkEnabled): el picker "Desde Toppings" al agregar un
+  // modificador los necesita aunque el vínculo con inventario esté apagado — igual que antes,
+  // el selector de "Descontar de inventario" de cada fila solo se muestra si linkEnabled.
   useEffect(() => {
-    if (!linkEnabled) return;
     api
       .get('/inventory')
       .then((res) => setInsumos(res.data.data))
       .catch(() => setInsumos([]));
-  }, [linkEnabled]);
+  }, []);
 
   async function saveName() {
     if (name.trim() && name !== category.name) {
@@ -274,8 +282,27 @@ function CategoryEditor({
     }
   }
 
-  async function addModifier() {
-    await api.post(`/modifier-categories/${category.id}/modifiers`, { name: 'Nuevo modificador' });
+  /** Tab "Escribir": nombre libre, igual que siempre — el resto (precio, vínculo con
+   * inventario) se completa después en la fila. */
+  async function addModifierByName() {
+    const trimmed = newModifierName.trim();
+    await api.post(`/modifier-categories/${category.id}/modifiers`, { name: trimmed || 'Nuevo modificador' });
+    setNewModifierName('');
+    onChanged();
+  }
+
+  /** Tab "Desde Toppings": crea el modificador con el nombre del topping y ya vinculado a su
+   * insumo (1 unidad base, editable después en la fila) — la idea es no tener que buscarlo
+   * entre todos los insumos ni escribir el vínculo a mano. */
+  async function addModifierFromTopping() {
+    const topping = toppings.find((t) => t.id === selectedToppingId);
+    if (!topping) return;
+    await api.post(`/modifier-categories/${category.id}/modifiers`, {
+      name: topping.name,
+      inventoryItemId: topping.id,
+      inventoryQuantity: 1,
+    });
+    setSelectedToppingId('');
     onChanged();
   }
 
@@ -328,6 +355,7 @@ function CategoryEditor({
     onChanged();
   }
 
+  const toppings = insumos.filter((i) => i.isTopping);
   const linkedIds = new Set((linkedProducts ?? []).map((p) => p.productId));
   // Solo los productos asociados a esta categoría que cobran "por variantes" (ej. Pizza
   // Pequeña/Grande) tienen sentido para fijar un precio propio de modificador por variante.
@@ -482,12 +510,71 @@ function CategoryEditor({
               />
             ))}
           </div>
-          <button
-            onClick={addModifier}
-            className="mt-2 flex items-center gap-1.5 text-sm font-medium text-brand-500 hover:text-brand-600"
-          >
-            <Plus className="h-4 w-4" /> Agregar modificador
-          </button>
+          <div className="mt-3 rounded-xl border border-brand-950/10 bg-brand-950/[0.02] p-2.5 space-y-2">
+            <div className="flex items-center gap-1 rounded-full bg-brand-950/[0.06] p-0.5 w-fit">
+              <button
+                type="button"
+                onClick={() => setAddMode('escribir')}
+                className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
+                  addMode === 'escribir' ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
+                }`}
+              >
+                Escribir
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddMode('toppings')}
+                className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
+                  addMode === 'toppings' ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
+                }`}
+              >
+                Desde Toppings
+              </button>
+            </div>
+
+            {addMode === 'escribir' ? (
+              <div className="flex gap-1.5">
+                <input
+                  value={newModifierName}
+                  onChange={(e) => setNewModifierName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addModifierByName())}
+                  placeholder="Ej: Extra queso"
+                  className={outlinedFieldInputClass}
+                />
+                <TextureButton variant="brand" size="sm" className="!w-auto shrink-0" onClick={addModifierByName}>
+                  <Plus className="h-4 w-4" /> Agregar
+                </TextureButton>
+              </div>
+            ) : toppings.length === 0 ? (
+              <p className="text-xs text-brand-950/40 font-light">
+                Todavía no tienes toppings cargados. Agrégalos en Inventario → Recetas → Toppings.
+              </p>
+            ) : (
+              <div className="flex gap-1.5">
+                <select
+                  value={selectedToppingId}
+                  onChange={(e) => setSelectedToppingId(e.target.value)}
+                  className={outlinedFieldInputClass}
+                >
+                  <option value="">Elegir topping…</option>
+                  {toppings.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} ({UNIT_LABELS[t.unit] ?? t.unit})
+                    </option>
+                  ))}
+                </select>
+                <TextureButton
+                  variant="brand"
+                  size="sm"
+                  className="!w-auto shrink-0"
+                  disabled={!selectedToppingId}
+                  onClick={addModifierFromTopping}
+                >
+                  <Plus className="h-4 w-4" /> Agregar
+                </TextureButton>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </>

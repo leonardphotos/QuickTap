@@ -4,24 +4,33 @@ export const createRecipeIngredientSchema = z
   .object({
     inventoryItemId: z.string().min(1).optional(),
     preparationId: z.string().min(1).optional(),
+    // "A elección del cliente": en vez de un insumo/preparación fijo, el topping se resuelve
+    // al servir según lo que el cliente eligió en esta categoría de modificadores.
+    customerChoiceModifierCategoryId: z.string().min(1).optional(),
+    // Tamaño/variante al que aplica esta línea — null/ausente = aplica a todos los tamaños.
+    productVariantId: z.string().min(1).nullable().optional(),
     // Cantidad del insumo/preparación (ya convertida a su unidad base, ej. kg o gr) que
     // usa una unidad del producto. El costo NUNCA viene del cliente: se calcula en el
     // service a partir del grafo de costeo (ver src/modules/inventory/costing.ts).
     quantity: z.coerce.number().positive('La cantidad debe ser mayor a 0.'),
   })
-  .refine((v) => Boolean(v.inventoryItemId) !== Boolean(v.preparationId), {
-    message: 'Elige un insumo o una preparación, no ambos.',
-  });
+  .refine(
+    (v) => [v.inventoryItemId, v.preparationId, v.customerChoiceModifierCategoryId].filter(Boolean).length === 1,
+    { message: 'Elige un insumo, una preparación o "A elección del cliente" — uno solo.' },
+  );
 
 export const updateRecipeIngredientSchema = z
   .object({
     inventoryItemId: z.string().min(1).optional(),
     preparationId: z.string().min(1).optional(),
+    customerChoiceModifierCategoryId: z.string().min(1).optional(),
+    productVariantId: z.string().min(1).nullable().optional(),
     quantity: z.coerce.number().positive('La cantidad debe ser mayor a 0.').optional(),
   })
-  .refine((v) => !(v.inventoryItemId && v.preparationId), {
-    message: 'Elige un insumo o una preparación, no ambos.',
-  });
+  .refine(
+    (v) => [v.inventoryItemId, v.preparationId, v.customerChoiceModifierCategoryId].filter(Boolean).length <= 1,
+    { message: 'Elige un insumo, una preparación o "A elección del cliente" — uno solo.' },
+  );
 
 // PATCH /inventory/recipes/:productId/cascade — resguardo %, food cost objetivo % y los
 // interruptores de servicio/IVA de la cascada de precio sugerido. Los PORCENTAJES de

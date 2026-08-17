@@ -936,6 +936,9 @@ model ModifierCategory {
   restaurant Restaurant                @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   modifiers  Modifier[]
   products   ProductModifierCategory[]
+  // Líneas de receta "A elección del cliente" que resuelven el topping según lo que se
+  // eligió en esta categoría (ver RecipeIngredient.customerChoiceModifierCategoryId).
+  recipeLines RecipeIngredient[]
 
   @@index([restaurantId])
   @@map("modifier_categories")
@@ -1049,6 +1052,8 @@ model ProductVariant {
   restaurant     Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   product        Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
   modifierPrices ModifierVariantPrice[]
+  // Líneas de receta que solo aplican a este tamaño (ver RecipeIngredient.productVariantId).
+  recipeLines    RecipeIngredient[]
 
   @@unique([productId, externalSourceId])
   @@index([restaurantId, productId])
@@ -2642,6 +2647,13 @@ model InventoryItem {
   // de src/modules/inventory/inventory-scope.ts.
   locationScope String @default("LOCAL")
 
+  // Marca este insumo como disponible en la pestaña Inventario → Recetas → Toppings, para
+  // poder elegirlo directo al crear un modificador (en vez de buscarlo entre todos los
+  // insumos) — el vínculo real con el modificador sigue siendo Modifier.inventoryItemId,
+  // esto solo lo hace aparecer en ese picker curado. No cambia en nada su comportamiento
+  // como insumo normal (sigue contando para recetas, merma, alertas, etc.).
+  isTopping Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -2702,6 +2714,20 @@ model RecipeIngredient {
   productId       String
   inventoryItemId String?
   preparationId   String?
+  // "A elección del cliente": en vez de un insumo/preparación fijo, esta línea representa un
+  // topping que el cliente elige al pedir, a través de un modificador de esta categoría (ej.
+  // "Toppings"). Al servir, se descuentan estos mismos `quantity` gramos del insumo vinculado
+  // al modificador que el cliente efectivamente eligió en esa categoría — no la cantidad propia
+  // que tenga configurada ese modificador (ver deductRecipeStock en order.service.ts, que
+  // además excluye esos modificadores de deductModifierStock para no descontar dos veces).
+  // Exactamente uno de inventoryItemId/preparationId/customerChoiceModifierCategoryId puede
+  // estar presente (validado en recipe.dto.ts).
+  customerChoiceModifierCategoryId String?
+
+  // Si no es null, esta línea solo aplica cuando se vendió ESA variante/tamaño del producto
+  // (ej. "Grande") — null = aplica a todos los tamaños (o el producto no usa variantes de
+  // precio). Permite que cada tamaño tenga sus propias porciones (ver RecetasTab).
+  productVariantId String?
 
   // Cantidad usada por una unidad del producto, en la unidad base del insumo
   // o preparación vinculada (ej: si el insumo está en "kg", aquí van kg).
@@ -2713,14 +2739,18 @@ model RecipeIngredient {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurant    Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  product       Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
-  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
-  preparation   Preparation?   @relation(fields: [preparationId], references: [id], onDelete: Restrict)
+  restaurant             Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  product                Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  inventoryItem          InventoryItem?    @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  preparation            Preparation?      @relation(fields: [preparationId], references: [id], onDelete: Restrict)
+  customerChoiceCategory ModifierCategory? @relation(fields: [customerChoiceModifierCategoryId], references: [id], onDelete: SetNull)
+  productVariant         ProductVariant?   @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
 
   @@index([restaurantId, productId])
   @@index([inventoryItemId])
   @@index([preparationId])
+  @@index([customerChoiceModifierCategoryId])
+  @@index([productVariantId])
   @@map("recipe_ingredients")
 }
 

@@ -4,7 +4,22 @@ import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { round2, toDecimal } from '../../utils/money';
 import { CreateRecipeIngredientInput, UpdateCascadeConfigInput, UpdateRecipeIngredientInput } from './recipe.dto';
-import { buildCostGraph, resolveCostPerBaseUnit } from './costing';
+import { buildCostGraph, resolveCostPerBaseUnit, resolveCustomerChoiceCostPerUnit } from './costing';
+
+/** La categoría de modificadores de una línea "A elección del cliente" tiene que estar
+ * asociada al producto (si no, el cliente nunca la vería al pedir ese plato). */
+async function assertCategoryBelongsToProduct(restaurantId: string, productId: string, categoryId: string) {
+  const link = await prisma.productModifierCategory.findFirst({
+    where: { productId, modifierCategoryId: categoryId, modifierCategory: { restaurantId } },
+  });
+  if (!link) throw badRequest('Esa categoría de modificadores no está asociada a este producto.');
+}
+
+/** El tamaño de una línea de receta tiene que ser una variante real de ESE producto. */
+async function assertVariantBelongsToProduct(restaurantId: string, productId: string, variantId: string) {
+  const variant = await prisma.productVariant.findFirst({ where: { id: variantId, productId, restaurantId } });
+  if (!variant) throw badRequest('Ese tamaño no pertenece a este producto.');
+}
 
 function styleHeader(sheet: ExcelJS.Worksheet) {
   sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
@@ -56,11 +71,19 @@ export const recipeService = {
     });
   },
 
-  /** Líneas de receta de un producto puntual, con el insumo o preparación vinculada. */
+  /** Líneas de receta de un producto puntual, con el insumo/preparación/categoría "a elección
+   * del cliente" vinculada — más los tamaños y categorías de modificadores del producto, para
+   * que el editor pueda ofrecerlos como picker sin otra ida y vuelta al servidor. */
   async getByProduct(restaurantId: string, productId: string) {
     const product = await prisma.product.findFirst({
       where: { id: productId, restaurantId },
-      select: { id: true, name: true, recipeNotes: true },
+      select: {
+        id: true,
+        name: true,
+        recipeNotes: true,
+        variants: { select: { id: true, name: true }, orderBy: { priority: 'asc' } },
+        modifierCategories: { select: { modifierCategory: { select: { id: true, name: true } } }, orderBy: { priority: 'asc' } },
+      },
     });
     if (!product) throw notFound('Producto no encontrado.');
 
@@ -70,6 +93,8 @@ export const recipeService = {
       include: {
         inventoryItem: { select: { id: true, name: true, unit: true, quantity: true } },
         preparation: { select: { id: true, name: true, unit: true } },
+        customerChoiceCategory: { select: { id: true, name: true } },
+        productVariant: { select: { id: true, name: true } },
       },
     });
 
@@ -80,13 +105,26 @@ export const recipeService = {
       productName: product.name,
       recipeNotes: product.recipeNotes ?? '',
       totalCostBase: totalCostBase.toFixed(2),
+      variants: product.variants,
+      modifierCategories: product.modifierCategories.map((pc) => pc.modifierCategory),
       ingredients: lines.map((l) => ({
         id: l.id,
-        type: l.inventoryItemId ? ('insumo' as const) : ('preparacion' as const),
+        type: l.inventoryItemId
+          ? ('insumo' as const)
+          : l.preparationId
+            ? ('preparacion' as const)
+            : ('cliente' as const),
         inventoryItemId: l.inventoryItemId,
         preparationId: l.preparationId,
-        name: l.inventoryItem?.name ?? l.preparation?.name ?? '',
-        unit: l.inventoryItem?.unit ?? l.preparation?.unit ?? '',
+        customerChoiceModifierCategoryId: l.customerChoiceModifierCategoryId,
+        customerChoiceCategoryName: l.customerChoiceCategory?.name ?? null,
+        productVariantId: l.productVariantId,
+        variantName: l.productVariant?.name ?? null,
+        name:
+          l.inventoryItem?.name ??
+          l.preparation?.name ??
+          `A elección del cliente${l.customerChoiceCategory ? ` (${l.customerChoiceCategory.name})` : ''}`,
+        unit: l.inventoryItem?.unit ?? l.preparation?.unit ?? 'gr',
         stockQuantity: l.inventoryItem?.quantity.toFixed(2) ?? null,
         quantity: l.quantity.toFixed(3),
         costBase: l.costBase.toFixed(2),
@@ -104,17 +142,24 @@ export const recipeService = {
     } else if (input.preparationId) {
       const preparation = await prisma.preparation.findFirst({ where: { id: input.preparationId, restaurantId } });
       if (!preparation) throw badRequest('La preparación elegida no existe.');
+    } else if (input.customerChoiceModifierCategoryId) {
+      await assertCategoryBelongsToProduct(restaurantId, productId, input.customerChoiceModifierCategoryId);
     }
+    if (input.productVariantId) await assertVariantBelongsToProduct(restaurantId, productId, input.productVariantId);
 
     return prisma.$transaction(async (tx) => {
       const graph = await buildCostGraph(tx, restaurantId);
-      const costPerUnit = resolveCostPerBaseUnit(graph, { inventoryItemId: input.inventoryItemId, preparationId: input.preparationId });
+      const costPerUnit = input.customerChoiceModifierCategoryId
+        ? await resolveCustomerChoiceCostPerUnit(tx, graph, restaurantId, input.customerChoiceModifierCategoryId)
+        : resolveCostPerBaseUnit(graph, { inventoryItemId: input.inventoryItemId, preparationId: input.preparationId });
       const created = await tx.recipeIngredient.create({
         data: {
           restaurantId,
           productId,
           inventoryItemId: input.inventoryItemId ?? null,
           preparationId: input.preparationId ?? null,
+          customerChoiceModifierCategoryId: input.customerChoiceModifierCategoryId ?? null,
+          productVariantId: input.productVariantId ?? null,
           quantity: input.quantity,
           costBase: round2(costPerUnit.mul(input.quantity)),
         },
@@ -133,20 +178,39 @@ export const recipeService = {
     } else if (input.preparationId) {
       const preparation = await prisma.preparation.findFirst({ where: { id: input.preparationId, restaurantId } });
       if (!preparation) throw badRequest('La preparación elegida no existe.');
+    } else if (input.customerChoiceModifierCategoryId) {
+      await assertCategoryBelongsToProduct(restaurantId, existing.productId, input.customerChoiceModifierCategoryId);
     }
+    if (input.productVariantId) await assertVariantBelongsToProduct(restaurantId, existing.productId, input.productVariantId);
+
+    // Cualquiera de los tres campos de "tipo" presente en el body significa que se está
+    // cambiando de tipo de línea — los otros dos se limpian, igual que antes con insumo/preparación.
+    const switchingType =
+      input.inventoryItemId !== undefined || input.preparationId !== undefined || input.customerChoiceModifierCategoryId !== undefined;
 
     return prisma.$transaction(async (tx) => {
-      const nextInventoryItemId = input.inventoryItemId !== undefined ? input.inventoryItemId : existing.inventoryItemId;
-      const nextPreparationId = input.preparationId !== undefined ? input.preparationId : existing.preparationId;
+      const nextInventoryItemId = input.inventoryItemId !== undefined ? input.inventoryItemId : switchingType ? null : existing.inventoryItemId;
+      const nextPreparationId = input.preparationId !== undefined ? input.preparationId : switchingType ? null : existing.preparationId;
+      const nextCategoryId =
+        input.customerChoiceModifierCategoryId !== undefined
+          ? input.customerChoiceModifierCategoryId
+          : switchingType
+            ? null
+            : existing.customerChoiceModifierCategoryId;
+
       const graph = await buildCostGraph(tx, restaurantId);
-      const costPerUnit = resolveCostPerBaseUnit(graph, { inventoryItemId: nextInventoryItemId, preparationId: nextPreparationId });
+      const costPerUnit = nextCategoryId
+        ? await resolveCustomerChoiceCostPerUnit(tx, graph, restaurantId, nextCategoryId)
+        : resolveCostPerBaseUnit(graph, { inventoryItemId: nextInventoryItemId, preparationId: nextPreparationId });
       const quantity = input.quantity ?? existing.quantity;
 
       return tx.recipeIngredient.update({
         where: { id },
         data: {
-          ...(input.inventoryItemId !== undefined ? { inventoryItemId: input.inventoryItemId, preparationId: null } : {}),
-          ...(input.preparationId !== undefined ? { preparationId: input.preparationId, inventoryItemId: null } : {}),
+          ...(switchingType
+            ? { inventoryItemId: nextInventoryItemId, preparationId: nextPreparationId, customerChoiceModifierCategoryId: nextCategoryId }
+            : {}),
+          ...(input.productVariantId !== undefined ? { productVariantId: input.productVariantId } : {}),
           ...(input.quantity !== undefined ? { quantity: input.quantity } : {}),
           costBase: round2(costPerUnit.mul(quantity)),
         },
