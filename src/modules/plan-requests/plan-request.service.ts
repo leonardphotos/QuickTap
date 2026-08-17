@@ -20,7 +20,7 @@ import {
  * cada abono vive en PlanRequestPayment, no acá (ver createInstallment/addPayment abajo). */
 const INSTALLMENT_PLACEHOLDER_REFERENCE = 'Pago fraccionado';
 
-const PLAN_LABELS: Record<SubscriptionPlan, string> = {
+export const PLAN_LABELS: Record<SubscriptionPlan, string> = {
   TRIAL: 'Prueba Gratuita',
   STARTER: 'Plan Inicial',
   PRO: 'Plan Pro / Restaurante',
@@ -241,8 +241,10 @@ function listPendingCharges(restaurantId: string) {
 }
 
 export const planRequestService = {
-  /** Crea la solicitud de plan a partir del número de referencia que escribió el restaurante. */
-  async create(input: CreatePlanRequestInput, opts: { kind: PlanRequestKind; restaurantId?: string }) {
+  /** Crea la solicitud de plan a partir del número de referencia que escribió el restaurante.
+   * `proofImageUrl` es opcional (comprobante adjunto): el reenvío al verificador por WhatsApp lo
+   * dispara el controller después de crear el registro, para no acoplar este service al bot. */
+  async create(input: CreatePlanRequestInput, opts: { kind: PlanRequestKind; restaurantId?: string }, proofImageUrl?: string) {
     const { manualPaymentEnabled } = await platformSettingsService.getPaymentTogglesOrDefault();
     if (!manualPaymentEnabled) {
       throw badRequest('El pago manual está deshabilitado por ahora. Intenta con Ramblay o contáctanos.');
@@ -268,6 +270,7 @@ export const planRequestService = {
         priceUsd,
         paymentMethod: input.paymentMethod,
         paymentReference: input.paymentReference,
+        proofImageUrl,
         contactName: input.contactName,
         contactEmail: input.contactEmail,
         contactPhone: input.contactPhone,

@@ -21,6 +21,7 @@ interface PlanRequestRow {
   discountPercent: number | null;
   paymentMethod: string;
   paymentReference: string;
+  proofImageUrl: string | null;
   contactName: string;
   contactEmail: string;
   contactPhone: string | null;
@@ -250,6 +251,16 @@ export default function MasterProofsPage() {
                 >
                   <Copy className="h-3.5 w-3.5" />
                 </button>
+                {req.proofImageUrl && (
+                  <a
+                    href={req.proofImageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[10px] font-medium text-brand-500 hover:underline"
+                  >
+                    Ver comprobante
+                  </a>
+                )}
               </div>
             )}
 

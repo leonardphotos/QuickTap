@@ -227,6 +227,13 @@ export const platformSettingsService = {
     return row.subscriptionCurrency;
   },
 
+  /** Número verificador de pagos de suscripción (Dashboard maestro → WhatsApp) — a quien se le
+   * reenvía el comprobante de un pago único para que lo apruebe. Null si nunca se configuró. */
+  async getSubscriptionVerifierPhone(): Promise<string | null> {
+    const row = await prisma.platformSettings.findUnique({ where: { id: SINGLETON_ID }, select: { subscriptionVerifierPhone: true } });
+    return row?.subscriptionVerifierPhone ?? null;
+  },
+
   async getPaymentMethods() {
     const row = await prisma.platformSettings.findUnique({ where: { id: SINGLETON_ID } });
     return {

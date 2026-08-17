@@ -104,6 +104,10 @@ export function PaymentForm({
   const [startingInstallment, setStartingInstallment] = useState(false);
   const [installmentAmount, setInstallmentAmount] = useState('');
   const [installmentProof, setInstallmentProof] = useState<File | null>(null);
+  // Comprobante del pago único, opcional: si se adjunta, se reenvía de una vez por WhatsApp al
+  // número verificador (ver plan-request.controller.ts#notifyVerifierOfProof), para que el
+  // equipo de QuickTap lo revise sin tener que entrar al Dashboard a buscarlo.
+  const [singleProof, setSingleProof] = useState<File | null>(null);
   const [addingPayment, setAddingPayment] = useState(false);
   const [installmentError, setInstallmentError] = useState<string | null>(null);
   const [promoInput, setPromoInput] = useState('');
@@ -256,32 +260,37 @@ export function PaymentForm({
     setSubmitting(true);
     setError(null);
     try {
-      await api.post(
-        submitUrl,
-        {
-          plan: selected.plan,
-          billingCycle: selected.billingCycle,
-          paymentMethod: method,
-          paymentReference: paymentReference.trim(),
-          ...(selected.plan === 'CUSTOM'
-            ? {
-                customTables: selected.customTables ?? 0,
-                customUsers: selected.customUsers ?? 0,
-                customOrders: selected.customOrders ?? 0,
-                customAdministration: !!selected.customAddons?.administration,
-                customInventoryBasic: !!selected.customAddons?.inventoryBasic,
-                customInventoryRecipe: !!selected.customAddons?.inventoryRecipe,
-                customAccountsPayable: !!selected.customAddons?.accountsPayable,
-              }
-            : {}),
-          ...(promo ? { promoCode: promo.code } : {}),
-          contactName,
-          contactEmail,
-          ...(contactPhone ? { contactPhone } : {}),
-          ...(restaurantName ? { restaurantName } : {}),
-        },
-        authToken ? { headers: { Authorization: `Bearer ${authToken}` } } : undefined,
-      );
+      const payload = {
+        plan: selected.plan,
+        billingCycle: selected.billingCycle,
+        paymentMethod: method,
+        paymentReference: paymentReference.trim(),
+        ...(selected.plan === 'CUSTOM'
+          ? {
+              customTables: selected.customTables ?? 0,
+              customUsers: selected.customUsers ?? 0,
+              customOrders: selected.customOrders ?? 0,
+              customAdministration: !!selected.customAddons?.administration,
+              customInventoryBasic: !!selected.customAddons?.inventoryBasic,
+              customInventoryRecipe: !!selected.customAddons?.inventoryRecipe,
+              customAccountsPayable: !!selected.customAddons?.accountsPayable,
+            }
+          : {}),
+        ...(promo ? { promoCode: promo.code } : {}),
+        contactName,
+        contactEmail,
+        ...(contactPhone ? { contactPhone } : {}),
+        ...(restaurantName ? { restaurantName } : {}),
+      };
+      const headers = authToken ? { Authorization: `Bearer ${authToken}` } : undefined;
+      if (singleProof) {
+        const form = new FormData();
+        form.append('payload', JSON.stringify(payload));
+        form.append('photo', singleProof);
+        await api.post(submitUrl, form, { headers: { ...(headers ?? {}), 'Content-Type': 'multipart/form-data' } });
+      } else {
+        await api.post(submitUrl, payload, headers ? { headers } : undefined);
+      }
       setSuccessMessage('En máximo 10 minutos tu plan estará activo.');
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No se pudo enviar la solicitud.');
@@ -497,13 +506,30 @@ export function PaymentForm({
             )}
 
             {payMode === 'single' || !authToken ? (
-              <Field
-                label="Número de referencia del pago"
-                value={paymentReference}
-                onChange={setPaymentReference}
-                placeholder="Ej: 004215778901"
-                required
-              />
+              <>
+                <Field
+                  label="Número de referencia del pago"
+                  value={paymentReference}
+                  onChange={setPaymentReference}
+                  placeholder="Ej: 004215778901"
+                  required
+                />
+                <label className="flex items-center gap-2 text-sm text-brand-950/70 cursor-pointer">
+                  <Paperclip className="h-4 w-4 shrink-0 text-brand-950/40" />
+                  <span className="truncate">{singleProof ? singleProof.name : 'Adjuntar comprobante (opcional)'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => setSingleProof(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+                {singleProof && (
+                  <p className="text-xs text-brand-950/40 font-light -mt-2">
+                    Se lo reenviamos de una vez a nuestro equipo por WhatsApp para agilizar la revisión.
+                  </p>
+                )}
+              </>
             ) : !installment ? (
               <div className="rounded-xl bg-brand-950/[0.03] p-4 space-y-3">
                 <p className="text-sm text-brand-950/60 font-light">

@@ -9,7 +9,9 @@ import { planRequestController } from './plan-request.controller';
  * punto del embudo. Base: /api/v1/public/plan-requests
  */
 export const publicPlanRequestRoutes = Router();
-publicPlanRequestRoutes.post('/', planRequestController.create);
+// El comprobante es opcional (multer no exige el campo "photo"): si el prospecto lo adjunta,
+// se reenvía al número verificador por WhatsApp (ver planRequestController#create).
+publicPlanRequestRoutes.post('/', uploadPlanPaymentProof, optimizeImage(1200, 1200), planRequestController.create);
 publicPlanRequestRoutes.post('/ramblay-checkout', planRequestController.createRamblayCheckout);
 
 /** Base: /api/v1/plan-requests — pago de mensualidad, ya autenticado como restaurante. */
@@ -18,7 +20,7 @@ tenantPlanRequestRoutes.use(tenantGuard);
 tenantPlanRequestRoutes.get('/quote', planRequestController.getQuote);
 tenantPlanRequestRoutes.get('/installment/pending', planRequestController.getPendingInstallment);
 tenantPlanRequestRoutes.post('/installment', planRequestController.createInstallment);
-tenantPlanRequestRoutes.post('/', planRequestController.createRenewal);
+tenantPlanRequestRoutes.post('/', uploadPlanPaymentProof, optimizeImage(1200, 1200), planRequestController.createRenewal);
 tenantPlanRequestRoutes.post('/ramblay-checkout', planRequestController.createRenewalRamblayCheckout);
 // "Pago fraccionado": un abono con su comprobante por cada llamada, hasta cubrir priceUsd.
 tenantPlanRequestRoutes.post(

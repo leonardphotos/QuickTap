@@ -2246,6 +2246,11 @@ model PlanRequest {
   // paymentMethod = RAMBLAY, se llena con el id que devuelve Ramblay al crear
   // el pago (igual que ramblayPaymentId) en vez de un número tecleado a mano.
   paymentReference String
+  // Comprobante opcional del pago único (aparte del número de referencia): si el restaurante lo
+  // adjunta, se reenvía de una vez al número verificador por WhatsApp (ver
+  // plan-request.controller.ts#notifyVerifierOfProof) para que el equipo lo revise sin tener que
+  // entrar al Dashboard maestro. Null = no adjuntó nada, sigue el flujo de siempre.
+  proofImageUrl String?
 
   // Id de la transacción/sesión de pago en Ramblay (solo paymentMethod = RAMBLAY).
   // Correlaciona el webhook de "pago aprobado/rechazado" con esta solicitud.

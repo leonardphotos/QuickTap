@@ -1,6 +1,11 @@
+import fs from 'fs';
+import path from 'path';
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest } from '../../utils/http-error';
+import { UPLOADS_DIR } from '../../middlewares/upload.middleware';
+import { platformSettingsService, currencySymbolFor } from '../platform-settings/platform-settings.service';
+import { masterWhatsappBotService } from '../master-whatsapp/master-whatsapp-bot.service';
 import {
   addPlanRequestPaymentSchema,
   approvePlanRequestSchema,
@@ -11,23 +16,83 @@ import {
   rejectPlanRequestSchema,
   updatePlanRequestSchema,
 } from './plan-request.dto';
-import { planRequestService } from './plan-request.service';
+import { PLAN_LABELS, planRequestService } from './plan-request.service';
+
+/**
+ * El formulario manda JSON normal cuando no hay comprobante; cuando el prospecto adjunta uno,
+ * pasa a `multipart/form-data` (por el archivo) y empaqueta el resto de los campos como un
+ * único campo `payload` en JSON — así el DTO de validación no cambia según haya foto o no
+ * (evita el problema de que multer entrega todo lo demás como texto plano, ej. los booleanos
+ * de un plan CUSTOM llegarían como "false"/"true" en vez de boolean).
+ */
+function parseBody(req: Request): unknown {
+  if (typeof req.body?.payload === 'string') {
+    try {
+      return JSON.parse(req.body.payload);
+    } catch {
+      throw badRequest('Datos del formulario inválidos.');
+    }
+  }
+  return req.body;
+}
+
+/**
+ * Si el prospecto/restaurante adjuntó el comprobante, lo reenvía de una vez al número
+ * verificador (Dashboard maestro → WhatsApp) para que el equipo lo revise sin tener que entrar
+ * a buscarlo — la activación en sí sigue siendo la misma acción manual de siempre
+ * ("Activar cuenta" en /master/proofs), esto solo acelera que lo vean. Nunca debe tumbar la
+ * creación de la solicitud: si el bot no está conectado o falla el envío, se ignora en silencio.
+ */
+async function notifyVerifierOfProof(request: {
+  id: string;
+  plan: keyof typeof PLAN_LABELS;
+  billingCycle: string;
+  priceUsd: unknown;
+  paymentReference: string;
+  contactName: string;
+  restaurantName: string | null;
+}, proofImageUrl: string): Promise<void> {
+  try {
+    const verifierPhone = await platformSettingsService.getSubscriptionVerifierPhone();
+    if (!verifierPhone) return;
+    const filePath = path.join(UPLOADS_DIR, proofImageUrl.replace(/^\/uploads\//, ''));
+    const buffer = await fs.promises.readFile(filePath).catch(() => null);
+    if (!buffer) return;
+    const symbol = currencySymbolFor(await platformSettingsService.getSubscriptionCurrency());
+    const caption = [
+      `📄 Comprobante de pago — ${request.restaurantName ?? request.contactName}`,
+      `📦 Plan: ${PLAN_LABELS[request.plan]} (${request.billingCycle})`,
+      `💰 Monto: ${symbol}${Number(request.priceUsd).toFixed(2)}`,
+      `🔖 Referencia: ${request.paymentReference}`,
+      '',
+      'Revísalo y actívalo desde el Dashboard maestro (Comprobantes de pago).',
+    ].join('\n');
+    await masterWhatsappBotService.sendImage(verifierPhone, buffer, caption);
+  } catch {
+    // Silencioso a propósito, ver comentario de arriba.
+  }
+}
 
 export const planRequestController = {
   /** POST /api/v1/public/plan-requests — el prospecto elige plan + método de pago y escribe el número de referencia (inscripción). */
   create: asyncHandler(async (req: Request, res: Response) => {
-    const input = createPlanRequestSchema.parse(req.body);
-    const request = await planRequestService.create(input, { kind: 'SIGNUP' });
+    const input = createPlanRequestSchema.parse(parseBody(req));
+    const proofImageUrl = req.file ? `/uploads/plan-payment-proofs/${req.file.filename}` : undefined;
+    const request = await planRequestService.create(input, { kind: 'SIGNUP' }, proofImageUrl);
+    if (proofImageUrl) void notifyVerifierOfProof(request, proofImageUrl);
     res.status(201).json({ data: request });
   }),
 
   /** POST /api/v1/plan-requests — el restaurante ya autenticado paga su mensualidad. */
   createRenewal: asyncHandler(async (req: Request, res: Response) => {
-    const input = createPlanRequestSchema.parse(req.body);
-    const request = await planRequestService.create(input, {
-      kind: 'RENEWAL',
-      restaurantId: req.restaurantId!,
-    });
+    const input = createPlanRequestSchema.parse(parseBody(req));
+    const proofImageUrl = req.file ? `/uploads/plan-payment-proofs/${req.file.filename}` : undefined;
+    const request = await planRequestService.create(
+      input,
+      { kind: 'RENEWAL', restaurantId: req.restaurantId! },
+      proofImageUrl,
+    );
+    if (proofImageUrl) void notifyVerifierOfProof(request, proofImageUrl);
     res.status(201).json({ data: request });
   }),
 
