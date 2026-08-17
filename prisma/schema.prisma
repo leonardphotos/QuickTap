@@ -1113,7 +1113,8 @@ model Table {
   // null = todavía sin ubicar; esas mesas se listan aparte para arrastrarlas al plano.
   planX     Decimal? @db.Decimal(5, 2)
   planY     Decimal? @db.Decimal(5, 2)
-  // Forma y tamaño con que se dibuja: 'ROUND' | 'SQUARE', y un factor 1 = normal, 1.5 = grande.
+  // Forma y tamaño con que se dibuja: 'ROUND' | 'SQUARE' | 'RECTANGLE' (el doble de ancha,
+  // pensada para 6 personas), y un factor 1 = normal, 1.5 = grande.
   planShape String   @default("ROUND")
   planSize  Decimal  @default(1) @db.Decimal(3, 2)
 

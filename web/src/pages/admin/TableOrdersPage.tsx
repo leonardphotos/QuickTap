@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
-import { BellRing, Check, CreditCard, Lock, LogOut, MoveHorizontal, Plus, Printer, Receipt, SplitSquareHorizontal } from 'lucide-react';
+import { Check, CreditCard, Lock, LogOut, MoveHorizontal, Plus, Printer, SplitSquareHorizontal } from 'lucide-react';
 import { api, getToken } from '../../api/client';
 import type { FloorPlan, FloorPlanTable, Product, TableSession } from '../../types';
 import { useAuth } from '@/context/AuthContext';
@@ -74,13 +74,13 @@ export default function TableOrdersPage() {
     };
   }, []);
 
-  // Vista del salón: lista de siempre o plano (planimetría). El editor del plano solo para
-  // quien administra las mesas; un mesero ve el plano pero no lo mueve.
-  const [view, setView] = useState<'lista' | 'plano'>('lista');
+  // Plano del salón (planimetría): único modo de ver las mesas — se arma una sola vez y el resto
+  // del equipo lo ve ya armado. Editarlo (mover/cambiar forma) es solo del administrador, para
+  // que nadie más lo reordene sin querer mientras trabaja.
   const [editingPlan, setEditingPlan] = useState(false);
   const [planPatches, setPlanPatches] = useState<Record<string, FloorPlanPatch[]>>({});
   const [savingPlan, setSavingPlan] = useState(false);
-  const canEditPlan = isAdminCashier(user?.role, user?.cashierFullAccess);
+  const canEditPlan = isAdminCashier(user?.role);
   const pendingPatches = Object.values(planPatches).flat();
 
   async function persistFloorPlan() {
@@ -441,29 +441,12 @@ export default function TableOrdersPage() {
         <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Órdenes de Mesa</h1>
         {sections.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
-              {(['lista', 'plano'] as const).map((v) => (
-                <button
-                  key={v}
-                  type="button"
-                  onClick={() => {
-                    setView(v);
-                    if (v === 'lista') setEditingPlan(false);
-                  }}
-                  className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
-                    view === v ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
-                  }`}
-                >
-                  {v === 'lista' ? 'Lista' : 'Plano del salón'}
-                </button>
-              ))}
-            </div>
-            {view === 'plano' && canEditPlan && !editingPlan && (
+            {canEditPlan && !editingPlan && (
               <TextureButton variant="secondary" size="sm" className="!w-auto" onClick={() => setEditingPlan(true)}>
                 Editar plano
               </TextureButton>
             )}
-            {view === 'plano' && editingPlan && (
+            {editingPlan && (
               <>
                 <SaveFloorPlanButton dirty={pendingPatches.length > 0} saving={savingPlan} onSave={persistFloorPlan} />
                 <button
@@ -509,79 +492,14 @@ export default function TableOrdersPage() {
         {sections.map((zone) => (
           <div key={zone.id}>
             <h2 className="text-sm font-semibold text-brand-950/70 mb-4">{zone.name}</h2>
-            {view === 'plano' ? (
-              <FloorPlanCanvas
-                zoneId={zone.id}
-                tables={zone.tables}
-                editing={editingPlan}
-                onOpenTable={openTable}
-                onPatches={(zoneId, patches) => setPlanPatches((prev) => ({ ...prev, [zoneId]: patches }))}
-              />
-            ) : (
-            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-3">
-              {zone.tables.map((t) => (
-                <div key={t.id} className="relative">
-                  <button
-                    onClick={() => openTable(t)}
-                    className={`aspect-square w-full rounded-2xl flex flex-col items-center justify-center gap-0.5 font-semibold text-sm transition-all duration-200 hover:scale-[1.04] ${
-                      t.serviceRequest
-                        ? 'bg-[#fbedd6] text-[#8a5106]'
-                        : t.sessions.length > 0
-                          ? 'bg-secondary text-brand-950'
-                          : t.reserved
-                            ? 'bg-[#fbe7f1] text-[#9d2469]'
-                            : 'bg-[#e3f5ec] text-[#0f6e46]'
-                    }`}
-                  >
-                    <span>{t.number}</span>
-                    <span className="text-[9px] font-medium opacity-80">
-                      {t.serviceRequest
-                        ? 'Cuenta'
-                        : t.sessions.length > 1
-                          ? `${t.sessions.length} cuentas`
-                          : t.sessions.length === 1
-                            ? 'Ocupada'
-                            : t.reserved
-                              ? 'Reservada'
-                              : 'Libre'}
-                    </span>
-                    {t.sessions.length > 0 && (
-                      <span
-                        className={`text-[8px] font-bold uppercase tracking-wide ${
-                          t.sessions.some((s) => getUnpaidOrdersFor(s).length > 0) ? 'text-amber-700' : 'text-emerald-700'
-                        }`}
-                      >
-                        {t.sessions.some((s) => getUnpaidOrdersFor(s).length > 0) ? 'Pendiente' : 'Pagado'}
-                      </span>
-                    )}
-                  </button>
-                  {t.serviceRequest && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        acknowledgeServiceRequest(t);
-                      }}
-                      aria-label={
-                        t.serviceRequest === 'WAITER_CALL' ? 'Atender llamado al mesonero' : 'Marcar cuenta entregada'
-                      }
-                      title={t.serviceRequest === 'WAITER_CALL' ? 'Llamando al mesonero' : 'Pidió la cuenta'}
-                      className={`absolute -top-1.5 -right-1.5 h-6 w-6 rounded-full flex items-center justify-center shadow ring-2 ring-white animate-pulse ${
-                        t.serviceRequest === 'WAITER_CALL'
-                          ? 'bg-amber-400 text-amber-950 hover:bg-amber-300'
-                          : 'bg-emerald-400 text-emerald-950 hover:bg-emerald-300'
-                      }`}
-                    >
-                      {t.serviceRequest === 'WAITER_CALL' ? (
-                        <BellRing className="h-3.5 w-3.5" />
-                      ) : (
-                        <Receipt className="h-3.5 w-3.5" />
-                      )}
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-            )}
+            <FloorPlanCanvas
+              zoneId={zone.id}
+              tables={zone.tables}
+              editing={editingPlan}
+              onOpenTable={openTable}
+              onPatches={(zoneId, patches) => setPlanPatches((prev) => ({ ...prev, [zoneId]: patches }))}
+              onAcknowledge={acknowledgeServiceRequest}
+            />
           </div>
         ))}
       </div>

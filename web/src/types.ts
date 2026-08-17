@@ -411,7 +411,7 @@ export interface FloorPlanTable {
   /** Planimetría: posición en % del lienzo de su zona. null = todavía sin ubicar en el plano. */
   planX: number | null;
   planY: number | null;
-  planShape: 'ROUND' | 'SQUARE';
+  planShape: 'ROUND' | 'SQUARE' | 'RECTANGLE';
   /** Factor de tamaño con que se dibuja (1 = normal). */
   planSize: number;
 }

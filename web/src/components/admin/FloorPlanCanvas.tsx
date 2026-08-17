@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { Circle, Save, Square, X } from 'lucide-react';
+import { BellRing, Circle, Minus, Plus, RectangleHorizontal, Receipt, Save, Square, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 import type { FloorPlanTable } from '@/types';
@@ -17,7 +17,7 @@ export interface FloorPlanPatch {
   id: string;
   planX: number | null;
   planY: number | null;
-  planShape?: 'ROUND' | 'SQUARE';
+  planShape?: 'ROUND' | 'SQUARE' | 'RECTANGLE';
   planSize?: number;
 }
 
@@ -36,6 +36,7 @@ export function FloorPlanCanvas({
   editing,
   onOpenTable,
   onPatches,
+  onAcknowledge,
 }: {
   zoneId: string;
   tables: FloorPlanTable[];
@@ -43,12 +44,21 @@ export function FloorPlanCanvas({
   onOpenTable: (t: FloorPlanTable) => void;
   /** Cambios pendientes de esta zona; la pantalla los junta y los guarda de una sola vez. */
   onPatches: (zoneId: string, patches: FloorPlanPatch[]) => void;
+  /** Botón rápido de "atender llamado/cuenta" sobre la mesa, sin abrir el diálogo completo. */
+  onAcknowledge?: (t: FloorPlanTable) => void;
 }) {
   const canvasRef = useRef<HTMLDivElement>(null);
   // Cambios locales todavía sin guardar, por id de mesa.
   const [draft, setDraft] = useState<Record<string, FloorPlanPatch>>({});
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const draggingRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null);
+  // Zoom de la VISTA, no del dato: solo escala cuánto se ven las mesas en pantalla (no toca
+  // planX/planY/planSize, que siguen siendo % del lienzo y el tamaño real de cada mesa). Alejar
+  // (zoom < 1) las encoge para que quepan más sin taparse; acercar (zoom > 1) las agranda para
+  // ubicarlas con precisión. Vista local de esta pantalla, no se guarda.
+  const [zoom, setZoom] = useState(1);
+  const ZOOM_MIN = 0.5;
+  const ZOOM_MAX = 2;
 
   const merged = tables.map((t) => {
     const d = draft[t.id];
@@ -118,6 +128,36 @@ export function FloorPlanCanvas({
           editing ? 'border-brand-500/40 bg-[repeating-linear-gradient(0deg,rgba(11,21,36,0.04)_0_1px,transparent_1px_28px),repeating-linear-gradient(90deg,rgba(11,21,36,0.04)_0_1px,transparent_1px_28px)]' : 'border-brand-950/10 bg-brand-950/[0.02]'
         }`}
       >
+        {placed.length > 0 && (
+          <div className="absolute right-2 top-2 z-10 flex items-center gap-0.5 rounded-full border border-brand-950/10 bg-white/90 p-0.5 shadow-sm backdrop-blur-sm">
+            <button
+              type="button"
+              onClick={() => setZoom((z) => Math.max(ZOOM_MIN, Math.round((z - 0.15) * 100) / 100))}
+              disabled={zoom <= ZOOM_MIN}
+              aria-label="Alejar"
+              className="flex h-6 w-6 items-center justify-center rounded-full text-brand-950/60 hover:bg-brand-950/[0.06] disabled:opacity-30"
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setZoom(1)}
+              className="px-1 text-[11px] font-semibold tabular-nums text-brand-950/60 hover:text-brand-500"
+            >
+              {Math.round(zoom * 100)}%
+            </button>
+            <button
+              type="button"
+              onClick={() => setZoom((z) => Math.min(ZOOM_MAX, Math.round((z + 0.15) * 100) / 100))}
+              disabled={zoom >= ZOOM_MAX}
+              aria-label="Acercar"
+              className="flex h-6 w-6 items-center justify-center rounded-full text-brand-950/60 hover:bg-brand-950/[0.06] disabled:opacity-30"
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
         {placed.length === 0 && (
           <p className="absolute inset-0 flex items-center justify-center px-6 text-center text-sm font-light text-brand-950/40">
             {editing
@@ -128,32 +168,53 @@ export function FloorPlanCanvas({
 
         {placed.map((t) => {
           const tone = tableTone(t);
-          const size = 56 * (t.planSize || 1);
+          const size = 56 * (t.planSize || 1) * zoom;
+          // Rectangular: el doble de ancha que alta, para que quepan hasta 6 personas (2-3 por
+          // lado largo + los extremos) — las otras dos formas mantienen el cajón cuadrado de siempre.
+          const width = t.planShape === 'RECTANGLE' ? size * 2 : size;
+          const height = size;
           return (
-            <button
-              key={t.id}
-              type="button"
-              onPointerDown={(e) => startDrag(e, t)}
-              onMouseDown={(e) => startDrag(e, t)}
-              onClick={() => (editing ? setSelectedId(t.id) : onOpenTable(t))}
-              style={{
-                left: `${t.planX}%`,
-                top: `${t.planY}%`,
-                width: size,
-                height: size,
-                background: tone.bg,
-                color: tone.fg,
-                touchAction: editing ? 'none' : undefined,
-              }}
-              className={`absolute -translate-x-1/2 -translate-y-1/2 flex-col items-center justify-center text-center font-semibold shadow-sm transition-transform ${
-                t.planShape === 'SQUARE' ? 'rounded-xl' : 'rounded-full'
-              } flex ${editing ? 'cursor-grab active:cursor-grabbing' : 'hover:scale-105'} ${
-                selectedId === t.id && editing ? 'ring-2 ring-brand-500 ring-offset-2' : ''
-              }`}
-            >
-              <span className="text-[13px] leading-none">{t.number}</span>
-              <span className="mt-0.5 text-[9px] font-medium opacity-75">{tone.label}</span>
-            </button>
+            <div key={t.id} className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: `${t.planX}%`, top: `${t.planY}%` }}>
+              <button
+                type="button"
+                onPointerDown={(e) => startDrag(e, t)}
+                onMouseDown={(e) => startDrag(e, t)}
+                onClick={() => (editing ? setSelectedId(t.id) : onOpenTable(t))}
+                style={{
+                  width,
+                  height,
+                  background: tone.bg,
+                  color: tone.fg,
+                  touchAction: editing ? 'none' : undefined,
+                }}
+                className={`flex-col items-center justify-center text-center font-semibold shadow-sm transition-transform ${
+                  t.planShape === 'SQUARE' || t.planShape === 'RECTANGLE' ? 'rounded-xl' : 'rounded-full'
+                } flex ${editing ? 'cursor-grab active:cursor-grabbing' : 'hover:scale-105'} ${
+                  selectedId === t.id && editing ? 'ring-2 ring-brand-500 ring-offset-2' : ''
+                }`}
+              >
+                <span className="text-[13px] leading-none">{t.number}</span>
+                <span className="mt-0.5 text-[9px] font-medium opacity-75">{tone.label}</span>
+              </button>
+              {!editing && t.serviceRequest && onAcknowledge && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAcknowledge(t);
+                  }}
+                  aria-label={t.serviceRequest === 'WAITER_CALL' ? 'Atender llamado al mesonero' : 'Marcar cuenta entregada'}
+                  title={t.serviceRequest === 'WAITER_CALL' ? 'Llamando al mesonero' : 'Pidió la cuenta'}
+                  className={`absolute -top-1.5 -right-1.5 flex h-6 w-6 items-center justify-center rounded-full shadow ring-2 ring-white animate-pulse ${
+                    t.serviceRequest === 'WAITER_CALL'
+                      ? 'bg-amber-400 text-amber-950 hover:bg-amber-300'
+                      : 'bg-emerald-400 text-emerald-950 hover:bg-emerald-300'
+                  }`}
+                >
+                  {t.serviceRequest === 'WAITER_CALL' ? <BellRing className="h-3.5 w-3.5" /> : <Receipt className="h-3.5 w-3.5" />}
+                </button>
+              )}
+            </div>
           );
         })}
       </div>
@@ -162,11 +223,17 @@ export function FloorPlanCanvas({
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-brand-950/10 bg-white px-3 py-2">
           <span className="text-xs font-semibold text-brand-950">Mesa {selected.number}</span>
           <div className="flex items-center gap-1">
-            <ShapeButton active={selected.planShape !== 'SQUARE'} onClick={() => patch(selected.id, { planShape: 'ROUND' })}>
+            <ShapeButton
+              active={selected.planShape !== 'SQUARE' && selected.planShape !== 'RECTANGLE'}
+              onClick={() => patch(selected.id, { planShape: 'ROUND' })}
+            >
               <Circle className="h-3.5 w-3.5" /> Redonda
             </ShapeButton>
             <ShapeButton active={selected.planShape === 'SQUARE'} onClick={() => patch(selected.id, { planShape: 'SQUARE' })}>
               <Square className="h-3.5 w-3.5" /> Cuadrada
+            </ShapeButton>
+            <ShapeButton active={selected.planShape === 'RECTANGLE'} onClick={() => patch(selected.id, { planShape: 'RECTANGLE' })}>
+              <RectangleHorizontal className="h-3.5 w-3.5" /> Rectangular (6)
             </ShapeButton>
           </div>
           <div className="flex items-center gap-1">

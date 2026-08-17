@@ -25,7 +25,7 @@ export const saveFloorPlanSchema = z.object({
         id: z.string().min(1),
         planX: z.number().min(0).max(100).nullable(),
         planY: z.number().min(0).max(100).nullable(),
-        planShape: z.enum(['ROUND', 'SQUARE']).optional(),
+        planShape: z.enum(['ROUND', 'SQUARE', 'RECTANGLE']).optional(),
         planSize: z.number().min(0.6).max(2).optional(),
       }),
     )

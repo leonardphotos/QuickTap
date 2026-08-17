@@ -312,12 +312,53 @@ async function seedCatalog(prisma: PrismaClient, restaurantId: string) {
 }
 
 /** Zonas + mesas. Devuelve la lista de ids de mesa creadas. */
+/** Reparte N mesas en una cuadrícula pareja (2 columnas hasta 4 mesas, 3 en adelante) dentro del
+ * lienzo del plano (% del 20-80 en X, 25-75 en Y), para que el plano del demo no arranque vacío. */
+function layoutPositions(count: number): { x: number; y: number }[] {
+  if (count === 0) return [];
+  const cols = Math.min(count, count <= 4 ? 2 : 3);
+  const rows = Math.ceil(count / cols);
+  const positions: { x: number; y: number }[] = [];
+  for (let i = 0; i < count; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const x = cols === 1 ? 50 : Math.round(20 + (col * 60) / (cols - 1));
+    const y = rows === 1 ? 50 : Math.round(25 + (row * 50) / (rows - 1));
+    positions.push({ x, y });
+  }
+  return positions;
+}
+
+/** Formas/tamaños variados (incluye la rectangular de 6) para que el plano demo enseñe las
+ * opciones del editor, no solo mesas redondas iguales. */
+const FLOOR_PLAN_SHAPE_CYCLE: { shape: 'ROUND' | 'SQUARE' | 'RECTANGLE'; size: number }[] = [
+  { shape: 'ROUND', size: 1 },
+  { shape: 'SQUARE', size: 1 },
+  { shape: 'ROUND', size: 1.35 },
+  { shape: 'RECTANGLE', size: 1 },
+];
+
 async function seedFloorPlan(prisma: PrismaClient, restaurantId: string, zonesData: { name: string; priority: number; tables: string[] }[]) {
   const tableIds: string[] = [];
   for (const z of zonesData) {
     const zone = await prisma.zone.create({ data: { restaurantId, name: z.name, priority: z.priority } });
-    for (const number of z.tables) {
-      const table = await prisma.table.create({ data: { restaurantId, zoneId: zone.id, number, qrToken: nanoid(12) } });
+    const positions = layoutPositions(z.tables.length);
+    for (let i = 0; i < z.tables.length; i++) {
+      const number = z.tables[i];
+      const pos = positions[i];
+      const { shape, size } = FLOOR_PLAN_SHAPE_CYCLE[i % FLOOR_PLAN_SHAPE_CYCLE.length];
+      const table = await prisma.table.create({
+        data: {
+          restaurantId,
+          zoneId: zone.id,
+          number,
+          qrToken: nanoid(12),
+          planX: pos.x,
+          planY: pos.y,
+          planShape: shape,
+          planSize: size,
+        },
+      });
       tableIds.push(table.id);
     }
   }
