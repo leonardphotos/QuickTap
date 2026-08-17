@@ -1,6 +1,17 @@
 import { z } from 'zod';
 
-export const WASTE_REASONS = ['EXPIRED', 'DAMAGED', 'PREPARATION', 'CUSTOMER_RETURN', 'SPILLAGE', 'THEFT', 'OTHER'] as const;
+export const WASTE_REASONS = [
+  'EXPIRED',
+  'DAMAGED',
+  'PREPARATION',
+  'CUSTOMER_RETURN',
+  'SPILLAGE',
+  'THEFT',
+  // Normalmente se genera sola al reabastecer (ver movement.service.ts); se acepta también
+  // manual por si alguien quiere anotar una pérdida de rendimiento puntual.
+  'YIELD_LOSS',
+  'OTHER',
+] as const;
 
 /**
  * Registrar una merma. El COSTO nunca viene del cliente: lo resuelve el service con el costo

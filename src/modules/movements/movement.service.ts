@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+import { Prisma, WasteReason } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { baseToBs, bsToBase, round2, toDecimal } from '../../utils/money';
@@ -129,6 +129,36 @@ export const movementService = {
           where: { id: input.inventoryItemId },
           data: { quantity: { increment: input.inventoryQuantity } },
         });
+
+        // Merma automática por rendimiento: si el insumo tiene un % de aprovechamiento
+        // (Inventario → "Rendimiento % tras merma o limpieza") menor a 100, la parte que
+        // NUNCA sirve (pelado, limpieza) se registra sola como merma al llegar la compra —
+        // no hace falta anotarla a mano cada vez. No toca la existencia otra vez (ya quedó
+        // reflejada arriba, tal como el restaurante espera verla en Inventario); es solo
+        // para que el indicador de merma capture ese costo real.
+        const yieldPercent = toDecimal(item.yieldPercent);
+        if (yieldPercent.gt(0) && yieldPercent.lt(100) && item.pricePerUnitBase) {
+          const lostQuantity = round2(toDecimal(input.inventoryQuantity).mul(toDecimal(100).sub(yieldPercent)).div(100));
+          if (lostQuantity.gt(0)) {
+            const rawUnitCost = toDecimal(item.pricePerUnitBase).mul(toDecimal(1).add(toDecimal(item.correctionPercent).div(100)));
+            await tx.wasteRecord.create({
+              data: {
+                restaurantId,
+                inventoryItemId: item.id,
+                itemName: item.name,
+                unit: item.unit,
+                quantity: lostQuantity,
+                costBase: round2(lostQuantity.mul(rawUnitCost)),
+                reason: WasteReason.YIELD_LOSS,
+                note: `Automático: ${yieldPercent.toFixed(0)}% de rendimiento configurado en el insumo.`,
+                stockAdjusted: false,
+                createdByUserId: userId,
+                createdByName: movement.createdByUser?.name ?? null,
+                occurredAt: movement.expenseDate ?? movement.createdAt,
+              },
+            });
+          }
+        }
       }
 
       // Cuentas bancarias: un ingreso con método suma a la cuenta vinculada; un gasto pagado

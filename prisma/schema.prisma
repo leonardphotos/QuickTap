@@ -1920,6 +1920,9 @@ enum WasteReason {
   CUSTOMER_RETURN /// Devolución del cliente
   SPILLAGE /// Derrame o accidente
   THEFT /// Faltante / robo
+  /// Pérdida estructural por el % de rendimiento del insumo (pelado, limpieza) — se genera
+  /// sola al reabastecer, distinta de un error puntual de preparación.
+  YIELD_LOSS
   OTHER /// Otro
 }
 

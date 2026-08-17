@@ -17,8 +17,12 @@ export const WASTE_REASON_LABELS: Record<string, string> = {
   CUSTOMER_RETURN: 'Devolución del cliente',
   SPILLAGE: 'Derrame',
   THEFT: 'Faltante / robo',
+  // Se genera sola al reabastecer un insumo con "Rendimiento %" < 100 (Inventario → Insumos);
+  // se deja fuera del selector del formulario manual para no duplicarla a mano.
+  YIELD_LOSS: 'Rendimiento (automático)',
   OTHER: 'Otro',
 };
+const MANUAL_WASTE_REASONS = Object.entries(WASTE_REASON_LABELS).filter(([k]) => k !== 'YIELD_LOSS');
 
 interface WasteRow {
   id: string;
@@ -377,7 +381,7 @@ function WasteForm({ symbol, onClose, onSaved }: { symbol: string; onClose: () =
           <label className="text-xs text-brand-950/60">
             Motivo
             <select value={reason} onChange={(e) => setReason(e.target.value)} className={`mt-1 ${inputCls}`}>
-              {Object.entries(WASTE_REASON_LABELS).map(([k, label]) => (
+              {MANUAL_WASTE_REASONS.map(([k, label]) => (
                 <option key={k} value={k}>
                   {label}
                 </option>
