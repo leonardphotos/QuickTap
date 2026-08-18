@@ -167,6 +167,27 @@ export default function MenuPage() {
     [cart],
   );
 
+  // Venta cruzada automática en el carrito: justo antes de "Ordenar"/"Pagar", sugiere el
+  // producto más barato (de un solo toque, sin variantes/opciones obligatorias) de cada
+  // categoría que el cliente todavía no tiene en el carrito. No requiere configurar nada.
+  const crossSellSuggestions = useMemo(() => {
+    if (cart.length === 0) return [];
+    const cartProductIds = new Set(cart.map((l) => l.product.id));
+    const menuCategories = menu?.categories ?? [];
+    const cartCategoryIds = new Set(
+      menuCategories.filter((c) => c.products.some((p) => cartProductIds.has(p.id))).map((c) => c.id),
+    );
+    const picks: Product[] = [];
+    for (const cat of menuCategories) {
+      if (cartCategoryIds.has(cat.id)) continue;
+      const candidate = cat.products
+        .filter((p) => !cartProductIds.has(p.id) && !needsPicker(p))
+        .sort((a, b) => Number(a.price) - Number(b.price))[0];
+      if (candidate) picks.push(candidate);
+    }
+    return picks.sort((a, b) => Number(a.price) - Number(b.price)).slice(0, 3);
+  }, [cart, menu]);
+
   const allProducts = useMemo(() => menu?.categories.flatMap((c) => c.products) ?? [], [menu]);
   // Solo los productos con foto pueden aparecer en la galería estilo carrusel.
   const galleryProducts = useMemo(() => allProducts.filter((p) => p.photoUrl), [allProducts]);
@@ -403,6 +424,8 @@ export default function MenuPage() {
           cart={cart}
           subtotalBase={subtotalBase}
           qrToken={qrToken}
+          suggestions={crossSellSuggestions}
+          onAddSuggestion={(p) => addToCart({ product: p, quantity: 1, selectedModifiers: [] })}
           onRemove={removeFromCart}
           onClose={() => setCartOpen(false)}
           onClearAndClose={() => {

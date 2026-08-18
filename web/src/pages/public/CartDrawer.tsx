@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowLeft, Check, Copy, Lock, MapPin, MessageCircle } from 'lucide-react';
 import { api } from '../../api/client';
-import type { CartLine, PaymentMethod, Restaurant } from '../../types';
+import type { CartLine, PaymentMethod, Product, Restaurant } from '../../types';
 import { cartLineUnitPrice, formatModifierLabel, publicPriceLabel } from '../../utils/format';
 import { methodAccountsOf } from '../../utils/payment-accounts';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -20,6 +20,9 @@ interface Props {
   cart: CartLine[];
   subtotalBase: number;
   qrToken: string | null;
+  /** Venta cruzada: productos sugeridos de categorías que todavía no están en el carrito. */
+  suggestions: Product[];
+  onAddSuggestion: (product: Product) => void;
   onRemove: (index: number) => void;
   onClose: () => void;
   onClearAndClose: () => void;
@@ -49,7 +52,17 @@ const PAYMENT_FIELD_LABELS: Record<string, string> = {
   rif: 'RIF',
 };
 
-export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, onRemove, onClose, onClearAndClose }: Props) {
+export default function CartDrawer({
+  restaurant,
+  cart,
+  subtotalBase,
+  qrToken,
+  suggestions,
+  onAddSuggestion,
+  onRemove,
+  onClose,
+  onClearAndClose,
+}: Props) {
   const [step, setStep] = useState<'summary' | 'modeChoice' | 'checkout'>('summary');
   const [mode, setMode] = useState<'DELIVERY' | 'PICKUP'>('DELIVERY');
   const [dineInName, setDineInName] = useState('');
@@ -538,15 +551,44 @@ export default function CartDrawer({ restaurant, cart, subtotalBase, qrToken, on
                       </p>
                     )}
                     {step === 'summary' ? (
-                      <TextureButton
-                        variant="brand"
-                        size="default"
-                        onClick={() => setStep(qrToken ? 'checkout' : 'modeChoice')}
-                        disabled={(qrToken !== null && sessionOpen === null) || (qrToken !== null && multipleAccounts)}
-                        className="mt-2 disabled:opacity-50"
-                      >
-                        {qrToken ? 'Ordenar' : 'Pagar'}
-                      </TextureButton>
+                      <>
+                        {suggestions.length > 0 && (
+                          <div className="mt-3 pt-3 border-t border-brand-950/10">
+                            <p className="text-xs font-medium text-brand-950/60 mb-2">¿Agregamos algo más?</p>
+                            <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                              {suggestions.map((p) => (
+                                <button
+                                  key={p.id}
+                                  type="button"
+                                  onClick={() => onAddSuggestion(p)}
+                                  className="shrink-0 w-24 text-left rounded-xl border border-brand-950/10 bg-white p-1.5 hover:border-brand-500/40 transition-colors"
+                                >
+                                  {p.photoUrl ? (
+                                    <img src={p.photoUrl} alt="" className="h-14 w-full object-cover rounded-lg mb-1.5" />
+                                  ) : (
+                                    <div className="h-14 w-full rounded-lg mb-1.5 bg-gradient-to-br from-brand-400/20 to-brand-500/10 flex items-center justify-center text-lg">
+                                      🍽️
+                                    </div>
+                                  )}
+                                  <p className="text-[11px] font-medium text-brand-950 line-clamp-1">{p.name}</p>
+                                  <p className="text-[11px] text-brand-500 font-semibold">
+                                    + {publicPriceLabel(p.price, restaurant).primary}
+                                  </p>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        <TextureButton
+                          variant="brand"
+                          size="default"
+                          onClick={() => setStep(qrToken ? 'checkout' : 'modeChoice')}
+                          disabled={(qrToken !== null && sessionOpen === null) || (qrToken !== null && multipleAccounts)}
+                          className="mt-2 disabled:opacity-50"
+                        >
+                          {qrToken ? 'Ordenar' : 'Pagar'}
+                        </TextureButton>
+                      </>
                     ) : step === 'modeChoice' ? (
                       <div className="space-y-2 mt-2">
                         <button
