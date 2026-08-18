@@ -118,14 +118,19 @@ export async function resolveCustomerChoiceCostPerUnit(
   categoryId: string,
   modifierId?: string | null,
 ): Promise<Prisma.Decimal> {
-  // Topping concreto: su costo es exactamente el del insumo vinculado a ese modificador.
+  // Topping concreto: su costo es exactamente el del insumo/preparación vinculado a ese modificador.
   const modifiers = await tx.modifier.findMany({
-    where: { restaurantId, categoryId, inventoryItemId: { not: null }, ...(modifierId ? { id: modifierId } : {}) },
-    select: { inventoryItemId: true },
+    where: {
+      restaurantId,
+      categoryId,
+      OR: [{ inventoryItemId: { not: null } }, { preparationId: { not: null } }],
+      ...(modifierId ? { id: modifierId } : {}),
+    },
+    select: { inventoryItemId: true, preparationId: true },
   });
   if (modifiers.length === 0) return toDecimal(0);
   const total = modifiers.reduce(
-    (acc, m) => acc.add(resolveCostPerBaseUnit(graph, { inventoryItemId: m.inventoryItemId })),
+    (acc, m) => acc.add(resolveCostPerBaseUnit(graph, { inventoryItemId: m.inventoryItemId, preparationId: m.preparationId })),
     toDecimal(0),
   );
   return total.div(modifiers.length);

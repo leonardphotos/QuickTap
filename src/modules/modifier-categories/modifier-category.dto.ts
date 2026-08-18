@@ -21,7 +21,7 @@ export const updateProductLinkSchema = z.object({
   maxSelectionsOverride: z.coerce.number().int().positive().nullable().optional(),
 });
 
-export const createModifierSchema = z.object({
+const modifierBaseSchema = z.object({
   name: z.string().min(1, 'El nombre es obligatorio.').max(120),
   priceBase: z.coerce.number().nonnegative().optional().default(0),
   costBase: z.coerce.number().nonnegative().optional(),
@@ -32,15 +32,22 @@ export const createModifierSchema = z.object({
   // Código interno opcional (back-office). Nunca se expone en el menú público.
   sku: z.string().max(60).nullable().optional(),
   priority: z.coerce.number().int().optional().default(0),
-  // Vínculo con inventario: insumo que consume este modificador al venderse.
-  // `inventoryQuantity` llega YA convertida a la unidad base del insumo
-  // (kg/lt/unidad) — el formulario permite cargarla en gr/ml y la convierte.
-  // null en cualquiera de las dos = sin vínculo (no descuenta nada).
+  // Vínculo con inventario: insumo O preparación que consume este modificador al venderse
+  // (nunca ambos). `inventoryQuantity` llega YA convertida a la unidad base del insumo/
+  // preparación (kg/lt/unidad) — el formulario permite cargarla en gr/ml y la convierte.
+  // Sin insumo/preparación, o sin cantidad = sin vínculo (no descuenta nada).
   inventoryItemId: z.string().min(1).nullable().optional(),
+  preparationId: z.string().min(1).nullable().optional(),
   inventoryQuantity: z.coerce.number().positive().nullable().optional(),
 });
 
-export const updateModifierSchema = createModifierSchema.partial();
+const noDoubleLink = (v: { inventoryItemId?: string | null; preparationId?: string | null }) =>
+  !(v.inventoryItemId && v.preparationId);
+const NO_DOUBLE_LINK_MESSAGE = { message: 'Elige un insumo o una preparación, no ambos.' };
+
+export const createModifierSchema = modifierBaseSchema.refine(noDoubleLink, NO_DOUBLE_LINK_MESSAGE);
+
+export const updateModifierSchema = modifierBaseSchema.partial().refine(noDoubleLink, NO_DOUBLE_LINK_MESSAGE);
 
 export const associateProductSchema = z.object({
   productId: z.string().min(1),

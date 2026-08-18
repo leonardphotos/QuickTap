@@ -24,10 +24,11 @@ export const modifierCategoryService = {
       include: {
         modifiers: {
           orderBy: [{ priority: 'asc' }, { name: 'asc' }],
-          // Nombre y unidad del insumo vinculado, para que el editor muestre
+          // Nombre y unidad del insumo/preparación vinculado, para que el editor muestre
           // "30 gr de Queso" sin tener que cruzar listas en el frontend.
           include: {
             inventoryItem: { select: { id: true, name: true, unit: true } },
+            preparation: { select: { id: true, name: true, unit: true } },
             variantPrices: { select: { variantId: true, priceBase: true } },
           },
         },
@@ -54,11 +55,14 @@ export const modifierCategoryService = {
         sku: m.sku,
         priority: m.priority,
         inventoryItemId: m.inventoryItemId,
-        // En la unidad base del insumo (kg/lt/unidad). El editor la muestra en
-        // gr/ml cuando conviene, usando `inventoryItemUnit`.
+        preparationId: m.preparationId,
+        // En la unidad base del insumo/preparación (kg/lt/unidad). El editor la muestra en
+        // gr/ml cuando conviene, usando `inventoryItemUnit`/`preparationUnit`.
         inventoryQuantity: m.inventoryQuantity?.toString() ?? null,
         inventoryItemName: m.inventoryItem?.name ?? null,
         inventoryItemUnit: m.inventoryItem?.unit ?? null,
+        preparationName: m.preparation?.name ?? null,
+        preparationUnit: m.preparation?.unit ?? null,
         // Precios propios por variante (ej. "Extra queso" en Pizza Grande vs. Pequeña).
         // Vacío = usa priceBase de arriba sin importar la variante elegida.
         variantPrices: m.variantPrices.map((vp) => ({ variantId: vp.variantId, priceBase: vp.priceBase.toFixed(2) })),
@@ -121,6 +125,7 @@ export const modifierCategoryService = {
             sku: m.sku,
             priority: m.priority,
             inventoryItemId: m.inventoryItemId,
+            preparationId: m.preparationId,
             inventoryQuantity: m.inventoryQuantity,
           },
         });
@@ -158,16 +163,17 @@ export const modifierCategoryService = {
   },
 
   /**
-   * El insumo vinculado tiene que ser de ESTE restaurante (aislamiento
-   * multi-tenant: nadie puede apuntar al inventario de otro), y el vínculo solo
-   * tiene sentido completo — insumo sin cantidad no descontaría nada, y una
-   * cantidad sin insumo no sabe de dónde descontar.
+   * El insumo o preparación vinculado tiene que ser de ESTE restaurante (aislamiento
+   * multi-tenant: nadie puede apuntar al inventario de otro), y el vínculo solo tiene
+   * sentido completo — insumo/preparación sin cantidad no descontaría nada, y una
+   * cantidad sin insumo/preparación no sabe de dónde descontar. Nunca ambos a la vez
+   * (ya lo valida el DTO, esto es la segunda capa de defensa del service).
    */
   async assertInventoryLinkValid(
     restaurantId: string,
-    input: { inventoryItemId?: string | null; inventoryQuantity?: number | null },
+    input: { inventoryItemId?: string | null; preparationId?: string | null; inventoryQuantity?: number | null },
   ) {
-    if (input.inventoryItemId == null && input.inventoryQuantity == null) return;
+    if (input.inventoryItemId == null && input.preparationId == null && input.inventoryQuantity == null) return;
 
     if (input.inventoryItemId) {
       const item = await prisma.inventoryItem.findFirst({
@@ -178,8 +184,17 @@ export const modifierCategoryService = {
       if (input.inventoryQuantity == null || input.inventoryQuantity <= 0) {
         throw badRequest('Indica cuánto del insumo consume este modificador.');
       }
+    } else if (input.preparationId) {
+      const preparation = await prisma.preparation.findFirst({
+        where: { id: input.preparationId, restaurantId },
+        select: { id: true },
+      });
+      if (!preparation) throw notFound('La preparación seleccionada no existe en este restaurante.');
+      if (input.inventoryQuantity == null || input.inventoryQuantity <= 0) {
+        throw badRequest('Indica cuánto de la preparación consume este modificador.');
+      }
     } else if (input.inventoryQuantity != null) {
-      throw badRequest('Elige el insumo que consume este modificador.');
+      throw badRequest('Elige el insumo o la preparación que consume este modificador.');
     }
   },
 

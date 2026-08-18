@@ -29,7 +29,7 @@ import { tableSessionService } from '../table-sessions/table-session.service';
 import { fiscalInvoicingService } from '../fiscal-invoicing/fiscal-invoicing.service';
 import { writeFiscalAudit } from '../fiscal-invoicing/fiscal-invoicing.audit';
 import { customerService } from '../customers/customer.service';
-import { buildCostGraph, resolveConsumedInventoryItems } from '../inventory/costing';
+import { buildCostGraph, resolveConsumedInventoryItems, type CostGraph } from '../inventory/costing';
 import {
   AddOrderItemInput,
   CartItemInput,
@@ -368,7 +368,7 @@ function sumQuantityByProductVariant(items: { productId: string | null; variantN
  * `productVariantId` solo cuenta las unidades vendidas de ESE tamaño; sin variante, cuenta
  * todas las unidades del producto sin importar el tamaño. */
 async function resolveRecipeInventoryDeltas(
-  restaurantId: string,
+  graph: CostGraph,
   recipeLines: {
     productId: string;
     inventoryItemId: string | null;
@@ -380,7 +380,6 @@ async function resolveRecipeInventoryDeltas(
   qtyByProduct: Map<string, number>,
   qtyByProductVariant: Map<string, number>,
 ): Promise<Map<string, Prisma.Decimal>> {
-  const graph = await buildCostGraph(prisma, restaurantId);
   const acc = new Map<string, Prisma.Decimal>();
   for (const line of recipeLines) {
     const soldQty = line.productVariantId
@@ -415,10 +414,11 @@ async function computeRecipeStockDeltas(restaurantId: string, items: RecipeStock
   });
   if (recipeLines.length === 0) return new Map();
 
+  const graph = await buildCostGraph(prisma, restaurantId);
   const qtyByProduct = sumQuantityByProduct(items);
   const qtyByProductVariant = sumQuantityByProductVariant(items);
   const fixedLines = recipeLines.filter((l) => !l.customerChoiceModifierCategoryId);
-  const deltas = await resolveRecipeInventoryDeltas(restaurantId, fixedLines, qtyByProduct, qtyByProductVariant);
+  const deltas = await resolveRecipeInventoryDeltas(graph, fixedLines, qtyByProduct, qtyByProductVariant);
 
   const customerChoiceLines = recipeLines.filter((l) => l.customerChoiceModifierCategoryId);
   if (customerChoiceLines.length > 0) {
@@ -427,8 +427,8 @@ async function computeRecipeStockDeltas(restaurantId: string, items: RecipeStock
     ];
     const modifiers = modifierIds.length
       ? await prisma.modifier.findMany({
-          where: { id: { in: modifierIds }, restaurantId, inventoryItemId: { not: null } },
-          select: { id: true, categoryId: true, inventoryItemId: true },
+          where: { id: { in: modifierIds }, restaurantId, OR: [{ inventoryItemId: { not: null } }, { preparationId: { not: null } }] },
+          select: { id: true, categoryId: true, inventoryItemId: true, preparationId: true },
         })
       : [];
     const modifierById = new Map(modifiers.map((m) => [m.id, m]));
@@ -442,7 +442,7 @@ async function computeRecipeStockDeltas(restaurantId: string, items: RecipeStock
       for (const chosen of item.modifiers) {
         if (!chosen.modifierId) continue;
         const mod = modifierById.get(chosen.modifierId);
-        if (!mod?.inventoryItemId) continue;
+        if (!mod || (!mod.inventoryItemId && !mod.preparationId)) continue;
         // La porción propia del topping ("Queso → 100 gr") le gana a la genérica de su categoría
         // ("cualquiera → 60 gr"); la genérica solo aplica a los toppings sin porción propia. Y si
         // hay una línea para ESTE tamaño y otra para "todos", manda la del tamaño.
@@ -453,7 +453,7 @@ async function computeRecipeStockDeltas(restaurantId: string, items: RecipeStock
         const line = pool.find((l) => l.productVariantId != null) ?? pool[0];
         if (!line) continue;
         const used = toDecimal(line.quantity).mul(chosen.quantity).mul(item.quantity);
-        deltas.set(mod.inventoryItemId, (deltas.get(mod.inventoryItemId) ?? toDecimal(0)).add(used));
+        resolveConsumedInventoryItems(graph, { inventoryItemId: mod.inventoryItemId, preparationId: mod.preparationId }, used, deltas);
       }
     }
   }
@@ -553,27 +553,28 @@ async function deductModifierStock(
   if (modifierIds.length === 0) return;
 
   const modifiers = await prisma.modifier.findMany({
-    where: { id: { in: modifierIds }, restaurantId, inventoryItemId: { not: null } },
-    select: { id: true, categoryId: true, inventoryItemId: true, inventoryQuantity: true },
+    where: { id: { in: modifierIds }, restaurantId, OR: [{ inventoryItemId: { not: null } }, { preparationId: { not: null } }] },
+    select: { id: true, categoryId: true, inventoryItemId: true, preparationId: true, inventoryQuantity: true },
   });
   if (modifiers.length === 0) return;
   const byModifierId = new Map(modifiers.map((m) => [m.id, m]));
   const coveredByItem = await loadRecipeCoveredModifiersByItem(restaurantId, items);
+  const graph = await buildCostGraph(prisma, restaurantId);
 
   items.forEach((item, index) => {
     const covered = coveredByItem[index];
     for (const chosen of item.modifiers) {
       if (!chosen.modifierId) continue;
       const link = byModifierId.get(chosen.modifierId);
-      if (!link?.inventoryItemId || !link.inventoryQuantity) continue;
+      if (!link || (!link.inventoryItemId && !link.preparationId) || !link.inventoryQuantity) continue;
       // La receta de este producto ya resuelve este topping con sus propios gramos (ver
       // computeRecipeStockDeltas) — no descontar dos veces el mismo insumo.
       if (covered.has(chosen.modifierId)) continue;
 
-      // (consumo por unidad) x (veces elegido) x (unidades del producto vendidas)
+      // (consumo por unidad) x (veces elegido) x (unidades del producto vendidas) — si el
+      // vínculo es una preparación, se resuelve hasta sus insumos base (sin stock propio).
       const used = toDecimal(link.inventoryQuantity).mul(chosen.quantity).mul(item.quantity);
-      const prev = usedByInventoryItem.get(link.inventoryItemId) ?? toDecimal(0);
-      usedByInventoryItem.set(link.inventoryItemId, prev.add(used));
+      resolveConsumedInventoryItems(graph, { inventoryItemId: link.inventoryItemId, preparationId: link.preparationId }, used, usedByInventoryItem);
     }
   });
   if (usedByInventoryItem.size === 0) return;
@@ -699,23 +700,23 @@ async function restoreModifierStock(
   if (modifierIds.length === 0) return;
 
   const modifiers = await prisma.modifier.findMany({
-    where: { id: { in: modifierIds }, restaurantId, inventoryItemId: { not: null } },
-    select: { id: true, categoryId: true, inventoryItemId: true, inventoryQuantity: true },
+    where: { id: { in: modifierIds }, restaurantId, OR: [{ inventoryItemId: { not: null } }, { preparationId: { not: null } }] },
+    select: { id: true, categoryId: true, inventoryItemId: true, preparationId: true, inventoryQuantity: true },
   });
   if (modifiers.length === 0) return;
   const byModifierId = new Map(modifiers.map((m) => [m.id, m]));
   const coveredByItem = await loadRecipeCoveredModifiersByItem(restaurantId, items);
+  const graph = await buildCostGraph(prisma, restaurantId);
 
   items.forEach((item, index) => {
     const covered = coveredByItem[index];
     for (const chosen of item.modifiers) {
       if (!chosen.modifierId) continue;
       const link = byModifierId.get(chosen.modifierId);
-      if (!link?.inventoryItemId || !link.inventoryQuantity) continue;
+      if (!link || (!link.inventoryItemId && !link.preparationId) || !link.inventoryQuantity) continue;
       if (covered.has(chosen.modifierId)) continue;
       const used = toDecimal(link.inventoryQuantity).mul(chosen.quantity).mul(item.quantity);
-      const prev = usedByInventoryItem.get(link.inventoryItemId) ?? toDecimal(0);
-      usedByInventoryItem.set(link.inventoryItemId, prev.add(used));
+      resolveConsumedInventoryItems(graph, { inventoryItemId: link.inventoryItemId, preparationId: link.preparationId }, used, usedByInventoryItem);
     }
   });
 

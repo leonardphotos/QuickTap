@@ -178,13 +178,17 @@ export interface Modifier {
   /** Código interno opcional (back-office). Nunca viaja en el menú público. */
   sku?: string | null;
   priority?: number;
-  /** Insumo que consume este modificador al venderse (null = sin vínculo). */
+  /** Insumo que consume este modificador al venderse (null = sin vínculo). Exclusivo con preparationId. */
   inventoryItemId?: string | null;
-  /** Consumo en la unidad BASE del insumo (kg/lt/unidad), como string decimal. */
+  /** Preparación que consume este modificador al venderse (null = sin vínculo). Exclusivo con inventoryItemId. */
+  preparationId?: string | null;
+  /** Consumo en la unidad BASE del insumo/preparación (kg/lt/unidad), como string decimal. */
   inventoryQuantity?: string | null;
   /** Denormalizados por el backend para pintar "30 gr de Queso" sin cruzar listas. */
   inventoryItemName?: string | null;
   inventoryItemUnit?: string | null;
+  preparationName?: string | null;
+  preparationUnit?: string | null;
   /** Precio propio de este modificador para variantes puntuales del producto (ej. "Extra
    * queso" cuesta distinto en "Pizza Grande" que en "Pizza Pequeña"). Vacío/undefined = usa
    * `priceBase` de arriba sin importar la variante elegida — ver effectiveModifierPrice(). */

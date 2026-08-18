@@ -24,6 +24,27 @@ interface InsumoOption {
   unit: string;
   isTopping?: boolean;
 }
+
+/** Preparación (sub-receta) tal como la necesita el selector de vínculo de un modificador. */
+interface PreparationOption {
+  id: string;
+  name: string;
+  unit: string;
+}
+
+/** Selector combinado insumo/preparación del vínculo de inventario de un modificador:
+ * un solo <select> con value compuesto ("item:<id>" / "prep:<id>") en vez de dos
+ * selectores separados — mismo criterio que CostStructureCalculator. */
+function linkValueOf(inventoryItemId?: string | null, preparationId?: string | null): string {
+  if (inventoryItemId) return `item:${inventoryItemId}`;
+  if (preparationId) return `prep:${preparationId}`;
+  return '';
+}
+function decodeLinkValue(value: string): { inventoryItemId: string | null; preparationId: string | null } {
+  if (value.startsWith('item:')) return { inventoryItemId: value.slice(5), preparationId: null };
+  if (value.startsWith('prep:')) return { inventoryItemId: null, preparationId: value.slice(5) };
+  return { inventoryItemId: null, preparationId: null };
+}
 import { CURRENCY_SYMBOLS } from '@/utils/format';
 import type { ModifierCategory, Modifier } from '@/types';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -49,6 +70,11 @@ export function ModifierCategoriesDialog({ open, onOpenChange }: Props) {
   const [openCategoryId, setOpenCategoryId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
+  // Id de la categoría que se está duplicando ahora mismo (deshabilita su botón mientras
+  // corre) y último error de duplicar, si lo hubo — sin esto, un fallo (red, sesión vencida,
+  // etc.) quedaba completamente silencioso: el botón no hacía nada visible.
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [duplicateError, setDuplicateError] = useState<string | null>(null);
 
   function load() {
     api.get('/modifier-categories').then((res) => setCategories(res.data.data));
@@ -74,9 +100,18 @@ export function ModifierCategoriesDialog({ open, onOpenChange }: Props) {
   /** "Duplicar lista": copia la categoría completa (modificadores, vínculos a inventario, precios
    * por variante y productos asociados) y abre la copia para renombrarla. */
   async function duplicateCategory(id: string) {
-    const res = await api.post(`/modifier-categories/${id}/duplicate`);
-    load();
-    setOpenCategoryId(res.data.data.id);
+    if (duplicatingId) return;
+    setDuplicatingId(id);
+    setDuplicateError(null);
+    try {
+      const res = await api.post(`/modifier-categories/${id}/duplicate`);
+      load();
+      setOpenCategoryId(res.data.data.id);
+    } catch (err: any) {
+      setDuplicateError(err.response?.data?.error ?? 'No se pudo duplicar la lista. Intenta de nuevo.');
+    } finally {
+      setDuplicatingId(null);
+    }
   }
 
   const filtered = categories?.filter((c) => c.name.toLowerCase().includes(search.trim().toLowerCase())) ?? [];
@@ -95,6 +130,8 @@ export function ModifierCategoriesDialog({ open, onOpenChange }: Props) {
               load();
             }}
             onDuplicate={() => duplicateCategory(openCategory.id)}
+            duplicating={duplicatingId === openCategory.id}
+            duplicateError={duplicateError}
           />
         ) : (
           <>
@@ -144,6 +181,8 @@ export function ModifierCategoriesDialog({ open, onOpenChange }: Props) {
                 />
               </div>
 
+              {duplicateError && <p className="text-xs text-red-600">{duplicateError}</p>}
+
               <div className="rounded-2xl border border-brand-950/10 divide-y divide-brand-950/10 max-h-96 overflow-y-auto">
                 {filtered.length === 0 && (
                   <p className="p-5 text-center text-sm text-brand-950/40 font-light">Sin categorías todavía.</p>
@@ -167,11 +206,12 @@ export function ModifierCategoriesDialog({ open, onOpenChange }: Props) {
                     <button
                       type="button"
                       onClick={() => duplicateCategory(c.id)}
+                      disabled={duplicatingId === c.id}
                       title="Duplicar esta lista de modificadores"
                       aria-label={`Duplicar ${c.name}`}
-                      className="shrink-0 rounded-full p-1.5 text-brand-950/40 hover:bg-brand-500/10 hover:text-brand-500"
+                      className="shrink-0 rounded-full p-1.5 text-brand-950/40 hover:bg-brand-500/10 hover:text-brand-500 disabled:opacity-40"
                     >
-                      <Copy className="h-4 w-4" />
+                      <Copy className={`h-4 w-4 ${duplicatingId === c.id ? 'animate-pulse' : ''}`} />
                     </button>
                   </div>
                 ))}
@@ -204,12 +244,16 @@ function CategoryEditor({
   onChanged,
   onDeleted,
   onDuplicate,
+  duplicating,
+  duplicateError,
 }: {
   category: ModifierCategory;
   onBack: () => void;
   onChanged: () => void;
   onDeleted: () => void;
   onDuplicate: () => void;
+  duplicating: boolean;
+  duplicateError: string | null;
 }) {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
@@ -217,9 +261,10 @@ function CategoryEditor({
   const [maxSelections, setMaxSelectionsInput] = useState(category.maxSelections?.toString() ?? '');
   const [minSelections, setMinSelectionsInput] = useState(category.minSelections?.toString() ?? '');
   const [unlimitedMax, setUnlimitedMax] = useState(category.maxSelections == null);
-  // Insumos para el selector de vínculo de cada modificador. Se cargan una vez
-  // por editor abierto y se comparten entre todas las filas.
+  // Insumos y preparaciones para el selector de vínculo de cada modificador. Se cargan
+  // una vez por editor abierto y se comparten entre todas las filas.
   const [insumos, setInsumos] = useState<InsumoOption[]>([]);
+  const [preparations, setPreparations] = useState<PreparationOption[]>([]);
   const linkEnabled = !!restaurant?.modifierInventoryLinkEnabled;
   const [allProducts, setAllProducts] = useState<VariantProductOption[] | null>(null);
   const [linkedProducts, setLinkedProducts] = useState<LinkedProduct[] | null>(null);
@@ -254,6 +299,12 @@ function CategoryEditor({
       .get('/inventory')
       .then((res) => setInsumos(res.data.data))
       .catch(() => setInsumos([]));
+    // 403 si el plan no incluye Recetas/Preparaciones — sin preparaciones cargadas
+    // simplemente no aparecen en el selector, el vínculo por insumo sigue igual.
+    api
+      .get('/inventory/preparations')
+      .then((res) => setPreparations(res.data.data))
+      .catch(() => setPreparations([]));
   }, []);
 
   async function saveName() {
@@ -398,8 +449,8 @@ function CategoryEditor({
             <MoreVertical className="h-4 w-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={onDuplicate}>
-              <Copy className="h-3.5 w-3.5" /> Duplicar lista
+            <DropdownMenuItem onSelect={onDuplicate} disabled={duplicating}>
+              <Copy className="h-3.5 w-3.5" /> {duplicating ? 'Duplicando…' : 'Duplicar lista'}
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={removeCategory} className="text-red-600 focus:bg-red-50 focus:text-red-600">
               <Trash2 className="h-3.5 w-3.5" /> Eliminar categoría
@@ -409,6 +460,7 @@ function CategoryEditor({
       </DialogHeader>
 
       <div className="space-y-4 max-h-[70vh] overflow-y-auto pt-2">
+        {duplicateError && <p className="text-xs text-red-600">{duplicateError}</p>}
         <OutlinedField label="Categoría" hint={`${name.length}/150`}>
           <input
             value={name}
@@ -529,6 +581,7 @@ function CategoryEditor({
                 onMoveDown={() => moveModifier(index, 1)}
                 onChanged={onChanged}
                 insumos={insumos}
+                preparations={preparations}
                 linkEnabled={linkEnabled}
                 variantProducts={variantProducts}
               />
@@ -616,6 +669,7 @@ function ModifierRow({
   onMoveDown,
   onChanged,
   insumos,
+  preparations,
   linkEnabled,
   variantProducts,
 }: {
@@ -629,6 +683,7 @@ function ModifierRow({
   onMoveDown: () => void;
   onChanged: () => void;
   insumos: InsumoOption[];
+  preparations: PreparationOption[];
   linkEnabled: boolean;
   variantProducts: VariantProductOption[];
 }) {
@@ -647,11 +702,14 @@ function ModifierRow({
   const [showVariantPrices, setShowVariantPrices] = useState((modifier.variantPrices?.length ?? 0) > 0);
   const [variantPriceInputs, setVariantPriceInputs] = useState<Record<string, string>>({});
 
-  // --- Vínculo con inventario ---
-  const [showInsumo, setShowInsumo] = useState(!!modifier.inventoryItemId);
-  const [insumoId, setInsumoId] = useState(modifier.inventoryItemId ?? '');
+  // --- Vínculo con inventario: insumo O preparación, nunca ambos. El selector combina las
+  // dos listas con un value compuesto ("item:<id>" / "prep:<id>") — ver linkValueOf/decodeLinkValue. ---
+  const [showInsumo, setShowInsumo] = useState(!!modifier.inventoryItemId || !!modifier.preparationId);
+  const [linkValue, setLinkValue] = useState(linkValueOf(modifier.inventoryItemId, modifier.preparationId));
+  const { inventoryItemId: insumoId, preparationId } = decodeLinkValue(linkValue);
   const linkedInsumo = insumos.find((i) => i.id === insumoId);
-  const insumoSubUnits = subUnitsFor(linkedInsumo?.unit ?? modifier.inventoryItemUnit);
+  const linkedPreparation = preparations.find((p) => p.id === preparationId);
+  const insumoSubUnits = subUnitsFor(linkedInsumo?.unit ?? linkedPreparation?.unit ?? modifier.inventoryItemUnit ?? modifier.preparationUnit);
   const [subUnit, setSubUnit] = useState(insumoSubUnits[0]?.value ?? '');
   const [insumoQty, setInsumoQty] = useState('');
 
@@ -662,11 +720,11 @@ function ModifierRow({
     setCost(modifier.costBase ?? '');
     setDiscount(modifier.discountBase ?? '');
     setSku(modifier.sku ?? '');
-    setShowInsumo(!!modifier.inventoryItemId);
-    setInsumoId(modifier.inventoryItemId ?? '');
+    setShowInsumo(!!modifier.inventoryItemId || !!modifier.preparationId);
+    setLinkValue(linkValueOf(modifier.inventoryItemId, modifier.preparationId));
     // La cantidad guardada está en unidad base; se muestra en la sub-unidad más
     // legible (0.03 kg -> 30 en Gr) para que el usuario vea lo que escribió.
-    const options = subUnitsFor(modifier.inventoryItemUnit);
+    const options = subUnitsFor(modifier.inventoryItemUnit ?? modifier.preparationUnit);
     const base = Number(modifier.inventoryQuantity ?? 0);
     const small = options.find((o) => o.toBase < 1);
     if (base > 0 && small && base < 1) {
@@ -695,19 +753,21 @@ function ModifierRow({
     onChanged();
   }
 
-  /** Guarda el vínculo convirtiendo la cantidad a la unidad base del insumo. */
+  /** Guarda el vínculo convirtiendo la cantidad a la unidad base del insumo/preparación. */
   async function saveInsumoLink() {
     const factor = insumoSubUnits.find((u) => u.value === subUnit)?.toBase ?? 1;
     const baseQuantity = Number(insumoQty) * factor;
-    if (!insumoId || !(baseQuantity > 0)) return;
-    await save({ inventoryItemId: insumoId, inventoryQuantity: baseQuantity });
+    if ((!insumoId && !preparationId) || !(baseQuantity > 0)) return;
+    await save({ inventoryItemId: insumoId, preparationId, inventoryQuantity: baseQuantity });
   }
 
   async function clearInsumo() {
     setShowInsumo(false);
-    setInsumoId('');
+    setLinkValue('');
     setInsumoQty('');
-    if (modifier.inventoryItemId) await save({ inventoryItemId: null, inventoryQuantity: null });
+    if (modifier.inventoryItemId || modifier.preparationId) {
+      await save({ inventoryItemId: null, preparationId: null, inventoryQuantity: null });
+    }
   }
 
   async function save(patch: Record<string, unknown>) {
@@ -939,31 +999,47 @@ function ModifierRow({
                   Quitar
                 </button>
               </div>
-              {insumos.length === 0 ? (
+              {insumos.length === 0 && preparations.length === 0 ? (
                 <p className="text-xs text-brand-950/40 font-light">
-                  Todavía no tienes insumos cargados. Agrégalos en Inventario → Insumos.
+                  Todavía no tienes insumos ni preparaciones cargados. Agrégalos en Inventario.
                 </p>
               ) : (
                 <>
-                  <OutlinedField label="Insumo">
+                  <OutlinedField label="Insumo o preparación">
                     <select
-                      value={insumoId}
+                      value={linkValue}
                       onChange={(e) => {
                         const next = e.target.value;
-                        setInsumoId(next);
-                        // Al cambiar de insumo, la sub-unidad por defecto es la
-                        // de ese insumo (kg -> Kg, lt -> Lt, unidad -> Unidad).
-                        const item = insumos.find((i) => i.id === next);
-                        setSubUnit(subUnitsFor(item?.unit)[0]?.value ?? '');
+                        setLinkValue(next);
+                        // Al cambiar de insumo/preparación, la sub-unidad por defecto es la
+                        // suya (kg -> Kg, lt -> Lt, unidad -> Unidad).
+                        const { inventoryItemId: nextItemId, preparationId: nextPrepId } = decodeLinkValue(next);
+                        const unit = nextItemId
+                          ? insumos.find((i) => i.id === nextItemId)?.unit
+                          : preparations.find((p) => p.id === nextPrepId)?.unit;
+                        setSubUnit(subUnitsFor(unit)[0]?.value ?? '');
                       }}
                       className={outlinedFieldInputClass}
                     >
-                      <option value="">Elegir insumo…</option>
-                      {insumos.map((i) => (
-                        <option key={i.id} value={i.id}>
-                          {i.name} ({UNIT_LABELS[i.unit] ?? i.unit})
-                        </option>
-                      ))}
+                      <option value="">Elegir insumo o preparación…</option>
+                      {insumos.length > 0 && (
+                        <optgroup label="Insumos">
+                          {insumos.map((i) => (
+                            <option key={`item:${i.id}`} value={`item:${i.id}`}>
+                              {i.name} ({UNIT_LABELS[i.unit] ?? i.unit})
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {preparations.length > 0 && (
+                        <optgroup label="Preparaciones">
+                          {preparations.map((p) => (
+                            <option key={`prep:${p.id}`} value={`prep:${p.id}`}>
+                              {p.name} ({UNIT_LABELS[p.unit] ?? p.unit})
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
                     </select>
                   </OutlinedField>
                   <div className="flex gap-1.5">
@@ -988,15 +1064,16 @@ function ModifierRow({
                   <button
                     type="button"
                     onClick={saveInsumoLink}
-                    disabled={!insumoId || !insumoQty}
+                    disabled={!linkValue || !insumoQty}
                     className="w-full rounded-lg bg-brand-500 text-white text-xs font-semibold py-2 disabled:opacity-40"
                   >
                     Guardar vínculo
                   </button>
-                  {modifier.inventoryItemName && (
+                  {(modifier.inventoryItemName || modifier.preparationName) && (
                     <p className="text-xs text-emerald-600">
-                      Descontando {formatBaseQuantity(Number(modifier.inventoryQuantity ?? 0), modifier.inventoryItemUnit)}{' '}
-                      de {modifier.inventoryItemName} por cada unidad vendida.
+                      Descontando{' '}
+                      {formatBaseQuantity(Number(modifier.inventoryQuantity ?? 0), modifier.inventoryItemUnit ?? modifier.preparationUnit)}{' '}
+                      de {modifier.inventoryItemName ?? modifier.preparationName} por cada unidad vendida.
                     </p>
                   )}
                 </>
