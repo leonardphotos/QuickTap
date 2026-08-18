@@ -71,6 +71,14 @@ export function ModifierCategoriesDialog({ open, onOpenChange }: Props) {
     setOpenCategoryId(res.data.data.id);
   }
 
+  /** "Duplicar lista": copia la categoría completa (modificadores, vínculos a inventario, precios
+   * por variante y productos asociados) y abre la copia para renombrarla. */
+  async function duplicateCategory(id: string) {
+    const res = await api.post(`/modifier-categories/${id}/duplicate`);
+    load();
+    setOpenCategoryId(res.data.data.id);
+  }
+
   const filtered = categories?.filter((c) => c.name.toLowerCase().includes(search.trim().toLowerCase())) ?? [];
   const openCategory = categories?.find((c) => c.id === openCategoryId) ?? null;
 
@@ -86,6 +94,7 @@ export function ModifierCategoriesDialog({ open, onOpenChange }: Props) {
               setOpenCategoryId(null);
               load();
             }}
+            onDuplicate={() => duplicateCategory(openCategory.id)}
           />
         ) : (
           <>
@@ -140,21 +149,31 @@ export function ModifierCategoriesDialog({ open, onOpenChange }: Props) {
                   <p className="p-5 text-center text-sm text-brand-950/40 font-light">Sin categorías todavía.</p>
                 )}
                 {filtered.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setOpenCategoryId(c.id)}
-                    className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-brand-950/[0.02] transition-colors"
-                  >
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium text-brand-950 truncate">{c.name}</p>
-                      <p className="text-xs text-brand-950/40">
-                        {c.modifiers.length} modificador{c.modifiers.length === 1 ? '' : 'es'}
-                        {c.isRequired ? ' · Obligatorio' : ' · Opcional'}
-                        {c.productCount != null && ` · ${c.productCount} producto${c.productCount === 1 ? '' : 's'}`}
-                      </p>
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-brand-950/30 shrink-0" />
-                  </button>
+                  <div key={c.id} className="flex items-center gap-1 pr-2 hover:bg-brand-950/[0.02] transition-colors">
+                    <button
+                      onClick={() => setOpenCategoryId(c.id)}
+                      className="flex-1 min-w-0 flex items-center justify-between gap-3 px-4 py-3 text-left"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-brand-950 truncate">{c.name}</p>
+                        <p className="text-xs text-brand-950/40">
+                          {c.modifiers.length} modificador{c.modifiers.length === 1 ? '' : 'es'}
+                          {c.isRequired ? ' · Obligatorio' : ' · Opcional'}
+                          {c.productCount != null && ` · ${c.productCount} producto${c.productCount === 1 ? '' : 's'}`}
+                        </p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-brand-950/30 shrink-0" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => duplicateCategory(c.id)}
+                      title="Duplicar esta lista de modificadores"
+                      aria-label={`Duplicar ${c.name}`}
+                      className="shrink-0 rounded-full p-1.5 text-brand-950/40 hover:bg-brand-500/10 hover:text-brand-500"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -184,11 +203,13 @@ function CategoryEditor({
   onBack,
   onChanged,
   onDeleted,
+  onDuplicate,
 }: {
   category: ModifierCategory;
   onBack: () => void;
   onChanged: () => void;
   onDeleted: () => void;
+  onDuplicate: () => void;
 }) {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
@@ -377,6 +398,9 @@ function CategoryEditor({
             <MoreVertical className="h-4 w-4" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={onDuplicate}>
+              <Copy className="h-3.5 w-3.5" /> Duplicar lista
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={removeCategory} className="text-red-600 focus:bg-red-50 focus:text-red-600">
               <Trash2 className="h-3.5 w-3.5" /> Eliminar categoría
             </DropdownMenuItem>

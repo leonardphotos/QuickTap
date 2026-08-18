@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { OrderChannel, Prisma } from '@prisma/client';
+import { OrderChannel, PaymentMethod, Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, conflict, forbidden, notFound } from '../../utils/http-error';
 import { ADMIN_CASHIER_ROLES } from '../../utils/roles';
@@ -439,14 +439,21 @@ async function computeRecipeStockDeltas(restaurantId: string, items: RecipeStock
         (l) => l.productId === item.productId && (l.productVariantId == null || l.productVariant?.name === item.variantName),
       );
       if (applicableLines.length === 0) continue;
-      for (const line of applicableLines) {
-        for (const chosen of item.modifiers) {
-          if (!chosen.modifierId) continue;
-          const mod = modifierById.get(chosen.modifierId);
-          if (!mod || mod.categoryId !== line.customerChoiceModifierCategoryId || !mod.inventoryItemId) continue;
-          const used = toDecimal(line.quantity).mul(chosen.quantity).mul(item.quantity);
-          deltas.set(mod.inventoryItemId, (deltas.get(mod.inventoryItemId) ?? toDecimal(0)).add(used));
-        }
+      for (const chosen of item.modifiers) {
+        if (!chosen.modifierId) continue;
+        const mod = modifierById.get(chosen.modifierId);
+        if (!mod?.inventoryItemId) continue;
+        // La porción propia del topping ("Queso → 100 gr") le gana a la genérica de su categoría
+        // ("cualquiera → 60 gr"); la genérica solo aplica a los toppings sin porción propia. Y si
+        // hay una línea para ESTE tamaño y otra para "todos", manda la del tamaño.
+        const ofCategory = applicableLines.filter((l) => l.customerChoiceModifierCategoryId === mod.categoryId);
+        const specific = ofCategory.filter((l) => l.customerChoiceModifierId === mod.id);
+        const generic = ofCategory.filter((l) => !l.customerChoiceModifierId);
+        const pool = specific.length ? specific : generic;
+        const line = pool.find((l) => l.productVariantId != null) ?? pool[0];
+        if (!line) continue;
+        const used = toDecimal(line.quantity).mul(chosen.quantity).mul(item.quantity);
+        deltas.set(mod.inventoryItemId, (deltas.get(mod.inventoryItemId) ?? toDecimal(0)).add(used));
       }
     }
   }
@@ -454,14 +461,16 @@ async function computeRecipeStockDeltas(restaurantId: string, items: RecipeStock
   return deltas;
 }
 
-/** Categorías de modificadores que la receta de CADA ítem vendido ya resuelve por sí misma
- * ("A elección del cliente", ver computeRecipeStockDeltas) — deductModifierStock/
- * restoreModifierStock no deben volver a tocar esos mismos modificadores con su propia
- * cantidad configurada, porque el gramaje de la receta ya se aplicó (evita descontar dos veces
- * el mismo insumo). Devuelve, por índice de `items`, el set de categoryId a excluir. */
-async function loadCustomerChoiceCategoriesByItem(
+/** Modificadores (por ítem vendido) cuya porción YA la resolvió la receta ("A elección del
+ * cliente", ver computeRecipeStockDeltas) — deductModifierStock/restoreModifierStock no deben
+ * volver a tocarlos con su propia cantidad configurada (evita descontar dos veces el mismo
+ * insumo). Cubierto = tiene línea propia ("Queso → 100 gr") o una genérica de su categoría
+ * ("cualquiera → 60 gr") aplicable a ese tamaño. Un topping de una categoría que en la receta
+ * SOLO tiene porciones para OTROS toppings no está cubierto: para ese sigue mandando la cantidad
+ * del propio modificador. Devuelve, por índice de `items`, el set de modifierId cubiertos. */
+async function loadRecipeCoveredModifiersByItem(
   restaurantId: string,
-  items: { productId: string | null; variantName: string | null }[],
+  items: { productId: string | null; variantName: string | null; modifiers: { modifierId: string | null }[] }[],
 ): Promise<Set<string>[]> {
   const productIds = items.map((i) => i.productId).filter((id): id is string => Boolean(id));
   if (productIds.length === 0) return items.map(() => new Set<string>());
@@ -470,12 +479,24 @@ async function loadCustomerChoiceCategoriesByItem(
     include: { productVariant: { select: { name: true } } },
   });
   if (lines.length === 0) return items.map(() => new Set<string>());
+  const modifierIds = [...new Set(items.flatMap((i) => i.modifiers.map((m) => m.modifierId).filter((id): id is string => Boolean(id))))];
+  const modifiers = modifierIds.length
+    ? await prisma.modifier.findMany({ where: { id: { in: modifierIds }, restaurantId }, select: { id: true, categoryId: true } })
+    : [];
+  const categoryByModifier = new Map(modifiers.map((m) => [m.id, m.categoryId]));
   return items.map((item) => {
     const set = new Set<string>();
-    for (const line of lines) {
-      if (line.productId !== item.productId) continue;
-      if (line.productVariantId != null && line.productVariant?.name !== item.variantName) continue;
-      if (line.customerChoiceModifierCategoryId) set.add(line.customerChoiceModifierCategoryId);
+    const applicable = lines.filter(
+      (l) => l.productId === item.productId && (l.productVariantId == null || l.productVariant?.name === item.variantName),
+    );
+    for (const chosen of item.modifiers) {
+      if (!chosen.modifierId) continue;
+      const categoryId = categoryByModifier.get(chosen.modifierId);
+      if (!categoryId) continue;
+      const covered = applicable.some(
+        (l) => l.customerChoiceModifierCategoryId === categoryId && (l.customerChoiceModifierId == null || l.customerChoiceModifierId === chosen.modifierId),
+      );
+      if (covered) set.add(chosen.modifierId);
     }
     return set;
   });
@@ -537,17 +558,17 @@ async function deductModifierStock(
   });
   if (modifiers.length === 0) return;
   const byModifierId = new Map(modifiers.map((m) => [m.id, m]));
-  const excludedCategoriesByItem = await loadCustomerChoiceCategoriesByItem(restaurantId, items);
+  const coveredByItem = await loadRecipeCoveredModifiersByItem(restaurantId, items);
 
   items.forEach((item, index) => {
-    const excluded = excludedCategoriesByItem[index];
+    const covered = coveredByItem[index];
     for (const chosen of item.modifiers) {
       if (!chosen.modifierId) continue;
       const link = byModifierId.get(chosen.modifierId);
       if (!link?.inventoryItemId || !link.inventoryQuantity) continue;
-      // La receta de este producto ya resuelve esta categoría con sus propios gramos (ver
+      // La receta de este producto ya resuelve este topping con sus propios gramos (ver
       // computeRecipeStockDeltas) — no descontar dos veces el mismo insumo.
-      if (excluded.has(link.categoryId)) continue;
+      if (covered.has(chosen.modifierId)) continue;
 
       // (consumo por unidad) x (veces elegido) x (unidades del producto vendidas)
       const used = toDecimal(link.inventoryQuantity).mul(chosen.quantity).mul(item.quantity);
@@ -683,15 +704,15 @@ async function restoreModifierStock(
   });
   if (modifiers.length === 0) return;
   const byModifierId = new Map(modifiers.map((m) => [m.id, m]));
-  const excludedCategoriesByItem = await loadCustomerChoiceCategoriesByItem(restaurantId, items);
+  const coveredByItem = await loadRecipeCoveredModifiersByItem(restaurantId, items);
 
   items.forEach((item, index) => {
-    const excluded = excludedCategoriesByItem[index];
+    const covered = coveredByItem[index];
     for (const chosen of item.modifiers) {
       if (!chosen.modifierId) continue;
       const link = byModifierId.get(chosen.modifierId);
       if (!link?.inventoryItemId || !link.inventoryQuantity) continue;
-      if (excluded.has(link.categoryId)) continue;
+      if (covered.has(chosen.modifierId)) continue;
       const used = toDecimal(link.inventoryQuantity).mul(chosen.quantity).mul(item.quantity);
       const prev = usedByInventoryItem.get(link.inventoryItemId) ?? toDecimal(0);
       usedByInventoryItem.set(link.inventoryItemId, prev.add(used));
@@ -2152,6 +2173,20 @@ export const orderService = {
         throw badRequest('El ajuste de servicio no puede superar el cargo de servicio del pedido.');
       }
 
+      // Vuelto: lo que entregó el cliente menos lo que se le acredita. Nunca negativo (si dio
+      // menos de lo que se acredita, simplemente no hay vuelto y no se guarda nada de esto).
+      let amountReceivedBase: Prisma.Decimal | undefined;
+      let changeBase: Prisma.Decimal | undefined;
+      let changeMethod: PaymentMethod | undefined;
+      if (input.amountReceived != null) {
+        const received = round2(toDecimal(input.amountReceived));
+        if (received.gt(amountBase.add(0.001))) {
+          amountReceivedBase = received;
+          changeBase = round2(received.sub(amountBase));
+          changeMethod = input.changeMethod ?? input.method;
+        }
+      }
+
       await tx.orderPayment.create({
         data: {
           orderId,
@@ -2163,6 +2198,10 @@ export const orderService = {
           serviceChargeDiscountBase,
           referenceNumber: input.referenceNumber,
           proofImageUrl: input.proofImageUrl,
+          amountReceivedBase,
+          changeBase,
+          changeMethod,
+          changeReferenceNumber: changeBase ? input.changeReferenceNumber?.trim() || null : null,
         },
       });
 
@@ -2179,16 +2218,31 @@ export const orderService = {
       // Cuentas bancarias: el cobro suma a la cuenta vinculada al método. Solo lo COBRADO
       // (descuentos/ajustes condonan deuda, no mueven dinero). Para cuentas en Bs se usa la
       // tasa congelada del pedido — la misma que vio el cliente al pagar.
+      // Con vuelto por OTRO método (pagó en dólares, se le devolvió Bs por Pago Móvil): entra el
+      // efectivo completo a su cuenta y sale el vuelto de la cuenta del otro método — así ambas
+      // cuadran con lo que físicamente pasó. Vuelto en el mismo efectivo: neto, como siempre.
+      const changeViaOtherMethod = changeBase && changeMethod && changeMethod !== input.method;
       await bankLedgerService.applyMethodPayment(tx, {
         restaurantId,
         method: input.method,
         direction: 'CREDIT',
-        amountBase,
+        amountBase: changeViaOtherMethod ? amountReceivedBase! : amountBase,
         rateBs: order.exchangeRate,
         bankAccountId: input.bankAccountId,
         description: `Cobro pedido #${order.orderNumber}`,
         sourceRef: order.id,
       });
+      if (changeViaOtherMethod) {
+        await bankLedgerService.applyMethodPayment(tx, {
+          restaurantId,
+          method: changeMethod!,
+          direction: 'DEBIT',
+          amountBase: changeBase!,
+          rateBs: order.exchangeRate,
+          description: `Vuelto pedido #${order.orderNumber}`,
+          sourceRef: order.id,
+        });
+      }
 
       if (input.items?.length) {
         for (const picked of input.items) {

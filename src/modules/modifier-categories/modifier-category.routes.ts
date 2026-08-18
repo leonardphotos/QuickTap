@@ -11,6 +11,8 @@ router.get('/', modifierCategoryController.list);
 router.post('/', modifierCategoryController.create);
 router.patch('/:id', modifierCategoryController.update);
 router.delete('/:id', modifierCategoryController.remove);
+// "Duplicar lista": copia la categoría con todos sus modificadores y asociaciones.
+router.post('/:id/duplicate', modifierCategoryController.duplicate);
 
 router.post('/:id/modifiers', modifierCategoryController.createModifier);
 router.patch('/:id/modifiers/reorder', modifierCategoryController.reorderModifiers);

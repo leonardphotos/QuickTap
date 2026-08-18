@@ -981,6 +981,8 @@ model Modifier {
   // descontar) — borrar un insumo no puede tumbar el menú.
   inventoryItem InventoryItem?         @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
   variantPrices ModifierVariantPrice[]
+  // Líneas de receta "A elección del cliente" con porción propia para este topping.
+  recipeLines   RecipeIngredient[]
 
   @@index([restaurantId, categoryId])
   @@index([inventoryItemId])
@@ -1336,6 +1338,18 @@ model OrderPayment {
   // Foto del comprobante (Pago Móvil/Zelle/Binance/PayPal/Transferencia) — obligatoria para
   // esos métodos al cobrar desde el panel (ver METHODS_REQUIRING_PROOF en order.dto.ts).
   proofImageUrl                String?
+  // --- Vuelto (cambio) ---
+  // Cuánto entregó el cliente en efectivo cuando pagó de más (ej. dio $20 para un saldo de $18).
+  // Null = pagó exacto (o método no-efectivo). `amountBase` sigue siendo lo que se le ACREDITA al
+  // pedido; la diferencia es el vuelto. La caja registra el efectivo completo que entró (esto) y
+  // el vuelto como salida por el método con que se devolvió — así cada método cuadra con lo que
+  // físicamente entró y salió por ahí (ver cash-session.service.ts#computeSummary).
+  amountReceivedBase           Decimal?      @db.Decimal(12, 2)
+  changeBase                   Decimal?      @db.Decimal(12, 2)
+  // Con qué método se devolvió el vuelto: mismo efectivo, o Pago Móvil en Bs (caso típico
+  // venezolano: paga en dólares y se le devuelve el cambio en bolívares por pago móvil).
+  changeMethod                 PaymentMethod?
+  changeReferenceNumber        String?
   createdAt                    DateTime      @default(now())
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
@@ -2723,6 +2737,11 @@ model RecipeIngredient {
   // Exactamente uno de inventoryItemId/preparationId/customerChoiceModifierCategoryId puede
   // estar presente (validado en recipe.dto.ts).
   customerChoiceModifierCategoryId String?
+  // Afinamiento de la anterior: si no es null, esta línea aplica SOLO cuando el cliente elige ESE
+  // topping concreto (ej. "Queso → 100 gr"), y le gana a la línea genérica de la misma categoría
+  // ("cualquiera → 60 gr"), que queda como valor por defecto para los toppings sin porción propia.
+  // Siempre va acompañado de customerChoiceModifierCategoryId (la categoría de ese modificador).
+  customerChoiceModifierId String?
 
   // Si no es null, esta línea solo aplica cuando se vendió ESA variante/tamaño del producto
   // (ej. "Grande") — null = aplica a todos los tamaños (o el producto no usa variantes de
@@ -2744,12 +2763,14 @@ model RecipeIngredient {
   inventoryItem          InventoryItem?    @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
   preparation            Preparation?      @relation(fields: [preparationId], references: [id], onDelete: Restrict)
   customerChoiceCategory ModifierCategory? @relation(fields: [customerChoiceModifierCategoryId], references: [id], onDelete: SetNull)
+  customerChoiceModifier Modifier?         @relation(fields: [customerChoiceModifierId], references: [id], onDelete: Cascade)
   productVariant         ProductVariant?   @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
 
   @@index([restaurantId, productId])
   @@index([inventoryItemId])
   @@index([preparationId])
   @@index([customerChoiceModifierCategoryId])
+  @@index([customerChoiceModifierId])
   @@index([productVariantId])
   @@map("recipe_ingredients")
 }

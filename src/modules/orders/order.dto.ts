@@ -184,8 +184,21 @@ export const recordPaymentSchema = z
     promoCode: z.string().max(40).nullish(),
     // Fraccionar por ítems: qué se está cobrando en este pago puntual (cantidad por OrderItem).
     items: z.array(z.object({ orderItemId: z.string().min(1), quantity: z.coerce.number().int().positive() })).optional(),
+    // --- Vuelto ---
+    // Cuánto ENTREGÓ el cliente (solo efectivo). Si supera lo que se le acredita (amountBase /
+    // ítems), la diferencia es el vuelto. Se guarda aparte para no chocar con "el monto no puede
+    // superar el saldo": lo acreditado sigue topado al saldo, el vuelto es lo que sobra.
+    amountReceived: z.coerce.number().positive().max(1000000).optional(),
+    // Con qué se devolvió el vuelto: mismo efectivo (default) o Pago Móvil en Bs, etc.
+    changeMethod: paymentMethodSchema.optional(),
+    changeReferenceNumber: z.string().max(60).optional(),
   })
   .superRefine((data, ctx) => {
+    // El vuelto solo tiene sentido si el cliente pagó en efectivo (billetes) — con Pago Móvil o
+    // Zelle transfiere el monto exacto, no hay "de más" que devolver.
+    if (data.amountReceived != null && data.method !== 'CASH' && data.method !== 'CASH_USD') {
+      ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'El vuelto solo aplica a pagos en efectivo.', path: ['amountReceived'] });
+    }
     // Basta con uno de los dos: quien tiene la captura no siempre transcribe el número, y
     // quien anota el número no siempre guarda la captura. Exigir ambos trancaba la caja.
     if (

@@ -1824,6 +1824,10 @@ interface RecipeLine {
   // que el cliente eligió (ver order.service.ts#computeRecipeStockDeltas).
   customerChoiceModifierCategoryId: string | null;
   customerChoiceCategoryName: string | null;
+  // Topping concreto con porción propia (null = "cualquiera de la categoría").
+  customerChoiceModifierId: string | null;
+  customerChoiceModifierName: string | null;
+  customerChoiceInventoryItemName: string | null;
   // Tamaño al que aplica esta línea — null = todos los tamaños.
   productVariantId: string | null;
   variantName: string | null;
@@ -1853,7 +1857,9 @@ function RecipeDialog({
   // Tamaños (variantes de precio) y categorías de modificadores del producto — para el
   // selector de "tamaño" de cada línea y el picker de "A elección del cliente".
   const [variants, setVariants] = useState<{ id: string; name: string }[]>([]);
-  const [modifierCategories, setModifierCategories] = useState<{ id: string; name: string }[]>([]);
+  const [modifierCategories, setModifierCategories] = useState<
+    { id: string; name: string; modifiers: { id: string; name: string; inventoryItemName: string | null; inventoryItemUnit: string | null }[] }[]
+  >([]);
   // Pestaña de tamaño activa: '' = "Todos los tamaños" (líneas compartidas). Solo se muestra
   // si el producto tiene variantes — cada receta puede tener sus propias porciones por tamaño.
   const [activeVariantId, setActiveVariantId] = useState('');
@@ -1863,7 +1869,8 @@ function RecipeDialog({
   const [savedNotes, setSavedNotes] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [newItem, setNewItem] = useState({ ref: '', quantity: '', subUnit: '' });
+  // modifierId: solo con ref "cliente:<categoría>" — '' = "cualquier topping" de esa categoría.
+  const [newItem, setNewItem] = useState({ ref: '', quantity: '', subUnit: '', modifierId: '' });
   const [error, setError] = useState<string | null>(null);
   const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -1875,9 +1882,15 @@ function RecipeDialog({
   const [refType, refId] = newItem.ref.split(':');
   const selectedInsumo = refType === 'insumo' ? insumos.find((i) => i.id === refId) : undefined;
   const selectedPrep = refType === 'prep' ? preparations.find((p) => p.id === refId) : undefined;
-  // "A elección del cliente" siempre se declara en gramos, sin importar la unidad del topping
-  // que termine eligiendo el cliente — por eso usa las sub-unidades de "kg" (Kg/Gr) fijas.
-  const selectedUnit = refType === 'cliente' ? 'kg' : (selectedInsumo?.unit ?? selectedPrep?.unit ?? '');
+  // "A elección del cliente": la porción genérica ("cualquiera") va siempre en gramos (kg/gr),
+  // porque no se sabe qué insumo será; un topping concreto se mide en la unidad de SU insumo
+  // (un huevo va en "unidad", el queso en kg).
+  const selectedCategory = refType === 'cliente' ? modifierCategories.find((c) => c.id === refId) : undefined;
+  const selectedTopping = selectedCategory?.modifiers.find((m) => m.id === newItem.modifierId);
+  const selectedUnit =
+    refType === 'cliente'
+      ? (selectedTopping?.inventoryItemUnit ?? 'kg')
+      : (selectedInsumo?.unit ?? selectedPrep?.unit ?? '');
   const subUnitOptions = selectedUnit ? SUB_UNITS[selectedUnit] ?? SUB_UNITS.unidad : [];
   const visibleLines = (lines ?? []).filter((l) => (l.productVariantId ?? '') === activeVariantId);
 
@@ -1923,10 +1936,11 @@ function RecipeDialog({
         inventoryItemId: refType === 'insumo' ? refId : undefined,
         preparationId: refType === 'prep' ? refId : undefined,
         customerChoiceModifierCategoryId: refType === 'cliente' ? refId : undefined,
+        customerChoiceModifierId: refType === 'cliente' && newItem.modifierId ? newItem.modifierId : undefined,
         productVariantId: activeVariantId || null,
         quantity: quantityInBaseUnit,
       });
-      setNewItem({ ref: '', quantity: '', subUnit: '' });
+      setNewItem({ ref: '', quantity: '', subUnit: '', modifierId: '' });
       setAdding(false);
       load();
       onSaved();
@@ -2059,10 +2073,13 @@ function RecipeDialog({
                     {l.type === 'preparacion' && <span title="Preparación">🍯</span>}
                     {l.type === 'cliente' && (
                       <span className="text-[10px] font-medium uppercase tracking-wide text-brand-500 bg-brand-500/10 rounded-full px-2 py-0.5">
-                        A elección del cliente
+                        {l.customerChoiceModifierId ? 'Topping' : 'A elección del cliente'}
                       </span>
                     )}
                     {l.name}
+                    {l.customerChoiceInventoryItemName && (
+                      <span className="text-xs font-light text-brand-950/40">→ {l.customerChoiceInventoryItemName}</span>
+                    )}
                   </p>
                   <p className="text-xs text-brand-950/50 font-light">
                     {l.quantity} {UNIT_LABELS[l.unit] ?? l.unit} · $
@@ -2083,13 +2100,13 @@ function RecipeDialog({
                 onChange={(e) => {
                   const [t, rid] = e.target.value.split(':');
                   if (t === 'cliente') {
-                    setNewItem({ ref: e.target.value, quantity: '', subUnit: 'gr' });
+                    setNewItem({ ref: e.target.value, quantity: '', subUnit: 'gr', modifierId: '' });
                     return;
                   }
                   const item = t === 'insumo' ? insumos.find((i) => i.id === rid) : preparations.find((p) => p.id === rid);
                   const u = t === 'insumo' ? (item as InventoryItem | undefined)?.unit : (item as PreparationOverviewRow | undefined)?.unit;
                   const defaultSubUnit = u ? (SUB_UNITS[u] ?? SUB_UNITS.unidad)[0]?.value ?? '' : '';
-                  setNewItem({ ref: e.target.value, quantity: '', subUnit: defaultSubUnit });
+                  setNewItem({ ref: e.target.value, quantity: '', subUnit: defaultSubUnit, modifierId: '' });
                 }}
                 className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
               >
@@ -2120,11 +2137,34 @@ function RecipeDialog({
                   </optgroup>
                 )}
               </select>
-              {refType === 'cliente' && (
-                <p className="text-xs text-brand-950/50 font-light">
-                  Al servir el pedido, se descuentan estos gramos del topping que el cliente eligió en "
-                  {modifierCategories.find((c) => c.id === refId)?.name}" — no de un insumo fijo.
-                </p>
+              {refType === 'cliente' && selectedCategory && (
+                <>
+                  <select
+                    value={newItem.modifierId}
+                    onChange={(e) => {
+                      const mod = selectedCategory.modifiers.find((m) => m.id === e.target.value);
+                      const unit = mod?.inventoryItemUnit ?? 'kg';
+                      const first = (SUB_UNITS[unit] ?? SUB_UNITS.unidad)[0]?.value ?? '';
+                      // Genérico y toppings en kg/lt: por defecto la sub-unidad chica (gr/ml).
+                      const small = (SUB_UNITS[unit] ?? []).find((u) => u.toBase < 1)?.value;
+                      setNewItem({ ...newItem, modifierId: e.target.value, quantity: '', subUnit: small ?? first });
+                    }}
+                    className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
+                  >
+                    <option value="">Cualquier topping de "{selectedCategory.name}" (misma porción para todos)</option>
+                    {selectedCategory.modifiers.map((m) => (
+                      <option key={m.id} value={m.id} disabled={!m.inventoryItemName}>
+                        {m.name}
+                        {m.inventoryItemName ? ` → ${m.inventoryItemName}` : ' (sin insumo vinculado — no descuenta stock)'}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-brand-950/50 font-light">
+                    {selectedTopping
+                      ? `Si el cliente elige "${selectedTopping.name}", al servir se descuenta esta porción de ${selectedTopping.inventoryItemName}. Le gana a la porción genérica de "${selectedCategory.name}".`
+                      : `Porción por defecto: al servir se descuentan estos gramos del insumo del topping que el cliente eligió en "${selectedCategory.name}" — salvo los toppings que tengan porción propia.`}
+                  </p>
+                </>
               )}
               {modifierCategories.length === 0 && (
                 <p className="text-xs text-brand-950/40 font-light">

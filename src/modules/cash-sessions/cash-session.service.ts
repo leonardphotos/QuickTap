@@ -12,6 +12,11 @@ import { OpenCashSessionInput } from './cash-session.dto';
 interface CollectedPayment {
   amountBase: Prisma.Decimal;
   method: PaymentMethod | null;
+  // Vuelto entregado en este cobro (solo restaurante, ver OrderPayment.changeBase). Con vuelto,
+  // por `method` entró `amountBase + changeBase` (el efectivo completo) y salió `changeBase`
+  // por `changeMethod` — el arqueo tiene que reflejar las dos cosas, no solo el neto.
+  changeBase?: Prisma.Decimal | null;
+  changeMethod?: PaymentMethod | null;
 }
 
 /**
@@ -30,9 +35,9 @@ async function collectPayments(
   if (businessType !== 'SPORTS_CLUB') {
     const rows = await prisma.orderPayment.findMany({
       where: { order: { restaurantId }, createdAt: { gte: since } },
-      select: { amountBase: true, method: true },
+      select: { amountBase: true, method: true, changeBase: true, changeMethod: true },
     });
-    return rows.map((p) => ({ amountBase: p.amountBase, method: p.method }));
+    return rows.map((p) => ({ amountBase: p.amountBase, method: p.method, changeBase: p.changeBase, changeMethod: p.changeMethod }));
   }
 
   const [courtPayments, storeSales, storeInstallments, academyPayments] = await Promise.all([
@@ -106,6 +111,23 @@ async function computeSummary(
   );
   const totalPayments = round2(payments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0)));
 
+  // Vuelto: cuánto salió por cada método como cambio al cliente. Solo cuando se devolvió por
+  // un método DISTINTO al del cobro importa para el arqueo (pagó $20 en efectivo, se le
+  // devolvieron $2 en Bs por Pago Móvil → efectivo +20, Pago Móvil −2). Vuelto en el mismo
+  // efectivo ya viene neto en amountBase y no mueve nada más.
+  const changeByMethod = Object.fromEntries(
+    PAYMENT_METHODS.map((method) => {
+      const out = payments
+        .filter((p) => p.changeBase && p.changeMethod === method && p.changeMethod !== p.method)
+        .reduce((acc, p) => acc.add(p.changeBase!), toDecimal(0));
+      const grossIn = payments
+        .filter((p) => p.changeBase && p.method === method && p.changeMethod !== p.method)
+        .reduce((acc, p) => acc.add(p.changeBase!), toDecimal(0));
+      return [method, { out: round2(out), grossIn: round2(grossIn) }];
+    }),
+  );
+  const totalChange = round2(payments.reduce((acc, p) => acc.add(p.changeBase ?? 0), toDecimal(0)));
+
   const totalIncome = round2(
     movements.filter((m) => m.type === 'INCOME').reduce((acc, m) => acc.add(m.amountBase), toDecimal(0)),
   );
@@ -120,7 +142,11 @@ async function computeSummary(
   const expectedByMethod = Object.fromEntries(
     PAYMENT_METHODS.map((method) => {
       const opening = toDecimal(String((openingBalances as Record<string, string> | null | undefined)?.[method] ?? 0) || 0);
-      const collected = toDecimal(paymentsByMethod[method].amountBase);
+      // Cobrado neto + el vuelto que entró en efectivo por acá pero salió por otro lado
+      // (el efectivo completo que el cliente entregó) − el vuelto que salió por acá.
+      const collected = toDecimal(paymentsByMethod[method].amountBase)
+        .add(changeByMethod[method].grossIn)
+        .sub(changeByMethod[method].out);
       const manual = movements
         .filter((m) => m.paymentMethod === method)
         .reduce((acc, m) => (m.type === 'INCOME' ? acc.add(m.amountBase) : acc.sub(m.amountBase)), toDecimal(0));
@@ -130,6 +156,10 @@ async function computeSummary(
 
   return {
     paymentsByMethod,
+    // Vuelto entregado por método (solo el devuelto por un método distinto al del cobro),
+    // para que el recibo de cierre explique por qué ese método esperado es menor.
+    changeOutByMethod: Object.fromEntries(PAYMENT_METHODS.map((m) => [m, changeByMethod[m].out.toFixed(2)])),
+    totalChange: totalChange.toFixed(2),
     expectedByMethod,
     totalPayments: totalPayments.toFixed(2),
     movements: {

@@ -27,6 +27,9 @@ export const modifierCategoryController = {
   remove: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await modifierCategoryService.remove(req.restaurantId!, req.params.id) });
   }),
+  duplicate: asyncHandler(async (req: Request, res: Response) => {
+    res.status(201).json({ data: await modifierCategoryService.duplicate(req.restaurantId!, req.params.id) });
+  }),
   createModifier: asyncHandler(async (req: Request, res: Response) => {
     const input = createModifierSchema.parse(req.body);
     res.status(201).json({ data: await modifierCategoryService.createModifier(req.restaurantId!, req.params.id, input) });

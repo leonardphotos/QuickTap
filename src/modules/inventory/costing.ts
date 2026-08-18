@@ -116,9 +116,11 @@ export async function resolveCustomerChoiceCostPerUnit(
   graph: CostGraph,
   restaurantId: string,
   categoryId: string,
+  modifierId?: string | null,
 ): Promise<Prisma.Decimal> {
+  // Topping concreto: su costo es exactamente el del insumo vinculado a ese modificador.
   const modifiers = await tx.modifier.findMany({
-    where: { restaurantId, categoryId, inventoryItemId: { not: null } },
+    where: { restaurantId, categoryId, inventoryItemId: { not: null }, ...(modifierId ? { id: modifierId } : {}) },
     select: { inventoryItemId: true },
   });
   if (modifiers.length === 0) return toDecimal(0);
@@ -153,7 +155,7 @@ export async function recomputeDependentCosts(tx: TxClient, restaurantId: string
 
   for (const ri of recipeIngredients) {
     const perUnit = ri.customerChoiceModifierCategoryId
-      ? await resolveCustomerChoiceCostPerUnit(tx, graph, restaurantId, ri.customerChoiceModifierCategoryId)
+      ? await resolveCustomerChoiceCostPerUnit(tx, graph, restaurantId, ri.customerChoiceModifierCategoryId, ri.customerChoiceModifierId)
       : resolveCostPerBaseUnit(graph, { inventoryItemId: ri.inventoryItemId, preparationId: ri.preparationId });
     const costBase = round2(perUnit.mul(ri.quantity));
     if (!costBase.equals(ri.costBase)) {

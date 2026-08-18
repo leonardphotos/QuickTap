@@ -57,6 +57,10 @@ export interface LiveOrderPayment {
   serviceChargeDiscountBase?: string | null;
   referenceNumber?: string | null;
   proofImageUrl?: string | null;
+  // Vuelto: efectivo entregado por el cliente y cambio devuelto (por qué método).
+  amountReceivedBase?: string | null;
+  changeBase?: string | null;
+  changeMethod?: string | null;
   createdAt: string;
 }
 

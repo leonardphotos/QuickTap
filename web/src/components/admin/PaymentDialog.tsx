@@ -3,7 +3,7 @@ import type { ChangeEvent } from 'react';
 import { ArrowLeft, Camera, Check, Copy, Loader2, QrCode } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
-import { CURRENCY_SYMBOLS, formatBase, formatBsAbsolute, formatModifierLabel } from '@/utils/format';
+import { CURRENCY_SYMBOLS, formatBase, formatBs, formatBsAbsolute, formatModifierLabel } from '@/utils/format';
 import { canApplyDiscount } from '@/utils/roles';
 import {
   METHODS_ALLOWING_PROOF,
@@ -72,6 +72,14 @@ function PaymentRow({ payment, symbol }: { payment: LiveOrderPayment; symbol: st
         {Number(payment.serviceChargeDiscountBase ?? 0) > 0 && (
           <p className="text-brand-950/40">Servicio ajustado: -{formatBase(payment.serviceChargeDiscountBase!, symbol)}</p>
         )}
+        {Number(payment.changeBase ?? 0) > 0 && (
+          <p className="text-brand-950/40">
+            Recibido {formatBase(payment.amountReceivedBase!, symbol)} · vuelto {formatBase(payment.changeBase!, symbol)}
+            {payment.changeMethod && payment.changeMethod !== payment.method
+              ? ` por ${PAYMENT_LABELS[payment.changeMethod as PaymentMethod] ?? payment.changeMethod}`
+              : ''}
+          </p>
+        )}
       </div>
       <p className="font-semibold text-brand-950 shrink-0">{formatBase(payment.amountBase, symbol)}</p>
     </div>
@@ -109,6 +117,11 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   const [serviceMode, setServiceMode] = useState<'percent' | 'amount'>('percent');
   const [serviceValue, setServiceValue] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
+  // Vuelto (solo efectivo): cuánto entregó el cliente. Si supera lo que se cobra, la diferencia
+  // es el cambio — se devuelve en el mismo efectivo o en Bs por Pago Móvil (changeMethod).
+  const [amountReceived, setAmountReceived] = useState('');
+  const [changeMethod, setChangeMethod] = useState<PaymentMethod | ''>('');
+  const [changeReference, setChangeReference] = useState('');
   const [proofUrl, setProofUrl] = useState<string | null>(null);
   const [uploadingProof, setUploadingProof] = useState(false);
   const [proofError, setProofError] = useState<string | null>(null);
@@ -176,6 +189,13 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   // usado también para el bloque de QR/Bs de Pago Móvil.
   const amountToCharge =
     mode === 'split' && splitBy === 'items' ? itemsSubtotal : mode === 'split' ? Number(amount) || 0 : discountedBalance;
+
+  // Vuelto: solo con billetes (Efectivo $ / Efectivo Bs). Recibido − a cobrar, si es positivo.
+  const isCashMethod = method === 'CASH' || method === 'CASH_USD';
+  const receivedNum = Number(amountReceived) || 0;
+  const changeAmt = isCashMethod && receivedNum > amountToCharge + 0.001 ? round2(receivedNum - amountToCharge) : 0;
+  const rateBs = restaurant?.exchangeRate?.rateBs;
+  const effectiveChangeMethod: PaymentMethod = changeMethod || method;
 
   /** Elegir método no abre nada solo: el cajero decide cuándo enseñarle los datos al
    *  cliente con el botón "Mostrar datos". */
@@ -333,6 +353,10 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
         proofImageUrl: needsProof ? proofUrl ?? undefined : undefined,
         bankAccountId: selectedAccount?.bankAccountId ?? undefined,
         promoCode: promo?.code ?? undefined,
+        // Vuelto: solo se manda si de verdad hubo cambio.
+        amountReceived: changeAmt > 0 ? receivedNum : undefined,
+        changeMethod: changeAmt > 0 ? effectiveChangeMethod : undefined,
+        changeReferenceNumber: changeAmt > 0 && changeReference.trim() ? changeReference.trim() : undefined,
       });
       // El endpoint devuelve el pedido completo (no solo el pago nuevo). Se identifica el/los
       // pago(s) recién creados comparando contra los que ya conocíamos ANTES de este POST — así
@@ -550,6 +574,71 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                       {s === 'amount' ? 'Por monto' : 'Por ítems'}
                     </button>
                   ))}
+                </div>
+              )}
+
+              {isCashMethod && (mode === 'full' || splitBy === 'amount') && (
+                <div className="rounded-xl border border-brand-950/10 bg-brand-950/[0.02] p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-brand-950/50 mb-1">Recibido del cliente ({symbol})</p>
+                      <input
+                        value={amountReceived}
+                        onChange={(e) => setAmountReceived(e.target.value.replace(/[^0-9.]/g, ''))}
+                        inputMode="decimal"
+                        placeholder={amountToCharge > 0 ? amountToCharge.toFixed(2) : '0.00'}
+                        className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-brand-950/50 mb-1">Vuelto</p>
+                      <p className={`text-base font-semibold ${changeAmt > 0 ? 'text-brand-950' : 'text-brand-950/30'}`}>
+                        {formatBase(changeAmt, symbol)}
+                      </p>
+                      {changeAmt > 0 && rateBs && (
+                        <p className="text-[11px] text-brand-950/50">{formatBs(changeAmt, rateBs)} a la tasa de hoy</p>
+                      )}
+                    </div>
+                  </div>
+                  {changeAmt > 0 && (
+                    <>
+                      <p className="text-xs font-medium text-brand-950/50">¿Cómo se devuelve el vuelto?</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {(
+                          [
+                            [method, `Mismo efectivo (${PAYMENT_LABELS[method]})`],
+                            ['MOBILE_PAYMENT', 'Pago Móvil (Bs)'],
+                            ...(method === 'CASH_USD' ? ([['CASH', 'Efectivo Bs']] as const) : []),
+                            ...(method === 'CASH' ? ([['CASH_USD', 'Efectivo $']] as const) : []),
+                          ] as [PaymentMethod, string][]
+                        ).map(([m, label]) => (
+                          <button
+                            key={m}
+                            type="button"
+                            onClick={() => setChangeMethod(m === method ? '' : m)}
+                            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                              effectiveChangeMethod === m ? 'bg-brand-950 text-white' : 'bg-brand-950/[0.06] text-brand-950/60 hover:bg-brand-950/10'
+                            }`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      {effectiveChangeMethod === 'MOBILE_PAYMENT' && (
+                        <input
+                          value={changeReference}
+                          onChange={(e) => setChangeReference(e.target.value)}
+                          placeholder="Referencia del pago móvil del vuelto (opcional)"
+                          className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                        />
+                      )}
+                      <p className="text-[11px] text-brand-950/40 font-light">
+                        {effectiveChangeMethod === method
+                          ? `En caja queda el neto: ${formatBase(amountToCharge, symbol)}.`
+                          : `En caja entra ${formatBase(receivedNum, symbol)} en ${PAYMENT_LABELS[method]} y sale ${formatBase(changeAmt, symbol)}${rateBs ? ` (${formatBs(changeAmt, rateBs)})` : ''} por ${PAYMENT_LABELS[effectiveChangeMethod]}.`}
+                      </p>
+                    </>
+                  )}
                 </div>
               )}
 

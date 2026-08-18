@@ -22,6 +22,10 @@ export interface CashSessionSummary {
   /** Lo que debería haber por método al cerrar: apertura + cobrado + movimientos manuales.
    * Es contra esto que se compara el conteo físico del arqueo. */
   expectedByMethod?: Record<string, string>;
+  /** Vuelto que salió por cada método cuando se devolvió por uno DISTINTO al del cobro (ej. pagó
+   * en $ y se le devolvió Bs por Pago Móvil) — explica por qué ese método esperado es menor. */
+  changeOutByMethod?: Record<string, string>;
+  totalChange?: string;
   /** Solo cuando el cajero contó de verdad (ver "Hacer arqueo" en CashSessionControl). */
   arqueo?: {
     byMethod: Record<string, { expected: string; counted: string; difference: string }>;
@@ -163,6 +167,22 @@ export const CashSessionReceipt = forwardRef<HTMLDivElement, Props>(({ session, 
               <span>{formatBase(summary.totalPayments, symbol)}</span>
             </div>
           </div>
+
+          {summary.changeOutByMethod && Object.values(summary.changeOutByMethod).some((v) => Number(v) > 0) && (
+            <>
+              <p style={sectionLabel}>Vuelto entregado por otro método</p>
+              <div style={list}>
+                {Object.entries(summary.changeOutByMethod)
+                  .filter(([, v]) => Number(v) > 0)
+                  .map(([method, v]) => (
+                    <div key={method} style={listRow}>
+                      <span>Salió por {PAYMENT_METHOD_LABELS[method] ?? method}</span>
+                      <span>-{formatBase(v, symbol)}</span>
+                    </div>
+                  ))}
+              </div>
+            </>
+          )}
 
           {summary.movements.list.length > 0 && (
             <>

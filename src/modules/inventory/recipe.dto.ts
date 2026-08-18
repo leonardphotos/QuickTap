@@ -7,6 +7,9 @@ export const createRecipeIngredientSchema = z
     // "A elección del cliente": en vez de un insumo/preparación fijo, el topping se resuelve
     // al servir según lo que el cliente eligió en esta categoría de modificadores.
     customerChoiceModifierCategoryId: z.string().min(1).optional(),
+    // Porción propia para UN topping concreto de esa categoría (le gana a la línea genérica).
+    // Requiere customerChoiceModifierCategoryId.
+    customerChoiceModifierId: z.string().min(1).nullable().optional(),
     // Tamaño/variante al que aplica esta línea — null/ausente = aplica a todos los tamaños.
     productVariantId: z.string().min(1).nullable().optional(),
     // Cantidad del insumo/preparación (ya convertida a su unidad base, ej. kg o gr) que
@@ -17,13 +20,17 @@ export const createRecipeIngredientSchema = z
   .refine(
     (v) => [v.inventoryItemId, v.preparationId, v.customerChoiceModifierCategoryId].filter(Boolean).length === 1,
     { message: 'Elige un insumo, una preparación o "A elección del cliente" — uno solo.' },
-  );
+  )
+  .refine((v) => !v.customerChoiceModifierId || Boolean(v.customerChoiceModifierCategoryId), {
+    message: 'Un topping concreto necesita su categoría de modificadores.',
+  });
 
 export const updateRecipeIngredientSchema = z
   .object({
     inventoryItemId: z.string().min(1).optional(),
     preparationId: z.string().min(1).optional(),
     customerChoiceModifierCategoryId: z.string().min(1).optional(),
+    customerChoiceModifierId: z.string().min(1).nullable().optional(),
     productVariantId: z.string().min(1).nullable().optional(),
     quantity: z.coerce.number().positive('La cantidad debe ser mayor a 0.').optional(),
   })

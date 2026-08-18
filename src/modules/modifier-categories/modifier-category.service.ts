@@ -81,6 +81,69 @@ export const modifierCategoryService = {
     return { deleted: true };
   },
 
+  /**
+   * "Duplicar lista": copia completa de una categoría — su configuración, TODOS sus
+   * modificadores (con precio, costo, SKU, vínculo a inventario, precios por variante y orden) y
+   * las asociaciones a productos. Sirve para armar variantes de una lista ya afinada (ej.
+   * "Toppings pizza" → "Toppings pasta") sin cargar todo de nuevo. Se hace en una sola
+   * transacción: o se copia todo o nada.
+   */
+  async duplicate(restaurantId: string, id: string) {
+    const source = await prisma.modifierCategory.findFirst({
+      where: { id, restaurantId },
+      include: { modifiers: { include: { variantPrices: true }, orderBy: { priority: 'asc' } }, products: true },
+    });
+    if (!source) throw notFound('Categoría no encontrada.');
+
+    return prisma.$transaction(async (tx) => {
+      const copy = await tx.modifierCategory.create({
+        data: {
+          restaurantId,
+          name: `${source.name} (copia)`,
+          isRequired: source.isRequired,
+          allowMultiple: source.allowMultiple,
+          maxSelections: source.maxSelections,
+          minSelections: source.minSelections,
+          priority: source.priority,
+        },
+      });
+      for (const m of source.modifiers) {
+        const created = await tx.modifier.create({
+          data: {
+            restaurantId,
+            categoryId: copy.id,
+            name: m.name,
+            priceBase: m.priceBase,
+            costBase: m.costBase,
+            discountBase: m.discountBase,
+            isAvailable: m.isAvailable,
+            maxQuantity: m.maxQuantity,
+            sku: m.sku,
+            priority: m.priority,
+            inventoryItemId: m.inventoryItemId,
+            inventoryQuantity: m.inventoryQuantity,
+          },
+        });
+        if (m.variantPrices.length > 0) {
+          await tx.modifierVariantPrice.createMany({
+            data: m.variantPrices.map((vp) => ({ modifierId: created.id, variantId: vp.variantId, priceBase: vp.priceBase })),
+          });
+        }
+      }
+      if (source.products.length > 0) {
+        await tx.productModifierCategory.createMany({
+          data: source.products.map((p) => ({
+            productId: p.productId,
+            modifierCategoryId: copy.id,
+            priority: p.priority,
+            maxSelectionsOverride: p.maxSelectionsOverride,
+          })),
+        });
+      }
+      return copy;
+    });
+  },
+
   async createModifier(restaurantId: string, categoryId: string, input: CreateModifierInput) {
     await this.assertCategoryBelongs(restaurantId, categoryId);
     await this.assertInventoryLinkValid(restaurantId, input);

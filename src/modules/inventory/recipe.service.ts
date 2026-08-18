@@ -15,6 +15,12 @@ async function assertCategoryBelongsToProduct(restaurantId: string, productId: s
   if (!link) throw badRequest('Esa categoría de modificadores no está asociada a este producto.');
 }
 
+/** Un topping concreto tiene que ser un modificador de ESA categoría (y del restaurante). */
+async function assertModifierInCategory(restaurantId: string, categoryId: string, modifierId: string) {
+  const mod = await prisma.modifier.findFirst({ where: { id: modifierId, categoryId, restaurantId }, select: { id: true } });
+  if (!mod) throw badRequest('Ese topping no pertenece a la categoría elegida.');
+}
+
 /** El tamaño de una línea de receta tiene que ser una variante real de ESE producto. */
 async function assertVariantBelongsToProduct(restaurantId: string, productId: string, variantId: string) {
   const variant = await prisma.productVariant.findFirst({ where: { id: variantId, productId, restaurantId } });
@@ -82,7 +88,23 @@ export const recipeService = {
         name: true,
         recipeNotes: true,
         variants: { select: { id: true, name: true }, orderBy: { priority: 'asc' } },
-        modifierCategories: { select: { modifierCategory: { select: { id: true, name: true } } }, orderBy: { priority: 'asc' } },
+        modifierCategories: {
+          select: {
+            modifierCategory: {
+              select: {
+                id: true,
+                name: true,
+                // Toppings de la categoría, con su insumo vinculado — para el picker "topping
+                // concreto" del editor. Sin insumo vinculado no descuentan stock (se avisa en la UI).
+                modifiers: {
+                  select: { id: true, name: true, inventoryItem: { select: { id: true, name: true, unit: true } } },
+                  orderBy: [{ priority: 'asc' }, { name: 'asc' }],
+                },
+              },
+            },
+          },
+          orderBy: { priority: 'asc' },
+        },
       },
     });
     if (!product) throw notFound('Producto no encontrado.');
@@ -94,6 +116,7 @@ export const recipeService = {
         inventoryItem: { select: { id: true, name: true, unit: true, quantity: true } },
         preparation: { select: { id: true, name: true, unit: true } },
         customerChoiceCategory: { select: { id: true, name: true } },
+        customerChoiceModifier: { select: { id: true, name: true, inventoryItem: { select: { name: true, unit: true } } } },
         productVariant: { select: { id: true, name: true } },
       },
     });
@@ -106,7 +129,16 @@ export const recipeService = {
       recipeNotes: product.recipeNotes ?? '',
       totalCostBase: totalCostBase.toFixed(2),
       variants: product.variants,
-      modifierCategories: product.modifierCategories.map((pc) => pc.modifierCategory),
+      modifierCategories: product.modifierCategories.map((pc) => ({
+        id: pc.modifierCategory.id,
+        name: pc.modifierCategory.name,
+        modifiers: pc.modifierCategory.modifiers.map((m) => ({
+          id: m.id,
+          name: m.name,
+          inventoryItemName: m.inventoryItem?.name ?? null,
+          inventoryItemUnit: m.inventoryItem?.unit ?? null,
+        })),
+      })),
       ingredients: lines.map((l) => ({
         id: l.id,
         type: l.inventoryItemId
@@ -118,13 +150,20 @@ export const recipeService = {
         preparationId: l.preparationId,
         customerChoiceModifierCategoryId: l.customerChoiceModifierCategoryId,
         customerChoiceCategoryName: l.customerChoiceCategory?.name ?? null,
+        customerChoiceModifierId: l.customerChoiceModifierId,
+        customerChoiceModifierName: l.customerChoiceModifier?.name ?? null,
+        customerChoiceInventoryItemName: l.customerChoiceModifier?.inventoryItem?.name ?? null,
         productVariantId: l.productVariantId,
         variantName: l.productVariant?.name ?? null,
         name:
           l.inventoryItem?.name ??
           l.preparation?.name ??
-          `A elección del cliente${l.customerChoiceCategory ? ` (${l.customerChoiceCategory.name})` : ''}`,
-        unit: l.inventoryItem?.unit ?? l.preparation?.unit ?? 'gr',
+          (l.customerChoiceModifier
+            ? `${l.customerChoiceModifier.name} (topping${l.customerChoiceCategory ? ` · ${l.customerChoiceCategory.name}` : ''})`
+            : `Cualquier topping${l.customerChoiceCategory ? ` (${l.customerChoiceCategory.name})` : ''}`),
+        // Topping concreto: se mide en la unidad de SU insumo (un huevo va en "unidad", el queso en
+        // kg). Genérico: siempre kg (gramos), porque no se sabe qué insumo será.
+        unit: l.inventoryItem?.unit ?? l.preparation?.unit ?? l.customerChoiceModifier?.inventoryItem?.unit ?? 'kg',
         stockQuantity: l.inventoryItem?.quantity.toFixed(2) ?? null,
         quantity: l.quantity.toFixed(3),
         costBase: l.costBase.toFixed(2),
@@ -144,13 +183,16 @@ export const recipeService = {
       if (!preparation) throw badRequest('La preparación elegida no existe.');
     } else if (input.customerChoiceModifierCategoryId) {
       await assertCategoryBelongsToProduct(restaurantId, productId, input.customerChoiceModifierCategoryId);
+      if (input.customerChoiceModifierId) {
+        await assertModifierInCategory(restaurantId, input.customerChoiceModifierCategoryId, input.customerChoiceModifierId);
+      }
     }
     if (input.productVariantId) await assertVariantBelongsToProduct(restaurantId, productId, input.productVariantId);
 
     return prisma.$transaction(async (tx) => {
       const graph = await buildCostGraph(tx, restaurantId);
       const costPerUnit = input.customerChoiceModifierCategoryId
-        ? await resolveCustomerChoiceCostPerUnit(tx, graph, restaurantId, input.customerChoiceModifierCategoryId)
+        ? await resolveCustomerChoiceCostPerUnit(tx, graph, restaurantId, input.customerChoiceModifierCategoryId, input.customerChoiceModifierId)
         : resolveCostPerBaseUnit(graph, { inventoryItemId: input.inventoryItemId, preparationId: input.preparationId });
       const created = await tx.recipeIngredient.create({
         data: {
@@ -159,6 +201,7 @@ export const recipeService = {
           inventoryItemId: input.inventoryItemId ?? null,
           preparationId: input.preparationId ?? null,
           customerChoiceModifierCategoryId: input.customerChoiceModifierCategoryId ?? null,
+          customerChoiceModifierId: input.customerChoiceModifierCategoryId ? (input.customerChoiceModifierId ?? null) : null,
           productVariantId: input.productVariantId ?? null,
           quantity: input.quantity,
           costBase: round2(costPerUnit.mul(input.quantity)),
@@ -181,6 +224,11 @@ export const recipeService = {
     } else if (input.customerChoiceModifierCategoryId) {
       await assertCategoryBelongsToProduct(restaurantId, existing.productId, input.customerChoiceModifierCategoryId);
     }
+    if (input.customerChoiceModifierId) {
+      const categoryId = input.customerChoiceModifierCategoryId ?? existing.customerChoiceModifierCategoryId;
+      if (!categoryId) throw badRequest('Un topping concreto necesita su categoría de modificadores.');
+      await assertModifierInCategory(restaurantId, categoryId, input.customerChoiceModifierId);
+    }
     if (input.productVariantId) await assertVariantBelongsToProduct(restaurantId, existing.productId, input.productVariantId);
 
     // Cualquiera de los tres campos de "tipo" presente en el body significa que se está
@@ -198,17 +246,32 @@ export const recipeService = {
             ? null
             : existing.customerChoiceModifierCategoryId;
 
+      // El topping concreto solo tiene sentido con categoría: cambiar de tipo lo limpia, salvo que
+      // el body traiga uno explícito para la categoría nueva.
+      const nextModifierId = !nextCategoryId
+        ? null
+        : input.customerChoiceModifierId !== undefined
+          ? input.customerChoiceModifierId
+          : switchingType
+            ? null
+            : existing.customerChoiceModifierId;
+
       const graph = await buildCostGraph(tx, restaurantId);
       const costPerUnit = nextCategoryId
-        ? await resolveCustomerChoiceCostPerUnit(tx, graph, restaurantId, nextCategoryId)
+        ? await resolveCustomerChoiceCostPerUnit(tx, graph, restaurantId, nextCategoryId, nextModifierId)
         : resolveCostPerBaseUnit(graph, { inventoryItemId: nextInventoryItemId, preparationId: nextPreparationId });
       const quantity = input.quantity ?? existing.quantity;
 
       return tx.recipeIngredient.update({
         where: { id },
         data: {
-          ...(switchingType
-            ? { inventoryItemId: nextInventoryItemId, preparationId: nextPreparationId, customerChoiceModifierCategoryId: nextCategoryId }
+          ...(switchingType || input.customerChoiceModifierId !== undefined
+            ? {
+                inventoryItemId: nextInventoryItemId,
+                preparationId: nextPreparationId,
+                customerChoiceModifierCategoryId: nextCategoryId,
+                customerChoiceModifierId: nextModifierId,
+              }
             : {}),
           ...(input.productVariantId !== undefined ? { productVariantId: input.productVariantId } : {}),
           ...(input.quantity !== undefined ? { quantity: input.quantity } : {}),
