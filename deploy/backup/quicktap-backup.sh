@@ -43,6 +43,9 @@ chmod 600 "$BACKUP_DIR/env-$STAMP"
 find "$BACKUP_DIR" -type f -mtime +$KEEP_DAYS -delete
 log "rotación: quedan $(ls "$BACKUP_DIR" | wc -l) archivos, $(du -sh "$BACKUP_DIR" | cut -f1)"
 
+# Copia fuera del VPS (no falla el respaldo local si el bucket no responde: queda en el log).
+/usr/local/bin/quicktap-backup-offsite.sh || log "AVISO: falló la copia off-site (el respaldo local sí quedó)"
+
 # Marca "último respaldo OK" para monitoreo.
 date +%s > "$BACKUP_DIR/.last-ok"
 log "fin respaldo $STAMP"
