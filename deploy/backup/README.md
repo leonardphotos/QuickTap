@@ -1,36 +1,38 @@
 # Respaldos de QuickTap
 
-## Qué se respalda y dónde
+## Qué se respalda, cuándo y dónde
 
-`quicktap-backup.sh` corre en el VPS todos los días a las 04:00 UTC (00:00 Caracas), vía
-`/etc/cron.d/quicktap-backup`, y deja en `/var/backups/quicktap/` (solo root):
+Un cron corre `quicktap-backup.sh` **cada 4 horas** (`0 */4 * * *`, hora del VPS = UTC), vía
+`/etc/cron.d/quicktap-backup`:
 
-| Archivo                  | Contenido                                                     |
-|--------------------------|---------------------------------------------------------------|
-| `db-<fecha>.dump`        | `pg_dump -Fc` de la base `quicktap` (comprimido, formato custom) |
-| `uploads-<fecha>.tgz`    | `uploads/` (fotos, logos, comprobantes) sin la `_papelera`     |
-| `env-<fecha>`            | el `.env` (JWT_SECRET, claves de cifrado, API keys)            |
-| `.last-ok`               | epoch del último respaldo exitoso (para monitoreo)            |
+| Qué                    | Frecuencia                         | Por qué                                                        |
+|-------------------------|-------------------------------------|------------------------------------------------------------------|
+| Base de datos (`pg_dump -Fc`) | **cada 4 horas** (6x/día)     | Es chica (~1-2 MB) y `pg_dump` no bloquea escrituras — hacerlo seguido no le pesa al servidor, y limita a 4h lo que se puede perder si algo se rompe. |
+| `uploads/` (fotos, comprobantes) | **1 vez al día** (corrida de las 04:00 UTC) | Pesa 80+ MB y casi no cambia entre una corrida y la siguiente — comprimirlo 6 veces al día sería trabajo desperdiciado sin beneficio real. |
+| `.env` (secretos)       | 1 vez al día, junto con uploads     | Sin esto un dump de la base no sirve: `FISCAL_INVOICING_ENCRYPTION_KEY`/`OLACLICK_ENCRYPTION_KEY` cifran datos que están en la base, y sin el `JWT_SECRET` original todos los usuarios pierden sesión. |
 
-Se conservan **14 días**. Log en `/var/log/quicktap-backup.log`.
-
-**El `.env` es parte del respaldo a propósito**: `FISCAL_INVOICING_ENCRYPTION_KEY` y
-`OLACLICK_ENCRYPTION_KEY` cifran datos que están en la base; un dump sin esas claves tiene
-esas columnas ilegibles, y sin el `JWT_SECRET` original todos los usuarios pierden sesión.
+Todo queda en `/var/backups/quicktap/` (solo root), con **14 días** de historial local
+(~14 días × 6 dumps × 1.2 MB + 14 × 16 MB de uploads ≈ 320 MB — nada frente a los 30+ GB libres
+del disco). Rotación automática por antigüedad en cada corrida. Log en
+`/var/log/quicktap-backup.log`. `.last-ok` guarda el epoch del último respaldo exitoso.
 
 ## Instalar en un VPS nuevo
 
 ```bash
-cp deploy/backup/quicktap-backup.sh /usr/local/bin/ && chmod 700 /usr/local/bin/quicktap-backup.sh
+cp deploy/backup/quicktap-backup.sh deploy/backup/quicktap-backup-offsite.sh /usr/local/bin/
+chmod 700 /usr/local/bin/quicktap-backup*.sh
 cat > /etc/cron.d/quicktap-backup <<'EOF2'
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-0 4 * * * root /usr/local/bin/quicktap-backup.sh >> /var/log/quicktap-backup.log 2>&1
+0 */4 * * * root /usr/local/bin/quicktap-backup.sh >> /var/log/quicktap-backup.log 2>&1
 EOF2
+chmod 644 /etc/cron.d/quicktap-backup
 /usr/local/bin/quicktap-backup.sh   # primera corrida a mano, para ver que todo esté bien
 ```
 
-## Restaurar (probado el 2026-08-18)
+(La configuración del remoto `b2` de rclone para la copia off-site está más abajo.)
+
+## Restaurar desde el disco local del VPS
 
 Base de datos — sobre una base vacía (`CREATE DATABASE quicktap OWNER quicktap`):
 
@@ -50,10 +52,15 @@ Uploads: `tar xzf /var/backups/quicktap/uploads-<fecha>.tgz -C /var/www/quicktap
 
 Después: `npx prisma migrate deploy` (por si el código es más nuevo que el dump) y `pm2 reload quicktap-api`.
 
+**Ojo:** como `uploads/`/`.env` solo se generan en la corrida de las 04:00 UTC, para restaurarlos
+usa el archivo `uploads-<fecha>`/`env-<fecha>` más reciente disponible — no necesariamente el de
+la misma hora que el `db-<fecha>` que elegiste.
+
 ## Copia fuera del VPS (off-site)
 
-`quicktap-backup.sh` termina llamando a `quicktap-backup-offsite.sh`, que sube los 3 archivos
-del respaldo del día (db/uploads/env) a un bucket Backblaze B2 con `rclone` — así la copia
+`quicktap-backup.sh` termina llamando a `quicktap-backup-offsite.sh`, pasándole solo los archivos
+que generó ESA corrida (el dump siempre; uploads/.env solo en la de las 04:00) — sube eso a un
+bucket Backblaze B2 con `rclone`, así la copia
 sobrevive aunque el VPS entero desaparezca (que fue justo la causa de la caída del 2026-08-17:
 los respaldos vivían solo dentro del servidor que se perdió).
 

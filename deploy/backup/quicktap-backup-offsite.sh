@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
-# Sube el respaldo local más reciente (db + uploads + env) al bucket off-site con rclone.
-# Lo llama quicktap-backup.sh al final. El remoto "b2" se configura una sola vez con
-# `rclone config` (credenciales en /root/.config/rclone/rclone.conf, solo root).
-# Retención en el bucket: 30 días (rclone delete --min-age).
+# Sube a Backblaze B2 los archivos que le pasen como argumento (llamado por quicktap-backup.sh
+# con solo lo que generó esa corrida — no vuelve a listar el directorio completo).
+# Remoto "b2" configurado una sola vez con `rclone config` (ver deploy/backup/README.md).
 set -euo pipefail
 BACKUP_DIR=/var/backups/quicktap
 REMOTE="b2:${QT_BACKUP_BUCKET:-quicktap-respaldos}/daily"
@@ -13,8 +12,11 @@ if ! rclone listremotes 2>/dev/null | grep -q '^b2:'; then
   log "remoto b2 no configurado todavía — omitido"; exit 0
 fi
 
-# Últimos 3 archivos = el set completo de la corrida de hoy (db, uploads, env).
-for f in $(ls -t "$BACKUP_DIR"/db-* "$BACKUP_DIR"/uploads-* "$BACKUP_DIR"/env-* 2>/dev/null | head -3); do
+if [ "$#" -eq 0 ]; then
+  log "sin archivos que subir"; exit 0
+fi
+
+for f in "$@"; do
   rclone copyto "$f" "$REMOTE/$(basename "$f")" --retries 3 --low-level-retries 10 -q
   log "subido $(basename "$f")"
 done
