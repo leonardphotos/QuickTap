@@ -376,17 +376,17 @@ export default function TableOrdersPage() {
         destructive: 'bg-red-500 text-white hover:bg-red-600 active:bg-red-700',
       };
       return (
-        <div className="flex flex-wrap gap-1.5">
+        <div className="flex gap-2">
           {items.map(({ key, variant, onClick, disabled, icon: Icon, label }) => (
             <button
               key={key}
               type="button"
               onClick={onClick}
               disabled={disabled}
-              className={`h-14 w-14 shrink-0 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-transform active:scale-[0.97] disabled:opacity-40 ${posColorClass[variant]}`}
+              className={`flex-1 h-16 rounded-xl flex items-center justify-center gap-2 transition-transform active:scale-[0.97] disabled:opacity-40 ${posColorClass[variant]}`}
             >
-              <Icon className="h-4 w-4" />
-              <span className="text-[9px] font-medium leading-tight text-center px-0.5">{label}</span>
+              <Icon className="h-5 w-5 shrink-0" />
+              <span className="text-xs font-semibold leading-tight text-center">{label}</span>
             </button>
           ))}
         </div>
