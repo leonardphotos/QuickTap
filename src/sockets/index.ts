@@ -42,6 +42,8 @@ export const SocketEvents = {
   PRINT_REQUEST: 'print:request', // impresión bajo demanda (reimprimir comanda, lista de insumos) -> estación de impresión
   RESERVATION_NEW: 'reservation:new', // reserva nueva desde el menú público -> pestaña Reservas (Cajero/Admin)
   RESERVATION_UPDATED: 'reservation:updated', // se aceptó o canceló una reserva
+  WAITLIST_NEW: 'waitlist:new', // alguien se anotó en la lista de espera -> barra lateral de Sala
+  WAITLIST_UPDATED: 'waitlist:updated', // se le avisó, se sentó, canceló o no apareció
   INVENTORY_LOW_STOCK: 'inventory:low-stock', // cambió el stock de un insumo -> recalcular avisos de agotamiento
   WHATSAPP_BOT_QR: 'whatsapp-bot:qr', // nuevo código QR para vincular (Ajustes -> WhatsApp)
   WHATSAPP_BOT_STATUS: 'whatsapp-bot:status', // cambió el estado de la sesión (conectando/conectado/desconectado)
