@@ -64,7 +64,6 @@ export default function LoginPage() {
 
   return (
     <AuthLayout
-      title="Ingresa a tu Dashboard"
       footer={
         <p className="text-sm text-brand-950/60 font-light">
           ¿No tienes cuenta?{' '}
