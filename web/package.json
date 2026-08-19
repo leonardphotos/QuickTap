@@ -7,7 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "android:sync": "CAP_SERVER_URL=${CAP_SERVER_URL:-https://quicktap.club} npm run build && CAP_SERVER_URL=${CAP_SERVER_URL:-https://quicktap.club} cap sync android",
+    "android:apk": "npm run android:sync && cd android && ./gradlew assembleRelease"
   },
   "dependencies": {
     "@capacitor-community/electron": "^5.0.1",

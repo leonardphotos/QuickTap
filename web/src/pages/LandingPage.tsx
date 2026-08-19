@@ -2,45 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion, useScroll, useTransform } from 'motion/react';
-import {
-  ArrowUpRight,
-  ChevronDown,
-  ChevronRight,
-  Coffee,
-  Menu,
-  Trophy,
-  UtensilsCrossed,
-  X,
-  Check,
-  QrCode,
-  ChefHat,
-  SplitSquareHorizontal,
-  MessageCircle,
-  Bot,
-  Users,
-  Boxes,
-  BarChart3,
-  Building2,
-  Wallet,
-  Bell,
-  Palette,
-  Tag,
-  CalendarDays,
-  Printer,
-  Banknote,
-  UserCog,
-  Crown,
-  ShieldCheck,
-  Wallet as WalletIcon,
-  Grid2x2,
-  Monitor,
-  ShoppingBag,
-  Hash,
-  ScanLine,
-  CreditCard,
-  Tablet,
-  Download,
-} from 'lucide-react';
+import { ArrowUpRight, Banknote, BarChart3, Bell, Bot, Boxes, Building2, CalendarDays, Check, ChefHat, ChevronDown, ChevronRight, Coffee, CreditCard, Crown, Download, Grid2x2, Hash, Menu, MessageCircle, Monitor, Palette, Printer, QrCode, ScanLine, ShieldCheck, ShoppingBag, Smartphone, SplitSquareHorizontal, Tablet, Tag, Trophy, UserCog, Users, UtensilsCrossed, Wallet, Wallet as WalletIcon, X } from 'lucide-react';
 import { IntroLoader } from '@/components/landing/IntroLoader';
 import { GradientWave } from '@/components/ui/gradient-wave';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -1069,23 +1031,37 @@ export default function LandingPage() {
           />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-brand-950/50 via-brand-950/75 to-brand-950" />
           <Reveal className="relative">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-white">
-              <Monitor className="h-7 w-7" />
+            <div className="mx-auto flex items-center justify-center gap-3">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-white">
+                <Monitor className="h-7 w-7" />
+              </div>
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-white">
+                <Smartphone className="h-7 w-7" />
+              </div>
             </div>
-            <h2 className="mt-5 text-2xl font-bold text-white sm:text-4xl">Lleva QuickTap a tu computadora</h2>
+            <h2 className="mt-5 text-2xl font-bold text-white sm:text-4xl">Lleva QuickTap contigo</h2>
             <p className="mx-auto mt-3 max-w-md font-light text-white/60">
-              App de escritorio para Windows: recibe el aviso de pedido nuevo con notificación
-              nativa aunque tengas la ventana minimizada.
+              En la computadora, el aviso de pedido nuevo te llega aunque tengas la ventana
+              minimizada. En el teléfono, tu panel completo a mano en el salón.
             </p>
-            <a
-              href="https://github.com/leonardphotos/QuickTap/releases/latest/download/QuickTap-Setup.exe"
-              className="mt-8 inline-flex items-center gap-2.5 rounded-full bg-white px-7 py-3.5 font-semibold text-brand-950 shadow-lg shadow-black/20 transition-transform hover:scale-[1.03] active:scale-[0.97]"
-            >
-              <Download className="h-5 w-5" />
-              Descargar para Windows
-            </a>
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <a
+                href="https://github.com/leonardphotos/QuickTap/releases/latest/download/QuickTap-Setup.exe"
+                className="inline-flex w-full items-center justify-center gap-2.5 rounded-full bg-white px-7 py-3.5 font-semibold text-brand-950 shadow-lg shadow-black/20 transition-transform hover:scale-[1.03] active:scale-[0.97] sm:w-auto"
+              >
+                <Download className="h-5 w-5" />
+                Descargar para Windows
+              </a>
+              <a
+                href="https://github.com/leonardphotos/QuickTap/releases/latest/download/QuickTap.apk"
+                className="inline-flex w-full items-center justify-center gap-2.5 rounded-full border border-white/25 bg-white/10 px-7 py-3.5 font-semibold text-white backdrop-blur-sm transition-transform hover:scale-[1.03] hover:bg-white/15 active:scale-[0.97] sm:w-auto"
+              >
+                <Download className="h-5 w-5" />
+                Descargar para Android
+              </a>
+            </div>
             <p className="mt-4 text-xs font-light text-white/40">
-              Instalador .exe · gratis · no necesitas iniciar sesión para descargarlo
+              Instalador .exe y APK · gratis · no necesitas iniciar sesión para descargarlos
             </p>
           </Reveal>
         </section>

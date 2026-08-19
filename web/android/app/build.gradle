@@ -1,5 +1,16 @@
 apply plugin: 'com.android.application'
 
+// Firma de release. Las credenciales viven FUERA del repo (por defecto en
+// ~/QuickTap-keys/keystore.properties): el keystore es el que permite publicar
+// actualizaciones de la app, si se pierde nadie que ya la tenga instalada podrá actualizarla.
+// Sin ese archivo el proyecto igual compila en debug, solo que `assembleRelease` sale sin firmar.
+def keystorePropsFile = file(System.getenv("QUICKTAP_KEYSTORE_PROPS")
+    ?: "${System.properties['user.home']}/QuickTap-keys/keystore.properties")
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+
 android {
     namespace = "club.quicktap.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,8 +27,21 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (keystoreProps['QUICKTAP_KEYSTORE']) {
+                storeFile file(keystoreProps['QUICKTAP_KEYSTORE'])
+                storePassword keystoreProps['QUICKTAP_STORE_PASSWORD']
+                keyAlias keystoreProps['QUICKTAP_KEY_ALIAS']
+                keyPassword keystoreProps['QUICKTAP_KEY_PASSWORD']
+            }
+        }
+    }
     buildTypes {
         release {
+            if (keystoreProps['QUICKTAP_KEYSTORE']) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

@@ -53,9 +53,11 @@ captures/
 .idea/navEditor.xml
 
 # Keystore files
-# Uncomment the following lines if you do not want to check your keystore files in.
-#*.jks
-#*.keystore
+# El keystore de release vive FUERA del repo (~/QuickTap-keys/, ver ANDROID.md).
+# Estas reglas son por si alguna vez alguien deja uno acá por error.
+*.jks
+*.keystore
+keystore.properties
 
 # External native build folder generated in Android Studio 2.2 and later
 .externalNativeBuild
