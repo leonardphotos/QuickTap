@@ -64,7 +64,7 @@ const CHANNEL_OPTIONS: { value: Channel; label: string; icon: typeof UtensilsCro
 
 const CHANNEL_LABELS: Record<Channel, string> = { DINE_IN: 'Mesa', DELIVERY: 'Delivery', PICKUP: 'Pickup', BAR: 'Barra' };
 
-const STEP_LABELS: Record<Step, string> = { 1: 'Menú', 2: 'Pago', 3: 'Clientes' };
+const STEP_LABELS: Record<Step, string> = { 1: 'Cliente', 2: 'Menú', 3: 'Pago' };
 
 /** Cargo por envase de UNA unidad del producto — misma regla que computeEnvaseFee del backend:
  * FIXED usa el precio propio, INVENTORY el del insumo vinculado, NONE no cobra. */
@@ -159,6 +159,12 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   const [paymentIntent, setPaymentIntent] = useState<PaymentIntent | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [existingSearch, setExistingSearch] = useState('');
+  // Factura fiscal (paso Cliente): sin esto la factura sale a nombre de "Consumidor Final"
+  // (ver fiscal-invoicing.service.ts) — solo aplica cuando NO es delivery, que ya manda su
+  // propia dirección de entrega como customerAddress.
+  const [wantsFiscalInvoice, setWantsFiscalInvoice] = useState(false);
+  const [fiscalIdNumber, setFiscalIdNumber] = useState('');
+  const [fiscalAddress, setFiscalAddress] = useState('');
 
   function useCurrentLocation() {
     if (!navigator.geolocation) {
@@ -304,7 +310,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
     });
   }
 
-  function goToStep2() {
+  function goToPayment() {
     if (lines.length === 0) {
       setError('Agrega al menos un producto.');
       return;
@@ -322,7 +328,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
       return;
     }
     setError(null);
-    setStep(2);
+    setStep(3);
   }
 
   async function submit() {
@@ -348,9 +354,19 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
         })),
         // Nombre/cédula/teléfono ya no se piden en "Menú": vienen del cliente elegido en "Clientes".
         customerName: selectedCustomer?.name,
-        customerIdNumber: selectedCustomer?.idNumber ?? undefined,
+        // RIF/cédula: el del cliente en ficha, o el escrito a mano para la factura fiscal de
+        // este pedido puntual si no tiene uno guardado.
+        customerIdNumber: selectedCustomer?.idNumber ?? (wantsFiscalInvoice ? fiscalIdNumber.trim() || undefined : undefined),
         customerPhone: selectedCustomer?.phone,
-        customerAddress: channel === 'DELIVERY' ? customerAddress || selectedCustomer?.address || undefined : undefined,
+        // Delivery manda su dirección de entrega (la necesita el repartidor); fuera de delivery,
+        // solo se manda si el cliente pidió factura fiscal (ver fiscal-invoicing.service.ts,
+        // cae a "Consumidor Final" sin esto).
+        customerAddress:
+          channel === 'DELIVERY'
+            ? customerAddress || selectedCustomer?.address || undefined
+            : wantsFiscalInvoice
+              ? fiscalAddress.trim() || selectedCustomer?.address || undefined
+              : undefined,
         customerLat: channel === 'DELIVERY' ? addressCoords?.lat : undefined,
         customerLng: channel === 'DELIVERY' ? addressCoords?.lng : undefined,
         // Solo se manda si el cajero lo escribió: si no, el servidor lo cotiza como siempre.
@@ -515,13 +531,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
         </TextureButton>
       )}
       {step === 1 && (
-        <TextureButton
-          variant="brand"
-          size="default"
-          disabled={lines.length === 0}
-          onClick={goToStep2}
-          className="flex-1 disabled:opacity-50"
-        >
+        <TextureButton variant="brand" size="default" onClick={() => setStep(2)} className="flex-1">
           Siguiente
         </TextureButton>
       )}
@@ -529,9 +539,9 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
         <TextureButton
           variant="brand"
           size="default"
+          disabled={lines.length === 0}
+          onClick={goToPayment}
           className="flex-1 disabled:opacity-50"
-          disabled={!paymentIntent}
-          onClick={() => setStep(3)}
         >
           Siguiente
         </TextureButton>
@@ -541,7 +551,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
           variant="brand"
           size="default"
           className="flex-1 disabled:opacity-50"
-          disabled={sending}
+          disabled={sending || !paymentIntent}
           onClick={submit}
         >
           {sending ? 'Creando…' : 'Crear pedido'}
@@ -574,7 +584,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
               </p>
             </div>
           </div>
-          {step === 1 && (
+          {step === 2 && (
             <div className="flex gap-1 bg-brand-950/[0.05] p-1 rounded-xl overflow-x-auto md:shrink-0">
               {CHANNEL_OPTIONS.map((opt) => (
                 <button
@@ -595,6 +605,70 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
           {/* ---------- left: browse / steps ---------- */}
           <div className="flex-1 overflow-y-auto p-5 min-w-0">
             {step === 1 && (
+              <div className="flex flex-col gap-5 max-w-xl mx-auto">
+                <div className="rounded-2xl bg-white p-5 flex flex-col min-h-0">
+                  <p className="text-base font-bold text-brand-950 mb-1 shrink-0">Cliente</p>
+                  <p className="text-xs text-brand-950/50 font-light mb-3 shrink-0">
+                    Nombre y teléfono — opcional para un pedido de mostrador, pero necesario para llamarlo si es delivery/pickup.
+                  </p>
+                  {selectedCustomer ? (
+                    <div className="flex items-center justify-between rounded-xl border border-brand-950/10 px-3 py-2.5">
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-brand-950 truncate">{selectedCustomer.name}</p>
+                        <p className="text-xs text-brand-950/50 truncate">{selectedCustomer.phone}</p>
+                      </div>
+                      <button
+                        onClick={() => setSelectedCustomer(null)}
+                        className="text-xs font-semibold text-brand-500 hover:text-brand-600 shrink-0 ml-2"
+                      >
+                        Cambiar
+                      </button>
+                    </div>
+                  ) : (
+                    <CustomerPicker onSelect={setSelectedCustomer} />
+                  )}
+                </div>
+
+                <div className="rounded-2xl bg-white p-5 flex flex-col min-h-0">
+                  <label className="flex items-center gap-2 text-sm font-semibold text-brand-950">
+                    <input
+                      type="checkbox"
+                      checked={wantsFiscalInvoice}
+                      onChange={(e) => {
+                        setWantsFiscalInvoice(e.target.checked);
+                        // Precarga con lo que ya tenga el cliente en ficha — se puede corregir igual.
+                        if (e.target.checked && selectedCustomer) {
+                          setFiscalIdNumber((v) => v || selectedCustomer.idNumber || '');
+                          setFiscalAddress((v) => v || selectedCustomer.address || '');
+                        }
+                      }}
+                    />
+                    ¿Desea factura fiscal?
+                  </label>
+                  {wantsFiscalInvoice && (
+                    <div className="mt-3 space-y-2">
+                      <input
+                        value={fiscalIdNumber}
+                        onChange={(e) => setFiscalIdNumber(e.target.value)}
+                        placeholder="RIF / Cédula"
+                        className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                      />
+                      <input
+                        value={fiscalAddress}
+                        onChange={(e) => setFiscalAddress(e.target.value)}
+                        placeholder="Dirección corta (para la factura)"
+                        className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                      />
+                      <p className="text-xs text-brand-950/40 font-light">
+                        Sin esto la factura sale a nombre de "Consumidor Final".
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {step === 2 && (
               <div className="space-y-4">
                 {channel === 'DINE_IN' && (
                   <div className="grid grid-cols-2 gap-2 max-w-sm">
@@ -905,72 +979,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                   )}
                 </div>
 
-              </div>
-            )}
-
-            {step === 2 && (
-              <div className="flex flex-col gap-5 max-w-4xl mx-auto">
-                <div className="rounded-2xl bg-white px-6 py-6 text-center shrink-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-950/40">Total del pedido</p>
-                  <p className="text-5xl font-bold text-brand-950 mt-1.5">{formatBase(totalBase, symbol)}</p>
-                  {rateBs && <p className="text-lg font-medium text-brand-950/50 mt-1">{formatBs(totalBase, rateBs)}</p>}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:flex-1 sm:min-h-0 sm:max-h-72">
-                  {PAYMENT_INTENT_OPTIONS.map((opt) => {
-                    const active = paymentIntent === opt.value;
-                    return (
-                      <button
-                        key={opt.value}
-                        onClick={() => setPaymentIntent(opt.value)}
-                        className={`flex flex-col items-center justify-center text-center gap-3 rounded-2xl border-2 p-5 min-h-[10rem] transition-colors ${
-                          active ? opt.activeClass : `border-brand-950/10 bg-white ${opt.hoverClass}`
-                        }`}
-                      >
-                        <opt.icon className={`h-10 w-10 shrink-0 ${opt.iconClass}`} />
-                        <div>
-                          <p className="text-lg font-bold text-brand-950">{opt.label}</p>
-                          <p className="text-xs text-brand-950/50 mt-1">{opt.description}</p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {step === 3 && (
-              <div className="flex flex-col gap-5 max-w-4xl mx-auto">
-                <div className="rounded-2xl bg-white px-6 py-6 text-center shrink-0">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-950/40">Total del pedido</p>
-                  <p className="text-5xl font-bold text-brand-950 mt-1.5">{formatBase(totalBase, symbol)}</p>
-                  {rateBs && <p className="text-lg font-medium text-brand-950/50 mt-1">{formatBs(totalBase, rateBs)}</p>}
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 lg:flex-1 lg:min-h-0 lg:max-h-96">
-                  <div className="rounded-2xl bg-white p-5 flex flex-col min-h-0">
-                    <p className="text-base font-bold text-brand-950 mb-3 shrink-0">Cliente</p>
-                    {selectedCustomer ? (
-                      <div className="flex items-center justify-between rounded-xl border border-brand-950/10 px-3 py-2.5">
-                        <div className="min-w-0">
-                          <p className="text-sm font-semibold text-brand-950 truncate">{selectedCustomer.name}</p>
-                          <p className="text-xs text-brand-950/50 truncate">{selectedCustomer.phone}</p>
-                        </div>
-                        <button
-                          onClick={() => setSelectedCustomer(null)}
-                          className="text-xs font-semibold text-brand-500 hover:text-brand-600 shrink-0 ml-2"
-                        >
-                          Cambiar
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="flex-1 min-h-0 overflow-y-auto">
-                        <CustomerPicker onSelect={setSelectedCustomer} />
-                      </div>
-                    )}
-                  </div>
-
-                  {nonDineInExistingOrders.length > 0 && (
+                  {lines.length > 0 && nonDineInExistingOrders.length > 0 && (
                     <div className="rounded-2xl bg-white p-5 flex flex-col min-h-0">
                       <p className="text-base font-bold text-brand-950 shrink-0">O añade a una cuenta abierta</p>
                       <p className="text-xs text-brand-950/50 font-light mt-0.5 mb-3 shrink-0">
@@ -1018,6 +1027,36 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                       </div>
                     </div>
                   )}
+              </div>
+            )}
+
+            {step === 3 && (
+              <div className="flex flex-col gap-5 max-w-4xl mx-auto">
+                <div className="rounded-2xl bg-white px-6 py-6 text-center shrink-0">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-950/40">Total del pedido</p>
+                  <p className="text-5xl font-bold text-brand-950 mt-1.5">{formatBase(totalBase, symbol)}</p>
+                  {rateBs && <p className="text-lg font-medium text-brand-950/50 mt-1">{formatBs(totalBase, rateBs)}</p>}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:flex-1 sm:min-h-0 sm:max-h-72">
+                  {PAYMENT_INTENT_OPTIONS.map((opt) => {
+                    const active = paymentIntent === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        onClick={() => setPaymentIntent(opt.value)}
+                        className={`flex flex-col items-center justify-center text-center gap-3 rounded-2xl border-2 p-5 min-h-[10rem] transition-colors ${
+                          active ? opt.activeClass : `border-brand-950/10 bg-white ${opt.hoverClass}`
+                        }`}
+                      >
+                        <opt.icon className={`h-10 w-10 shrink-0 ${opt.iconClass}`} />
+                        <div>
+                          <p className="text-lg font-bold text-brand-950">{opt.label}</p>
+                          <p className="text-xs text-brand-950/50 mt-1">{opt.description}</p>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
