@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
-import { API_ORIGIN } from '@/utils/apiOrigin';
+import { apiOrigin } from '@/utils/apiOrigin';
 import { BellRing, Receipt } from 'lucide-react';
 import { api, getToken } from '@/api/client';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
@@ -30,7 +30,7 @@ export function TableServiceAlert() {
       tablesRef.current = res.data.data;
     });
 
-    const socket: Socket = io(API_ORIGIN || '/', { auth: { token: getToken() } });
+    const socket: Socket = io(apiOrigin() || '/', { auth: { token: getToken() } });
 
     socket.on('table:service-request', (payload: { tableId: string; type: ServiceRequestType }) => {
       const table = tablesRef.current.find((t) => t.id === payload.tableId);

@@ -1,12 +1,19 @@
-import { Capacitor } from '@capacitor/core';
+import { currentOrigin } from './connectivity';
 
 /**
- * En el navegador (web normal) las rutas relativas (`/api/v1`, `io('/')`) funcionan porque
- * Nginx en producción — y el proxy de Vite en dev — sirven la SPA y la API bajo el mismo
- * origen. La app empaquetada (Electron hoy, Android más adelante) NO tiene ese proxy: cada
- * request necesita el origen absoluto del backend. `VITE_DESKTOP_API_ORIGIN` permite apuntar
- * a otro backend (staging) sin tocar código; por defecto apunta a producción.
+ * A qué backend le habla la app AHORA.
+ *
+ * Antes era una constante fija. Ahora puede cambiar en caliente: si se cae el internet del
+ * local y hay un relé configurado, apunta al relé para que el salón siga trabajando (ver
+ * `connectivity.ts`).
+ *
+ * En el navegador normal con internet devuelve cadena vacía, igual que siempre — las rutas
+ * relativas funcionan porque Nginx (o el proxy de Vite en dev) sirve la SPA y la API bajo el
+ * mismo origen.
+ *
+ * Es una función y no una constante a propósito: si fuera constante, cada componente
+ * capturaría el valor que hubiera al importar el módulo y seguiría hablándole a la nube caída.
  */
-export const API_ORIGIN = Capacitor.isNativePlatform()
-  ? (import.meta.env.VITE_DESKTOP_API_ORIGIN ?? 'https://quicktap.club')
-  : '';
+export function apiOrigin(): string {
+  return currentOrigin();
+}

@@ -3,7 +3,7 @@ import type { PointerEvent as ReactPointerEvent } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import { Capacitor } from '@capacitor/core';
-import { API_ORIGIN } from '@/utils/apiOrigin';
+import { apiOrigin } from '@/utils/apiOrigin';
 import { Bike, Grid2x2, Martini, ShoppingBag } from 'lucide-react';
 import { api, getToken } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
@@ -45,7 +45,7 @@ export function NewOrderAlert({ onNavigate }: Props) {
   useEffect(() => {
     audioRef.current = new Audio('/sounds/notification.mp3');
 
-    const socket: Socket = io(API_ORIGIN || '/', { auth: { token: getToken() } });
+    const socket: Socket = io(apiOrigin() || '/', { auth: { token: getToken() } });
     socket.on('order:new', async (payload: { orderId: string }) => {
       try {
         const res = await api.get('/orders/live');

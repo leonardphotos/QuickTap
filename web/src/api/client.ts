@@ -1,9 +1,20 @@
 import axios from 'axios';
-import { API_ORIGIN } from '@/utils/apiOrigin';
+import { apiOrigin } from '@/utils/apiOrigin';
 
-/** Cliente axios base. En dev, Vite proxea /api hacia el backend (puerto 4000); en la app
- * empaquetada (Electron/Android) no hay proxy, así que API_ORIGIN agrega el origen absoluto. */
-export const api = axios.create({ baseURL: `${API_ORIGIN}/api/v1` });
+/**
+ * Cliente axios base. En dev, Vite proxea /api hacia el backend (puerto 4000); en la app
+ * empaquetada (Electron/Android) no hay proxy, así que se antepone el origen absoluto.
+ *
+ * El origen se resuelve EN CADA petición, no al crear el cliente: si se cae el internet y la
+ * app se pasa al relé local, las peticiones siguientes van solas al relé sin recrear nada
+ * (ver utils/connectivity.ts).
+ *
+ * El timeout es imprescindible acá: sin él, con la nube caída cada petición quedaba colgada
+ * para siempre y la app parecía congelada en vez de cambiarse al relé.
+ */
+const REQUEST_TIMEOUT_MS = 12000;
+
+export const api = axios.create({ timeout: REQUEST_TIMEOUT_MS });
 
 const TOKEN_KEY = 'quicktap_token';
 const SLUG_KEY = 'quicktap_slug';
@@ -48,6 +59,7 @@ export function clearRememberedEmail(): void {
 }
 
 api.interceptors.request.use((config) => {
+  config.baseURL = `${apiOrigin()}/api/v1`;
   const token = getToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -68,7 +80,8 @@ api.interceptors.response.use(
 // --- Dashboard maestro (equipo de QuickTap) ---
 // Instancia aparte con su propio token: un admin de plataforma puede tener
 // abierta a la vez una sesión de restaurante en el mismo navegador.
-export const masterApi = axios.create({ baseURL: `${API_ORIGIN}/api/v1` });
+// El dashboard maestro siempre habla con la nube: no tiene sentido en modo relé.
+export const masterApi = axios.create({ timeout: REQUEST_TIMEOUT_MS });
 
 const MASTER_TOKEN_KEY = 'quicktap_master_token';
 
@@ -85,6 +98,7 @@ export function clearMasterToken(): void {
 }
 
 masterApi.interceptors.request.use((config) => {
+  config.baseURL = `${apiOrigin()}/api/v1`;
   const token = getMasterToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
-import { API_ORIGIN } from '@/utils/apiOrigin';
+import { apiOrigin } from '@/utils/apiOrigin';
 import { api, getToken } from '@/api/client';
 import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
 import type { Currency } from '@/types';
@@ -34,7 +34,7 @@ export function TodayOrdersList() {
   useEffect(() => {
     load();
 
-    const socket: Socket = io(API_ORIGIN || '/', { auth: { token: getToken() } });
+    const socket: Socket = io(apiOrigin() || '/', { auth: { token: getToken() } });
     socket.on('order:new', load);
     socket.on('order:updated', load);
 

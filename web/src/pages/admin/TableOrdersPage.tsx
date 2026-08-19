@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
-import { API_ORIGIN } from '@/utils/apiOrigin';
+import { apiOrigin } from '@/utils/apiOrigin';
 import { Check, CreditCard, Link2, Lock, LogOut, MoveHorizontal, Plus, Printer, SplitSquareHorizontal } from 'lucide-react';
 import { api, getToken } from '../../api/client';
 import type { FloorPlan, FloorPlanTable, Product, TableSession } from '../../types';
@@ -15,6 +15,7 @@ import { PaymentDialog } from '@/components/admin/PaymentDialog';
 import { FloorPlanCanvas, SaveFloorPlanButton, saveFloorPlan, type FloorPlanPatch } from '@/components/admin/FloorPlanCanvas';
 import { isAdminCashier } from '@/utils/roles';
 import { useIsLandscapeTablet } from '@/hooks/useIsLandscapeTablet';
+import { useConnectivity } from '@/hooks/useConnectivity';
 import { SalaSidebar } from '@/components/admin/sala/SalaSidebar';
 import { SalaTopBar, todayIso } from '@/components/admin/sala/SalaTopBar';
 import { SeatDialog } from '@/components/admin/sala/SeatDialog';
@@ -35,6 +36,7 @@ const STATUS_LABEL: Record<string, string> = {
 export default function TableOrdersPage() {
   const { restaurant, user } = useAuth();
   const isPos = useIsLandscapeTablet();
+  const connectivity = useConnectivity();
   const canAcceptOrders = user?.role !== 'KITCHEN';
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [plan, setPlan] = useState<FloorPlan | null>(null);
@@ -73,7 +75,7 @@ export default function TableOrdersPage() {
     loadWaitlist();
     api.get('/products').then((res) => setProducts(res.data.data));
 
-    const socket: Socket = io(API_ORIGIN || '/', { auth: { token: getToken() } });
+    const socket: Socket = io(apiOrigin() || '/', { auth: { token: getToken() } });
     socket.on('order:new', load);
     socket.on('order:updated', load);
     socket.on('table:service-request', load);
@@ -89,7 +91,9 @@ export default function TableOrdersPage() {
     return () => {
       socket.disconnect();
     };
-  }, []);
+    // `connectivity` en las dependencias: al cambiar de destino (nube <-> relé) hay que
+    // reconectar el socket, o se queda hablándole a un servidor que ya no responde.
+  }, [connectivity]);
 
   // Plano del salón (planimetría): único modo de ver las mesas — se arma una sola vez y el resto
   // del equipo lo ve ya armado. Editarlo (mover/cambiar forma) es solo del administrador, para

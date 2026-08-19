@@ -35,6 +35,7 @@ import { DeliveryTeamSection } from '@/components/admin/DeliveryTeamSection';
 import { DeliveryPricingSection } from '@/components/admin/DeliveryPricingSection';
 import { PaymentMethodsSection } from '@/components/admin/PaymentMethodsSection';
 import { PrintStationSection } from '@/components/admin/PrintStationSection';
+import { OfflineRelaySection } from '@/components/admin/OfflineRelaySection';
 import { DeleteOrderPinSection } from '@/components/admin/DeleteOrderPinSection';
 import { LockScreenSettingsSection } from '@/components/admin/LockScreenSettingsSection';
 import { DemoAdminUnlockSection } from '@/components/admin/DemoAdminUnlockSection';
@@ -377,6 +378,7 @@ export default function SettingsPage() {
         onToggle={toggleCategory}
       >
         <PrintStationSection />
+        <OfflineRelaySection />
       </SettingsCategory>
 
       {isManager && (

@@ -362,6 +362,12 @@
       <div class="field" id="serverUrlField" hidden>
         <label>URL del servidor</label>
         <input type="text" id="serverUrl" placeholder="https://quicktap.club" value="https://quicktap.club">
+        <label style="margin-top:10px;">Computadora del local (para seguir imprimiendo sin internet)</label>
+        <input type="text" id="relayUrl" placeholder="http://192.168.1.50:4001">
+        <small style="color:#888;font-size:11px;display:block;margin-top:4px;">
+          Opcional. Si se cae el internet, la estación se pasa sola a esta computadora y vuelve
+          cuando la conexión regresa. Tiene que estar en la misma red.
+        </small>
       </div>
 
       <div class="error-msg" id="loginError" hidden></div>
@@ -495,6 +501,11 @@ function saveTicketConfig(){
 const state = {
   token: localStorage.getItem('qt_token') || null,
   serverUrl: localStorage.getItem('qt_serverUrl') || 'https://quicktap.club',
+  // Computadora del local a la que recurrir si se cae el internet (modo sin conexión).
+  // Vacío = desactivado, la estación solo trabaja contra la nube.
+  relayUrl: localStorage.getItem('qt_relayUrl') || '',
+  // A quién le está hablando AHORA: 'cloud' o 'relay'.
+  activeTarget: 'cloud',
   restaurant: JSON.parse(localStorage.getItem('qt_restaurant') || 'null'),
   user: JSON.parse(localStorage.getItem('qt_user') || 'null'),
   demoMode: false,
@@ -658,12 +669,14 @@ $('loginBtn').addEventListener('click', async () => {
     const data = body.data;
     state.token = data.token;
     state.serverUrl = serverUrl;
+    state.relayUrl = ($('relayUrl').value || '').trim().replace(/\/+$/,'');
     state.restaurant = data.restaurant || null;
     state.user = data.user || null;
     state.demoMode = false;
 
     localStorage.setItem('qt_token', state.token);
     localStorage.setItem('qt_serverUrl', state.serverUrl);
+    localStorage.setItem('qt_relayUrl', state.relayUrl);
     localStorage.setItem('qt_restaurant', JSON.stringify(state.restaurant));
     localStorage.setItem('qt_user', JSON.stringify(state.user));
 
@@ -724,17 +737,76 @@ function updateConnCard(){
 /* ============================================================
    Socket.IO — conexión en tiempo real con QuickTap
    ============================================================ */
+/* ============================================================
+   Modo sin conexión: si la nube no responde y hay una computadora
+   del local configurada, la estación se pasa a ella para seguir
+   imprimiendo. Vuelve sola cuando el internet regresa.
+
+   La lógica de impresión no cambia en absoluto: el relé emite
+   `order:new` con la misma forma que la nube, así que
+   handleIncomingOrder ni se entera de dónde vino la comanda.
+   ============================================================ */
+const RELAY_FAILS_TO_SWITCH = 3;   // fallos seguidos antes de irse al relé
+const RELAY_OKS_TO_RETURN = 2;     // éxitos seguidos antes de volver a la nube
+let relayFails = 0, relayOks = 0;
+
+function targetUrl(){
+  return state.activeTarget === 'relay' && state.relayUrl ? state.relayUrl : state.serverUrl;
+}
+
+async function reachable(url, path){
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 3000);
+  try {
+    const res = await fetch(url + path, { signal: ctrl.signal, cache: 'no-store' });
+    return res.ok;
+  } catch { return false; }
+  finally { clearTimeout(t); }
+}
+
+async function checkConnectivity(){
+  if(!state.token) return;
+  const cloudOk = await reachable(state.serverUrl, '/health');
+
+  if(cloudOk){
+    relayFails = 0; relayOks++;
+    if(state.activeTarget === 'relay' && relayOks >= RELAY_OKS_TO_RETURN){
+      state.activeTarget = 'cloud';
+      switchTarget();
+    }
+    return;
+  }
+
+  relayOks = 0; relayFails++;
+  if(relayFails < RELAY_FAILS_TO_SWITCH) return;
+  if(!state.relayUrl || state.activeTarget === 'relay') return;
+
+  if(await reachable(state.relayUrl, '/api/v1/relay/health')){
+    state.activeTarget = 'relay';
+    switchTarget();
+  }
+}
+
+/** Reconecta al destino actual. socket.io no permite cambiar de URL en caliente. */
+function switchTarget(){
+  if(state.socket){ state.socket.disconnect(); state.socket = null; }
+  connectSocket();
+}
+
+setInterval(checkConnectivity, 5000);
+
 function connectSocket(){
   if(!state.token) return;
   setStatus('connecting');
 
-  state.socket = io(state.serverUrl, {
+  state.socket = io(targetUrl(), {
     auth: { token: state.token },
     transports: ['websocket', 'polling'],
     reconnection: true,
   });
 
-  state.socket.on('connect', () => setStatus('connected'));
+  state.socket.on('connect', () => setStatus('connected',
+    state.activeTarget === 'relay' ? 'Sin internet — imprimiendo desde la computadora del local' : undefined));
   state.socket.on('disconnect', () => setStatus('disconnected'));
   state.socket.on('connect_error', (err) => {
     // La sesión de la estación dura 7 días: cuando vence, socket.io reintenta para siempre

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
-import { API_ORIGIN } from '@/utils/apiOrigin';
+import { apiOrigin } from '@/utils/apiOrigin';
 import { api, getToken } from '@/api/client';
 import { isAdminCashier } from '@/utils/roles';
 import { notifyNative } from '@/utils/nativeNotify';
@@ -70,7 +70,7 @@ export function useLowStockItems(
     }
 
     load();
-    const socket: Socket = io(API_ORIGIN || '/', { auth: { token: getToken() } });
+    const socket: Socket = io(apiOrigin() || '/', { auth: { token: getToken() } });
     socket.on('inventory:low-stock', load);
 
     return () => {
