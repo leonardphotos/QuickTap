@@ -126,6 +126,16 @@ export const offlineService = {
       prisma.exchangeRate.findFirst({ where: { currency: restaurant.baseCurrency }, select: { rateBs: true } }),
     ]);
 
+    // Credenciales para poder entrar si el corte dura más que la sesión de un mesero.
+    //
+    // Va el MISMO hash que guarda la nube (bcrypt), nunca la contraseña: el relé solo puede
+    // comparar, no leer. Y solo los roles que atienden el salón — un dueño o administrador no
+    // tiene nada que hacer en el panel durante un corte, y su credencial es la más sensible.
+    const staff = await prisma.user.findMany({
+      where: { restaurantId, role: { in: ['WAITER', 'CASHIER', 'KITCHEN'] } },
+      select: { id: true, email: true, passwordHash: true, name: true, role: true },
+    });
+
     // Cuentas ya abiertas. Sin esto, si el internet se cae con mesas ocupadas, el relé abriría
     // una cuenta NUEVA para una mesa que ya tenía la suya, y al sincronizar quedarían dos
     // cuentas abiertas para la misma mesa. Mandándolas, el relé reusa la que ya existe.
@@ -207,6 +217,16 @@ export const offlineService = {
           })),
         })),
       })),
+      // Sin contraseña puesta (invitado que nunca entró): no sirve cachear nada.
+      credentials: staff
+        .filter((u) => !!u.passwordHash)
+        .map((u) => ({
+          id: u.id,
+          email: u.email,
+          passwordHash: u.passwordHash as string,
+          name: u.name,
+          role: u.role,
+        })),
       openSessions: openSessions.map((s) => ({
         id: s.id,
         tableId: s.tableId,

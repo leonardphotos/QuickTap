@@ -58,6 +58,18 @@ Es una **proyección a propósito**: la nube sigue siendo la autoridad y descuen
 sincronizar los pedidos; el siguiente snapshot pisa el stock local con el real. Así, si el relé
 se desvía, el error se corrige solo en vez de acumularse.
 
+## Entrar durante un corte largo
+
+Si el corte dura más que la sesión de un mesero, su token vence y quedaría fuera justo cuando
+más se necesita. El relé guarda una copia del **hash** de las contraseñas del personal de salón
+(nunca la contraseña; solo puede comparar, no leer) y puede emitir un token nuevo, válido 12
+horas — lo justo para cubrir un turno.
+
+Solo se cachean los roles que atienden el salón (mesero, cajero, cocina). Un dueño o
+administrador no tiene nada que hacer en el panel durante un corte, y su credencial es la más
+sensible. Al sincronizar, la lista se reemplaza entera: alguien dado de baja en la nube deja de
+poder entrar acá.
+
 ## Qué NO hace (a propósito)
 
 Fuera del alcance offline acordado: delivery (imposible sin internet), ajustes/mermas/traslados
@@ -70,5 +82,5 @@ de inventario a mano, reportes, caja, cambios de configuración, push y WhatsApp
 - **Fase 2** ✅ Catálogo e inventario bajan de la nube; el stock baja al servir
 - **Fase 3** ✅ Las tablets y la impresora cambian solas al relé y vuelven al reconectar
 - **Fase 4** ✅ Lo del corte sube solo, renumerado y sin duplicados
-- **Fase 5** ⏳ Revisión de conflictos
-- **Fase 6** ⏳ Android en LAN + renovar sesión sin internet
+- **Fase 5** ✅ Los pedidos que no encajan quedan para revisión humana
+- **Fase 6** ✅ Android habla por red local; se puede entrar aunque venza la sesión

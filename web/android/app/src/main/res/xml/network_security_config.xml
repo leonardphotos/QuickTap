@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Tráfico permitido para la app.
+
+  Por defecto todo va cifrado (HTTPS) — la app habla con quicktap.club y ahí no se admite
+  nada sin cifrar.
+
+  La excepción es el modo sin conexión: cuando se cae el internet del local, la tablet le habla
+  al servidor que corre en la computadora del propio restaurante, dentro de su WiFi. Ese
+  servidor no tiene certificado (no puede: es una IP privada, ninguna autoridad certifica eso),
+  así que la comunicación va sin cifrar.
+
+  El permiso se limita a los rangos de IP que SOLO existen dentro de una red local — los que
+  define el estándar para redes privadas. Nada de esto abre la puerta a tráfico sin cifrar por
+  internet: una dirección así no es enrutable fuera de la red del local.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- Redes domésticas y de oficina (192.168.x.x) — el caso típico de un restaurante. -->
+        <domain includeSubdomains="false">192.168.0.0/16</domain>
+        <!-- Rango privado grande (10.x.x.x), común en routers de fibra empresarial. -->
+        <domain includeSubdomains="false">10.0.0.0/8</domain>
+        <!-- Rango privado intermedio (172.16.x.x a 172.31.x.x). -->
+        <domain includeSubdomains="false">172.16.0.0/12</domain>
+        <!-- La propia tablet, para pruebas. -->
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>

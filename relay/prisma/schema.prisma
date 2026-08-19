@@ -211,6 +211,24 @@ model ModifierVariantPrice {
   @@map("modifier_variant_prices")
 }
 
+/// Copia local de las credenciales del equipo, para poder entrar durante un corte largo.
+///
+/// Guarda el MISMO hash que la nube (bcrypt), nunca la contraseña. El relé no puede leerlas:
+/// solo comparar. Aun así es información sensible que vive en la PC del local — por eso solo
+/// se guardan los roles que atienden el salón, no dueños ni administradores, y la base local
+/// nunca sale de esa máquina.
+model CachedCredential {
+  id           String  @id
+  restaurantId String
+  email        String  @unique
+  passwordHash String
+  name         String
+  role         String
+
+  @@index([restaurantId])
+  @@map("cached_credentials")
+}
+
 /// Insumos con su stock. Es una PROYECCIÓN local: baja al servir pedidos para que el salón vea
 /// qué se está acabando, pero la autoridad sigue siendo la nube — el siguiente snapshot pisa
 /// estos números con los reales, así una diferencia nunca se acumula.

@@ -8,6 +8,7 @@ import { relayDb } from './db.js';
 import { applySnapshot, type CatalogSnapshot } from './snapshot.js';
 import { deductStockForOrder, listInventory } from './inventory.js';
 import { pendingCount, syncPendingToCloud } from './sync.js';
+import { localLogin } from './local-auth.js';
 
 /**
  * Servidor local del relé: habla el MISMO dialecto que la nube (mismas rutas, mismos eventos,
@@ -202,6 +203,32 @@ export function startRelayServer(opts: RelayServerOptions): StartedRelayServer {
       // eslint-disable-next-line no-console
       console.error('[relé] error sincronizando:', e);
       res.status(502).json({ error: e instanceof Error ? e.message : 'No se pudo sincronizar.' });
+    }
+  });
+
+  /**
+   * Entrar sin internet. Misma ruta que la nube, así que la pantalla de login funciona igual
+   * sin cambios: si el corte duró más que la sesión, el mesero vuelve a escribir su contraseña
+   * y sigue trabajando.
+   */
+  app.post('/api/v1/auth/login', async (req, res) => {
+    const email = String(req.body?.email ?? '');
+    const password = String(req.body?.password ?? '');
+    if (!email || !password) {
+      res.status(400).json({ error: 'Escribe tu correo y contraseña.' });
+      return;
+    }
+    try {
+      const result = await localLogin(email, password, opts.jwtSecret);
+      if (!result) {
+        res.status(401).json({ error: 'Correo o contraseña incorrectos.' });
+        return;
+      }
+      res.json({ data: result });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[relé] error en login local:', e);
+      res.status(500).json({ error: 'No se pudo iniciar sesión en el servidor del local.' });
     }
   });
 

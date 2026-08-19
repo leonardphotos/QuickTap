@@ -71,6 +71,7 @@ export interface CatalogSnapshot {
       variantPrices: { variantId: string; priceBase: string }[];
     }[];
   }[];
+  credentials: { id: string; email: string; passwordHash: string; name: string; role: string }[];
   openSessions: {
     id: string;
     tableId: string;
@@ -275,6 +276,22 @@ export async function applySnapshot(snap: CatalogSnapshot): Promise<{ appliedAt:
           });
         }
       }
+    }
+
+    // Credenciales del personal de salón, para poder entrar si el corte dura más que la sesión.
+    // Se reemplazan enteras: así, alguien dado de baja en la nube deja de poder entrar acá.
+    await tx.cachedCredential.deleteMany({ where: { restaurantId } });
+    for (const c of snap.credentials ?? []) {
+      await tx.cachedCredential.create({
+        data: {
+          id: c.id,
+          restaurantId,
+          email: c.email.toLowerCase(),
+          passwordHash: c.passwordHash,
+          name: c.name,
+          role: c.role,
+        },
+      });
     }
 
     // Cuentas ya abiertas en la nube: se traen para que, si el internet se cae con mesas
