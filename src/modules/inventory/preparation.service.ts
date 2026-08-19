@@ -59,6 +59,7 @@ export const preparationService = {
         unit: p.unit,
         unitLabel: UNIT_LABELS[p.unit] ?? p.unit,
         yieldQuantity: p.yieldQuantity.toFixed(3),
+        isTopping: p.isTopping,
         ingredientCount: entry?.count ?? 0,
         totalCostBase: round2(totalCostBase).toFixed(2),
         costPerBaseUnit: round2(costPerBaseUnit).toFixed(4),
@@ -88,6 +89,7 @@ export const preparationService = {
       name: preparation.name,
       unit: preparation.unit,
       yieldQuantity: preparation.yieldQuantity.toFixed(3),
+      isTopping: preparation.isTopping,
       totalCostBase: totalCostBase.toFixed(2),
       costPerBaseUnit: round2(costPerBaseUnit).toFixed(4),
       ingredients: lines.map((l) => ({
@@ -105,7 +107,13 @@ export const preparationService = {
 
   async create(restaurantId: string, input: CreatePreparationInput) {
     return prisma.preparation.create({
-      data: { restaurantId, name: input.name, unit: input.unit, yieldQuantity: input.yieldQuantity },
+      data: {
+        restaurantId,
+        name: input.name,
+        unit: input.unit,
+        yieldQuantity: input.yieldQuantity,
+        isTopping: input.isTopping ?? false,
+      },
     });
   },
 

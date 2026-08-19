@@ -159,16 +159,30 @@ export default function InventoryPage() {
       {tab === 'preparaciones' && canRecipes && <PreparacionesTab insumos={items ?? []} />}
       {tab === 'recetas' && canRecipes && <RecetasTab insumos={items ?? []} />}
       {tab === 'toppings' && canRecipes && (
-        <InsumosTab
-          locationScope="LOCAL"
-          items={(items ?? []).filter((i) => i.isTopping)}
-          categories={categories}
-          onChanged={loadItems}
-          onCategoriesChanged={loadCategories}
-          showModifierLinkToggle={false}
-          canRecipes={canRecipes}
-          toppingsOnly
-        />
+        <div className="space-y-10">
+          <div>
+            <h2 className="text-sm font-semibold text-brand-950/70 mb-3">Topping = un solo insumo</h2>
+            <InsumosTab
+              locationScope="LOCAL"
+              items={(items ?? []).filter((i) => i.isTopping)}
+              categories={categories}
+              onChanged={loadItems}
+              onCategoriesChanged={loadCategories}
+              showModifierLinkToggle={false}
+              canRecipes={canRecipes}
+              toppingsOnly
+            />
+          </div>
+          <div className="border-t border-brand-950/10 pt-8">
+            <h2 className="text-sm font-semibold text-brand-950/70 mb-1">Topping = varios insumos (preparación)</h2>
+            <p className="text-sm text-brand-950/60 font-light mb-3">
+              Ej. "Pico de gallo" = tomate + cebolla + cilantro, en las cantidades que definas. Se arma igual que una
+              Preparación normal (pestaña "Preparaciones"), solo que además aparece en el picker de Toppings al crear
+              un modificador.
+            </p>
+            <PreparacionesTab insumos={items ?? []} toppingsOnly />
+          </div>
+        </div>
       )}
       {tab === 'stock' && <StockTab />}
       {tab === 'merma' && <WasteSection />}
@@ -1325,6 +1339,7 @@ interface PreparationOverviewRow {
   unit: string;
   unitLabel: string;
   yieldQuantity: string;
+  isTopping: boolean;
   ingredientCount: number;
   totalCostBase: string;
   costPerBaseUnit: string;
@@ -1344,20 +1359,24 @@ interface PreparationLine {
 /** Preparaciones (sub-recetas): bases intermedias reutilizables entre platos (fondo, salsa
  * madre, masa), armadas a partir de insumos y/o de otras preparaciones. No tienen stock
  * propio — su costo se calcula en vivo y queda disponible como ingrediente en Recetas. */
-function PreparacionesTab({ insumos }: { insumos: InventoryItem[] }) {
+function PreparacionesTab({ insumos, toppingsOnly = false }: { insumos: InventoryItem[]; toppingsOnly?: boolean }) {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
-  const [rows, setRows] = useState<PreparationOverviewRow[] | null>(null);
+  const [allRows, setAllRows] = useState<PreparationOverviewRow[] | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [newPrep, setNewPrep] = useState({ name: '', unit: 'kg' as 'kg' | 'lt', yieldQuantity: '' });
   const [error, setError] = useState<string | null>(null);
 
   function load() {
-    api.get('/inventory/preparations').then((res) => setRows(res.data.data));
+    api.get('/inventory/preparations').then((res) => setAllRows(res.data.data));
   }
 
   useEffect(load, []);
+
+  // En la pestaña Toppings esto solo lista/crea las preparaciones curadas isTopping — el resto
+  // de Preparaciones (fondos, salsas madre que no son un topping) no aparece acá.
+  const rows = toppingsOnly ? allRows?.filter((r) => r.isTopping) : allRows;
 
   async function createPreparation() {
     setError(null);
@@ -1373,6 +1392,7 @@ function PreparacionesTab({ insumos }: { insumos: InventoryItem[] }) {
         name: newPrep.name.trim(),
         unit: newPrep.unit,
         yieldQuantity: Number(newPrep.yieldQuantity) * toBase,
+        isTopping: toppingsOnly ? true : undefined,
       });
       setNewPrep({ name: '', unit: 'kg', yieldQuantity: '' });
       setCreating(false);
@@ -1393,12 +1413,21 @@ function PreparacionesTab({ insumos }: { insumos: InventoryItem[] }) {
 
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
         {rows?.length === 0 && !creating && (
-          <p className="p-5 text-sm text-brand-950/40 font-light">Sin preparaciones todavía.</p>
+          <p className="p-5 text-sm text-brand-950/40 font-light">
+            {toppingsOnly ? 'Sin toppings de varios insumos todavía.' : 'Sin preparaciones todavía.'}
+          </p>
         )}
         {rows?.map((r) => (
           <div key={r.id} className="flex items-center justify-between gap-3 px-5 py-4">
             <div className="min-w-0">
-              <p className="font-medium text-brand-950 truncate">{r.name}</p>
+              <p className="font-medium text-brand-950 truncate">
+                {r.name}
+                {!toppingsOnly && r.isTopping && (
+                  <span className="ml-2 inline-block rounded-full bg-amber-100 text-amber-700 text-[10px] font-semibold px-2 py-0.5 align-middle">
+                    Topping
+                  </span>
+                )}
+              </p>
               <p className="text-xs text-brand-950/40 font-light">
                 {r.ingredientCount} ingrediente(s) · Rinde {(Number(r.yieldQuantity) * 1000).toFixed(0)} {r.unit === 'kg' ? 'gr' : 'ml'} ·
                 Costo:{' '}
@@ -1419,7 +1448,7 @@ function PreparacionesTab({ insumos }: { insumos: InventoryItem[] }) {
               <input
                 value={newPrep.name}
                 onChange={(e) => setNewPrep({ ...newPrep, name: e.target.value })}
-                placeholder="Nombre (ej: Pasta de ajo)"
+                placeholder={toppingsOnly ? 'Nombre (ej: Pico de gallo)' : 'Nombre (ej: Pasta de ajo)'}
                 autoFocus
                 className="sm:col-span-2 border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
               />
@@ -1453,13 +1482,20 @@ function PreparacionesTab({ insumos }: { insumos: InventoryItem[] }) {
             onClick={() => setCreating(true)}
             className="flex items-center gap-1.5 text-sm font-medium text-brand-500 hover:underline p-5"
           >
-            <Plus className="h-4 w-4" /> Nueva preparación
+            <Plus className="h-4 w-4" /> {toppingsOnly ? 'Nuevo topping (varios insumos)' : 'Nueva preparación'}
           </button>
         )}
       </div>
 
       {openId && (
-        <PreparationDialog id={openId} insumos={insumos} preparations={rows ?? []} onClose={() => setOpenId(null)} onSaved={load} />
+        <PreparationDialog
+          id={openId}
+          insumos={insumos}
+          preparations={allRows ?? []}
+          hideToppingToggle={toppingsOnly}
+          onClose={() => setOpenId(null)}
+          onSaved={load}
+        />
       )}
     </div>
   );
@@ -1469,18 +1505,23 @@ function PreparationDialog({
   id,
   insumos,
   preparations,
+  hideToppingToggle = false,
   onClose,
   onSaved,
 }: {
   id: string;
   insumos: InventoryItem[];
   preparations: PreparationOverviewRow[];
+  /** Se abre desde la pestaña Toppings: ya se sabe que es un topping, no hace falta el interruptor. */
+  hideToppingToggle?: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [name, setName] = useState('');
   const [yieldQuantity, setYieldQuantity] = useState('');
   const [unit, setUnit] = useState<'kg' | 'lt'>('kg');
+  const [isTopping, setIsTopping] = useState(false);
+  const [savingTopping, setSavingTopping] = useState(false);
   const [lines, setLines] = useState<PreparationLine[] | null>(null);
   const [totalCostBase, setTotalCostBase] = useState('0.00');
   const [adding, setAdding] = useState(false);
@@ -1505,6 +1546,7 @@ function PreparationDialog({
       // El backend guarda en la unidad declarada (kg/lt) — se muestra en gr/ml, más natural
       // para escribir cuánto rinde una preparación.
       setYieldQuantity((Number(res.data.data.yieldQuantity) * 1000).toString());
+      setIsTopping(!!res.data.data.isTopping);
       setLines(res.data.data.ingredients);
       setTotalCostBase(res.data.data.totalCostBase);
     });
@@ -1554,6 +1596,19 @@ function PreparationDialog({
     await api.delete(`/inventory/preparations/ingredient/${lineId}`);
     load();
     onSaved();
+  }
+
+  async function toggleTopping(next: boolean) {
+    setIsTopping(next);
+    setSavingTopping(true);
+    try {
+      await api.patch(`/inventory/preparations/${id}`, { isTopping: next });
+      onSaved();
+    } catch {
+      setIsTopping(!next);
+    } finally {
+      setSavingTopping(false);
+    }
   }
 
   return (
@@ -1680,6 +1735,17 @@ function PreparationDialog({
               Si entraron más gramos de insumos de los que rinde (merma al cocinar), el costo se reparte entre lo que realmente
               queda.
             </p>
+            {!hideToppingToggle && (
+              <label className="flex items-center gap-2 text-sm text-brand-950/70 pt-1">
+                <input
+                  type="checkbox"
+                  checked={isTopping}
+                  disabled={savingTopping}
+                  onChange={(e) => toggleTopping(e.target.checked)}
+                />
+                Es un Topping (aparece en el picker de Inventario → Toppings al crear un modificador)
+              </label>
+            )}
           </div>
         </div>
       </DialogContent>

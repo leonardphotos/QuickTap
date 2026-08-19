@@ -365,6 +365,26 @@ function CloseCashForm({
                   ))}
                 </div>
               </div>
+              {/* Propina: su propio segmento, no es venta del restaurante — no entra al total neto. */}
+              {preview.tipsByMethod && Number(preview.totalTips) > 0 && (
+                <div className="border-t border-brand-950/10 pt-2">
+                  <p className="text-xs font-semibold text-brand-950/70 mb-1.5">Propinas del turno</p>
+                  <div className="text-sm space-y-1">
+                    {Object.entries(preview.tipsByMethod)
+                      .filter(([, v]) => Number(v) > 0)
+                      .map(([m, v]) => (
+                        <div key={m} className="flex justify-between text-brand-950/80">
+                          <span>{PAYMENT_METHOD_LABELS[m] ?? m}</span>
+                          <span>{formatBase(v, symbol)}</span>
+                        </div>
+                      ))}
+                    <div className="flex justify-between font-medium text-brand-950">
+                      <span>Total propinas</span>
+                      <span>{formatBase(preview.totalTips ?? '0', symbol)}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
               <div className="text-sm flex justify-between text-brand-950/80 border-t border-brand-950/10 pt-2">
                 <span>Ingresos manuales</span>
                 <span>+{formatBase(preview.movements.totalIncome, symbol)}</span>

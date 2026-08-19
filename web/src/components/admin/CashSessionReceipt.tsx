@@ -19,6 +19,10 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
 
 export interface CashSessionSummary {
   paymentsByMethod: Record<string, { amountBase: string; count: number }>;
+  /** Propinas cobradas en el turno, por método — SU PROPIO segmento: no es venta del
+   * restaurante, no entra en totalPayments/totalNet (ver cash-session.service.ts). */
+  tipsByMethod?: Record<string, string>;
+  totalTips?: string;
   /** Lo que debería haber por método al cerrar: apertura + cobrado + movimientos manuales.
    * Es contra esto que se compara el conteo físico del arqueo. */
   expectedByMethod?: Record<string, string>;
@@ -171,6 +175,29 @@ export const CashSessionReceipt = forwardRef<HTMLDivElement, Props>(({ session, 
               <span>{formatBase(summary.totalPayments, symbol)}</span>
             </div>
           </div>
+
+          {summary.tipsByMethod && Number(summary.totalTips) > 0 && (
+            <>
+              <p style={sectionLabel}>Propinas del turno por método</p>
+              <div style={list}>
+                {Object.entries(summary.tipsByMethod)
+                  .filter(([, v]) => Number(v) > 0)
+                  .map(([method, v]) => (
+                    <div key={method} style={listRow}>
+                      <span>{PAYMENT_METHOD_LABELS[method] ?? method}</span>
+                      <span>{formatBase(v, symbol)}</span>
+                    </div>
+                  ))}
+                <div style={subtotalRow}>
+                  <span>Total propinas</span>
+                  <span>{formatBase(summary.totalTips!, symbol)}</span>
+                </div>
+              </div>
+              <p style={{ fontSize: '9px', opacity: 0.6, margin: '2px 0 8px' }}>
+                No es venta del restaurante — plata del personal, aparte del total neto de abajo.
+              </p>
+            </>
+          )}
 
           {summary.changeOutByMethod && Object.values(summary.changeOutByMethod).some((v) => Number(v) > 0) && (
             <>

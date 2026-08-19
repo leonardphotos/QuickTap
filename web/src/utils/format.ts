@@ -26,6 +26,25 @@ export function formatBsAbsolute(bs: string | number): string {
 }
 
 /**
+ * Precio base a mostrar en las tarjetas del menú público (grid, destacados, sugeridos): el
+ * precio simple del producto, o — si el producto es de variantes (pricingMode VARIANTS) — la
+ * más barata de sus variantes disponibles. Sin esto, una tarjeta de un producto sin precio
+ * simple (todo su precio vive en las variantes) mostraba $0.00, no el precio real del producto.
+ */
+export function productDisplayPriceBase(product: {
+  price: string;
+  pricingMode?: 'SIMPLE' | 'VARIANTS';
+  variants?: { priceBase: string; isAvailable?: boolean }[];
+}): { amountBase: number; isFromVariant: boolean } {
+  if (product.pricingMode === 'VARIANTS' && product.variants?.length) {
+    const pool = product.variants.filter((v) => v.isAvailable !== false);
+    const candidates = (pool.length > 0 ? pool : product.variants).map((v) => Number(v.priceBase));
+    return { amountBase: Math.min(...candidates), isFromVariant: true };
+  }
+  return { amountBase: Number(product.price), isFromVariant: false };
+}
+
+/**
  * Precio para mostrar al público: Bs como primario (lo que el cliente paga),
  * el precio en la moneda base ($/€) como referencia secundaria.
  * Si aún no hay tasa BCV disponible, cae a mostrar solo la moneda base.

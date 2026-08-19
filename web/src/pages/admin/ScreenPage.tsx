@@ -3,7 +3,7 @@ import { LogOut, RefreshCw } from 'lucide-react';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import type { Product, PublicMenu } from '../../types';
-import { publicPriceLabel } from '../../utils/format';
+import { productDisplayPriceBase, publicPriceLabel } from '../../utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 
 // El menú público ya excluye productos agotados/no disponibles server-side (stockControlEnabled +
@@ -121,7 +121,8 @@ export default function ScreenPage() {
         // React "arranque" la transición — el contenido queda visible pase lo que pase.
         <div key={page} className={`h-full w-full grid gap-1 animate-menu-slide-in ${GRID_CLASS[itemsPerPage] ?? GRID_CLASS[4]}`}>
           {currentItems.map((p) => {
-            const price = menu ? publicPriceLabel(p.price, menu.restaurant) : null;
+            const displayPrice = productDisplayPriceBase(p);
+            const price = menu ? publicPriceLabel(displayPrice.amountBase, menu.restaurant) : null;
             return (
               <div key={p.id} className="relative overflow-hidden bg-brand-950">
                 {p.photoUrl ? (
@@ -139,6 +140,7 @@ export default function ScreenPage() {
                   </div>
                   {price && (
                     <div className="text-right shrink-0">
+                      {displayPrice.isFromVariant && <p className="text-xs text-white/50 -mb-0.5">Desde</p>}
                       <p className="text-3xl font-extrabold whitespace-nowrap">{price.secondary}</p>
                       <p className="text-sm text-white/60 whitespace-nowrap">{price.primary}</p>
                     </div>

@@ -30,6 +30,7 @@ interface PreparationOption {
   id: string;
   name: string;
   unit: string;
+  isTopping?: boolean;
 }
 
 /** Selector combinado insumo/preparación del vínculo de inventario de un modificador:
@@ -364,14 +365,19 @@ function CategoryEditor({
   }
 
   /** Tab "Desde Toppings": crea el modificador con el nombre del topping y ya vinculado a su
-   * insumo (1 unidad base, editable después en la fila) — la idea es no tener que buscarlo
-   * entre todos los insumos ni escribir el vínculo a mano. */
+   * insumo, o a la preparación (si es un topping de varios insumos, ver Preparation.isTopping) —
+   * 1 unidad base, editable después en la fila. La idea es no tener que buscarlo entre todos los
+   * insumos/preparaciones ni escribir el vínculo a mano. */
   async function addModifierFromTopping() {
-    const topping = toppings.find((t) => t.id === selectedToppingId);
+    const { inventoryItemId, preparationId } = decodeLinkValue(selectedToppingId);
+    const topping = inventoryItemId
+      ? toppings.find((t) => t.id === inventoryItemId)
+      : toppingPreparations.find((t) => t.id === preparationId);
     if (!topping) return;
     await api.post(`/modifier-categories/${category.id}/modifiers`, {
       name: topping.name,
-      inventoryItemId: topping.id,
+      inventoryItemId: inventoryItemId ?? undefined,
+      preparationId: preparationId ?? undefined,
       inventoryQuantity: 1,
     });
     setSelectedToppingId('');
@@ -428,6 +434,7 @@ function CategoryEditor({
   }
 
   const toppings = insumos.filter((i) => i.isTopping);
+  const toppingPreparations = preparations.filter((p) => p.isTopping);
   const linkedIds = new Set((linkedProducts ?? []).map((p) => p.productId));
   // Solo los productos asociados a esta categoría que cobran "por variantes" (ej. Pizza
   // Pequeña/Grande) tienen sentido para fijar un precio propio de modificador por variante.
@@ -622,9 +629,9 @@ function CategoryEditor({
                   <Plus className="h-4 w-4" /> Agregar
                 </TextureButton>
               </div>
-            ) : toppings.length === 0 ? (
+            ) : toppings.length === 0 && toppingPreparations.length === 0 ? (
               <p className="text-xs text-brand-950/40 font-light">
-                Todavía no tienes toppings cargados. Agrégalos en Inventario → Recetas → Toppings.
+                Todavía no tienes toppings cargados. Agrégalos en Inventario → Toppings.
               </p>
             ) : (
               <div className="flex gap-1.5">
@@ -634,11 +641,24 @@ function CategoryEditor({
                   className={outlinedFieldInputClass}
                 >
                   <option value="">Elegir topping…</option>
-                  {toppings.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name} ({UNIT_LABELS[t.unit] ?? t.unit})
-                    </option>
-                  ))}
+                  {toppings.length > 0 && (
+                    <optgroup label="Insumo solo">
+                      {toppings.map((t) => (
+                        <option key={t.id} value={linkValueOf(t.id, null)}>
+                          {t.name} ({UNIT_LABELS[t.unit] ?? t.unit})
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {toppingPreparations.length > 0 && (
+                    <optgroup label="Varios insumos (preparación)">
+                      {toppingPreparations.map((t) => (
+                        <option key={t.id} value={linkValueOf(null, t.id)}>
+                          🍯 {t.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
                 <TextureButton
                   variant="brand"

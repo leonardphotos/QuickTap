@@ -1,5 +1,5 @@
 import type { Product, Restaurant } from '../../types';
-import { publicPriceLabel } from '../../utils/format';
+import { productDisplayPriceBase, publicPriceLabel } from '../../utils/format';
 
 interface Props {
   product: Product;
@@ -8,7 +8,8 @@ interface Props {
 }
 
 export default function ProductGridCard({ product, restaurant, onOpen }: Props) {
-  const price = publicPriceLabel(product.price, restaurant);
+  const displayPrice = productDisplayPriceBase(product);
+  const price = publicPriceLabel(displayPrice.amountBase, restaurant);
   const originalPrice = product.onTimePromo && product.originalPrice ? publicPriceLabel(product.originalPrice, restaurant) : null;
 
   return (
@@ -32,6 +33,7 @@ export default function ProductGridCard({ product, restaurant, onOpen }: Props) 
         )}
         <span className="absolute -bottom-2 right-2 flex items-center gap-1.5 bg-brand-500 text-[color:var(--qt-button-text,white)] text-xs font-semibold px-2.5 py-1 rounded-full shadow">
           {originalPrice && <span className="opacity-60 line-through font-normal">{originalPrice.primary}</span>}
+          {displayPrice.isFromVariant && <span className="opacity-75 font-normal">Desde</span>}
           {price.primary}
         </span>
         {(product.isStar || product.isPromo || product.isHouseSpecial || product.onTimePromo) && (

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import { Check, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import type { CartLine, ModifierCategory, Product, Restaurant, SelectedModifier } from '../../types';
-import { formatBase, publicPriceLabel } from '../../utils/format';
+import { formatBase, productDisplayPriceBase, publicPriceLabel } from '../../utils/format';
 import { effectiveMax, effectiveMin, effectiveModifierPrice } from '../../utils/modifierLimits';
 import {
   FamilyDrawerRoot,
@@ -430,7 +430,8 @@ export default function ProductDetailSheet({
 }
 
 function SuggestionCard({ product, restaurant, onClick }: { product: Product; restaurant: Restaurant; onClick: () => void }) {
-  const price = publicPriceLabel(product.price, restaurant);
+  const displayPrice = productDisplayPriceBase(product);
+  const price = publicPriceLabel(displayPrice.amountBase, restaurant);
   return (
     <button onClick={onClick} className="text-center">
       {product.photoUrl ? (
@@ -447,7 +448,10 @@ function SuggestionCard({ product, restaurant, onClick }: { product: Product; re
         </div>
       )}
       <p className="text-xs font-medium text-brand-950 truncate">{product.name}</p>
-      <p className="text-[11px] text-brand-950/50">{price.primary}</p>
+      <p className="text-[11px] text-brand-950/50">
+        {displayPrice.isFromVariant && 'Desde '}
+        {price.primary}
+      </p>
     </button>
   );
 }

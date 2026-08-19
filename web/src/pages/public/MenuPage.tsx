@@ -6,7 +6,7 @@ import { API_ORIGIN } from '@/utils/apiOrigin';
 import { BellRing, CalendarDays, Clock, Receipt, Search, Share2, ShoppingCart } from 'lucide-react';
 import { api } from '../../api/client';
 import type { CartLine, PublicMenu, Product, Restaurant, ServiceRequestType } from '../../types';
-import { cartLineUnitPrice, hexToRgba, modifierSelectionKey, publicPriceLabel } from '../../utils/format';
+import { cartLineUnitPrice, hexToRgba, modifierSelectionKey, productDisplayPriceBase, publicPriceLabel } from '../../utils/format';
 import ProductGridCard from './ProductGridCard';
 import ProductDetailSheet from './ProductDetailSheet';
 import PhotoGallery from './PhotoGallery';
@@ -620,7 +620,8 @@ function HighlightCard({
   onOpen: (product: Product) => void;
   orderingEnabled: boolean;
 }) {
-  const price = publicPriceLabel(product.price, restaurant);
+  const displayPrice = productDisplayPriceBase(product);
+  const price = publicPriceLabel(displayPrice.amountBase, restaurant);
 
   return (
     <MinimalCard
@@ -638,6 +639,7 @@ function HighlightCard({
       )}
       <MinimalCardTitle className="text-sm mt-1 line-clamp-2 min-h-[2.5rem]">{product.name}</MinimalCardTitle>
       <MinimalCardDescription className="text-xs pb-1">
+        {displayPrice.isFromVariant && 'Desde '}
         {price.primary}
         {price.secondary ? ` · ${price.secondary}` : ''}
       </MinimalCardDescription>

@@ -98,6 +98,13 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   const paidBase = settledOf(order.payments);
   const balanceBase = Math.max(0, Number(order.totalBase) - paidBase);
 
+  // Propina: aparte del saldo de la venta (no cuenta para "saldado"). `tipOutstanding` es lo
+  // que el pedido declaró (QR de mesa, o una edición manual) menos lo ya cobrado en pagos
+  // anteriores de esta misma cuenta — se precarga acá, pero el cajero puede ajustarlo o
+  // dejarlo en 0 si el cliente no quiere dejar propina en este cobro.
+  const tipCollectedSoFar = order.payments.reduce((acc, p) => acc + Number(p.tipBase ?? 0), 0);
+  const tipOutstanding = Math.max(0, Number(order.tipBase ?? 0) - tipCollectedSoFar);
+
   const paymentConfig = restaurant?.paymentMethodsConfig;
   const hasPaymentConfig = paymentConfig && Object.values(paymentConfig).some((m) => m?.enabled);
   const paymentOptions = hasPaymentConfig
@@ -109,6 +116,15 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   // datos/QR se muestran y a cuál cuenta bancaria se asienta el cobro.
   const [accountKey, setAccountKey] = useState('main');
   const [amount, setAmount] = useState(mode === 'split' ? '' : balanceBase.toFixed(2));
+  // La propina se escribe en la moneda que sea más cómoda para el cajero (casi siempre Bs,
+  // como la dice el cliente en el mostrador) y se convierte a la moneda base del pedido (la que
+  // guarda OrderPayment.tipBase) con la MISMA tasa congelada del pedido — no la tasa del día —
+  // para que cuadre con lo que el backend termina acreditando.
+  const rateBsOfOrder = Number(order.exchangeRate) || 0;
+  const [tipCurrency, setTipCurrency] = useState<'BASE' | 'BS'>('BS');
+  const [tipValue, setTipValue] = useState(
+    tipOutstanding > 0 ? (rateBsOfOrder > 0 ? round2(tipOutstanding * rateBsOfOrder) : tipOutstanding).toFixed(2) : '',
+  );
   // Descuento y ajuste de servicio de ESTE cobro puntual — cada uno se puede escribir en % o en
   // monto fijo (discountMode/serviceMode eligen cuál de los dos interpreta discountValue/serviceValue).
   const [discountMode, setDiscountMode] = useState<'percent' | 'amount'>('percent');
@@ -191,11 +207,26 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   // usado también para el bloque de QR/Bs de Pago Móvil.
   const amountToCharge =
     mode === 'split' && splitBy === 'items' ? itemsSubtotal : mode === 'split' ? Number(amount) || 0 : discountedBalance;
+  const tipValueNum = Math.max(0, Number(tipValue) || 0);
+  const tipAmt = tipCurrency === 'BS' && rateBsOfOrder > 0 ? round2(tipValueNum / rateBsOfOrder) : tipValueNum;
 
-  // Vuelto: solo con billetes (Efectivo $ / Efectivo Bs). Recibido − a cobrar, si es positivo.
+  /** Cambiar Bs <-> $ convierte lo ya escrito, para no perder lo que el cajero tecleó. */
+  function onTipCurrencyChange(next: 'BASE' | 'BS') {
+    if (next !== tipCurrency && rateBsOfOrder > 0 && tipValueNum > 0) {
+      const converted =
+        next === 'BS' ? round2(tipValueNum * rateBsOfOrder) : round2(tipValueNum / rateBsOfOrder);
+      setTipValue(converted.toFixed(2));
+    }
+    setTipCurrency(next);
+  }
+  // Lo que de verdad hay que recibir ahora: la venta más la propina, si el cliente deja una.
+  const totalWithTip = round2(amountToCharge + tipAmt);
+
+  // Vuelto: solo con billetes (Efectivo $ / Efectivo Bs). Recibido − a cobrar (venta + propina
+  // incluida, si la hay), si es positivo.
   const isCashMethod = method === 'CASH' || method === 'CASH_USD';
   const receivedNum = Number(amountReceived) || 0;
-  const changeAmt = isCashMethod && receivedNum > amountToCharge + 0.001 ? round2(receivedNum - amountToCharge) : 0;
+  const changeAmt = isCashMethod && receivedNum > totalWithTip + 0.001 ? round2(receivedNum - totalWithTip) : 0;
   const rateBs = restaurant?.exchangeRate?.rateBs;
   const effectiveChangeMethod: PaymentMethod = changeMethod || method;
 
@@ -355,6 +386,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
         proofImageUrl: needsProof ? proofUrl ?? undefined : undefined,
         bankAccountId: selectedAccount?.bankAccountId ?? undefined,
         promoCode: promo?.code ?? undefined,
+        tipBase: tipAmt > 0 ? tipAmt : undefined,
         // Vuelto: solo se manda si de verdad hubo cambio.
         amountReceived: changeAmt > 0 ? receivedNum : undefined,
         changeMethod: changeAmt > 0 ? effectiveChangeMethod : undefined,
@@ -383,6 +415,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
         setProofError(null);
         setDiscountValue('');
         setServiceValue('');
+        setTipValue('');
       }
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo registrar el pago.');
@@ -421,7 +454,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
           qrImageUrl={qrImageUrl}
           // En fraccionado, mientras el cajero no escriba el abono, al cliente se le muestra
           // el saldo pendiente en vez de un 0,00 que no le dice nada.
-          amountBase={amountToCharge > 0 ? amountToCharge : discountedBalance}
+          amountBase={amountToCharge > 0 ? totalWithTip : discountedBalance}
           amountLabel={amountToCharge > 0 ? 'Monto a cobrar' : 'Saldo pendiente'}
           symbol={symbol}
           // Tasa CONGELADA del pedido, no la del login: el backend asienta el cobro con
@@ -595,7 +628,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                         value={amountReceived}
                         onChange={(e) => setAmountReceived(e.target.value.replace(/[^0-9.]/g, ''))}
                         inputMode="decimal"
-                        placeholder={amountToCharge > 0 ? amountToCharge.toFixed(2) : '0.00'}
+                        placeholder={amountToCharge > 0 ? totalWithTip.toFixed(2) : '0.00'}
                         className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
                       />
                     </div>
@@ -643,7 +676,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                       )}
                       <p className="text-[11px] text-brand-950/40 font-light">
                         {effectiveChangeMethod === method
-                          ? `En caja queda el neto: ${formatBase(amountToCharge, symbol)}.`
+                          ? `En caja queda el neto: ${formatBase(totalWithTip, symbol)}.`
                           : `En caja entra ${formatBase(receivedNum, symbol)} en ${PAYMENT_LABELS[method]} y sale ${formatBase(changeAmt, symbol)}${rateBs ? ` (${formatBs(changeAmt, rateBs)})` : ''} por ${PAYMENT_LABELS[effectiveChangeMethod]}.`}
                       </p>
                     </>
@@ -837,6 +870,51 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     <span>Monto a cobrar</span>
                     <span>{formatBase(discountedBalance, symbol)}</span>
                   </div>
+                </div>
+              )}
+
+              {/* Propina: aparte de la venta, en su propio segmento — no perdona ni suma saldo del
+                  pedido, solo plata extra que entra junto con este cobro (ver orderBalance.ts y
+                  cash-session.service.ts, donde se reporta separado de las ventas). */}
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <p className="text-xs font-medium text-brand-950/50 mb-1.5">
+                    Propina {tipOutstanding > 0 && <span className="font-normal">(el cliente eligió {formatBase(tipOutstanding, symbol)})</span>}
+                  </p>
+                  <input
+                    value={tipValue}
+                    onChange={(e) => setTipValue(e.target.value.replace(/[^0-9.]/g, ''))}
+                    placeholder="0.00 — ¿el cliente quiere dejar propina?"
+                    className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                  />
+                </div>
+                <div className="flex rounded-lg border border-brand-950/15 overflow-hidden shrink-0">
+                  {(['BS', 'BASE'] as const).map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => onTipCurrencyChange(c)}
+                      className={`px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                        tipCurrency === c ? 'bg-brand-500 text-white' : 'bg-white text-brand-950/50 hover:bg-brand-950/[0.04]'
+                      }`}
+                    >
+                      {c === 'BS' ? 'Bs' : symbol}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {tipValueNum > 0 && rateBsOfOrder > 0 && (
+                <p className="text-xs text-brand-950/40 -mt-1">
+                  ≈ {tipCurrency === 'BS' ? formatBase(tipAmt, symbol) : formatBs(tipAmt, rateBsOfOrder)}
+                </p>
+              )}
+              {tipAmt > 0 && (
+                <div className="flex items-center justify-between text-sm font-semibold -mt-1">
+                  <span>Total a cobrar (con propina)</span>
+                  <span>
+                    {formatBase(totalWithTip, symbol)}
+                    {rateBsOfOrder > 0 && <span className="font-normal text-brand-950/50"> · {formatBs(totalWithTip, rateBsOfOrder)}</span>}
+                  </span>
                 </div>
               )}
 

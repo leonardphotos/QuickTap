@@ -17,6 +17,9 @@ interface CollectedPayment {
   // por `changeMethod` — el arqueo tiene que reflejar las dos cosas, no solo el neto.
   changeBase?: Prisma.Decimal | null;
   changeMethod?: PaymentMethod | null;
+  // Propina cobrada junto con este pago (solo restaurante, ver OrderPayment.tipBase). Entra
+  // físicamente por el mismo `method`, pero se reporta en su propio segmento — nunca como venta.
+  tipBase?: Prisma.Decimal | null;
 }
 
 /**
@@ -35,9 +38,15 @@ async function collectPayments(
   if (businessType !== 'SPORTS_CLUB') {
     const rows = await prisma.orderPayment.findMany({
       where: { order: { restaurantId }, createdAt: { gte: since } },
-      select: { amountBase: true, method: true, changeBase: true, changeMethod: true },
+      select: { amountBase: true, method: true, changeBase: true, changeMethod: true, tipBase: true },
     });
-    return rows.map((p) => ({ amountBase: p.amountBase, method: p.method, changeBase: p.changeBase, changeMethod: p.changeMethod }));
+    return rows.map((p) => ({
+      amountBase: p.amountBase,
+      method: p.method,
+      changeBase: p.changeBase,
+      changeMethod: p.changeMethod,
+      tipBase: p.tipBase,
+    }));
   }
 
   const [courtPayments, storeSales, storeInstallments, academyPayments] = await Promise.all([
@@ -111,6 +120,18 @@ async function computeSummary(
   );
   const totalPayments = round2(payments.reduce((acc, p) => acc.add(p.amountBase), toDecimal(0)));
 
+  // Propinas: SU PROPIO segmento — nunca se suman a totalPayments/totalNet (no son venta del
+  // restaurante, son plata que pasa a través para el personal), pero sí entran a
+  // expectedByMethod: físicamente están en la misma gaveta/cuenta que el cobro que las trajo.
+  const tipsByMethod = Object.fromEntries(
+    PAYMENT_METHODS.map((method) => {
+      const rows = payments.filter((p) => p.method === method && p.tipBase);
+      const amountBase = round2(rows.reduce((acc, p) => acc.add(p.tipBase ?? toDecimal(0)), toDecimal(0)));
+      return [method, amountBase.toFixed(2)];
+    }),
+  );
+  const totalTips = round2(payments.reduce((acc, p) => acc.add(p.tipBase ?? toDecimal(0)), toDecimal(0)));
+
   // Vuelto: cuánto salió por cada método como cambio al cliente. Solo cuando se devolvió por
   // un método DISTINTO al del cobro importa para el arqueo (pagó $20 en efectivo, se le
   // devolvieron $2 en Bs por Pago Móvil → efectivo +20, Pago Móvil −2). Vuelto en el mismo
@@ -145,6 +166,7 @@ async function computeSummary(
       // Cobrado neto + el vuelto que entró en efectivo por acá pero salió por otro lado
       // (el efectivo completo que el cliente entregó) − el vuelto que salió por acá.
       const collected = toDecimal(paymentsByMethod[method].amountBase)
+        .add(toDecimal(tipsByMethod[method]))
         .add(changeByMethod[method].grossIn)
         .sub(changeByMethod[method].out);
       const manual = movements
@@ -156,6 +178,9 @@ async function computeSummary(
 
   return {
     paymentsByMethod,
+    // Segmento aparte de las ventas — ver la nota arriba de tipsByMethod.
+    tipsByMethod,
+    totalTips: totalTips.toFixed(2),
     // Vuelto entregado por método (solo el devuelto por un método distinto al del cobro),
     // para que el recibo de cierre explique por qué ese método esperado es menor.
     changeOutByMethod: Object.fromEntries(PAYMENT_METHODS.map((m) => [m, changeByMethod[m].out.toFixed(2)])),

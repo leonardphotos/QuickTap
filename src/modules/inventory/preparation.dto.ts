@@ -7,6 +7,9 @@ export const createPreparationSchema = z.object({
   // Cuánto rinde, en la unidad declarada arriba (kg/lt) — gr/ml son solo la conveniencia
   // de entrada en la UI, convertidos antes de llamar a este endpoint.
   yieldQuantity: z.coerce.number().positive('El rendimiento debe ser mayor a 0.'),
+  // Topping multi-insumo (ver Preparation.isTopping) — curada para el picker de
+  // Inventario → Toppings al crear un modificador desde ahí.
+  isTopping: z.boolean().optional(),
 });
 
 export const updatePreparationSchema = createPreparationSchema.partial();

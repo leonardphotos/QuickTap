@@ -2212,6 +2212,18 @@ export const orderService = {
       );
       const balance = round2(order.totalBase.sub(alreadySettled));
 
+      // Propina: plata aparte del saldo del pedido (ver Order.tipBase), nunca cuenta para
+      // "saldado" ni se descuenta del monto cobrado. `collectedTipsSoFar` es lo ya cobrado en
+      // pagos anteriores de esta misma cuenta (fraccionado); si este cobro suma más de lo que
+      // el pedido tenía declarado (ej. nunca se eligió propina al pedir y el cliente decide dejar
+      // una acá, o decide dejar más), Order.tipBase sube para reflejar lo realmente cobrado.
+      const collectedTipsSoFar = order.payments.reduce((acc, p) => acc.add(p.tipBase ?? toDecimal(0)), toDecimal(0));
+      const tipBase = input.tipBase != null ? round2(toDecimal(input.tipBase)) : undefined;
+      const tipBaseForOrder =
+        tipBase && round2(collectedTipsSoFar.add(tipBase)).gt(order.tipBase)
+          ? round2(collectedTipsSoFar.add(tipBase))
+          : undefined;
+
       let amountBase: Prisma.Decimal;
       if (input.items?.length) {
         const itemById = new Map(order.items.map((i) => [i.id, i]));
@@ -2300,6 +2312,7 @@ export const orderService = {
           discountBase,
           serviceChargeDiscountPercent: input.serviceChargeDiscountPercent,
           serviceChargeDiscountBase,
+          tipBase,
           referenceNumber: input.referenceNumber,
           proofImageUrl: input.proofImageUrl,
           amountReceivedBase,
@@ -2330,10 +2343,12 @@ export const orderService = {
         restaurantId,
         method: input.method,
         direction: 'CREDIT',
-        amountBase: changeViaOtherMethod ? amountReceivedBase! : amountBase,
+        // La propina entra físicamente junto con el cobro, por el mismo método — se suma acá
+        // para que la cuenta bancaria (y el arqueo de caja) cuadren con lo que de verdad entró.
+        amountBase: (changeViaOtherMethod ? amountReceivedBase! : amountBase).add(tipBase ?? toDecimal(0)),
         rateBs: order.exchangeRate,
         bankAccountId: input.bankAccountId,
-        description: `Cobro pedido #${order.orderNumber}`,
+        description: tipBase ? `Cobro pedido #${order.orderNumber} (incl. propina)` : `Cobro pedido #${order.orderNumber}`,
         sourceRef: order.id,
       });
       if (changeViaOtherMethod) {
@@ -2368,7 +2383,10 @@ export const orderService = {
       const releaseToKitchen = fullyPaid && order.status === 'NEEDS_PAYMENT';
       const updated = await tx.order.update({
         where: { id: orderId },
-        data: fullyPaid ? { awaitingPayment: false, ...(releaseToKitchen ? { status: 'KITCHEN' } : {}) } : {},
+        data: {
+          ...(fullyPaid ? { awaitingPayment: false, ...(releaseToKitchen ? { status: 'KITCHEN' } : {}) } : {}),
+          ...(tipBaseForOrder != null ? { tipBase: tipBaseForOrder } : {}),
+        },
         include: { items: { include: { modifiers: true } }, table: { select: { number: true } }, payments: true },
       });
 

@@ -57,6 +57,9 @@ export interface LiveOrderPayment {
   method: string;
   discountBase?: string | null;
   serviceChargeDiscountBase?: string | null;
+  // Propina cobrada EN este pago puntual — aparte de amountBase (ver orderBalance.ts: nunca
+  // cuenta para el saldo de la venta).
+  tipBase?: string | null;
   referenceNumber?: string | null;
   proofImageUrl?: string | null;
   // Vuelto: efectivo entregado por el cliente y cambio devuelto (por qué método).

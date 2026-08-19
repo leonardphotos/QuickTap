@@ -184,6 +184,9 @@ export const recordPaymentSchema = z
     promoCode: z.string().max(40).nullish(),
     // Fraccionar por ítems: qué se está cobrando en este pago puntual (cantidad por OrderItem).
     items: z.array(z.object({ orderItemId: z.string().min(1), quantity: z.coerce.number().int().positive() })).optional(),
+    // Propina que el cliente deja AL MOMENTO de cobrar este pago — plata real, aparte del saldo
+    // del pedido (ver Order.tipBase / OrderPayment.tipBase). Nunca se descuenta de `amountBase`.
+    tipBase: z.coerce.number().nonnegative().max(1000000).optional(),
     // --- Vuelto ---
     // Cuánto ENTREGÓ el cliente (solo efectivo). Si supera lo que se le acredita (amountBase /
     // ítems), la diferencia es el vuelto. Se guarda aparte para no chocar con "el monto no puede

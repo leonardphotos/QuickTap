@@ -1339,6 +1339,12 @@ model OrderPayment {
   // pago) — mismo criterio que discountPercent/discountBase, nunca toca Order.serviceChargeBase.
   serviceChargeDiscountPercent Decimal?      @db.Decimal(5, 2)
   serviceChargeDiscountBase    Decimal?      @db.Decimal(12, 2)
+  // Propina cobrada EN ESTE pago puntual (plata real, entra a la cuenta bancaria del método
+  // igual que amountBase). Aparte de Order.tipBase — que es la propina declarada/esperada del
+  // pedido completo — porque puede fraccionarse en varios cobros o crecer si el cliente decide
+  // dejar más al pagar. Ver cash-session.service.ts#computeSummary: se reporta como un segmento
+  // aparte de las ventas, nunca sumado a totalNet.
+  tipBase                      Decimal?      @db.Decimal(12, 2)
   // Número de referencia/comprobante (Pago Móvil, Zelle) o de ticket (Punto de venta).
   referenceNumber              String?
   // Foto del comprobante (Pago Móvil/Zelle/Binance/PayPal/Transferencia) — obligatoria para
@@ -2804,6 +2810,10 @@ model Preparation {
   // convertidos antes de guardar. Los insumos que entran pueden sumar más que esto (merma
   // al cocinar), el costo total se reparte entre lo que realmente rinde.
   yieldQuantity Decimal @db.Decimal(12, 3)
+  // Disponible en el picker curado de Inventario → Toppings, al crear un modificador desde ahí
+  // (mismo patrón que InventoryItem.isTopping) — un topping armado de varios insumos (ej. "Pico
+  // de gallo" = tomate + cebolla + cilantro) en vez de uno solo.
+  isTopping     Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
