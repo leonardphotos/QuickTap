@@ -1057,12 +1057,17 @@ export default function LandingPage() {
         </section>
 
         {/* Descarga de la app de escritorio (Windows) — instalador público en GitHub Releases,
-            no requiere iniciar sesión para bajarlo (solo al abrir la app ya instalada). */}
+            no requiere iniciar sesión para bajarlo (solo al abrir la app ya instalada). Misma
+            onda animada del hero, pero en paleta oscura (versión "de noche" del GradientWave
+            claro de arriba) — máscara degradada hacia brand-950 para que el texto blanco se
+            lea encima sin perder el movimiento de fondo. */}
         <section className="relative overflow-hidden bg-brand-950 px-4 py-20 text-center">
-          <div
-            className="pointer-events-none absolute inset-0 opacity-40"
-            style={{ backgroundImage: 'radial-gradient(circle at 50% 0%, rgba(5,151,242,0.25), transparent 60%)' }}
+          <GradientWave
+            colors={['#001b43', '#0597F2', '#001b43', '#38bdf8', '#001b43', '#056CF2']}
+            className="opacity-70"
+            shadowPower={6}
           />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-brand-950/50 via-brand-950/75 to-brand-950" />
           <Reveal className="relative">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-white">
               <Monitor className="h-7 w-7" />
