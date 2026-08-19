@@ -1193,6 +1193,130 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
     return { variantId: variant?.id ?? null, modifierIds };
   }
 
+  /** Catálogo para añadir productos: buscador + categorías + grilla. En POS es la columna
+   * izquierda completa, siempre visible (como el paso "Menú" de Crear pedido, con foto
+   * grande); fuera de POS es el panel que se abre con "+ Añadir producto" — mismos datos,
+   * tarjetas más chicas y sin foto para cuadrar en el espacio angosto de siempre. */
+  const catalogPanel = (
+    <div className={isPos ? 'flex flex-col gap-3 min-h-0' : 'space-y-2 rounded-xl border border-brand-950/10 p-2.5'}>
+      <div className="relative shrink-0">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-950/30" />
+        <input
+          value={productSearch}
+          onChange={(e) => setProductSearch(e.target.value)}
+          placeholder="Buscar en el menú…"
+          className="w-full text-sm border border-brand-950/15 rounded-lg pl-8 pr-2.5 py-1.5"
+        />
+      </div>
+      <div className="flex gap-1.5 flex-wrap shrink-0">
+        <button
+          onClick={() => setCategoryFilter(null)}
+          className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+            !categoryFilter ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+          }`}
+        >
+          Todas
+        </button>
+        {categoryNames.map((c) => (
+          <button
+            key={c}
+            onClick={() => setCategoryFilter(c)}
+            className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+              categoryFilter === c ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
+            }`}
+          >
+            {c}
+          </button>
+        ))}
+      </div>
+      <div
+        className={
+          isPos
+            ? 'grid grid-cols-4 gap-3 flex-1 min-h-0 overflow-y-auto'
+            : 'grid grid-cols-2 gap-2 max-h-60 overflow-y-auto'
+        }
+      >
+        {filteredProducts.map((p) =>
+          isPos ? (
+            <div key={p.id} className="rounded-2xl border border-brand-950/10 bg-white overflow-hidden flex flex-col">
+              {p.photoUrl ? (
+                <img src={p.photoUrl} alt="" className="h-24 w-full object-cover" />
+              ) : (
+                <div className="h-24 w-full bg-brand-950/5" />
+              )}
+              <div className="p-2.5 flex flex-col gap-1.5 flex-1">
+                <p className="text-sm font-semibold text-brand-950 truncate">{p.name}</p>
+                <p className="text-sm font-bold text-brand-500">{formatBase(p.price, symbol)}</p>
+                <div className="flex-1" />
+                {needsPicker(p) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingItem(null);
+                      setOptionsProduct(p);
+                    }}
+                    className="w-full rounded-lg border border-brand-500/40 text-brand-500 text-xs font-semibold py-1.5"
+                  >
+                    Elegir opciones
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={saving}
+                    onClick={() => addProductLine({ product: p, quantity: 1, selectedModifiers: [] })}
+                    className="w-full flex items-center justify-center gap-1 rounded-lg bg-brand-500 text-white text-xs font-semibold py-1.5 disabled:opacity-40"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Añadir
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div key={p.id} className="rounded-xl border border-brand-950/10 p-2 space-y-1.5">
+              <div className="flex items-center gap-2">
+                {p.photoUrl ? (
+                  <img src={p.photoUrl} alt="" className="h-9 w-9 rounded-lg object-cover shrink-0" />
+                ) : (
+                  <div className="h-9 w-9 rounded-lg bg-brand-950/5 shrink-0" />
+                )}
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-brand-950 truncate">{p.name}</p>
+                  <p className="text-xs text-brand-950/50">{formatBase(p.price, symbol)}</p>
+                </div>
+              </div>
+              {needsPicker(p) ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingItem(null);
+                    setOptionsProduct(p);
+                  }}
+                  className="w-full flex items-center justify-center gap-1 rounded-lg border border-brand-500/40 text-brand-500 text-xs font-medium py-1"
+                >
+                  Elegir opciones
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => addProductLine({ product: p, quantity: 1, selectedModifiers: [] })}
+                  className="w-full flex items-center justify-center gap-1 rounded-lg bg-brand-500 text-white text-xs font-medium py-1 disabled:opacity-40"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Añadir
+                </button>
+              )}
+            </div>
+          ),
+        )}
+        {filteredProducts.length === 0 && (
+          <p className={isPos ? 'col-span-4 text-sm text-brand-950/40 font-light text-center py-6' : 'col-span-2 text-sm text-brand-950/40 font-light text-center py-3'}>
+            No hay productos que coincidan.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       {/* En celular sube como una hoja desde abajo (más cómoda para el pulgar que un
@@ -1323,11 +1447,204 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
         <div
           className={
             isPos
-              ? 'grid grid-cols-[minmax(0,1.15fr)_380px] gap-5 min-h-0'
+              ? 'grid grid-cols-[minmax(0,1.2fr)_380px] gap-5 min-h-0'
               : 'space-y-4 max-h-[70vh] overflow-y-auto'
           }
         >
-          <PosCol isPos={isPos} className="flex flex-col gap-4 min-h-0 overflow-y-auto pr-1">
+          {isPos ? (
+            <>
+              {/* Izquierda: el catálogo completo, siempre abierto — como el paso "Menú" de
+                  Crear pedido. Tocar una tarjeta añade el producto (o abre variantes/extras). */}
+              <div className="min-h-0 overflow-y-auto pr-1 rounded-2xl border border-brand-950/10 p-4">
+                {catalogPanel}
+              </div>
+
+              {/* Derecha: cliente + lo ya pedido + montos + acciones + cobro. */}
+              <div className="flex flex-col gap-4 min-h-0 overflow-y-auto pr-1">
+                {order.channel !== 'DINE_IN' && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-semibold text-brand-950">Datos del cliente</p>
+                    <input
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Nombre"
+                      className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                    />
+                    <input
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="Teléfono"
+                      className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                    />
+                    {order.channel === 'DELIVERY' && (
+                      <AddressAutocomplete
+                        value={address}
+                        onChange={setAddress}
+                        onSelect={(s) => {
+                          setAddress(s.displayName);
+                          setAddressCoords({ lat: s.lat, lng: s.lng });
+                        }}
+                        biasLat={restaurant?.deliveryOriginLat}
+                        biasLng={restaurant?.deliveryOriginLng}
+                        placeholder="Dirección"
+                        className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                      />
+                    )}
+                    <input
+                      value={note}
+                      onChange={(e) => setNote(e.target.value)}
+                      placeholder="Nota (opcional)"
+                      className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                    />
+                    <TextureButton variant="minimal" size="sm" className="!w-auto" disabled={saving} onClick={saveCustomer}>
+                      Guardar datos del cliente
+                    </TextureButton>
+                  </div>
+                )}
+
+                <div className="rounded-2xl border border-brand-950/10 px-4 py-3">
+                  <p className="text-base font-bold text-brand-950">Productos</p>
+                  <ul className="space-y-1 mt-2 divide-y divide-brand-950/[0.06]">
+                    {order.items.map((it) => {
+                      const canEdit = Boolean(products?.find((p) => p.id === it.productId && needsPicker(p)));
+                      return (
+                        <li key={it.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0">
+                          <div className={`min-w-0 ${canEdit ? 'cursor-pointer' : ''}`} onClick={() => canEdit && openItemForEdit(it)}>
+                            <p className="text-sm font-semibold text-brand-950 truncate">
+                              {it.productName}
+                              {it.variantName && <span className="text-brand-950/50"> ({it.variantName})</span>}
+                              {canEdit && <span className="text-brand-500 text-xs font-normal"> · editar</span>}
+                            </p>
+                            {it.modifiers.length > 0 && (
+                              <p className="text-xs text-brand-950/50 truncate">{it.modifiers.map(formatModifierLabel).join(', ')}</p>
+                            )}
+                            <p className="text-xs text-brand-950/50">{it.unitPrice} c/u</p>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              onClick={() => setQty(it.id, it.quantity - 1)}
+                              disabled={saving}
+                              className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30"
+                            >
+                              −
+                            </button>
+                            <span className="w-5 text-center text-sm font-bold">{it.quantity}</span>
+                            <button
+                              onClick={() => setQty(it.id, it.quantity + 1)}
+                              disabled={saving}
+                              className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+
+                <div className="text-sm text-brand-950/70 space-y-1.5 rounded-2xl bg-brand-950/[0.03] px-4 py-3">
+                  <div className="flex justify-between">
+                    <span>Subtotal</span>
+                    <span>{formatBase(order.subtotalBase, symbol)}</span>
+                  </div>
+                  {Number(order.serviceChargeBase) > 0 && (
+                    <div className="flex justify-between">
+                      <span>Servicio</span>
+                      <span>{formatBase(order.serviceChargeBase, symbol)}</span>
+                    </div>
+                  )}
+                  {Number(order.ivaBase) > 0 && (
+                    <div className="flex justify-between">
+                      <span>IVA</span>
+                      <span>{formatBase(order.ivaBase, symbol)}</span>
+                    </div>
+                  )}
+                  {Number(order.deliveryFeeBase) > 0 && (
+                    <div className="flex justify-between">
+                      <span>Envío</span>
+                      <span>{formatBase(order.deliveryFeeBase, symbol)}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between font-semibold text-brand-950 pt-2 border-t border-brand-950/10">
+                    <span className="text-base text-brand-950/60">Total</span>
+                    <span className="text-4xl font-bold tabular-nums">{formatBase(order.totalBase, symbol)}</span>
+                  </div>
+                  <div className="flex justify-between text-brand-950/50">
+                    <span>Equivalente en Bs</span>
+                    <span className="font-semibold tabular-nums">{formatBsAbsolute(order.totalBs)}</span>
+                  </div>
+                </div>
+
+                {error && <p className="text-sm text-red-600">{error}</p>}
+
+                <div className="pt-2 border-t border-brand-950/10 flex flex-wrap gap-2">
+                  <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={printing} onClick={printComanda}>
+                    <Printer className="h-3.5 w-3.5" /> {printing ? 'Enviando…' : 'Comanda'}
+                  </TextureButton>
+                  <TextureButton variant="secondary" size="sm" className="!w-auto" onClick={() => setShowReciboMenu((s) => !s)}>
+                    <Receipt className="h-3.5 w-3.5" /> Nota de entrega
+                  </TextureButton>
+                  {isMesa ? (
+                    <TextureButton
+                      variant="secondary"
+                      size="sm"
+                      className="!w-auto"
+                      disabled={sendingWhatsapp || !order.customerPhone}
+                      title={order.customerPhone ? undefined : 'Este pedido no tiene teléfono registrado.'}
+                      onClick={sendWhatsapp}
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" /> {sendingWhatsapp ? 'Enviando…' : 'Enviar WhatsApp'}
+                    </TextureButton>
+                  ) : (
+                    <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={downloading} onClick={downloadJpg}>
+                      <Download className="h-3.5 w-3.5" /> {downloading ? 'Generando…' : 'Descargar'}
+                    </TextureButton>
+                  )}
+                  {order.channel === 'DELIVERY' && (
+                    <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={dispatching} onClick={handleDeliveryClick}>
+                      <Truck className="h-3.5 w-3.5" /> {dispatching ? 'Despachando…' : 'Delivery'}
+                    </TextureButton>
+                  )}
+                </div>
+
+                {showReciboMenu && (
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      onClick={printReceiptFull}
+                      disabled={printingReceipt}
+                      className="flex items-center justify-center gap-1.5 rounded-xl bg-brand-950/[0.06] text-brand-950/70 hover:bg-brand-950/10 text-xs font-medium py-2 transition-colors disabled:opacity-50"
+                    >
+                      <Printer className="h-3.5 w-3.5" /> {printingReceipt ? 'Enviando…' : 'Imprimir'}
+                    </button>
+                    <button
+                      onClick={sendWhatsapp}
+                      disabled={sendingWhatsapp || !order.customerPhone}
+                      title={order.customerPhone ? undefined : 'Este pedido no tiene teléfono registrado.'}
+                      className="flex items-center justify-center gap-1.5 rounded-xl bg-brand-950/[0.06] text-brand-950/70 hover:bg-brand-950/10 text-xs font-medium py-2 transition-colors disabled:opacity-50"
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" /> {sendingWhatsapp ? 'Enviando…' : 'WhatsApp'}
+                    </button>
+                  </div>
+                )}
+
+                {isMesa ? (
+                  <p className={`text-sm font-medium text-center ${fullyPaid ? 'text-emerald-600' : 'text-amber-600'}`}>
+                    {fullyPaid ? '✓ Pagado' : 'Pendiente de pago'}
+                  </p>
+                ) : fullyPaid ? (
+                  <p className="text-sm text-emerald-600 font-medium text-center">✓ Pagado</p>
+                ) : (
+                  // Un solo botón: el propio diálogo de cobro ya deja elegir completo,
+                  // fraccionado o deuda (ver PaymentDialog).
+                  <TextureButton variant="brand" size="default" onClick={() => setPaymentMode('full')} className="!text-base py-3">
+                    <CreditCard className="h-5 w-5" /> Pagar
+                  </TextureButton>
+                )}
+              </div>
+            </>
+          ) : (
+            <>
           {order.channel !== 'DINE_IN' && (
             <div className="space-y-2">
               <p className="text-sm font-semibold text-brand-950">Datos del cliente</p>
@@ -1369,61 +1686,40 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
             </div>
           )}
 
-          <div className={isPos ? 'flex-1 min-h-0 flex flex-col rounded-2xl border border-brand-950/10 px-4 py-3' : 'space-y-2 pt-2 border-t border-brand-950/10'}>
-            <p className={isPos ? 'text-base font-bold text-brand-950 shrink-0' : 'text-sm font-semibold text-brand-950'}>
-              Productos
-            </p>
-            <ul className={isPos ? 'space-y-1 mt-2 flex-1 min-h-0 overflow-y-auto divide-y divide-brand-950/[0.06]' : 'space-y-2 max-h-56 overflow-y-auto'}>
+          <div className="space-y-2 pt-2 border-t border-brand-950/10">
+            <p className="text-sm font-semibold text-brand-950">Productos</p>
+            <ul className="space-y-2 max-h-56 overflow-y-auto">
               {order.items.map((it) => {
                 const canEdit = Boolean(products?.find((p) => p.id === it.productId && needsPicker(p)));
                 return (
-                  <li
-                    key={it.id}
-                    className={
-                      isPos
-                        ? 'flex items-center justify-between gap-3 py-2.5 first:pt-0'
-                        : 'flex items-center justify-between gap-2 border-b border-brand-950/10 pb-2'
-                    }
-                  >
+                  <li key={it.id} className="flex items-center justify-between gap-2 border-b border-brand-950/10 pb-2">
                     <div
                       className={`min-w-0 ${canEdit ? 'cursor-pointer' : ''}`}
                       onClick={() => canEdit && openItemForEdit(it)}
                     >
-                      <p className={isPos ? 'text-lg font-semibold text-brand-950 truncate' : 'text-sm font-medium text-brand-950 truncate'}>
+                      <p className="text-sm font-medium text-brand-950 truncate">
                         {it.productName}
                         {it.variantName && <span className="text-brand-950/50"> ({it.variantName})</span>}
                         {canEdit && <span className="text-brand-500 text-xs font-normal"> · editar</span>}
                       </p>
                       {it.modifiers.length > 0 && (
-                        <p className={isPos ? 'text-sm text-brand-950/50 truncate' : 'text-xs text-brand-950/50 truncate'}>
-                          {it.modifiers.map(formatModifierLabel).join(', ')}
-                        </p>
+                        <p className="text-xs text-brand-950/50 truncate">{it.modifiers.map(formatModifierLabel).join(', ')}</p>
                       )}
-                      <p className={isPos ? 'text-sm text-brand-950/50' : 'text-xs text-brand-950/50'}>{it.unitPrice} c/u</p>
+                      <p className="text-xs text-brand-950/50">{it.unitPrice} c/u</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => setQty(it.id, it.quantity - 1)}
                         disabled={saving}
-                        className={
-                          isPos
-                            ? 'w-9 h-9 rounded-full border border-brand-950/20 font-bold text-lg text-brand-950 disabled:opacity-30'
-                            : 'w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30'
-                        }
+                        className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30"
                       >
                         −
                       </button>
-                      <span className={isPos ? 'w-6 text-center text-lg font-bold' : 'w-5 text-center text-sm font-medium'}>
-                        {it.quantity}
-                      </span>
+                      <span className="w-5 text-center text-sm font-medium">{it.quantity}</span>
                       <button
                         onClick={() => setQty(it.id, it.quantity + 1)}
                         disabled={saving}
-                        className={
-                          isPos
-                            ? 'w-9 h-9 rounded-full border border-brand-950/20 font-bold text-lg text-brand-950 disabled:opacity-30'
-                            : 'w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30'
-                        }
+                        className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30"
                       >
                         +
                       </button>
@@ -1433,98 +1729,14 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
               })}
             </ul>
 
-            {showAddProduct ? (
-              <div className="space-y-2 rounded-xl border border-brand-950/10 p-2.5">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-950/30" />
-                  <input
-                    value={productSearch}
-                    onChange={(e) => setProductSearch(e.target.value)}
-                    placeholder="Buscar en el menú…"
-                    className="w-full text-sm border border-brand-950/15 rounded-lg pl-8 pr-2.5 py-1.5"
-                  />
-                </div>
-                <div className="flex gap-1.5 flex-wrap">
-                  <button
-                    onClick={() => setCategoryFilter(null)}
-                    className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                      !categoryFilter ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
-                    }`}
-                  >
-                    Todas
-                  </button>
-                  {categoryNames.map((c) => (
-                    <button
-                      key={c}
-                      onClick={() => setCategoryFilter(c)}
-                      className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                        categoryFilter === c ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
-                      }`}
-                    >
-                      {c}
-                    </button>
-                  ))}
-                </div>
-                <div className={isPos ? 'grid grid-cols-3 gap-2 max-h-[50vh] overflow-y-auto' : 'grid grid-cols-2 gap-2 max-h-60 overflow-y-auto'}>
-                  {filteredProducts.map((p) => (
-                    <div key={p.id} className="rounded-xl border border-brand-950/10 p-2 space-y-1.5">
-                      <div className="flex items-center gap-2">
-                        {p.photoUrl ? (
-                          <img src={p.photoUrl} alt="" className="h-9 w-9 rounded-lg object-cover shrink-0" />
-                        ) : (
-                          <div className="h-9 w-9 rounded-lg bg-brand-950/5 shrink-0" />
-                        )}
-                        <div className="min-w-0">
-                          <p className="text-xs font-medium text-brand-950 truncate">{p.name}</p>
-                          <p className="text-xs text-brand-950/50">{formatBase(p.price, symbol)}</p>
-                        </div>
-                      </div>
-                      {needsPicker(p) ? (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingItem(null);
-                            setOptionsProduct(p);
-                          }}
-                          className="w-full flex items-center justify-center gap-1 rounded-lg border border-brand-500/40 text-brand-500 text-xs font-medium py-1"
-                        >
-                          Elegir opciones
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={saving}
-                          onClick={() => addProductLine({ product: p, quantity: 1, selectedModifiers: [] })}
-                          className="w-full flex items-center justify-center gap-1 rounded-lg bg-brand-500 text-white text-xs font-medium py-1 disabled:opacity-40"
-                        >
-                          <Plus className="h-3.5 w-3.5" /> Añadir
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                  {filteredProducts.length === 0 && (
-                    <p className="col-span-2 text-sm text-brand-950/40 font-light text-center py-3">
-                      No hay productos que coincidan.
-                    </p>
-                  )}
-                </div>
-              </div>
-            ) : (
+            {showAddProduct ? catalogPanel : (
               <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={() => setShowAddProduct(true)}>
                 <Plus className="h-3.5 w-3.5" /> Añadir producto
               </TextureButton>
             )}
           </div>
-          </PosCol>
 
-          <PosCol isPos={isPos} className="flex flex-col gap-4 min-h-0 overflow-y-auto pr-1">
-          <div
-            className={
-              isPos
-                ? 'text-sm text-brand-950/70 space-y-1.5 rounded-2xl bg-brand-950/[0.03] px-4 py-3'
-                : 'text-xs text-brand-950/60 space-y-1 pt-2 border-t border-brand-950/10'
-            }
-          >
+          <div className="text-xs text-brand-950/60 space-y-1 pt-2 border-t border-brand-950/10">
             <div className="flex justify-between">
               <span>Subtotal</span>
               <span>{formatBase(order.subtotalBase, symbol)}</span>
@@ -1547,21 +1759,13 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
                 <span>{formatBase(order.deliveryFeeBase, symbol)}</span>
               </div>
             )}
-            <div
-              className={
-                isPos
-                  ? 'flex items-center justify-between font-semibold text-brand-950 pt-2 border-t border-brand-950/10'
-                  : 'flex justify-between font-semibold text-sm text-brand-950 pt-1'
-              }
-            >
-              <span className={isPos ? 'text-base text-brand-950/60' : undefined}>Total</span>
-              <span className={isPos ? 'text-4xl font-bold tabular-nums' : undefined}>
-                {formatBase(order.totalBase, symbol)}
-              </span>
+            <div className="flex justify-between font-semibold text-sm text-brand-950 pt-1">
+              <span>Total</span>
+              <span>{formatBase(order.totalBase, symbol)}</span>
             </div>
-            <div className={isPos ? 'flex justify-between text-brand-950/50' : 'flex justify-between'}>
+            <div className="flex justify-between">
               <span>Equivalente en Bs</span>
-              <span className={isPos ? 'font-semibold tabular-nums' : undefined}>{formatBsAbsolute(order.totalBs)}</span>
+              <span>{formatBsAbsolute(order.totalBs)}</span>
             </div>
           </div>
 
@@ -1628,24 +1832,12 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
             </div>
           )}
 
-          {/* Fila de pago: siempre visible (igual que la tarjeta de "Pedidos en vivo") — no
-              se puede depender de una tarjeta exterior porque este diálogo también se abre
-              directo desde Mesa/Pedidos sin pasar por esa lista. En Órdenes de Mesa (isMesa) se
-              oculta del todo: el cobro ya se hace por cuenta desde el botón "Cobrar" del diálogo
-              de mesa, así que Pagar/Fraccionado/Deuda quedarían duplicados acá — solo queda el
-              indicador de estado. */}
           {isMesa ? (
             <p className={`text-sm font-medium text-center ${fullyPaid ? 'text-emerald-600' : 'text-amber-600'}`}>
               {fullyPaid ? '✓ Pagado' : 'Pendiente de pago'}
             </p>
           ) : fullyPaid ? (
             <p className="text-sm text-emerald-600 font-medium text-center">✓ Pagado</p>
-          ) : isPos ? (
-            // En POS un solo botón: el propio diálogo de cobro ya deja elegir completo,
-            // fraccionado o deuda (ver PaymentDialog) — tres botones acá era lo mismo dos veces.
-            <TextureButton variant="brand" size="default" onClick={() => setPaymentMode('full')} className="!text-base py-3">
-              <CreditCard className="h-5 w-5" /> Pagar
-            </TextureButton>
           ) : (
             <div className={`grid ${canAccountsPayable ? 'grid-cols-3' : 'grid-cols-2'} gap-1.5`}>
               <button
@@ -1671,7 +1863,8 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
               )}
             </div>
           )}
-          </PosCol>
+            </>
+          )}
         </div>
 
         <div className="fixed -left-[9999px] top-0">
