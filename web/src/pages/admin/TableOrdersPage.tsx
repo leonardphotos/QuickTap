@@ -635,8 +635,6 @@ export default function TableOrdersPage() {
           onDateChange={setSalaDate}
           mealServiceId={mealServiceId}
           onMealServiceChange={setMealServiceId}
-          onNewReservation={() => setNewReservationOpen(true)}
-          canCreateReservation={canManageReservations}
         />
       )}
 
@@ -659,6 +657,8 @@ export default function TableOrdersPage() {
               e.customerPhone && whatsapp(e.customerPhone, `Hola ${e.customerName}, ¡tu mesa en ${restaurant?.name ?? ''} está lista!`)
             }
             onNewWaitlistEntry={() => setNewWaitlistOpen(true)}
+            onNewReservation={() => setNewReservationOpen(true)}
+            canCreateReservation={canManageReservations}
             onOpenTable={(tableId) => {
               const table = sections.flatMap((z) => z.tables).find((t) => t.id === tableId);
               if (table) openTable(table);

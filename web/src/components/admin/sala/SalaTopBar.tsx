@@ -1,5 +1,4 @@
-import { CalendarDays, ChevronLeft, ChevronRight, Plus } from 'lucide-react';
-import { TextureButton } from '@/components/ui/texture-button';
+import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { MEAL_SERVICES } from '@/utils/meal-services';
 
 /** Suma días a una fecha "YYYY-MM-DD" sin pasar por Date (evita saltos por zona horaria). */
@@ -22,21 +21,17 @@ function humanDate(date: string): string {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-/** Día que se está mirando, turno de servicio y alta rápida de reservas. */
+/** Día que se está mirando y turno de servicio. */
 export function SalaTopBar({
   date,
   onDateChange,
   mealServiceId,
   onMealServiceChange,
-  onNewReservation,
-  canCreateReservation,
 }: {
   date: string;
   onDateChange: (date: string) => void;
   mealServiceId: string;
   onMealServiceChange: (id: string) => void;
-  onNewReservation: () => void;
-  canCreateReservation: boolean;
 }) {
   const today = todayIso();
 
@@ -84,17 +79,6 @@ export function SalaTopBar({
           </option>
         ))}
       </select>
-
-      {canCreateReservation && (
-        <TextureButton
-          variant="brand"
-          size="sm"
-          className="!w-auto ml-auto flex items-center gap-1.5"
-          onClick={onNewReservation}
-        >
-          <Plus className="h-3.5 w-3.5" /> Nueva reserva
-        </TextureButton>
-      )}
     </div>
   );
 }

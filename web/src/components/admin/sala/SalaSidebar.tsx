@@ -28,6 +28,8 @@ export function SalaSidebar({
   onWhatsappReservation,
   onWhatsappWaitlist,
   onNewWaitlistEntry,
+  onNewReservation,
+  canCreateReservation,
   onOpenTable,
 }: {
   reservations: Reservation[];
@@ -40,6 +42,9 @@ export function SalaSidebar({
   onWhatsappReservation: (r: Reservation) => void;
   onWhatsappWaitlist: (e: WaitlistEntry) => void;
   onNewWaitlistEntry: () => void;
+  onNewReservation: () => void;
+  /** Cargar reservas a mano es de dueño/admin; el mesero solo las atiende. */
+  canCreateReservation: boolean;
   /** Abrir la mesa de alguien ya sentado, para ver su cuenta o editar el pedido. */
   onOpenTable: (tableId: string) => void;
 }) {
@@ -162,18 +167,27 @@ export function SalaSidebar({
         )}
       </div>
 
-      {tab === 'espera' && (
+      {tab === 'espera' ? (
         <button
           type="button"
           onClick={onNewWaitlistEntry}
-          className="flex shrink-0 items-center justify-center gap-1.5 rounded-full bg-brand-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-400"
+          className={ADD_BUTTON}
         >
           <Plus className="h-3.5 w-3.5" /> Anotar en la lista
         </button>
+      ) : (
+        canCreateReservation && (
+          <button type="button" onClick={onNewReservation} className={ADD_BUTTON}>
+            <Plus className="h-3.5 w-3.5" /> Nueva reserva
+          </button>
+        )
       )}
     </aside>
   );
 }
+
+const ADD_BUTTON =
+  'flex shrink-0 items-center justify-center gap-1.5 rounded-full bg-brand-500 px-3 py-2 text-xs font-semibold text-white transition-colors hover:bg-brand-400';
 
 function Section({
   title,
