@@ -16,7 +16,12 @@ import { env } from '../../config/env';
 import { prisma } from '../../config/prisma';
 import { compressImageBuffer, UPLOADS_DIR } from '../../middlewares/upload.middleware';
 import { emitToKitchen, SocketEvents } from '../../sockets';
-import { formatVenezuelanWhatsappPhone, PAYMENT_LABELS, renderWhatsappTemplate } from '../../utils/whatsapp';
+import {
+  formatVenezuelanWhatsappPhone,
+  PAYMENT_LABELS,
+  renderWhatsappTemplate,
+  toInternationalWhatsappDigits,
+} from '../../utils/whatsapp';
 import { UpdateWhatsappBotSettingsInput } from './whatsapp-bot.dto';
 import { orderPaymentVerificationService } from '../orders/order-payment-verification.service';
 import { clubDebtBotService } from '../club/club-debt-bot.service';
@@ -96,10 +101,11 @@ function emitStatus(restaurantId: string) {
   });
 }
 
-/** JID de WhatsApp a partir de un teléfono en cualquier formato (solo dígitos, con o sin "+"). */
+/** JID de WhatsApp a partir de un teléfono en cualquier formato (con o sin "+", local o
+ * internacional): el número se completa al formato internacional primero — ver
+ * `toInternationalWhatsappDigits`. */
 function toJid(phone: string): string {
-  const digits = phone.replace(/\D/g, '');
-  return `${digits}@s.whatsapp.net`;
+  return `${toInternationalWhatsappDigits(phone)}@s.whatsapp.net`;
 }
 
 /** Trae el pedido con sus ítems — hace falta para armar el detalle de "qué pidió" en el
@@ -591,7 +597,13 @@ export const whatsappBotService = {
     const s = sessions.get(restaurantId);
     if (!s || s.status !== 'connected' || !s.sock) return false;
     try {
-      await s.sock.sendMessage(toJid(phone), { text: message });
+      const jid = toJid(phone);
+      // WhatsApp no falla al mandarle a un número que no existe: se traga el mensaje y el
+      // panel mostraba "Mensaje enviado". Se comprueba antes, y si no existe se devuelve
+      // false para que el frontend caiga al enlace wa.me y alguien lo mande a mano.
+      const exists = (await s.sock.onWhatsApp(jid))?.[0];
+      if (!exists?.exists) return false;
+      await s.sock.sendMessage(exists.jid ?? jid, { text: message });
       return true;
     } catch {
       return false;

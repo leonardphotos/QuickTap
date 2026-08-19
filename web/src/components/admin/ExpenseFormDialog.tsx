@@ -92,6 +92,10 @@ export interface EditableExpense {
   isCredit?: boolean;
   isRecurring?: boolean;
   invoiceDueDate?: string | null;
+  /** Reabastecimiento ya registrado: sin esto la edición lo daba por vacío y el backend
+   * deshacía el ingreso de stock al guardar. */
+  inventoryItem?: { id: string; name: string } | null;
+  inventoryQuantity?: string | null;
 }
 
 /** Casilla de "adjuntar foto" reusada 3 veces (factura, presupuesto, comprobante de pago) —
@@ -175,10 +179,12 @@ export function ExpenseForm({
     expense?.supplier ? ({ id: expense.supplier.id, name: expense.supplier.name } as Supplier) : null,
   );
   const [showSupplierPicker, setShowSupplierPicker] = useState(false);
-  const [isRestock, setIsRestock] = useState(false);
+  const [isRestock, setIsRestock] = useState(!!expense?.inventoryItem);
   const [inventoryItems, setInventoryItems] = useState<InventoryOption[]>([]);
-  const [inventoryItemId, setInventoryItemId] = useState('');
-  const [inventoryQuantity, setInventoryQuantity] = useState('');
+  const [inventoryItemId, setInventoryItemId] = useState(expense?.inventoryItem?.id ?? '');
+  const [inventoryQuantity, setInventoryQuantity] = useState(
+    expense?.inventoryQuantity ? Number(expense.inventoryQuantity).toString() : '',
+  );
   const [isCredit, setIsCredit] = useState(expense?.isCredit ?? false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -278,8 +284,16 @@ export function ExpenseForm({
         description: description.trim(),
         category: category || (isEdit ? null : undefined),
         supplierId: supplier?.id ?? (isEdit ? null : undefined),
-        inventoryItemId: isRestock ? inventoryItemId : isEdit ? null : undefined,
-        inventoryQuantity: isRestock ? Number(inventoryQuantity) : isEdit ? null : undefined,
+        // Si el bloque de reabastecimiento no se muestra (Gastos, local, club) se manda
+        // `undefined` para que el backend conserve el que ya tenía: editar la descripción de
+        // una compra no puede deshacer el ingreso de stock.
+        ...(!supportsRestock && isEdit
+          ? {}
+          : isRestock
+            ? { inventoryItemId, inventoryQuantity: Number(inventoryQuantity) }
+            : isEdit
+              ? { inventoryItemId: null, inventoryQuantity: null }
+              : {}),
         isCredit,
         paymentMethod: paymentMethod || (isEdit ? null : undefined),
         // Solo al crear: la edición no vuelve a tocar el banco (el asiento ya quedó hecho).

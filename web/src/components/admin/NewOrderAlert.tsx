@@ -33,6 +33,11 @@ export function NewOrderAlert({ onNavigate }: Props) {
   const [elapsed, setElapsed] = useState(0);
   const [dragX, setDragX] = useState(0);
   const [dragging, setDragging] = useState(false);
+  // Aceptar/Rechazar podían fallar (rol sin permiso, comanda ya tomada por otro, código de
+  // eliminación obligatorio para Mesero) y el banner se cerraba igual: quien lo tocó creía que
+  // la acción se hizo. Ahora el aviso se queda con el motivo.
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [acting, setActing] = useState(false);
   const dragStartX = useRef(0);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const startTimeRef = useRef(0);
@@ -118,6 +123,7 @@ export function NewOrderAlert({ onNavigate }: Props) {
     setOrder(fresh);
     setElapsed(0);
     setDragX(0);
+    setActionError(null);
     startTimeRef.current = Date.now();
     setShown(false);
     requestAnimationFrame(() => requestAnimationFrame(() => setShown(true)));
@@ -149,24 +155,32 @@ export function NewOrderAlert({ onNavigate }: Props) {
   }
 
   async function accept() {
-    if (!order) return;
-    const id = order.id;
-    close();
+    if (!order || acting) return;
+    setActing(true);
+    setActionError(null);
     try {
-      await api.post(`/orders/${id}/accept`);
-    } catch {
-      // Reintentable desde Comandas si falla.
+      await api.post(`/orders/${order.id}/accept`);
+      close();
+    } catch (e: any) {
+      setActionError(e?.response?.data?.error ?? 'No se pudo aceptar el pedido. Inténtalo desde Comandas.');
+    } finally {
+      setActing(false);
     }
   }
 
   async function reject() {
-    if (!order) return;
-    const id = order.id;
-    close();
+    if (!order || acting) return;
+    setActing(true);
+    setActionError(null);
     try {
-      await api.delete(`/orders/${id}`);
-    } catch {
-      // Reintentable desde Comandas si falla.
+      await api.delete(`/orders/${order.id}`);
+      close();
+    } catch (e: any) {
+      // Un Mesero necesita el código de 6 dígitos para eliminar: acá no hay dónde pedirlo, así
+      // que se manda a Comandas, que sí tiene el diálogo del código.
+      setActionError(e?.response?.data?.error ?? 'No se pudo rechazar el pedido. Inténtalo desde Comandas.');
+    } finally {
+      setActing(false);
     }
   }
 
@@ -223,15 +237,17 @@ export function NewOrderAlert({ onNavigate }: Props) {
       </div>
       <p className="text-sm font-semibold text-brand-950">{title}</p>
       <p className="text-xs text-brand-950/50 font-light mb-3">{itemsSummary || 'Sin productos'}</p>
+      {actionError && <p className="mb-2 text-xs font-medium text-red-600">{actionError}</p>}
       <div className="flex gap-2" data-no-drag>
         <button
           type="button"
-          className="flex-1 rounded-xl bg-brand-950/5 text-brand-950/60 text-sm font-semibold py-2.5"
+          disabled={acting}
+          className="flex-1 rounded-xl bg-brand-950/5 text-brand-950/60 text-sm font-semibold py-2.5 disabled:opacity-50"
           onClick={reject}
         >
           Rechazar
         </button>
-        <TextureButton variant="brand" size="default" className="flex-1 !w-auto" onClick={accept}>
+        <TextureButton variant="brand" size="default" className="flex-1 !w-auto" disabled={acting} onClick={accept}>
           Aceptar
         </TextureButton>
       </div>

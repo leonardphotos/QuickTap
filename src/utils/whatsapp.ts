@@ -95,6 +95,23 @@ export function formatVenezuelanWhatsappPhone(phone: string): string {
 }
 
 /**
+ * Deja el número en formato internacional (solo dígitos, con código de país) para armar el
+ * JID del bot. Un teléfono guardado como lo escribió el cliente ("0414-1234567") se mandaba
+ * tal cual: WhatsApp lo recibe como un número inexistente, no falla, y el panel decía
+ * "Mensaje enviado" igual. Solo se completa el país cuando el número viene en formato local
+ * venezolano; uno que ya trae su código (+57…, +1…) se respeta.
+ */
+export function toInternationalWhatsappDigits(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (!digits) return digits;
+  // 0414-1234567 / 04141234567 → local venezolano.
+  if (digits.startsWith('0')) return `58${digits.replace(/^0+/, '')}`;
+  // 4141234567: local sin el 0 (10 dígitos que arrancan en 4, los móviles del país).
+  if (digits.length === 10 && digits.startsWith('4')) return `58${digits}`;
+  return digits;
+}
+
+/**
  * Normaliza el número de teléfono a solo dígitos (wa.me no acepta "+" ni
  * espacios). No asume ningún país: el registro de restaurantes ya guarda
  * `whatsappPhone` con el código de marcación correcto según el país elegido

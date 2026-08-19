@@ -585,11 +585,29 @@ const CHANNEL_BADGE = { DINE_IN:'badge-dinein', DELIVERY:'badge-delivery', PICKU
 /* ============================================================
    Vista: login / main
    ============================================================ */
-function showLogin(){
+function showLogin(message){
   $('loginView').hidden = false;
   $('mainView').hidden = true;
   setStatus('disconnected');
   $('restaurantLabel').textContent = 'Sin conectar';
+  if(message){
+    $('loginError').textContent = message;
+    $('loginError').hidden = false;
+  }
+}
+
+/** La sesión guardada ya no sirve (venció o se revocó): se limpia y se vuelve al login con
+ * el aviso, en vez de dejar la estación reintentando en silencio. */
+function sessionExpired(){
+  if(state.socket){ state.socket.disconnect(); state.socket = null; }
+  state.token = null;
+  state.restaurant = null;
+  state.user = null;
+  localStorage.removeItem('qt_token');
+  localStorage.removeItem('qt_restaurant');
+  localStorage.removeItem('qt_user');
+  updateConnCard();
+  showLogin('Tu sesión venció. Vuelve a iniciar sesión para seguir recibiendo comandas.');
 }
 function showMain(){
   $('loginView').hidden = true;
@@ -718,7 +736,16 @@ function connectSocket(){
 
   state.socket.on('connect', () => setStatus('connected'));
   state.socket.on('disconnect', () => setStatus('disconnected'));
-  state.socket.on('connect_error', (err) => setStatus('error', err.message === 'Token inválido.' ? 'Token inválido' : 'Error de conexión'));
+  state.socket.on('connect_error', (err) => {
+    // La sesión de la estación dura 7 días: cuando vence, socket.io reintenta para siempre
+    // contra un token que ya nunca va a servir y la estación se queda muda — sin comandas y
+    // sin decir por qué. Se cierra la sesión y se pide entrar de nuevo.
+    if(err.message === 'Token inválido.'){
+      sessionExpired();
+      return;
+    }
+    setStatus('error', 'Error de conexión');
+  });
 
   state.socket.on('order:new', (payload) => handleIncomingOrder(payload));
   state.socket.on('order:updated', (payload) => handleOrderUpdated(payload));
@@ -779,21 +806,38 @@ function handleIncomingOrder(payload){
   // Delivery es distinto: no se imprime al llegar, sino recién cuando el restaurante lo
   // acepta (ver handleOrderUpdated) — así la comanda de delivery sale con el pedido ya
   // confirmado, no antes.
-  if(state.autoPrint && order.status !== 'NEEDS_PAYMENT' && order.channel !== 'DELIVERY'){
-    setTimeout(() => printOrder(order), 250);
+  if(state.autoPrint && !awaitsConfirmation(order)){
+    setTimeout(() => (order.channel === 'DELIVERY' ? printDeliveryTicket(order) : printOrder(order)), 250);
   }
 }
 
+// Comanda que todavía NO está confirmada: la de mesa por QR nace en NEEDS_CONFIRMATION y la
+// pública de pickup en PENDING (esperan que el restaurante las acepte), y la de kiosco en
+// NEEDS_PAYMENT (espera que caja confirme el pago). Imprimirlas al llegar sacaba comandas de
+// pedidos que nadie había aceptado todavía; se imprimen cuando pasan a KITCHEN.
+function awaitsConfirmation(order){
+  return order.status === 'NEEDS_PAYMENT' || order.status === 'NEEDS_CONFIRMATION' || order.status === 'PENDING';
+}
+
 function handleOrderUpdated(payload){
-  const existing = state.orders.find(o => o.orderId === payload.orderId);
-  const wasKitchen = existing?.status === 'KITCHEN';
-  if(existing) Object.assign(existing, payload);
+  let existing = state.orders.find(o => o.orderId === payload.orderId);
+  const wasConfirmed = !!existing && !awaitsConfirmation(existing);
+  if(existing){
+    Object.assign(existing, payload);
+  } else if(payload.items){
+    // La estación se recargó entre el aviso del pedido y su aceptación: el aviso de
+    // aceptación de delivery trae la comanda completa, así que se reconstruye la tarjeta en
+    // vez de perder la impresión.
+    existing = { ...payload, _receivedAt: new Date().toISOString(), _printed: false };
+    state.orders.unshift(existing);
+    if(state.orders.length > 40) state.orders.length = 40;
+  }
   renderQueue();
-  // Delivery recién aceptado (pasa a KITCHEN): imprime sola la comanda de delivery, en la
-  // impresora dedicada — antes de aceptar no se imprime nada (ver handleIncomingOrder).
-  if(existing && existing.channel === 'DELIVERY' && !wasKitchen && existing.status === 'KITCHEN' && !existing._printed){
+  // Recién aceptado (pasa a KITCHEN): ahora sí sale la comanda — delivery en su impresora
+  // dedicada, el resto en la de cocina. Antes de aceptar no se imprime nada.
+  if(existing && !wasConfirmed && existing.status === 'KITCHEN' && !existing._printed){
     if(state.autoPrint){
-      setTimeout(() => printDeliveryTicket(existing), 250);
+      setTimeout(() => (existing.channel === 'DELIVERY' ? printDeliveryTicket(existing) : printOrder(existing)), 250);
     }
   }
 }

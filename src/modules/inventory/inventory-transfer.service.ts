@@ -141,13 +141,35 @@ export const inventoryTransferService = {
       if (destItem) {
         await tx.inventoryItem.update({ where: { id: destItem.id }, data: { quantity: destItem.quantity.add(quantity) } });
       } else {
+        // La categoría es de la sede ORIGEN: copiarla tal cual dejaba el insumo con un
+        // categoryId que el destino no lista, y la pantalla de Insumos (que agrupa por las
+        // categorías del propio restaurante) no lo mostraba en ninguna parte — parecía que la
+        // transferencia no había llegado. Se busca/crea la misma categoría por nombre allá.
+        let destCategoryId: string | null = null;
+        if (sourceItem.categoryId && toEffectiveId !== sourceItem.restaurantId) {
+          const sourceCategory = await tx.inventoryCategory.findUnique({ where: { id: sourceItem.categoryId } });
+          if (sourceCategory) {
+            const existing = await tx.inventoryCategory.findFirst({
+              where: { restaurantId: toEffectiveId, name: { equals: sourceCategory.name, mode: 'insensitive' } },
+            });
+            destCategoryId =
+              existing?.id ??
+              (
+                await tx.inventoryCategory.create({
+                  data: { restaurantId: toEffectiveId, name: sourceCategory.name, priority: sourceCategory.priority },
+                })
+              ).id;
+          }
+        } else {
+          destCategoryId = sourceItem.categoryId;
+        }
         await tx.inventoryItem.create({
           data: {
             restaurantId: toEffectiveId,
             locationScope: input.toScope,
             name: sourceItem.name,
             unit: sourceItem.unit,
-            categoryId: sourceItem.categoryId,
+            categoryId: destCategoryId,
             pricePerUnitBase: sourceItem.pricePerUnitBase,
             quantity,
           },

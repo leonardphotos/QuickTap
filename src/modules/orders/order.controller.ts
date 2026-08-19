@@ -82,7 +82,14 @@ export const orderController = {
   /** POST /api/v1/orders/:id/payments — registrar un cobro, botones "Pagar" / "Pago Fraccionado" (protegido). */
   addPayment: asyncHandler(async (req: Request, res: Response) => {
     const input = recordPaymentSchema.parse(req.body);
-    if (input.discountPercent && !DISCOUNT_ROLES.includes(req.auth!.role as (typeof DISCOUNT_ROLES)[number])) {
+    // Cualquier forma de condonar deuda pide el rol, no solo el % : mandando `discountAmount`
+    // o el ajuste de servicio por API se podía perdonar la cuenta completa sin ser dueño/admin.
+    const forgivesDebt =
+      input.discountPercent != null ||
+      input.discountAmount != null ||
+      input.serviceChargeDiscountPercent != null ||
+      input.serviceChargeDiscountAmount != null;
+    if (forgivesDebt && !DISCOUNT_ROLES.includes(req.auth!.role as (typeof DISCOUNT_ROLES)[number])) {
       throw forbidden('No tienes permiso para aplicar descuentos.');
     }
     const order = await orderService.addPayment(req.restaurantId!, req.params.id, input);

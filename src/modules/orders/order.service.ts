@@ -3,6 +3,7 @@ import { OrderChannel, PaymentMethod, Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, conflict, forbidden, notFound } from '../../utils/http-error';
 import { ADMIN_CASHIER_ROLES } from '../../utils/roles';
+import { resolveInventoryScopeById } from '../inventory/inventory-scope';
 import { baseToBs, CURRENCY_SYMBOLS, formatBs, formatMoney, round2, toDecimal } from '../../utils/money';
 import {
   buildWhatsappCheckoutUrl,
@@ -110,6 +111,10 @@ async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<
     // el producto): solo aplica al precio simple, no a variantes (ver promo-price.ts).
     let basePrice = effectiveProductPrice(product);
     let variantName: string | null = null;
+    // Variante ya validada como del propio producto. Los precios por variante de un modificador
+    // se resuelven SOLO con esta: usando el `variantId` crudo del cliente, un producto simple
+    // podía traerse el precio de una variante de otro producto (y quedarse con el más barato).
+    let variantId: string | null = null;
     if (product.pricingMode === 'VARIANTS') {
       const variant = product.variants.find((v) => v.id === item.variantId);
       if (!variant) throw badRequest(`Elige una variante para "${product.name}".`);
@@ -118,6 +123,7 @@ async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<
         variant.priceBase.add(variant.packagingFeeBase ?? 0).sub(variant.discountBase ?? 0),
       );
       variantName = variant.name;
+      variantId = variant.id;
     }
 
     // Categorías de modificadores asociadas al producto: valida obligatoriedad y el límite de
@@ -157,7 +163,7 @@ async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<
         }
         // Si el modificador tiene un precio propio para la variante elegida (ej. "Extra queso"
         // en Pizza Grande vs. Pequeña), usa ese en vez del priceBase general.
-        const variantOverride = item.variantId ? m.variantPrices.find((vp) => vp.variantId === item.variantId) : undefined;
+        const variantOverride = variantId ? m.variantPrices.find((vp) => vp.variantId === variantId) : undefined;
         const effectivePriceBase = variantOverride?.priceBase ?? m.priceBase;
         modifierLines.push({
           modifierId: m.id,
@@ -580,9 +586,15 @@ async function deductModifierStock(
   });
   if (usedByInventoryItem.size === 0) return;
 
+  // Modo "inventario compartido entre sedes": los insumos viven en la raíz del grupo, así que
+  // hay que buscarlos ahí — con el restaurantId de la sucursal no aparecían y no se descontaba
+  // nada (mientras que la devolución al cancelar sí funcionaba, e inflaba el stock).
+  const inventoryRestaurantId = await resolveInventoryScopeById(restaurantId);
   let deducted = false;
   for (const [inventoryItemId, used] of usedByInventoryItem) {
-    const inventoryItem = await prisma.inventoryItem.findFirst({ where: { id: inventoryItemId, restaurantId } });
+    const inventoryItem = await prisma.inventoryItem.findFirst({
+      where: { id: inventoryItemId, restaurantId: inventoryRestaurantId },
+    });
     if (!inventoryItem) continue;
     const nextQuantity = Prisma.Decimal.max(0, toDecimal(inventoryItem.quantity).sub(used));
     await prisma.inventoryItem.update({ where: { id: inventoryItem.id }, data: { quantity: nextQuantity } });
@@ -652,9 +664,13 @@ async function deductPackagingStock(
   }
   if (usedByItem.size === 0) return;
 
+  // Ver la nota de deductModifierStock: en modo compartido el envase vive en la raíz del grupo.
+  const inventoryRestaurantId = await resolveInventoryScopeById(restaurantId);
   let deducted = false;
   for (const [inventoryItemId, used] of usedByItem) {
-    const item = await prisma.inventoryItem.findFirst({ where: { id: inventoryItemId, restaurantId } });
+    const item = await prisma.inventoryItem.findFirst({
+      where: { id: inventoryItemId, restaurantId: inventoryRestaurantId },
+    });
     if (!item) continue;
     const nextQuantity = Prisma.Decimal.max(0, toDecimal(item.quantity).sub(used));
     await prisma.inventoryItem.update({ where: { id: item.id }, data: { quantity: nextQuantity } });
@@ -884,6 +900,9 @@ function resolveCustomPeriod(from?: string, to?: string): { start: Date; end: Da
   return start <= end ? { start, end } : { start: end, end: start };
 }
 
+/** Cuántos días atrás sigue apareciendo en "Pedidos" una comanda ya servida que aún debe. */
+const LIVE_SERVED_DEBT_DAYS = 3;
+
 export const orderService = {
   /**
    * -------------------------------------------------------------------------
@@ -1006,6 +1025,9 @@ export const orderService = {
       orderId: order.id,
       orderNumber: order.orderNumber,
       channel: order.channel,
+      // Sin `status` la Estación de Impresión daba por confirmada la comanda y la imprimía
+      // antes de que nadie la aceptara (todo pedido por QR nace en NEEDS_CONFIRMATION).
+      status: order.status,
       tableId: order.tableId,
       table: order.table ? { number: order.table.number, zoneName: order.table.zone?.name ?? null } : null,
       placedByUser: order.placedByUser?.name ?? null,
@@ -1967,7 +1989,19 @@ export const orderService = {
       acceptedByRole &&
       !(ADMIN_CASHIER_ROLES as readonly string[]).includes(acceptedByRole)
     ) {
-      throw forbidden('Solo Caja, Administrador o Dueño pueden aceptar pedidos de delivery/pickup.');
+      // Un Cajero con `cashierFullAccess` cuenta como Caja completa: es exactamente a quien el
+      // panel le habilita el botón (isAdminCashier en web/src/utils/roles.ts). Sin esto el
+      // botón se veía activo y el clic siempre respondía 403.
+      const cashierAllowed =
+        acceptedByRole === 'CASHIER' &&
+        acceptedByUserId != null &&
+        (await prisma.user.findUnique({ where: { id: acceptedByUserId }, select: { cashierFullAccess: true } }))
+          ?.cashierFullAccess === true;
+      if (!cashierAllowed) {
+        throw forbidden(
+          'Solo Administrador, Dueño o un Cajero con acceso completo pueden aceptar pedidos de delivery/pickup.',
+        );
+      }
     }
 
     // Registra quién aceptó el pedido del cliente (mesa/QR): junto con
@@ -2040,6 +2074,13 @@ export const orderService = {
    * de los roles (Dueño/Admin/Cajero) puede eliminar directo, sin código.
    */
   async deleteOrderHard(restaurantId: string, orderId: string, role: string, pin?: string) {
+    // Solo Dueño/Admin/Caja borran directo y el Mesero con el código. El resto (Cocina,
+    // Pantalla, Comanda, Número, Cancha, Coach) no tenía ningún control: la ruta no exige rol,
+    // así que cualquiera de esas sesiones podía borrar comandas sin código y sin dejar rastro.
+    const canDeleteDirect = ['OWNER', 'ADMIN', 'CASHIER', 'STAFF'].includes(role);
+    if (!canDeleteDirect && role !== 'WAITER') {
+      throw forbidden('No tienes permiso para eliminar comandas.');
+    }
     if (role === 'WAITER') {
       const restaurant = await prisma.restaurant.findUnique({
         where: { id: restaurantId },
@@ -2081,7 +2122,14 @@ export const orderService = {
       await restoreServedOrderStock(restaurantId, existing);
     }
 
-    await prisma.order.delete({ where: { id: orderId } });
+    // Borrar un pedido YA COBRADO arrastraba sus OrderPayment (cascade) pero dejaba vivo el
+    // asiento bancario del cobro y el canje de promoción: el banco quedaba con dinero que la
+    // caja ya no espera, y la promo contaba un canje de una venta que no existe.
+    await prisma.$transaction(async (tx) => {
+      await bankLedgerService.reverseBySourceRef(tx, restaurantId, orderId);
+      await tx.promotionRedemption.deleteMany({ where: { restaurantId, sourceRef: orderId } });
+      await tx.order.delete({ where: { id: orderId } });
+    });
     emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: 'DELETED' });
     return { deleted: true };
   },
@@ -2094,10 +2142,24 @@ export const orderService = {
    * cerrado (ver cash-session.service.ts): el turno nuevo arranca con la
    * pantalla limpia y solo con lo que quedó por cobrar. Siguen completas en
    * Administración, no se borra nada.
+   *
+   * SERVED con saldo pendiente TAMBIÉN entra: cocina marca "Listo" y el pedido pasa a
+   * SERVED, casi siempre antes de que el comensal pague. Filtrando solo por estado, esa
+   * comanda desaparecía de Pedidos, de "Comandas y deudas" y de Órdenes de Mesa — y ya no
+   * había forma de cobrarla desde ninguna pantalla. Se acota a los últimos días para que la
+   * lista no cargue el histórico de un restaurante que no registre sus cobros aquí.
    */
   async listLiveOrders(restaurantId: string) {
-    return prisma.order.findMany({
-      where: { restaurantId, status: { notIn: ['SERVED', 'CANCELLED'] }, clearedAt: null },
+    const servedSince = new Date(Date.now() - LIVE_SERVED_DEBT_DAYS * 24 * 60 * 60 * 1000);
+    const orders = await prisma.order.findMany({
+      where: {
+        restaurantId,
+        clearedAt: null,
+        OR: [
+          { status: { notIn: ['SERVED', 'CANCELLED'] } },
+          { status: 'SERVED', createdAt: { gte: servedSince } },
+        ],
+      },
       orderBy: { createdAt: 'desc' },
       include: {
         items: { include: { modifiers: true } },
@@ -2105,6 +2167,16 @@ export const orderService = {
         payments: true,
         placedByUser: { select: { id: true, name: true } },
       },
+    });
+    // Del lado servido solo quedan las que todavía deben algo (el saldo no se puede calcular
+    // en SQL: hay que sumar los pagos con sus descuentos, igual que en addPayment).
+    return orders.filter((o) => {
+      if (o.status !== 'SERVED') return true;
+      const settled = o.payments.reduce(
+        (acc, p) => acc.add(p.amountBase).add(p.discountBase ?? toDecimal(0)).add(p.serviceChargeDiscountBase ?? toDecimal(0)),
+        toDecimal(0),
+      );
+      return round2(o.totalBase.sub(settled)).gt(0.01);
     });
   },
 
@@ -2188,6 +2260,11 @@ export const orderService = {
 
       if (discountBase && discountBase.gt(balance.add(0.01))) {
         throw badRequest('El descuento no puede superar el saldo pendiente.');
+      }
+      // Cada uno por separado cabía en el saldo, pero sumados podían pasarse: cobrar el total
+      // y además descontarlo dejaba el pedido "saldado" dos veces.
+      if (amountBase.add(discountBase ?? toDecimal(0)).gt(balance.add(0.01))) {
+        throw badRequest(`El cobro más el descuento exceden el saldo pendiente (${balance.toFixed(2)}).`);
       }
 
       const serviceChargeDiscountBase =
@@ -2836,23 +2913,44 @@ export const orderService = {
     });
   },
 
-  /** Movimiento por método de pago, para Administración. */
+  /**
+   * Movimiento por método de pago, para Administración.
+   *
+   * Se cuenta lo COBRADO de verdad (`OrderPayment`), no el método que se declaró al tomar el
+   * pedido: una cuenta fraccionada mitad efectivo/mitad pago móvil se cargaba entera a un solo
+   * método, y un descuento se contaba como dinero que entró. Los pedidos sin ningún cobro
+   * registrado siguen contándose por su método declarado — hay restaurantes que no usan el
+   * botón "Pagar" y sin eso el informe les daría casi vacío.
+   */
   async getPaymentMethodStats(restaurantId: string, range: ReportRange, date?: string, from?: string, to?: string) {
     const orders = await prisma.order.findMany({
       where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: resolveDateFilter({ range, date, from, to }) },
-      select: { paymentMethod: true, totalBase: true, totalBs: true },
+      select: {
+        paymentMethod: true,
+        totalBase: true,
+        totalBs: true,
+        exchangeRate: true,
+        payments: { select: { method: true, amountBase: true } },
+      },
     });
 
     const byMethod = new Map<string, { count: number; totalBase: Prisma.Decimal; totalBs: Prisma.Decimal }>();
-    for (const o of orders) {
-      const key = o.paymentMethod ?? 'SIN_METODO';
+    const add = (key: string, base: Prisma.Decimal, bs: Prisma.Decimal) => {
       const entry = byMethod.get(key);
       if (entry) {
         entry.count += 1;
-        entry.totalBase = entry.totalBase.add(o.totalBase);
-        entry.totalBs = entry.totalBs.add(o.totalBs);
+        entry.totalBase = entry.totalBase.add(base);
+        entry.totalBs = entry.totalBs.add(bs);
       } else {
-        byMethod.set(key, { count: 1, totalBase: toDecimal(o.totalBase), totalBs: toDecimal(o.totalBs) });
+        byMethod.set(key, { count: 1, totalBase: toDecimal(base), totalBs: toDecimal(bs) });
+      }
+    };
+    for (const o of orders) {
+      if (o.payments.length > 0) {
+        // Bs con la tasa congelada del pedido: la misma que vio el cliente al pagar.
+        for (const p of o.payments) add(p.method, toDecimal(p.amountBase), baseToBs(toDecimal(p.amountBase), o.exchangeRate));
+      } else {
+        add(o.paymentMethod ?? 'SIN_METODO', toDecimal(o.totalBase), toDecimal(o.totalBs));
       }
     }
 

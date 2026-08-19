@@ -19,6 +19,7 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { PaymentClientScreen } from '@/components/admin/PaymentClientScreen';
 import { MethodAccountPicker } from '@/components/admin/MethodAccountPicker';
 import { PromoCodeField, promoDiscountAmount, type AppliedPromo } from '@/components/admin/crm/PromoCodeField';
+import { settledOf } from '@/utils/orderBalance';
 import type { LiveOrder, LiveOrderPayment } from './LiveOrdersPanel';
 
 export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
@@ -92,8 +93,9 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const showDiscount = canApplyDiscount(user?.role);
 
-  // Un descuento perdona esa parte de la deuda: cuenta como "saldado" igual que el efectivo cobrado.
-  const paidBase = order.payments.reduce((acc, p) => acc + Number(p.amountBase) + Number(p.discountBase ?? 0), 0);
+  // Un descuento (y el ajuste de servicio) perdona esa parte de la deuda: cuenta como
+  // "saldado" igual que el efectivo cobrado — misma cuenta que hace el backend.
+  const paidBase = settledOf(order.payments);
   const balanceBase = Math.max(0, Number(order.totalBase) - paidBase);
 
   const paymentConfig = restaurant?.paymentMethodsConfig;
@@ -365,7 +367,10 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
       const freshPayments: LiveOrderPayment[] = data.data?.payments ?? [];
       const newPayments = freshPayments.filter((fp) => !order.payments.some((p) => p.id === fp.id));
       setSessionPayments((prev) => [...prev, ...newPayments]);
-      const remaining = balanceBase - amountBase;
+      // El saldo restante se recalcula con el pedido que devuelve el servidor (ya trae los
+      // pagos con su descuento y ajuste de servicio). Restar solo `amountBase` daba por
+      // pendiente lo que el descuento acababa de perdonar.
+      const remaining = Number(data.data?.totalBase ?? order.totalBase) - settledOf(freshPayments);
       const fullyPaid = mode === 'full' || remaining <= 0.01;
       onPaid(fullyPaid);
       if (fullyPaid) {

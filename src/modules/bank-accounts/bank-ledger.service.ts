@@ -120,4 +120,20 @@ export const bankLedgerService = {
       await tx.bankTransaction.deleteMany({ where: { restaurantId, movementId } });
     }
   },
+
+  /** Igual que `reverseMovement` pero para los asientos que dejó un pedido (`sourceRef` = orderId):
+   * al borrar un pedido ya cobrado, el cobro desaparecía de la caja pero el crédito seguía
+   * inflando el saldo del banco. */
+  async reverseBySourceRef(tx: Tx, restaurantId: string, sourceRef: string): Promise<void> {
+    const rows = await tx.bankTransaction.findMany({ where: { restaurantId, sourceRef } });
+    for (const row of rows) {
+      await tx.bankAccount.update({
+        where: { id: row.accountId },
+        data: { balance: row.type === 'CREDIT' ? { decrement: row.amount } : { increment: row.amount } },
+      });
+    }
+    if (rows.length > 0) {
+      await tx.bankTransaction.deleteMany({ where: { restaurantId, sourceRef } });
+    }
+  },
 };

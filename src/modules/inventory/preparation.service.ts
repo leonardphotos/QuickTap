@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
+import { resolveInventoryScopeById } from './inventory-scope';
 import { badRequest, conflict, notFound } from '../../utils/http-error';
 import { round2, toDecimal } from '../../utils/money';
 import { CreatePreparationIngredientInput, CreatePreparationInput, UpdatePreparationIngredientInput, UpdatePreparationInput } from './preparation.dto';
@@ -142,7 +143,9 @@ export const preparationService = {
     if (!preparation) throw notFound('Preparación no encontrada.');
 
     if (input.inventoryItemId) {
-      const item = await prisma.inventoryItem.findFirst({ where: { id: input.inventoryItemId, restaurantId } });
+      const item = await prisma.inventoryItem.findFirst({
+        where: { id: input.inventoryItemId, restaurantId: await resolveInventoryScopeById(restaurantId) },
+      });
       if (!item) throw badRequest('El insumo elegido no existe.');
     } else if (input.componentPreparationId) {
       const component = await prisma.preparation.findFirst({ where: { id: input.componentPreparationId, restaurantId } });

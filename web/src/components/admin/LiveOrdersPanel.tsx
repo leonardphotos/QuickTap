@@ -35,6 +35,7 @@ import { hasFeature } from '@/utils/subscription';
 import { useToast } from '@/hooks/useToast';
 import { Toast } from '@/components/ui/toast';
 import { abbreviateTableBadge, CURRENCY_SYMBOLS, formatBase, formatBsAbsolute, formatModifierLabel } from '@/utils/format';
+import { settledOf } from '@/utils/orderBalance';
 
 interface LiveOrderItem {
   id: string;
@@ -97,8 +98,9 @@ type ChannelFilter = LiveOrder['channel'] | 'AWAITING_PAYMENT' | 'PAID' | 'PARTI
 
 /** Estado de pago de un pedido, para colorear la tarjeta y filtrar el Dashboard. */
 export function getPaymentStatus(o: LiveOrder) {
-  // Un descuento perdona esa parte de la deuda: cuenta como "saldado" igual que el efectivo cobrado.
-  const paidBase = o.payments.reduce((acc, p) => acc + Number(p.amountBase) + Number(p.discountBase ?? 0), 0);
+  // Un descuento (y el ajuste de servicio) perdona esa parte de la deuda: cuenta como
+  // "saldado" igual que el efectivo cobrado — misma cuenta que hace el backend.
+  const paidBase = settledOf(o.payments);
   const balanceBase = Math.max(0, Number(o.totalBase) - paidBase);
   const owesBalance = paidBase > 0 && balanceBase > 0.01;
   const fullyPaid = o.payments.length > 0 && balanceBase <= 0.01;
@@ -1119,12 +1121,14 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
   }
 
   /** Reemplaza un ítem ya pedido (ej: cambiar ceviche pequeño por grande + extra camarón):
-   * como OrderItem es un snapshot congelado, "editar" = borrar la línea vieja y añadir la nueva. */
+   * como OrderItem es un snapshot congelado, "editar" = añadir la línea nueva y borrar la vieja.
+   * Primero se AÑADE y después se borra, nunca al revés: al revés, si el pedido tenía un solo
+   * producto el servidor rechazaba el borrado ("El pedido debe tener al menos un producto") y la
+   * edición era imposible; y si fallaba el alta, la línea original ya se había perdido. */
   async function replaceItemWithLine(oldItemId: string, line: CartLine) {
     setSaving(true);
     setError(null);
     try {
-      await api.patch(`/orders/${order.id}/items`, { items: [{ orderItemId: oldItemId, quantity: 0 }] });
       await api.post(`/orders/${order.id}/items`, {
         productId: line.product.id,
         quantity: line.quantity,
@@ -1132,6 +1136,7 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
         modifierIds: line.selectedModifiers.flatMap((m) => Array(m.quantity ?? 1).fill(m.modifierId)),
         note: line.note,
       });
+      await api.patch(`/orders/${order.id}/items`, { items: [{ orderItemId: oldItemId, quantity: 0 }] });
       onSaved();
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo actualizar el producto.');

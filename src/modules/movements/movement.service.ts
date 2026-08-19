@@ -1,5 +1,6 @@
 import { Prisma, WasteReason } from '@prisma/client';
 import { prisma } from '../../config/prisma';
+import { resolveInventoryScopeById } from '../inventory/inventory-scope';
 import { badRequest, notFound } from '../../utils/http-error';
 import { baseToBs, bsToBase, round2, toDecimal } from '../../utils/money';
 import { ReportRange, resolveDateFilter } from '../../utils/date-range';
@@ -123,7 +124,13 @@ export const movementService = {
 
       // Reabastecimiento automático: llegó el insumo, se suma a la cantidad disponible.
       if (input.inventoryItemId && input.inventoryQuantity) {
-        const item = await tx.inventoryItem.findFirst({ where: { id: input.inventoryItemId, restaurantId } });
+        // Modo "inventario compartido entre sedes": los insumos viven en la raíz del grupo, así
+        // que una sucursal tiene que buscarlos ahí — con su propio id la compra fallaba entera
+        // con "El insumo no existe o no pertenece a este restaurante".
+        const inventoryRestaurantId = await resolveInventoryScopeById(restaurantId);
+        const item = await tx.inventoryItem.findFirst({
+          where: { id: input.inventoryItemId, restaurantId: inventoryRestaurantId },
+        });
         if (!item) throw notFound('El insumo no existe o no pertenece a este restaurante.');
         await tx.inventoryItem.update({
           where: { id: input.inventoryItemId },
@@ -340,8 +347,11 @@ export const movementService = {
         String(nextQty ?? '') !== String(existing.inventoryQuantity ?? '');
 
       if (restockChanged) {
+        const inventoryRestaurantId = await resolveInventoryScopeById(restaurantId);
         if (existing.inventoryItemId && existing.inventoryQuantity) {
-          const prev = await tx.inventoryItem.findFirst({ where: { id: existing.inventoryItemId, restaurantId } });
+          const prev = await tx.inventoryItem.findFirst({
+            where: { id: existing.inventoryItemId, restaurantId: inventoryRestaurantId },
+          });
           if (prev) {
             await tx.inventoryItem.update({
               where: { id: prev.id },
@@ -350,7 +360,9 @@ export const movementService = {
           }
         }
         if (nextItemId && nextQty) {
-          const next = await tx.inventoryItem.findFirst({ where: { id: nextItemId, restaurantId } });
+          const next = await tx.inventoryItem.findFirst({
+            where: { id: nextItemId, restaurantId: inventoryRestaurantId },
+          });
           if (!next) throw notFound('El insumo no existe o no pertenece a este restaurante.');
           await tx.inventoryItem.update({ where: { id: next.id }, data: { quantity: { increment: nextQty } } });
         }

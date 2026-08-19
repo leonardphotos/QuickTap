@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import ExcelJS from 'exceljs';
 import { prisma } from '../../config/prisma';
+import { resolveInventoryScopeById } from './inventory-scope';
 import { badRequest, notFound } from '../../utils/http-error';
 import { round2, toDecimal } from '../../utils/money';
 import { CreateRecipeIngredientInput, UpdateCascadeConfigInput, UpdateRecipeIngredientInput } from './recipe.dto';
@@ -176,7 +177,9 @@ export const recipeService = {
     if (!product) throw notFound('Producto no encontrado.');
 
     if (input.inventoryItemId) {
-      const item = await prisma.inventoryItem.findFirst({ where: { id: input.inventoryItemId, restaurantId } });
+      const item = await prisma.inventoryItem.findFirst({
+        where: { id: input.inventoryItemId, restaurantId: await resolveInventoryScopeById(restaurantId) },
+      });
       if (!item) throw badRequest('El insumo elegido no existe.');
     } else if (input.preparationId) {
       const preparation = await prisma.preparation.findFirst({ where: { id: input.preparationId, restaurantId } });
@@ -216,7 +219,9 @@ export const recipeService = {
     if (!existing) throw notFound('Ingrediente no encontrado.');
 
     if (input.inventoryItemId) {
-      const item = await prisma.inventoryItem.findFirst({ where: { id: input.inventoryItemId, restaurantId } });
+      const item = await prisma.inventoryItem.findFirst({
+        where: { id: input.inventoryItemId, restaurantId: await resolveInventoryScopeById(restaurantId) },
+      });
       if (!item) throw badRequest('El insumo elegido no existe.');
     } else if (input.preparationId) {
       const preparation = await prisma.preparation.findFirst({ where: { id: input.preparationId, restaurantId } });

@@ -1,4 +1,5 @@
 import { prisma } from '../../config/prisma';
+import { resolveInventoryScopeById } from '../inventory/inventory-scope';
 import { badRequest, notFound } from '../../utils/http-error';
 import {
   AssociateProductInput,
@@ -176,8 +177,9 @@ export const modifierCategoryService = {
     if (input.inventoryItemId == null && input.preparationId == null && input.inventoryQuantity == null) return;
 
     if (input.inventoryItemId) {
+      // Con "inventario compartido entre sedes" el insumo vive en la raíz del grupo.
       const item = await prisma.inventoryItem.findFirst({
-        where: { id: input.inventoryItemId, restaurantId },
+        where: { id: input.inventoryItemId, restaurantId: await resolveInventoryScopeById(restaurantId) },
         select: { id: true },
       });
       if (!item) throw notFound('El insumo seleccionado no existe en este restaurante.');

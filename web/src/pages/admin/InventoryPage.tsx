@@ -1296,7 +1296,11 @@ function groupByCategory(items: InventoryItem[], categories: InventoryCategory[]
   for (const c of categories) {
     const list = byCategoryId.get(c.id);
     if (list?.length) groups.push([c.name, list]);
+    byCategoryId.delete(c.id);
   }
+  // Insumo con una categoría que esta sede no tiene (llegó por transferencia desde otra sede):
+  // antes no entraba en ningún grupo y desaparecía de la lista aunque existiera de verdad.
+  for (const list of byCategoryId.values()) uncategorized.push(...list);
   if (uncategorized.length) groups.push(['Sin categoría', uncategorized]);
   return groups;
 }

@@ -188,7 +188,10 @@ async function sendReminderFor(
   );
 
   const withinWindow = restaurant.periodEnd.getTime() - Date.now() <= REMINDER_DAYS_BEFORE * 24 * 60 * 60 * 1000;
-  if (opts.markPeriod === 'always' || withinWindow) {
+  // Solo se marca como avisado si el mensaje SALIÓ. Marcándolo igual, un barrido con el bot
+  // maestro desconectado (pasa en cada reinicio nocturno de PM2 hasta que se re-vincula)
+  // quemaba el recordatorio de ese vencimiento: el restaurante no se enteraba nunca.
+  if (sent && (opts.markPeriod === 'always' || withinWindow)) {
     await prisma.restaurant.update({
       where: { id: restaurant.id },
       data: { subscriptionReminderForPeriodEnd: restaurant.periodEnd },

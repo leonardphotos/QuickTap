@@ -4,6 +4,7 @@ import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { balanceOfOrder } from '@/utils/orderBalance';
 import type { LiveOrder } from './LiveOrdersPanel';
 
 const CHANNEL_LABELS: Record<LiveOrder['channel'], string> = {
@@ -17,8 +18,7 @@ const CHANNEL_LABELS: Record<LiveOrder['channel'], string> = {
  * para colorear tarjetas), acá cuenta como deuda CUALQUIER pedido con saldo > 0, incluso uno sin
  * ningún pago registrado todavía — Caja necesita ver también las comandas que nadie ha cobrado. */
 function balanceOf(o: LiveOrder): number {
-  const paidBase = o.payments.reduce((acc, p) => acc + Number(p.amountBase) + Number(p.discountBase ?? 0), 0);
-  return Math.max(0, Number(o.totalBase) - paidBase);
+  return balanceOfOrder(o.totalBase, o.payments);
 }
 
 /** Botón "Comandas y deudas" para Caja: todas las comandas abiertas del restaurante (todos los

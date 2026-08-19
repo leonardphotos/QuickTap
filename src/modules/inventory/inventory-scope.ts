@@ -35,3 +35,18 @@ export async function effectiveInventoryRestaurantId(
   if (locationScope === 'CASA_MATRIZ') return rootRestaurantId(restaurantId, parentRestaurantId);
   return resolveInventoryScope(restaurantId, parentRestaurantId);
 }
+
+/**
+ * Igual que `resolveInventoryScope` pero resolviendo el padre contra la base, para el código
+ * que no viene de una petición y por tanto no tiene el JWT a mano (el descuento de stock al
+ * marcar SERVED un pedido, por ejemplo). Sin esto, en modo compartido una sucursal buscaba el
+ * insumo con su propio restaurantId, no lo encontraba y NO descontaba — pero al cancelar sí lo
+ * devolvía (esa consulta va por id), así que el stock se inflaba solo.
+ */
+export async function resolveInventoryScopeById(restaurantId: string): Promise<string> {
+  const restaurant = await prisma.restaurant.findUnique({
+    where: { id: restaurantId },
+    select: { parentRestaurantId: true },
+  });
+  return resolveInventoryScope(restaurantId, restaurant?.parentRestaurantId);
+}

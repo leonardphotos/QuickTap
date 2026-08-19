@@ -33,7 +33,7 @@ interface PurchaseRow {
   notes?: string | null;
   isRecurring?: boolean;
   spentByName?: string | null;
-  inventoryItem?: { name: string } | null;
+  inventoryItem?: { id: string; name: string } | null;
   inventoryQuantity?: string | null;
 }
 
