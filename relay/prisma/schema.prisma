@@ -67,8 +67,9 @@ model Restaurant {
   tables   Table[]
   kitchens Kitchen[]
   products Product[]
-  sessions TableSession[]
-  orders   Order[]
+  sessions       TableSession[]
+  orders         Order[]
+  inventoryItems InventoryItem[]
 }
 
 model Zone {
@@ -210,6 +211,52 @@ model ModifierVariantPrice {
   @@map("modifier_variant_prices")
 }
 
+/// Insumos con su stock. Es una PROYECCIÓN local: baja al servir pedidos para que el salón vea
+/// qué se está acabando, pero la autoridad sigue siendo la nube — el siguiente snapshot pisa
+/// estos números con los reales, así una diferencia nunca se acumula.
+model InventoryItem {
+  id           String  @id
+  restaurantId String
+  name         String
+  unit         String
+  quantity     Decimal @db.Decimal(12, 2)
+  minQuantity  Decimal @default(0) @db.Decimal(12, 2)
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@map("inventory_items")
+}
+
+/// Cuánto insumo consume UNA unidad de un producto (o de una variante puntual).
+/// Lo precalcula la nube con su motor de recetas y lo manda ya resuelto: el relé solo
+/// multiplica por la cantidad vendida, sin duplicar la lógica de recetas anidadas.
+model ProductConsumption {
+  id              String  @id @default(cuid())
+  restaurantId    String
+  productId       String
+  /// null = el producto no tiene variantes (o la línea aplica a todas).
+  variantName     String?
+  inventoryItemId String
+  quantity        Decimal @db.Decimal(12, 4)
+
+  @@unique([productId, variantName, inventoryItemId])
+  @@index([restaurantId])
+  @@map("product_consumption")
+}
+
+/// Igual, para modificadores con insumo vinculado ("Extra queso" -> 30 gr de Queso).
+model ModifierConsumption {
+  id              String  @id @default(cuid())
+  restaurantId    String
+  modifierId      String
+  inventoryItemId String
+  quantity        Decimal @db.Decimal(12, 4)
+
+  @@unique([modifierId, inventoryItemId])
+  @@index([restaurantId])
+  @@map("modifier_consumption")
+}
+
 /// Cuenta abierta de una mesa. Creada acá si nació durante el corte.
 model TableSession {
   id               String             @id @default(cuid())
@@ -268,6 +315,9 @@ model Order {
 
   /// false = todavía no subió a la nube (ver Fase 4).
   syncedToCloud Boolean @default(false)
+  /// Ya se descontó el stock local por este pedido — evita descontar dos veces si se marca
+  /// servido más de una vez. El descuento REAL lo hace la nube al sincronizar.
+  stockDeductedLocally Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -45,17 +45,29 @@ curl http://127.0.0.1:4001/api/v1/relay/health
 El token tiene que ser uno emitido por la nube (o generado con el mismo secreto): el relé lo
 verifica criptográficamente, sin consultar ninguna base — por eso funciona con internet caído.
 
+## Inventario
+
+El stock **sí baja al servir**, para que el salón vea qué se está acabando durante el corte.
+
+Descontar de verdad encadena recetas, preparaciones anidadas y envases — un motor grande que ya
+vive en `order.service.ts`. En vez de portarlo (y arriesgar que calcule distinto), la nube lo
+resuelve UNA vez al armar el snapshot: para cada producto y variante calcula cuánto insumo
+consume una unidad, y manda esa tabla ya resuelta. El relé solo multiplica.
+
+Es una **proyección a propósito**: la nube sigue siendo la autoridad y descuenta de verdad al
+sincronizar los pedidos; el siguiente snapshot pisa el stock local con el real. Así, si el relé
+se desvía, el error se corrige solo en vez de acumularse.
+
 ## Qué NO hace (a propósito)
 
-Fuera del alcance offline acordado: delivery (imposible sin internet), descuento de inventario
-(se difiere al sincronizar — descontar dos veces sería peor que tarde), reportes, caja, cambios
-de configuración, push y WhatsApp.
+Fuera del alcance offline acordado: delivery (imposible sin internet), ajustes/mermas/traslados
+de inventario a mano, reportes, caja, cambios de configuración, push y WhatsApp.
 
 ## Estado
 
 - **Fase 0** ✅ Postgres embebido validado (ver `docs/offline-mode-spike.md`)
 - **Fase 1** ✅ Servidor local: toma pedidos y emite a cocina, verificado end-to-end
-- **Fase 2** ⏳ Bajar el catálogo desde la nube
+- **Fase 2** ✅ Catálogo e inventario bajan de la nube; el stock baja al servir
 - **Fase 3** ⏳ Detectar el corte y cambiar de origen automáticamente
 - **Fase 4** ⏳ Subir a la nube lo que pasó offline
 - **Fase 5** ⏳ Revisión de conflictos

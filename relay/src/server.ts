@@ -5,6 +5,8 @@ import { Server as IOServer } from 'socket.io';
 import { bearerFrom, verifyToken, type RelayAuth } from './auth.js';
 import { createOfflineOrder, OrderError, toKitchenPayload } from './orders.js';
 import { relayDb } from './db.js';
+import { applySnapshot, type CatalogSnapshot } from './snapshot.js';
+import { deductStockForOrder, listInventory } from './inventory.js';
 
 /**
  * Servidor local del relé: habla el MISMO dialecto que la nube (mismas rutas, mismos eventos,
@@ -116,6 +118,66 @@ export function startRelayServer(opts: RelayServerOptions): StartedRelayServer {
       // eslint-disable-next-line no-console
       console.error('[relé] error creando pedido:', e);
       res.status(500).json({ error: 'No se pudo crear el pedido en el relé.' });
+    }
+  });
+
+  /**
+   * Recibe el snapshot de catálogo que baja la app de escritorio mientras hay internet.
+   * Es lo que deja al relé listo para el día que se caiga la conexión.
+   */
+  app.post('/api/v1/relay/snapshot', requireAuth, async (req, res) => {
+    const { auth } = req as express.Request & { auth: RelayAuth };
+    const snap = req.body as CatalogSnapshot;
+    if (snap?.restaurant?.id !== auth.restaurantId) {
+      res.status(400).json({ error: 'El snapshot no corresponde a este restaurante.' });
+      return;
+    }
+    try {
+      const { appliedAt } = await applySnapshot(snap);
+      res.json({ data: { appliedAt } });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[relé] error aplicando snapshot:', e);
+      res.status(500).json({ error: 'No se pudo aplicar el snapshot.' });
+    }
+  });
+
+  /** Stock local, para que el salón vea qué se está acabando durante el corte. */
+  app.get('/api/v1/relay/inventory', requireAuth, async (req, res) => {
+    const { auth } = req as express.Request & { auth: RelayAuth };
+    res.json({ data: await listInventory(auth.restaurantId) });
+  });
+
+  /**
+   * Marcar servido. Además de cambiar el estado, descuenta el stock local — es lo que hace que
+   * el inventario siga bajando con normalidad aunque no haya internet.
+   */
+  app.patch('/api/v1/orders/:id/status', requireAuth, async (req, res) => {
+    const { auth } = req as express.Request & { auth: RelayAuth };
+    const status = req.body?.status as string | undefined;
+    if (status !== 'SERVED') {
+      res.status(400).json({ error: 'El relé solo admite marcar SERVED mientras no hay conexión.' });
+      return;
+    }
+    const db = relayDb();
+    const order = await db.order.findFirst({ where: { id: req.params.id, restaurantId: auth.restaurantId } });
+    if (!order) {
+      res.status(404).json({ error: 'Pedido no encontrado.' });
+      return;
+    }
+    try {
+      await db.order.update({ where: { id: order.id }, data: { status: 'SERVED' } });
+      const stock = await deductStockForOrder(order.id);
+      io.to(kitchenRoom(auth.restaurantId)).emit('order:updated', {
+        orderId: order.id,
+        status: 'SERVED',
+        offline: true,
+      });
+      res.json({ data: { id: order.id, status: 'SERVED', stock } });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[relé] error marcando servido:', e);
+      res.status(500).json({ error: 'No se pudo marcar el pedido como servido.' });
     }
   });
 

@@ -404,7 +404,7 @@ async function resolveRecipeInventoryDeltas(
   return acc;
 }
 
-type RecipeStockItem = {
+export type RecipeStockItem = {
   productId: string | null;
   variantName: string | null;
   quantity: number;
@@ -416,7 +416,7 @@ type RecipeStockItem = {
  * modificador de esa categoría que marcó en el pedido) y se usan los gramos de la RECETA —
  * no la cantidad propia que tenga configurada ese modificador. Compartida por deduct/restore
  * para no duplicar la resolución (solo cambia si al final se decrementa o se incrementa). */
-async function computeRecipeStockDeltas(restaurantId: string, items: RecipeStockItem[]): Promise<Map<string, Prisma.Decimal>> {
+export async function computeRecipeStockDeltas(restaurantId: string, items: RecipeStockItem[]): Promise<Map<string, Prisma.Decimal>> {
   const productIds = items.map((i) => i.productId).filter((id): id is string => Boolean(id));
   if (productIds.length === 0) return new Map();
 
