@@ -13,10 +13,25 @@ Son dos archivos que hay que conseguir: uno va en la app, otro en el servidor.
 
 ---
 
+## Ojo: son dos nombres distintos
+
+Firebase pide un nombre en dos momentos y es fácil confundirlos:
+
+| Momento | Campo | Qué va |
+|---|---|---|
+| Al crear el proyecto | Nombre del proyecto | `QuickTap` |
+| Al registrar la app Android | Nombre del paquete | `club.quicktap.app` |
+
+El **nombre del proyecto** es solo una etiqueta para ti y **no acepta puntos** — si escribes
+ahí `club.quicktap.app` te va a decir *"Solo puede contener letras, números, espacios y los
+siguientes caracteres: - ! '"*. Eso significa que estás en el campo equivocado.
+
+El que tiene que coincidir exacto es el **nombre del paquete**, más abajo.
+
 ## 1. Crear el proyecto (5 minutos)
 
 1. Entra en <https://console.firebase.google.com> con tu cuenta de Google.
-2. **Crear un proyecto** → nombre: `QuickTap` → siguiente.
+2. **Crear un proyecto** → nombre: `QuickTap` (sin puntos) → siguiente.
 3. Te ofrece Google Analytics: **desactívalo**, no hace falta.
 4. Espera a que lo cree y entra.
 
