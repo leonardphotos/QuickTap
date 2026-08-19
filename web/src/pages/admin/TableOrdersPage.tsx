@@ -659,6 +659,10 @@ export default function TableOrdersPage() {
               e.customerPhone && whatsapp(e.customerPhone, `Hola ${e.customerName}, ¡tu mesa en ${restaurant?.name ?? ''} está lista!`)
             }
             onNewWaitlistEntry={() => setNewWaitlistOpen(true)}
+            onOpenTable={(tableId) => {
+              const table = sections.flatMap((z) => z.tables).find((t) => t.id === tableId);
+              if (table) openTable(table);
+            }}
           />
         )}
 

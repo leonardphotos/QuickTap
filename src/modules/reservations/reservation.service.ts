@@ -10,7 +10,11 @@ import {
   UpdateReservationInput,
 } from './reservation.dto';
 
-const WITH_TABLES = { tables: { select: { id: true, number: true } } } as const;
+const WITH_TABLES = {
+  tables: { select: { id: true, number: true } },
+  // Dónde se sentó de verdad, que no siempre es la mesa que había apartado.
+  tableSession: { select: { id: true, table: { select: { id: true, number: true } } } },
+} as const;
 
 /** Estados que un mesero puede ver: los que le sirven para atender, nunca las pendientes por
  *  aceptar (decidir si se acepta una reserva es de dueño/admin). */

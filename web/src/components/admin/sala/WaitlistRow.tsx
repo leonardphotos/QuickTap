@@ -1,4 +1,4 @@
-import { Bell, MessageCircle, Timer, Users, X } from 'lucide-react';
+import { Bell, MessageCircle, Table2, Timer, Users, X } from 'lucide-react';
 import type { WaitlistEntry } from '@/types';
 
 /** Alguien de la lista de espera: cuánto lleva, cuántos son y qué se puede hacer con él. */
@@ -8,19 +8,29 @@ export function WaitlistRow({
   onNotify,
   onCancel,
   onWhatsapp,
+  onOpenTable,
 }: {
   entry: WaitlistEntry;
   onSeat?: (e: WaitlistEntry) => void;
   onNotify?: (e: WaitlistEntry) => void;
   onCancel?: (e: WaitlistEntry) => void;
   onWhatsapp?: (e: WaitlistEntry) => void;
+  /** Ya sentado: tocar la fila abre su mesa para ver la cuenta o editar el pedido. */
+  onOpenTable?: (tableId: string) => void;
 }) {
   const seated = entry.status === 'SEATED';
   // Se pasó de lo prometido: se marca en rojo para que el salón lo priorice.
   const late = entry.quotedMinutes != null && entry.waitedMinutes != null && entry.waitedMinutes > entry.quotedMinutes;
+  const table = entry.seatedTable;
+  const openable = seated && table && onOpenTable;
 
   return (
-    <li className="rounded-xl border border-brand-950/10 bg-white px-3 py-2.5">
+    <li
+      onClick={openable ? () => onOpenTable(table.id) : undefined}
+      className={`rounded-xl border border-brand-950/10 bg-white px-3 py-2.5 ${
+        openable ? 'cursor-pointer transition-colors hover:border-brand-500/40 hover:bg-brand-500/[0.04]' : ''
+      }`}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-brand-950">{entry.customerName}</p>
@@ -33,7 +43,13 @@ export function WaitlistRow({
               {entry.waitedMinutes ?? 0} min
               {entry.quotedMinutes != null && <span className="opacity-60">/ {entry.quotedMinutes}</span>}
             </span>
-            {entry.zone && <span className="truncate">{entry.zone.name}</span>}
+            {table ? (
+              <span className="flex items-center gap-1 font-semibold text-brand-600">
+                <Table2 className="h-3 w-3" /> Mesa {table.number}
+              </span>
+            ) : (
+              entry.zone && <span className="truncate">{entry.zone.name}</span>
+            )}
           </p>
           {entry.note && <p className="mt-0.5 truncate text-[11px] italic text-brand-950/40">{entry.note}</p>}
         </div>
@@ -50,7 +66,7 @@ export function WaitlistRow({
       </div>
 
       {!seated && (
-        <div className="mt-2 flex items-center gap-1.5">
+        <div className="mt-2 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
           {onSeat && (
             <button
               type="button"

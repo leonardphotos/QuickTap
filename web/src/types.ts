@@ -454,6 +454,8 @@ export interface Reservation {
   seatedAt?: string | null;
   /** Cuenta que abrió al sentarse (null mientras no se haya sentado). */
   tableSessionId?: string | null;
+  /** Mesa donde se sentó de verdad — no siempre es la que tenía apartada. */
+  tableSession?: { id: string; table: { id: string; number: string } } | null;
   tables: { id: string; number: string }[];
 }
 
@@ -476,6 +478,8 @@ export interface WaitlistEntry {
   seatedAt?: string | null;
   /** Cuánto lleva esperando (o cuánto esperó, si ya se sentó). Lo calcula el servidor. */
   waitedMinutes: number | null;
+  /** Mesa donde se sentó (null si todavía espera). */
+  seatedTable?: { id: string; number: string } | null;
 }
 
 export interface WaitlistResponse {

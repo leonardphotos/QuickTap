@@ -9,7 +9,16 @@ import {
   UpdateWaitlistEntryInput,
 } from './waitlist.dto';
 
-const WITH_ZONE = { zone: { select: { id: true, name: true } } } as const;
+const WITH_ZONE = {
+  zone: { select: { id: true, name: true } },
+  // La mesa donde terminó sentado: la barra lateral la muestra y deja tocarla para abrir la cuenta.
+  tableSession: { select: { id: true, table: { select: { id: true, number: true } } } },
+} as const;
+
+/** Aplana la mesa donde se sentó, para que la UI no tenga que navegar la relación. */
+function withSeatedTable<T extends { tableSession?: { table: { id: string; number: string } } | null }>(entry: T) {
+  return { ...entry, seatedTable: entry.tableSession?.table ?? null };
+}
 
 /** Todavía en la puerta: esperando o ya avisados de que su mesa está lista. */
 const LIVE_STATUSES = ['WAITING', 'NOTIFIED'] as const;
@@ -48,11 +57,10 @@ export const waitlistService = {
     return {
       // `waitedMinutes` es cuánto lleva esperando cada uno ahora mismo: lo calcula el servidor
       // para que todas las tablets muestren lo mismo sin depender de su reloj.
-      waiting: live.map((e) => ({ ...e, waitedMinutes: minutesBetween(e.createdAt, now) })),
-      seatedToday: seatedToday.map((e) => ({
-        ...e,
-        waitedMinutes: e.seatedAt ? minutesBetween(e.createdAt, e.seatedAt) : null,
-      })),
+      waiting: live.map((e) => withSeatedTable({ ...e, waitedMinutes: minutesBetween(e.createdAt, now) })),
+      seatedToday: seatedToday.map((e) =>
+        withSeatedTable({ ...e, waitedMinutes: e.seatedAt ? minutesBetween(e.createdAt, e.seatedAt) : null }),
+      ),
       stats: {
         waitingCount: live.length,
         avgWaitMinutes: waits.length > 0 ? Math.round(waits.reduce((a, b) => a + b, 0) / waits.length) : null,
@@ -136,8 +144,9 @@ export const waitlistService = {
       });
     });
 
-    emitToKitchen(restaurantId, SocketEvents.WAITLIST_UPDATED, seated);
-    return seated;
+    const result = withSeatedTable(seated);
+    emitToKitchen(restaurantId, SocketEvents.WAITLIST_UPDATED, result);
+    return result;
   },
 
   /** Se cansó de esperar y se fue. */

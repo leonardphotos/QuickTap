@@ -28,6 +28,7 @@ export function SalaSidebar({
   onWhatsappReservation,
   onWhatsappWaitlist,
   onNewWaitlistEntry,
+  onOpenTable,
 }: {
   reservations: Reservation[];
   waitlist: WaitlistResponse | null;
@@ -39,6 +40,8 @@ export function SalaSidebar({
   onWhatsappReservation: (r: Reservation) => void;
   onWhatsappWaitlist: (e: WaitlistEntry) => void;
   onNewWaitlistEntry: () => void;
+  /** Abrir la mesa de alguien ya sentado, para ver su cuenta o editar el pedido. */
+  onOpenTable: (tableId: string) => void;
 }) {
   const [tab, setTab] = useState<Tab>('reservas');
   const [query, setQuery] = useState('');
@@ -129,7 +132,7 @@ export function SalaSidebar({
             {seated.length > 0 && (
               <Section title="Sentadas" count={seated.length}>
                 {seated.map((r) => (
-                  <ReservationRow key={r.id} reservation={r} />
+                  <ReservationRow key={r.id} reservation={r} onOpenTable={onOpenTable} />
                 ))}
               </Section>
             )}
@@ -151,7 +154,7 @@ export function SalaSidebar({
             {waitlistSeated.length > 0 && (
               <Section title="Sentados hoy" count={waitlistSeated.length}>
                 {waitlistSeated.map((e) => (
-                  <WaitlistRow key={e.id} entry={e} />
+                  <WaitlistRow key={e.id} entry={e} onOpenTable={onOpenTable} />
                 ))}
               </Section>
             )}

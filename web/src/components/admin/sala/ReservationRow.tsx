@@ -1,4 +1,4 @@
-import { Clock, MessageCircle, Users } from 'lucide-react';
+import { Clock, MessageCircle, Table2, Users } from 'lucide-react';
 import type { Reservation } from '@/types';
 
 const STATUS_STYLES: Record<Reservation['status'], { label: string; className: string }> = {
@@ -14,18 +14,29 @@ export function ReservationRow({
   reservation,
   onSeat,
   onWhatsapp,
+  onOpenTable,
 }: {
   reservation: Reservation;
   /** Solo se ofrece si todavía se puede sentar (confirmada y no sentada aún). */
   onSeat?: (r: Reservation) => void;
   onWhatsapp?: (r: Reservation) => void;
+  /** Ya sentada: tocar la fila abre su mesa para ver la cuenta o editar el pedido. */
+  onOpenTable?: (tableId: string) => void;
 }) {
   const status = STATUS_STYLES[reservation.status];
   const tables = reservation.tables.map((t) => t.number).join(', ');
   const canSeat = onSeat && (reservation.status === 'CONFIRMED' || reservation.status === 'PENDING');
+  // Dónde se sentó de verdad, que puede no ser la mesa que tenía apartada.
+  const seatedTable = reservation.tableSession?.table ?? null;
+  const openable = seatedTable && onOpenTable;
 
   return (
-    <li className="rounded-xl border border-brand-950/10 bg-white px-3 py-2.5">
+    <li
+      onClick={openable ? () => onOpenTable(seatedTable.id) : undefined}
+      className={`rounded-xl border border-brand-950/10 bg-white px-3 py-2.5 ${
+        openable ? 'cursor-pointer transition-colors hover:border-brand-500/40 hover:bg-brand-500/[0.04]' : ''
+      }`}
+    >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="flex items-center gap-1.5 text-sm font-semibold text-brand-950">
@@ -37,7 +48,13 @@ export function ReservationRow({
             <span className="flex items-center gap-1">
               <Users className="h-3 w-3" /> {reservation.partySize}
             </span>
-            {tables && <span className="truncate">Mesa {tables}</span>}
+            {seatedTable ? (
+              <span className="flex items-center gap-1 font-semibold text-brand-600">
+                <Table2 className="h-3 w-3" /> Mesa {seatedTable.number}
+              </span>
+            ) : (
+              tables && <span className="truncate">Mesa {tables}</span>
+            )}
           </p>
           {reservation.note && <p className="mt-0.5 truncate text-[11px] italic text-brand-950/40">{reservation.note}</p>}
         </div>
@@ -47,7 +64,7 @@ export function ReservationRow({
       </div>
 
       {(canSeat || onWhatsapp) && (
-        <div className="mt-2 flex items-center gap-1.5">
+        <div className="mt-2 flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
           {canSeat && (
             <button
               type="button"
