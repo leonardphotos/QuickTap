@@ -5,6 +5,24 @@ Node.js, PostgreSQL y soporte de WebSockets (Socket.IO), por eso un VPS es el
 camino correcto — el hosting compartido básico de cPanel no cubre esto de
 forma confiable.
 
+## Cuál es el servidor de producción
+
+Hoy **solo hay uno**: `server2.quicktap.club` (104.207.74.80), el que sirve quicktap.club.
+Los alias de SSH `quicktap-vps` y `quicktap-vps-root` apuntan los dos ahí, a propósito.
+
+Hubo un segundo servidor (162.0.228.25) que quedó fuera de servicio el 2026-08-19. Sigue
+encendido y respondiendo por HTTP, así que un despliegue equivocado contra esa IP parecería
+funcionar y no se notaría hasta buscar los cambios en el sitio real. Si te encuentras un alias
+o un script apuntando ahí, está mal.
+
+Antes de desplegar, confirma que estás donde crees:
+
+```bash
+ssh quicktap-vps "hostname"
+```
+
+Debe responder `server2.quicktap.club`.
+
 ## 0. Antes de empezar
 
 - Contrata/activa el VPS en Namecheap y anota su IP pública.
