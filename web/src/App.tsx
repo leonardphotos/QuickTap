@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { isAndroidApp } from './utils/native-platform';
 import { MasterAuthProvider } from './context/MasterAuthContext';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
@@ -82,7 +83,14 @@ export default function App() {
       <MasterAuthProvider>
         <Suspense fallback={<RouteFallback />}>
           <Routes>
-            <Route path="/" element={<LandingPage />} />
+            {/*
+              Quien instala la app de Android es personal del restaurante, no un visitante: la
+              landing (que existe para vender el producto) sobra ahí y obliga a un toque extra
+              para llegar a lo único que van a usar. Se entra directo al login, que a su vez
+              rebota a /admin si la sesión sigue viva, así que no obliga a escribir la clave
+              cada vez. En navegador y en la app de escritorio no cambia nada.
+            */}
+            <Route path="/" element={isAndroidApp() ? <Navigate to="/admin/login" replace /> : <LandingPage />} />
             {/* La página de soluciones se fusionó con la Landing (ahora vive debajo del hero). */}
             <Route path="/soluciones" element={<Navigate to="/" replace />} />
             {/* /precios es el slug SEO canónico (cluster de precio); /planes queda como redirección. */}
