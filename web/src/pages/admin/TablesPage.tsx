@@ -23,6 +23,7 @@ export default function TablesPage() {
   const [zones, setZones] = useState<Zone[]>([]);
   const [number, setNumber] = useState('');
   const [zoneId, setZoneId] = useState('');
+  const [seats, setSeats] = useState('4');
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [zoneDialogOpen, setZoneDialogOpen] = useState(false);
@@ -45,7 +46,7 @@ export default function TablesPage() {
     setError(null);
     setSaving(true);
     try {
-      await api.post('/tables', { number, zoneId: zoneId || undefined });
+      await api.post('/tables', { number, zoneId: zoneId || undefined, seats: Number(seats) || 4 });
       setShowSuccess(true);
       load();
       setTimeout(() => {
@@ -53,6 +54,7 @@ export default function TablesPage() {
         setShowSuccess(false);
         setNumber('');
         setZoneId('');
+        setSeats('4');
       }, 1100);
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No se pudo crear la mesa.');
@@ -100,7 +102,7 @@ export default function TablesPage() {
           setOpen={setOpen}
           showSuccess={showSuccess}
           width="320px"
-          height="240px"
+          height="300px"
           openChild={
             <form onSubmit={onSubmit} className="p-4 h-full flex flex-col gap-3">
               <input
@@ -123,6 +125,17 @@ export default function TablesPage() {
                   </option>
                 ))}
               </select>
+              <label className="flex items-center justify-between gap-2 text-sm text-brand-950/60">
+                Sillas
+                <input
+                  type="number"
+                  min={1}
+                  max={20}
+                  value={seats}
+                  onChange={(e) => setSeats(e.target.value)}
+                  className="w-20 border border-brand-950/15 rounded-lg px-3 py-2 text-sm text-brand-950 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                />
+              </label>
               {error && <p className="text-xs text-red-600">{error}</p>}
               <PopoverFormButton loading={saving} text="Agregar" />
             </form>

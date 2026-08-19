@@ -1130,6 +1130,10 @@ model Table {
   // pensada para 6 personas), y un factor 1 = normal, 1.5 = grande.
   planShape String   @default("ROUND")
   planSize  Decimal  @default(1) @db.Decimal(3, 2)
+  // Cuántas sillas tiene la mesa. Se dibujan como puntitos alrededor en el plano para que el
+  // salón se lea de un vistazo. Es solo visual: el contador de la zona cuenta mesas ocupadas
+  // sobre mesas totales, no comensales.
+  seats     Int      @default(4)
 
   restaurant     Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   zone           Zone?          @relation(fields: [zoneId], references: [id], onDelete: SetNull)

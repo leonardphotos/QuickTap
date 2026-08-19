@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { BellRing, Circle, Minus, Plus, RectangleHorizontal, Receipt, Save, Square, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
+import { seatOffsets } from './seat-layout';
 import type { FloorPlanTable } from '@/types';
 
 /**
@@ -23,7 +24,12 @@ export interface FloorPlanPatch {
   planY: number | null;
   planShape?: 'ROUND' | 'SQUARE' | 'RECTANGLE';
   planSize?: number;
+  seats?: number;
 }
+
+/** Rango de sillas por mesa — mismo tope que valida el backend en saveFloorPlanSchema. */
+export const MIN_SEATS = 1;
+export const MAX_SEATS = 20;
 
 /** Qué está haciendo el lienzo: mirar, reacomodar el plano, o elegir mesas para unirlas. */
 export type FloorPlanMode = 'view' | 'edit' | 'merge';
@@ -99,7 +105,16 @@ export function FloorPlanCanvas({
 
   const merged = tables.map((t) => {
     const d = patches[t.id];
-    return d ? { ...t, planX: d.planX, planY: d.planY, planShape: d.planShape ?? t.planShape, planSize: d.planSize ?? t.planSize } : t;
+    return d
+      ? {
+          ...t,
+          planX: d.planX,
+          planY: d.planY,
+          planShape: d.planShape ?? t.planShape,
+          planSize: d.planSize ?? t.planSize,
+          seats: d.seats ?? t.seats,
+        }
+      : t;
   });
   const placed = merged.filter((t) => t.planX != null && t.planY != null);
   const unplaced = merged.filter((t) => t.planX == null || t.planY == null);
@@ -116,7 +131,9 @@ export function FloorPlanCanvas({
     if (!rect) return { x: 50, y: 50 };
     const x = ((clientX - rect.left) / rect.width) * 100;
     const y = ((clientY - rect.top) / rect.height) * 100;
-    return { x: Math.min(96, Math.max(4, x)), y: Math.min(94, Math.max(6, y)) };
+    // Margen amplio porque el lienzo recorta y las sillas sobresalen del borde de la mesa:
+    // pegada al borde exacto, la mesa perdería la fila de sillas de ese lado.
+    return { x: Math.min(93, Math.max(7, x)), y: Math.min(91, Math.max(9, y)) };
   }
 
   /**
@@ -203,8 +220,24 @@ export function FloorPlanCanvas({
           // lado largo + los extremos) — las otras dos formas mantienen el cajón cuadrado de siempre.
           const width = t.planShape === 'RECTANGLE' ? size * 2 : size;
           const height = size;
+          const seatGap = Math.max(6, 9 * zoom);
+          const seatDot = Math.max(5, 7 * zoom);
+          const seats = seatOffsets(t.planShape, t.seats, width, height, seatGap);
           return (
             <div key={t.id} className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: `${t.planX}%`, top: `${t.planY}%` }}>
+              {seats.map((s, i) => (
+                <span
+                  key={i}
+                  aria-hidden
+                  className="pointer-events-none absolute rounded-full bg-brand-950/15"
+                  style={{
+                    width: seatDot,
+                    height: seatDot,
+                    left: width / 2 + s.x - seatDot / 2,
+                    top: height / 2 + s.y - seatDot / 2,
+                  }}
+                />
+              ))}
               <button
                 type="button"
                 onPointerDown={(e) => startDrag(e, t)}
@@ -272,6 +305,29 @@ export function FloorPlanCanvas({
                 {s === 0.8 ? 'XS' : s === 1 ? 'M' : s === 1.35 ? 'L' : 'XL'}
               </ShapeButton>
             ))}
+          </div>
+          <div className="flex items-center gap-1.5 rounded-full bg-brand-950/[0.06] px-1.5 py-0.5">
+            <button
+              type="button"
+              aria-label="Quitar una silla"
+              disabled={selected.seats <= MIN_SEATS}
+              onClick={() => patch(selected.id, { seats: Math.max(MIN_SEATS, selected.seats - 1) })}
+              className="flex h-5 w-5 items-center justify-center rounded-full text-brand-950/60 hover:bg-brand-950/10 disabled:opacity-30"
+            >
+              <Minus className="h-3 w-3" />
+            </button>
+            <span className="min-w-[4.5rem] text-center text-[11px] font-semibold tabular-nums text-brand-950/70">
+              {selected.seats} {selected.seats === 1 ? 'silla' : 'sillas'}
+            </span>
+            <button
+              type="button"
+              aria-label="Agregar una silla"
+              disabled={selected.seats >= MAX_SEATS}
+              onClick={() => patch(selected.id, { seats: Math.min(MAX_SEATS, selected.seats + 1) })}
+              className="flex h-5 w-5 items-center justify-center rounded-full text-brand-950/60 hover:bg-brand-950/10 disabled:opacity-30"
+            >
+              <Plus className="h-3 w-3" />
+            </button>
           </div>
           <button
             type="button"

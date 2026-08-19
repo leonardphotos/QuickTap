@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const createTableSchema = z.object({
   number: z.string().min(1).max(40),
   zoneId: z.string().min(1).optional(),
+  seats: z.coerce.number().int().min(1).max(20).optional(),
 });
 
 // A diferencia de create, permite enviar `zoneId: null` explícito para quitar
@@ -11,6 +12,7 @@ export const createTableSchema = z.object({
 export const updateTableSchema = z.object({
   number: z.string().min(1).max(40).optional(),
   zoneId: z.string().min(1).nullable().optional(),
+  seats: z.coerce.number().int().min(1).max(20).optional(),
 });
 
 /**
@@ -27,6 +29,7 @@ export const saveFloorPlanSchema = z.object({
         planY: z.number().min(0).max(100).nullable(),
         planShape: z.enum(['ROUND', 'SQUARE', 'RECTANGLE']).optional(),
         planSize: z.number().min(0.6).max(2).optional(),
+        seats: z.number().int().min(1).max(20).optional(),
       }),
     )
     .max(300),

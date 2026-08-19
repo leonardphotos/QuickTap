@@ -310,6 +310,8 @@ export interface TableItem {
   zoneId?: string | null;
   zone?: { id: string; name: string } | null;
   assignedWaiterId?: string | null;
+  /** Sillas de la mesa — se dibujan alrededor en el plano del salón. */
+  seats?: number;
 }
 
 export interface StaffMember {
@@ -418,6 +420,8 @@ export interface FloorPlanTable {
   planShape: 'ROUND' | 'SQUARE' | 'RECTANGLE';
   /** Factor de tamaño con que se dibuja (1 = normal). */
   planSize: number;
+  /** Sillas de la mesa: se dibujan como puntitos alrededor. Solo visual. */
+  seats: number;
 }
 
 export interface FloorPlan {

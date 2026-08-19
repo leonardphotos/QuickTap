@@ -73,7 +73,13 @@ export const tableService = {
   async create(restaurantId: string, input: CreateTableInput) {
     if (input.zoneId) await assertZoneBelongs(restaurantId, input.zoneId);
     return prisma.table.create({
-      data: { restaurantId, number: input.number, zoneId: input.zoneId, qrToken: nanoid(14) },
+      data: {
+        restaurantId,
+        number: input.number,
+        zoneId: input.zoneId,
+        qrToken: nanoid(14),
+        ...(input.seats != null ? { seats: input.seats } : {}),
+      },
     });
   },
 
@@ -84,7 +90,7 @@ export const tableService = {
 
     return prisma.table.update({
       where: { id },
-      data: { number: input.number, zoneId: input.zoneId },
+      data: { number: input.number, zoneId: input.zoneId, ...(input.seats != null ? { seats: input.seats } : {}) },
       include: { zone: { select: { id: true, name: true } } },
     });
   },
@@ -153,6 +159,7 @@ export const tableService = {
       planY: Prisma.Decimal | null;
       planShape: string;
       planSize: Prisma.Decimal;
+      seats: number;
     }) => {
       const sessions = sessionByTable.get(table.id) ?? [];
       return {
@@ -166,6 +173,7 @@ export const tableService = {
         planY: table.planY != null ? Number(table.planY) : null,
         planShape: table.planShape,
         planSize: Number(table.planSize),
+        seats: table.seats,
       };
     };
 
@@ -199,6 +207,7 @@ export const tableService = {
             planY: t.planY,
             ...(t.planShape ? { planShape: t.planShape } : {}),
             ...(t.planSize != null ? { planSize: t.planSize } : {}),
+            ...(t.seats != null ? { seats: t.seats } : {}),
           },
         }),
       ),
