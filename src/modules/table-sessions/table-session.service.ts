@@ -121,6 +121,12 @@ export const tableSessionService = {
     const existingOpen = await this.getOpenForTable(newTableId);
     if (existingOpen) throw conflict('La mesa destino ya tiene una cuenta abierta.');
 
-    return prisma.tableSession.update({ where: { id }, data: { tableId: newTableId } });
+    // Los pedidos de la cuenta también se mudan: si no, cocina, Comandas y la comanda impresa
+    // seguían diciendo la mesa vieja, y el aviso de "pedido listo" iba al QR de la mesa vieja.
+    const [, updated] = await prisma.$transaction([
+      prisma.order.updateMany({ where: { restaurantId, tableSessionId: id }, data: { tableId: newTableId } }),
+      prisma.tableSession.update({ where: { id }, data: { tableId: newTableId } }),
+    ]);
+    return updated;
   },
 };

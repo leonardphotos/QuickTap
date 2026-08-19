@@ -1,7 +1,6 @@
 {
   "appId": "club.quicktap.app",
   "productName": "QuickTap",
-  "artifactName": "QuickTap-Setup.exe",
   "directories": {
     "buildResources": "resources"
   },
@@ -26,12 +25,19 @@
   },
   "win": {
     "target": [
-      { "target": "nsis", "arch": ["x64"] }
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
     ],
-    "icon": "assets/appIcon.ico"
+    "icon": "assets/appIcon.ico",
+    "artifactName": "QuickTap-Setup.exe"
   },
   "mac": {
     "category": "public.app-category.food-and-drink",
-    "target": "dmg"
+    "target": "dmg",
+    "artifactName": "QuickTap-${version}.dmg"
   }
 }

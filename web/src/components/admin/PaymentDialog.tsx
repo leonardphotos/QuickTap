@@ -424,7 +424,11 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
           amountBase={amountToCharge > 0 ? amountToCharge : discountedBalance}
           amountLabel={amountToCharge > 0 ? 'Monto a cobrar' : 'Saldo pendiente'}
           symbol={symbol}
-          rateBs={restaurant?.exchangeRate?.rateBs}
+          // Tasa CONGELADA del pedido, no la del login: el backend asienta el cobro con
+          // `order.exchangeRate` (la misma que vio el cliente en el menú), así que mostrarle la
+          // de `restaurant` — cargada al iniciar sesión y sin refrescar — le pedía en Bs un
+          // monto distinto al que quedaba registrado.
+          rateBs={order.exchangeRate ?? restaurant?.exchangeRate?.rateBs}
           detailTitle={`Detalle del pedido (${order.items.length} ${order.items.length === 1 ? 'ítem' : 'ítems'})`}
           detailLines={detailLines}
           details={paymentDetailsBlock}
