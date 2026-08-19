@@ -20,6 +20,8 @@ import { PaymentClientScreen } from '@/components/admin/PaymentClientScreen';
 import { MethodAccountPicker } from '@/components/admin/MethodAccountPicker';
 import { PromoCodeField, promoDiscountAmount, type AppliedPromo } from '@/components/admin/crm/PromoCodeField';
 import { settledOf } from '@/utils/orderBalance';
+import { useIsLandscapeTablet } from '@/hooks/useIsLandscapeTablet';
+import { PosNumericKeypad, type PosKeypadField } from '@/components/admin/PosNumericKeypad';
 import type { LiveOrder, LiveOrderPayment } from './LiveOrdersPanel';
 
 export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
@@ -121,6 +123,11 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   // guarda OrderPayment.tipBase) con la MISMA tasa congelada del pedido — no la tasa del día —
   // para que cuadre con lo que el backend termina acreditando.
   const rateBsOfOrder = Number(order.exchangeRate) || 0;
+  // Modo POS: tablet en horizontal sobre el mostrador. La ventana pasa a pantalla completa
+  // en tres columnas (cuenta · cobro · teclado) porque ahí no hay teclado físico y el del
+  // sistema tapa media pantalla — ver PosNumericKeypad.
+  const isPos = useIsLandscapeTablet();
+  const [posField, setPosField] = useState<PosKeypadField>(mode === 'split' ? 'amount' : 'tip');
   const [tipCurrency, setTipCurrency] = useState<'BASE' | 'BS'>('BS');
   const [tipValue, setTipValue] = useState(
     tipOutstanding > 0 ? (rateBsOfOrder > 0 ? round2(tipOutstanding * rateBsOfOrder) : tipOutstanding).toFixed(2) : '',
@@ -443,6 +450,36 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   // guardamos localmente para no depender de esa carrera). Se filtra por id para no duplicarlo.
   const allPayments = [...order.payments, ...sessionPayments.filter((sp) => !order.payments.some((p) => p.id === sp.id))];
 
+  // Qué campo llena el teclado numérico del modo POS. `set` reusa los mismos manejadores que
+  // los inputs (onDiscountValueChange recalcula el abono sugerido), no escribe el estado crudo.
+  const posFields: Record<PosKeypadField, { label: string; value: string; suffix: string | null; set: (v: string) => void }> = {
+    amount: { label: 'Monto a abonar', value: amount, suffix: symbol, set: setAmount },
+    tip: { label: 'Propina', value: tipValue, suffix: tipCurrency === 'BS' ? 'Bs' : symbol, set: setTipValue },
+    discount: {
+      label: 'Descuento',
+      value: discountValue,
+      suffix: discountMode === 'percent' ? '%' : symbol,
+      set: onDiscountValueChange,
+    },
+    service: {
+      label: 'Ajuste de servicio',
+      value: serviceValue,
+      suffix: serviceMode === 'percent' ? '%' : symbol,
+      set: onServiceValueChange,
+    },
+    received: { label: 'Efectivo recibido', value: amountReceived, suffix: symbol, set: setAmountReceived },
+    reference: { label: referenceLabel(method), value: referenceNumber, suffix: null, set: setReferenceNumber },
+  };
+  const activePosField = posFields[posField];
+  const keypadDigit = (d: string) => activePosField.set(`${activePosField.value ?? ''}${d}`);
+  const keypadBackspace = () => activePosField.set(String(activePosField.value ?? '').slice(0, -1));
+  const keypadClear = () => activePosField.set('');
+
+  /** En modo POS agrupa su contenido en una columna; en vertical lo deja tal cual estaba
+   * (hijo directo del `space-y-4`), para no alterar el layout de siempre en teléfono. */
+  const PosColumn = ({ className, children }: { className: string; children: React.ReactNode }) =>
+    isPos ? <div className={className}>{children}</div> : <>{children}</>;
+
   return (
     <>
       {/* Se monta ENCIMA del diálogo, no en su lugar: si se devolviera esta pantalla en vez
@@ -475,6 +512,11 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
             y Radix lo cerraría — el cajero volvía a Editar pedido y perdía el cobro. Mientras
             esa pantalla esté abierta, el diálogo ignora los clics de afuera y el Escape. */}
         <DialogContent
+          className={
+            isPos
+              ? 'max-w-none w-screen h-screen max-h-screen rounded-none border-0 p-5 gap-3 translate-x-0 translate-y-0 left-0 top-0 grid-rows-[auto_minmax(0,1fr)]'
+              : undefined
+          }
           onPointerDownOutside={(e) => clientScreenOpen && e.preventDefault()}
           onInteractOutside={(e) => clientScreenOpen && e.preventDefault()}
           onFocusOutside={(e) => clientScreenOpen && e.preventDefault()}
@@ -498,7 +540,14 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
           <DialogTitle>{mode === 'full' ? 'Pagar' : 'Pago fraccionado'}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div
+          className={
+            isPos
+              ? 'grid grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)_300px] gap-4 items-stretch min-h-0'
+              : 'space-y-4'
+          }
+        >
+          <PosColumn className="space-y-3 min-h-0 overflow-y-auto pr-1">
           <div className="rounded-xl bg-brand-950/[0.03] px-3 py-2.5 space-y-1">
             <div className="flex items-center justify-between text-sm">
               <span className="text-brand-950/60">Total del pedido</span>
@@ -535,7 +584,9 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
               <span className="font-medium text-emerald-600">{formatBase(paidBase, symbol)}</span>
             </div>
           )}
+          </PosColumn>
 
+          <PosColumn className="space-y-4 min-h-0 overflow-y-auto pr-1">
           {showPrintPrompt ? (
             <div className="space-y-3 text-center py-2">
               <p className="text-sm font-medium text-emerald-600">✓ Cuenta saldada</p>
@@ -627,6 +678,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                       <input
                         value={amountReceived}
                         onChange={(e) => setAmountReceived(e.target.value.replace(/[^0-9.]/g, ''))}
+                        onFocus={() => setPosField('received')}
                         inputMode="decimal"
                         placeholder={amountToCharge > 0 ? totalWithTip.toFixed(2) : '0.00'}
                         className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
@@ -693,6 +745,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                   <input
                     value={referenceNumber}
                     onChange={(e) => setReferenceNumber(e.target.value)}
+                    onFocus={() => setPosField('reference')}
                     placeholder={referenceLabel(method)}
                     className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
                   />
@@ -736,6 +789,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     <input
                       value={discountValue}
                       onChange={(e) => onDiscountValueChange(e.target.value)}
+                      onFocus={() => setPosField('discount')}
                       placeholder="0"
                       className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
                     />
@@ -766,6 +820,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     <input
                       value={serviceValue}
                       onChange={(e) => onServiceValueChange(e.target.value)}
+                      onFocus={() => setPosField('service')}
                       placeholder="0"
                       className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
                     />
@@ -842,6 +897,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     autoFocus
                     value={amount}
                     onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+                    onFocus={() => setPosField('amount')}
                     placeholder={`Máx. ${balanceBase.toFixed(2)}`}
                     className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
                   />
@@ -884,6 +940,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                   <input
                     value={tipValue}
                     onChange={(e) => setTipValue(e.target.value.replace(/[^0-9.]/g, ''))}
+                    onFocus={() => setPosField('tip')}
                     placeholder="0.00 — ¿el cliente quiere dejar propina?"
                     className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
                   />
@@ -962,6 +1019,25 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                 {sending ? 'Registrando…' : 'Registrar pago'}
               </TextureButton>
             </>
+          )}
+          </PosColumn>
+
+          {/* Teclado: solo mientras se está cobrando — con la cuenta ya saldada o el pago
+              registrado, esa columna no tiene nada que escribir. */}
+          {isPos && !showPrintPrompt && paidNow == null && (
+            <div className="min-h-0">
+              <PosNumericKeypad
+                activeLabel={activePosField.label}
+                value={activePosField.value}
+                suffix={activePosField.suffix}
+                onDigit={keypadDigit}
+                onBackspace={keypadBackspace}
+                onClear={keypadClear}
+                onEnter={submit}
+                enterLabel={sending ? 'Registrando…' : 'Cobrar'}
+                enterDisabled={sending}
+              />
+            </div>
           )}
         </div>
         </DialogContent>
