@@ -36,6 +36,7 @@ import { useToast } from '@/hooks/useToast';
 import { Toast } from '@/components/ui/toast';
 import { abbreviateTableBadge, CURRENCY_SYMBOLS, formatBase, formatBsAbsolute, formatModifierLabel } from '@/utils/format';
 import { settledOf } from '@/utils/orderBalance';
+import { useIsLandscapeTablet } from '@/hooks/useIsLandscapeTablet';
 
 interface LiveOrderItem {
   id: string;
@@ -839,6 +840,13 @@ export function LiveOrdersPanel({
   );
 }
 
+/** En modo POS agrupa su contenido en una columna (una división real del layout de dos
+ * columnas); en el resto de los casos lo deja tal cual — un Fragment no añade ningún nodo,
+ * así que los hijos siguen siendo hermanos directos del contenedor `space-y-4` de siempre. */
+function PosCol({ isPos, className, children }: { isPos: boolean; className: string; children: ReactNode }) {
+  return isPos ? <div className={className}>{children}</div> : <>{children}</>;
+}
+
 interface EditOrderDialogProps {
   order: LiveOrder;
   onClose: () => void;
@@ -855,6 +863,10 @@ interface EditOrderDialogProps {
 
 export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context = 'pedidos' }: EditOrderDialogProps) {
   const isMesa = context === 'mesa';
+  // Tablet en horizontal sobre el mostrador: la ficha pasa a pantalla completa en dos columnas
+  // (productos a la izquierda, montos y acciones a la derecha) — mismo criterio que
+  // PaymentDialog/CreateOrderDialog (useIsLandscapeTablet). En vertical queda igual que siempre.
+  const isPos = useIsLandscapeTablet();
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const canAccountsPayable = hasFeature(restaurant, 'accountsPayable');
@@ -866,7 +878,8 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
   const [addressCoords, setAddressCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [note, setNote] = useState(order.customerNote ?? '');
   const [products, setProducts] = useState<Product[] | null>(null);
-  const [showAddProduct, setShowAddProduct] = useState(false);
+  // En POS el catálogo va abierto de una vez (como en Crear pedido) — no hace falta el toque extra de "+ Añadir producto" para verlo.
+  const [showAddProduct, setShowAddProduct] = useState(isPos);
   const [productSearch, setProductSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [optionsProduct, setOptionsProduct] = useState<Product | null>(null);
@@ -1186,17 +1199,30 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
           modal centrado); en pantallas sm+ se mantiene el modal centrado de siempre. */}
       <DialogContent
         hideClose
-        className="inset-x-0 left-0 bottom-0 top-auto max-w-none translate-x-0 translate-y-0 rounded-b-none rounded-t-[28px] max-h-[92vh] pb-[max(1.5rem,env(safe-area-inset-bottom))] data-[state=open]:animate-sheet-in data-[state=closed]:animate-sheet-out sm:inset-auto sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[24px] sm:max-h-[85vh] sm:pb-6 sm:data-[state=open]:animate-scale-in sm:data-[state=closed]:animate-scale-out"
+        className={
+          isPos
+            ? 'max-w-none w-screen h-screen max-h-screen rounded-none border-0 p-5 gap-3 translate-x-0 translate-y-0 left-0 top-0 grid-rows-[auto_minmax(0,1fr)]'
+            : 'inset-x-0 left-0 bottom-0 top-auto max-w-none translate-x-0 translate-y-0 rounded-b-none rounded-t-[28px] max-h-[92vh] pb-[max(1.5rem,env(safe-area-inset-bottom))] data-[state=open]:animate-sheet-in data-[state=closed]:animate-sheet-out sm:inset-auto sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[24px] sm:max-h-[85vh] sm:pb-6 sm:data-[state=open]:animate-scale-in sm:data-[state=closed]:animate-scale-out'
+        }
       >
+        <PosCol isPos={isPos} className="shrink-0 space-y-2">
         <DialogHeader className="flex-row items-center gap-3 pr-0">
           {/* Celular: chevron atrás, como la hoja del mockup. Escritorio: X de siempre, arriba a la derecha. */}
           <DialogClose className="sm:hidden shrink-0 h-8 w-8 rounded-full bg-brand-950/[0.06] hover:bg-brand-950/10 flex items-center justify-center focus:outline-none">
             <ChevronLeft className="h-4 w-4 text-brand-950/70" />
             <span className="sr-only">Cerrar</span>
           </DialogClose>
-          <DialogTitle className="flex-1 sm:pr-6">Editar pedido #{order.orderNumber}</DialogTitle>
-          <DialogClose className="hidden sm:flex absolute right-4 top-4 rounded-full p-1 text-brand-950/40 hover:text-brand-950 hover:bg-brand-950/5 transition-colors focus:outline-none">
-            <X className="h-4 w-4" />
+          <DialogTitle className={isPos ? 'flex-1 sm:pr-6 text-xl' : 'flex-1 sm:pr-6'}>
+            Editar pedido #{order.orderNumber}
+          </DialogTitle>
+          <DialogClose
+            className={
+              isPos
+                ? 'hidden sm:flex absolute right-5 top-5 h-11 w-11 items-center justify-center rounded-full text-brand-950/50 hover:text-brand-950 hover:bg-brand-950/5 transition-colors focus:outline-none'
+                : 'hidden sm:flex absolute right-4 top-4 rounded-full p-1 text-brand-950/40 hover:text-brand-950 hover:bg-brand-950/5 transition-colors focus:outline-none'
+            }
+          >
+            <X className={isPos ? 'h-6 w-6' : 'h-4 w-4'} />
             <span className="sr-only">Cerrar</span>
           </DialogClose>
         </DialogHeader>
@@ -1293,7 +1319,15 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
         </div>
 
         {mesaFooter && <div className="space-y-2 pb-2 border-b border-brand-950/10">{mesaFooter}</div>}
-        <div className="space-y-4 max-h-[70vh] overflow-y-auto">
+        </PosCol>
+        <div
+          className={
+            isPos
+              ? 'grid grid-cols-[minmax(0,1.15fr)_380px] gap-5 min-h-0'
+              : 'space-y-4 max-h-[70vh] overflow-y-auto'
+          }
+        >
+          <PosCol isPos={isPos} className="flex flex-col gap-4 min-h-0 overflow-y-auto pr-1">
           {order.channel !== 'DINE_IN' && (
             <div className="space-y-2">
               <p className="text-sm font-semibold text-brand-950">Datos del cliente</p>
@@ -1335,40 +1369,61 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
             </div>
           )}
 
-          <div className="space-y-2 pt-2 border-t border-brand-950/10">
-            <p className="text-sm font-semibold text-brand-950">Productos</p>
-            <ul className="space-y-2 max-h-56 overflow-y-auto">
+          <div className={isPos ? 'flex-1 min-h-0 flex flex-col rounded-2xl border border-brand-950/10 px-4 py-3' : 'space-y-2 pt-2 border-t border-brand-950/10'}>
+            <p className={isPos ? 'text-base font-bold text-brand-950 shrink-0' : 'text-sm font-semibold text-brand-950'}>
+              Productos
+            </p>
+            <ul className={isPos ? 'space-y-1 mt-2 flex-1 min-h-0 overflow-y-auto divide-y divide-brand-950/[0.06]' : 'space-y-2 max-h-56 overflow-y-auto'}>
               {order.items.map((it) => {
                 const canEdit = Boolean(products?.find((p) => p.id === it.productId && needsPicker(p)));
                 return (
-                  <li key={it.id} className="flex items-center justify-between gap-2 border-b border-brand-950/10 pb-2">
+                  <li
+                    key={it.id}
+                    className={
+                      isPos
+                        ? 'flex items-center justify-between gap-3 py-2.5 first:pt-0'
+                        : 'flex items-center justify-between gap-2 border-b border-brand-950/10 pb-2'
+                    }
+                  >
                     <div
                       className={`min-w-0 ${canEdit ? 'cursor-pointer' : ''}`}
                       onClick={() => canEdit && openItemForEdit(it)}
                     >
-                      <p className="text-sm font-medium text-brand-950 truncate">
+                      <p className={isPos ? 'text-lg font-semibold text-brand-950 truncate' : 'text-sm font-medium text-brand-950 truncate'}>
                         {it.productName}
                         {it.variantName && <span className="text-brand-950/50"> ({it.variantName})</span>}
                         {canEdit && <span className="text-brand-500 text-xs font-normal"> · editar</span>}
                       </p>
                       {it.modifiers.length > 0 && (
-                        <p className="text-xs text-brand-950/50 truncate">{it.modifiers.map(formatModifierLabel).join(', ')}</p>
+                        <p className={isPos ? 'text-sm text-brand-950/50 truncate' : 'text-xs text-brand-950/50 truncate'}>
+                          {it.modifiers.map(formatModifierLabel).join(', ')}
+                        </p>
                       )}
-                      <p className="text-xs text-brand-950/50">{it.unitPrice} c/u</p>
+                      <p className={isPos ? 'text-sm text-brand-950/50' : 'text-xs text-brand-950/50'}>{it.unitPrice} c/u</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => setQty(it.id, it.quantity - 1)}
                         disabled={saving}
-                        className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30"
+                        className={
+                          isPos
+                            ? 'w-9 h-9 rounded-full border border-brand-950/20 font-bold text-lg text-brand-950 disabled:opacity-30'
+                            : 'w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30'
+                        }
                       >
                         −
                       </button>
-                      <span className="w-5 text-center text-sm font-medium">{it.quantity}</span>
+                      <span className={isPos ? 'w-6 text-center text-lg font-bold' : 'w-5 text-center text-sm font-medium'}>
+                        {it.quantity}
+                      </span>
                       <button
                         onClick={() => setQty(it.id, it.quantity + 1)}
                         disabled={saving}
-                        className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30"
+                        className={
+                          isPos
+                            ? 'w-9 h-9 rounded-full border border-brand-950/20 font-bold text-lg text-brand-950 disabled:opacity-30'
+                            : 'w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30'
+                        }
                       >
                         +
                       </button>
@@ -1410,7 +1465,7 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
                     </button>
                   ))}
                 </div>
-                <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto">
+                <div className={isPos ? 'grid grid-cols-3 gap-2 max-h-[50vh] overflow-y-auto' : 'grid grid-cols-2 gap-2 max-h-60 overflow-y-auto'}>
                   {filteredProducts.map((p) => (
                     <div key={p.id} className="rounded-xl border border-brand-950/10 p-2 space-y-1.5">
                       <div className="flex items-center gap-2">
@@ -1460,8 +1515,16 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
               </TextureButton>
             )}
           </div>
+          </PosCol>
 
-          <div className="text-xs text-brand-950/60 space-y-1 pt-2 border-t border-brand-950/10">
+          <PosCol isPos={isPos} className="flex flex-col gap-4 min-h-0 overflow-y-auto pr-1">
+          <div
+            className={
+              isPos
+                ? 'text-sm text-brand-950/70 space-y-1.5 rounded-2xl bg-brand-950/[0.03] px-4 py-3'
+                : 'text-xs text-brand-950/60 space-y-1 pt-2 border-t border-brand-950/10'
+            }
+          >
             <div className="flex justify-between">
               <span>Subtotal</span>
               <span>{formatBase(order.subtotalBase, symbol)}</span>
@@ -1484,13 +1547,21 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
                 <span>{formatBase(order.deliveryFeeBase, symbol)}</span>
               </div>
             )}
-            <div className="flex justify-between font-semibold text-sm text-brand-950 pt-1">
-              <span>Total</span>
-              <span>{formatBase(order.totalBase, symbol)}</span>
+            <div
+              className={
+                isPos
+                  ? 'flex items-center justify-between font-semibold text-brand-950 pt-2 border-t border-brand-950/10'
+                  : 'flex justify-between font-semibold text-sm text-brand-950 pt-1'
+              }
+            >
+              <span className={isPos ? 'text-base text-brand-950/60' : undefined}>Total</span>
+              <span className={isPos ? 'text-4xl font-bold tabular-nums' : undefined}>
+                {formatBase(order.totalBase, symbol)}
+              </span>
             </div>
-            <div className="flex justify-between">
+            <div className={isPos ? 'flex justify-between text-brand-950/50' : 'flex justify-between'}>
               <span>Equivalente en Bs</span>
-              <span>{formatBsAbsolute(order.totalBs)}</span>
+              <span className={isPos ? 'font-semibold tabular-nums' : undefined}>{formatBsAbsolute(order.totalBs)}</span>
             </div>
           </div>
 
@@ -1569,6 +1640,12 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
             </p>
           ) : fullyPaid ? (
             <p className="text-sm text-emerald-600 font-medium text-center">✓ Pagado</p>
+          ) : isPos ? (
+            // En POS un solo botón: el propio diálogo de cobro ya deja elegir completo,
+            // fraccionado o deuda (ver PaymentDialog) — tres botones acá era lo mismo dos veces.
+            <TextureButton variant="brand" size="default" onClick={() => setPaymentMode('full')} className="!text-base py-3">
+              <CreditCard className="h-5 w-5" /> Pagar
+            </TextureButton>
           ) : (
             <div className={`grid ${canAccountsPayable ? 'grid-cols-3' : 'grid-cols-2'} gap-1.5`}>
               <button
@@ -1594,6 +1671,7 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
               )}
             </div>
           )}
+          </PosCol>
         </div>
 
         <div className="fixed -left-[9999px] top-0">
