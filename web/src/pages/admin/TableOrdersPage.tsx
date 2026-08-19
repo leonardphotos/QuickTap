@@ -81,10 +81,12 @@ export default function TableOrdersPage() {
   // del equipo lo ve ya armado. Editarlo (mover/cambiar forma) es solo del administrador, para
   // que nadie más lo reordene sin querer mientras trabaja.
   const [editingPlan, setEditingPlan] = useState(false);
-  const [planPatches, setPlanPatches] = useState<Record<string, FloorPlanPatch[]>>({});
+  // Cambios de plano sin guardar, por id de mesa. Viven acá (no en el lienzo) para que no se
+  // pierdan al desmontarlo — ej. al cambiar de zona — mientras "Guardar plano" sigue sucio.
+  const [planPatches, setPlanPatches] = useState<Record<string, FloorPlanPatch>>({});
   const [savingPlan, setSavingPlan] = useState(false);
   const canEditPlan = isAdminCashier(user?.role);
-  const pendingPatches = Object.values(planPatches).flat();
+  const pendingPatches = Object.values(planPatches);
 
   async function persistFloorPlan() {
     setSavingPlan(true);
@@ -534,11 +536,11 @@ export default function TableOrdersPage() {
           <div key={zone.id}>
             <h2 className="text-sm font-semibold text-brand-950/70 mb-4">{zone.name}</h2>
             <FloorPlanCanvas
-              zoneId={zone.id}
               tables={zone.tables}
-              editing={editingPlan}
+              mode={editingPlan ? 'edit' : 'view'}
+              patches={planPatches}
+              onPatch={(patch) => setPlanPatches((prev) => ({ ...prev, [patch.id]: patch }))}
               onOpenTable={openTable}
-              onPatches={(zoneId, patches) => setPlanPatches((prev) => ({ ...prev, [zoneId]: patches }))}
               onAcknowledge={acknowledgeServiceRequest}
             />
           </div>

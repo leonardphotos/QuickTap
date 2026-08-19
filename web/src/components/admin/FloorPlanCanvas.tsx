@@ -11,6 +11,10 @@ import type { FloorPlanTable } from '@/types';
  * se ve igual en el celular del mesero y en el monitor de caja. En modo edición las mesas se
  * arrastran, cambian de forma (redonda/cuadrada) y de tamaño; en modo normal se comportan
  * como los botones de siempre — un toque abre la mesa.
+ *
+ * Es un componente CONTROLADO: los cambios sin guardar viven en la pantalla que lo usa, no acá.
+ * Así no se pierden al desmontar el lienzo (ej. al cambiar de pestaña de zona) mientras el botón
+ * "Guardar plano" sigue marcado como sucio.
  */
 
 export interface FloorPlanPatch {
@@ -21,35 +25,68 @@ export interface FloorPlanPatch {
   planSize?: number;
 }
 
-/** Color de la mesa según su estado — mismo criterio que la vista de lista. */
+/** Qué está haciendo el lienzo: mirar, reacomodar el plano, o elegir mesas para unirlas. */
+export type FloorPlanMode = 'view' | 'edit' | 'merge';
+
+/** Estado de una mesa, en abstracto. El color concreto lo pone quien la dibuja (claro/oscuro). */
+export type TableToneKey = 'call' | 'multi' | 'occupied' | 'reserved' | 'vacant';
+
+/** Estado de la mesa — mismo criterio que la vista de lista. */
+export function tableToneKey(t: FloorPlanTable): TableToneKey {
+  if (t.serviceRequest) return 'call';
+  if (t.sessions.length > 1) return 'multi';
+  if (t.sessions.length === 1) return 'occupied';
+  if (t.reserved) return 'reserved';
+  return 'vacant';
+}
+
+export function tableToneLabel(t: FloorPlanTable): string {
+  switch (tableToneKey(t)) {
+    case 'call':
+      return 'Cuenta';
+    case 'multi':
+      return `${t.sessions.length} cuentas`;
+    case 'occupied':
+      return 'Ocupada';
+    case 'reserved':
+      return 'Reservada';
+    default:
+      return 'Libre';
+  }
+}
+
+/** Paleta del panel claro (la de siempre). El plano oscuro de Sala usa la suya. */
+const LIGHT_TONES: Record<TableToneKey, { bg: string; fg: string }> = {
+  call: { bg: '#fbedd6', fg: '#8a5106' },
+  multi: { bg: '#dfe3ea', fg: '#0b1524' },
+  occupied: { bg: '#dfe3ea', fg: '#0b1524' },
+  reserved: { bg: '#fbe7f1', fg: '#9d2469' },
+  vacant: { bg: '#e3f5ec', fg: '#0f6e46' },
+};
+
 function tableTone(t: FloorPlanTable): { bg: string; fg: string; label: string } {
-  if (t.serviceRequest) return { bg: '#fbedd6', fg: '#8a5106', label: 'Cuenta' };
-  if (t.sessions.length > 1) return { bg: '#dfe3ea', fg: '#0b1524', label: `${t.sessions.length} cuentas` };
-  if (t.sessions.length === 1) return { bg: '#dfe3ea', fg: '#0b1524', label: 'Ocupada' };
-  if (t.reserved) return { bg: '#fbe7f1', fg: '#9d2469', label: 'Reservada' };
-  return { bg: '#e3f5ec', fg: '#0f6e46', label: 'Libre' };
+  return { ...LIGHT_TONES[tableToneKey(t)], label: tableToneLabel(t) };
 }
 
 export function FloorPlanCanvas({
-  zoneId,
   tables,
-  editing,
+  mode,
+  patches,
+  onPatch,
   onOpenTable,
-  onPatches,
   onAcknowledge,
 }: {
-  zoneId: string;
   tables: FloorPlanTable[];
-  editing: boolean;
+  mode: FloorPlanMode;
+  /** Cambios sin guardar, por id de mesa — los guarda la pantalla, no el lienzo. */
+  patches: Record<string, FloorPlanPatch>;
+  onPatch: (patch: FloorPlanPatch) => void;
   onOpenTable: (t: FloorPlanTable) => void;
-  /** Cambios pendientes de esta zona; la pantalla los junta y los guarda de una sola vez. */
-  onPatches: (zoneId: string, patches: FloorPlanPatch[]) => void;
   /** Botón rápido de "atender llamado/cuenta" sobre la mesa, sin abrir el diálogo completo. */
   onAcknowledge?: (t: FloorPlanTable) => void;
 }) {
   const canvasRef = useRef<HTMLDivElement>(null);
-  // Cambios locales todavía sin guardar, por id de mesa.
-  const [draft, setDraft] = useState<Record<string, FloorPlanPatch>>({});
+  const editing = mode === 'edit';
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const draggingRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null);
   // Zoom de la VISTA, no del dato: solo escala cuánto se ven las mesas en pantalla (no toca
@@ -61,23 +98,16 @@ export function FloorPlanCanvas({
   const ZOOM_MAX = 2;
 
   const merged = tables.map((t) => {
-    const d = draft[t.id];
+    const d = patches[t.id];
     return d ? { ...t, planX: d.planX, planY: d.planY, planShape: d.planShape ?? t.planShape, planSize: d.planSize ?? t.planSize } : t;
   });
   const placed = merged.filter((t) => t.planX != null && t.planY != null);
   const unplaced = merged.filter((t) => t.planX == null || t.planY == null);
 
   function patch(id: string, changes: Partial<FloorPlanPatch>) {
-    setDraft((prev) => {
-      const current = prev[id] ?? {
-        id,
-        planX: merged.find((t) => t.id === id)?.planX ?? null,
-        planY: merged.find((t) => t.id === id)?.planY ?? null,
-      };
-      const next = { ...prev, [id]: { ...current, ...changes } };
-      onPatches(zoneId, Object.values(next));
-      return next;
-    });
+    const base = tables.find((t) => t.id === id);
+    const current = patches[id] ?? { id, planX: base?.planX ?? null, planY: base?.planY ?? null };
+    onPatch({ ...current, ...changes });
   }
 
   /** Convierte la posición del puntero a % del lienzo, recortado al borde. */
