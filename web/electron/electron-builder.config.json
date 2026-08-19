@@ -1,6 +1,7 @@
 {
   "appId": "club.quicktap.app",
   "productName": "QuickTap",
+  "artifactName": "QuickTap-Setup.exe",
   "directories": {
     "buildResources": "resources"
   },

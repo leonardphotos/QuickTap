@@ -39,6 +39,7 @@ import {
   ScanLine,
   CreditCard,
   Tablet,
+  Download,
 } from 'lucide-react';
 import { IntroLoader } from '@/components/landing/IntroLoader';
 import { GradientWave } from '@/components/ui/gradient-wave';
@@ -1052,6 +1053,35 @@ export default function LandingPage() {
                 </button>
               </Link>
             </div>
+          </Reveal>
+        </section>
+
+        {/* Descarga de la app de escritorio (Windows) — instalador público en GitHub Releases,
+            no requiere iniciar sesión para bajarlo (solo al abrir la app ya instalada). */}
+        <section className="relative overflow-hidden bg-brand-950 px-4 py-20 text-center">
+          <div
+            className="pointer-events-none absolute inset-0 opacity-40"
+            style={{ backgroundImage: 'radial-gradient(circle at 50% 0%, rgba(5,151,242,0.25), transparent 60%)' }}
+          />
+          <Reveal className="relative">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10 text-white">
+              <Monitor className="h-7 w-7" />
+            </div>
+            <h2 className="mt-5 text-2xl font-bold text-white sm:text-4xl">Lleva QuickTap a tu computadora</h2>
+            <p className="mx-auto mt-3 max-w-md font-light text-white/60">
+              App de escritorio para Windows: recibe el aviso de pedido nuevo con notificación
+              nativa aunque tengas la ventana minimizada.
+            </p>
+            <a
+              href="https://github.com/leonardphotos/QuickTap/releases/latest/download/QuickTap-Setup.exe"
+              className="mt-8 inline-flex items-center gap-2.5 rounded-full bg-white px-7 py-3.5 font-semibold text-brand-950 shadow-lg shadow-black/20 transition-transform hover:scale-[1.03] active:scale-[0.97]"
+            >
+              <Download className="h-5 w-5" />
+              Descargar para Windows
+            </a>
+            <p className="mt-4 text-xs font-light text-white/40">
+              Instalador .exe · gratis · no necesitas iniciar sesión para descargarlo
+            </p>
           </Reveal>
         </section>
 
