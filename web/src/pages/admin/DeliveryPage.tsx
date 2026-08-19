@@ -254,10 +254,16 @@ function EditOrderDialog({
             })}
           </ul>
 
+          {/* Es el subtotal de los productos, no el total: el servicio, el IVA, el envío y los
+              envases los recalcula el servidor al guardar. Decía "Nuevo total" y no coincidía
+              con lo que quedaba cobrado. */}
           <div className="flex items-center justify-between text-sm font-semibold pt-1">
-            <span>Nuevo total</span>
+            <span>Nuevo subtotal</span>
             <span>{total.toFixed(2)} {order.currency}</span>
           </div>
+          <p className="text-xs font-light text-brand-950/45 -mt-1">
+            El total final (servicio, IVA, envío y envases) se recalcula al guardar.
+          </p>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 

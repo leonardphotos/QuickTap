@@ -25,7 +25,7 @@ export interface WhatsappCartItem {
   /** Precio unitario en la moneda base del restaurante ($ o €). */
   unitPrice: number | string;
   /** Modificadores elegidos, con su precio adicional ya congelado. */
-  modifiers?: { name: string; priceBase: number | string }[];
+  modifiers?: { name: string; priceBase: number | string; quantity?: number }[];
   /** Nota de cocina para este ítem. */
   note?: string;
 }
@@ -171,7 +171,9 @@ export function buildWhatsappCheckoutUrl(
     // Modificadores
     if (item.modifiers && item.modifiers.length > 0) {
       for (const mod of item.modifiers) {
-        lines.push(`     ↳ ${mod.name}`);
+        // "Ketchup x4", no solo "Ketchup": la cantidad elegida viaja en el pedido pero se
+        // perdía acá, y el cliente recibía un resumen que no coincidía con lo que pidió.
+        lines.push(`     ↳ ${mod.quantity && mod.quantity > 1 ? `${mod.name} x${mod.quantity}` : mod.name}`);
       }
     }
     // Nota de cocina del ítem

@@ -938,6 +938,7 @@ function buildTicketHtml(order, kind, station){
   const serviceChargeBase = order.serviceChargeBase != null ? Number(order.serviceChargeBase) : 0;
   const ivaBase = order.ivaBase != null ? Number(order.ivaBase) : 0;
   const deliveryFeeBase = order.deliveryFeeBase != null ? Number(order.deliveryFeeBase) : 0;
+  const envaseFeeBase = order.envaseFeeBase != null ? Number(order.envaseFeeBase) : 0;
   const totalBase = Number(order.totalBase ?? items.reduce((s,it)=> s + (it.lineTotal!=null? Number(it.lineTotal): 0), 0));
   const toBs = (amountBase) => (rate != null ? amountBase * rate : amountBase);
 
@@ -979,6 +980,7 @@ function buildTicketHtml(order, kind, station){
       <div class="r-row2"><span>SUB-TOTAL :</span><span>${bsNumber(toBs(subtotalBase))}</span></div>
       ${serviceChargeBase > 0 ? `<div class="r-row2"><span>SERVICIO (10%):</span><span>${bsNumber(toBs(serviceChargeBase))}</span></div>` : ''}
       ${deliveryFeeBase > 0 ? `<div class="r-row2"><span>ENVIO:</span><span>${bsNumber(toBs(deliveryFeeBase))}</span></div>` : ''}
+      ${envaseFeeBase > 0 ? `<div class="r-row2"><span>ENVASES:</span><span>${bsNumber(toBs(envaseFeeBase))}</span></div>` : ''}
       ${isExento
         ? `<div class="r-row2"><span>(E) EXENTO:</span><span>${bsNumber(toBs(subtotalBase))}</span></div>`
         : `<div class="r-row2"><span>IVA (16%):</span><span>${bsNumber(toBs(ivaBase))}</span></div>`

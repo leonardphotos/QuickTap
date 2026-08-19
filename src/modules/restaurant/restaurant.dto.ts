@@ -51,7 +51,9 @@ const paymentMethodExtraAccountSchema = z.object({
   id: z.string().max(80).optional(),
   cuenta: z.string().max(40).optional(),
   rif: z.string().max(30).optional(),
-  qrImageUrl: z.string().min(1).optional(),
+  // Cadena vacía = se quitó el QR: la UI mandaba '' y el `min(1)` hacía fallar TODO el
+  // guardado de métodos de pago con "Datos de entrada inválidos".
+  qrImageUrl: z.string().nullish().transform((v) => (v ? v : undefined)),
   // Vínculo con una cuenta bancaria registrada (Administración → Cuentas bancarias):
   // el cobro que entre por esta cuenta suma su saldo allá. null = sin vincular.
   bankAccountId: z.string().max(60).nullish(),
@@ -70,7 +72,9 @@ const paymentMethodFieldsSchema = z.object({
   rif: z.string().max(30).optional(),
   // QR que se muestra al cliente en pantalla al cobrar, para que lo escanee: Pago Móvil
   // (banco/Suiche 7B), Zelle y Binance. Los demás métodos no lo usan.
-  qrImageUrl: z.string().min(1).optional(),
+  // Cadena vacía = se quitó el QR: la UI mandaba '' y el `min(1)` hacía fallar TODO el
+  // guardado de métodos de pago con "Datos de entrada inválidos".
+  qrImageUrl: z.string().nullish().transform((v) => (v ? v : undefined)),
   // Cuenta bancaria vinculada a la cuenta principal del método (ver arriba).
   bankAccountId: z.string().max(60).nullish(),
   // Cuentas adicionales del mismo método: varios Zelle, varios Pago Móvil…

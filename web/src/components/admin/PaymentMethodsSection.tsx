@@ -271,7 +271,7 @@ export function PaymentMethodsSection({ descriptionOverride }: Props = {}) {
                   <div className="mt-3 max-w-[180px]">
                     <PhotoUploadField
                       value={config[m.key]?.qrImageUrl ?? null}
-                      onChange={(url) => setField(m.key, 'qrImageUrl', url ?? '')}
+                      onChange={(url) => setField(m.key, 'qrImageUrl', url ?? null)}
                       label={QR_LABELS[m.key]!}
                       uploadUrl="/restaurant/upload-payment-qr"
                       shape="square"
@@ -325,7 +325,7 @@ export function PaymentMethodsSection({ descriptionOverride }: Props = {}) {
                         <div className="mt-3 max-w-[180px]">
                           <PhotoUploadField
                             value={acc.qrImageUrl ?? null}
-                            onChange={(url) => setExtraField(m.key, acc.key, 'qrImageUrl', url ?? '')}
+                            onChange={(url) => setExtraField(m.key, acc.key, 'qrImageUrl', url ?? null)}
                             label={QR_LABELS[m.key]!}
                             uploadUrl="/restaurant/upload-payment-qr"
                             shape="square"

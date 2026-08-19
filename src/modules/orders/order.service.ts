@@ -2623,6 +2623,8 @@ export const orderService = {
       serviceChargeBase: order.serviceChargeBase,
       ivaBase: order.ivaBase,
       deliveryFeeBase: order.deliveryFeeBase,
+      // Sin esto, la nota de entrega impresa no cuadraba: las líneas sumaban menos que el TOTAL.
+      envaseFeeBase: order.envaseFeeBase,
       totalBase: order.totalBase,
       exchangeRate: order.exchangeRate,
       totalBs: order.totalBs,
