@@ -1167,6 +1167,17 @@ enum ReservationStatus {
   PENDING
   CONFIRMED
   CANCELLED
+  // El grupo llegó y se sentó: la reserva abrió su cuenta (ver Reservation.tableSessionId).
+  SEATED
+  // La hora pasó y nunca aparecieron.
+  NO_SHOW
+}
+
+// De dónde salió la reserva: del botón "Mesa" del menú público, o cargada por el propio
+// restaurante desde el panel (esas nacen ya confirmadas, nadie tiene que aceptarlas).
+enum ReservationSource {
+  PUBLIC
+  STAFF
 }
 
 // Reserva de mesa hecha por el cliente desde el botón "Mesa" del menú
@@ -1184,10 +1195,19 @@ model Reservation {
   customerIdNumber String
   customerPhone    String
   status           ReservationStatus @default(PENDING)
+  source           ReservationSource @default(PUBLIC)
+  // Nota del salón: "cumpleaños", "silla de bebé", "junto a la ventana".
+  note             String?
   createdAt        DateTime          @default(now())
 
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  tables     Table[]
+  // Cuándo se sentaron y en qué cuenta terminaron: así la barra lateral de Sala puede mostrar
+  // "sentados" con su mesa, y desde la reserva se llega al consumo real del grupo.
+  seatedAt       DateTime?
+  tableSessionId String?
+
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tableSession TableSession? @relation(fields: [tableSessionId], references: [id], onDelete: SetNull)
+  tables       Table[]
 
   @@index([restaurantId, date])
   @@map("reservations")
@@ -1228,9 +1248,10 @@ model TableSession {
   openedAt DateTime  @default(now())
   closedAt DateTime?
 
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  table      Table      @relation(fields: [tableId], references: [id], onDelete: Cascade)
-  orders     Order[]
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table        Table         @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  orders       Order[]
+  reservations Reservation[]
 
   @@index([restaurantId, tableId, status])
   @@map("table_sessions")

@@ -174,6 +174,19 @@ export function requireRoleOrCashierFullAccess(...roles: string[]) {
 }
 
 /**
+ * Misma regla que `requireRoleOrCashierFullAccess` pero como pregunta, no como bloqueo: sirve
+ * para rutas que TODOS pueden llamar pero que devuelven menos datos a quien tiene menos acceso
+ * (ej. el mesero ve las reservas confirmadas, no las que están por aceptar).
+ */
+export async function hasRoleOrCashierFullAccess(req: Request, ...roles: string[]): Promise<boolean> {
+  if (!req.auth) return false;
+  if (roles.includes(req.auth.role)) return true;
+  if (req.auth.role !== 'CASHIER') return false;
+  const user = await prisma.user.findUnique({ where: { id: req.auth.userId }, select: { cashierFullAccess: true } });
+  return !!user?.cashierFullAccess;
+}
+
+/**
  * Entorno Demo Efímero: bloquea por completo una ruta cuando el restaurante
  * es la cuenta demo (ej. "Eliminar" en Equipo) — cualquier otro cambio se
  * deshace solo al resetearse, así que no hace falta bloquearlo también.
