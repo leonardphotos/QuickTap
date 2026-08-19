@@ -7,6 +7,7 @@ import { createOfflineOrder, OrderError, toKitchenPayload } from './orders.js';
 import { relayDb } from './db.js';
 import { applySnapshot, type CatalogSnapshot } from './snapshot.js';
 import { deductStockForOrder, listInventory } from './inventory.js';
+import { pendingCount, syncPendingToCloud } from './sync.js';
 
 /**
  * Servidor local del relé: habla el MISMO dialecto que la nube (mismas rutas, mismos eventos,
@@ -24,6 +25,8 @@ export interface RelayServerOptions {
   port: number;
   /** El mismo JWT_SECRET de la nube: así los tokens ya emitidos siguen sirviendo. */
   jwtSecret: string;
+  /** A dónde subir lo del corte cuando vuelva el internet. */
+  cloudUrl?: string;
 }
 
 export interface StartedRelayServer {
@@ -178,6 +181,27 @@ export function startRelayServer(opts: RelayServerOptions): StartedRelayServer {
       // eslint-disable-next-line no-console
       console.error('[relé] error marcando servido:', e);
       res.status(500).json({ error: 'No se pudo marcar el pedido como servido.' });
+    }
+  });
+
+  /**
+   * Sube a la nube lo que quedó del corte. Lo dispara la app de escritorio al detectar que
+   * volvió el internet; también se puede llamar a mano desde el panel.
+   */
+  app.post('/api/v1/relay/sync', requireAuth, async (req, res) => {
+    const token = bearerFrom(req.headers.authorization)!;
+    const cloudUrl = (req.body?.cloudUrl as string | undefined) ?? opts.cloudUrl;
+    if (!cloudUrl) {
+      res.status(400).json({ error: 'Falta la dirección de la nube.' });
+      return;
+    }
+    try {
+      const result = await syncPendingToCloud(cloudUrl.replace(/\/+$/, ''), token);
+      res.json({ data: { ...result, pending: await pendingCount() } });
+    } catch (e) {
+      // eslint-disable-next-line no-console
+      console.error('[relé] error sincronizando:', e);
+      res.status(502).json({ error: e instanceof Error ? e.message : 'No se pudo sincronizar.' });
     }
   });
 

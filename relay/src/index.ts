@@ -18,6 +18,8 @@ export interface RelayOptions {
   port?: number;
   /** Mismo secreto que la nube, para aceptar los tokens ya emitidos. */
   jwtSecret: string;
+  /** A dónde subir lo del corte cuando vuelva el internet. */
+  cloudUrl?: string;
   /** Ruta al schema del relé y al binario de prisma (varían al empaquetar). */
   schemaPath: string;
   prismaBin: string;
@@ -41,7 +43,7 @@ export async function startRelay(opts: RelayOptions): Promise<RunningRelay> {
 
     pushRelaySchema(pg.url, opts.schemaPath, opts.prismaBin);
 
-    server = startRelayServer({ port, jwtSecret: opts.jwtSecret });
+    server = startRelayServer({ port, jwtSecret: opts.jwtSecret, cloudUrl: opts.cloudUrl });
 
     return {
       url: `http://0.0.0.0:${port}`,

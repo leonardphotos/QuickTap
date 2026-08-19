@@ -69,6 +69,6 @@ de inventario a mano, reportes, caja, cambios de configuración, push y WhatsApp
 - **Fase 1** ✅ Servidor local: toma pedidos y emite a cocina, verificado end-to-end
 - **Fase 2** ✅ Catálogo e inventario bajan de la nube; el stock baja al servir
 - **Fase 3** ✅ Las tablets y la impresora cambian solas al relé y vuelven al reconectar
-- **Fase 4** ⏳ Subir a la nube lo que pasó offline
+- **Fase 4** ✅ Lo del corte sube solo, renumerado y sin duplicados
 - **Fase 5** ⏳ Revisión de conflictos
 - **Fase 6** ⏳ Android en LAN + renovar sesión sin internet

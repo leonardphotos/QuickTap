@@ -13,5 +13,7 @@ const router = Router();
 router.use(tenantGuard);
 
 router.get('/catalog-snapshot', offlineController.catalogSnapshot);
+// Sube lo que el relé creó durante un corte. Idempotente: reintentar no duplica.
+router.post('/sync-orders', offlineController.syncOrders);
 
 export default router;

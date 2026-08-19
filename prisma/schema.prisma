@@ -1362,6 +1362,11 @@ model Order {
 
   // Si el pedido lo cargó un mesero/staff desde "Órdenes de Mesa" (en vez de
   // ser el cliente desde su teléfono), queda el usuario que lo tomó.
+  /// Referencia de la comanda impresa cuando el pedido nació sin internet ("R-3"): el número
+  /// definitivo lo asigna la nube al sincronizar, y este queda para poder rastrear en papel
+  /// qué comanda del corte corresponde a qué pedido. null = nació con conexión, como siempre.
+  offlineTicketRef String?
+
   placedByUserId String?
 
   // Mesero/staff que apretó "Aceptar" en un pedido pedido por el cliente

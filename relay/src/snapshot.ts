@@ -71,6 +71,15 @@ export interface CatalogSnapshot {
       variantPrices: { variantId: string; priceBase: string }[];
     }[];
   }[];
+  openSessions: {
+    id: string;
+    tableId: string;
+    customerName: string;
+    customerIdNumber: string;
+    customerPhone: string | null;
+    label: string | null;
+    openedAt: string;
+  }[];
   inventoryItems: { id: string; name: string; unit: string; quantity: string; minQuantity: string }[];
   productConsumption: { productId: string; variantName: string | null; inventoryItemId: string; quantity: string }[];
   modifierConsumption: { modifierId: string; inventoryItemId: string; quantity: string }[];
@@ -266,6 +275,28 @@ export async function applySnapshot(snap: CatalogSnapshot): Promise<{ appliedAt:
           });
         }
       }
+    }
+
+    // Cuentas ya abiertas en la nube: se traen para que, si el internet se cae con mesas
+    // ocupadas, el relé siga sumando pedidos a ESA cuenta en vez de abrir una nueva.
+    // Ya sincronizadas por definición — vinieron de la nube.
+    for (const os of snap.openSessions ?? []) {
+      await tx.tableSession.upsert({
+        where: { id: os.id },
+        create: {
+          id: os.id,
+          restaurantId,
+          tableId: os.tableId,
+          customerName: os.customerName,
+          customerIdNumber: os.customerIdNumber,
+          customerPhone: os.customerPhone,
+          label: os.label,
+          status: 'OPEN',
+          openedAt: new Date(os.openedAt),
+          syncedToCloud: true,
+        },
+        update: { status: 'OPEN', syncedToCloud: true },
+      });
     }
 
     // Stock: se pisa con el de la nube a propósito (ver nota de arriba).

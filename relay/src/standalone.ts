@@ -22,6 +22,7 @@ const relay = await startRelay({
   dataDir: path.join(packageRoot, '.relay-data'),
   port: Number(process.env.RELAY_PORT ?? 4001),
   jwtSecret: secret,
+  cloudUrl: process.env.RELAY_CLOUD_URL ?? 'http://localhost:4000',
   ...defaultPaths(packageRoot),
 });
 
