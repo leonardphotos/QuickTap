@@ -117,7 +117,12 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   // Cuenta receptora elegida cuando el método tiene varias (varios Zelle…). Decide qué
   // datos/QR se muestran y a cuál cuenta bancaria se asienta el cobro.
   const [accountKey, setAccountKey] = useState('main');
-  const [amount, setAmount] = useState(mode === 'split' ? '' : balanceBase.toFixed(2));
+  // La modalidad arranca con la que eligió el cajero al abrir (Pagar / Fraccionado), pero se
+  // puede cambiar sin salir de la pantalla — en el mostrador el cliente decide cómo paga
+  // justo cuando ya tiene la cuenta delante.
+  const [payMode, setPayMode] = useState<'full' | 'split'>(mode);
+  const [markingDebt, setMarkingDebt] = useState(false);
+  const [amount, setAmount] = useState(payMode === 'split' ? '' : balanceBase.toFixed(2));
   // La propina se escribe en la moneda que sea más cómoda para el cajero (casi siempre Bs,
   // como la dice el cliente en el mostrador) y se convierte a la moneda base del pedido (la que
   // guarda OrderPayment.tipBase) con la MISMA tasa congelada del pedido — no la tasa del día —
@@ -127,7 +132,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   // en tres columnas (cuenta · cobro · teclado) porque ahí no hay teclado físico y el del
   // sistema tapa media pantalla — ver PosNumericKeypad.
   const isPos = useIsLandscapeTablet();
-  const [posField, setPosField] = useState<PosKeypadField>(mode === 'split' ? 'amount' : 'tip');
+  const [posField, setPosField] = useState<PosKeypadField>(payMode === 'split' ? 'amount' : 'tip');
   const [tipCurrency, setTipCurrency] = useState<'BASE' | 'BS'>('BS');
   const [tipValue, setTipValue] = useState(
     tipOutstanding > 0 ? (rateBsOfOrder > 0 ? round2(tipOutstanding * rateBsOfOrder) : tipOutstanding).toFixed(2) : '',
@@ -213,7 +218,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   // Monto a cobrar ahora mismo — mismo valor que ya se muestra como "Monto a cobrar" más abajo,
   // usado también para el bloque de QR/Bs de Pago Móvil.
   const amountToCharge =
-    mode === 'split' && splitBy === 'items' ? itemsSubtotal : mode === 'split' ? Number(amount) || 0 : discountedBalance;
+    payMode === 'split' && splitBy === 'items' ? itemsSubtotal : payMode === 'split' ? Number(amount) || 0 : discountedBalance;
   const tipValueNum = Math.max(0, Number(tipValue) || 0);
   const tipAmt = tipCurrency === 'BS' && rateBsOfOrder > 0 ? round2(tipValueNum / rateBsOfOrder) : tipValueNum;
 
@@ -287,7 +292,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   // sugerido — en modo 'full' el monto a cobrar ya se muestra calculado (discountedBalance),
   // no hace falta tocar `amount`.
   function recomputeSplitAmount(nextDiscountAmt: number, nextServiceAmt: number) {
-    if (mode === 'full') return;
+    if (payMode === 'full') return;
     setAmount(round2(Math.max(0, balanceBase - nextDiscountAmt - nextServiceAmt)).toFixed(2));
   }
 
@@ -354,8 +359,8 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   }
 
   async function submit() {
-    const byItems = mode === 'split' && splitBy === 'items';
-    const amountBase = byItems ? itemsSubtotal : mode === 'split' ? Number(amount) : discountedBalance;
+    const byItems = payMode === 'split' && splitBy === 'items';
+    const amountBase = byItems ? itemsSubtotal : payMode === 'split' ? Number(amount) : discountedBalance;
     if (byItems) {
       if (itemsPickedCount === 0) {
         setError('Elige al menos un ítem a cobrar.');
@@ -410,7 +415,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
       // pagos con su descuento y ajuste de servicio). Restar solo `amountBase` daba por
       // pendiente lo que el descuento acababa de perdonar.
       const remaining = Number(data.data?.totalBase ?? order.totalBase) - settledOf(freshPayments);
-      const fullyPaid = mode === 'full' || remaining <= 0.01;
+      const fullyPaid = payMode === 'full' || remaining <= 0.01;
       onPaid(fullyPaid);
       if (fullyPaid) {
         setShowPrintPrompt(true);
@@ -428,6 +433,22 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
       setError(e.response?.data?.error ?? 'No se pudo registrar el pago.');
     } finally {
       setSending(false);
+    }
+  }
+
+  /** "Deuda": deja la comanda como cuenta abierta, sin cobrar nada ahora (mismo endpoint que
+   * el toggle "Cta. abierta" de la tarjeta del pedido). */
+  async function markDebt() {
+    setMarkingDebt(true);
+    setError(null);
+    try {
+      await api.patch(`/orders/${order.id}/awaiting-payment`, { awaitingPayment: true });
+      onPaid(false);
+      onClose();
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo marcar como deuda.');
+    } finally {
+      setMarkingDebt(false);
     }
   }
 
@@ -537,7 +558,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
               <ArrowLeft className="h-4 w-4 text-brand-950/70" />
             </button>
           )}
-          <DialogTitle>{mode === 'full' ? 'Pagar' : 'Pago fraccionado'}</DialogTitle>
+          <DialogTitle>{payMode === 'full' ? 'Pagar' : 'Pago fraccionado'}</DialogTitle>
         </DialogHeader>
 
         <div
@@ -547,32 +568,73 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
               : 'space-y-4'
           }
         >
-          <PosColumn className="space-y-3 min-h-0 overflow-y-auto pr-1">
-          <div className="rounded-xl bg-brand-950/[0.03] px-3 py-2.5 space-y-1">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-brand-950/60">Total del pedido</span>
-              <span className="font-semibold text-brand-950">{formatBase(order.totalBase, symbol)}</span>
-            </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-brand-950/40">Equivalente</span>
-              <span className="text-brand-950/50">{formatBsAbsolute(order.totalBs)}</span>
-            </div>
+          <PosColumn className="flex flex-col gap-3 min-h-0">
+          {/* En POS el total es lo que el cajero le canta al cliente: va grande y en Bs primero. */}
+          <div className={isPos ? 'rounded-2xl bg-brand-950/[0.04] px-5 py-4' : 'rounded-xl bg-brand-950/[0.03] px-3 py-2.5 space-y-1'}>
+            {isPos ? (
+              <>
+                <p className="text-xs font-medium uppercase tracking-wide text-brand-950/40">Total del pedido</p>
+                <p className="mt-1 text-5xl font-bold tabular-nums leading-none text-brand-950">
+                  {formatBase(order.totalBase, symbol)}
+                </p>
+                <p className="mt-2 text-xl font-semibold tabular-nums text-brand-950/50">{formatBsAbsolute(order.totalBs)}</p>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-brand-950/60">Total del pedido</span>
+                  <span className="font-semibold text-brand-950">{formatBase(order.totalBase, symbol)}</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-brand-950/40">Equivalente</span>
+                  <span className="text-brand-950/50">{formatBsAbsolute(order.totalBs)}</span>
+                </div>
+              </>
+            )}
           </div>
 
-          <details className="rounded-xl border border-brand-950/10 px-3 py-2" open>
-            <summary className="text-xs font-medium text-brand-950/60 cursor-pointer select-none">
+          <details
+            className={
+              isPos
+                ? 'rounded-2xl border border-brand-950/10 px-4 py-3 flex-1 min-h-0 flex flex-col'
+                : 'rounded-xl border border-brand-950/10 px-3 py-2'
+            }
+            open
+          >
+            <summary
+              className={
+                isPos
+                  ? 'text-sm font-semibold text-brand-950/70 cursor-pointer select-none shrink-0'
+                  : 'text-xs font-medium text-brand-950/60 cursor-pointer select-none'
+              }
+            >
               Detalle del pedido ({order.items.length} {order.items.length === 1 ? 'ítem' : 'ítems'})
             </summary>
-            <ul className="text-sm space-y-1 mt-2 max-h-32 overflow-y-auto">
+            <ul
+              className={
+                isPos
+                  ? 'text-lg space-y-2 mt-3 flex-1 min-h-0 overflow-y-auto divide-y divide-brand-950/[0.06]'
+                  : 'text-sm space-y-1 mt-2 max-h-32 overflow-y-auto'
+              }
+            >
               {order.items.map((it) => (
-                <li key={it.id} className="flex items-start justify-between gap-2">
+                <li key={it.id} className={isPos ? 'flex items-start justify-between gap-2 pt-2 first:pt-0' : 'flex items-start justify-between gap-2'}>
                   <span className="min-w-0">
                     <span className="font-medium">{it.quantity}x</span> {it.productName}
                     {it.variantName && <span className="text-brand-950/50"> ({it.variantName})</span>}
                     {it.modifiers.length > 0 && (
-                      <span className="text-brand-950/50"> ({it.modifiers.map(formatModifierLabel).join(', ')})</span>
+                      <span className={isPos ? 'block text-sm text-brand-950/50' : 'text-brand-950/50'}>
+                        {isPos ? '' : ' ('}
+                        {it.modifiers.map(formatModifierLabel).join(', ')}
+                        {isPos ? '' : ')'}
+                      </span>
                     )}
                   </span>
+                  {isPos && (
+                    <span className="shrink-0 tabular-nums font-semibold text-brand-950/70">
+                      {formatBase(Number(it.unitPrice) * it.quantity, symbol)}
+                    </span>
+                  )}
                 </li>
               ))}
             </ul>
@@ -587,6 +649,41 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
           </PosColumn>
 
           <PosColumn className="space-y-4 min-h-0 overflow-y-auto pr-1">
+          {/* Cómo va a pagar: se elige acá mismo, sin volver a la pantalla anterior. */}
+          {!showPrintPrompt && paidNow == null && (
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { id: 'full' as const, label: 'Pago completo' },
+                { id: 'split' as const, label: 'Fraccionado' },
+              ]).map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => {
+                    setPayMode(m.id);
+                    // El abono arranca vacío (lo escribe el cajero) y el pago completo con el saldo.
+                    setAmount(m.id === 'split' ? '' : balanceBase.toFixed(2));
+                    setPosField(m.id === 'split' ? 'amount' : 'tip');
+                  }}
+                  className={`rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors ${
+                    payMode === m.id
+                      ? 'bg-brand-500 text-white'
+                      : 'bg-brand-950/[0.04] text-brand-950/60 hover:bg-brand-950/[0.08]'
+                  }`}
+                >
+                  {m.label}
+                </button>
+              ))}
+              <button
+                type="button"
+                disabled={markingDebt}
+                onClick={markDebt}
+                className="rounded-xl px-3 py-2.5 text-sm font-semibold bg-amber-50 text-amber-700 hover:bg-amber-100 disabled:opacity-50 transition-colors"
+              >
+                {markingDebt ? 'Guardando…' : 'Deuda'}
+              </button>
+            </div>
+          )}
           {showPrintPrompt ? (
             <div className="space-y-3 text-center py-2">
               <p className="text-sm font-medium text-emerald-600">✓ Cuenta saldada</p>
@@ -627,7 +724,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                 <p className="text-sm text-brand-950/60">Cuenta saldada.</p>
               )}
               <div className="flex gap-2 justify-center">
-                {mode === 'split' && remainingAfter > 0.01 && (
+                {payMode === 'split' && remainingAfter > 0.01 && (
                   <TextureButton
                     variant="brand"
                     size="default"
@@ -653,7 +750,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
             </div>
           ) : (
             <>
-              {mode === 'split' && (
+              {payMode === 'split' && (
                 <div className="flex gap-1.5">
                   {(['amount', 'items'] as const).map((s) => (
                     <button
@@ -670,7 +767,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                 </div>
               )}
 
-              {isCashMethod && (mode === 'full' || splitBy === 'amount') && (
+              {isCashMethod && (payMode === 'full' || splitBy === 'amount') && (
                 <div className="rounded-xl border border-brand-950/10 bg-brand-950/[0.02] p-3 space-y-2">
                   <div className="flex items-center gap-2">
                     <div className="flex-1">
@@ -782,7 +879,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                 </div>
               )}
 
-              {showDiscount && !(mode === 'split' && splitBy === 'items') && (
+              {showDiscount && !(payMode === 'split' && splitBy === 'items') && (
                 <div className="flex items-end gap-2">
                   <div className="flex-1">
                     <p className="text-xs font-medium text-brand-950/50 mb-1.5">Descuento</p>
@@ -811,7 +908,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                 </div>
               )}
 
-              {showDiscount && !(mode === 'split' && splitBy === 'items') && serviceChargeBaseNum > 0 && (
+              {showDiscount && !(payMode === 'split' && splitBy === 'items') && serviceChargeBaseNum > 0 && (
                 <div className="flex items-end gap-2">
                   <div className="flex-1">
                     <p className="text-xs font-medium text-brand-950/50 mb-1.5">
@@ -842,7 +939,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                 </div>
               )}
 
-              {mode === 'split' && splitBy === 'items' ? (
+              {payMode === 'split' && splitBy === 'items' ? (
                 <div className="space-y-2">
                   <p className="text-xs font-medium text-brand-950/50">Elige qué ítems cobra esta persona</p>
                   <ul className="space-y-1.5 max-h-56 overflow-y-auto">
@@ -890,17 +987,39 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     <span>{formatBase(itemsSubtotal, symbol)}</span>
                   </div>
                 </div>
-              ) : mode === 'split' ? (
-                <div>
-                  <p className="text-xs font-medium text-brand-950/50 mb-1.5">Monto a abonar</p>
-                  <input
-                    autoFocus
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
-                    onFocus={() => setPosField('amount')}
-                    placeholder={`Máx. ${balanceBase.toFixed(2)}`}
-                    className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-                  />
+              ) : payMode === 'split' ? (
+                <div className="space-y-2">
+                  <div>
+                    <p className={isPos ? 'text-sm font-semibold text-brand-950/60 mb-1.5' : 'text-xs font-medium text-brand-950/50 mb-1.5'}>
+                      Monto a abonar
+                    </p>
+                    <input
+                      autoFocus
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+                      onFocus={() => setPosField('amount')}
+                      placeholder={`Máx. ${balanceBase.toFixed(2)}`}
+                      className={
+                        isPos
+                          ? 'w-full text-3xl font-bold tabular-nums border border-brand-950/15 rounded-xl px-3 py-2.5'
+                          : 'w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5'
+                      }
+                    />
+                  </div>
+                  {/* Cuánto queda debiendo después de este abono — lo primero que pregunta el
+                      cliente al pagar en partes. */}
+                  <div
+                    className={
+                      isPos
+                        ? 'flex items-center justify-between rounded-2xl bg-brand-950/[0.04] px-4 py-3'
+                        : 'flex items-center justify-between text-sm'
+                    }
+                  >
+                    <span className={isPos ? 'text-base text-brand-950/60' : 'text-brand-950/60'}>Restante después del abono</span>
+                    <span className={isPos ? 'text-3xl font-bold tabular-nums text-brand-950' : 'font-semibold text-brand-950'}>
+                      {formatBase(Math.max(0, round2(balanceBase - (Number(amount) || 0) - discountAmt - serviceAdjAmt - promoAmt)), symbol)}
+                    </span>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-1 pt-1">
@@ -922,9 +1041,17 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                       <span>-{formatBase(serviceAdjAmt, symbol)}</span>
                     </div>
                   )}
-                  <div className="flex items-center justify-between text-sm font-semibold">
-                    <span>Monto a cobrar</span>
-                    <span>{formatBase(discountedBalance, symbol)}</span>
+                  <div
+                    className={
+                      isPos
+                        ? 'flex items-center justify-between font-semibold border-t border-brand-950/10 pt-3 mt-1'
+                        : 'flex items-center justify-between text-sm font-semibold'
+                    }
+                  >
+                    <span className={isPos ? 'text-base text-brand-950/60' : undefined}>Monto a cobrar</span>
+                    <span className={isPos ? 'text-4xl font-bold tabular-nums text-brand-950' : undefined}>
+                      {formatBase(discountedBalance, symbol)}
+                    </span>
                   </div>
                 </div>
               )}
@@ -966,11 +1093,24 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                 </p>
               )}
               {tipAmt > 0 && (
-                <div className="flex items-center justify-between text-sm font-semibold -mt-1">
-                  <span>Total a cobrar (con propina)</span>
-                  <span>
-                    {formatBase(totalWithTip, symbol)}
-                    {rateBsOfOrder > 0 && <span className="font-normal text-brand-950/50"> · {formatBs(totalWithTip, rateBsOfOrder)}</span>}
+                <div
+                  className={
+                    isPos
+                      ? 'flex items-center justify-between font-semibold rounded-2xl bg-brand-400/10 px-4 py-3'
+                      : 'flex items-center justify-between text-sm font-semibold -mt-1'
+                  }
+                >
+                  <span className={isPos ? 'text-base text-brand-950/60' : undefined}>Total a cobrar (con propina)</span>
+                  <span className={isPos ? 'text-right' : undefined}>
+                    <span className={isPos ? 'block text-4xl font-bold tabular-nums text-brand-950 leading-none' : undefined}>
+                      {formatBase(totalWithTip, symbol)}
+                    </span>
+                    {rateBsOfOrder > 0 && (
+                      <span className={isPos ? 'block mt-1 text-lg font-semibold tabular-nums text-brand-950/50' : 'font-normal text-brand-950/50'}>
+                        {isPos ? '' : ' · '}
+                        {formatBs(totalWithTip, rateBsOfOrder)}
+                      </span>
+                    )}
                   </span>
                 </div>
               )}

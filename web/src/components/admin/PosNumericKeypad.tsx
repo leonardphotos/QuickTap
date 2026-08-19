@@ -38,16 +38,16 @@ export function PosNumericKeypad({
   enterDisabled,
 }: Props) {
   const key =
-    'rounded-xl bg-white border border-brand-950/10 text-2xl font-semibold text-brand-950 ' +
+    'rounded-xl bg-white border border-brand-950/10 text-3xl font-semibold text-brand-950 ' +
     'active:bg-brand-950/[0.06] transition-colors focus:outline-none flex items-center justify-center';
 
   return (
     <div className="flex flex-col gap-2 h-full">
-      <div className="rounded-xl bg-brand-950/[0.04] px-3 py-2">
-        <p className="text-[11px] font-medium text-brand-950/50">{activeLabel}</p>
-        <p className="text-2xl font-bold text-brand-950 tabular-nums truncate">
+      <div className="rounded-2xl bg-brand-950/[0.05] px-5 py-4 shrink-0">
+        <p className="text-sm font-semibold uppercase tracking-wide text-brand-950/45">{activeLabel}</p>
+        <p className="mt-1 text-5xl font-bold text-brand-950 tabular-nums truncate leading-none">
           {value || '0'}
-          {suffix && <span className="text-base font-medium text-brand-950/40"> {suffix}</span>}
+          {suffix && <span className="text-2xl font-semibold text-brand-950/40"> {suffix}</span>}
         </p>
       </div>
 
@@ -68,7 +68,7 @@ export function PosNumericKeypad({
         </button>
         <button
           type="button"
-          className={`${key} !text-base !font-bold text-amber-600`}
+          className={`${key} !text-2xl !font-bold text-amber-600`}
           onClick={onClear}
         >
           C
@@ -80,7 +80,7 @@ export function PosNumericKeypad({
           type="button"
           disabled={enterDisabled}
           onClick={onEnter}
-          className="rounded-xl bg-brand-500 text-white text-sm font-bold active:bg-brand-600 disabled:opacity-40 transition-colors focus:outline-none px-2"
+          className="rounded-xl bg-brand-500 text-white text-lg font-bold active:bg-brand-600 disabled:opacity-40 transition-colors focus:outline-none px-2"
         >
           {enterLabel}
         </button>
