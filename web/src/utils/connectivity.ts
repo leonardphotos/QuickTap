@@ -89,7 +89,13 @@ async function reachable(origin: string, path: string): Promise<boolean> {
   const timeout = setTimeout(() => controller.abort(), PROBE_TIMEOUT_MS);
   try {
     const res = await fetch(`${origin}${path}`, { signal: controller.signal, cache: 'no-store' });
-    return res.ok;
+    if (!res.ok) return false;
+    // No basta con un 200: en producción Nginx sirve el panel como estáticos y manda al
+    // catch-all del SPA cualquier ruta que no proxea, así que una ruta equivocada devuelve
+    // el HTML del panel con 200 y el sondeo daría "hay internet" con la API caída.
+    // Solo cuenta como vivo si responde el JSON que esta ruta promete.
+    const body = (await res.json()) as { ok?: boolean };
+    return body?.ok === true;
   } catch {
     return false;
   } finally {
@@ -99,8 +105,9 @@ async function reachable(origin: string, path: string): Promise<boolean> {
 
 /** Una ronda de comprobación. Exportada para poder forzarla (ej. al cambiar la config). */
 export async function probeNow(): Promise<ConnectivityState> {
-  // `/health` (no `/api/v1/health`): así lo expone el backend, ver src/app.ts.
-  const cloudOk = await reachable(CLOUD_ORIGIN, '/health');
+  // `/api/v1/ping` y no `/health`: en producción Nginx solo proxea `/api/`, así que `/health`
+  // —aunque exista en Express— nunca llega al backend y lo contesta el SPA. Ver src/routes/index.ts.
+  const cloudOk = await reachable(CLOUD_ORIGIN, '/api/v1/ping');
 
   if (cloudOk) {
     consecutiveFails = 0;

@@ -80,8 +80,10 @@ export function startRelayServer(opts: RelayServerOptions): StartedRelayServer {
    * Latido del relé. Las tablets lo usan para saber si hay relé disponible antes de
    * cambiarse a él (Fase 3). A propósito NO pide token: es solo un "estoy vivo".
    */
+  // `ok: true` al tope es lo que mira el sondeo de conectividad del panel: le sirve para
+  // distinguir una respuesta real de un 200 cualquiera devuelto por otra cosa en la red.
   app.get('/api/v1/relay/health', (_req, res) => {
-    res.json({ data: { relay: true, at: new Date().toISOString() } });
+    res.json({ ok: true, data: { relay: true, at: new Date().toISOString() } });
   });
 
   /** Qué tan al día está el catálogo local — útil para avisar "los precios son de hace X". */
