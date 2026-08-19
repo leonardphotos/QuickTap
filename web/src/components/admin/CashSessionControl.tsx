@@ -121,6 +121,7 @@ export function CashSessionControl() {
               session={closingSession}
               restaurantName={restaurant.name}
               currency={restaurant.baseCurrency}
+              rateBs={restaurant.exchangeRate?.rateBs ?? null}
               closed={closedSession}
               onClosed={(c) => {
                 setClosedSession(c);
@@ -179,6 +180,7 @@ export function CashSessionPanel() {
               session={closingSession}
               restaurantName={restaurant.name}
               currency={restaurant.baseCurrency}
+              rateBs={restaurant.exchangeRate?.rateBs ?? null}
               closed={closedSession}
               onClosed={(c) => {
                 setClosedSession(c);
@@ -244,12 +246,14 @@ function CloseCashForm({
   session,
   restaurantName,
   currency,
+  rateBs,
   closed,
   onClosed,
 }: {
   session: CashSessionData;
   restaurantName: string;
   currency: 'USD' | 'EUR';
+  rateBs: string | null;
   closed: CashSessionData | null;
   onClosed: (closed: CashSessionData) => void;
 }) {
@@ -522,7 +526,7 @@ function CloseCashForm({
             Descargar cierre (PDF)
           </TextureButton>
           <div className="fixed -left-[9999px] top-0">
-            <CashSessionReceipt ref={receiptRef} session={closed} restaurantName={restaurantName} currency={currency} />
+            <CashSessionReceipt ref={receiptRef} session={closed} restaurantName={restaurantName} currency={currency} rateBs={rateBs} />
           </div>
         </div>
       )}

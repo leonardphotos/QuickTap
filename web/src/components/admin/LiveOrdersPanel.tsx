@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
+import { API_ORIGIN } from '@/utils/apiOrigin';
 import {
   Check,
   ChefHat,
@@ -265,7 +266,7 @@ export function LiveOrdersPanel({
     load();
     api.get('/delivery-couriers').then((res) => setCouriers(res.data.data));
 
-    const socket: Socket = io('/', { auth: { token: getToken() } });
+    const socket: Socket = io(API_ORIGIN || '/', { auth: { token: getToken() } });
     socket.on('order:new', load);
     socket.on('order:updated', load);
     // Cierre de caja: las comandas saldadas del turno salieron de la lista, así que

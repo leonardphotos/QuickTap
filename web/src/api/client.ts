@@ -1,7 +1,9 @@
 import axios from 'axios';
+import { API_ORIGIN } from '@/utils/apiOrigin';
 
-/** Cliente axios base. En dev, Vite proxea /api hacia el backend (puerto 4000). */
-export const api = axios.create({ baseURL: '/api/v1' });
+/** Cliente axios base. En dev, Vite proxea /api hacia el backend (puerto 4000); en la app
+ * empaquetada (Electron/Android) no hay proxy, así que API_ORIGIN agrega el origen absoluto. */
+export const api = axios.create({ baseURL: `${API_ORIGIN}/api/v1` });
 
 const TOKEN_KEY = 'quicktap_token';
 const SLUG_KEY = 'quicktap_slug';
@@ -66,7 +68,7 @@ api.interceptors.response.use(
 // --- Dashboard maestro (equipo de QuickTap) ---
 // Instancia aparte con su propio token: un admin de plataforma puede tener
 // abierta a la vez una sesión de restaurante en el mismo navegador.
-export const masterApi = axios.create({ baseURL: '/api/v1' });
+export const masterApi = axios.create({ baseURL: `${API_ORIGIN}/api/v1` });
 
 const MASTER_TOKEN_KEY = 'quicktap_master_token';
 

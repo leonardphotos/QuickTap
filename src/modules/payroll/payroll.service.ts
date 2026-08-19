@@ -1,6 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { round2, toDecimal } from '../../utils/money';
+import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import type { CreateEmployeeInput, PayEmployeeInput, UpdateEmployeeInput } from './payroll.dto';
 
 /**
@@ -24,7 +25,15 @@ async function list(restaurantId: string, includeInactive = false) {
       payments: {
         orderBy: { paidAt: 'desc' },
         take: 6,
-        select: { id: true, amountBase: true, periodLabel: true, paidAt: true, paymentMethod: true },
+        select: {
+          id: true,
+          amountBase: true,
+          periodLabel: true,
+          paidAt: true,
+          paymentMethod: true,
+          exchangeRate: true,
+          totalBs: true,
+        },
       },
     },
   });
@@ -50,6 +59,7 @@ async function create(restaurantId: string, input: CreateEmployeeInput) {
       phone: input.phone ?? null,
       idNumber: input.idNumber ?? null,
       salaryBase: input.salaryBase ?? null,
+      hireDate: input.hireDate ?? null,
     },
   });
 }
@@ -76,6 +86,13 @@ async function pay(restaurantId: string, employeeId: string, userId: string | un
   if (!employee) throw notFound('Empleado no encontrado.');
   if (input.amountBase <= 0) throw badRequest('El monto debe ser mayor a 0.');
 
+  const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { baseCurrency: true } });
+  // Tasa vigente al momento del pago, congelada — igual que Order.exchangeRate/totalBs — así el
+  // historial no cambia si la tasa sube después. Se guarda siempre (no solo en métodos "en Bs")
+  // porque sirve de referencia aunque se haya pagado en la moneda base.
+  const rate = restaurant ? await exchangeRateService.getRate(restaurant.baseCurrency, restaurantId) : null;
+  const totalBs = rate ? round2(toDecimal(input.amountBase).mul(rate.rateBs)) : null;
+
   return prisma.$transaction(async (tx) => {
     const description = `Nómina · ${employee.name}${input.periodLabel ? ` · ${input.periodLabel}` : ''}`;
     const movement = await tx.movement.create({
@@ -100,6 +117,8 @@ async function pay(restaurantId: string, employeeId: string, userId: string | un
         note: input.note ?? null,
         movementId: movement.id,
         createdByUserId: userId,
+        exchangeRate: rate?.rateBs ?? null,
+        totalBs,
       },
     });
   });

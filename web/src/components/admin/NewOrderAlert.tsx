@@ -2,10 +2,13 @@ import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
+import { Capacitor } from '@capacitor/core';
+import { API_ORIGIN } from '@/utils/apiOrigin';
 import { Bike, Grid2x2, Martini, ShoppingBag } from 'lucide-react';
 import { api, getToken } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { isAdminCashier } from '@/utils/roles';
+import { notifyNative } from '@/utils/nativeNotify';
 import { TextureButton } from '@/components/ui/texture-button';
 import type { LiveOrder } from './LiveOrdersPanel';
 
@@ -37,7 +40,7 @@ export function NewOrderAlert({ onNavigate }: Props) {
   useEffect(() => {
     audioRef.current = new Audio('/sounds/notification.mp3');
 
-    const socket: Socket = io('/', { auth: { token: getToken() } });
+    const socket: Socket = io(API_ORIGIN || '/', { auth: { token: getToken() } });
     socket.on('order:new', async (payload: { orderId: string }) => {
       try {
         const res = await api.get('/orders/live');
@@ -72,9 +75,24 @@ export function NewOrderAlert({ onNavigate }: Props) {
       }
     });
 
+    // En Android el sistema corta la conexión al pasar a segundo plano por un rato — al volver
+    // a primer plano, socket.io a veces tarda en notarlo solo. Forzar la reconexión acá evita
+    // quedarse "conectado" en apariencia pero sin recibir nada hasta el próximo pedido con suerte.
+    let removeAppListener: (() => void) | undefined;
+    if (Capacitor.isNativePlatform()) {
+      import('@capacitor/app').then(({ App }) => {
+        App.addListener('appStateChange', ({ isActive }) => {
+          if (isActive && !socket.connected) socket.connect();
+        }).then((handle) => {
+          removeAppListener = () => handle.remove();
+        });
+      });
+    }
+
     return () => {
       socket.disconnect();
       audioRef.current?.pause();
+      removeAppListener?.();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
@@ -108,6 +126,14 @@ export function NewOrderAlert({ onNavigate }: Props) {
       audioRef.current.currentTime = 0;
       audioRef.current.play().catch(() => {});
     }
+    // En la app de escritorio (Electron) esto además dispara una notificación nativa
+    // del sistema operativo — así se ve aunque la ventana esté minimizada o sin foco,
+    // algo que el banner de acá (solo visible con la ventana abierta) no puede lograr.
+    const title = fresh.channel === 'DINE_IN' ? `Mesa ${fresh.table?.number ?? ''}` : fresh.customerName || CHANNEL_META[fresh.channel].label;
+    void notifyNative({
+      title: `Nuevo pedido — ${title}`,
+      body: fresh.items.map((i) => `${i.quantity}x ${i.productName}`).join(', ') || 'Sin productos',
+    });
   }
 
   function close() {

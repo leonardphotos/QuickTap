@@ -9,6 +9,8 @@ export const createEmployeeSchema = z.object({
   phone: z.string().max(30).nullish(),
   idNumber: z.string().max(30).nullish(),
   salaryBase: z.coerce.number().min(0).max(1000000).nullish(),
+  // Fecha en la que el trabajador entró (informativo). Llega como "YYYY-MM-DD" del <input type="date">.
+  hireDate: z.coerce.date().nullish(),
 });
 
 export type CreateEmployeeInput = z.infer<typeof createEmployeeSchema>;

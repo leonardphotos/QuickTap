@@ -18,6 +18,7 @@ import { EditOrderDialog, type LiveOrder } from '@/components/admin/LiveOrdersPa
 import { PaymentDialog } from '@/components/admin/PaymentDialog';
 import { useCopyToast } from '../../hooks/useCopyToast';
 import { usePendingReservationsCount } from '../../hooks/usePendingReservations';
+import { usePushRegistration } from '../../hooks/usePushRegistration';
 import { useLowStockItems } from '../../hooks/useLowStockItems';
 import { useLockScreen } from '../../hooks/useLockScreen';
 import { useIsLandscapeTablet } from '../../hooks/useIsLandscapeTablet';
@@ -59,6 +60,7 @@ export default function AdminLayout() {
       return next;
     });
   }
+  usePushRegistration();
   const pendingReservations = usePendingReservationsCount(user?.role, user?.cashierFullAccess);
   const lowStockItems = useLowStockItems(user?.role, user?.canAccessInventory, user?.cashierFullAccess);
   const lockScreen = useLockScreen();

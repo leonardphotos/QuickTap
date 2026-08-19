@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent, ReactNode } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
+import { API_ORIGIN } from '@/utils/apiOrigin';
 import { Clock, CreditCard, MessageCircle, Printer, Receipt, SplitSquareHorizontal, Trash2 } from 'lucide-react';
 import { api, getToken } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
@@ -101,7 +102,7 @@ export function ActiveOrdersPreview() {
 
   useEffect(() => {
     load();
-    const socket: Socket = io('/', { auth: { token: getToken() } });
+    const socket: Socket = io(API_ORIGIN || '/', { auth: { token: getToken() } });
     socket.on('order:new', load);
     socket.on('order:updated', load);
     return () => {

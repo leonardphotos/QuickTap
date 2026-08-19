@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
+import { API_ORIGIN } from '@/utils/apiOrigin';
 import { LogOut } from 'lucide-react';
 import { getToken } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
@@ -48,7 +49,7 @@ export default function NumeroPage() {
 
   useEffect(() => {
     audioRef.current = new Audio('/sounds/notification.mp3');
-    const socket: Socket = io('/', { auth: { token: getToken() } });
+    const socket: Socket = io(API_ORIGIN || '/', { auth: { token: getToken() } });
     socket.on(
       'order:ready-staff',
       (payload: { orderId: string; orderNumber: number; channel: string; placedByRole: string | null }) => {

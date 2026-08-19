@@ -3,6 +3,7 @@ import { api } from '@/api/client';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { formatBase } from '@/utils/format';
 import { card } from './clubStyle';
+import { ClubDateRangeFilter } from './ClubDateRangeFilter';
 
 interface DayStat {
   date: string;
@@ -66,6 +67,8 @@ function hours(minutes: number): string {
 export default function ClubOccupancyPage({ restaurant }: { restaurant: Pick<AuthRestaurant, 'currencySymbol'> }) {
   const [data, setData] = useState<Occupancy | null>(null);
   const [days, setDays] = useState(14);
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const symbol = restaurant.currencySymbol ?? '$';
@@ -73,11 +76,11 @@ export default function ClubOccupancyPage({ restaurant }: { restaurant: Pick<Aut
   const load = useCallback(() => {
     setLoading(true);
     api
-      .get('/club/stats/occupancy', { params: { days } })
+      .get('/club/stats/occupancy', { params: { days, from: from || undefined, to: to || undefined } })
       .then((r) => setData(r.data.data))
       .catch(() => setError('No pudimos cargar la ocupación.'))
       .finally(() => setLoading(false));
-  }, [days]);
+  }, [days, from, to]);
 
   useEffect(load, [load]);
 
@@ -96,9 +99,13 @@ export default function ClubOccupancyPage({ restaurant }: { restaurant: Pick<Aut
             <button
               key={r.days}
               type="button"
-              onClick={() => setDays(r.days)}
+              onClick={() => {
+                setDays(r.days);
+                setFrom('');
+                setTo('');
+              }}
               className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[13px] font-semibold transition-colors ${
-                days === r.days ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
+                !from && !to && days === r.days ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
               }`}
             >
               {r.label}
@@ -106,6 +113,7 @@ export default function ClubOccupancyPage({ restaurant }: { restaurant: Pick<Aut
           ))}
         </div>
       </div>
+      <ClubDateRangeFilter from={from} to={to} onFrom={setFrom} onTo={setTo} />
 
       {noCapacity ? (
         <div className={`${card} p-5`}>

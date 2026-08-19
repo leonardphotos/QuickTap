@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
+import { API_ORIGIN } from '@/utils/apiOrigin';
 import { Check, CreditCard, Lock, LogOut, MoveHorizontal, Plus, Printer, SplitSquareHorizontal } from 'lucide-react';
 import { api, getToken } from '../../api/client';
 import type { FloorPlan, FloorPlanTable, Product, TableSession } from '../../types';
@@ -61,7 +62,7 @@ export default function TableOrdersPage() {
     loadOrders();
     api.get('/products').then((res) => setProducts(res.data.data));
 
-    const socket: Socket = io('/', { auth: { token: getToken() } });
+    const socket: Socket = io(API_ORIGIN || '/', { auth: { token: getToken() } });
     socket.on('order:new', load);
     socket.on('order:updated', load);
     socket.on('table:service-request', load);

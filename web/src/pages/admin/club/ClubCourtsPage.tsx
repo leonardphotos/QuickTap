@@ -6,6 +6,7 @@ import { formatBase } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Toast } from '@/components/ui/toast';
 import { useToast } from '@/hooks/useToast';
+import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
 import { clubApi, COURT_TYPE_LABELS, WEEKDAY_LABELS, type ClubCourt, type ClubCourtType, type ClubSchedule } from './clubApi';
 
 interface Props {
@@ -118,12 +119,13 @@ function CourtCard({ court, onSaved, onRemoved }: { court: ClubCourt; onSaved: (
   const [confirming, setConfirming] = useState(false);
   const [name, setName] = useState(court.name);
   const [courtType, setCourtType] = useState<ClubCourtType>(court.courtType);
+  const [photoUrl, setPhotoUrl] = useState(court.photoUrl);
   const [busy, setBusy] = useState(false);
 
   async function save() {
     setBusy(true);
     try {
-      await clubApi.updateCourt(court.id, { name: name.trim(), courtType });
+      await clubApi.updateCourt(court.id, { name: name.trim(), courtType, photoUrl });
       setEditing(false);
       onSaved();
     } finally {
@@ -135,6 +137,15 @@ function CourtCard({ court, onSaved, onRemoved }: { court: ClubCourt; onSaved: (
     <div className="rounded-2xl border border-brand-950/[0.06] bg-white p-4 shadow-sm">
       {editing ? (
         <div className="space-y-2.5">
+          <PhotoUploadField
+            value={photoUrl}
+            onChange={setPhotoUrl}
+            label="Foto de la cancha"
+            uploadUrl="/club/courts/upload-photo"
+            shape="square"
+            maxWidthOrHeight={1200}
+            maxSizeMB={1.5}
+          />
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -152,9 +163,18 @@ function CourtCard({ court, onSaved, onRemoved }: { court: ClubCourt; onSaved: (
         </div>
       ) : (
         <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="truncate font-bold text-brand-950">{court.name}</p>
-            <p className="text-[12px] font-light text-brand-950/45">{COURT_TYPE_LABELS[court.courtType]}</p>
+          <div className="flex min-w-0 items-center gap-3">
+            {court.photoUrl ? (
+              <img src={court.photoUrl} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
+            ) : (
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-brand-950/[0.05] text-[10px] font-medium text-brand-950/30">
+                Sin foto
+              </div>
+            )}
+            <div className="min-w-0">
+              <p className="truncate font-bold text-brand-950">{court.name}</p>
+              <p className="text-[12px] font-light text-brand-950/45">{COURT_TYPE_LABELS[court.courtType]}</p>
+            </div>
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <button

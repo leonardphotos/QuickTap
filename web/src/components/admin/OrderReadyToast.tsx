@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
+import { API_ORIGIN } from '@/utils/apiOrigin';
 import { Truck } from 'lucide-react';
 import { api, getToken } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -33,7 +34,7 @@ export function OrderReadyToast() {
     audioRef.current = new Audio('/sounds/notification.mp3');
     api.get('/delivery-couriers').then((res) => setCouriers(res.data.data));
 
-    const socket: Socket = io('/', { auth: { token: getToken() } });
+    const socket: Socket = io(API_ORIGIN || '/', { auth: { token: getToken() } });
     socket.on('order:ready-staff', (payload: ReadyOrder) => openBanner(payload));
 
     return () => {

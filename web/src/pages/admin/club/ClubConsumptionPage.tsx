@@ -4,6 +4,7 @@ import { api } from '@/api/client';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { formatBase } from '@/utils/format';
 import { card } from './clubStyle';
+import { ClubDateRangeFilter } from './ClubDateRangeFilter';
 
 interface ConsumedItem {
   productId: string | null;
@@ -44,17 +45,19 @@ const RANGES = [
 export default function ClubConsumptionPage({ restaurant }: { restaurant: Pick<AuthRestaurant, 'currencySymbol'> }) {
   const [data, setData] = useState<Response | null>(null);
   const [days, setDays] = useState(30);
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
   const [loading, setLoading] = useState(true);
   const symbol = restaurant.currencySymbol ?? '$';
 
   const load = useCallback(() => {
     setLoading(true);
     api
-      .get('/club/stats/consumption', { params: { days } })
+      .get('/club/stats/consumption', { params: { days, from: from || undefined, to: to || undefined } })
       .then((r) => setData(r.data.data))
       .catch(() => setData(null))
       .finally(() => setLoading(false));
-  }, [days]);
+  }, [days, from, to]);
 
   useEffect(load, [load]);
 
@@ -71,9 +74,13 @@ export default function ClubConsumptionPage({ restaurant }: { restaurant: Pick<A
             <button
               key={r.days}
               type="button"
-              onClick={() => setDays(r.days)}
+              onClick={() => {
+                setDays(r.days);
+                setFrom('');
+                setTo('');
+              }}
               className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[13px] font-semibold transition-colors ${
-                days === r.days ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
+                !from && !to && days === r.days ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
               }`}
             >
               {r.label}
@@ -81,6 +88,7 @@ export default function ClubConsumptionPage({ restaurant }: { restaurant: Pick<A
           ))}
         </div>
       </div>
+      <ClubDateRangeFilter from={from} to={to} onFrom={setFrom} onTo={setTo} />
 
       {data.runningOut.length > 0 && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">

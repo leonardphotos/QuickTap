@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { io } from 'socket.io-client';
+import { API_ORIGIN } from '@/utils/apiOrigin';
 import { BellRing, CalendarDays, Clock, Receipt, Search, Share2, ShoppingCart } from 'lucide-react';
 import { api } from '../../api/client';
 import type { CartLine, PublicMenu, Product, Restaurant, ServiceRequestType } from '../../types';
@@ -82,7 +83,7 @@ export default function MenuPage() {
   // atiende un llamado / solicitud de cuenta hecho desde este mismo menú.
   useEffect(() => {
     if (!qrToken) return;
-    const socket = io('/', { auth: { qrToken } });
+    const socket = io(API_ORIGIN || '/', { auth: { qrToken } });
     socket.on('order:ready', () => {
       setReadyMessage('Tu pedido está listo, pronto llegará a tu mesa.');
       setTimeout(() => setReadyMessage(null), 6000);

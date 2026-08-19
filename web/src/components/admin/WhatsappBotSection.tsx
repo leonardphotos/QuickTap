@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
+import { API_ORIGIN } from '@/utils/apiOrigin';
 import { MessageCircle } from 'lucide-react';
 import { api, getToken } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
@@ -71,7 +72,7 @@ export function WhatsappBotSection({ variant = 'restaurant' }: { variant?: 'rest
       setVerifierDraft(res.data.data.whatsappBotPaymentVerifierPhone || '');
     });
 
-    const socket: Socket = io('/', { auth: { token: getToken() } });
+    const socket: Socket = io(API_ORIGIN || '/', { auth: { token: getToken() } });
     socket.on('whatsapp-bot:qr', (payload: { qrDataUrl: string }) => {
       setData((d) => (d ? { ...d, status: 'qr', qrDataUrl: payload.qrDataUrl } : d));
     });

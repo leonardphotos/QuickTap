@@ -10,6 +10,13 @@ export const breakEvenQuerySchema = z.object({
 const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const YYYYMMDD = /^\d{4}-\d{2}-\d{2}$/;
 
+/** "Desde/hasta" para las estadísticas del club — cuando vienen, mandan sobre el preset
+ * `days`/`range` de cada endpoint (ver club-stats.service.ts#resolveStatsWindow). */
+export const dateRangeQuerySchema = z.object({
+  from: z.string().regex(YYYYMMDD).optional(),
+  to: z.string().regex(YYYYMMDD).optional(),
+});
+
 const hhmm = z.string().regex(HHMM, 'La hora debe tener formato HH:mm.');
 const dateStr = z.string().regex(YYYYMMDD, 'La fecha debe tener formato YYYY-MM-DD.');
 
@@ -18,6 +25,7 @@ export const createCourtSchema = z.object({
   sport: z.enum(['PADEL', 'TENIS', 'FUTBOL', 'BASQUET', 'OTRO']).optional().default('PADEL'),
   courtType: z.enum(['LIBRE', 'TECHADA', 'INDOOR']).optional().default('LIBRE'),
   sortOrder: z.number().int().min(0).max(999).optional(),
+  photoUrl: z.string().min(1).nullable().optional(),
 });
 export const updateCourtSchema = createCourtSchema.partial().extend({
   active: z.boolean().optional(),

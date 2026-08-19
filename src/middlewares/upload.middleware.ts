@@ -147,6 +147,8 @@ export const uploadPlanPaymentProof = makeImageUpload('plan-payment-proofs', 'ph
 export const uploadOrderPaymentProof = makeImageUpload('order-payment-proofs', 'photo');
 // Comprobante de pago de una reserva de cancha (botón "Caja" en Canchas) — ver club.service.ts addBookingPayment.
 export const uploadClubPaymentProof = makeImageUpload('club-payment-proofs', 'photo');
+// Foto de la cancha, para identificarla a simple vista en el listado/calendario.
+export const uploadClubCourtPhoto = makeImageUpload('club-courts', 'photo');
 // Soportes de una orden de pago a proveedores (factura, retenciones, comprobante de la
 // transferencia): imágenes o PDF, tanto al emitir la orden como al registrar el pago.
 export const uploadPaymentOrderDocument = makeDocumentUpload('payment-order-docs', 'file');

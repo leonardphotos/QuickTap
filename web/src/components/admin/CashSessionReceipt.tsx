@@ -1,5 +1,5 @@
 import { forwardRef, type CSSProperties } from 'react';
-import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
+import { CURRENCY_SYMBOLS, formatBase, formatBs } from '@/utils/format';
 import { ROLE_LABELS } from '@/utils/roles';
 import { INCOME_CATEGORY_LABELS, type IncomeCategory } from './IncomeFormDialog';
 import { PAYMENT_LABELS } from './PaymentDialog';
@@ -64,6 +64,10 @@ interface Props {
   session: CashSessionData;
   restaurantName: string;
   currency: Currency;
+  /** Tasa BCV actual — solo para mostrar el equivalente en Bs del total neto (no hay tasa
+   * histórica congelada por movimiento, así que es de referencia, no exacta al momento de cada
+   * cobro). Null si todavía no hay tasa cargada. */
+  rateBs?: string | null;
 }
 
 /**
@@ -100,7 +104,7 @@ const footer: CSSProperties = { fontSize: 10, textAlign: 'center', color: 'rgba(
 const EMERALD_700 = '#047857';
 const RED_700 = '#b91c1c';
 
-export const CashSessionReceipt = forwardRef<HTMLDivElement, Props>(({ session, restaurantName, currency }, ref) => {
+export const CashSessionReceipt = forwardRef<HTMLDivElement, Props>(({ session, restaurantName, currency, rateBs }, ref) => {
   const symbol = CURRENCY_SYMBOLS[currency];
   const summary = session.closingSummary;
 
@@ -261,6 +265,12 @@ export const CashSessionReceipt = forwardRef<HTMLDivElement, Props>(({ session, 
               <span>Total neto</span>
               <span>{formatBase(summary.totalNet, symbol)}</span>
             </div>
+            {rateBs && (
+              <div style={{ ...row, fontSize: 11, color: 'rgba(0,27,67,0.4)', marginTop: 2 }}>
+                <span>Equivalente en Bs · tasa {rateBs}</span>
+                <span>{formatBs(summary.totalNet, rateBs)}</span>
+              </div>
+            )}
           </div>
         </>
       )}

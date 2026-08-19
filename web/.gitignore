@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# App de escritorio (Electron): artefactos de build, nunca el código fuente en electron/src.
+electron/app
+electron/build
+electron/dist
+electron/node_modules
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">QuickTap</string>
+    <string name="title_activity_main">QuickTap</string>
+    <string name="package_name">club.quicktap.app</string>
+    <string name="custom_url_scheme">club.quicktap.app</string>
+</resources>

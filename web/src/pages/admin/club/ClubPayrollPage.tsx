@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Plus, UserMinus, Wallet } from 'lucide-react';
 import { api } from '@/api/client';
 import type { AuthRestaurant } from '@/context/AuthContext';
-import { formatBase } from '@/utils/format';
+import { formatBase, formatBs, formatBsAbsolute } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { card } from './clubStyle';
@@ -13,6 +13,8 @@ interface Payment {
   periodLabel: string | null;
   paidAt: string;
   paymentMethod: string | null;
+  exchangeRate: string | null;
+  totalBs: string | null;
 }
 
 interface Employee {
@@ -21,10 +23,14 @@ interface Employee {
   position: string | null;
   phone: string | null;
   salaryBase: string | null;
+  hireDate: string | null;
   active: boolean;
   paidLast30: string;
   payments: Payment[];
 }
+
+/** Métodos que se pagan en bolívares — solo para estos tiene sentido mostrar la tasa. */
+const BS_METHODS = new Set(['CASH', 'MOBILE_PAYMENT']);
 
 const PAYMENT_METHODS = [
   { value: 'CASH', label: 'Efectivo Bs' },
@@ -43,7 +49,11 @@ const INPUT =
  * Cada pago registra además el gasto correspondiente (categoría Nómina), para que pese en el
  * balance y en el arqueo de caja — si no, el club se vería más rentable de lo que es.
  */
-export default function ClubPayrollPage({ restaurant }: { restaurant: Pick<AuthRestaurant, 'currencySymbol'> }) {
+export default function ClubPayrollPage({
+  restaurant,
+}: {
+  restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate'>;
+}) {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -115,6 +125,7 @@ export default function ClubPayrollPage({ restaurant }: { restaurant: Pick<AuthR
                       {e.position || 'Sin cargo'}
                       {e.salaryBase && ` · sueldo ${formatBase(e.salaryBase, symbol)}`}
                       {e.phone && ` · ${e.phone}`}
+                      {e.hireDate && ` · desde ${new Date(e.hireDate).toLocaleDateString('es-VE')}`}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">
@@ -130,8 +141,18 @@ export default function ClubPayrollPage({ restaurant }: { restaurant: Pick<AuthR
                         <span className="min-w-0 truncate font-light">
                           {p.periodLabel || new Date(p.paidAt).toLocaleDateString('es-VE')}
                           {p.paymentMethod && ` · ${METHOD_LABEL[p.paymentMethod] ?? p.paymentMethod}`}
+                          {p.paymentMethod && BS_METHODS.has(p.paymentMethod) && p.exchangeRate && (
+                            <> · tasa {formatBs(1, p.exchangeRate)}</>
+                          )}
                         </span>
-                        <span className="shrink-0">{formatBase(p.amountBase, symbol)}</span>
+                        <span className="shrink-0 text-right">
+                          {formatBase(p.amountBase, symbol)}
+                          {p.paymentMethod && BS_METHODS.has(p.paymentMethod) && p.totalBs && (
+                            <span className="block text-[10px] font-light text-brand-950/40">
+                              {formatBsAbsolute(p.totalBs)}
+                            </span>
+                          )}
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -169,6 +190,7 @@ export default function ClubPayrollPage({ restaurant }: { restaurant: Pick<AuthR
         <PayDialog
           employee={paying}
           symbol={symbol}
+          rateBs={restaurant.exchangeRate?.rateBs ?? null}
           onClose={() => setPaying(null)}
           onPaid={() => {
             setPaying(null);
@@ -185,6 +207,7 @@ function EmployeeDialog({ onClose, onSaved }: { onClose: () => void; onSaved: ()
   const [position, setPosition] = useState('');
   const [phone, setPhone] = useState('');
   const [salary, setSalary] = useState('');
+  const [hireDate, setHireDate] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -198,6 +221,7 @@ function EmployeeDialog({ onClose, onSaved }: { onClose: () => void; onSaved: ()
         position: position.trim() || null,
         phone: phone.trim() || null,
         salaryBase: salary.trim() ? Number(salary) : null,
+        hireDate: hireDate || null,
       });
       onSaved();
     } catch (err: any) {
@@ -233,6 +257,9 @@ function EmployeeDialog({ onClose, onSaved }: { onClose: () => void; onSaved: ()
               placeholder="0.00"
             />
           </Field>
+          <Field label="Fecha de ingreso">
+            <input type="date" value={hireDate} onChange={(e) => setHireDate(e.target.value)} className={INPUT} />
+          </Field>
           <p className="text-xs font-light text-brand-950/40">
             El sueldo es solo una referencia al pagar — cada pago se registra a mano, porque casi
             nunca coincide exacto.
@@ -250,11 +277,13 @@ function EmployeeDialog({ onClose, onSaved }: { onClose: () => void; onSaved: ()
 function PayDialog({
   employee,
   symbol,
+  rateBs,
   onClose,
   onPaid,
 }: {
   employee: Employee;
   symbol: string;
+  rateBs: string | null;
   onClose: () => void;
   onPaid: () => void;
 }) {
@@ -263,6 +292,7 @@ function PayDialog({
   const [method, setMethod] = useState('CASH');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const isBsMethod = BS_METHODS.has(method);
 
   async function submit() {
     if (!amount || Number(amount) <= 0) return setError('Escribe un monto mayor a 0.');
@@ -316,6 +346,18 @@ function PayDialog({
               ))}
             </select>
           </Field>
+          {isBsMethod && (
+            <p className="rounded-lg bg-brand-500/[0.06] px-3 py-2 text-xs font-medium text-brand-950/70">
+              {rateBs && Number(amount) > 0 ? (
+                <>
+                  Se le paga <span className="font-bold">{formatBs(Number(amount), rateBs)}</span> a tasa{' '}
+                  {formatBs(1, rateBs)}/{symbol}
+                </>
+              ) : (
+                'No se pudo obtener la tasa del día — se registrará sin conversión a Bs.'
+              )}
+            </p>
+          )}
           <p className="text-xs font-light text-brand-950/40">
             Se registra también como gasto en la categoría Nómina, para que cuente en el balance
             y en el cierre de caja.

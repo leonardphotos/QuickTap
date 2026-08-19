@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
+import { API_ORIGIN } from '@/utils/apiOrigin';
 import { Ban, Check, Clock, MessageCircle, Table2, Users } from 'lucide-react';
 import { api, getToken } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
@@ -65,7 +66,7 @@ export default function ReservationsPage() {
 
   useEffect(() => {
     load();
-    const socket: Socket = io('/', { auth: { token: getToken() } });
+    const socket: Socket = io(API_ORIGIN || '/', { auth: { token: getToken() } });
     socket.on('reservation:new', load);
     socket.on('reservation:updated', load);
     return () => {

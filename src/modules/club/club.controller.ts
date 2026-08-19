@@ -10,6 +10,7 @@ import {
   createCourtSchema,
   createMaintenanceSchema,
   createScheduleSchema,
+  dateRangeQuerySchema,
   listBookingsQuerySchema,
   recordBookingPaymentSchema,
   reviewReportedPaymentSchema,
@@ -19,6 +20,10 @@ import {
 } from './club.dto';
 import { clubService } from './club.service';
 import { cancelBookingSchema } from '../club-players/club-player.dto';
+
+function parseDateRangeQuery(req: Request): { from?: string; to?: string } {
+  return dateRangeQuerySchema.parse(req.query);
+}
 
 export const clubController = {
   // Canchas
@@ -35,6 +40,10 @@ export const clubController = {
   }),
   deleteCourt: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await clubService.deleteCourt(req.restaurantId!, req.params.id) });
+  }),
+  uploadCourtPhoto: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw badRequest('No se recibió ningún archivo.');
+    res.status(201).json({ data: { url: `/uploads/club-courts/${req.file.filename}` } });
   }),
 
   // Horarios
@@ -140,32 +149,36 @@ export const clubController = {
     res.json({ data: await clubService.getPublicProducts(req.params.slug) });
   }),
 
-  /** GET /club/stats/occupancy?days=14 — ocupación día por día. */
+  /** GET /club/stats/occupancy?days=14 (o ?from=YYYY-MM-DD&to=YYYY-MM-DD) — ocupación día por día. */
   occupancy: asyncHandler(async (req: Request, res: Response) => {
     const raw = Number(req.query.days);
     // Se acota a 90: más días no se leen en un gráfico de barras y sí pesan en la consulta.
     const days = Number.isFinite(raw) ? Math.min(90, Math.max(1, Math.trunc(raw))) : 14;
-    res.json({ data: await clubStatsService.occupancy(req.restaurantId!, days) });
+    const { from, to } = parseDateRangeQuery(req);
+    res.json({ data: await clubStatsService.occupancy(req.restaurantId!, days, from, to) });
   }),
 
-  /** GET /club/stats/customers?days=90 — quién vuelve y cuánto deja. */
+  /** GET /club/stats/customers?days=90 (o from/to) — quién vuelve y cuánto deja. */
   frequentCustomers: asyncHandler(async (req: Request, res: Response) => {
     const raw = Number(req.query.days);
     const days = Number.isFinite(raw) ? Math.min(365, Math.max(1, Math.trunc(raw))) : 90;
-    res.json({ data: await clubStatsService.frequentCustomers(req.restaurantId!, days) });
+    const { from, to } = parseDateRangeQuery(req);
+    res.json({ data: await clubStatsService.frequentCustomers(req.restaurantId!, days, from, to) });
   }),
 
-  /** GET /club/stats/consumption?days=30 — qué se consume más y qué está por acabarse. */
+  /** GET /club/stats/consumption?days=30 (o from/to) — qué se consume más y qué está por acabarse. */
   consumption: asyncHandler(async (req: Request, res: Response) => {
     const raw = Number(req.query.days);
     const days = Number.isFinite(raw) ? Math.min(180, Math.max(1, Math.trunc(raw))) : 30;
-    res.json({ data: await clubStatsService.consumption(req.restaurantId!, days) });
+    const { from, to } = parseDateRangeQuery(req);
+    res.json({ data: await clubStatsService.consumption(req.restaurantId!, days, from, to) });
   }),
 
   finance: asyncHandler(async (req: Request, res: Response) => {
     const raw = Number(req.query.days);
     const days = Number.isFinite(raw) ? Math.min(365, Math.max(1, Math.trunc(raw))) : 30;
-    res.json({ data: await clubStatsService.finance(req.restaurantId!, days) });
+    const { from, to } = parseDateRangeQuery(req);
+    res.json({ data: await clubStatsService.finance(req.restaurantId!, days, from, to) });
   }),
 
   debts: asyncHandler(async (req: Request, res: Response) => {
@@ -174,6 +187,7 @@ export const clubController = {
 
   breakEven: asyncHandler(async (req: Request, res: Response) => {
     const { range, date } = breakEvenQuerySchema.parse(req.query);
-    res.json({ data: await clubStatsService.breakEven(req.restaurantId!, range, date) });
+    const { from, to } = parseDateRangeQuery(req);
+    res.json({ data: await clubStatsService.breakEven(req.restaurantId!, range, date, from, to) });
   }),
 };

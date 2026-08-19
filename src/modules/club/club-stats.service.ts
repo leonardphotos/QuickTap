@@ -7,6 +7,23 @@ import { resolveDateFilter, type ReportRange } from '../../utils/date-range';
 import { bucketSalesByDay, computeBreakEven, monthLabel, type BreakEvenResponse } from '../../utils/breakeven';
 import { movementService } from '../movements/movement.service';
 import { shopSalesCogsSummary } from '../shop/shop.service';
+import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
+
+/**
+ * Ventana de fechas de un reporte del club: si viene `from`/`to` (YYYY-MM-DD, hora de
+ * Caracas), ese tramo exacto manda sobre `days`. Sin from/to, se conserva el
+ * comportamiento de siempre (los últimos `days` días). `dayCount` es cuántos días cubre
+ * la ventana — lo usan occupancy (iterar día por día) y consumption (calcular ritmo diario).
+ */
+function resolveStatsWindow(days: number, from?: string, to?: string): { since: Date; until?: Date; dayCount: number } {
+  if (from || to) {
+    const since = startOfDayCaracas(from ?? to!);
+    const until = new Date(startOfDayCaracas(to ?? from!).getTime() + 24 * 60 * 60 * 1000);
+    const dayCount = Math.max(1, Math.round((until.getTime() - since.getTime()) / (24 * 60 * 60 * 1000)));
+    return { since, until, dayCount };
+  }
+  return { since: new Date(Date.now() - days * 86_400_000), dayCount: days };
+}
 
 /**
  * ============================================================================
@@ -58,13 +75,23 @@ function unionMinutes(intervals: Interval[]): number {
  * más el detalle por cancha del período — para poder ver no solo cuánto se vendió
  * sino cuál cancha se está quedando vacía.
  */
-async function occupancy(restaurantId: string, days: number) {
-  const today = caracasPartsOf(new Date()).dateStr;
-  const start = startOfDayCaracas(today);
-  start.setUTCDate(start.getUTCDate() - (days - 1));
-  // Fin exclusivo: el arranque del día siguiente a hoy.
-  const endExclusive = startOfDayCaracas(today);
-  endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+async function occupancy(restaurantId: string, days: number, from?: string, to?: string) {
+  let start: Date;
+  let endExclusive: Date;
+  let dayCount: number;
+  if (from || to) {
+    start = startOfDayCaracas(from ?? to!);
+    endExclusive = new Date(startOfDayCaracas(to ?? from!).getTime() + 24 * 60 * 60 * 1000);
+    dayCount = Math.max(1, Math.round((endExclusive.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)));
+  } else {
+    const today = caracasPartsOf(new Date()).dateStr;
+    start = startOfDayCaracas(today);
+    start.setUTCDate(start.getUTCDate() - (days - 1));
+    // Fin exclusivo: el arranque del día siguiente a hoy.
+    endExclusive = startOfDayCaracas(today);
+    endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+    dayCount = days;
+  }
 
   const [courts, schedules, blocks] = await Promise.all([
     prisma.clubCourt.findMany({
@@ -127,7 +154,7 @@ async function occupancy(restaurantId: string, days: number) {
   for (const c of courts)
     byCourt.set(c.id, { courtId: c.id, name: c.name, bookedMinutes: 0, rentalMinutes: 0, academyMinutes: 0, availableMinutes: 0 });
 
-  for (let i = 0; i < days; i += 1) {
+  for (let i = 0; i < dayCount; i += 1) {
     const dayStart = new Date(start);
     dayStart.setUTCDate(dayStart.getUTCDate() + i);
     const { dateStr, dayOfWeek: weekday } = caracasPartsOf(dayStart);
@@ -256,10 +283,10 @@ async function occupancy(restaurantId: string, days: number) {
  * Se agrupa por teléfono (no por `customerId`): un mismo jugador puede haber reservado
  * antes de que existiera el directorio de clientes, y quedaría partido en dos.
  */
-async function frequentCustomers(restaurantId: string, days: number, limit = 30) {
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+async function frequentCustomers(restaurantId: string, days: number, from?: string, to?: string, limit = 30) {
+  const { since, until } = resolveStatsWindow(days, from, to);
   const bookings = await prisma.clubBooking.findMany({
-    where: { restaurantId, createdAt: { gte: since }, status: { not: 'CANCELLED' } },
+    where: { restaurantId, createdAt: { gte: since, ...(until ? { lt: until } : {}) }, status: { not: 'CANCELLED' } },
     select: {
       playerName: true,
       playerPhone: true,
@@ -333,16 +360,19 @@ async function frequentCustomers(restaurantId: string, days: number, limit = 30)
  * los jugadores piden desde la tablet de la cancha (ClubTabItem). Mirar solo uno subestima
  * el consumo justo de lo que más rota, que es lo que uno necesita reponer a tiempo.
  */
-async function consumption(restaurantId: string, days: number) {
-  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+async function consumption(restaurantId: string, days: number, from?: string, to?: string) {
+  const { since, until, dayCount } = resolveStatsWindow(days, from, to);
 
   const [saleItems, tabItems, products] = await Promise.all([
     prisma.shopSaleItem.findMany({
-      where: { sale: { restaurantId, time: { gte: since }, returned: false } },
+      where: { sale: { restaurantId, time: { gte: since, ...(until ? { lt: until } : {}) }, returned: false } },
       select: { productId: true, name: true, qty: true, price: true },
     }),
     prisma.clubTabItem.findMany({
-      where: { order: { restaurantId, createdAt: { gte: since }, status: { not: 'CANCELLED' } }, source: 'CLUB_STORE' },
+      where: {
+        order: { restaurantId, createdAt: { gte: since, ...(until ? { lt: until } : {}) }, status: { not: 'CANCELLED' } },
+        source: 'CLUB_STORE',
+      },
       select: { sourceProductId: true, productName: true, quantity: true, unitPrice: true },
     }),
     prisma.shopProduct.findMany({
@@ -371,7 +401,7 @@ async function consumption(restaurantId: string, days: number) {
   const top = [...byProduct.values()]
     .map((p) => {
       const stock = p.productId ? (stockOf.get(p.productId) ?? null) : null;
-      const perDay = p.qty / days;
+      const perDay = p.qty / dayCount;
       return {
         productId: p.productId,
         name: p.name,
@@ -400,7 +430,7 @@ async function consumption(restaurantId: string, days: number) {
       .sort((a, b) => (a.daysLeft ?? 0) - (b.daysLeft ?? 0))
       .slice(0, 10),
     lowStock: lowStock.slice(0, 15).map((p) => ({ ...p, exists: product.has(p.id) })),
-    days,
+    days: dayCount,
   };
 }
 
@@ -417,27 +447,35 @@ async function consumption(restaurantId: string, days: number) {
  * Una venta devuelta no dejó plata. Y de una venta fiada solo entró el abono
  * inicial (`amountPaidNow`); el resto llega después como ShopSalePayment.
  */
-async function finance(restaurantId: string, days = 30) {
-  const since = new Date(Date.now() - days * 86_400_000);
+async function finance(restaurantId: string, days = 30, from?: string, to?: string) {
+  const { since, until } = resolveStatsWindow(days, from, to);
+  const createdWindow = { gte: since, ...(until ? { lt: until } : {}) };
 
-  const [courtPayments, storeSales, storeInstallments, academyPayments] = await Promise.all([
+  const [courtPayments, storeSales, storeInstallments, academyPayments, restaurant] = await Promise.all([
     prisma.clubBookingPayment.findMany({
-      where: { booking: { restaurantId }, createdAt: { gte: since } },
+      where: { booking: { restaurantId }, createdAt: createdWindow },
       select: { amountBase: true, method: true },
     }),
     prisma.shopSale.findMany({
-      where: { restaurantId, time: { gte: since }, returned: false },
+      where: { restaurantId, time: createdWindow, returned: false },
       select: { total: true, paymentMethod: true, creditTerms: true, amountPaidNow: true },
     }),
     prisma.shopSalePayment.findMany({
-      where: { shopSale: { restaurantId }, createdAt: { gte: since } },
+      where: { shopSale: { restaurantId }, createdAt: createdWindow },
       select: { amount: true, method: true },
     }),
     prisma.clubAcademyPayment.findMany({
-      where: { restaurantId, createdAt: { gte: since } },
+      where: { restaurantId, createdAt: createdWindow },
       select: { amountBase: true, method: true },
     }),
+    prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { baseCurrency: true } }),
   ]);
+
+  // Tasa ACTUAL (no la histórica de cada transacción — ninguna de estas tres fuentes la
+  // congela hoy) para dar un total de referencia en Bs. Es una aproximación: si el rango
+  // cubre varias semanas con la tasa moviéndose, el total en Bs no es exacto día a día,
+  // pero sí sirve como orden de magnitud al cierre.
+  const rate = restaurant ? await exchangeRateService.getRate(restaurant.baseCurrency, restaurantId).catch(() => null) : null;
 
   const byMethod = new Map<string, Prisma.Decimal>();
   const add = (method: PaymentMethod | null, amount: Prisma.Decimal) => {
@@ -471,10 +509,13 @@ async function finance(restaurantId: string, days = 30) {
   }
 
   const total = round2(court.add(store).add(academy));
+  const toBs = (amount: Prisma.Decimal) => (rate ? round2(amount.mul(rate.rateBs)).toFixed(2) : null);
 
   return {
     days,
     totalBase: total.toFixed(2),
+    totalBs: toBs(total),
+    exchangeRate: rate?.rateBs?.toFixed(4) ?? null,
     bySource: [
       { key: 'court', label: 'Reservas de cancha', amountBase: round2(court).toFixed(2), count: courtPayments.length },
       { key: 'store', label: 'Tienda', amountBase: round2(store).toFixed(2), count: storeSales.length + storeInstallments.length },
@@ -485,6 +526,7 @@ async function finance(restaurantId: string, days = 30) {
         method,
         label: method === 'SIN_METODO' ? 'Sin método registrado' : PAYMENT_METHOD_LABELS[method as PaymentMethod],
         amountBase: round2(amount).toFixed(2),
+        totalBs: toBs(amount),
       }))
       .filter((m) => Number(m.amountBase) > 0)
       .sort((a, b) => Number(b.amountBase) - Number(a.amountBase)),
@@ -640,8 +682,8 @@ async function debts(restaurantId: string) {
  * N días y acá hace falta mes calendario para combinar con `movementService.summarizeFixedCosts`
  * — ver src/utils/breakeven.ts para la fórmula compartida con Restaurante y Shop.
  */
-async function breakEven(restaurantId: string, range: ReportRange, date?: string): Promise<BreakEvenResponse> {
-  const dateFilter = resolveDateFilter({ range, date });
+async function breakEven(restaurantId: string, range: ReportRange, date?: string, from?: string, to?: string): Promise<BreakEvenResponse> {
+  const dateFilter = resolveDateFilter({ range, date, from, to });
 
   const [courtPayments, academyPayments, storeSales, store, fixedCosts] = await Promise.all([
     prisma.clubBookingPayment.findMany({

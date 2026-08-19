@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
+import { API_ORIGIN } from '@/utils/apiOrigin';
 import { Bike, Check, MessageCircle, Store, X } from 'lucide-react';
 import { api, getToken } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -63,7 +64,7 @@ export default function ShopOrdersPage({ restaurant }: { restaurant: AuthRestaur
   // Un pedido que entra mientras el dueño mira otra cosa tiene que aparecer solo: si hubiera
   // que recargar la página a mano, la tienda virtual no sirve de nada.
   useEffect(() => {
-    const socket: Socket = io('/', { auth: { token: getToken() } });
+    const socket: Socket = io(API_ORIGIN || '/', { auth: { token: getToken() } });
     socket.on('shop:order-new', (order: ShopOrder) => {
       setOrders((prev) => (prev.some((o) => o.id === order.id) ? prev : [order, ...prev]));
     });

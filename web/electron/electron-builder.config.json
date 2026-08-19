@@ -1,0 +1,36 @@
+{
+  "appId": "club.quicktap.app",
+  "productName": "QuickTap",
+  "directories": {
+    "buildResources": "resources"
+  },
+  "files": [
+    "assets/**/*",
+    "build/**/*",
+    "capacitor.config.*",
+    "app/**/*"
+  ],
+  "publish": {
+    "provider": "github",
+    "owner": "leonardphotos",
+    "repo": "QuickTap",
+    "releaseType": "release"
+  },
+  "nsis": {
+    "allowElevation": true,
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true
+  },
+  "win": {
+    "target": [
+      { "target": "nsis", "arch": ["x64"] }
+    ],
+    "icon": "assets/appIcon.ico"
+  },
+  "mac": {
+    "category": "public.app-category.food-and-drink",
+    "target": "dmg"
+  }
+}

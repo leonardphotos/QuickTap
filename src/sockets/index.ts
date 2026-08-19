@@ -62,6 +62,10 @@ export function initSockets(server: HttpServer): IOServer {
       origin: env.corsOrigins.includes('*') ? true : env.corsOrigins,
       methods: ['GET', 'POST'],
     },
+    // Defaults (20s/25s) son cortos para la app de escritorio/móvil en redes inestables
+    // (wifi de local, 4G) — un pequeño corte de red no debe tumbar la sesión de cocina.
+    pingTimeout: 60000,
+    pingInterval: 25000,
   });
 
   // Autenticación del socket: staff vía JWT, o cliente público vía qrToken

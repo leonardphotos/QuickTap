@@ -4,7 +4,7 @@ import { api } from '@/api/client';
 import { useAuth, type AuthRestaurant } from '@/context/AuthContext';
 import { methodAccountsOf } from '@/utils/payment-accounts';
 import { MethodAccountPicker } from '@/components/admin/MethodAccountPicker';
-import { formatBase, formatBs } from '@/utils/format';
+import { formatBase, formatBs, formatBsAbsolute } from '@/utils/format';
 import { Toast } from '@/components/ui/toast';
 import { useToast } from '@/hooks/useToast';
 import { cn } from '@/lib/utils';
@@ -23,6 +23,7 @@ import { clubApi, todayCaracas, type ClubBooking } from './clubApi';
 import { clubStoreApi, type StoreSale } from './clubStoreApi';
 import { academyApi } from './academia/academyApi';
 import { card } from './clubStyle';
+import { ClubDateRangeFilter } from './ClubDateRangeFilter';
 import { BreakEvenCard } from '@/components/admin/BreakEvenCard';
 
 interface Props {
@@ -62,8 +63,13 @@ const TAB_LABELS: Record<string, string> = {
  *  club-stats.service.ts — para que Caja y Resumen nunca digan cifras distintas. */
 interface Finance {
   totalBase: string;
+  /** Equivalente en Bs a la tasa ACTUAL (no la histórica de cada cobro — ninguna de las tres
+   * fuentes la congela hoy) — sirve de referencia, no es exacto si el rango cubre varias
+   * semanas con la tasa moviéndose. Null si todavía no hay tasa cargada. */
+  totalBs: string | null;
+  exchangeRate: string | null;
   bySource: { key: string; label: string; amountBase: string; count: number }[];
-  byMethod: { method: string; label: string; amountBase: string }[];
+  byMethod: { method: string; label: string; amountBase: string; totalBs: string | null }[];
 }
 
 interface DebtRow {
@@ -109,6 +115,8 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
   const [ledger, setLedger] = useState<MovementsResponse | null>(null);
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [finance, setFinance] = useState<Finance | null>(null);
+  const [financeFrom, setFinanceFrom] = useState('');
+  const [financeTo, setFinanceTo] = useState('');
   const [debts, setDebts] = useState<Debts | null>(null);
   // Globo de "Cuentas por pagar": gastos a crédito sin saldar + órdenes de pago
   // pendientes — mismo criterio que lista PayablesSection.
@@ -138,10 +146,6 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
       .then((r) => setLedger(r.data.data))
       .catch(() => setLedger(null));
     api
-      .get('/club/stats/finance', { params: { days: 30 } })
-      .then((r) => setFinance(r.data.data))
-      .catch(() => setFinance(null));
-    api
       .get('/club/stats/debts')
       .then((r) => setDebts(r.data.data))
       .catch(() => setDebts(null));
@@ -156,6 +160,13 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
   }, []);
 
   useEffect(load, [load]);
+
+  useEffect(() => {
+    api
+      .get('/club/stats/finance', { params: { days: 30, from: financeFrom || undefined, to: financeTo || undefined } })
+      .then((r) => setFinance(r.data.data))
+      .catch(() => setFinance(null));
+  }, [financeFrom, financeTo]);
 
   const money = (n: number) => formatBase(n, restaurant.currencySymbol);
   const moneyBs = (n: number) => (restaurant.exchangeRate ? formatBs(n, restaurant.exchangeRate.rateBs) : null);
@@ -393,32 +404,57 @@ export default function ClubAdminPage({ restaurant, canSeeMoney }: Props) {
       </div>
 
       {/* Métodos de pago: cómo pagó el cliente y cuánto entró por cada vía. */}
-      {finance && Number(finance.totalBase) > 0 && (
+      {finance && (
         <section>
-          <h2 className="mb-2.5 text-[14px] font-bold text-brand-950">Métodos de pago · últimos 30 días</h2>
-          <div className={cn(card, 'divide-y divide-brand-950/[0.06] overflow-hidden')}>
-            {finance.byMethod.map((m) => {
-              const pct = (Number(m.amountBase) / Number(finance.totalBase)) * 100;
-              return (
-                <div key={m.method} className="p-3.5">
-                  <div className="flex items-baseline justify-between gap-2">
-                    <span className="min-w-0 truncate text-[14px] font-medium text-brand-950">{m.label}</span>
-                    <span className="shrink-0 text-[14px] font-bold text-brand-950">{money(Number(m.amountBase))}</span>
-                  </div>
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-brand-950/[0.06]">
-                      <div className="h-full rounded-full bg-brand-500" style={{ width: `${pct}%` }} />
-                    </div>
-                    <span className="shrink-0 text-[11px] font-light text-brand-950/40">{Math.round(pct)}%</span>
-                  </div>
-                </div>
-              );
-            })}
-            <div className="flex items-center justify-between bg-brand-950/[0.03] p-3.5">
-              <span className="text-[13px] font-semibold text-brand-950/70">Total cobrado</span>
-              <span className="text-[15px] font-bold text-brand-950">{money(Number(finance.totalBase))}</span>
-            </div>
+          <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-[14px] font-bold text-brand-950">
+              Métodos de pago · {financeFrom || financeTo ? 'período elegido' : 'últimos 30 días'}
+            </h2>
           </div>
+          <div className="mb-2.5">
+            <ClubDateRangeFilter from={financeFrom} to={financeTo} onFrom={setFinanceFrom} onTo={setFinanceTo} />
+          </div>
+          {Number(finance.totalBase) > 0 ? (
+            <div className={cn(card, 'divide-y divide-brand-950/[0.06] overflow-hidden')}>
+              {finance.byMethod.map((m) => {
+                const pct = (Number(m.amountBase) / Number(finance.totalBase)) * 100;
+                return (
+                  <div key={m.method} className="p-3.5">
+                    <div className="flex items-baseline justify-between gap-2">
+                      <span className="min-w-0 truncate text-[14px] font-medium text-brand-950">{m.label}</span>
+                      <div className="shrink-0 text-right">
+                        <span className="block text-[14px] font-bold text-brand-950">{money(Number(m.amountBase))}</span>
+                        {m.totalBs && (
+                          <span className="block text-[11px] font-light text-brand-950/40">{formatBsAbsolute(m.totalBs)}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-brand-950/[0.06]">
+                        <div className="h-full rounded-full bg-brand-500" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="shrink-0 text-[11px] font-light text-brand-950/40">{Math.round(pct)}%</span>
+                    </div>
+                  </div>
+                );
+              })}
+              <div className="flex items-center justify-between bg-brand-950/[0.03] p-3.5">
+                <span className="text-[13px] font-semibold text-brand-950/70">Total cobrado</span>
+                <div className="text-right">
+                  <span className="block text-[15px] font-bold text-brand-950">{money(Number(finance.totalBase))}</span>
+                  {finance.totalBs && (
+                    <span className="block text-[11px] font-light text-brand-950/40">
+                      {formatBsAbsolute(finance.totalBs)} · tasa {finance.exchangeRate}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <p className={cn(card, 'p-5 text-center text-[13px] font-light text-brand-950/40')}>
+              No hay cobros en este período.
+            </p>
+          )}
         </section>
       )}
 

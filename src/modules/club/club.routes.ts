@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { requireBusinessType, requireRole, tenantGuard } from '../../middlewares/auth.middleware';
 import { publicBookingRateLimit } from '../../middlewares/rate-limit.middleware';
-import { optimizeImage, uploadClubPaymentProof } from '../../middlewares/upload.middleware';
+import { optimizeImage, uploadClubCourtPhoto, uploadClubPaymentProof } from '../../middlewares/upload.middleware';
 import { clubController } from './club.controller';
 
 /**
@@ -35,6 +35,7 @@ router.get('/courts', requireRole('OWNER', 'ADMIN', 'CASHIER', 'WAITER', 'CANCHA
 router.post('/courts', admin, clubController.createCourt);
 router.patch('/courts/:id', admin, clubController.updateCourt);
 router.delete('/courts/:id', admin, clubController.deleteCourt);
+router.post('/courts/upload-photo', admin, uploadClubCourtPhoto, optimizeImage(900, 900), clubController.uploadCourtPhoto);
 
 router.get('/schedules', staff, clubController.listSchedules);
 router.post('/schedules', admin, clubController.createSchedule);

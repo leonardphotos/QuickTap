@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
+import { API_ORIGIN } from '@/utils/apiOrigin';
 import { Check, ChefHat, Clock, Phone, Users, Wallet, X } from 'lucide-react';
 import { clubLinkApi, type CourtPayment, type KitchenClubOrder } from '@/api/clubLink';
 import { getToken } from '@/api/client';
@@ -54,7 +55,7 @@ export default function ClubOrdersPage() {
 
   useEffect(() => {
     load();
-    const socket = io('/', { auth: { token: getToken() } });
+    const socket = io(API_ORIGIN || '/', { auth: { token: getToken() } });
     socket.on('connect', () => setConnected(true));
     socket.on('disconnect', () => setConnected(false));
     socket.on('club:tab-order-new', load);

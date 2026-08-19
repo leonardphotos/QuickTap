@@ -12,6 +12,7 @@ export interface ClubCourt {
   name: string;
   sport: ClubSport;
   courtType: ClubCourtType;
+  photoUrl: string | null;
   active: boolean;
   sortOrder: number;
 }

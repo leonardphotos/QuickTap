@@ -15,6 +15,7 @@ import {
   renderWhatsappTemplate,
 } from '../../utils/whatsapp';
 import { emitToKitchen, emitToTable, SocketEvents } from '../../sockets';
+import { getMessaging } from '../../utils/firebase-admin';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { resolveDateFilter } from '../../utils/date-range';
 import { bankLedgerService } from '../bank-accounts/bank-ledger.service';
@@ -849,6 +850,28 @@ function salesStatsPeriodStart(range: 'week' | 'month', now: Date): Date {
 }
 
 /**
+ * Push (FCM) de "pedido nuevo" a los dispositivos registrados del restaurante (app de
+ * escritorio/Android) — a diferencia del socket en vivo (emitToKitchen), esto SÍ llega aunque
+ * la app esté minimizada/cerrada en Android, que es el caso que el socket no puede cubrir.
+ * No hace nada (ni tira error) si Firebase no está configurado o no hay dispositivos
+ * registrados todavía — el negocio tiene que poder vender igual sin esto configurado.
+ */
+async function sendNewOrderPush(restaurantId: string, order: { orderNumber: number; channel: OrderChannel }) {
+  const messaging = getMessaging();
+  if (!messaging) return;
+  const tokens = await prisma.deviceToken.findMany({ where: { restaurantId }, select: { token: true } });
+  if (tokens.length === 0) return;
+  const CHANNEL_LABEL: Record<OrderChannel, string> = { DINE_IN: 'Mesa', DELIVERY: 'Delivery', PICKUP: 'Pick-up', BAR: 'Barra' };
+  await messaging
+    .sendEachForMulticast({
+      tokens: tokens.map((t) => t.token),
+      notification: { title: `Nuevo pedido #${order.orderNumber}`, body: CHANNEL_LABEL[order.channel] },
+      android: { priority: 'high' },
+    })
+    .catch(() => undefined);
+}
+
+/**
  * Tramo desde–hasta de Estadísticas (fechas "YYYY-MM-DD", hora de Caracas, ambas inclusivas).
  * Si solo viene una de las dos, la otra se completa con hoy. Devuelve null si no vino ninguna.
  */
@@ -978,6 +1001,7 @@ export const orderService = {
 
     // Empuja el aviso en tiempo real: si necesita confirmación el mesero la ve
     // en "Órdenes de Mesa"; si no, entra directo a la cola de cocina.
+    void sendNewOrderPush(restaurantId, order);
     emitToKitchen(restaurantId, SocketEvents.ORDER_NEW, {
       orderId: order.id,
       orderNumber: order.orderNumber,
@@ -1217,6 +1241,7 @@ export const orderService = {
       });
     }
 
+    void sendNewOrderPush(restaurantId, order);
     emitToKitchen(restaurantId, SocketEvents.ORDER_NEW, {
       orderId: order.id,
       orderNumber: order.orderNumber,
@@ -1382,6 +1407,7 @@ export const orderService = {
     // Incluye teléfono/dirección/método de pago: la Estación de Impresión los usa para armar
     // la comanda de delivery (nombre + monto + descripción + ubicación, todo junto) cuando el
     // restaurante acepte el pedido (ver acceptOrder más abajo — ahí es cuando se imprime).
+    void sendNewOrderPush(restaurantId, order);
     emitToKitchen(restaurantId, SocketEvents.ORDER_NEW, {
       orderId: order.id,
       orderNumber: order.orderNumber,
