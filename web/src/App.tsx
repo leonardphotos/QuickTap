@@ -35,6 +35,7 @@ const ExpensesPage = lazy(() => import('./pages/admin/ExpensesPage'));
 const PurchasesPage = lazy(() => import('./pages/admin/PurchasesPage'));
 const SucursalesPage = lazy(() => import('./pages/admin/SucursalesPage'));
 const ReservationsPage = lazy(() => import('./pages/admin/ReservationsPage'));
+const SyncConflictsPage = lazy(() => import('./pages/admin/SyncConflictsPage'));
 const QuotesPage = lazy(() => import('./pages/admin/QuotesPage'));
 const ComandaKioskPage = lazy(() => import('./pages/admin/ComandaKioskPage'));
 const NumeroPage = lazy(() => import('./pages/admin/NumeroPage'));
@@ -141,6 +142,7 @@ export default function App() {
               <Route path="purchases" element={<PurchasesPage />} />
               <Route path="sucursales" element={<SucursalesPage />} />
               <Route path="reservations" element={<ReservationsPage />} />
+              <Route path="pedidos-por-revisar" element={<SyncConflictsPage />} />
               <Route path="quotes" element={<QuotesPage />} />
               <Route path="screen" element={<ScreenPage />} />
               {/* AdminLayout intercepta el rol Comanda antes del Outlet y renderiza el kiosco

@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
+import { notFound } from '../../utils/http-error';
 import { computeRecipeStockDeltas, orderService } from '../orders/order.service';
 
 /**
@@ -254,17 +255,42 @@ export const offlineService = {
       ordersCreated: 0,
       ordersSkipped: 0,
       served: 0,
+      conflicts: 0,
       assigned: [] as { id: string; offlineTicketRef: string; orderNumber: number }[],
+    };
+
+    /** Guarda el pedido entero para que una persona lo revise, en vez de perderlo. */
+    const recordConflict = async (
+      order: SyncOrderInput,
+      kind: 'SESSION_CLOSED' | 'TABLE_MISSING' | 'PRODUCT_MISSING' | 'OTHER',
+      reason: string,
+    ) => {
+      await prisma.syncConflict.create({
+        data: {
+          restaurantId,
+          kind,
+          offlineTicketRef: order.offlineTicketRef,
+          reason,
+          payload: order as unknown as Prisma.InputJsonValue,
+        },
+      });
+      result.conflicts += 1;
     };
 
     // --- Cuentas de mesa ---
     // Las que ya existían (venían en el snapshot) se saltan; solo se crean las que nacieron
     // durante el corte. Se hace primero porque los pedidos las referencian.
+    const tablesMissing = new Set<string>();
     for (const session of input.sessions) {
       const exists = await prisma.tableSession.findUnique({ where: { id: session.id }, select: { id: true } });
       if (exists) continue;
       const table = await prisma.table.findFirst({ where: { id: session.tableId, restaurantId }, select: { id: true } });
-      if (!table) continue; // la mesa se borró mientras no había conexión
+      if (!table) {
+        // La mesa se borró durante el corte. Los pedidos de esa cuenta se marcan como
+        // conflicto más abajo, en vez de reventar toda la tanda con un error de clave foránea.
+        tablesMissing.add(session.id);
+        continue;
+      }
       await prisma.tableSession.create({
         data: {
           id: session.id,
@@ -297,7 +323,46 @@ export const offlineService = {
         continue;
       }
 
-      const created = await prisma.$transaction(async (tx) => {
+      // --- Conflictos: gana lo que ya está en la nube, esto queda para revisión humana ---
+
+      if (o.tableSessionId && tablesMissing.has(o.tableSessionId)) {
+        await recordConflict(o, 'TABLE_MISSING', 'La mesa de este pedido se eliminó mientras no había conexión.');
+        continue;
+      }
+
+      if (o.tableSessionId) {
+        const session = await prisma.tableSession.findUnique({
+          where: { id: o.tableSessionId },
+          select: { status: true },
+        });
+        if (!session) {
+          await recordConflict(o, 'TABLE_MISSING', 'La cuenta de este pedido ya no existe en la nube.');
+          continue;
+        }
+        // Esta es la que pasaría en silencio si no se revisara: la cuenta se cobró y se cerró
+        // mientras el salón seguía cargándole pedidos sin saberlo.
+        if (session.status === 'CLOSED') {
+          await recordConflict(
+            o,
+            'SESSION_CLOSED',
+            'La cuenta de esta mesa ya se había cerrado y cobrado cuando llegó este pedido.',
+          );
+          continue;
+        }
+      }
+
+      const productIds = [...new Set(o.items.map((i) => i.productId).filter((id): id is string => !!id))];
+      if (productIds.length > 0) {
+        const found = await prisma.product.count({ where: { id: { in: productIds }, restaurantId } });
+        if (found !== productIds.length) {
+          await recordConflict(o, 'PRODUCT_MISSING', 'Algún producto de este pedido se eliminó mientras no había conexión.');
+          continue;
+        }
+      }
+
+      let created;
+      try {
+        created = await prisma.$transaction(async (tx) => {
         const orderNumber = await nextOrderNumberForSync(tx, restaurantId);
         return tx.order.create({
           data: {
@@ -349,7 +414,13 @@ export const offlineService = {
           },
           select: { id: true, orderNumber: true },
         });
-      });
+        });
+      } catch (e) {
+        // Cualquier otro fallo: se guarda el pedido entero y se sigue con los demás. Un solo
+        // pedido problemático no puede dejar sin subir a todos los del corte.
+        await recordConflict(o, 'OTHER', e instanceof Error ? e.message : 'No se pudo subir este pedido.');
+        continue;
+      }
 
       result.ordersCreated += 1;
       result.assigned.push({ id: created.id, offlineTicketRef: o.offlineTicketRef, orderNumber: created.orderNumber });
@@ -363,6 +434,29 @@ export const offlineService = {
     }
 
     return result;
+  },
+
+  /** Conflictos sin resolver — lo que una persona tiene que mirar tras un corte. */
+  async listConflicts(restaurantId: string, includeResolved = false) {
+    return prisma.syncConflict.findMany({
+      where: { restaurantId, ...(includeResolved ? {} : { resolvedAt: null }) },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+  },
+
+  /**
+   * Marca un conflicto como revisado. No aplica nada por su cuenta a propósito: si el pedido
+   * hay que cobrarlo igual, el encargado lo carga a mano con los datos que quedaron guardados.
+   * Aplicarlo solo podría cobrar dos veces una cuenta que ya se cerró.
+   */
+  async resolveConflict(restaurantId: string, id: string, userId: string) {
+    const existing = await prisma.syncConflict.findFirst({ where: { id, restaurantId }, select: { id: true } });
+    if (!existing) throw notFound('Conflicto no encontrado.');
+    return prisma.syncConflict.update({
+      where: { id },
+      data: { resolvedAt: new Date(), resolvedById: userId },
+    });
   },
 };
 

@@ -1,21 +1,4 @@
-import {
-  Bike,
-  Boxes,
-  Building2,
-  CalendarDays,
-  ChefHat,
-  CircleDot,
-  CircleDollarSign,
-  ClipboardList,
-  FileText,
-  Grid2x2,
-  LayoutDashboard,
-  QrCode,
-  Receipt,
-  Settings,
-  ShoppingCart,
-  UtensilsCrossed,
-} from 'lucide-react';
+import { Bike, Boxes, Building2, CalendarDays, ChefHat, CircleDollarSign, CircleDot, ClipboardList, CloudOff, FileText, Grid2x2, LayoutDashboard, QrCode, Receipt, Settings, ShoppingCart, UtensilsCrossed } from 'lucide-react';
 import { RESTRICTED_ROLES, isAdminCashier, isScreenRole } from '../../utils/roles';
 import { allowsBranches, hasFeature, isDeliveryTierPlan } from '../../utils/subscription';
 import type { UserRole } from '../../types';
@@ -70,6 +53,12 @@ export const PURCHASES_NAV_LINK: AdminNavLink = { to: '/admin/purchases', label:
 export const SUCURSALES_NAV_LINK: AdminNavLink = { to: '/admin/sucursales', label: 'Sucursales', icon: Building2 };
 // Reservas hechas desde el botón "Mesa" del menú público: solo dueño/admin/cajero, que son quienes las aceptan.
 export const RESERVATIONS_NAV_LINK: AdminNavLink = { to: '/admin/reservations', label: 'Reservas', icon: CalendarDays };
+/** Solo aparece cuando hay pedidos de un corte de internet por revisar (ver useSyncConflicts). */
+export const SYNC_CONFLICTS_NAV_LINK: AdminNavLink = {
+  to: '/admin/pedidos-por-revisar',
+  label: 'Pedidos por revisar',
+  icon: CloudOff,
+};
 // Presupuestos/cotizaciones: un total para aprobar sin cobrar ni tocar cocina todavía. Fuera
 // del menú desde que vive dentro de Compras; la ruta se conserva para enlaces ya repartidos.
 export const QUOTES_NAV_LINK: AdminNavLink = { to: '/admin/quotes', label: 'Cotizaciones', icon: FileText };
@@ -99,6 +88,8 @@ export function visibleNavLinks(
   restaurant?: NavRestaurant | null,
   canAccessInventory?: boolean,
   cashierFullAccess?: boolean,
+  /** > 0 = hubo un corte de internet y quedaron pedidos por revisar. */
+  syncConflicts = 0,
 ): AdminNavLink[] {
   if (isScreenRole(role)) return [];
   let links = ADMIN_NAV_LINKS;
@@ -127,6 +118,8 @@ export function visibleNavLinks(
   if (!isRestricted && restaurant) {
     const extra: AdminNavLink[] = [];
     if (isAdminCashier(role, cashierFullAccess)) extra.push(RESERVATIONS_NAV_LINK);
+    // Solo cuando hay algo que revisar: en un local que nunca perdió conexión no estorba.
+    if (syncConflicts > 0 && isAdminCashier(role, cashierFullAccess)) extra.push(SYNC_CONFLICTS_NAV_LINK);
     // Gastos, Cotizaciones y Compras no se listan en el menú: son pestañas de Administración
     // (Compras vive dentro de Administración → Compras) — repetirlas acá solo alargaba la lista.
     if (isAdminCashier(role, cashierFullAccess) && hasFeature(restaurant, 'administration')) {
@@ -155,8 +148,10 @@ export function dashboardSectionLinks(
   restaurant?: NavRestaurant | null,
   canAccessInventory?: boolean,
   cashierFullAccess?: boolean,
+  /** > 0 = hubo un corte de internet y quedaron pedidos por revisar. */
+  syncConflicts = 0,
 ): AdminNavLink[] {
-  return visibleNavLinks(role, restaurant, canAccessInventory, cashierFullAccess).filter(
+  return visibleNavLinks(role, restaurant, canAccessInventory, cashierFullAccess, syncConflicts).filter(
     (l) => l.to !== '/admin/settings' && l.to !== '/admin' && l.to !== '/admin/comandas',
   );
 }

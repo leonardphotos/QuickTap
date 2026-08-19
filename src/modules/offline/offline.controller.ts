@@ -77,4 +77,13 @@ export const offlineController = {
     const input = syncSchema.parse(req.body);
     res.json({ data: await offlineService.syncOrders(req.restaurantId!, input) });
   }),
+
+  listConflicts: asyncHandler(async (req: Request, res: Response) => {
+    const includeResolved = req.query.all === 'true';
+    res.json({ data: await offlineService.listConflicts(req.restaurantId!, includeResolved) });
+  }),
+
+  resolveConflict: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await offlineService.resolveConflict(req.restaurantId!, req.params.id, req.auth!.userId) });
+  }),
 };

@@ -34,6 +34,7 @@ import {
 } from '../../utils/roles';
 import { daysRemaining, graceHoursRemaining, hasFeature } from '../../utils/subscription';
 import { visibleNavLinks } from './nav-links';
+import { useSyncConflictsCount } from '@/hooks/useSyncConflicts';
 import { ConnectivityBanner } from '@/components/admin/ConnectivityBanner';
 
 const WaiterLayout = lazy(() => import('./WaiterLayout'));
@@ -50,6 +51,8 @@ export default function AdminLayout() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const { copy, toastMessage } = useCopyToast();
+  // Arriba de cualquier return condicional: un hook no puede llamarse a veces sí y a veces no.
+  const syncConflicts = useSyncConflictsCount(user?.role, user?.cashierFullAccess);
   const [menuOpen, setMenuOpen] = useState(false);
   // Menú lateral oculto a voluntad (escritorio/iPad horizontal): se recuerda entre
   // navegaciones para que no reaparezca en cada cambio de pestaña.
@@ -204,7 +207,7 @@ export default function AdminLayout() {
   const daysLeft = daysRemaining(restaurant.periodEnd);
   const graceHours = graceHoursRemaining(restaurant.periodEnd);
   const showExpirationWarning = daysLeft <= 3;
-  const navLinks = visibleNavLinks(user.role, restaurant, user.canAccessInventory, user.cashierFullAccess);
+  const navLinks = visibleNavLinks(user.role, restaurant, user.canAccessInventory, user.cashierFullAccess, syncConflicts);
   const canCreateOrder = isAdminCashier(user.role, user.cashierFullAccess);
 
   // Dock flotante de celular: se arma como lista (en vez de JSX fijo) para poder insertar el

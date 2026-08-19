@@ -548,6 +548,7 @@ model Restaurant {
   schedules              RestaurantSchedule[]
   reservations           Reservation[]
   waitlistEntries        WaitlistEntry[]
+  syncConflicts          SyncConflict[]
   fiscalInvoicingConfig  FiscalInvoicingConfig?
 
   // --- QuickTap Shop (businessType = SHOP): catálogo/ventas/caja propios, sin relación con
@@ -1213,6 +1214,44 @@ model Reservation {
 
   @@index([restaurantId, date])
   @@map("reservations")
+}
+
+enum SyncConflictKind {
+  /// La cuenta a la que pertenecía el pedido se cerró en la nube mientras no había conexión.
+  SESSION_CLOSED
+  /// La mesa se borró o desactivó durante el corte.
+  TABLE_MISSING
+  /// Un producto del pedido se borró durante el corte.
+  PRODUCT_MISSING
+  /// Cualquier otro fallo al insertar: se guarda el detalle para revisarlo a mano.
+  OTHER
+}
+
+/// Un pedido tomado sin internet que NO se pudo subir tal cual, porque algo cambió en la nube
+/// mientras tanto (se cerró la cuenta, se borró la mesa o un producto).
+///
+/// En vez de sobrescribir en silencio o abortar toda la subida, se guarda acá con su contenido
+/// completo y se le muestra a una persona: gana lo que ya estaba en la nube, y el pedido
+/// descartado queda visible para decidir qué hacer con él.
+model SyncConflict {
+  id           String           @id @default(cuid())
+  restaurantId String
+  kind         SyncConflictKind
+  /// Referencia de la comanda impresa durante el corte ("R-3"), para encontrar el papel.
+  offlineTicketRef String?
+  /// Explicación en español, lista para mostrar.
+  reason       String
+  /// El pedido completo tal como lo mandó el relé, por si hay que recrearlo a mano.
+  payload      Json
+
+  resolvedAt   DateTime?
+  resolvedById String?
+  createdAt    DateTime  @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, resolvedAt])
+  @@map("sync_conflicts")
 }
 
 enum WaitlistStatus {

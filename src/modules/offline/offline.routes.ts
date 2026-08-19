@@ -15,5 +15,8 @@ router.use(tenantGuard);
 router.get('/catalog-snapshot', offlineController.catalogSnapshot);
 // Sube lo que el relé creó durante un corte. Idempotente: reintentar no duplica.
 router.post('/sync-orders', offlineController.syncOrders);
+// Pedidos del corte que no se pudieron subir tal cual: los revisa una persona.
+router.get('/conflicts', offlineController.listConflicts);
+router.patch('/conflicts/:id/resolve', offlineController.resolveConflict);
 
 export default router;
