@@ -7,6 +7,7 @@ import { api, getToken } from '@/api/client';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import type { ServiceRequestType, TableItem } from '@/types';
+import { notifyNative } from '@/utils/nativeNotify';
 
 interface PendingAlert {
   tableId: string;
@@ -33,8 +34,15 @@ export function TableServiceAlert() {
 
     socket.on('table:service-request', (payload: { tableId: string; type: ServiceRequestType }) => {
       const table = tablesRef.current.find((t) => t.id === payload.tableId);
-      setAlert({ tableId: payload.tableId, tableNumber: table?.number ?? '', type: payload.type });
+      const number = table?.number ?? '';
+      setAlert({ tableId: payload.tableId, tableNumber: number, type: payload.type });
       new Audio('/sounds/notification.mp3').play().catch(() => {});
+      // El sonido solo se oye con la app en primer plano; la notificación nativa además queda
+      // en la barra del sistema y suena aunque el mesero tenga la app minimizada.
+      void notifyNative({
+        title: payload.type === 'WAITER_CALL' ? 'Llaman al mesero' : 'Piden la cuenta',
+        body: number ? `Mesa ${number}` : 'Una mesa necesita atención',
+      });
     });
 
     socket.on('table:service-ack', (payload: { tableId: string }) => {

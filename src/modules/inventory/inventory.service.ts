@@ -9,6 +9,7 @@ import { CreateInventoryItemInput, InventoryAlertsQuery, UpdateInventoryItemInpu
 import { inventoryCategoryService } from './inventory-category.service';
 import { effectiveInventoryRestaurantId } from './inventory-scope';
 import { recomputeDependentCosts } from './costing';
+import { notifyStockChanged } from '../../utils/inventory-alerts';
 
 /**
  * Calcula el costo por unidad (kg/lt/unidad) a partir del costo de la
@@ -136,7 +137,7 @@ export const inventoryService = {
 
     // Cambió el stock a mano (no solo precio/nombre): recalcula el aviso de "se está agotando".
     if ('quantity' in input) {
-      emitToKitchen(effectiveId, SocketEvents.INVENTORY_LOW_STOCK, {});
+      notifyStockChanged(effectiveId);
     }
 
     return item;

@@ -5,6 +5,7 @@ import { branchService } from '../branches/branch.service';
 import { emitToKitchen, SocketEvents } from '../../sockets';
 import { rootRestaurantId } from './inventory-scope';
 import { CreateTransferInput } from './inventory-transfer.dto';
+import { notifyStockChanged } from '../../utils/inventory-alerts';
 
 type LocationScope = 'LOCAL' | 'CASA_MATRIZ';
 
@@ -193,8 +194,8 @@ export const inventoryTransferService = {
       });
     });
 
-    emitToKitchen(fromEffectiveId, SocketEvents.INVENTORY_LOW_STOCK, {});
-    if (toEffectiveId !== fromEffectiveId) emitToKitchen(toEffectiveId, SocketEvents.INVENTORY_LOW_STOCK, {});
+    notifyStockChanged(fromEffectiveId);
+    if (toEffectiveId !== fromEffectiveId) notifyStockChanged(toEffectiveId);
 
     return transfer;
   },

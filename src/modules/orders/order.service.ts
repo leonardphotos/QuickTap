@@ -48,6 +48,8 @@ import {
   UpdateOrderItemsInput,
 } from './order.dto';
 import { wasteService } from '../waste/waste.service';
+import { notifyStockChanged } from '../../utils/inventory-alerts';
+import { sendPushToRestaurant } from '../../utils/push';
 
 /**
  * ============================================================================
@@ -526,7 +528,7 @@ async function deductRecipeStock(restaurantId: string, items: RecipeStockItem[])
 
   // Bajó el stock de al menos un insumo por receta: recalcula el aviso de "se está agotando".
   if (deducted) {
-    emitToKitchen(restaurantId, SocketEvents.INVENTORY_LOW_STOCK, {});
+    notifyStockChanged(restaurantId);
   }
 }
 
@@ -605,7 +607,7 @@ async function deductModifierStock(
   }
 
   if (deducted) {
-    emitToKitchen(restaurantId, SocketEvents.INVENTORY_LOW_STOCK, {});
+    notifyStockChanged(restaurantId);
   }
 }
 
@@ -681,7 +683,7 @@ async function deductPackagingStock(
   }
 
   if (deducted) {
-    emitToKitchen(restaurantId, SocketEvents.INVENTORY_LOW_STOCK, {});
+    notifyStockChanged(restaurantId);
   }
 }
 
@@ -876,18 +878,11 @@ function salesStatsPeriodStart(range: 'week' | 'month', now: Date): Date {
  * registrados todavía — el negocio tiene que poder vender igual sin esto configurado.
  */
 async function sendNewOrderPush(restaurantId: string, order: { orderNumber: number; channel: OrderChannel }) {
-  const messaging = getMessaging();
-  if (!messaging) return;
-  const tokens = await prisma.deviceToken.findMany({ where: { restaurantId }, select: { token: true } });
-  if (tokens.length === 0) return;
   const CHANNEL_LABEL: Record<OrderChannel, string> = { DINE_IN: 'Mesa', DELIVERY: 'Delivery', PICKUP: 'Pick-up', BAR: 'Barra' };
-  await messaging
-    .sendEachForMulticast({
-      tokens: tokens.map((t) => t.token),
-      notification: { title: `Nuevo pedido #${order.orderNumber}`, body: CHANNEL_LABEL[order.channel] },
-      android: { priority: 'high' },
-    })
-    .catch(() => undefined);
+  await sendPushToRestaurant(restaurantId, {
+    title: `Nuevo pedido #${order.orderNumber}`,
+    body: CHANNEL_LABEL[order.channel],
+  });
 }
 
 /**

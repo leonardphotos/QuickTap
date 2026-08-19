@@ -5,6 +5,7 @@ import { badRequest, conflict, notFound } from '../../utils/http-error';
 import { emitToKitchen, emitToTable, SocketEvents } from '../../sockets';
 import { startOfTodayCaracas } from '../../utils/timezone';
 import { primaryTableIdOf, unmergeGroup } from '../../utils/table-merge';
+import { sendPushToRestaurant } from '../../utils/push';
 import { CreateTableInput, MergeTablesInput, SaveFloorPlanInput, UpdateTableInput } from './table.dto';
 
 async function assertZoneBelongs(restaurantId: string, zoneId: string) {
@@ -355,6 +356,12 @@ export const tableService = {
     });
 
     emitToKitchen(table.restaurantId, SocketEvents.TABLE_SERVICE_REQUEST, { tableId: targetId, type });
+    // Push aparte del socket: un llamado de mesa no puede quedarse esperando a que alguien
+    // tenga la app abierta — es justo cuando el mesero anda por el salón con el teléfono guardado.
+    void sendPushToRestaurant(table.restaurantId, {
+      title: type === 'WAITER_CALL' ? 'Llaman al mesero' : 'Piden la cuenta',
+      body: `Mesa ${table.number}`,
+    });
     return { ok: true };
   },
 
