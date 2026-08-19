@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { BellRing, Circle, Minus, Plus, RectangleHorizontal, Receipt, Save, Square, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { BellRing, Circle, Link2, Link2Off, Minus, Plus, RectangleHorizontal, Receipt, Save, Square, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 import { seatOffsets } from './seat-layout';
@@ -81,6 +81,8 @@ export function FloorPlanCanvas({
   onPatch,
   onOpenTable,
   onAcknowledge,
+  onMerge,
+  onUnmerge,
 }: {
   tables: FloorPlanTable[];
   mode: FloorPlanMode;
@@ -90,10 +92,38 @@ export function FloorPlanCanvas({
   onOpenTable: (t: FloorPlanTable) => void;
   /** Botón rápido de "atender llamado/cuenta" sobre la mesa, sin abrir el diálogo completo. */
   onAcknowledge?: (t: FloorPlanTable) => void;
+  /** Unir mesas: el lienzo elige las mesas y calcula dónde acoplarlas; la pantalla llama a la API. */
+  onMerge?: (primaryTableId: string, tableIds: string[], positions: { id: string; planX: number; planY: number }[]) => void;
+  onUnmerge?: (primaryTableId: string) => void;
 }) {
   const canvasRef = useRef<HTMLDivElement>(null);
   const editing = mode === 'edit';
+  const merging = mode === 'merge';
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Modo unir: qué mesas van al grupo. La primera elegida es la que lleva la cuenta por defecto.
+  const [mergeIds, setMergeIds] = useState<string[]>([]);
+  const [primaryId, setPrimaryId] = useState<string | null>(null);
+  // Tamaño real del lienzo en píxeles: hace falta para mezclar las posiciones (que son %) con
+  // los tamaños de mesa (que son px) al dibujar la cápsula del grupo y al acoplar.
+  const [canvasPx, setCanvasPx] = useState({ w: 0, h: 0 });
+
+  useEffect(() => {
+    const el = canvasRef.current;
+    if (!el) return;
+    const update = () => setCanvasPx({ w: el.clientWidth, h: el.clientHeight });
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Salir del modo unir limpia la selección para no arrastrarla a la próxima vez.
+  useEffect(() => {
+    if (!merging) {
+      setMergeIds([]);
+      setPrimaryId(null);
+    }
+  }, [merging]);
   const draggingRef = useRef<{ id: string; offsetX: number; offsetY: number } | null>(null);
   // Zoom de la VISTA, no del dato: solo escala cuánto se ven las mesas en pantalla (no toca
   // planX/planY/planSize, que siguen siendo % del lienzo y el tamaño real de cada mesa). Alejar
@@ -167,6 +197,98 @@ export function FloorPlanCanvas({
 
   const selected = selectedId ? merged.find((t) => t.id === selectedId) : null;
 
+  /** Ancho/alto en píxeles con que se dibuja una mesa (la rectangular es el doble de ancha). */
+  function dims(t: FloorPlanTable) {
+    const size = 56 * (t.planSize || 1) * zoom;
+    return { width: t.planShape === 'RECTANGLE' ? size * 2 : size, height: size };
+  }
+
+  const byId = new Map(merged.map((t) => [t.id, t]));
+  // Mesas que están pegadas a otra: no se dibujan solas, quedan dentro de la cápsula del grupo.
+  const memberIds = new Set(merged.filter((t) => t.mergedIntoTableId).map((t) => t.id));
+
+  /**
+   * Caja que envuelve a una mesa principal y sus miembros: es lo que se dibuja como UNA sola
+   * mesa. Devuelve el centro en % (para posicionarla como cualquier otra) y el tamaño en px.
+   */
+  function groupBox(primary: FloorPlanTable) {
+    const group = [primary, ...primary.mergedTableIds.map((id) => byId.get(id)).filter(Boolean as unknown as (t: FloorPlanTable | undefined) => t is FloorPlanTable)];
+    const placedGroup = group.filter((t) => t.planX != null && t.planY != null);
+    if (canvasPx.w === 0 || placedGroup.length === 0) return null;
+
+    const bounds = placedGroup.reduce(
+      (acc, t) => {
+        const { width, height } = dims(t);
+        const cx = ((t.planX as number) / 100) * canvasPx.w;
+        const cy = ((t.planY as number) / 100) * canvasPx.h;
+        return {
+          minX: Math.min(acc.minX, cx - width / 2),
+          maxX: Math.max(acc.maxX, cx + width / 2),
+          minY: Math.min(acc.minY, cy - height / 2),
+          maxY: Math.max(acc.maxY, cy + height / 2),
+        };
+      },
+      { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity },
+    );
+
+    return {
+      width: bounds.maxX - bounds.minX,
+      height: bounds.maxY - bounds.minY,
+      leftPct: (((bounds.minX + bounds.maxX) / 2) / canvasPx.w) * 100,
+      topPct: (((bounds.minY + bounds.maxY) / 2) / canvasPx.h) * 100,
+    };
+  }
+
+  function toggleMergePick(id: string) {
+    setMergeIds((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      // La principal por defecto es la primera elegida; si se deselecciona, pasa a la siguiente.
+      setPrimaryId((p) => (p && next.includes(p) ? p : (next[0] ?? null)));
+      return next;
+    });
+  }
+
+  /**
+   * Dónde queda cada miembro al acoplarse: en fila pegada al lado derecho de la principal, o al
+   * izquierdo si no cabe. Se calcula acá porque es el único sitio que conoce el tamaño en px del
+   * lienzo y de cada mesa; el backend solo guarda el resultado.
+   */
+  function snapPositions(primary: FloorPlanTable, members: FloorPlanTable[]) {
+    if (canvasPx.w === 0 || primary.planX == null || primary.planY == null) return [];
+    const gap = 2;
+    const primaryHalf = dims(primary).width / 2;
+    const cx = (primary.planX / 100) * canvasPx.w;
+    const cy = (primary.planY / 100) * canvasPx.h;
+
+    const totalRight = members.reduce((acc, m) => acc + dims(m).width + gap, 0);
+    // Si la fila se sale por la derecha, se acopla hacia la izquierda.
+    const toRight = cx + primaryHalf + totalRight <= canvasPx.w * 0.93;
+    const dir = toRight ? 1 : -1;
+
+    let cursor = cx + dir * primaryHalf;
+    return members.map((m) => {
+      const half = dims(m).width / 2;
+      cursor += dir * (gap + half);
+      const x = (cursor / canvasPx.w) * 100;
+      cursor += dir * half;
+      return {
+        id: m.id,
+        planX: Math.round(Math.min(97, Math.max(3, x)) * 10) / 10,
+        planY: Math.round((cy / canvasPx.h) * 100 * 10) / 10,
+      };
+    });
+  }
+
+  function confirmMerge() {
+    if (!onMerge || !primaryId || mergeIds.length < 2) return;
+    const primary = byId.get(primaryId);
+    if (!primary) return;
+    const members = mergeIds.filter((id) => id !== primaryId).map((id) => byId.get(id)!).filter(Boolean);
+    onMerge(primaryId, members.map((m) => m.id), snapPositions(primary, members));
+    setMergeIds([]);
+    setPrimaryId(null);
+  }
+
   return (
     <div className="space-y-3">
       <div
@@ -214,17 +336,26 @@ export function FloorPlanCanvas({
         )}
 
         {placed.map((t) => {
+          // Las mesas pegadas a otra no se dibujan solas: viven dentro de la cápsula de su grupo.
+          if (memberIds.has(t.id)) return null;
+
           const tone = tableTone(t);
-          const size = 56 * (t.planSize || 1) * zoom;
-          // Rectangular: el doble de ancha que alta, para que quepan hasta 6 personas (2-3 por
-          // lado largo + los extremos) — las otras dos formas mantienen el cajón cuadrado de siempre.
-          const width = t.planShape === 'RECTANGLE' ? size * 2 : size;
-          const height = size;
+          const isGroup = t.mergedTableIds.length > 0;
+          const box = isGroup ? groupBox(t) : null;
+          const own = dims(t);
+          // Un grupo se dibuja como UNA sola mesa: la caja que envuelve a todas sus partes.
+          const width = box ? box.width : own.width;
+          const height = box ? box.height : own.height;
+          const leftPct = box ? box.leftPct : (t.planX as number);
+          const topPct = box ? box.topPct : (t.planY as number);
           const seatGap = Math.max(6, 9 * zoom);
           const seatDot = Math.max(5, 7 * zoom);
-          const seats = seatOffsets(t.planShape, t.seats, width, height, seatGap);
+          // Alrededor del grupo van las sillas de todas sus mesas, no solo las de la principal.
+          const seats = seatOffsets(isGroup ? 'RECTANGLE' : t.planShape, isGroup ? t.groupSeats : t.seats, width, height, seatGap);
+          const picked = mergeIds.includes(t.id);
+          const label = isGroup ? t.mergedNumbers.join('+') : t.number;
           return (
-            <div key={t.id} className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: `${t.planX}%`, top: `${t.planY}%` }}>
+            <div key={t.id} className="absolute -translate-x-1/2 -translate-y-1/2" style={{ left: `${leftPct}%`, top: `${topPct}%` }}>
               {seats.map((s, i) => (
                 <span
                   key={i}
@@ -242,7 +373,11 @@ export function FloorPlanCanvas({
                 type="button"
                 onPointerDown={(e) => startDrag(e, t)}
                 onMouseDown={(e) => startDrag(e, t)}
-                onClick={() => (editing ? setSelectedId(t.id) : onOpenTable(t))}
+                onClick={() => {
+                  if (merging) return toggleMergePick(t.id);
+                  if (editing) return setSelectedId(t.id);
+                  onOpenTable(t);
+                }}
                 style={{
                   width,
                   height,
@@ -251,14 +386,39 @@ export function FloorPlanCanvas({
                   touchAction: editing ? 'none' : undefined,
                 }}
                 className={`flex-col items-center justify-center text-center font-semibold shadow-sm transition-transform ${
-                  t.planShape === 'SQUARE' || t.planShape === 'RECTANGLE' ? 'rounded-xl' : 'rounded-full'
+                  isGroup || t.planShape === 'SQUARE' || t.planShape === 'RECTANGLE' ? 'rounded-xl' : 'rounded-full'
                 } flex ${editing ? 'cursor-grab active:cursor-grabbing' : 'hover:scale-105'} ${
                   selectedId === t.id && editing ? 'ring-2 ring-brand-500 ring-offset-2' : ''
+                } ${picked ? 'ring-2 ring-brand-500 ring-offset-2' : ''} ${
+                  merging && !picked ? 'opacity-60' : ''
                 }`}
               >
-                <span className="text-[13px] leading-none">{t.number}</span>
+                <span className="text-[13px] leading-none">{label}</span>
                 <span className="mt-0.5 text-[9px] font-medium opacity-75">{tone.label}</span>
               </button>
+              {merging && picked && (
+                <span
+                  className={`pointer-events-none absolute -left-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold text-white shadow ring-2 ring-white ${
+                    primaryId === t.id ? 'bg-brand-500' : 'bg-brand-950/50'
+                  }`}
+                >
+                  {primaryId === t.id ? '$' : mergeIds.indexOf(t.id) + 1}
+                </span>
+              )}
+              {!editing && !merging && isGroup && onUnmerge && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onUnmerge(t.id);
+                  }}
+                  aria-label={`Separar las mesas ${label}`}
+                  title="Separar mesas"
+                  className="absolute -bottom-2 left-1/2 flex h-6 -translate-x-1/2 items-center gap-1 rounded-full border border-brand-950/10 bg-white px-2 text-[10px] font-semibold text-brand-950/60 shadow-sm hover:text-brand-950"
+                >
+                  <Link2Off className="h-3 w-3" /> Separar
+                </button>
+              )}
               {!editing && t.serviceRequest && onAcknowledge && (
                 <button
                   type="button"
@@ -281,6 +441,38 @@ export function FloorPlanCanvas({
           );
         })}
       </div>
+
+      {merging && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-brand-500/30 bg-brand-500/[0.04] px-3 py-2">
+          {mergeIds.length < 2 ? (
+            <span className="text-xs font-medium text-brand-950/60">
+              Toca las mesas que quieres unir (mínimo 2). Quedarán como una sola mesa con una sola cuenta.
+            </span>
+          ) : (
+            <>
+              <span className="text-xs font-semibold text-brand-950">
+                {mergeIds.length} mesas — la cuenta queda en la{' '}
+                {primaryId ? `Mesa ${byId.get(primaryId)?.number ?? ''}` : '—'}
+              </span>
+              <div className="flex flex-wrap items-center gap-1">
+                {mergeIds.map((id) => (
+                  <ShapeButton key={id} active={primaryId === id} onClick={() => setPrimaryId(id)}>
+                    {byId.get(id)?.number ?? ''}
+                  </ShapeButton>
+                ))}
+              </div>
+              <TextureButton
+                variant="brand"
+                size="sm"
+                className="!w-auto ml-auto flex items-center gap-1.5"
+                onClick={confirmMerge}
+              >
+                <Link2 className="h-3.5 w-3.5" /> Unir
+              </TextureButton>
+            </>
+          )}
+        </div>
+      )}
 
       {editing && selected && (
         <div className="flex flex-wrap items-center gap-2 rounded-xl border border-brand-950/10 bg-white px-3 py-2">

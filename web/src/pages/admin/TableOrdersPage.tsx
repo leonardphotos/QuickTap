@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import { API_ORIGIN } from '@/utils/apiOrigin';
-import { Check, CreditCard, Lock, LogOut, MoveHorizontal, Plus, Printer, SplitSquareHorizontal } from 'lucide-react';
+import { Check, CreditCard, Link2, Lock, LogOut, MoveHorizontal, Plus, Printer, SplitSquareHorizontal } from 'lucide-react';
 import { api, getToken } from '../../api/client';
 import type { FloorPlan, FloorPlanTable, Product, TableSession } from '../../types';
 import { useAuth } from '@/context/AuthContext';
@@ -69,6 +69,7 @@ export default function TableOrdersPage() {
     socket.on('order:updated', load);
     socket.on('table:service-request', load);
     socket.on('table:service-ack', load);
+    socket.on('table:merge-updated', load);
     socket.on('order:new', loadOrders);
     socket.on('order:updated', loadOrders);
 
@@ -87,6 +88,34 @@ export default function TableOrdersPage() {
   const [savingPlan, setSavingPlan] = useState(false);
   const canEditPlan = isAdminCashier(user?.role);
   const pendingPatches = Object.values(planPatches);
+  // Unir mesas es una decisión de sala (juntar dos mesas para un grupo grande), no de
+  // configuración: la toma quien atiende, igual que atender un llamado.
+  const [mergingTables, setMergingTables] = useState(false);
+
+  async function mergeTables(
+    primaryTableId: string,
+    tableIds: string[],
+    positions: { id: string; planX: number; planY: number }[],
+  ) {
+    setError(null);
+    try {
+      await api.post('/tables/merge', { primaryTableId, tableIds, positions });
+      setMergingTables(false);
+      load();
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudieron unir las mesas.');
+    }
+  }
+
+  async function unmergeTables(primaryTableId: string) {
+    setError(null);
+    try {
+      await api.post(`/tables/${primaryTableId}/unmerge`);
+      load();
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudieron separar las mesas.');
+    }
+  }
 
   async function persistFloorPlan() {
     setSavingPlan(true);
@@ -130,7 +159,12 @@ export default function TableOrdersPage() {
   }, [liveOrders]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const freeTables = useMemo(
-    () => sections.flatMap((s) => s.tables).filter((t) => t.sessions.length === 0 && t.id !== selected?.id),
+    () =>
+      sections
+        .flatMap((s) => s.tables)
+        // Una mesa pegada a otra no lleva cuenta propia: rodar una cuenta hacia ella la dejaría
+        // invisible dentro del grupo, así que no se ofrece como destino.
+        .filter((t) => t.sessions.length === 0 && !t.mergedIntoTableId && t.id !== selected?.id),
     [sections, selected],
   );
 
@@ -283,7 +317,11 @@ export default function TableOrdersPage() {
 
   /** Al tocar una mesa con cuenta(s) abierta(s), muestra la más reciente por defecto y abre
    * directo "Editar pedido" del pedido más reciente de esa cuenta, sin pasar por una lista intermedia. */
-  function openTable(t: FloorPlanTable) {
+  function openTable(tapped: FloorPlanTable) {
+    // Mesa unida a otra: se abre la principal, que es la que lleva la cuenta del grupo.
+    const t = tapped.mergedIntoTableId
+      ? sections.flatMap((s) => s.tables).find((x) => x.id === tapped.mergedIntoTableId) ?? tapped
+      : tapped;
     setSelected(t);
     if (t.sessions.length === 0) {
       setSelectedSessionId(null);
@@ -484,7 +522,7 @@ export default function TableOrdersPage() {
         <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Órdenes de Mesa</h1>
         {sections.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">
-            {canEditPlan && !editingPlan && (
+            {canEditPlan && !editingPlan && !mergingTables && (
               <TextureButton variant="secondary" size="sm" className="!w-auto" onClick={() => setEditingPlan(true)}>
                 Editar plano
               </TextureButton>
@@ -517,19 +555,40 @@ export default function TableOrdersPage() {
 
       <div className="rounded-3xl border border-brand-950/10 bg-white p-8 space-y-10 shadow-sm">
         {sections.length > 0 && (
-          <div className="flex flex-wrap gap-x-4 gap-y-1.5 -mt-2 text-xs text-brand-950/50 font-light">
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-[#0f6e46]" /> Libre
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-brand-950" /> Ocupada
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-[#8a5106]" /> Piden cuenta
-            </span>
-            <span className="flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-[#9d2469]" /> Reservada
-            </span>
+          <div className="flex flex-wrap items-center justify-between gap-3 -mt-2">
+            <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-brand-950/50 font-light">
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-[#0f6e46]" /> Libre
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-brand-950" /> Ocupada
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-[#8a5106]" /> Piden cuenta
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-[#9d2469]" /> Reservada
+              </span>
+            </div>
+            {!editingPlan &&
+              (mergingTables ? (
+                <button
+                  type="button"
+                  onClick={() => setMergingTables(false)}
+                  className="text-xs font-medium text-brand-950/50 hover:text-brand-950"
+                >
+                  Cancelar
+                </button>
+              ) : (
+                <TextureButton
+                  variant="brand"
+                  size="default"
+                  className="!w-auto flex items-center gap-1.5"
+                  onClick={() => setMergingTables(true)}
+                >
+                  <Link2 className="h-4 w-4" /> Unir mesas
+                </TextureButton>
+              ))}
           </div>
         )}
         {sections.map((zone) => (
@@ -537,11 +596,13 @@ export default function TableOrdersPage() {
             <h2 className="text-sm font-semibold text-brand-950/70 mb-4">{zone.name}</h2>
             <FloorPlanCanvas
               tables={zone.tables}
-              mode={editingPlan ? 'edit' : 'view'}
+              mode={editingPlan ? 'edit' : mergingTables ? 'merge' : 'view'}
               patches={planPatches}
               onPatch={(patch) => setPlanPatches((prev) => ({ ...prev, [patch.id]: patch }))}
               onOpenTable={openTable}
               onAcknowledge={acknowledgeServiceRequest}
+              onMerge={mergeTables}
+              onUnmerge={unmergeTables}
             />
           </div>
         ))}

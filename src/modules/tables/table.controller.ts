@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
-import { createTableSchema, saveFloorPlanSchema, updateTableSchema } from './table.dto';
+import { createTableSchema, mergeTablesSchema, saveFloorPlanSchema, updateTableSchema } from './table.dto';
 import { tableService } from './table.service';
 
 export const tableController = {
@@ -14,6 +14,15 @@ export const tableController = {
   saveFloorPlan: asyncHandler(async (req: Request, res: Response) => {
     const input = saveFloorPlanSchema.parse(req.body);
     res.json({ data: await tableService.saveFloorPlan(req.restaurantId!, input) });
+  }),
+
+  merge: asyncHandler(async (req: Request, res: Response) => {
+    const input = mergeTablesSchema.parse(req.body);
+    res.json({ data: await tableService.merge(req.restaurantId!, input) });
+  }),
+
+  unmerge: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await tableService.unmerge(req.restaurantId!, req.params.id) });
   }),
 
   create: asyncHandler(async (req: Request, res: Response) => {

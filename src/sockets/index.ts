@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
 import { AuthPayload } from '../middlewares/auth.middleware';
 import { prisma } from '../config/prisma';
+import { primaryTableIdOf } from '../utils/table-merge';
 
 /**
  * ============================================================================
@@ -37,6 +38,7 @@ export const SocketEvents = {
   ORDER_READY_STAFF: 'order:ready-staff', // aviso al staff (Caja/Numero) de que un pedido quedó listo
   TABLE_SERVICE_REQUEST: 'table:service-request', // comensal llama al mesero / pide la cuenta
   TABLE_SERVICE_ACK: 'table:service-ack', // el mesero atendió la solicitud
+  TABLE_MERGE_UPDATED: 'table:merge-updated', // se unieron o separaron mesas -> redibujar el plano
   PRINT_REQUEST: 'print:request', // impresión bajo demanda (reimprimir comanda, lista de insumos) -> estación de impresión
   RESERVATION_NEW: 'reservation:new', // reserva nueva desde el menú público -> pestaña Reservas (Cajero/Admin)
   RESERVATION_UPDATED: 'reservation:updated', // se aceptó o canceló una reserva
@@ -100,9 +102,14 @@ export function initSockets(server: HttpServer): IOServer {
       // Une el socket a la cocina de SU restaurante (aislamiento por tenant).
       socket.join(kitchenRoom(auth.restaurantId));
     } else if (qrToken) {
-      // Cliente público: solo se une a la room de SU propia mesa.
-      const table = await prisma.table.findUnique({ where: { qrToken }, select: { id: true } });
-      if (table) socket.join(tableRoom(table.id));
+      // Cliente público: solo se une a la room de SU propia mesa. Si esa mesa está unida a otra,
+      // se une a la room de la PRINCIPAL: los avisos ("pedido listo", "ya te atienden") se emiten
+      // contra el tableId del pedido, que en un grupo unido siempre es el de la principal.
+      const table = await prisma.table.findUnique({
+        where: { qrToken },
+        select: { id: true, mergedIntoTableId: true },
+      });
+      if (table) socket.join(tableRoom(primaryTableIdOf(table)));
     }
 
     socket.on('disconnect', () => {

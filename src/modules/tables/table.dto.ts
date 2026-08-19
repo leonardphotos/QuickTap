@@ -35,6 +35,28 @@ export const saveFloorPlanSchema = z.object({
     .max(300),
 });
 
+/**
+ * POST /tables/merge — junta varias mesas en una sola para un grupo grande. `primaryTableId` es
+ * la que lleva la cuenta; `tableIds` son las que se le pegan. `positions` (opcional) trae dónde
+ * dibujar cada miembro ya acoplado: lo calcula el lienzo, que es el único que conoce el tamaño
+ * en píxeles de cada mesa. Sin `positions` la unión es solo visual y nadie se mueve del plano.
+ */
+export const mergeTablesSchema = z.object({
+  primaryTableId: z.string().min(1),
+  tableIds: z.array(z.string().min(1)).min(1).max(8),
+  positions: z
+    .array(
+      z.object({
+        id: z.string().min(1),
+        planX: z.number().min(0).max(100),
+        planY: z.number().min(0).max(100),
+      }),
+    )
+    .max(8)
+    .optional(),
+});
+
+export type MergeTablesInput = z.infer<typeof mergeTablesSchema>;
 export type CreateTableInput = z.infer<typeof createTableSchema>;
 export type UpdateTableInput = z.infer<typeof updateTableSchema>;
 export type SaveFloorPlanInput = z.infer<typeof saveFloorPlanSchema>;

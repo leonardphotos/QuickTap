@@ -1135,8 +1135,21 @@ model Table {
   // sobre mesas totales, no comensales.
   seats     Int      @default(4)
 
+  // --- Unir mesas (grupo para una mesa grande) ---
+  // Si está seteado, esta mesa está pegada a la principal indicada y no tiene vida propia
+  // mientras dure la unión: su cuenta, su QR y sus pedidos van todos a la principal, para que
+  // el grupo pague UNA sola cuenta. La principal es la única del grupo que lleva TableSession,
+  // así que nada del flujo de pedidos/cobros/impresión tuvo que cambiar (ver src/utils/table-merge.ts).
+  mergedIntoTableId String?
+  mergedAt          DateTime?
+  // Dónde estaba en el plano antes de unirse, para devolverla a su sitio al separarla.
+  preMergePlanX Decimal? @db.Decimal(5, 2)
+  preMergePlanY Decimal? @db.Decimal(5, 2)
+
   restaurant     Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   zone           Zone?          @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  mergedInto     Table?         @relation("TableMerge", fields: [mergedIntoTableId], references: [id], onDelete: SetNull)
+  mergedTables   Table[]        @relation("TableMerge")
   assignedWaiter User?          @relation("TableAssignedWaiter", fields: [assignedWaiterId], references: [id], onDelete: SetNull)
   orders         Order[]
   sessions       TableSession[]
@@ -1146,6 +1159,7 @@ model Table {
   @@index([restaurantId])
   @@index([zoneId])
   @@index([assignedWaiterId])
+  @@index([restaurantId, mergedIntoTableId])
   @@map("tables")
 }
 

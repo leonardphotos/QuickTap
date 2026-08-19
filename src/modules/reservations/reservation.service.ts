@@ -37,11 +37,20 @@ export const reservationService = {
     const occupiedTableIds = new Set(openSessions.map((s) => s.tableId));
     const reservedTableIds = new Set(todaysReservations.flatMap((r) => r.tables.map((t) => t.id)));
 
+    // Mesa unida a otra: refleja el estado del grupo. Si no, una mesa pegada a una ocupada se
+    // ofrecería como libre y el cliente reservaría algo que físicamente ya está en uso.
+    const statusOf = (tableId: string, mergedIntoTableId: string | null) => {
+      const id = mergedIntoTableId ?? tableId;
+      if (occupiedTableIds.has(id)) return 'OCCUPIED';
+      if (reservedTableIds.has(id)) return 'RESERVED';
+      return 'AVAILABLE';
+    };
+
     return tables.map((t) => ({
       id: t.id,
       number: t.number,
       zone: t.zone,
-      status: occupiedTableIds.has(t.id) ? 'OCCUPIED' : reservedTableIds.has(t.id) ? 'RESERVED' : 'AVAILABLE',
+      status: statusOf(t.id, t.mergedIntoTableId),
     }));
   },
 

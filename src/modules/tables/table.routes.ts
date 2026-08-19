@@ -16,6 +16,10 @@ router.patch('/floor-plan', mutate, tableController.saveFloorPlan);
 router.post('/', mutate, tableController.create);
 router.patch('/:id', mutate, tableController.update);
 router.patch('/:id/service-request/ack', tableController.acknowledgeServiceRequest);
+// Unir/separar mesas es una decisión de sala, no de configuración: la toma quien atiende
+// (mismo criterio que atender un llamado), no solo dueño/admin.
+router.post('/merge', tableController.merge);
+router.post('/:id/unmerge', tableController.unmerge);
 router.delete('/:id', mutate, tableController.remove);
 
 export default router;

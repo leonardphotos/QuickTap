@@ -422,6 +422,14 @@ export interface FloorPlanTable {
   planSize: number;
   /** Sillas de la mesa: se dibujan como puntitos alrededor. Solo visual. */
   seats: number;
+  /** Unir mesas — en una MIEMBRO: a qué mesa principal está pegada (su cuenta vive allá). */
+  mergedIntoTableId: string | null;
+  /** En una PRINCIPAL: las mesas que cuelgan de ella. Vacío si no tiene ninguna. */
+  mergedTableIds: string[];
+  /** Números del grupo para el rótulo ("1", "2" -> "1+2"). Vacío si la mesa no es principal. */
+  mergedNumbers: string[];
+  /** Sillas del grupo completo (las suyas + las de sus miembros). */
+  groupSeats: number;
 }
 
 export interface FloorPlan {

@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { OrderChannel, PaymentMethod, Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
+import { primaryTableIdOf } from '../../utils/table-merge';
 import { badRequest, conflict, forbidden, notFound } from '../../utils/http-error';
 import { ADMIN_CASHIER_ROLES } from '../../utils/roles';
 import { resolveInventoryScopeById } from '../inventory/inventory-scope';
@@ -940,6 +941,9 @@ export const orderService = {
     await assertRestaurantOpen(table.restaurantId);
 
     const restaurantId = table.restaurantId;
+    // Si esta mesa está unida a otra, la cuenta (y por tanto el pedido) va a la principal:
+    // el grupo entero consume y paga una sola cuenta. Ver src/utils/table-merge.ts.
+    const accountTableId = primaryTableIdOf(table);
     const currency = table.restaurant.baseCurrency;
     const rate = await exchangeRateService.getRate(currency, restaurantId);
 
@@ -951,7 +955,7 @@ export const orderService = {
     const order = await prisma.$transaction(async (tx) => {
       // Mientras la mesa esté "abierta", todos sus pedidos se acumulan en la
       // misma cuenta (TableSession). Solo el primer pedido pide nombre/cédula.
-      const openSessions = await tx.tableSession.findMany({ where: { tableId: table.id, status: 'OPEN' } });
+      const openSessions = await tx.tableSession.findMany({ where: { tableId: accountTableId, status: 'OPEN' } });
       // Con varias cuentas abiertas a la vez, el autopedido público no puede saber a cuál
       // atribuir el pedido — eso queda para el mesero (ver CreateOrderDialog/TableOrdersPage).
       if (openSessions.length > 1) {
@@ -972,7 +976,7 @@ export const orderService = {
         session = await tx.tableSession.create({
           data: {
             restaurantId,
-            tableId: table.id,
+            tableId: accountTableId,
             customerName: input.customerName,
             customerIdNumber: input.customerIdNumber,
             customerPhone: input.customerPhone,
@@ -989,7 +993,7 @@ export const orderService = {
           // Todo pedido que llega solo desde el cliente (menú público/QR de mesa) espera
           // a que Mesero/Caja/Admin/Dueño lo acepte antes de que llegue a cocina.
           status: 'NEEDS_CONFIRMATION',
-          tableId: table.id,
+          tableId: accountTableId,
           tableSessionId: session.id,
           customerName: session.customerName,
           customerIdNumber: session.customerIdNumber,
@@ -1138,6 +1142,8 @@ export const orderService = {
         ? await (async () => {
             const table = await prisma.table.findFirst({ where: { id: input.tableId, restaurantId } });
             if (!table || !table.isActive) throw notFound('Mesa no válida.');
+            // Mesa unida: la cuenta vive en la principal, así el grupo paga una sola.
+            const accountTableId = primaryTableIdOf(table);
 
             return prisma.$transaction(async (tx) => {
               let session: { id: string; customerName: string; customerIdNumber: string; customerPhone: string | null } | null = null;
@@ -1145,12 +1151,12 @@ export const orderService = {
               if (input.sessionId) {
                 // Agregar a una cuenta específica (mesa con varias cuentas abiertas).
                 session = await tx.tableSession.findFirst({
-                  where: { id: input.sessionId, tableId: table.id, restaurantId, status: 'OPEN' },
+                  where: { id: input.sessionId, tableId: accountTableId, restaurantId, status: 'OPEN' },
                 });
                 if (!session) throw badRequest('Esa cuenta no existe o ya no está abierta.');
               } else if (!input.openNewAccount) {
                 // Comportamiento de siempre: reusa la única cuenta abierta de la mesa, si la tiene.
-                session = await tx.tableSession.findFirst({ where: { tableId: table.id, status: 'OPEN' } });
+                session = await tx.tableSession.findFirst({ where: { tableId: accountTableId, status: 'OPEN' } });
               }
 
               if (!session) {
@@ -1160,7 +1166,7 @@ export const orderService = {
                 session = await tx.tableSession.create({
                   data: {
                     restaurantId,
-                    tableId: table.id,
+                    tableId: accountTableId,
                     customerName,
                     customerIdNumber,
                     customerPhone,
@@ -1178,7 +1184,7 @@ export const orderService = {
                   // Cargado por staff: entra directo a cocina. Un pedido de kiosco (Comanda)
                   // en cambio espera confirmación de pago primero.
                   status: isKioskOrder ? 'NEEDS_PAYMENT' : isStaffPlaced ? 'KITCHEN' : 'PENDING',
-                  tableId: table.id,
+                  tableId: accountTableId,
                   tableSessionId: session.id,
                   customerName: session.customerName,
                   customerIdNumber: session.customerIdNumber,
@@ -1815,8 +1821,10 @@ export const orderService = {
     if (input.channel === 'DINE_IN') {
       const table = await prisma.table.findFirst({ where: { id: input.tableId, restaurantId } });
       if (!table || !table.isActive) throw notFound('Mesa no válida.');
+      // Mesa unida: la cuenta vive en la principal, así el grupo paga una sola.
+      const accountTableId = primaryTableIdOf(table);
 
-      const openSessions = await tableSessionService.listOpenForTable(table.id);
+      const openSessions = await tableSessionService.listOpenForTable(accountTableId);
       if (openSessions.length > 1) {
         throw conflict('Esta mesa tiene varias cuentas abiertas — usa "Generar orden" desde Mesas para elegir a cuál agregarlo.');
       }
@@ -1831,7 +1839,7 @@ export const orderService = {
         const session = await prisma.tableSession.create({
           data: {
             restaurantId,
-            tableId: table.id,
+            tableId: accountTableId,
             customerName: existing.customerName,
             customerIdNumber: existing.customerIdNumber,
             customerPhone: existing.customerPhone,
@@ -1839,7 +1847,7 @@ export const orderService = {
         });
         tableSessionId = session.id;
       }
-      tableId = table.id;
+      tableId = accountTableId;
       customerAddress = null;
       customerLat = null;
       customerLng = null;
