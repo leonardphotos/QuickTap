@@ -14,6 +14,7 @@ import { EditOrderDialog, getPaymentStatus, type LiveOrder } from '@/components/
 import { PaymentDialog } from '@/components/admin/PaymentDialog';
 import { FloorPlanCanvas, SaveFloorPlanButton, saveFloorPlan, type FloorPlanPatch } from '@/components/admin/FloorPlanCanvas';
 import { isAdminCashier } from '@/utils/roles';
+import { useIsLandscapeTablet } from '@/hooks/useIsLandscapeTablet';
 
 const STATUS_LABEL: Record<string, string> = {
   NEEDS_CONFIRMATION: 'Por confirmar',
@@ -25,6 +26,7 @@ const STATUS_LABEL: Record<string, string> = {
 
 export default function TableOrdersPage() {
   const { restaurant, user } = useAuth();
+  const isPos = useIsLandscapeTablet();
   const canAcceptOrders = user?.role !== 'KITCHEN';
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [plan, setPlan] = useState<FloorPlan | null>(null);
@@ -315,58 +317,96 @@ export default function TableOrdersPage() {
   }
 
   /** Generar orden / Rodar mesa / Quitar clave / Cerrar mesa — se muestran tanto en el diálogo
-   * de mesa (mesa libre / respaldo sin pedido cargado aún) como fijos arriba de "Editar pedido". */
+   * de mesa (mesa libre / respaldo sin pedido cargado aún) como fijos arriba de "Editar pedido".
+   * En tablet horizontal (POS) se ven como botones cuadrados en grilla en vez de píldoras apiladas. */
   function renderMesaActions() {
     if (!activeSession) return null;
+    const items = [
+      {
+        key: 'generar',
+        variant: 'brand' as const,
+        onClick: () => setManualOrderOpen(true),
+        disabled: busy,
+        icon: Plus,
+        label: 'Generar orden',
+      },
+      {
+        key: 'cobrar',
+        variant: 'success' as const,
+        onClick: openCobrar,
+        disabled: busy || !selected?.sessions.some((s) => getUnpaidOrdersFor(s).length > 0),
+        icon: CreditCard,
+        label: 'Cobrar',
+      },
+      {
+        key: 'rodar',
+        variant: 'minimal' as const,
+        onClick: () => setMoveOpen(true),
+        disabled: busy,
+        icon: MoveHorizontal,
+        label: 'Rodar mesa',
+      },
+      ...(activeSession.pinRequired
+        ? [
+            {
+              key: 'clave',
+              variant: 'minimal' as const,
+              onClick: resetPin,
+              disabled: busy,
+              icon: Lock,
+              label: 'Quitar clave',
+            },
+          ]
+        : []),
+      {
+        key: 'cerrar',
+        variant: 'destructive' as const,
+        onClick: handleCerrarMesaClick,
+        disabled: busy,
+        icon: LogOut,
+        label: 'Cerrar mesa',
+      },
+    ];
+
+    if (isPos) {
+      const posColorClass: Record<typeof items[number]['variant'], string> = {
+        brand: 'bg-brand-500 text-white hover:bg-brand-400 active:bg-brand-800',
+        success: 'bg-emerald-500 text-white hover:bg-emerald-600 active:bg-emerald-700',
+        minimal: 'bg-white border border-brand-950/10 text-brand-950 hover:bg-brand-950/5',
+        destructive: 'bg-red-500 text-white hover:bg-red-600 active:bg-red-700',
+      };
+      return (
+        <div className="flex flex-wrap gap-1.5">
+          {items.map(({ key, variant, onClick, disabled, icon: Icon, label }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={onClick}
+              disabled={disabled}
+              className={`h-14 w-14 shrink-0 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-transform active:scale-[0.97] disabled:opacity-40 ${posColorClass[variant]}`}
+            >
+              <Icon className="h-4 w-4" />
+              <span className="text-[9px] font-medium leading-tight text-center px-0.5">{label}</span>
+            </button>
+          ))}
+        </div>
+      );
+    }
+
     return (
       <div className="flex flex-wrap gap-2">
-        <TextureButton
-          variant="brand"
-          size="default"
-          onClick={() => setManualOrderOpen(true)}
-          disabled={busy}
-          className="flex items-center justify-center gap-1.5 disabled:opacity-50"
-        >
-          <Plus className="h-4 w-4" /> Generar orden
-        </TextureButton>
-        <TextureButton
-          variant="success"
-          size="default"
-          onClick={openCobrar}
-          disabled={busy || !selected?.sessions.some((s) => getUnpaidOrdersFor(s).length > 0)}
-          className="flex items-center justify-center gap-1.5 disabled:opacity-50"
-        >
-          <CreditCard className="h-4 w-4" /> Cobrar
-        </TextureButton>
-        <TextureButton
-          variant="minimal"
-          size="default"
-          onClick={() => setMoveOpen(true)}
-          disabled={busy}
-          className="flex items-center justify-center gap-1.5 disabled:opacity-50"
-        >
-          <MoveHorizontal className="h-4 w-4" /> Rodar mesa
-        </TextureButton>
-        {activeSession.pinRequired && (
+        {items.map(({ key, variant, onClick, disabled, icon: Icon, label }) => (
           <TextureButton
-            variant="minimal"
+            key={key}
+            variant={variant}
             size="default"
-            onClick={resetPin}
-            disabled={busy}
+            onClick={onClick}
+            disabled={disabled}
             className="flex items-center justify-center gap-1.5 disabled:opacity-50"
           >
-            <Lock className="h-4 w-4" /> Quitar clave
+            <Icon className="h-4 w-4" /> {label}
           </TextureButton>
-        )}
-        <TextureButton
-          variant="destructive"
-          size="default"
-          onClick={handleCerrarMesaClick}
-          disabled={busy}
-          className="flex items-center justify-center gap-1.5 disabled:opacity-50"
-        >
-          <LogOut className="h-4 w-4" /> Cerrar mesa
-        </TextureButton>
+        ))}
       </div>
     );
   }

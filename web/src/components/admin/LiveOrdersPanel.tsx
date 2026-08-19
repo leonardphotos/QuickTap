@@ -50,6 +50,9 @@ interface LiveOrderItem {
   paidQuantity: number;
   modifiers: { name: string; priceBase: string; quantity: number }[];
   note?: string | null;
+  // Cuándo el mesero lo marcó "Entregado" — condición para pedir motivo al devolverlo
+  // (ver returnItem en el backend); null = todavía no salió a la mesa/cliente.
+  deliveredAt?: string | null;
 }
 
 export interface LiveOrderPayment {
@@ -847,6 +850,16 @@ function PosCol({ isPos, className, children }: { isPos: boolean; className: str
   return isPos ? <div className={className}>{children}</div> : <>{children}</>;
 }
 
+/** Espejo de RETURN_REASONS en src/modules/orders/order.dto.ts — motivos que un mesero puede
+ * explicar al quitar/reducir un ítem ya entregado (subconjunto de WasteReason). */
+const RETURN_REASONS = ['CUSTOMER_RETURN', 'PREPARATION', 'DAMAGED', 'OTHER'] as const;
+const RETURN_REASON_LABELS: Record<(typeof RETURN_REASONS)[number], string> = {
+  CUSTOMER_RETURN: 'El cliente lo devolvió',
+  PREPARATION: 'Se preparó mal',
+  DAMAGED: 'Se dañó o se cayó',
+  OTHER: 'Otro motivo',
+};
+
 interface EditOrderDialogProps {
   order: LiveOrder;
   onClose: () => void;
@@ -893,6 +906,14 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
   const [showReciboMenu, setShowReciboMenu] = useState(false);
   const [paymentMode, setPaymentMode] = useState<'full' | 'split' | null>(null);
   const [markingDebt, setMarkingDebt] = useState(false);
+  const [togglingDeliveredId, setTogglingDeliveredId] = useState<string | null>(null);
+  // "Devolver" (quitar/reducir un ítem ya entregado): pide motivo, queda registrado en Merma.
+  const [returnPromptFor, setReturnPromptFor] = useState<LiveOrderItem | null>(null);
+  const [returnReason, setReturnReason] = useState<(typeof RETURN_REASONS)[number]>('CUSTOMER_RETURN');
+  const [returnQty, setReturnQty] = useState(1);
+  const [returnNote, setReturnNote] = useState('');
+  const [returning, setReturning] = useState(false);
+  const [returnError, setReturnError] = useState<string | null>(null);
   const [couriers, setCouriers] = useState<DeliveryCourier[]>([]);
   const [showCourierPicker, setShowCourierPicker] = useState(false);
   const [dispatching, setDispatching] = useState(false);
@@ -1081,6 +1102,55 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
       onSaved();
     } finally {
       setMarkingDebt(false);
+    }
+  }
+
+  /** "Entregado": el mesero lo marca cuando de verdad lleva el producto a la mesa/cliente —
+   * a partir de ahí, quitarlo/reducirlo pide motivo (ver returnItem más abajo). */
+  async function toggleDelivered(it: LiveOrderItem) {
+    setTogglingDeliveredId(it.id);
+    try {
+      await api.patch(`/orders/${order.id}/items/${it.id}/delivered`, { delivered: !it.deliveredAt });
+      onSaved();
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo marcar como entregado.');
+    } finally {
+      setTogglingDeliveredId(null);
+    }
+  }
+
+  /** Abre el diálogo de motivo antes de quitar/reducir un ítem ya entregado — para uno que
+   * nunca salió, el "−" de siempre sigue siendo directo (sin pedir nada). */
+  function requestQtyDecrease(it: LiveOrderItem) {
+    if (it.deliveredAt) {
+      setReturnPromptFor(it);
+      setReturnReason('CUSTOMER_RETURN');
+      setReturnQty(1);
+      setReturnNote('');
+      setReturnError(null);
+      return;
+    }
+    setQty(it.id, it.quantity - 1);
+  }
+
+  /** Registra la devolución de 1 unidad con motivo — queda en Merma (WasteReason) como su
+   * propia estadística, aparte de las ventas. */
+  async function confirmReturn() {
+    if (!returnPromptFor) return;
+    setReturning(true);
+    setReturnError(null);
+    try {
+      await api.post(`/orders/${order.id}/items/${returnPromptFor.id}/return`, {
+        quantity: returnQty,
+        reason: returnReason,
+        note: returnNote.trim() || undefined,
+      });
+      setReturnPromptFor(null);
+      onSaved();
+    } catch (e: any) {
+      setReturnError(e.response?.data?.error ?? 'No se pudo registrar la devolución.');
+    } finally {
+      setReturning(false);
     }
   }
 
@@ -1502,11 +1572,12 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
                   </div>
                 )}
 
-                <div className="rounded-2xl border border-brand-950/10 px-4 py-3">
-                  <p className="text-base font-bold text-brand-950">Productos</p>
-                  <ul className="space-y-1 mt-2 divide-y divide-brand-950/[0.06]">
+                <div className="flex-1 min-h-0 flex flex-col rounded-2xl border border-brand-950/10 px-4 py-3">
+                  <p className="text-base font-bold text-brand-950 shrink-0">Productos</p>
+                  <ul className="space-y-1 mt-2 flex-1 min-h-0 overflow-y-auto divide-y divide-brand-950/[0.06]">
                     {order.items.map((it) => {
                       const canEdit = Boolean(products?.find((p) => p.id === it.productId && needsPicker(p)));
+                      const delivered = !!it.deliveredAt;
                       return (
                         <li key={it.id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0">
                           <div className={`min-w-0 ${canEdit ? 'cursor-pointer' : ''}`} onClick={() => canEdit && openItemForEdit(it)}>
@@ -1520,22 +1591,36 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
                             )}
                             <p className="text-xs text-brand-950/50">{it.unitPrice} c/u</p>
                           </div>
-                          <div className="flex items-center gap-1.5 shrink-0">
+                          <div className="flex items-center gap-2 shrink-0">
                             <button
-                              onClick={() => setQty(it.id, it.quantity - 1)}
-                              disabled={saving}
-                              className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30"
+                              type="button"
+                              onClick={() => toggleDelivered(it)}
+                              disabled={togglingDeliveredId === it.id}
+                              className={`text-xs font-semibold px-2.5 py-1.5 rounded-full transition-colors disabled:opacity-50 ${
+                                delivered
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : 'bg-brand-950/[0.05] text-brand-950/50 border border-transparent hover:bg-brand-950/10'
+                              }`}
                             >
-                              −
+                              {delivered ? '✓ Entregado' : 'Entregado'}
                             </button>
-                            <span className="w-5 text-center text-sm font-bold">{it.quantity}</span>
-                            <button
-                              onClick={() => setQty(it.id, it.quantity + 1)}
-                              disabled={saving}
-                              className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30"
-                            >
-                              +
-                            </button>
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                onClick={() => requestQtyDecrease(it)}
+                                disabled={saving}
+                                className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30"
+                              >
+                                −
+                              </button>
+                              <span className="w-5 text-center text-sm font-bold">{it.quantity}</span>
+                              <button
+                                onClick={() => setQty(it.id, it.quantity + 1)}
+                                disabled={saving}
+                                className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30"
+                              >
+                                +
+                              </button>
+                            </div>
                           </div>
                         </li>
                       );
@@ -1691,39 +1776,54 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
             <ul className="space-y-2 max-h-56 overflow-y-auto">
               {order.items.map((it) => {
                 const canEdit = Boolean(products?.find((p) => p.id === it.productId && needsPicker(p)));
+                const delivered = !!it.deliveredAt;
                 return (
-                  <li key={it.id} className="flex items-center justify-between gap-2 border-b border-brand-950/10 pb-2">
-                    <div
-                      className={`min-w-0 ${canEdit ? 'cursor-pointer' : ''}`}
-                      onClick={() => canEdit && openItemForEdit(it)}
+                  <li key={it.id} className="space-y-1.5 border-b border-brand-950/10 pb-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <div
+                        className={`min-w-0 ${canEdit ? 'cursor-pointer' : ''}`}
+                        onClick={() => canEdit && openItemForEdit(it)}
+                      >
+                        <p className="text-sm font-medium text-brand-950 truncate">
+                          {it.productName}
+                          {it.variantName && <span className="text-brand-950/50"> ({it.variantName})</span>}
+                          {canEdit && <span className="text-brand-500 text-xs font-normal"> · editar</span>}
+                        </p>
+                        {it.modifiers.length > 0 && (
+                          <p className="text-xs text-brand-950/50 truncate">{it.modifiers.map(formatModifierLabel).join(', ')}</p>
+                        )}
+                        <p className="text-xs text-brand-950/50">{it.unitPrice} c/u</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <button
+                          onClick={() => requestQtyDecrease(it)}
+                          disabled={saving}
+                          className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30"
+                        >
+                          −
+                        </button>
+                        <span className="w-5 text-center text-sm font-medium">{it.quantity}</span>
+                        <button
+                          onClick={() => setQty(it.id, it.quantity + 1)}
+                          disabled={saving}
+                          className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => toggleDelivered(it)}
+                      disabled={togglingDeliveredId === it.id}
+                      className={`text-xs font-semibold px-2 py-1 rounded-full transition-colors disabled:opacity-50 ${
+                        delivered
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-brand-950/[0.05] text-brand-950/50 border border-transparent'
+                      }`}
                     >
-                      <p className="text-sm font-medium text-brand-950 truncate">
-                        {it.productName}
-                        {it.variantName && <span className="text-brand-950/50"> ({it.variantName})</span>}
-                        {canEdit && <span className="text-brand-500 text-xs font-normal"> · editar</span>}
-                      </p>
-                      {it.modifiers.length > 0 && (
-                        <p className="text-xs text-brand-950/50 truncate">{it.modifiers.map(formatModifierLabel).join(', ')}</p>
-                      )}
-                      <p className="text-xs text-brand-950/50">{it.unitPrice} c/u</p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() => setQty(it.id, it.quantity - 1)}
-                        disabled={saving}
-                        className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30"
-                      >
-                        −
-                      </button>
-                      <span className="w-5 text-center text-sm font-medium">{it.quantity}</span>
-                      <button
-                        onClick={() => setQty(it.id, it.quantity + 1)}
-                        disabled={saving}
-                        className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30"
-                      >
-                        +
-                      </button>
-                    </div>
+                      {delivered ? '✓ Entregado' : 'Entregado'}
+                    </button>
                   </li>
                 );
               })}
@@ -1918,6 +2018,89 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
           onPick={dispatchCourier}
           onClose={() => setShowCourierPicker(false)}
         />
+      )}
+
+      {returnPromptFor && (
+        <Dialog open onOpenChange={(o) => !o && setReturnPromptFor(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Devolver "{returnPromptFor.productName}"</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <p className="text-sm text-brand-950/60 font-light">
+                Ya estaba marcado como entregado — cuéntanos por qué se devuelve. Queda
+                registrado en Inventario → Merma, aparte de las ventas.
+              </p>
+              {(() => {
+                const maxReturnable = Math.max(1, returnPromptFor.quantity - returnPromptFor.paidQuantity);
+                return maxReturnable > 1 ? (
+                  <div className="flex items-center justify-between rounded-xl border border-brand-950/10 px-3 py-2">
+                    <span className="text-sm font-medium text-brand-950/70">Cantidad a devolver</span>
+                    <div className="flex items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setReturnQty((q) => Math.max(1, q - 1))}
+                        disabled={returnQty <= 1}
+                        className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30"
+                      >
+                        −
+                      </button>
+                      <span className="w-6 text-center text-sm font-bold">{returnQty}</span>
+                      <button
+                        type="button"
+                        onClick={() => setReturnQty((q) => Math.min(maxReturnable, q + 1))}
+                        disabled={returnQty >= maxReturnable}
+                        className="w-7 h-7 rounded-full border border-brand-950/20 font-bold text-brand-950 disabled:opacity-30"
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                ) : null;
+              })()}
+              <div className="space-y-1.5">
+                {RETURN_REASONS.map((r) => (
+                  <label
+                    key={r}
+                    className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm cursor-pointer transition-colors ${
+                      returnReason === r ? 'border-brand-500 bg-brand-500/5' : 'border-brand-950/10 hover:border-brand-950/20'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="returnReason"
+                      checked={returnReason === r}
+                      onChange={() => setReturnReason(r)}
+                    />
+                    {RETURN_REASON_LABELS[r]}
+                  </label>
+                ))}
+              </div>
+              <textarea
+                value={returnNote}
+                onChange={(e) => setReturnNote(e.target.value)}
+                placeholder="Detalle (opcional)"
+                rows={2}
+                className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5 resize-none"
+              />
+              {returnError && <p className="text-sm text-red-600">{returnError}</p>}
+              <div className="flex gap-2">
+                <TextureButton
+                  variant="brand"
+                  size="default"
+                  disabled={returning}
+                  onClick={confirmReturn}
+                  className="disabled:opacity-50"
+                >
+                  {returning ? 'Registrando…' : 'Confirmar devolución'}
+                </TextureButton>
+                <TextureButton variant="secondary" size="default" className="!w-auto" onClick={() => setReturnPromptFor(null)}>
+                  Cancelar
+                </TextureButton>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       <Toast message={toastMessage} />

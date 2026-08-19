@@ -141,6 +141,25 @@ export const updateOrderItemsSchema = z.object({
     .min(1),
 });
 
+/** "Entregado" — el mesero lo marca cuando de verdad lleva el plato/producto a la mesa. */
+export const markItemDeliveredSchema = z.object({
+  delivered: z.boolean(),
+});
+
+/** Motivos de devolución al quitar/reducir un ítem YA entregado — subconjunto de WASTE_REASONS
+ * (ver waste.dto.ts): los que de verdad puede explicar un mesero desde el pedido, sin el resto
+ * de motivos de Merma (vencido, robo…) que no aplican a "el cliente lo devolvió". */
+export const RETURN_REASONS = ['CUSTOMER_RETURN', 'PREPARATION', 'DAMAGED', 'OTHER'] as const;
+
+/** Quitar/reducir un ítem YA entregado: a diferencia de updateOrderItemsSchema (una simple
+ * corrección antes de que salga), esto pide el motivo y queda registrado en Merma
+ * (WasteRecord) — es la "estadística aparte" de devoluciones. */
+export const returnOrderItemSchema = z.object({
+  quantity: z.coerce.number().int().positive().max(99),
+  reason: z.enum(RETURN_REASONS),
+  note: z.string().trim().max(300).optional(),
+});
+
 /** Agregar/editar la propina de un pedido a mano, desde Administración. */
 export const setTipSchema = z.object({
   tipBase: z.coerce.number().nonnegative().max(100000),
@@ -316,6 +335,8 @@ export type DineInCheckoutInput = z.infer<typeof dineInCheckoutSchema>;
 export type DeliveryCheckoutInput = z.infer<typeof deliveryCheckoutSchema>;
 export type ManualOrderInput = z.infer<typeof manualOrderSchema>;
 export type UpdateOrderItemsInput = z.infer<typeof updateOrderItemsSchema>;
+export type MarkItemDeliveredInput = z.infer<typeof markItemDeliveredSchema>;
+export type ReturnOrderItemInput = z.infer<typeof returnOrderItemSchema>;
 export type SetTipInput = z.infer<typeof setTipSchema>;
 export type SetAwaitingPaymentInput = z.infer<typeof setAwaitingPaymentSchema>;
 export type DeleteOrderInput = z.infer<typeof deleteOrderSchema>;

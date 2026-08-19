@@ -42,9 +42,11 @@ import {
   OrderHistoryQuery,
   RecordPaymentInput,
   ReportRange,
+  ReturnOrderItemInput,
   UpdateOrderCustomerInput,
   UpdateOrderItemsInput,
 } from './order.dto';
+import { wasteService } from '../waste/waste.service';
 
 /**
  * ============================================================================
@@ -1641,6 +1643,56 @@ export const orderService = {
     const updated = await prisma.order.findUnique({ where: { id: orderId }, include: { items: { include: { modifiers: true } } } });
     emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: updated!.status });
     return updated;
+  },
+
+  /** "Entregado": el mesero lo marca cuando de verdad lleva el producto a la mesa/cliente —
+   * aparte de kitchenReadyAt (que solo dice que cocina ya lo tiene listo). Es la condición que
+   * usa returnItem para pedir motivo: bajar algo que nunca se marcó entregado es una simple
+   * corrección, no una devolución. */
+  async markItemDelivered(restaurantId: string, orderId: string, orderItemId: string, delivered: boolean) {
+    const item = await prisma.orderItem.findFirst({
+      where: { id: orderItemId, order: { id: orderId, restaurantId } },
+      include: { order: { select: { status: true } } },
+    });
+    if (!item) throw notFound('Producto no encontrado en este pedido.');
+    const updated = await prisma.orderItem.update({
+      where: { id: orderItemId },
+      data: { deliveredAt: delivered ? new Date() : null },
+    });
+    emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: item.order.status });
+    return updated;
+  },
+
+  /** Quitar/reducir un ítem YA entregado: a diferencia del "−" de siempre (updateItems, una
+   * corrección antes de que salga), esto es una devolución — pide motivo y lo deja registrado
+   * en Merma (WasteRecord, reason=CUSTOMER_RETURN/PREPARATION/DAMAGED/OTHER) para que aparezca
+   * en su propia estadística (Inventario → Merma, agrupado por motivo) en vez de perderse como
+   * un simple ajuste de cantidad. No repone inventario: lo que se cocinó ya consumió sus
+   * insumos y no vuelve a la nevera por devolverse — es pérdida, igual que cualquier merma. */
+  async returnItem(restaurantId: string, orderId: string, orderItemId: string, userId: string | undefined, input: ReturnOrderItemInput) {
+    const item = await prisma.orderItem.findFirst({ where: { id: orderItemId, order: { id: orderId, restaurantId } } });
+    if (!item) throw notFound('Producto no encontrado en este pedido.');
+    if (!item.deliveredAt) {
+      throw badRequest('Solo se pide motivo al quitar algo que ya se marcó "Entregado" — para lo demás, usa +/−.');
+    }
+    if (!item.productId) {
+      throw badRequest('Este producto ya no existe en el catálogo; no se puede registrar la devolución.');
+    }
+    if (input.quantity > item.quantity - item.paidQuantity) {
+      throw badRequest(`Solo puedes devolver hasta ${item.quantity - item.paidQuantity} de "${item.productName}" (lo demás ya está cobrado).`);
+    }
+
+    // Primero el asiento de merma (así si falla, el producto sigue completo en el pedido —
+    // nunca se "pierde" una línea sin dejar el motivo registrado); recién con eso hecho se
+    // reduce/quita la línea con la misma lógica de updateItems (recalcula subtotal/servicio/IVA/total).
+    await wasteService.create(restaurantId, userId, {
+      productId: item.productId,
+      quantity: input.quantity,
+      reason: input.reason,
+      note: input.note,
+      adjustStock: false,
+    });
+    return this.updateItems(restaurantId, orderId, [{ orderItemId, quantity: item.quantity - input.quantity }]);
   },
 
   /** Añade un producto nuevo a un pedido ya creado (panel de Pedidos en vivo). */

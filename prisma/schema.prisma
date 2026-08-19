@@ -2209,6 +2209,13 @@ model OrderItem {
   // Cuándo esa estación de cocina marcó su parte de la comanda como lista.
   // El pedido completo pasa a SERVED solo cuando todos sus ítems tienen esto.
   kitchenReadyAt   DateTime?
+  // "Entregado" — el mesero lo marca cuando de verdad lo lleva a la mesa/cliente, aparte de
+  // kitchenReadyAt (que es "cocina ya lo hizo", no "ya lo tiene el comensal"). Sirve para saber
+  // qué falta por sacar Y como condición para pedir motivo al reducir/quitar la línea: bajar
+  // algo que nunca salió es una simple corrección, bajar algo ya entregado es una devolución
+  // (ver returnItem en order.service.ts, que además la registra en Merma con
+  // WasteReason.CUSTOMER_RETURN — misma tabla que "estadística aparte" de devoluciones).
+  deliveredAt      DateTime?
 
   order     Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product   Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)

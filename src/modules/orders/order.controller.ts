@@ -11,9 +11,11 @@ import {
   dineInCheckoutSchema,
   dispatchCourierSchema,
   manualOrderSchema,
+  markItemDeliveredSchema,
   markKitchenReadySchema,
   orderHistoryQuerySchema,
   recordPaymentSchema,
+  returnOrderItemSchema,
   setAwaitingPaymentSchema,
   setTipSchema,
   statsPeriodQuerySchema,
@@ -77,6 +79,21 @@ export const orderController = {
     const input = addOrderItemSchema.parse(req.body);
     const order = await orderService.addItem(req.restaurantId!, req.params.id, input);
     res.status(201).json({ data: order });
+  }),
+
+  /** PATCH /api/v1/orders/:id/items/:itemId/delivered — "Entregado" (protegido). */
+  markItemDelivered: asyncHandler(async (req: Request, res: Response) => {
+    const input = markItemDeliveredSchema.parse(req.body);
+    const item = await orderService.markItemDelivered(req.restaurantId!, req.params.id, req.params.itemId, input.delivered);
+    res.json({ data: item });
+  }),
+
+  /** POST /api/v1/orders/:id/items/:itemId/return — quitar/reducir un ítem ya entregado,
+   * con motivo (protegido) — queda registrado en Merma como devolución. */
+  returnItem: asyncHandler(async (req: Request, res: Response) => {
+    const input = returnOrderItemSchema.parse(req.body);
+    const order = await orderService.returnItem(req.restaurantId!, req.params.id, req.params.itemId, req.auth?.userId, input);
+    res.json({ data: order });
   }),
 
   /** POST /api/v1/orders/:id/payments — registrar un cobro, botones "Pagar" / "Pago Fraccionado" (protegido). */
