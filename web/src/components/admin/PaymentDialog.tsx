@@ -133,6 +133,8 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   // sistema tapa media pantalla — ver PosNumericKeypad.
   const isPos = useIsLandscapeTablet();
   const [posField, setPosField] = useState<PosKeypadField>(payMode === 'split' ? 'amount' : 'tip');
+  // El abono, igual que la propina, se escribe en la moneda con la que el cliente paga.
+  const [amountCurrency, setAmountCurrency] = useState<'BASE' | 'BS'>('BASE');
   const [tipCurrency, setTipCurrency] = useState<'BASE' | 'BS'>('BS');
   const [tipValue, setTipValue] = useState(
     tipOutstanding > 0 ? (rateBsOfOrder > 0 ? round2(tipOutstanding * rateBsOfOrder) : tipOutstanding).toFixed(2) : '',
@@ -217,8 +219,22 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   const itemsPickedCount = Object.values(pickedQty).reduce((acc, q) => acc + q, 0);
   // Monto a cobrar ahora mismo — mismo valor que ya se muestra como "Monto a cobrar" más abajo,
   // usado también para el bloque de QR/Bs de Pago Móvil.
+  // Lo que se acredita SIEMPRE va en la moneda base del pedido: si el cajero escribió en Bs,
+  // se convierte con la tasa congelada del pedido (la misma con la que el backend lo asienta).
+  const amountTyped = Math.max(0, Number(amount) || 0);
+  const amountInBase =
+    amountCurrency === 'BS' && rateBsOfOrder > 0 ? round2(amountTyped / rateBsOfOrder) : amountTyped;
+
+  /** Cambiar Bs <-> $ convierte lo ya escrito, para no perder lo tecleado. */
+  function onAmountCurrencyChange(next: 'BASE' | 'BS') {
+    if (next !== amountCurrency && rateBsOfOrder > 0 && amountTyped > 0) {
+      setAmount((next === 'BS' ? round2(amountTyped * rateBsOfOrder) : round2(amountTyped / rateBsOfOrder)).toFixed(2));
+    }
+    setAmountCurrency(next);
+  }
+
   const amountToCharge =
-    payMode === 'split' && splitBy === 'items' ? itemsSubtotal : payMode === 'split' ? Number(amount) || 0 : discountedBalance;
+    payMode === 'split' && splitBy === 'items' ? itemsSubtotal : payMode === 'split' ? amountInBase : discountedBalance;
   const tipValueNum = Math.max(0, Number(tipValue) || 0);
   const tipAmt = tipCurrency === 'BS' && rateBsOfOrder > 0 ? round2(tipValueNum / rateBsOfOrder) : tipValueNum;
 
@@ -293,7 +309,10 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   // no hace falta tocar `amount`.
   function recomputeSplitAmount(nextDiscountAmt: number, nextServiceAmt: number) {
     if (payMode === 'full') return;
-    setAmount(round2(Math.max(0, balanceBase - nextDiscountAmt - nextServiceAmt)).toFixed(2));
+    // El abono sugerido se escribe en la moneda que el cajero tenga elegida, no siempre en base.
+    const suggestedBase = Math.max(0, balanceBase - nextDiscountAmt - nextServiceAmt);
+    const suggested = amountCurrency === 'BS' && rateBsOfOrder > 0 ? suggestedBase * rateBsOfOrder : suggestedBase;
+    setAmount(round2(suggested).toFixed(2));
   }
 
   function onDiscountValueChange(v: string) {
@@ -360,7 +379,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
 
   async function submit() {
     const byItems = payMode === 'split' && splitBy === 'items';
-    const amountBase = byItems ? itemsSubtotal : payMode === 'split' ? Number(amount) : discountedBalance;
+    const amountBase = byItems ? itemsSubtotal : payMode === 'split' ? amountInBase : discountedBalance;
     if (byItems) {
       if (itemsPickedCount === 0) {
         setError('Elige al menos un ítem a cobrar.');
@@ -474,7 +493,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   // Qué campo llena el teclado numérico del modo POS. `set` reusa los mismos manejadores que
   // los inputs (onDiscountValueChange recalcula el abono sugerido), no escribe el estado crudo.
   const posFields: Record<PosKeypadField, { label: string; value: string; suffix: string | null; set: (v: string) => void }> = {
-    amount: { label: 'Monto a abonar', value: amount, suffix: symbol, set: setAmount },
+    amount: { label: 'Monto a abonar', value: amount, suffix: amountCurrency === 'BS' ? 'Bs' : symbol, set: setAmount },
     tip: { label: 'Propina', value: tipValue, suffix: tipCurrency === 'BS' ? 'Bs' : symbol, set: setTipValue },
     discount: {
       label: 'Descuento',
@@ -993,18 +1012,43 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     <p className={isPos ? 'text-sm font-semibold text-brand-950/60 mb-1.5' : 'text-xs font-medium text-brand-950/50 mb-1.5'}>
                       Monto a abonar
                     </p>
-                    <input
-                      autoFocus
-                      value={amount}
-                      onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
-                      onFocus={() => setPosField('amount')}
-                      placeholder={`Máx. ${balanceBase.toFixed(2)}`}
-                      className={
-                        isPos
-                          ? 'w-full text-3xl font-bold tabular-nums border border-brand-950/15 rounded-xl px-3 py-2.5'
-                          : 'w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5'
-                      }
-                    />
+                    <div className="flex items-stretch gap-2">
+                      <input
+                        autoFocus
+                        value={amount}
+                        onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
+                        onFocus={() => setPosField('amount')}
+                        placeholder={
+                          amountCurrency === 'BS' && rateBsOfOrder > 0
+                            ? `Máx. ${(balanceBase * rateBsOfOrder).toFixed(2)}`
+                            : `Máx. ${balanceBase.toFixed(2)}`
+                        }
+                        className={
+                          isPos
+                            ? 'flex-1 min-w-0 text-3xl font-bold tabular-nums border border-brand-950/15 rounded-xl px-3 py-2.5'
+                            : 'flex-1 min-w-0 text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5'
+                        }
+                      />
+                      <div className="flex rounded-lg border border-brand-950/15 overflow-hidden shrink-0">
+                        {(['BS', 'BASE'] as const).map((c) => (
+                          <button
+                            key={c}
+                            type="button"
+                            onClick={() => onAmountCurrencyChange(c)}
+                            className={`${isPos ? 'px-4 text-base' : 'px-2.5 py-1.5 text-xs'} font-semibold transition-colors ${
+                              amountCurrency === c ? 'bg-brand-500 text-white' : 'bg-white text-brand-950/50 hover:bg-brand-950/[0.04]'
+                            }`}
+                          >
+                            {c === 'BS' ? 'Bs' : symbol}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {amountTyped > 0 && rateBsOfOrder > 0 && (
+                      <p className="text-xs text-brand-950/40 mt-1">
+                        ≈ {amountCurrency === 'BS' ? formatBase(amountInBase, symbol) : formatBs(amountInBase, rateBsOfOrder)}
+                      </p>
+                    )}
                   </div>
                   {/* Cuánto queda debiendo después de este abono — lo primero que pregunta el
                       cliente al pagar en partes. */}
@@ -1017,7 +1061,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                   >
                     <span className={isPos ? 'text-base text-brand-950/60' : 'text-brand-950/60'}>Restante después del abono</span>
                     <span className={isPos ? 'text-3xl font-bold tabular-nums text-brand-950' : 'font-semibold text-brand-950'}>
-                      {formatBase(Math.max(0, round2(balanceBase - (Number(amount) || 0) - discountAmt - serviceAdjAmt - promoAmt)), symbol)}
+                      {formatBase(Math.max(0, round2(balanceBase - amountInBase - discountAmt - serviceAdjAmt - promoAmt)), symbol)}
                     </span>
                   </div>
                 </div>
