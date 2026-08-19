@@ -15,6 +15,14 @@ import { PaymentDialog } from '@/components/admin/PaymentDialog';
 import { FloorPlanCanvas, SaveFloorPlanButton, saveFloorPlan, type FloorPlanPatch } from '@/components/admin/FloorPlanCanvas';
 import { isAdminCashier } from '@/utils/roles';
 import { useIsLandscapeTablet } from '@/hooks/useIsLandscapeTablet';
+import { SalaSidebar } from '@/components/admin/sala/SalaSidebar';
+import { SalaTopBar, todayIso } from '@/components/admin/sala/SalaTopBar';
+import { SeatDialog } from '@/components/admin/sala/SeatDialog';
+import { NewReservationDialog } from '@/components/admin/sala/NewReservationDialog';
+import { NewWaitlistDialog } from '@/components/admin/sala/NewWaitlistDialog';
+import { currentMealServiceId } from '@/utils/meal-services';
+import { sendWhatsappOrOpen } from '@/utils/sendWhatsapp';
+import type { Reservation, WaitlistEntry, WaitlistResponse } from '@/types';
 
 const STATUS_LABEL: Record<string, string> = {
   NEEDS_CONFIRMATION: 'Por confirmar',
@@ -62,6 +70,7 @@ export default function TableOrdersPage() {
   useEffect(() => {
     load();
     loadOrders();
+    loadWaitlist();
     api.get('/products').then((res) => setProducts(res.data.data));
 
     const socket: Socket = io(API_ORIGIN || '/', { auth: { token: getToken() } });
@@ -70,6 +79,10 @@ export default function TableOrdersPage() {
     socket.on('table:service-request', load);
     socket.on('table:service-ack', load);
     socket.on('table:merge-updated', load);
+    socket.on('reservation:new', () => loadReservations());
+    socket.on('reservation:updated', () => loadReservations());
+    socket.on('waitlist:new', loadWaitlist);
+    socket.on('waitlist:updated', loadWaitlist);
     socket.on('order:new', loadOrders);
     socket.on('order:updated', loadOrders);
 
@@ -91,6 +104,64 @@ export default function TableOrdersPage() {
   // Unir mesas es una decisión de sala (juntar dos mesas para un grupo grande), no de
   // configuración: la toma quien atiende, igual que atender un llamado.
   const [mergingTables, setMergingTables] = useState(false);
+
+  // --- Sala: reservas del día y lista de espera de la puerta ---
+  const [salaDate, setSalaDate] = useState(todayIso());
+  const [mealServiceId, setMealServiceId] = useState(() => currentMealServiceId(new Date()));
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [waitlist, setWaitlist] = useState<WaitlistResponse | null>(null);
+  // Qué se está por sentar: una reserva o alguien de la lista de espera.
+  const [seating, setSeating] = useState<
+    { kind: 'reservation'; reservation: Reservation } | { kind: 'waitlist'; entry: WaitlistEntry } | null
+  >(null);
+  const [newReservationOpen, setNewReservationOpen] = useState(false);
+  const [newWaitlistOpen, setNewWaitlistOpen] = useState(false);
+  const [salaBusy, setSalaBusy] = useState(false);
+  const [salaError, setSalaError] = useState<string | null>(null);
+  const canManageReservations = isAdminCashier(user?.role);
+
+  function loadReservations(date = salaDate) {
+    api.get('/reservations', { params: { date } }).then((res) => setReservations(res.data.data));
+  }
+  function loadWaitlist() {
+    api.get('/waitlist').then((res) => setWaitlist(res.data.data));
+  }
+
+  /** Envuelve una acción de Sala: apaga el error viejo, marca ocupado y recarga lo que toque. */
+  async function runSalaAction(fn: () => Promise<unknown>, fallback: string) {
+    setSalaBusy(true);
+    setSalaError(null);
+    try {
+      await fn();
+      loadReservations();
+      loadWaitlist();
+      load();
+      return true;
+    } catch (e: any) {
+      setSalaError(e.response?.data?.error ?? fallback);
+      return false;
+    } finally {
+      setSalaBusy(false);
+    }
+  }
+
+  /** Manda el mensaje por el bot si el restaurante lo tiene vinculado; si no, abre wa.me. */
+  function whatsapp(phone: string, message: string) {
+    const fallback = `https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+    void sendWhatsappOrOpen(phone, message, fallback);
+  }
+
+  async function confirmSeat(tableId: string, idNumber?: string) {
+    if (!seating) return;
+    const ok = await runSalaAction(
+      () =>
+        seating.kind === 'reservation'
+          ? api.patch(`/reservations/${seating.reservation.id}/seat`, { tableId })
+          : api.patch(`/waitlist/${seating.entry.id}/seat`, { tableId, customerIdNumber: idNumber }),
+      'No se pudo sentar.',
+    );
+    if (ok) setSeating(null);
+  }
 
   async function mergeTables(
     primaryTableId: string,
@@ -131,6 +202,11 @@ export default function TableOrdersPage() {
       setSavingPlan(false);
     }
   }
+
+  // Cambiar de día recarga solo las reservas: el plano siempre muestra AHORA.
+  useEffect(() => {
+    loadReservations(salaDate);
+  }, [salaDate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const sections = useMemo(() => {
     if (!plan) return [];
@@ -553,6 +629,39 @@ export default function TableOrdersPage() {
         </p>
       )}
 
+      {sections.length > 0 && (
+        <SalaTopBar
+          date={salaDate}
+          onDateChange={setSalaDate}
+          mealServiceId={mealServiceId}
+          onMealServiceChange={setMealServiceId}
+          onNewReservation={() => setNewReservationOpen(true)}
+          canCreateReservation={canManageReservations}
+        />
+      )}
+
+      {salaError && <p className="text-sm text-red-600">{salaError}</p>}
+
+      <div className={sections.length > 0 && isPos ? 'grid grid-cols-[320px_minmax(0,1fr)] gap-4 items-start' : 'space-y-4'}>
+        {sections.length > 0 && (
+          <SalaSidebar
+            reservations={reservations}
+            waitlist={waitlist}
+            mealServiceId={mealServiceId}
+            onSeatReservation={(r) => setSeating({ kind: 'reservation', reservation: r })}
+            onSeatWaitlist={(e) => setSeating({ kind: 'waitlist', entry: e })}
+            onNotifyWaitlist={(e) => runSalaAction(() => api.patch(`/waitlist/${e.id}/notify`), 'No se pudo avisar.')}
+            onCancelWaitlist={(e) => runSalaAction(() => api.patch(`/waitlist/${e.id}/cancel`), 'No se pudo quitar de la lista.')}
+            onWhatsappReservation={(r) =>
+              whatsapp(r.customerPhone, `Hola ${r.customerName}, te escribimos de ${restaurant?.name ?? ''} sobre tu reserva de las ${r.time}.`)
+            }
+            onWhatsappWaitlist={(e) =>
+              e.customerPhone && whatsapp(e.customerPhone, `Hola ${e.customerName}, ¡tu mesa en ${restaurant?.name ?? ''} está lista!`)
+            }
+            onNewWaitlistEntry={() => setNewWaitlistOpen(true)}
+          />
+        )}
+
       <div className="rounded-3xl border border-brand-950/10 bg-white p-8 space-y-10 shadow-sm">
         {sections.length > 0 && (
           <div className="flex flex-wrap items-center justify-between gap-3 -mt-2">
@@ -607,6 +716,56 @@ export default function TableOrdersPage() {
           </div>
         ))}
       </div>
+      </div>
+
+      <SeatDialog
+        open={!!seating}
+        title={seating?.kind === 'reservation' ? 'Sentar reserva' : 'Sentar de la lista de espera'}
+        personName={
+          seating?.kind === 'reservation' ? seating.reservation.customerName : (seating?.entry.customerName ?? '')
+        }
+        suggestedTableIds={seating?.kind === 'reservation' ? seating.reservation.tables.map((t) => t.id) : undefined}
+        tables={sections.flatMap((z) => z.tables)}
+        needsIdNumber={seating?.kind === 'waitlist'}
+        busy={salaBusy}
+        error={salaError}
+        onSeat={confirmSeat}
+        onClose={() => {
+          setSeating(null);
+          setSalaError(null);
+        }}
+      />
+
+      <NewReservationDialog
+        open={newReservationOpen}
+        date={salaDate}
+        tables={sections.flatMap((z) => z.tables)}
+        busy={salaBusy}
+        error={salaError}
+        onCreate={async (input) => {
+          const ok = await runSalaAction(() => api.post('/reservations', input), 'No se pudo crear la reserva.');
+          if (ok) setNewReservationOpen(false);
+        }}
+        onClose={() => {
+          setNewReservationOpen(false);
+          setSalaError(null);
+        }}
+      />
+
+      <NewWaitlistDialog
+        open={newWaitlistOpen}
+        zones={plan?.zones.map((z) => ({ id: z.id, name: z.name })) ?? []}
+        busy={salaBusy}
+        error={salaError}
+        onCreate={async (input) => {
+          const ok = await runSalaAction(() => api.post('/waitlist', input), 'No se pudo anotar en la lista.');
+          if (ok) setNewWaitlistOpen(false);
+        }}
+        onClose={() => {
+          setNewWaitlistOpen(false);
+          setSalaError(null);
+        }}
+      />
 
       <Dialog open={!!selected && !editingOrder} onOpenChange={(o) => !o && setSelected(null)}>
         <DialogContent>

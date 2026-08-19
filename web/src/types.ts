@@ -437,6 +437,57 @@ export interface FloorPlan {
   unzoned: FloorPlanTable[];
 }
 
+export type ReservationStatus = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'SEATED' | 'NO_SHOW';
+
+export interface Reservation {
+  id: string;
+  date: string;
+  time: string;
+  partySize: number;
+  customerName: string;
+  customerIdNumber: string;
+  customerPhone: string;
+  status: ReservationStatus;
+  /** De dónde salió: del menú público o cargada por el restaurante. */
+  source?: 'PUBLIC' | 'STAFF';
+  note?: string | null;
+  seatedAt?: string | null;
+  /** Cuenta que abrió al sentarse (null mientras no se haya sentado). */
+  tableSessionId?: string | null;
+  tables: { id: string; number: string }[];
+}
+
+export type WaitlistStatus = 'WAITING' | 'NOTIFIED' | 'SEATED' | 'CANCELLED' | 'NO_SHOW';
+
+/** Alguien esperando mesa en la puerta (sin reserva previa). */
+export interface WaitlistEntry {
+  id: string;
+  customerName: string;
+  customerPhone?: string | null;
+  customerIdNumber?: string | null;
+  partySize: number;
+  zoneId?: string | null;
+  zone?: { id: string; name: string } | null;
+  note?: string | null;
+  quotedMinutes?: number | null;
+  status: WaitlistStatus;
+  createdAt: string;
+  notifiedAt?: string | null;
+  seatedAt?: string | null;
+  /** Cuánto lleva esperando (o cuánto esperó, si ya se sentó). Lo calcula el servidor. */
+  waitedMinutes: number | null;
+}
+
+export interface WaitlistResponse {
+  waiting: WaitlistEntry[];
+  seatedToday: WaitlistEntry[];
+  stats: {
+    waitingCount: number;
+    avgWaitMinutes: number | null;
+    longestWaitMinutes: number | null;
+  };
+}
+
 export interface PublicTableSessionStatus {
   isOpen: boolean;
   customerName: string | null;
