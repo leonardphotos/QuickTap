@@ -1,0 +1,4 @@
+node_modules/
+dist/
+# Base local del relé: datos de trabajo del restaurante, nunca al repo.
+.relay-data/
