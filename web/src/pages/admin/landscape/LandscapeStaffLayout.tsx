@@ -8,6 +8,7 @@ import { TableServiceAlert } from '@/components/admin/TableServiceAlert';
 import { NewOrderAlert } from '@/components/admin/NewOrderAlert';
 import { OrderReadyToast } from '@/components/admin/OrderReadyToast';
 import { LowStockAlert } from '@/components/admin/LowStockAlert';
+import { CHATBOTS_ENABLED } from '@/config/features';
 import { HelpChatWidget } from '@/components/admin/HelpChatWidget';
 import { CreateOrderDialog } from '@/components/admin/CreateOrderDialog';
 import { PaymentDialog } from '@/components/admin/PaymentDialog';
@@ -148,7 +149,7 @@ export default function LandscapeStaffLayout() {
       <TableServiceAlert />
       <NewOrderAlert onNavigate={() => setTab('comandas')} />
       <LowStockAlert />
-      <HelpChatWidget />
+      {CHATBOTS_ENABLED && <HelpChatWidget />}
       {user.role === 'CASHIER' && <OrderReadyToast />}
 
       {createOrderOpen && (

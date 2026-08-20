@@ -8,6 +8,7 @@ import { demoResetService } from './utils/demo-reset.service';
 import { demoSimulatorService } from './utils/demo-simulator.service';
 import { masterServerStatusService } from './modules/master/master-server-status.service';
 import { fiscalInvoicingService } from './modules/fiscal-invoicing/fiscal-invoicing.service';
+import { CHATBOTS_ENABLED } from './config/features';
 import { whatsappBotService } from './modules/whatsapp-bot/whatsapp-bot.service';
 import { orderPaymentVerificationService } from './modules/orders/order-payment-verification.service';
 import { masterWhatsappBotService } from './modules/master-whatsapp/master-whatsapp-bot.service';
@@ -25,11 +26,15 @@ async function bootstrap() {
 
   // Chatbot de WhatsApp: reconecta las sesiones ya vinculadas (el reinicio nocturno de PM2,
   // ver ecosystem.config.js, no debe forzar a cada restaurante a escanear el QR de nuevo).
-  whatsappBotService.reconnectEnabledSessions().catch(() => undefined);
+  // Apagados por CHATBOTS_ENABLED (ver config/features.ts): sin esto se reconectarían sesiones
+  // que no pueden entregar mensajes.
+  if (CHATBOTS_ENABLED) {
+    whatsappBotService.reconnectEnabledSessions().catch(() => undefined);
 
-  // Chatbot de WhatsApp de la plataforma (bienvenida + recordatorios de renovación, ver
-  // src/modules/master-whatsapp/): misma lógica de reconexión que el bot por restaurante.
-  masterWhatsappBotService.reconnectIfEnabled().catch(() => undefined);
+    // Chatbot de WhatsApp de la plataforma (bienvenida + recordatorios de renovación, ver
+    // src/modules/master-whatsapp/): misma lógica de reconexión que el bot por restaurante.
+    masterWhatsappBotService.reconnectIfEnabled().catch(() => undefined);
+  }
 
   // Tasa BCV: refresco inicial (best-effort, no bloquea el arranque si falla)
   // + refresco periódico según EXCHANGE_RATE_TTL_HOURS.
@@ -116,22 +121,24 @@ async function bootstrap() {
   // subieron 08:04:40, un minuto DESPUÉS. Por eso se deja asentar la conexión, mismo criterio
   // que el bot de deudas de clubes acá abajo.
   const REMINDER_SETTLE_AFTER_CONNECT_MS = 3 * 60 * 1000;
-  masterWhatsappBotService.onConnected(() => {
-    setTimeout(() => subscriptionReminderService.checkExpiring().catch(() => undefined), REMINDER_SETTLE_AFTER_CONNECT_MS);
-  });
-  const subscriptionReminderInterval = setInterval(
-    () => subscriptionReminderService.checkExpiring().catch(() => undefined),
-    6 * 60 * 60 * 1000,
-  );
+  if (CHATBOTS_ENABLED) {
+    masterWhatsappBotService.onConnected(() => {
+      setTimeout(() => subscriptionReminderService.checkExpiring().catch(() => undefined), REMINDER_SETTLE_AFTER_CONNECT_MS);
+    });
+  }
+  const subscriptionReminderInterval = CHATBOTS_ENABLED
+    ? setInterval(() => subscriptionReminderService.checkExpiring().catch(() => undefined), 6 * 60 * 60 * 1000)
+    : null;
 
   // Cobranza de deudas de clubes por WhatsApp: recordatorio a los 3 días de la deuda,
   // repetido cada 7 (dedup en ClubDebtReminder) — ver club-debt-bot.service.ts. Cada 6h,
   // con una primera pasada diferida para dar tiempo a que las sesiones del bot reconecten.
-  const clubDebtReminderKickoff = setTimeout(() => clubDebtBotService.sweepReminders().catch(() => undefined), 3 * 60 * 1000);
-  const clubDebtReminderInterval = setInterval(
-    () => clubDebtBotService.sweepReminders().catch(() => undefined),
-    6 * 60 * 60 * 1000,
-  );
+  const clubDebtReminderKickoff = CHATBOTS_ENABLED
+    ? setTimeout(() => clubDebtBotService.sweepReminders().catch(() => undefined), 3 * 60 * 1000)
+    : null;
+  const clubDebtReminderInterval = CHATBOTS_ENABLED
+    ? setInterval(() => clubDebtBotService.sweepReminders().catch(() => undefined), 6 * 60 * 60 * 1000)
+    : null;
 
   // Mismo barrido de vencidos que orderPaymentVerificationService, pero para comprobantes de
   // RENOVACIÓN de plan (ver subscription-payment-verification.service.ts).
@@ -164,9 +171,9 @@ async function bootstrap() {
     clearInterval(fiscalInvoicingPollInterval);
     clearInterval(fiscalInvoicingRetryInterval);
     clearInterval(paymentVerificationSweepInterval);
-    clearInterval(subscriptionReminderInterval);
-    clearTimeout(clubDebtReminderKickoff);
-    clearInterval(clubDebtReminderInterval);
+    if (subscriptionReminderInterval) clearInterval(subscriptionReminderInterval);
+    if (clubDebtReminderKickoff) clearTimeout(clubDebtReminderKickoff);
+    if (clubDebtReminderInterval) clearInterval(clubDebtReminderInterval);
     clearInterval(subscriptionVerificationSweepInterval);
     masterServerStatusService.stopSampling();
     server.close();

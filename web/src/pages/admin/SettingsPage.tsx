@@ -27,6 +27,7 @@ import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection'
 import { DesktopShortcutSection } from '@/components/admin/DesktopShortcutSection';
 import { ClubLinkSection } from '@/components/admin/ClubLinkSection';
 import { WhatsappMessageSection } from '@/components/admin/WhatsappMessageSection';
+import { CHATBOTS_ENABLED } from '@/config/features';
 import { WhatsappBotSection } from '@/components/admin/WhatsappBotSection';
 import { CheckoutSettingsSection } from '@/components/admin/CheckoutSettingsSection';
 import { ScheduleSection } from '@/components/admin/ScheduleSection';
@@ -195,7 +196,7 @@ export default function SettingsPage() {
 
       <SettingsCategory id="whatsapp" title="WhatsApp" icon={<MessageCircle className="h-4 w-4" />} open={openCategory === 'whatsapp'} onToggle={toggleCategory}>
         <WhatsappMessageSection />
-        <WhatsappBotSection />
+        {CHATBOTS_ENABLED && <WhatsappBotSection />}
       </SettingsCategory>
 
       <SettingsCategory id="pagos" title="Pagos y moneda" icon={<Wallet className="h-4 w-4" />} open={openCategory === 'pagos'} onToggle={toggleCategory}>

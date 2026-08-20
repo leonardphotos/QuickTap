@@ -1,4 +1,5 @@
 import { api } from '@/api/client';
+import { CHATBOTS_ENABLED } from '@/config/features';
 
 /**
  * Intenta mandar un mensaje de WhatsApp por el chatbot vinculado del restaurante (ver Ajustes
@@ -11,6 +12,12 @@ import { api } from '@/api/client';
  * @returns true si se mandó por el bot (mostrar "Mensaje enviado"), false si se usó el fallback.
  */
 export async function sendWhatsappOrOpen(phone: string, message: string, fallbackUrl: string): Promise<boolean> {
+  // Con los chatbots apagados no tiene sentido ni intentar el envío: se va directo al enlace,
+  // sin la espera de una petición que se sabe que va a fallar.
+  if (!CHATBOTS_ENABLED) {
+    window.open(fallbackUrl, '_blank');
+    return false;
+  }
   try {
     const res = await api.post('/whatsapp-bot/send', { phone, message });
     if (res.data?.data?.sent) return true;

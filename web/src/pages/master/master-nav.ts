@@ -1,4 +1,4 @@
-import { BarChart3, DollarSign, FileText, MessageCircle, Nfc, Receipt, Store, Tag, Users, Wallet } from 'lucide-react';
+import { BarChart3, DollarSign, FileText, Nfc, Receipt, Store, Tag, Users, Wallet } from 'lucide-react';
 
 export interface MasterNavLink {
   to: string;
@@ -31,7 +31,6 @@ export const MASTER_CONFIG_LINKS: MasterNavLink[] = [
   { to: '/master/plans', label: 'Planes', icon: DollarSign, hint: 'Precios y contenido' },
   { to: '/master/promo-codes', label: 'Códigos promo', icon: Tag, hint: 'Descuentos vigentes' },
   { to: '/master/payment-methods', label: 'Datos de pago', icon: Wallet, hint: 'Pago Móvil de QuickTap' },
-  { to: '/master/whatsapp', label: 'WhatsApp', icon: MessageCircle, hint: 'Chatbot y avisos' },
   { to: '/master/admins', label: 'Usuarios', icon: Users, hint: 'Equipo QuickTap' },
 ];
 

@@ -8,6 +8,7 @@ import { FullWidth, SettingsCategory, scrollToSettingsCategory } from '@/compone
 import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection';
 import { PaymentMethodsSection } from '@/components/admin/PaymentMethodsSection';
 import { LockScreenSettingsSection } from '@/components/admin/LockScreenSettingsSection';
+import { CHATBOTS_ENABLED } from '@/config/features';
 import { WhatsappBotSection } from '@/components/admin/WhatsappBotSection';
 import { canManageTeam } from '@/utils/roles';
 import { ClubBrandingSection } from './ClubBrandingSection';
@@ -120,7 +121,7 @@ export default function ClubSettingsPage() {
         onToggle={toggleCategory}
       >
         <FullWidth>
-          <WhatsappBotSection variant="club" />
+          {CHATBOTS_ENABLED && <WhatsappBotSection variant="club" />}
         </FullWidth>
       </SettingsCategory>
 
