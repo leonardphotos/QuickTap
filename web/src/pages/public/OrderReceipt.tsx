@@ -43,7 +43,20 @@ interface Props {
   onSent: () => void;
 }
 
-const CONFETTI_COLORS = ['#e74c3c', '#3498db', '#f1c40f', '#2ecc71', '#9b59b6'];
+/**
+ * Una sola paleta: el color del restaurante (que MenuPage vuelca en --color-brand-*), verde
+ * para el "listo" y neutros para el papel. Antes el recibo traía su propio azul fijo, así que
+ * en un local rojo convivían cuatro familias de color a la vez.
+ *
+ * El confeti se lee del tema en tiempo de ejecución porque el canvas no entiende variables CSS.
+ */
+function paletaDelRestaurante(): string[] {
+  if (typeof window === 'undefined') return [GREEN];
+  const cs = getComputedStyle(document.documentElement);
+  const marca = cs.getPropertyValue('--color-brand-500').trim();
+  const acento = cs.getPropertyValue('--color-brand-400').trim();
+  return [marca || GREEN, acento || marca || GREEN, GREEN].filter(Boolean);
+}
 const CONFETTI_COUNT = 60;
 const CONFETTI_AT = 0.9;
 /** El ticket entero se descubre con un solo barrido de arriba hacia abajo, así que ya no hay
@@ -57,10 +70,11 @@ const EASE_OUT_EXPO = [0.16, 1, 0.3, 1] as const;
 /** Paleta del recibo. El datáfono toma el color de los botones del restaurante
  * (--color-brand-500/400, que MenuPage define desde el tema de cada negocio), así el recibo se
  * ve del local y no de QuickTap. El check va en verde porque es el "listo", no la marca. */
-const INK = '#12303d';
 const GREEN = '#22c55e';
-const MUTED = '#5b7a8a';
-const DASH = '#cfe6f0';
+/** Tinta y grises salen del color de texto del tema, no de un azul propio. */
+const INK = 'var(--color-brand-950, #1a1a1a)';
+const MUTED = 'color-mix(in srgb, var(--color-brand-950, #1a1a1a) 55%, transparent)';
+const DASH = 'color-mix(in srgb, var(--color-brand-950, #1a1a1a) 15%, transparent)';
 
 /**
  * Confeti en canvas y no en DOM: son 60 partículas animándose a la vez y cada una como nodo
@@ -82,6 +96,7 @@ function Confetti({ delaySeconds }: { delaySeconds: number }) {
     canvas.height = height * dpr;
     ctx.scale(dpr, dpr);
 
+    const colores = paletaDelRestaurante();
     const particles = Array.from({ length: CONFETTI_COUNT }, (_, i) => {
       // Abanico de 180° hacia arriba, como el spread de la especificación.
       const angle = Math.PI + (Math.PI * i) / (CONFETTI_COUNT - 1);
@@ -94,7 +109,7 @@ function Confetti({ delaySeconds }: { delaySeconds: number }) {
         size: 5 + Math.random() * 5,
         rotation: Math.random() * Math.PI,
         spin: (Math.random() - 0.5) * 0.3,
-        color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+        color: colores[i % colores.length],
       };
     });
 
@@ -206,7 +221,7 @@ export function OrderReceipt(props: Props) {
   return (
     <div
       className="relative -mx-6 -mb-2 -mt-2 px-4 pb-4 pt-3 text-center"
-      style={{ background: 'linear-gradient(180deg, #dff1fa 0%, #eaf7fc 45%, #f4fbfd 100%)' }}
+      style={{ background: 'linear-gradient(180deg, #f2f4f6 0%, #f7f9fa 45%, #fbfcfd 100%)' }}
     >
       {!reduceMotion && <Confetti delaySeconds={CONFETTI_AT} />}
 
@@ -218,11 +233,13 @@ export function OrderReceipt(props: Props) {
         transition={{ duration: t(0.35), ease: EASE_OUT_EXPO }}
         className="relative z-20 w-full rounded-[26px] px-3 pb-4 pt-3 shadow-[0_16px_34px_-18px_rgba(0,0,0,0.35)]"
         style={{
+          // Un solo color, el primario del local, con un oscurecido abajo para dar volumen. Antes
+          // degradaba del acento al primario y esos dos tonos competían con el resto del ticket.
           background:
-            'linear-gradient(180deg, var(--color-brand-400) 0%, var(--color-brand-500) 65%, var(--color-brand-500) 100%)',
+            'linear-gradient(180deg, var(--color-brand-500) 0%, color-mix(in srgb, var(--color-brand-500) 82%, black) 100%)',
         }}
       >
-        <div className="flex h-[54px] items-center justify-center rounded-[16px] bg-[#16323f]">
+        <div className="flex h-[54px] items-center justify-center rounded-[16px] bg-[#1f2937]">
           <span className="h-[5px] w-[80%] rounded-full bg-black/80" />
         </div>
       </motion.div>
