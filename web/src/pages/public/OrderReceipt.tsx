@@ -46,10 +46,11 @@ interface Props {
 const CONFETTI_COLORS = ['#e74c3c', '#3498db', '#f1c40f', '#2ecc71', '#9b59b6'];
 const CONFETTI_COUNT = 60;
 const CONFETTI_AT = 0.9;
-const CONTENT_AT = 0.8;
-const STAGGER = 0.08;
-/** El botón entra de último, cuando ya se leyó el detalle. */
-const ACTION_AT = 1.2;
+/** El ticket entero se descubre con un solo barrido de arriba hacia abajo, así que ya no hay
+ * entradas escalonadas por elemento: el botón aparece al final del barrido, por estar al final
+ * del papel, no por un retardo propio. */
+const REVEAL_AT = 0.2;
+const REVEAL_DURATION = 1.1;
 
 const EASE_OUT_EXPO = [0.16, 1, 0.3, 1] as const;
 
@@ -148,40 +149,35 @@ function Confetti({ delaySeconds }: { delaySeconds: number }) {
   );
 }
 
-/** Fila etiqueta/valor del ticket, con su entrada escalonada. */
-function Row({
-  label,
-  value,
-  strong,
-  delay,
-  reduceMotion,
-}: {
-  label: string;
-  value: string;
-  strong?: boolean;
-  delay: number;
-  reduceMotion: boolean | null;
-}) {
+/**
+ * Fila etiqueta/valor del ticket.
+ *
+ * Tres tamaños a propósito: los datos administrativos (pedido, fecha, tipo, cliente) y los
+ * cargos (subtotal, servicio, IVA) van pequeños porque se consultan, no se leen; lo que el
+ * cliente pidió conserva el tamaño normal porque es lo que viene a verificar; y el total va
+ * grande porque es la cifra que importa de un vistazo.
+ *
+ * No lleva animación propia: el ticket entero se descubre de arriba hacia abajo con el
+ * clip-path del contenedor, así que animar cada fila aparte rompía ese barrido.
+ */
+function Row({ label, value, size }: { label: string; value: string; size: 'meta' | 'item' | 'total' }) {
+  const labelClass =
+    size === 'total' ? 'text-[15px] font-bold' : size === 'item' ? 'text-[12.5px]' : 'text-[11px]';
+  const valueClass =
+    size === 'total'
+      ? 'text-[16px] font-bold'
+      : size === 'item'
+        ? 'text-[12.5px] font-semibold'
+        : 'text-[11px] font-semibold';
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay, duration: reduceMotion ? 0 : 0.3, ease: EASE_OUT_EXPO }}
-      className="flex items-baseline justify-between gap-3"
-    >
-      <span
-        className={strong ? 'text-[15px] font-bold' : 'text-[12.5px]'}
-        style={{ color: strong ? INK : MUTED }}
-      >
+    <div className="flex items-baseline justify-between gap-3">
+      <span className={labelClass} style={{ color: size === 'total' ? INK : MUTED }}>
         {label}
       </span>
-      <span
-        className={strong ? 'text-[16px] font-bold' : 'text-[12.5px] font-semibold'}
-        style={{ color: INK }}
-      >
+      <span className={valueClass} style={{ color: INK }}>
         {value}
       </span>
-    </motion.div>
+    </div>
   );
 }
 
@@ -191,17 +187,18 @@ export function OrderReceipt(props: Props) {
   /** Con "menos movimiento" activado se ve el resultado, no el recorrido. */
   const t = useMemo(() => (seconds: number) => (reduceMotion ? 0 : seconds), [reduceMotion]);
 
-  const detailRows: ReceiptTotal[] = [
-    { label: 'Pedido', value: `#${props.orderNumber}` },
-    { label: 'Fecha', value: new Date().toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' }) },
-    { label: 'Tipo', value: props.modeLabel },
-    ...(props.customerName ? [{ label: 'Cliente', value: props.customerName }] : []),
-  ];
-
-  const bodyRows: ReceiptTotal[] = [
-    ...detailRows,
-    ...props.lines.map((l) => ({ label: `${l.quantity}× ${l.name}`, value: l.lineLabel })),
-    ...props.totals,
+  const rows: { label: string; value: string; size: 'meta' | 'item' | 'total' }[] = [
+    { label: 'Pedido', value: `#${props.orderNumber}`, size: 'meta' },
+    {
+      label: 'Fecha',
+      value: new Date().toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' }),
+      size: 'meta',
+    },
+    { label: 'Tipo', value: props.modeLabel, size: 'meta' },
+    ...(props.customerName ? [{ label: 'Cliente', value: props.customerName, size: 'meta' as const }] : []),
+    // Lo que pidió: el único bloque que conserva el tamaño normal.
+    ...props.lines.map((l) => ({ label: `${l.quantity}× ${l.name}`, value: l.lineLabel, size: 'item' as const })),
+    ...props.totals.map((t) => ({ label: t.label, value: t.value, size: (t.strong ? 'total' : 'meta') as 'total' | 'meta' })),
   ];
 
   return (
@@ -235,16 +232,11 @@ export function OrderReceipt(props: Props) {
       <motion.div
         initial={{ clipPath: 'inset(0 0 100% 0)', opacity: 0 }}
         animate={{ clipPath: 'inset(0 0 0% 0)', opacity: 1 }}
-        transition={{ delay: t(0.2), duration: t(0.8), ease: EASE_OUT_EXPO }}
+        transition={{ delay: t(REVEAL_AT), duration: t(REVEAL_DURATION), ease: EASE_OUT_EXPO }}
         className="relative z-0 -mt-4 rounded-b-[22px] rounded-t-[10px] bg-white shadow-[0_18px_44px_-26px_rgba(20,80,110,0.45)]"
       >
         <div className="px-5 pb-8 pt-8 text-left">
-        <motion.div
-          initial={{ opacity: 0, y: -8 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: t(CONTENT_AT), duration: t(0.3) }}
-          className="text-center"
-        >
+        <div className="text-center">
           <span
             className="mx-auto flex h-[62px] w-[62px] items-center justify-center rounded-full"
             style={{ background: GREEN, boxShadow: '0 0 0 10px rgba(34,197,94,0.16)' }}
@@ -260,46 +252,29 @@ export function OrderReceipt(props: Props) {
           <p className="mt-1 text-[30px] font-extrabold leading-tight" style={{ color: INK }}>
             ¡Gracias!
           </p>
-        </motion.div>
+        </div>
 
         <div className="my-4 border-t border-dashed" style={{ borderColor: DASH }} />
 
-        <div className="space-y-[7px]">
-          {bodyRows.map((row, i) => (
-            <Row
-              key={`${row.label}-${i}`}
-              label={row.label}
-              value={row.value}
-              strong={row.strong}
-              delay={t(CONTENT_AT + 0.3 + i * STAGGER)}
-              reduceMotion={reduceMotion}
-            />
+        <div className="space-y-[6px]">
+          {rows.map((row, i) => (
+            <Row key={`${row.label}-${i}`} label={row.label} value={row.value} size={row.size} />
           ))}
         </div>
 
         <div className="my-4 border-t border-dashed" style={{ borderColor: DASH }} />
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: t(CONTENT_AT + 0.6), duration: t(0.3) }}
-          className="flex items-baseline justify-between gap-3"
-        >
-          <span className="text-[12.5px]" style={{ color: MUTED }}>
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="text-[11px]" style={{ color: MUTED }}>
             Método de pago
           </span>
-          <span className="text-[12.5px] font-semibold" style={{ color: INK }}>
+          <span className="text-[11px] font-semibold" style={{ color: INK }}>
             {props.paymentLabel}
           </span>
-        </motion.div>
+        </div>
 
         {/* En un recibo aquí iría el código de barras. Acá va lo que cierra la compra. */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.85 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: t(ACTION_AT), duration: t(0.4), ease: EASE_OUT_EXPO }}
-          className="mt-6"
-        >
+        <div className="mt-6">
           <TextureButton
             variant="brand"
             size="default"
@@ -315,7 +290,7 @@ export function OrderReceipt(props: Props) {
           <p className="mt-2.5 text-center text-[12.5px] font-light leading-snug" style={{ color: MUTED }}>
             Para finalizar tu compra envía tu pedido por WhatsApp
           </p>
-        </motion.div>
+        </div>
         </div>
       </motion.div>
     </div>
