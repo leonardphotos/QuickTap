@@ -124,6 +124,28 @@ function needsPicker(product: Product): boolean {
 const isMobileDevice = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 /** Resumen "hace X min" para la tarjeta compacta de celular. */
+/** Filtra cuentas por pagar por nombre o teléfono del cliente. Ignora tildes/mayúsculas para
+ * que "jose" encuentre "José"; el teléfono compara solo dígitos, para que buscar "04121234567"
+ * encuentre un número guardado como "0412-123-4567". */
+function filterByDebtSearch(orders: LiveOrder[], query: string): LiveOrder[] {
+  const q = query.trim();
+  if (!q) return orders;
+  const qNormalized = q
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+  const qDigits = q.replace(/\D/g, '');
+  return orders.filter((o) => {
+    const name = (o.customerName ?? '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+    if (name.includes(qNormalized)) return true;
+    if (qDigits && (o.customerPhone ?? '').replace(/\D/g, '').includes(qDigits)) return true;
+    return false;
+  });
+}
+
 function timeAgo(iso: string) {
   const secs = Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 1000));
   return secs < 60 ? `hace ${secs}s` : `hace ${Math.floor(secs / 60)} min`;
@@ -251,6 +273,10 @@ export function LiveOrdersPanel({
   const [courierPickerFor, setCourierPickerFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [channelFilter, setChannelFilter] = useState<ChannelFilter | null>(null);
+  // Solo aplica dentro de "Deudas": ahí la lista puede crecer sin límite (una cuenta sin
+  // pagar ya no se corta por antigüedad, ver order.service.ts), así que buscar por nombre o
+  // teléfono es lo que la hace usable con muchas cuentas viejas acumuladas.
+  const [debtSearch, setDebtSearch] = useState('');
   const [editingOrder, setEditingOrder] = useState<LiveOrder | null>(null);
   const [uncontrolledCreateOrderOpen, setUncontrolledCreateOrderOpen] = useState(false);
   const createOrderOpen = controlledCreateOrderOpen ?? uncontrolledCreateOrderOpen;
@@ -502,7 +528,7 @@ export function LiveOrdersPanel({
   const visibleOrders = !channelFilter
     ? roleFiltered
     : channelFilter === 'AWAITING_PAYMENT'
-      ? (roleFiltered ?? []).filter((o) => o.awaitingPayment)
+      ? filterByDebtSearch((roleFiltered ?? []).filter((o) => o.awaitingPayment), debtSearch)
       : channelFilter === 'PAID'
         ? (roleFiltered ?? []).filter((o) => getPaymentStatus(o).fullyPaid)
         : channelFilter === 'PARTIAL'
@@ -557,6 +583,27 @@ export function LiveOrdersPanel({
           </button>
         ))}
       </div>
+
+      {channelFilter === 'AWAITING_PAYMENT' && (
+        <div className="relative mb-3">
+          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-950/30" />
+          <input
+            value={debtSearch}
+            onChange={(e) => setDebtSearch(e.target.value)}
+            placeholder="Buscar por nombre o teléfono…"
+            className="w-full text-sm rounded-xl border border-brand-950/15 bg-white pl-9 pr-9 py-2 outline-none focus:border-brand-500"
+          />
+          {debtSearch && (
+            <button
+              onClick={() => setDebtSearch('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-brand-950/30 hover:text-brand-950/60"
+              aria-label="Limpiar búsqueda"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      )}
 
       {error && <p className="text-sm text-red-600 mb-3 text-left">{error}</p>}
 

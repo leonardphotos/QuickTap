@@ -898,9 +898,6 @@ function resolveCustomPeriod(from?: string, to?: string): { start: Date; end: Da
   return start <= end ? { start, end } : { start: end, end: start };
 }
 
-/** Cuántos días atrás sigue apareciendo en "Pedidos" una comanda ya servida que aún debe. */
-const LIVE_SERVED_DEBT_DAYS = 3;
-
 export const orderService = {
   /**
    * -------------------------------------------------------------------------
@@ -2201,19 +2198,20 @@ export const orderService = {
    * SERVED con saldo pendiente TAMBIÉN entra: cocina marca "Listo" y el pedido pasa a
    * SERVED, casi siempre antes de que el comensal pague. Filtrando solo por estado, esa
    * comanda desaparecía de Pedidos, de "Comandas y deudas" y de Órdenes de Mesa — y ya no
-   * había forma de cobrarla desde ninguna pantalla. Se acota a los últimos días para que la
-   * lista no cargue el histórico de un restaurante que no registre sus cobros aquí.
+   * había forma de cobrarla desde ninguna pantalla.
+   *
+   * Sin corte por antigüedad, a propósito: una cuenta sin pagar no puede desaparecer de
+   * Pedidos aunque tenga meses, ni aunque el restaurante no registre sus cobros aquí — eso
+   * es justo la plata que no se debe perder de vista. El costo es que un restaurante que
+   * nunca cierra sus cuentas ahí ve crecer esta lista sin límite; es la contraparte aceptada
+   * de no volver a esconder deuda en silencio (ver incidente del 2026-08-14 en el historial).
    */
   async listLiveOrders(restaurantId: string) {
-    const servedSince = new Date(Date.now() - LIVE_SERVED_DEBT_DAYS * 24 * 60 * 60 * 1000);
     const orders = await prisma.order.findMany({
       where: {
         restaurantId,
         clearedAt: null,
-        OR: [
-          { status: { notIn: ['SERVED', 'CANCELLED'] } },
-          { status: 'SERVED', createdAt: { gte: servedSince } },
-        ],
+        status: { not: 'CANCELLED' },
       },
       orderBy: { createdAt: 'desc' },
       include: {
