@@ -9,7 +9,9 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "android:sync": "CAP_SERVER_URL=${CAP_SERVER_URL:-https://quicktap.club} npm run build && CAP_SERVER_URL=${CAP_SERVER_URL:-https://quicktap.club} cap sync android",
-    "android:apk": "npm run android:sync && cd android && ./gradlew assembleRelease"
+    "android:apk": "npm run android:sync && cd android && ./gradlew assembleRelease",
+    "ios:sync": "CAP_SERVER_URL=${CAP_SERVER_URL:-https://quicktap.club} npm run build && CAP_SERVER_URL=${CAP_SERVER_URL:-https://quicktap.club} cap sync ios",
+    "ios:open": "npm run ios:sync && cap open ios"
   },
   "dependencies": {
     "@capacitor-community/electron": "^5.0.1",
@@ -17,6 +19,7 @@
     "@capacitor/app": "^8.1.1",
     "@capacitor/cli": "^8.5.0",
     "@capacitor/core": "^8.5.0",
+    "@capacitor/ios": "^8.5.0",
     "@capacitor/local-notifications": "^8.3.0",
     "@capacitor/push-notifications": "^8.1.2",
     "@fontsource/instrument-serif": "^5.3.0",

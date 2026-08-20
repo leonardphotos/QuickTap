@@ -1,0 +1,17 @@
+App/build
+App/Pods
+App/output
+App/App/public
+DerivedData
+xcuserdata
+
+# Cordova plugins for Capacitor
+capacitor-cordova-ios-plugins
+
+# Generated Config files
+App/App/capacitor.config.json
+App/App/config.xml
+
+# Config de Firebase para push: igual que google-services.json en Android, identifica el
+# proyecto de Firebase y no va al repositorio. Se baja de la consola de Firebase.
+App/App/GoogleService-Info.plist
