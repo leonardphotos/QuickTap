@@ -154,6 +154,45 @@ async function runOutbox(): Promise<void> {
   outboxRunning = false;
 }
 
+/**
+ * Acuse de recibo de WhatsApp por mensaje enviado.
+ *
+ * Existe porque `sock.sendMessage()` resolver NO significa que el mensaje se haya entregado:
+ * cifra y encola del lado del cliente y devuelve sin error aunque el servidor de WhatsApp
+ * nunca lo acepte. Con eso el sistema marcaba cobros como "enviados" que no le llegaron a
+ * nadie ni aparecieron en el WhatsApp de la plataforma — perseguimos ese fantasma dos veces
+ * (19 y 20/08) creyendo que el problema era cuándo se enviaba.
+ *
+ * El estado lo emite WhatsApp en `messages.update`: 2 = aceptado por el servidor. Hasta ese
+ * número, un envío no cuenta como enviado.
+ */
+const SERVER_ACK = 2;
+const ACK_TIMEOUT_MS = 25 * 1000;
+const pendingAcks = new Map<string, (acked: boolean) => void>();
+
+function resolveAck(messageId: string): void {
+  const resolve = pendingAcks.get(messageId);
+  if (!resolve) return;
+  pendingAcks.delete(messageId);
+  resolve(true);
+}
+
+/** Espera el acuse del servidor. Si no llega a tiempo, el envío se da por fallido: es
+ * preferible reintentar en el próximo barrido —y a lo sumo repetir un aviso— antes que dar por
+ * cobrado a alguien que nunca recibió nada. */
+function waitForServerAck(messageId: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      pendingAcks.delete(messageId);
+      resolve(false);
+    }, ACK_TIMEOUT_MS);
+    pendingAcks.set(messageId, (acked) => {
+      clearTimeout(timer);
+      resolve(acked);
+    });
+  });
+}
+
 function enqueueOutbox(send: () => Promise<boolean>): Promise<boolean> {
   return new Promise((resolve) => {
     outbox.push({ send, resolve });
@@ -196,6 +235,15 @@ export const masterWhatsappBotService = {
     state.sock = sock;
 
     sock.ev.on('creds.update', saveCreds);
+
+    // Confirmación real de que WhatsApp aceptó cada mensaje (ver waitForServerAck arriba).
+    sock.ev.on('messages.update', (updates) => {
+      for (const u of updates) {
+        const id = u.key?.id;
+        const status = u.update?.status;
+        if (id && typeof status === 'number' && status >= SERVER_ACK) resolveAck(id);
+      }
+    });
 
     sock.ev.on('messages.upsert', ({ messages, type }) => {
       if (type !== 'notify') return;
@@ -399,8 +447,11 @@ export const masterWhatsappBotService = {
       const { exists, jid } = await checkRegistered(phone);
       if (!exists) return false;
       try {
-        await state.sock.sendMessage(jid ?? toJid(phone), { text: message });
-        return true;
+        const result = await state.sock.sendMessage(jid ?? toJid(phone), { text: message });
+        // Sin id no hay forma de confirmar nada, así que no se puede dar por enviado.
+        const messageId = result?.key?.id;
+        if (!messageId) return false;
+        return await waitForServerAck(messageId);
       } catch {
         return false;
       }
