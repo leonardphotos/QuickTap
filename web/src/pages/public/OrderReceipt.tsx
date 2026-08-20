@@ -162,13 +162,13 @@ function Confetti({ delaySeconds }: { delaySeconds: number }) {
  */
 function Row({ label, value, size }: { label: string; value: string; size: 'meta' | 'item' | 'total' }) {
   const labelClass =
-    size === 'total' ? 'text-[15px] font-bold' : size === 'item' ? 'text-[12.5px]' : 'text-[11px]';
+    size === 'total' ? 'text-[15px] font-bold' : size === 'item' ? 'text-[12.5px]' : 'text-[9px]';
   const valueClass =
     size === 'total'
       ? 'text-[16px] font-bold'
       : size === 'item'
         ? 'text-[12.5px] font-semibold'
-        : 'text-[11px] font-semibold';
+        : 'text-[9px] font-semibold';
   return (
     <div className="flex items-baseline justify-between gap-3">
       <span className={labelClass} style={{ color: size === 'total' ? INK : MUTED }}>
@@ -265,10 +265,10 @@ export function OrderReceipt(props: Props) {
         <div className="my-4 border-t border-dashed" style={{ borderColor: DASH }} />
 
         <div className="flex items-baseline justify-between gap-3">
-          <span className="text-[11px]" style={{ color: MUTED }}>
+          <span className="text-[9px]" style={{ color: MUTED }}>
             Método de pago
           </span>
-          <span className="text-[11px] font-semibold" style={{ color: INK }}>
+          <span className="text-[9px] font-semibold" style={{ color: INK }}>
             {props.paymentLabel}
           </span>
         </div>
