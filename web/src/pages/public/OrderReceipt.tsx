@@ -144,7 +144,9 @@ function Confetti({ delaySeconds }: { delaySeconds: number }) {
     <canvas
       ref={canvasRef}
       aria-hidden="true"
-      className="pointer-events-none absolute inset-x-0 top-0 z-10 h-72 w-full"
+      // z-30 y a toda la altura: cae por encima del datáfono y de la comanda entera, no solo
+      // sobre la franja de arriba. pointer-events-none para que no bloquee el botón que tapa.
+      className="pointer-events-none absolute inset-0 z-30 h-full w-full"
     />
   );
 }
