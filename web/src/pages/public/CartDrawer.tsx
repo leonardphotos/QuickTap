@@ -6,6 +6,7 @@ import { cartLineUnitPrice, formatModifierLabel, publicPriceLabel } from '../../
 import { methodAccountsOf } from '../../utils/payment-accounts';
 import { TextureButton } from '@/components/ui/texture-button';
 import { AddressAutocomplete, reverseGeocode } from '@/components/AddressAutocomplete';
+import { OrderReceipt, type ReceiptLine, type ReceiptTotal } from './OrderReceipt';
 import {
   FamilyDrawerRoot,
   FamilyDrawerPortal,
@@ -94,6 +95,17 @@ export default function CartDrawer({
   const [error, setError] = useState<string | null>(null);
   const [dineInSent, setDineInSent] = useState(false);
   const [orderProcessing, setOrderProcessing] = useState(false);
+  /** Detalle de la compra recién hecha. Mientras exista, se muestra el recibo en vez del
+   * carrito: antes se saltaba directo a WhatsApp y el cliente nunca veía qué había pedido. */
+  const [receipt, setReceipt] = useState<{
+    orderNumber: number | string;
+    whatsappUrl: string;
+    lines: ReceiptLine[];
+    totals: ReceiptTotal[];
+    modeLabel: string;
+    paymentLabel: string;
+    customerName: string;
+  } | null>(null);
   // Propina opcional (solo en mesa): porcentaje rápido o monto libre.
   const [tipPercent, setTipPercent] = useState<number | null>(null);
   const [tipCustom, setTipCustom] = useState('');
@@ -350,8 +362,34 @@ export default function CartDrawer({
         // no hace falta abrir wa.me para que el cliente redacte el pedido a mano.
         setOrderProcessing(true);
       } else {
-        window.location.href = data.data.whatsappUrl;
-        onClearAndClose();
+        // Recibo con el detalle en vez de saltar directo a wa.me: así el cliente ve qué pidió y
+        // cuánto es, y decide él cuándo mandarlo. El envío sigue siendo obligatorio para que el
+        // negocio se entere, y por eso el botón es lo último que entra en la animación.
+        setReceipt({
+          orderNumber: data.data.orderNumber,
+          whatsappUrl: data.data.whatsappUrl,
+          modeLabel: mode === 'DELIVERY' ? 'Delivery' : 'Para llevar',
+          paymentLabel: payment ? PAYMENT_LABELS[payment] : 'Por acordar',
+          customerName: name.trim(),
+          lines: cart.map((l) => ({
+            name: l.product.name,
+            quantity: l.quantity,
+            lineLabel: publicPriceLabel(cartLineUnitPrice(l) * l.quantity, restaurant).primary,
+          })),
+          totals: [
+            { label: 'Subtotal', value: publicPriceLabel(subtotalBase, restaurant).primary },
+            ...(restaurant.serviceChargeEnabled
+              ? [{ label: 'Servicio', value: publicPriceLabel(serviceChargeBase, restaurant).primary }]
+              : []),
+            ...(restaurant.ivaEnabled
+              ? [{ label: 'IVA', value: publicPriceLabel(ivaBase, restaurant).primary }]
+              : []),
+            ...(deliveryFeeBase != null && deliveryFeeBase > 0
+              ? [{ label: 'Delivery', value: publicPriceLabel(deliveryFeeBase, restaurant).primary }]
+              : []),
+            { label: 'Total', value: publicPriceLabel(totalBase, restaurant).primary, strong: true },
+          ],
+        });
       }
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo generar el pedido.');
@@ -368,7 +406,23 @@ export default function CartDrawer({
           <FamilyDrawerAnimatedWrapper>
             <FamilyDrawerClose />
 
-            {orderProcessing ? (
+            {receipt ? (
+              <OrderReceipt
+                restaurantName={restaurant.name}
+                logoUrl={restaurant.logoUrl}
+                orderNumber={receipt.orderNumber}
+                modeLabel={receipt.modeLabel}
+                customerName={receipt.customerName}
+                paymentLabel={receipt.paymentLabel}
+                lines={receipt.lines}
+                totals={receipt.totals}
+                whatsappUrl={receipt.whatsappUrl}
+                onSent={() => {
+                  setReceipt(null);
+                  onClearAndClose();
+                }}
+              />
+            ) : orderProcessing ? (
               <div className="text-center py-8 space-y-3">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 animate-[bounce_0.6s_ease-in-out]">
                   <MessageCircle className="h-8 w-8 text-emerald-600" />
@@ -586,7 +640,10 @@ export default function CartDrawer({
                           disabled={(qrToken !== null && sessionOpen === null) || (qrToken !== null && multipleAccounts)}
                           className="mt-2 disabled:opacity-50"
                         >
-                          {qrToken ? 'Ordenar' : 'Pagar'}
+                          {/* "Ordenar" en ambos casos: en delivery/pickup este botón no cobra
+                              nada, solo lleva al formulario — decía "Pagar" y prometía un cobro
+                              que no ocurre acá. */}
+                          Ordenar
                         </TextureButton>
                       </>
                     ) : step === 'modeChoice' ? (
