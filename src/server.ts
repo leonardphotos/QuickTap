@@ -101,7 +101,15 @@ async function bootstrap() {
   // periodEnd (ver subscription-reminder.service.ts). Corre cada 6h + una pasada al arrancar
   // (mismo criterio que la tasa BCV) — el dedup por `subscriptionReminderForPeriodEnd` evita
   // reenviarlo en cada tick mientras el restaurante siga sin renovar.
-  subscriptionReminderService.checkExpiring().catch(() => undefined);
+  // El barrido se engancha a la conexión del bot en vez de correr al arrancar: conectar con
+  // WhatsApp tarda segundos y el arranque no espera por eso, así que la pasada inicial salía
+  // siempre con el socket abajo y sendMessage() devolvía false sin error. El recordatorio no se
+  // marcaba (bien) pero quedaba a la espera del tick de 6h, y ese contador se reinicia con cada
+  // despliegue y con el reinicio nocturno de PM2 — en la práctica casi nunca llegaba a correr
+  // con el bot arriba, y el cobro no salía.
+  masterWhatsappBotService.onConnected(() => {
+    subscriptionReminderService.checkExpiring().catch(() => undefined);
+  });
   const subscriptionReminderInterval = setInterval(
     () => subscriptionReminderService.checkExpiring().catch(() => undefined),
     6 * 60 * 60 * 1000,

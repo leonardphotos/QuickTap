@@ -50,6 +50,38 @@ const SINGLETON_ID = 'singleton';
 
 let state: SessionState = { status: 'idle', reconnectAttempts: 0 };
 
+/**
+ * Tareas que necesitan el bot ya conectado para servir de algo (hoy: el barrido de cobranza).
+ *
+ * Existe porque conectar con WhatsApp tarda segundos y arrancar el servidor no espera por eso:
+ * cualquier envío disparado al arrancar sale antes de que el socket levante y se pierde en
+ * silencio, porque sendMessage() devuelve false sin error. Quien registre acá corre en el
+ * momento en que el bot está realmente listo.
+ *
+ * Se guarda acá, en el bot, y lo cablea server.ts: si el bot importara el servicio de cobranza
+ * quedaría un ciclo, porque ese ya importa al bot para enviar.
+ */
+const connectedListeners: (() => void)[] = [];
+
+/** El bot se reconecta solo ante cualquier corte de red, así que esto puede dispararse varias
+ * veces seguidas. Los avisos no se duplican (el dedup vive en el propio barrido), pero se deja
+ * un margen mínimo para no repetir el trabajo si la conexión queda inestable. */
+const CONNECTED_LISTENERS_MIN_GAP_MS = 60 * 1000;
+let lastConnectedNotifyAt = 0;
+
+function notifyConnected(): void {
+  const now = Date.now();
+  if (now - lastConnectedNotifyAt < CONNECTED_LISTENERS_MIN_GAP_MS) return;
+  lastConnectedNotifyAt = now;
+  for (const listener of connectedListeners) {
+    try {
+      listener();
+    } catch {
+      // Un listener roto no puede tumbar la conexión del bot.
+    }
+  }
+}
+
 function sessionDir(): string {
   return path.join(UPLOADS_DIR, 'whatsapp-sessions', SESSION_ID);
 }
@@ -134,6 +166,13 @@ export const masterWhatsappBotService = {
     return { status: state.status, qrDataUrl: state.qrDataUrl ?? null, connectedNumber: state.connectedNumber ?? null };
   },
 
+  /** Registra algo para que corra cuando el bot quede conectado — y también si ya lo está, para
+   * que no dependa de haberse suscrito antes de que ocurriera la conexión. */
+  onConnected(listener: () => void): void {
+    connectedListeners.push(listener);
+    if (state.status === 'connected') listener();
+  },
+
   /** Arranca (o reutiliza) la sesión única de la plataforma. Igual patrón que
    * whatsapp-bot.service.ts -> connect(), sin el parámetro restaurantId. */
   async connect(): Promise<void> {
@@ -186,6 +225,9 @@ export const masterWhatsappBotService = {
             update: { masterWhatsappConnectedNumber: state.connectedNumber ?? null },
           })
           .catch(() => undefined);
+
+        // Recién ahora sendMessage() puede entregar de verdad (ver notifyConnected arriba).
+        notifyConnected();
       }
 
       if (connection === 'close') {
