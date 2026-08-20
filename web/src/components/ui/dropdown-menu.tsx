@@ -17,7 +17,12 @@ const DropdownMenuContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        'z-50 min-w-[14rem] origin-[var(--radix-dropdown-menu-content-transform-origin)] overflow-hidden rounded-2xl border border-brand-950/[0.06] bg-white p-1.5 shadow-[0_16px_40px_-16px_rgba(0,0,0,0.25)] data-[state=open]:animate-scale-in data-[state=closed]:animate-scale-out',
+        // z-[1200]: por encima del diálogo (z-[1100], ver dialog.tsx). Un desplegable abierto
+        // desde dentro de un modal se portala al body, así que con z-50 quedaba PINTADO DETRÁS
+        // del modal: el menú existía en el DOM pero no se veía ni se podía tocar. Así se rompía
+        // "Asociar / Desasociar" en Modificadores, y también el menú ⋮ de la categoría, cuyo
+        // botón quedaba tapado por la X de cerrar.
+        'z-[1200] min-w-[14rem] origin-[var(--radix-dropdown-menu-content-transform-origin)] overflow-hidden rounded-2xl border border-brand-950/[0.06] bg-white p-1.5 shadow-[0_16px_40px_-16px_rgba(0,0,0,0.25)] data-[state=open]:animate-scale-in data-[state=closed]:animate-scale-out',
         className,
       )}
       {...props}
