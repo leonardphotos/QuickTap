@@ -185,6 +185,12 @@ export const masterRestaurantsService = {
     return subscriptionReminderService.sendNow(id);
   },
 
+  /** Botón "Copiar mensaje" del bloque Cobro: devuelve el mismo texto para pegarlo a mano en
+   * WhatsApp, mientras el bot no puede entregar (ver subscription-reminder.service.ts). */
+  async previewSubscriptionReminder(id: string) {
+    return subscriptionReminderService.previewMessage(id);
+  },
+
   /**
    * Cargos adicionales (Dashboard maestro → Cobro). Se listan los pendientes y
    * también los ya cobrados, para tener el histórico de qué se le facturó

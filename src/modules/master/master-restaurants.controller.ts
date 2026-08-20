@@ -67,6 +67,11 @@ export const masterRestaurantsController = {
   sendSubscriptionReminder: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await masterRestaurantsService.sendSubscriptionReminder(req.params.id) });
   }),
+  /** POST /master/restaurants/:id/subscription-reminder/preview — arma el cobro para copiarlo
+   * y pegarlo a mano en WhatsApp, sin enviarlo. */
+  previewSubscriptionReminder: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await masterRestaurantsService.previewSubscriptionReminder(req.params.id) });
+  }),
   /** GET /master/restaurants/:id/additional-charges — cargos aparte de la mensualidad. */
   listAdditionalCharges: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await masterRestaurantsService.listAdditionalCharges(req.params.id) });

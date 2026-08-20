@@ -18,6 +18,7 @@ router.post('/:id/impersonate', masterRestaurantsController.impersonate);
 router.patch('/:id/custom-price', masterRestaurantsController.setCustomMonthlyPrice);
 router.patch('/:id/billing-phone', masterRestaurantsController.setBillingPhone);
 router.post('/:id/subscription-reminder', masterRestaurantsController.sendSubscriptionReminder);
+router.post('/:id/subscription-reminder/preview', masterRestaurantsController.previewSubscriptionReminder);
 router.get('/:id/additional-charges', masterRestaurantsController.listAdditionalCharges);
 router.post('/:id/additional-charges', masterRestaurantsController.createAdditionalCharge);
 router.delete('/:id/additional-charges/:chargeId', masterRestaurantsController.removeAdditionalCharge);

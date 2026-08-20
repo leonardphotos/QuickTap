@@ -101,6 +101,8 @@ export default function MasterRestaurantDetailPage() {
   const [billingPhoneInput, setBillingPhoneInput] = useState('');
   const [billingMessage, setBillingMessage] = useState<string | null>(null);
   const [sendingBilling, setSendingBilling] = useState(false);
+  // Solo se usa si el portapapeles falla: se muestra el mensaje para copiarlo a mano.
+  const [copiedMessage, setCopiedMessage] = useState<string | null>(null);
   // WhatsappPhoneInput arma su país + número local una sola vez, al montarse, y no vuelve a
   // mirar `value`. Cada load() pisa billingPhoneInput con lo que hay guardado, así que sin
   // remontarlo el recuadro seguiría mostrando lo tecleado mientras el estado ya es otro — y
@@ -360,26 +362,31 @@ export default function MasterRestaurantDetailPage() {
     }
   }
 
-  async function sendBillingReminder() {
+  /**
+   * Arma el cobro y lo deja en el portapapeles para pegarlo a mano en WhatsApp.
+   *
+   * Reemplaza al envío automático mientras la cuenta del bot no puede entregar: WhatsApp acepta
+   * la conexión pero nunca acusa recibo de los mensajes (ver el diagnóstico del 20/08). Cobrar
+   * no puede quedar detenido esperando la migración a la API oficial.
+   */
+  async function copyBillingReminder() {
     setSendingBilling(true);
     setBillingMessage(null);
     try {
-      const res = await masterApi.post(`/master/restaurants/${id}/subscription-reminder`);
-      const { sent, phone, reason } = res.data.data as {
-        sent: boolean;
-        phone: string;
-        reason?: 'NOT_ON_WHATSAPP' | 'BOT_DISCONNECTED';
-      };
-      setBillingMessage(
-        sent
-          ? `Cobro enviado por WhatsApp a +${phone}.`
-          : reason === 'NOT_ON_WHATSAPP'
-            ? `+${phone} no tiene WhatsApp — revisa que el número de cobranza esté bien escrito.`
-            : `No se pudo entregar el mensaje a +${phone} — revisa que el chatbot de la plataforma esté conectado.`,
-      );
+      const res = await masterApi.post(`/master/restaurants/${id}/subscription-reminder/preview`);
+      const { message, phone } = res.data.data as { message: string; phone: string };
+      try {
+        await navigator.clipboard.writeText(message);
+        setBillingMessage(`Mensaje copiado. Pégalo en el chat de WhatsApp de +${phone}.`);
+      } catch {
+        // El portapapeles falla si el navegador no da permiso o la página no está en HTTPS.
+        // En vez de dejar al usuario sin nada, se muestra el texto para copiarlo a mano.
+        setCopiedMessage(message);
+        setBillingMessage(`No se pudo copiar solo — copia el texto de abajo y pégalo en +${phone}.`);
+      }
       load();
     } catch (err: any) {
-      setBillingMessage(err.response?.data?.error ?? 'No se pudo enviar el cobro.');
+      setBillingMessage(err.response?.data?.error ?? 'No se pudo armar el mensaje de cobro.');
     } finally {
       setSendingBilling(false);
     }
@@ -758,12 +765,14 @@ export default function MasterRestaurantDetailPage() {
         <div>
           <p className="text-sm font-medium text-brand-950/70 mb-2">Número de cobranza</p>
           <p className="text-xs text-brand-950/40 font-light mb-2">
-            A este número el chatbot le manda el cobro de la mensualidad con los datos de pago y le
-            pide el comprobante. Se envía solo 3 días antes del vencimiento
+            A este número se cobra la mensualidad, con los datos de pago y el pedido del
+            comprobante. El botón arma el mensaje y lo copia para que lo pegues tú en el chat de
+            WhatsApp: el envío automático está fuera de servicio mientras se migra a la API
+            oficial de WhatsApp. El vencimiento
             {detail.subscriptionPlan
-              ? ` (${new Date(detail.periodEnd).toLocaleDateString('es-VE')})`
-              : ''}
-            , y con el botón lo mandas cuando quieras. Vacío = se cobra al WhatsApp del negocio
+              ? ` es el ${new Date(detail.periodEnd).toLocaleDateString('es-VE')}`
+              : ' aún no está definido'}
+            . Vacío = se cobra al WhatsApp del negocio
             {detail.whatsappPhone ? ` (+${detail.whatsappPhone})` : ', que no tiene número registrado'}.
           </p>
           <div className="flex flex-wrap items-end gap-3">
@@ -790,15 +799,23 @@ export default function MasterRestaurantDetailPage() {
               // anterior sin que se note.
               disabled={sendingBilling || billingPhoneDirty || (!detail.billingPhone && !detail.whatsappPhone)}
               className="!w-auto disabled:opacity-50"
-              onClick={sendBillingReminder}
+              onClick={copyBillingReminder}
             >
-              {sendingBilling ? 'Enviando…' : 'Enviar cobro'}
+              {sendingBilling ? 'Armando…' : 'Copiar mensaje'}
             </TextureButton>
           </div>
           {billingPhoneDirty && (
-            <p className="text-xs text-amber-600 font-light mt-2">Guarda el número antes de enviar el cobro.</p>
+            <p className="text-xs text-amber-600 font-light mt-2">Guarda el número antes de copiar el cobro.</p>
           )}
           {billingMessage && <p className="text-sm text-brand-950/70 mt-2">{billingMessage}</p>}
+          {copiedMessage && (
+            <textarea
+              readOnly
+              value={copiedMessage}
+              onFocus={(e) => e.currentTarget.select()}
+              className="mt-2 w-full h-40 rounded-xl border border-brand-950/15 p-3 text-xs font-mono"
+            />
+          )}
         </div>
 
         <div className="pt-1 border-t border-brand-950/[0.06]" />

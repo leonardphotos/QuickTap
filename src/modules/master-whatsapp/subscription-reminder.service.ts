@@ -252,4 +252,60 @@ async function sendNow(
   return sendReminderFor(restaurant, { markPeriod: 'ifWithinWindow' });
 }
 
-export const subscriptionReminderService = { checkExpiring, sendNow };
+/**
+ * Botón "Copiar mensaje" del Dashboard maestro → Cobro: arma exactamente el mismo mensaje que
+ * mandaría el bot, pero lo devuelve para pegarlo a mano en WhatsApp en vez de enviarlo.
+ *
+ * Es el puente mientras la cuenta del bot no puede entregar (ver el diagnóstico del 20/08:
+ * WhatsApp acepta la conexión pero nunca acusa recibo de los envíos). Cobrar no puede quedar
+ * detenido esperando la migración a la API oficial.
+ *
+ * Abre la verificación igual que un envío real, y eso es a propósito: el comprobante que
+ * responda el cliente se empareja buscando una verificación AWAITING_PROOF de ESE teléfono
+ * (ver subscription-payment-verification.service.ts#findByPhone). Sin abrirla, la foto llegaría
+ * y el bot no sabría de qué cobro es.
+ *
+ * No marca `subscriptionReminderForPeriodEnd`: copiar no es haber enviado, y marcarlo apagaría
+ * el recordatorio automático de ese vencimiento sin que nadie haya recibido nada.
+ */
+async function previewMessage(restaurantId: string): Promise<{ message: string; phone: string }> {
+  const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: REMINDER_SELECT });
+  if (!restaurant) throw notFound('Restaurante no encontrado.');
+
+  const phone = billingDestination(restaurant);
+  if (!phone) throw badRequest('Este restaurante no tiene número de cobranza ni WhatsApp registrado.');
+  if (!restaurant.subscriptionPlan) throw badRequest('Este restaurante no tiene un plan activo que cobrar.');
+
+  const amount = await resolveMonthlyPrice(restaurant);
+  const pendingCharges = await prisma.additionalCharge.findMany({
+    where: { restaurantId: restaurant.id, chargedAt: null },
+    orderBy: { createdAt: 'asc' },
+    select: { description: true, amountUsd: true },
+  });
+  const chargesTotal = pendingCharges.reduce((acc, c) => acc + Number(c.amountUsd), 0);
+  const periodEndLabel = restaurant.periodEnd.toLocaleDateString('es-VE', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  const paymentMethods = await platformSettingsService.getPaymentMethods();
+  const pagoMovil = (paymentMethods as { pagoMovil?: { banco?: string; telefono?: string; cedula?: string; titular?: string } })
+    .pagoMovil;
+
+  const message = await buildReminderMessage({
+    restaurantName: restaurant.name,
+    periodEndLabel,
+    monthlyAmount: amount,
+    pendingCharges,
+    pagoMovil: pagoMovil ?? null,
+  });
+
+  await subscriptionPaymentVerificationService.createOrRefresh(
+    restaurant.id,
+    phone,
+    restaurant.subscriptionPlan,
+    restaurant.billingCycle ?? 'MONTHLY',
+    amount != null ? amount + chargesTotal : undefined,
+  );
+
+  return { message, phone };
+}
+
+export const subscriptionReminderService = { checkExpiring, sendNow, previewMessage };
