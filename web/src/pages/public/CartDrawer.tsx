@@ -907,20 +907,18 @@ export default function CartDrawer({
                               placeholder="Nota general (opcional)"
                               className="w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
                             />
+                            {/* Verde y no del color del restaurante: es el paso que cierra el
+                                pedido, y conviene que se distinga de los botones de navegación
+                                del carrito. Tampoco dice ya "Enviar por WhatsApp" — ese envío
+                                pasó al recibo, acá solo se confirma el pedido. */}
                             <TextureButton
-                              variant="brand"
+                              variant="success"
                               size="default"
                               disabled={sending}
                               onClick={submitDelivery}
                               className="disabled:opacity-50"
                             >
-                              {sending
-                                ? restaurant.whatsappBotConnected
-                                  ? 'Ordenando…'
-                                  : 'Generando…'
-                                : restaurant.whatsappBotConnected
-                                  ? 'Ordenar'
-                                  : '📲 Enviar pedido por WhatsApp'}
+                              {sending ? 'Enviando…' : 'Listo mi pedido'}
                             </TextureButton>
                           </>
                         )}
