@@ -57,6 +57,18 @@ interface DemoRole {
   description: string;
 }
 
+/**
+ * Enlace público de la app de iPhone (App Store o TestFlight).
+ *
+ * Va en `null` hasta que exista, y no por olvido: iOS no tiene equivalente a la APK — un .ipa
+ * suelto no se instala en un iPhone ajeno, así que no hay archivo que ofrecer aquí. La única
+ * vía es App Store o TestFlight, y ambas exigen el Apple Developer Program. Mientras tanto el
+ * botón se muestra como "Próximamente", para no prometer una descarga que fallaría.
+ *
+ * Para activarlo basta con pegar la URL acá: el botón pasa solo a ser un enlace normal.
+ */
+const IOS_APP_URL: string | null = null;
+
 const RESTAURANT_DEMO_PASSWORD = 'Demo1234';
 const RESTAURANT_DEMO_SLUG = 'demo';
 
@@ -1044,7 +1056,9 @@ export default function LandingPage() {
               En la computadora, el aviso de pedido nuevo te llega aunque tengas la ventana
               minimizada. En el teléfono, tu panel completo a mano en el salón.
             </p>
-            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            {/* flex-wrap porque con la tercera plataforma los botones ya no entran en una sola
+                línea en tablets angostas. */}
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap">
               <a
                 href="https://github.com/leonardphotos/QuickTap/releases/latest/download/QuickTap-Setup.exe"
                 className="inline-flex w-full items-center justify-center gap-2.5 rounded-full bg-white px-7 py-3.5 font-semibold text-brand-950 shadow-lg shadow-black/20 transition-transform hover:scale-[1.03] active:scale-[0.97] sm:w-auto"
@@ -1059,9 +1073,30 @@ export default function LandingPage() {
                 <Download className="h-5 w-5" />
                 Descargar para Android
               </a>
+              {IOS_APP_URL ? (
+                <a
+                  href={IOS_APP_URL}
+                  className="inline-flex w-full items-center justify-center gap-2.5 rounded-full border border-white/25 bg-white/10 px-7 py-3.5 font-semibold text-white backdrop-blur-sm transition-transform hover:scale-[1.03] hover:bg-white/15 active:scale-[0.97] sm:w-auto"
+                >
+                  <Download className="h-5 w-5" />
+                  Descargar para iPhone
+                </a>
+              ) : (
+                /* Sin enlace todavía: se muestra igual para que las tres plataformas se vean,
+                   pero apagado y sin cursor de enlace — prometer una descarga que no existe
+                   sería peor que decir que viene en camino. */
+                <span
+                  aria-disabled="true"
+                  className="inline-flex w-full cursor-default items-center justify-center gap-2.5 rounded-full border border-white/15 px-7 py-3.5 font-medium text-white/45 sm:w-auto"
+                >
+                  <Smartphone className="h-5 w-5" />
+                  iPhone · próximamente
+                </span>
+              )}
             </div>
             <p className="mt-4 text-xs font-light text-white/40">
               Instalador .exe y APK · gratis · no necesitas iniciar sesión para descargarlos
+              {!IOS_APP_URL && ' · en iPhone, agrégala a tu pantalla de inicio desde Safari'}
             </p>
           </Reveal>
         </section>
