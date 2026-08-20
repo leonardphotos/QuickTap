@@ -107,8 +107,17 @@ async function bootstrap() {
   // marcaba (bien) pero quedaba a la espera del tick de 6h, y ese contador se reinicia con cada
   // despliegue y con el reinicio nocturno de PM2 — en la práctica casi nunca llegaba a correr
   // con el bot arriba, y el cobro no salía.
+  //
+  // Y no basta con esperar el evento de conexión: `connection: 'open'` llega antes de que la
+  // sesión termine de inicializarse (subida de pre-keys, sincronización de estado). Un mensaje
+  // enviado en esa ventana se cifra y WhatsApp lo acepta —sendMessage() devuelve true— pero
+  // nunca se propaga: no le llega al destinatario ni aparece en el WhatsApp de la plataforma.
+  // Se comprobó en el envío del 20/08: el mensaje salió 08:03:42 y las pre-keys de arranque se
+  // subieron 08:04:40, un minuto DESPUÉS. Por eso se deja asentar la conexión, mismo criterio
+  // que el bot de deudas de clubes acá abajo.
+  const REMINDER_SETTLE_AFTER_CONNECT_MS = 3 * 60 * 1000;
   masterWhatsappBotService.onConnected(() => {
-    subscriptionReminderService.checkExpiring().catch(() => undefined);
+    setTimeout(() => subscriptionReminderService.checkExpiring().catch(() => undefined), REMINDER_SETTLE_AFTER_CONNECT_MS);
   });
   const subscriptionReminderInterval = setInterval(
     () => subscriptionReminderService.checkExpiring().catch(() => undefined),
