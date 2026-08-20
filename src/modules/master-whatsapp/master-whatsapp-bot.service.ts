@@ -167,7 +167,13 @@ async function runOutbox(): Promise<void> {
  * número, un envío no cuenta como enviado.
  */
 const SERVER_ACK = 2;
-const ACK_TIMEOUT_MS = 25 * 1000;
+/**
+ * Tiene que caber dentro del timeout del panel (12s, ver web/src/api/client.ts): el botón
+ * "Enviar cobro" espera esta confirmación dentro de la misma petición HTTP, y con una espera
+ * más larga el navegador cortaba antes y mostraba un error genérico aunque el envío fuera bien.
+ * Un acuse sano llega en menos de un segundo; si tarda más que esto, algo está mal igual.
+ */
+const ACK_TIMEOUT_MS = 8 * 1000;
 const pendingAcks = new Map<string, (acked: boolean) => void>();
 
 function resolveAck(messageId: string): void {
