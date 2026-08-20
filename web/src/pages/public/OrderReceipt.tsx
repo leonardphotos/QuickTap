@@ -53,9 +53,11 @@ const ACTION_AT = 1.2;
 
 const EASE_OUT_EXPO = [0.16, 1, 0.3, 1] as const;
 
-/** Paleta del recibo: azules fríos, para que se lea como un comprobante y no como el menú. */
+/** Paleta del recibo. El datáfono toma el color de los botones del restaurante
+ * (--color-brand-500/400, que MenuPage define desde el tema de cada negocio), así el recibo se
+ * ve del local y no de QuickTap. El check va en verde porque es el "listo", no la marca. */
 const INK = '#12303d';
-const ACCENT = '#3faccf';
+const GREEN = '#22c55e';
 const MUTED = '#5b7a8a';
 const DASH = '#cfe6f0';
 
@@ -168,13 +170,13 @@ function Row({
       className="flex items-baseline justify-between gap-3"
     >
       <span
-        className={strong ? 'text-[17px] font-bold' : 'text-[15px]'}
+        className={strong ? 'text-[15px] font-bold' : 'text-[12.5px]'}
         style={{ color: strong ? INK : MUTED }}
       >
         {label}
       </span>
       <span
-        className={strong ? 'text-[19px] font-bold' : 'text-[15px] font-semibold'}
+        className={strong ? 'text-[16px] font-bold' : 'text-[12.5px] font-semibold'}
         style={{ color: INK }}
       >
         {value}
@@ -209,40 +211,34 @@ export function OrderReceipt(props: Props) {
     >
       {!reduceMotion && <Confetti delaySeconds={CONFETTI_AT} />}
 
-      {/* Datáfono: la ranura por donde "sale" el recibo. La luz verde late para decir que la
-          operación quedó registrada antes de que el cliente lea un solo número. */}
+      {/* Datáfono: la ranura por donde "sale" el recibo, en el color de los botones del
+          restaurante para que el comprobante se lea como del local. */}
       <motion.div
         initial={{ opacity: 0, scale: 0.92 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: t(0.35), ease: EASE_OUT_EXPO }}
-        className="relative z-20 mx-auto w-full max-w-[290px] rounded-[26px] px-3 pb-4 pt-3 shadow-[0_16px_34px_-18px_rgba(30,120,150,0.6)]"
-        style={{ background: 'linear-gradient(180deg, #8ed8ee 0%, #58bcdd 60%, #3faccf 100%)' }}
+        className="relative z-20 w-full rounded-[26px] px-3 pb-4 pt-3 shadow-[0_16px_34px_-18px_rgba(0,0,0,0.35)]"
+        style={{
+          background:
+            'linear-gradient(180deg, var(--color-brand-400) 0%, var(--color-brand-500) 65%, var(--color-brand-500) 100%)',
+        }}
       >
         <div className="flex h-[54px] items-center justify-center rounded-[16px] bg-[#16323f]">
           <span className="h-[5px] w-[80%] rounded-full bg-black/80" />
         </div>
-        <motion.span
-          aria-hidden="true"
-          className="absolute right-3 top-2.5 h-3 w-3 rounded-full"
-          style={{ background: '#7ed957', boxShadow: '0 0 8px rgba(126,217,87,0.9)' }}
-          initial={{ opacity: 0 }}
-          animate={reduceMotion ? { opacity: 1 } : { opacity: [0.4, 1, 0.4] }}
-          transition={
-            reduceMotion
-              ? { duration: 0 }
-              : { delay: t(0.1), duration: 1.4, repeat: Infinity, ease: 'easeInOut' }
-          }
-        />
       </motion.div>
 
-      {/* El ticket baja desde detrás del datáfono y se expande. */}
+      {/* El ticket se revela de arriba hacia abajo, como el papel saliendo de la ranura.
+          Se recorta con clip-path en vez de animar la altura: el contenedor del drawer mide su
+          alto al abrirse, y creciendo desde 0 lo medía vacío y el recibo quedaba cortado. Con
+          clip-path el alto es el final desde el primer cuadro y solo cambia lo que se ve. */}
       <motion.div
-        initial={{ opacity: 0, y: -70, scaleY: 0.95 }}
-        animate={{ opacity: 1, y: 0, scaleY: 1 }}
-        transition={{ delay: t(0.2), duration: t(0.7), ease: EASE_OUT_EXPO }}
-        style={{ transformOrigin: 'top center' }}
-        className="relative z-0 -mt-4 rounded-b-[22px] rounded-t-[10px] bg-white px-5 pb-6 pt-8 text-left shadow-[0_18px_44px_-26px_rgba(20,80,110,0.45)]"
+        initial={{ clipPath: 'inset(0 0 100% 0)', opacity: 0 }}
+        animate={{ clipPath: 'inset(0 0 0% 0)', opacity: 1 }}
+        transition={{ delay: t(0.2), duration: t(0.8), ease: EASE_OUT_EXPO }}
+        className="relative z-0 -mt-4 rounded-b-[22px] rounded-t-[10px] bg-white shadow-[0_18px_44px_-26px_rgba(20,80,110,0.45)]"
       >
+        <div className="px-5 pb-8 pt-8 text-left">
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
@@ -251,30 +247,24 @@ export function OrderReceipt(props: Props) {
         >
           <span
             className="mx-auto flex h-[62px] w-[62px] items-center justify-center rounded-full"
-            style={{ background: ACCENT, boxShadow: '0 0 0 10px rgba(63,172,207,0.14)' }}
+            style={{ background: GREEN, boxShadow: '0 0 0 10px rgba(34,197,94,0.16)' }}
           >
             <Check className="h-8 w-8 text-white" strokeWidth={3} />
           </span>
           <p
             className="mt-4 text-[12px] font-semibold uppercase"
-            style={{ color: ACCENT, letterSpacing: '0.22em' }}
+            style={{ color: GREEN, letterSpacing: '0.22em' }}
           >
             Pedido confirmado
           </p>
           <p className="mt-1 text-[30px] font-extrabold leading-tight" style={{ color: INK }}>
             ¡Gracias!
           </p>
-          {props.logoUrl && (
-            <img src={props.logoUrl} alt="" className="mx-auto mt-3 h-9 w-auto object-contain" />
-          )}
-          <p className="mt-1 text-[13px] font-medium" style={{ color: MUTED }}>
-            {props.restaurantName}
-          </p>
         </motion.div>
 
-        <div className="my-5 border-t border-dashed" style={{ borderColor: DASH }} />
+        <div className="my-4 border-t border-dashed" style={{ borderColor: DASH }} />
 
-        <div className="space-y-[14px]">
+        <div className="space-y-[7px]">
           {bodyRows.map((row, i) => (
             <Row
               key={`${row.label}-${i}`}
@@ -287,7 +277,7 @@ export function OrderReceipt(props: Props) {
           ))}
         </div>
 
-        <div className="my-5 border-t border-dashed" style={{ borderColor: DASH }} />
+        <div className="my-4 border-t border-dashed" style={{ borderColor: DASH }} />
 
         <motion.div
           initial={{ opacity: 0 }}
@@ -295,10 +285,10 @@ export function OrderReceipt(props: Props) {
           transition={{ delay: t(CONTENT_AT + 0.6), duration: t(0.3) }}
           className="flex items-baseline justify-between gap-3"
         >
-          <span className="text-[15px]" style={{ color: MUTED }}>
+          <span className="text-[12.5px]" style={{ color: MUTED }}>
             Método de pago
           </span>
-          <span className="text-[15px] font-semibold" style={{ color: INK }}>
+          <span className="text-[12.5px] font-semibold" style={{ color: INK }}>
             {props.paymentLabel}
           </span>
         </motion.div>
@@ -326,6 +316,7 @@ export function OrderReceipt(props: Props) {
             Para finalizar tu compra envía tu pedido por WhatsApp
           </p>
         </motion.div>
+        </div>
       </motion.div>
     </div>
   );
