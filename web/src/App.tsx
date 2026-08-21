@@ -5,6 +5,10 @@ import { isInstalledApp } from './utils/native-platform';
 import { MasterAuthProvider } from './context/MasterAuthContext';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
+// QuickTap Pass: portal del cliente final. Árbol propio y perezoso, igual que el panel y el
+// dashboard maestro — quien entra a ver sus compras no debe descargar nada de los otros dos.
+const PassLoginPage = lazy(() => import('./pages/pass/PassLoginPage'));
+const PassDashboardPage = lazy(() => import('./pages/pass/PassDashboardPage'));
 const PlansPage = lazy(() => import('./pages/PlansPage'));
 const LegalPage = lazy(() => import('./pages/LegalPage'));
 const ServicePage = lazy(() => import('./pages/seo/ServicePage'));
@@ -97,6 +101,10 @@ export default function App() {
             <Route path="/precios" element={<PlansPage />} />
             <Route path="/planes" element={<PlanesRedirect />} />
             <Route path="/legal" element={<LegalPage />} />
+
+            {/* QuickTap Pass (quicktap.club/pass) */}
+            <Route path="/pass" element={<PassLoginPage />} />
+            <Route path="/pass/mis-compras" element={<PassDashboardPage />} />
 
             {/* Páginas SEO por cluster de intención — contenido en web/src/data/seoPages.ts,
                 meta del lado del servidor en src/modules/seo/static-pages.ts (backend). */}
