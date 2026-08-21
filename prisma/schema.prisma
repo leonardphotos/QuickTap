@@ -3368,6 +3368,15 @@ model ShopInstallmentPlan {
   /// Días antes del vencimiento en que la cuota empieza a avisarse como próxima a vencer.
   alertDaysBefore Int   @default(3)
 
+  /// Cada cuánto vence una cuota: SEMANAL | QUINCENAL | MENSUAL | TRIMESTRAL | SEMESTRAL.
+  frequency String @default("MENSUAL")
+  /// Recargo por financiar, en % sobre el saldo. Se aplica UNA vez al crear el plan y su monto
+  /// resultante queda congelado abajo: es lo que se le prometió al cliente, y recalcularlo
+  /// después con otro porcentaje le cambiaría la deuda por detrás.
+  surchargePercent Float @default(0)
+  /// El recargo ya calculado, en dinero. Suma al saldo de la venta.
+  surchargeAmount  Float @default(0)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -40,6 +40,7 @@ router.post('/installments/:cuotaId/payments', shopInstallmentsController.abonar
 // --- QuickTap Pass: deudores y abonos que los clientes reportan desde su portal ---
 router.get('/pass/pending', shopPassController.pendientes);
 router.get('/pass/debtors', shopPassController.deudores);
+router.post('/pass/enroll', shopPassController.alta);
 // Verificar un abono mueve dinero en las cuentas del local: solo dueño/admin/cajero.
 router.post('/pass/:id/approve', requireRole('OWNER', 'ADMIN', 'CASHIER'), shopPassController.aprobar);
 router.post('/pass/:id/reject', requireRole('OWNER', 'ADMIN', 'CASHIER'), shopPassController.rechazar);

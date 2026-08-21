@@ -2,8 +2,16 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { passInboxService } from '../pass/pass-payments.service';
+import { prisma } from '../../config/prisma';
 
 const rechazarSchema = z.object({ motivo: z.string().min(3, 'Escribe por qué lo rechazas.') });
+
+const altaSchema = z.object({
+  name: z.string().min(2, 'Escribe el nombre del cliente.'),
+  phone: z.string().min(7, 'Escribe el teléfono.'),
+  idNumber: z.string().min(5, 'La cédula es obligatoria: es la clave con la que entra al portal.'),
+  email: z.string().email('Correo inválido.').optional().or(z.literal('')),
+});
 
 /** Ventana "QuickTap Pass" del panel del local. */
 export const shopPassController = {
@@ -20,6 +28,29 @@ export const shopPassController = {
   /** POST /shop/pass/:id/approve — el abono se vuelve real y suma al cliente. */
   aprobar: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await passInboxService.aprobar(req.restaurantId!, req.params.id, req.auth?.userId) });
+  }),
+
+  /**
+   * POST /shop/pass/enroll — da de alta al cliente en QuickTap Pass.
+   *
+   * La cédula es obligatoria porque es la clave con la que entra al portal; sin ella quedaría
+   * registrado pero sin poder consultar nada.
+   */
+  alta: asyncHandler(async (req: Request, res: Response) => {
+    const input = altaSchema.parse(req.body);
+    const phone = input.phone.replace(/\D/g, '');
+    const cliente = await prisma.customer.upsert({
+      where: { restaurantId_phone: { restaurantId: req.restaurantId!, phone } },
+      update: { name: input.name, idNumber: input.idNumber, ...(input.email ? { email: input.email } : {}) },
+      create: {
+        restaurantId: req.restaurantId!,
+        name: input.name,
+        phone,
+        idNumber: input.idNumber,
+        ...(input.email ? { email: input.email } : {}),
+      },
+    });
+    res.status(201).json({ data: { id: cliente.id, name: cliente.name, phone: cliente.phone } });
   }),
 
   /** POST /shop/pass/:id/reject — no se crea ningún pago; el cliente ve el motivo. */

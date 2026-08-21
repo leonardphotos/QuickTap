@@ -4,6 +4,7 @@ import { Camera, CheckCircle2, ClipboardList, Loader2, MessageCircle, Minus, Plu
 import { api } from '@/api/client';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { useAuth } from '@/context/AuthContext';
+import { ShopPassEnrollDialog } from './ShopPassEnrollDialog';
 import type { PaymentMethodKey, PaymentMethodsConfig } from '@/types';
 import {
   METHODS_ALLOWING_PROOF,
@@ -251,6 +252,12 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const lockedToSelfProvider = Boolean(user && providers.length === 1 && providers[0].id === user.id);
 
   const [fiadoOpen, setFiadoOpen] = useState(false);
+  // Alta en QuickTap Pass + plan de cuotas, disparado desde el cobro. Cuando queda configurado,
+  // la venta se cierra como fiada y el plan se crea contra ella apenas existe.
+  const [passOpen, setPassOpen] = useState(false);
+  const [planPendiente, setPlanPendiente] = useState<
+    { cantidad: number; frecuencia: string; recargoPorcentaje: number; primeraFecha: string } | null
+  >(null);
   const [fiadoStep, setFiadoStep] = useState<'choose' | 'installment'>('choose');
   const [fiadoAbono, setFiadoAbono] = useState('');
 
@@ -568,6 +575,14 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
     // Fiado a pago completo no cobra nada hoy (queda todo pendiente) — el sonido de caja es
     // para cuando efectivamente entra dinero: venta directa o el abono de un fiado fraccionado.
     if (credit?.terms !== 'FULL') playCashSound();
+    // El plan se arma DESPUÉS de que la venta existe: necesita su id para colgarse de ella.
+    if (planPendiente && sale?.id) {
+      api
+        .post(`/shop/sales/${sale.id}/installments`, planPendiente)
+        .then(() => show('Cliente agregado a QuickTap Pass con su plan de cuotas.'))
+        .catch(() => show('La venta quedó registrada, pero no se pudo crear el plan de cuotas.'));
+      setPlanPendiente(null);
+    }
     setCustName('');
     setCustPhone('');
     setDiscount(0);
@@ -1010,6 +1025,17 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
                 Fiado
               </TextureButton>
             </div>
+
+            {/* Alta en el portal del cliente + plan de cuotas, en el mismo momento del cobro:
+                es cuando el cliente está delante y se acuerdan las condiciones. */}
+            <button
+              type="button"
+              disabled={cart.length === 0 || !till}
+              onClick={() => setPassOpen(true)}
+              className="mt-2 w-full rounded-full border border-brand-500/30 bg-brand-500/[0.07] py-2 text-[12.5px] font-semibold text-brand-500 transition-colors hover:bg-brand-500/15 disabled:opacity-40"
+            >
+              Agregar cliente a QuickTap Pass
+            </button>
           </div>
         </div>
       </div>
@@ -1610,6 +1636,25 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
         money={money}
         onAdd={(product, variant, qty) => addToCart(product, variant, qty)}
       />
+
+      {passOpen && (
+        <ShopPassEnrollDialog
+          saldo={total}
+          money={money}
+          moneyBs={moneyBs}
+          onClose={() => setPassOpen(false)}
+          onListo={({ cliente, plan }) => {
+            // Los datos del cliente rellenan el cobro; el plan queda esperando a que la venta
+            // exista para colgarse de ella.
+            setCustName(cliente.name);
+            setCustPhone(cliente.phone);
+            setPlanPendiente(plan);
+            setPassOpen(false);
+            setSaleMode({ kind: 'fiado', terms: 'FULL', amountPaidNow: 0 });
+            setPaymethodOpen(true);
+          }}
+        />
+      )}
 
       {/* ---------- Crear venta (producto/servicio todavía no cargado en el catálogo) ---------- */}
       <Dialog open={quickSaleOpen} onOpenChange={setQuickSaleOpen}>

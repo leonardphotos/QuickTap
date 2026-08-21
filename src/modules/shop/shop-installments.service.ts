@@ -68,6 +68,15 @@ export function resumirCuota(
   };
 }
 
+/** Días que separan una cuota de la siguiente, por frecuencia. */
+const DIAS_POR_FRECUENCIA: Record<string, number> = {
+  SEMANAL: 7,
+  QUINCENAL: 15,
+  MENSUAL: 30,
+  TRIMESTRAL: 90,
+  SEMESTRAL: 180,
+};
+
 export const shopInstallmentsService = {
   /**
    * Arma el plan de cuotas de una venta. Reparte el total en `cantidad` cuotas mensuales; el
@@ -77,7 +86,16 @@ export const shopInstallmentsService = {
   async crearPlan(
     restaurantId: string,
     shopSaleId: string,
-    input: { cantidad: number; primeraFecha: string; lateFeeAmount?: number; alertDaysBefore?: number },
+    input: {
+      cantidad: number;
+      primeraFecha: string;
+      lateFeeAmount?: number;
+      alertDaysBefore?: number;
+      /** SEMANAL | QUINCENAL | MENSUAL | TRIMESTRAL | SEMESTRAL. */
+      frecuencia?: string;
+      /** Recargo por financiar, en % sobre el saldo. */
+      recargoPorcentaje?: number;
+    },
   ) {
     if (input.cantidad < 2) throw badRequest('Un plan de cuotas necesita al menos 2 cuotas.');
 
@@ -92,8 +110,16 @@ export const shopInstallmentsService = {
     const aFinanciar = Math.round((venta.total - abonado) * 100) / 100;
     if (aFinanciar <= 0) throw badRequest('Esta venta ya está saldada, no hay nada que financiar.');
 
-    const base = Math.floor((aFinanciar / input.cantidad) * 100) / 100;
-    const sobrante = Math.round((aFinanciar - base * input.cantidad) * 100) / 100;
+    // El recargo por financiar se calcula UNA vez sobre el saldo y se reparte dentro de las
+    // cuotas, para que el cliente vea el total que va a pagar y no una sorpresa al final.
+    const recargoPct = input.recargoPorcentaje ?? 0;
+    const recargo = Math.round(aFinanciar * (recargoPct / 100) * 100) / 100;
+    const conRecargo = Math.round((aFinanciar + recargo) * 100) / 100;
+
+    const base = Math.floor((conRecargo / input.cantidad) * 100) / 100;
+    const sobrante = Math.round((conRecargo - base * input.cantidad) * 100) / 100;
+    const frecuencia = input.frecuencia && DIAS_POR_FRECUENCIA[input.frecuencia] ? input.frecuencia : 'MENSUAL';
+    const paso = DIAS_POR_FRECUENCIA[frecuencia];
 
     return prisma.$transaction(async (tx) => {
       const plan = await tx.shopInstallmentPlan.create({
@@ -102,13 +128,17 @@ export const shopInstallmentsService = {
           shopSaleId,
           lateFeeAmount: input.lateFeeAmount ?? 0,
           alertDaysBefore: input.alertDaysBefore ?? 3,
+          frequency: frecuencia,
+          surchargePercent: recargoPct,
+          surchargeAmount: recargo,
         },
       });
 
-      const [y, m, d] = input.primeraFecha.split('-').map(Number);
+      const inicio = Date.parse(`${input.primeraFecha}T00:00:00Z`);
       for (let i = 0; i < input.cantidad; i += 1) {
-        // Una cuota por mes desde la primera fecha. Date normaliza solo el desborde de mes.
-        const fecha = new Date(Date.UTC(y, m - 1 + i, d));
+        // Se avanza por días y no por meses de calendario: así "cada 15 días" cae siempre a 15
+        // días reales, y mensual/trimestral/semestral usan 30/90/180 de forma consistente.
+        const fecha = new Date(inicio + i * paso * 86400000);
         await tx.shopInstallment.create({
           data: {
             planId: plan.id,
@@ -228,6 +258,9 @@ export const shopInstallmentsService = {
       id: plan.id,
       lateFeeAmount: plan.lateFeeAmount,
       alertDaysBefore: plan.alertDaysBefore,
+      frequency: plan.frequency,
+      surchargePercent: plan.surchargePercent,
+      surchargeAmount: plan.surchargeAmount,
       cuotas: plan.installments.map((c) => resumirCuota(c, plan.alertDaysBefore)),
     };
   },

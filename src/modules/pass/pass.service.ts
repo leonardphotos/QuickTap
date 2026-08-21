@@ -98,7 +98,10 @@ export const passService = {
 
     const compras = ventas.map((v) => {
       const abonado = (v.amountPaidNow ?? 0) + v.payments.reduce((a, p) => a + p.amount, 0);
-      const mora = v.installmentPlan?.installments.reduce((a, c) => a + c.lateFeeCharged, 0) ?? 0;
+      // El recargo por financiar se le cobra al cliente igual que la mora, así que entra en lo
+      // que debe. Se muestra sumado y no aparte para no llenar el portal de renglones.
+      const mora = (v.installmentPlan?.installments.reduce((a, c) => a + c.lateFeeCharged, 0) ?? 0)
+        + (v.installmentPlan?.surchargeAmount ?? 0);
       const aPagar = Math.round((v.total + mora) * 100) / 100;
       const saldo = Math.max(0, Math.round((aPagar - abonado) * 100) / 100);
 

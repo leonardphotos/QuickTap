@@ -10,6 +10,8 @@ const crearPlanSchema = z.object({
   primeraFecha: z.string().regex(FECHA_ISO, 'La fecha debe ser yyyy-mm-dd.'),
   lateFeeAmount: z.coerce.number().min(0).optional(),
   alertDaysBefore: z.coerce.number().int().min(0).max(30).optional(),
+  frecuencia: z.enum(['SEMANAL', 'QUINCENAL', 'MENSUAL', 'TRIMESTRAL', 'SEMESTRAL']).optional(),
+  recargoPorcentaje: z.coerce.number().min(0).max(200).optional(),
 });
 
 const editarCuotaSchema = z

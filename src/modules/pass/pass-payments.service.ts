@@ -18,7 +18,8 @@ async function saldoDeVenta(shopSaleId: string) {
   if (!venta) throw notFound('Compra no encontrada.');
   const abonado = (venta.amountPaidNow ?? 0) + venta.payments.reduce((a, p) => a + p.amount, 0);
   const mora = venta.installmentPlan?.installments.reduce((a, c) => a + c.lateFeeCharged, 0) ?? 0;
-  const saldo = Math.max(0, Math.round((venta.total + mora - abonado) * 100) / 100);
+  const recargo = venta.installmentPlan?.surchargeAmount ?? 0;
+  const saldo = Math.max(0, Math.round((venta.total + mora + recargo - abonado) * 100) / 100);
   return { venta, saldo };
 }
 
@@ -135,7 +136,8 @@ export const passInboxService = {
 
     for (const v of ventas) {
       const clave = (v.customerPhone ?? 'sin-telefono').replace(/\D/g, '');
-      const mora = v.installmentPlan?.installments.reduce((a, c) => a + c.lateFeeCharged, 0) ?? 0;
+      const mora = (v.installmentPlan?.installments.reduce((a, c) => a + c.lateFeeCharged, 0) ?? 0)
+        + (v.installmentPlan?.surchargeAmount ?? 0);
       const abonado = (v.amountPaidNow ?? 0) + v.payments.reduce((a, p) => a + p.amount, 0);
       const vencidas =
         v.installmentPlan?.installments.filter((c) => c.dueDate < hoy && !c.paidAt).length ?? 0;
@@ -209,7 +211,8 @@ export const passInboxService = {
         include: { payments: true, installmentPlan: { include: { installments: true } } },
       });
       if (venta) {
-        const mora = venta.installmentPlan?.installments.reduce((a, c) => a + c.lateFeeCharged, 0) ?? 0;
+        const mora = (venta.installmentPlan?.installments.reduce((a, c) => a + c.lateFeeCharged, 0) ?? 0)
+          + (venta.installmentPlan?.surchargeAmount ?? 0);
         const abonado = (venta.amountPaidNow ?? 0) + venta.payments.reduce((a, p) => a + p.amount, 0);
         if (abonado + 0.01 >= venta.total + mora) {
           await tx.shopSale.update({ where: { id: venta.id }, data: { settledAt: new Date() } });
