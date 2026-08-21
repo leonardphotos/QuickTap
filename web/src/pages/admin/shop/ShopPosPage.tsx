@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
-import { Camera, CheckCircle2, ClipboardList, Loader2, MessageCircle, Minus, Plus, PlusCircle, Printer, QrCode, ScanLine, Search, ShoppingCart, Wrench, X } from 'lucide-react';
+import { Camera, CheckCircle2, ClipboardList, Loader2, MessageCircle, Minus, Plus, Printer, QrCode, ScanLine, Search, ShoppingCart, Wrench, X } from 'lucide-react';
 import { api } from '@/api/client';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { useAuth } from '@/context/AuthContext';
@@ -708,16 +708,6 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
             >
               <ScanLine className="h-4 w-4" /> Escanear
             </TextureButton>
-            <TextureButton
-              variant="success"
-              size="default"
-              className="!w-auto disabled:opacity-50"
-              title={till ? 'Cobrar algo que todavía no está en tu inventario' : 'Abre la caja para poder cobrar'}
-              disabled={!till}
-              onClick={openQuickSaleDialog}
-            >
-              <PlusCircle className="h-4 w-4" /> Crear venta
-            </TextureButton>
             {rubro.id === 'agencia_publicidad' && (
               <TextureButton
                 variant="minimal"
@@ -869,7 +859,20 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
           </div>
 
           {cart.length === 0 ? (
-            <p className="text-sm text-brand-950/40 text-center py-6">Agrega productos para empezar la venta.</p>
+            <div className="py-6 text-center">
+              <p className="text-sm text-brand-950/40">Agrega productos para empezar la venta.</p>
+              {/* Cobro rápido de algo que no está en el catálogo. Vive acá, discreto, en vez de
+                  como botón verde en la barra: ahí competía con "Crear pedido" del menú lateral. */}
+              {till && (
+                <button
+                  type="button"
+                  onClick={openQuickSaleDialog}
+                  className="mt-2 text-[12px] font-medium text-brand-500 hover:text-brand-600"
+                >
+                  ¿Vendes algo que no está en tu inventario?
+                </button>
+              )}
+            </div>
           ) : (
             <div className="flex flex-col gap-3 max-h-[340px] overflow-y-auto">
               {cart.map((c) => (

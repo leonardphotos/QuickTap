@@ -1,6 +1,7 @@
 import { useState } from 'react';
+import { PanelLeftOpen } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import { Boxes, Building2, Calculator, CreditCard, FileText, HandCoins, Home, Landmark, Lock, Receipt, Settings, ShoppingBag, Users, Wallet } from 'lucide-react';
+import { Boxes, Building2, Calculator, FileText, HandCoins, Home, Landmark, Lock, Receipt, Settings, ShoppingBag, Users, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getShopRubro } from '@/data/shopRubros';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -15,6 +16,8 @@ import { CrmHub } from '@/components/admin/crm/CrmHub';
 import ShopSettingsPage from './ShopSettingsPage';
 import ShopReceivablesPage from './ShopReceivablesPage';
 import ShopPassPage from './ShopPassPage';
+import { ShopSidebar, type ShopSidebarTab } from './ShopSidebar';
+import { PLAN_LABELS } from '@/pages/admin/nav-links';
 import ShopBillingPage from './ShopBillingPage';
 import { PayablesSection } from '@/components/admin/PayablesSection';
 import { AccountingHub } from '@/components/admin/AccountingHub';
@@ -36,7 +39,7 @@ const MORE_TABS: { id: ShopScreen; label: string; icon: typeof FileText; feature
   { id: 'ordenes', label: 'Órdenes de pago', icon: HandCoins, feature: 'accounting' },
   { id: 'contabilidad', label: 'Contabilidad', icon: Calculator, feature: 'accounting' },
   { id: 'sucursales', label: 'Sucursales', icon: Building2, feature: 'branches' },
-  { id: 'factura', label: 'Facturación', icon: CreditCard },
+
 ];
 
 function getTabs(rubroId: string | undefined): { id: ShopScreen; label: string; icon: typeof Home }[] {
@@ -74,6 +77,18 @@ export default function ShopLayout() {
   const rubro = getShopRubro(restaurant?.shopRubro);
   const session = useShopSession(rubro?.categories ?? []);
   const tabs = getTabs(rubro?.id);
+
+  // Menú lateral (solo pantallas anchas), espejo del panel de restaurantes. Va acá arriba, antes
+  // de los retornos tempranos de abajo: un hook después de un `return` se saltea en algunos
+  // renders y React rompe con "rendered more hooks than during the previous render".
+  const [sidebarHidden, setSidebarHidden] = useState(() => localStorage.getItem('qt-shop-sidebar-hidden') === '1');
+  function toggleSidebar() {
+    setSidebarHidden((prev) => {
+      const next = !prev;
+      localStorage.setItem('qt-shop-sidebar-hidden', next ? '1' : '0');
+      return next;
+    });
+  }
 
   if (!user || !restaurant) return null;
 
@@ -113,8 +128,50 @@ export default function ShopLayout() {
   const graceHours = graceHoursRemaining(restaurant.periodEnd);
   const showExpirationWarning = daysLeft <= 3;
 
+
+  const sidebarTabs: ShopSidebarTab[] = [
+    ...tabs.map((t) => ({ ...t, locked: false })),
+    ...moreTabs.map((t) => ({ ...t, locked: isLocked(t) })),
+  ];
+  const planLabel = restaurant.subscriptionPlan
+    ? (PLAN_LABELS[restaurant.subscriptionPlan] ?? restaurant.subscriptionPlan)
+    : null;
+  // Cocina no vende; el resto de los roles del local sí.
+  const puedeVender = user.role !== 'KITCHEN';
+
   return (
     <div className="min-h-screen bg-[#fafafa]">
+      <ShopSidebar
+        tabs={sidebarTabs}
+        screen={screen}
+        onSelect={setScreen}
+        businessName={restaurant.name}
+        logoUrl={restaurant.logoUrl}
+        planLabel={planLabel}
+        userName={user.name}
+        userRole={user.role}
+        onHide={toggleSidebar}
+        hidden={sidebarHidden}
+        onShare={() => {
+          navigator.clipboard?.writeText(`${window.location.origin}/tienda/${restaurant.slug}`);
+        }}
+        onOpenMenu={() => setScreen('ajustes')}
+        onCreateOrder={puedeVender ? () => setScreen('venta') : null}
+      />
+
+      {/* Con el menú oculto: botón para devolverlo, igual que en el panel de restaurantes. */}
+      {sidebarHidden && (
+        <button
+          type="button"
+          onClick={toggleSidebar}
+          aria-label="Mostrar menú lateral"
+          title="Mostrar menú lateral"
+          className="fixed left-4 top-4 z-40 hidden h-10 w-10 items-center justify-center rounded-xl bg-brand-950 text-white shadow-lg lg:flex"
+        >
+          <PanelLeftOpen className="h-[18px] w-[18px]" />
+        </button>
+      )}
+
       {showExpirationWarning && (
         <button
           type="button"
@@ -127,7 +184,7 @@ export default function ShopLayout() {
         </button>
       )}
 
-      <div className="sticky top-0 z-20 bg-white text-brand-950 pt-[env(safe-area-inset-top)] border-b border-brand-950/[0.06]">
+      <div className={`sticky top-0 z-20 bg-white text-brand-950 pt-[env(safe-area-inset-top)] border-b border-brand-950/[0.06] transition-[padding] duration-300 ${sidebarHidden ? "lg:pl-0" : "lg:pl-[264px]"}`}>
         <div className="max-w-7xl mx-auto px-5 sm:px-6 h-14 flex items-center justify-between gap-3">
           <div className="flex items-center gap-1.5 min-w-0">
             <span className="text-[13px] font-bold tracking-tight truncate">{restaurant.name}</span>
@@ -146,7 +203,7 @@ export default function ShopLayout() {
           </div>
 
           {/* Escritorio: pestañas dentro de la cabecera (no hay dock flotante en lg+). */}
-          <nav className="hidden lg:flex items-center gap-1 bg-brand-950/[0.05] p-1 rounded-full min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <nav className="hidden items-center gap-1 bg-brand-950/[0.05] p-1 rounded-full min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {[...tabs.map((t) => ({ ...t, locked: false })), ...moreTabs.map((t) => ({ ...t, locked: isLocked(t) }))].map((t) => (
               <button
                 key={t.id}
@@ -166,7 +223,7 @@ export default function ShopLayout() {
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-5 sm:px-6 py-5 pb-28 lg:pb-8">
+      <main className={`max-w-7xl mx-auto px-5 sm:px-6 py-5 pb-28 lg:pb-8 transition-[padding] duration-300 ${sidebarHidden ? "lg:pl-5" : "lg:pl-[284px]"}`}>
         {screen === 'admin' && (
           <ShopDashboardPage session={session} restaurant={restaurant} canSeeMoney={canSeeMoney} userName={user.name} onNavigate={setScreen} />
         )}
