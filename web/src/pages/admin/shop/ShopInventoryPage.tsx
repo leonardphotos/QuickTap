@@ -60,7 +60,13 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   // Variantes correctas para la categoría elegida en el formulario (ver variantDims.ts): una
   // joyería que también vende carteras no las mide en "Material", las mide en Talla/Color.
   const variantDims = resolveVariantDims(rubro, npCategory);
+  const esEvento = npCategory.trim().toLowerCase() === 'eventos';
   const [npSubcategory, setNpSubcategory] = useState('');
+  // Eventos: la categoría "Eventos" convierte el producto en una entrada con fecha y cupo.
+  // El nombre de la categoría solo dispara el formulario; lo que manda es la bandera isEvent,
+  // así el local puede renombrarla sin romper nada.
+  const [npEventDate, setNpEventDate] = useState('');
+  const [npEventSeats, setNpEventSeats] = useState('');
   const [npBrand, setNpBrand] = useState('');
   const [npSku, setNpSku] = useState('');
   const [npLocation, setNpLocation] = useState('');
@@ -423,7 +429,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   function saveNewProduct() {
     const price = Number(npPrice) || 0;
     if (!npName.trim()) return setSaveError('Falta el nombre del producto.');
-    if (!isServiceShop && !npSku.trim()) return setSaveError('Falta el SKU / código de barras.');
+    if (!esEvento && !isServiceShop && !npSku.trim()) return setSaveError('Falta el SKU / código de barras.');
     if (!price) return setSaveError('El precio de venta debe ser mayor a 0.');
     const rollWidths = npAreaRoll ? parseRollWidths(npRollWidths) : [];
     if (npAreaRoll && rollWidths.length === 0) {
@@ -432,17 +438,25 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     // Un producto por m² no lleva stock por unidades: el material se controla por rollo, así que
     // no se le pide stock ni variantes como al resto del catálogo. Un servicio (estética/barbería)
     // tampoco: no hay nada que contar.
-    if (!npAreaRoll && !isServiceShop && npVariants.length === 0 && npBasicStock.trim() === '') {
+    if (esEvento && !npEventDate) return setSaveError('Ponle fecha al evento.');
+    if (esEvento && (!npEventSeats || Number(npEventSeats) < 1)) {
+      return setSaveError('Indica cuántos puestos tiene el evento.');
+    }
+    // Un evento no lleva stock por unidades: el cupo son los puestos, y de ahí sale su
+    // disponibilidad. Pedirle stock además sería llevar la misma cuenta dos veces.
+    if (!esEvento && !npAreaRoll && !isServiceShop && npVariants.length === 0 && npBasicStock.trim() === '') {
       return setSaveError('Ingresa el stock del producto, o agrega al menos una variante (talla/color) si aplica.');
     }
-    if (!editingProductId && !npPhotoUrl) return setSaveError('Agrega una foto del producto.');
+    if (!esEvento && !editingProductId && !npPhotoUrl) return setSaveError('Agrega una foto del producto.');
     setSaveError(null);
     // El esquema exige al menos una variante; en impresión por m² se crea una sola, nominal,
     // con stock alto para que nunca dispare alertas de agotado (el stock real es el rollo). En
     // servicios se crea igual una sola, nominal, sin stock — productStatus() la exime de "Agotado".
     // Una variante por ancho de rollo, cuyo stock son los METROS LINEALES que quedan de ese
     // rollo — es de donde el POS descuenta el material al vender (ver printPricing.rollWidthLabel).
-    const variants: ShopVariant[] = npAreaRoll
+    const variants: ShopVariant[] = esEvento
+      ? [{ v1: 'Entrada', v2: '', stock: Number(npEventSeats) || 0, soldByWeight: false }]
+      : npAreaRoll
       ? rollWidths.map((w) => ({
           v1: rollWidthLabel(w),
           v2: '',
@@ -459,7 +473,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
       category: npCategory,
       subcategory: npSubcategory.trim(),
       brand: npBrand.trim(),
-      sku: isServiceShop ? '' : npSku.trim(),
+      sku: esEvento || isServiceShop ? '' : npSku.trim(),
       location: npLocation.trim(),
       price,
       cost: Number(npCost) || 0,
@@ -473,6 +487,9 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
       pricingMode: (npAreaRoll ? 'AREA_ROLL' : isServiceShop ? 'SERVICE' : 'UNIT') as 'UNIT' | 'AREA_ROLL' | 'SERVICE',
       rollWidths: npAreaRoll ? rollWidths : undefined,
       rollLengthM: npAreaRoll ? Number(npRollLength.replace(',', '.')) || 50 : undefined,
+      isEvent: esEvento,
+      eventDate: esEvento ? npEventDate : undefined,
+      eventSeats: esEvento ? Number(npEventSeats) || undefined : undefined,
     };
     if (editingProductId) updateProduct(editingProductId, input);
     else addProduct(input);
@@ -1103,6 +1120,36 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                 {categories.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </label>
+            {/* Eventos: fecha y cupo. Aparecen solo en la categoría "Eventos" para no cargar el
+                formulario del resto del catálogo con campos que no aplican. */}
+            {esEvento && (
+              <>
+                <label className="block text-sm">
+                  <span className="text-brand-950/70">Fecha del evento</span>
+                  <input
+                    type="date"
+                    value={npEventDate}
+                    onChange={(e) => setNpEventDate(e.target.value)}
+                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="text-brand-950/70">Puestos disponibles</span>
+                  <input
+                    type="number"
+                    min={1}
+                    inputMode="numeric"
+                    value={npEventSeats}
+                    onChange={(e) => setNpEventSeats(e.target.value)}
+                    placeholder="Ej: 120"
+                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                  />
+                  <span className="mt-1 block text-[11px] font-light text-brand-950/45">
+                    El cupo hace de stock: cada entrada vendida descuenta un puesto.
+                  </span>
+                </label>
+              </>
+            )}
             <label className="block text-sm">
               <span className="text-brand-950/70">Subcategoría</span>
               <input

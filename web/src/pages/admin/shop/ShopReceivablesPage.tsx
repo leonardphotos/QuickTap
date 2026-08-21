@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/useToast';
 import { sendWhatsappOrOpen } from '@/utils/sendWhatsapp';
 import { TextureButton } from '@/components/ui/texture-button';
+import { ShopInstallmentsDialog } from './ShopInstallmentsDialog';
 import { TextureCard } from '@/components/ui/texture-card';
 import { Toast } from '@/components/ui/toast';
 import { shopMoneyFormatters } from './shopFormat';
@@ -70,6 +71,8 @@ export default function ShopReceivablesPage() {
   const [sales, setSales] = useState<ReceivableSale[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [payingId, setPayingId] = useState<string | null>(null);
+  // Venta cuyo plan de cuotas se está viendo o armando.
+  const [planDe, setPlanDe] = useState<ReceivableSale | null>(null);
   const [payAmount, setPayAmount] = useState('');
   const [payMethod, setPayMethod] = useState('');
   const [editingDueId, setEditingDueId] = useState<string | null>(null);
@@ -244,6 +247,14 @@ export default function ShopReceivablesPage() {
                       Registrar abono
                     </button>
                   )}
+                  {/* Cuotas: armar el calendario, o revisarlo y corregir montos y fechas. */}
+                  <button
+                    type="button"
+                    onClick={() => setPlanDe(s)}
+                    className="text-sm font-medium text-brand-500 hover:text-brand-600"
+                  >
+                    Cuotas
+                  </button>
                   {s.customerPhone && (
                     <button
                       type="button"
@@ -266,6 +277,14 @@ export default function ShopReceivablesPage() {
       </TextureCard>
 
       <Toast message={toastMessage} />
+      {planDe && (
+        <ShopInstallmentsDialog
+          saleId={planDe.id}
+          saldo={planDe.balance}
+          onClose={() => setPlanDe(null)}
+          onChanged={load}
+        />
+      )}
     </div>
   );
 }
