@@ -3,6 +3,7 @@ import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
 import { badRequest } from '../../utils/http-error';
 import { resumirCuota } from '../shop/shop-installments.service';
+import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 
 /**
  * QuickTap Pass: el portal donde un cliente ve sus compras y lo que debe.
@@ -82,6 +83,16 @@ export const passService = {
       },
     });
 
+    // Tasa para mostrar todo también en bolívares, que es como el cliente paga. Si la fuente
+    // está caída se sigue mostrando en dólares y nada más: no vale la pena dejar al cliente sin
+    // ver su deuda por un problema aparte.
+    let rateBs: number | null = null;
+    try {
+      rateBs = Number((await exchangeRateService.getRate('USD')).rateBs) || null;
+    } catch {
+      rateBs = null;
+    }
+
     let totalComprado = 0;
     let totalAbonado = 0;
 
@@ -116,6 +127,7 @@ export const passService = {
 
     return {
       cliente: { nombre: yo.name },
+      rateBs,
       resumen: {
         totalComprado: Math.round(totalComprado * 100) / 100,
         totalAbonado: Math.round(totalAbonado * 100) / 100,

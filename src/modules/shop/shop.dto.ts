@@ -47,6 +47,8 @@ export const createShopProductSchema = z.object({
   // Un evento se vende y se cobra como cualquier producto, pero además tiene día y cupo. Se
   // marca con esta bandera y no por el nombre de la categoría, para que el local pueda
   // renombrar "Eventos" sin que el comportamiento cambie.
+  // Unidad de venta: por unidad, por kilo o por metro (ferreterías y cualquier granel).
+  saleUnit: z.enum(['UND', 'KG', 'MT']).optional(),
   isEvent: z.boolean().optional(),
   eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha del evento debe ser yyyy-mm-dd.').optional(),
   eventSeats: z.coerce.number().int().min(1).max(100000).optional(),

@@ -61,10 +61,14 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   // joyería que también vende carteras no las mide en "Material", las mide en Talla/Color.
   const variantDims = resolveVariantDims(rubro, npCategory);
   const esEvento = npCategory.trim().toLowerCase() === 'eventos';
+  const usaUnidades = ['ferreteria', 'carniceria', 'fruteria', 'panaderia'].includes(rubro?.id ?? '');
   const [npSubcategory, setNpSubcategory] = useState('');
   // Eventos: la categoría "Eventos" convierte el producto en una entrada con fecha y cupo.
   // El nombre de la categoría solo dispara el formulario; lo que manda es la bandera isEvent,
   // así el local puede renombrarla sin romper nada.
+  // Unidad de venta: por unidad, por kilo o por metro. Se ofrece en ferretería y en los rubros
+  // que venden a granel; el resto no necesita la decisión y no se le muestra.
+  const [npSaleUnit, setNpSaleUnit] = useState<'UND' | 'KG' | 'MT'>('UND');
   const [npEventDate, setNpEventDate] = useState('');
   const [npEventSeats, setNpEventSeats] = useState('');
   const [npBrand, setNpBrand] = useState('');
@@ -487,6 +491,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
       pricingMode: (npAreaRoll ? 'AREA_ROLL' : isServiceShop ? 'SERVICE' : 'UNIT') as 'UNIT' | 'AREA_ROLL' | 'SERVICE',
       rollWidths: npAreaRoll ? rollWidths : undefined,
       rollLengthM: npAreaRoll ? Number(npRollLength.replace(',', '.')) || 50 : undefined,
+      saleUnit: usaUnidades ? npSaleUnit : undefined,
       isEvent: esEvento,
       eventDate: esEvento ? npEventDate : undefined,
       eventSeats: esEvento ? Number(npEventSeats) || undefined : undefined,
@@ -1120,6 +1125,39 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                 {categories.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
             </label>
+            {/* Unidad de venta: cambia qué significa el precio (por unidad, por kilo o por metro)
+                y cómo se pide la cantidad al vender. */}
+            {usaUnidades && !esEvento && (
+              <label className="block text-sm">
+                <span className="text-brand-950/70">Se vende por</span>
+                <div className="mt-1 flex gap-1.5">
+                  {([
+                    ['UND', 'Unidad'],
+                    ['KG', 'Kilo'],
+                    ['MT', 'Metro'],
+                  ] as const).map(([valor, etiqueta]) => (
+                    <button
+                      key={valor}
+                      type="button"
+                      onClick={() => setNpSaleUnit(valor)}
+                      className={`flex-1 rounded-lg border px-2 py-2 text-sm font-medium transition-colors ${
+                        npSaleUnit === valor
+                          ? 'border-brand-500 bg-brand-500 text-white'
+                          : 'border-brand-950/15 text-brand-950/60 hover:bg-brand-950/5'
+                      }`}
+                    >
+                      {etiqueta}
+                    </button>
+                  ))}
+                </div>
+                <span className="mt-1 block text-[11px] font-light text-brand-950/45">
+                  {npSaleUnit === 'UND'
+                    ? 'El precio es por pieza.'
+                    : `El precio es por ${npSaleUnit === 'KG' ? 'kilo' : 'metro'}; al vender se escribe la cantidad exacta.`}
+                </span>
+              </label>
+            )}
+
             {/* Eventos: fecha y cupo. Aparecen solo en la categoría "Eventos" para no cargar el
                 formulario del resto del catálogo con campos que no aplican. */}
             {esEvento && (

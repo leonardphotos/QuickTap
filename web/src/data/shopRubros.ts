@@ -48,6 +48,8 @@ export interface ShopProductSeed {
    * servicios (estética/barbería): no lleva stock, nunca aparece "Agotado". Ausente o 'UNIT' =
    * venta por unidad de siempre. */
   pricingMode?: 'UNIT' | 'AREA_ROLL' | 'SERVICE';
+  /** Unidad de venta: por unidad, kilo o metro. Ausente = 'UND' (ver ShopProduct.saleUnit). */
+  saleUnit?: 'UND' | 'KG' | 'MT';
   /** Anchos de rollo disponibles en metros, ej. [1.06, 1.37, 1.6, 1.84]. Solo con AREA_ROLL. */
   rollWidths?: number[];
   /** Largo del rollo en metros (típicamente 50) — base para derivar el costo por m². */

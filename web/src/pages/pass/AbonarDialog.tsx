@@ -25,6 +25,7 @@ interface Props {
   negocio: string;
   saldo: number;
   cuotas: Cuota[];
+  rateBs: number | null;
   onClose: () => void;
   onListo: () => void;
 }
@@ -52,7 +53,11 @@ const CAMPOS: Record<string, string> = {
 
 const money = (n: number) => `$${n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export function AbonarDialog({ compraId, negocio, saldo, cuotas, onClose, onListo }: Props) {
+/** En bolívares, que es la cifra que el cliente va a transferir. */
+const bs = (n: number, rateBs: number | null) =>
+  rateBs ? `Bs ${(n * rateBs).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '';
+
+export function AbonarDialog({ compraId, negocio, saldo, cuotas, rateBs, onClose, onListo }: Props) {
   const [metodos, setMetodos] = useState<Record<string, Record<string, string>> | null>(null);
   const [metodo, setMetodo] = useState<string | null>(null);
   const [monto, setMonto] = useState(saldo);
@@ -130,7 +135,8 @@ export function AbonarDialog({ compraId, negocio, saldo, cuotas, onClose, onList
         {/* Cuánto */}
         <div className="mt-5 rounded-2xl bg-[#0e141b] p-4">
           <p className="text-[11px] font-light text-white/45">Vas a abonar</p>
-          <p className="mt-1 text-3xl font-bold tabular-nums">{money(monto)}</p>
+          <p className="mt-1 text-3xl font-bold tabular-nums">{bs(monto, rateBs) || money(monto)}</p>
+          {rateBs && <p className="text-sm font-light tabular-nums text-white/50">{money(monto)}</p>}
           <input
             type="range"
             min={1}

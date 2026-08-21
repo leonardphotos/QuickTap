@@ -140,6 +140,7 @@ export const shopService = {
         sku: input.sku ?? '',
         location: input.location ?? '',
         // Eventos: fecha y cupo viajan con el producto (ver ShopProduct.isEvent).
+        saleUnit: input.saleUnit ?? 'UND',
         isEvent: input.isEvent ?? false,
         eventDate: input.eventDate ?? null,
         eventSeats: input.eventSeats ?? null,

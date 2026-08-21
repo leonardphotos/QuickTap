@@ -33,6 +33,10 @@ export interface RawShopProduct {
   pricingMode: string;
   rollWidths: number[] | null;
   rollLengthM: number | null;
+  saleUnit?: string | null;
+  isEvent?: boolean | null;
+  eventDate?: string | null;
+  eventSeats?: number | null;
   variants: RawShopVariant[];
 }
 
@@ -251,5 +255,11 @@ export function toShopProduct(p: RawShopProduct) {
       | 'SERVICE',
     rollWidths: p.rollWidths ?? undefined,
     rollLengthM: p.rollLengthM ?? undefined,
+    // Unidad de venta y datos de evento: este mapeo copia campo por campo, así que todo lo que
+    // no se liste acá se pierde en el camino aunque el backend lo devuelva.
+    saleUnit: (p.saleUnit === 'KG' || p.saleUnit === 'MT' ? p.saleUnit : 'UND') as 'UND' | 'KG' | 'MT',
+    isEvent: p.isEvent ?? false,
+    eventDate: p.eventDate ?? undefined,
+    eventSeats: p.eventSeats ?? undefined,
   };
 }

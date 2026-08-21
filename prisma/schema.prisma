@@ -3078,6 +3078,12 @@ model ShopProduct {
   // filtrar/agrupar el inventario por marca sin mezclarlo con la clasificación por tipo.
   brand           String  @default("")
 
+  /// Unidad en la que se vende: 'UND' (por unidad), 'KG' (por kilo) o 'MT' (por metro).
+  /// Con KG o MT el precio pasa a ser POR esa unidad y en la venta se escribe la cantidad con
+  /// decimales (2,35 kg) en vez de contar piezas. Pensado para ferreterías, pero el campo es
+  /// genérico: cualquier rubro que venda a granel puede usarlo.
+  saleUnit String @default("UND")
+
   // --- Eventos (categoría "Eventos" de locales comerciales) ---
   // Un evento es un producto como cualquier otro —se vende y se cobra igual— pero además tiene
   // fecha y un cupo limitado de puestos. Se marca con una bandera propia y no por el nombre de

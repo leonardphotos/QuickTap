@@ -44,11 +44,17 @@ interface Compra {
 
 interface Resumen {
   cliente: { nombre: string };
+  /** Tasa del día. null si la fuente estaba caída: entonces se muestra solo en dólares. */
+  rateBs: number | null;
   resumen: { totalComprado: number; totalAbonado: number; totalPendiente: number; comprasActivas: number };
   compras: Compra[];
 }
 
 const money = (n: number) => `$${n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+/** El monto en bolívares, que es como el cliente paga. Vacío si no hay tasa del día. */
+const bs = (n: number, rateBs: number | null) =>
+  rateBs ? `Bs ${(n * rateBs).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '';
 
 const fechaCorta = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -183,7 +189,8 @@ export default function PassDashboardPage() {
         {/* Tarjeta principal: lo que debe, que es la cifra que viene a ver. */}
         <div className="mt-5 rounded-[20px] bg-[#0e141b]/90 p-4 shadow-[0_18px_40px_-20px_rgba(0,0,0,0.8)] backdrop-blur-sm">
           <p className="text-xs font-light text-white/50">Saldo pendiente</p>
-          <p className="mt-1 text-3xl font-bold tabular-nums">{money(resumen.totalPendiente)}</p>
+          <p className="mt-1 text-3xl font-bold tabular-nums">{bs(resumen.totalPendiente, data.rateBs) || money(resumen.totalPendiente)}</p>
+          {data.rateBs && <p className="text-sm font-light tabular-nums text-white/55">{money(resumen.totalPendiente)}</p>}
           <p className="mt-1 text-[11px] font-light text-white/40">
             {resumen.comprasActivas === 0
               ? 'No tienes compras pendientes'
@@ -199,14 +206,20 @@ export default function PassDashboardPage() {
             <span className="flex items-center gap-2 text-sm font-light text-white/70">
               <Wallet className="h-4 w-4 text-white/40" /> Total comprado
             </span>
-            <span className="text-sm font-semibold tabular-nums">{money(resumen.totalComprado)}</span>
+            <span className="text-right text-sm font-semibold tabular-nums">
+              {bs(resumen.totalComprado, data.rateBs) || money(resumen.totalComprado)}
+              {data.rateBs && <span className="block text-[11px] font-light text-white/40">{money(resumen.totalComprado)}</span>}
+            </span>
           </div>
           <div className="h-px bg-white/[0.06]" />
           <div className="flex items-center justify-between py-1.5">
             <span className="flex items-center gap-2 text-sm font-light text-white/70">
               <TrendingUp className="h-4 w-4 text-emerald-400/70" /> Total abonado
             </span>
-            <span className="text-sm font-semibold tabular-nums text-emerald-400">{money(resumen.totalAbonado)}</span>
+            <span className="text-right text-sm font-semibold tabular-nums text-emerald-400">
+              {bs(resumen.totalAbonado, data.rateBs) || money(resumen.totalAbonado)}
+              {data.rateBs && <span className="block text-[11px] font-light text-white/40">{money(resumen.totalAbonado)}</span>}
+            </span>
           </div>
         </div>
 
@@ -258,15 +271,18 @@ export default function PassDashboardPage() {
               <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
                 <div>
                   <p className="font-light text-white/40">Total</p>
-                  <p className="font-semibold tabular-nums">{money(c.total)}</p>
+                  <p className="font-semibold tabular-nums">{bs(c.total, data.rateBs) || money(c.total)}</p>
+                  {data.rateBs && <p className="font-light tabular-nums text-white/35">{money(c.total)}</p>}
                 </div>
                 <div>
                   <p className="font-light text-white/40">Abonado</p>
-                  <p className="font-semibold tabular-nums text-emerald-400">{money(c.abonado)}</p>
+                  <p className="font-semibold tabular-nums text-emerald-400">{bs(c.abonado, data.rateBs) || money(c.abonado)}</p>
+                  {data.rateBs && <p className="font-light tabular-nums text-white/35">{money(c.abonado)}</p>}
                 </div>
                 <div>
                   <p className="font-light text-white/40">Te falta</p>
-                  <p className="font-semibold tabular-nums">{money(c.saldo)}</p>
+                  <p className="font-semibold tabular-nums">{bs(c.saldo, data.rateBs) || money(c.saldo)}</p>
+                  {data.rateBs && <p className="font-light tabular-nums text-white/35">{money(c.saldo)}</p>}
                 </div>
               </div>
 
@@ -302,7 +318,7 @@ export default function PassDashboardPage() {
                                   : 'rgba(255,255,255,0.75)',
                         }}
                       >
-                        {q.estado === 'PAGADA' ? 'Pagada' : money(q.saldo)}
+                        {q.estado === 'PAGADA' ? 'Pagada' : bs(q.saldo, data.rateBs) || money(q.saldo)}
                       </span>
                     </div>
                   ))}
@@ -324,6 +340,7 @@ export default function PassDashboardPage() {
           compraId={abonando.id}
           negocio={abonando.negocio}
           saldo={abonando.saldo}
+          rateBs={data.rateBs}
           cuotas={abonando.cuotas}
           onClose={() => setAbonando(null)}
           onListo={() => {

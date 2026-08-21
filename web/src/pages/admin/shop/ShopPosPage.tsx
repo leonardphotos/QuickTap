@@ -186,6 +186,8 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const [posPromo, setPosPromo] = useState<AppliedPromo | null>(null);
 
   const [weightOpen, setWeightOpen] = useState(false);
+  /** Unidad del producto que se está pesando/midiendo: Kg, Mt o unidad. */
+  const unidadDe = (p: ShopProduct | null) => (p?.saleUnit === 'MT' ? 'Mt' : p?.saleUnit === 'KG' ? 'Kg' : 'Und');
   // Impresión de gran formato (rubro Agencia de Publicidad): medidas de la pieza a imprimir.
   const [printOpen, setPrintOpen] = useState(false);
   const [printProduct, setPrintProduct] = useState<ShopProduct | null>(null);
@@ -344,7 +346,9 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
    * o al diálogo de peso — usado tanto desde la tarjeta directa como desde el selector. */
   function addVariantToCart(product: ShopProduct, variant: ShopVariant) {
     setVariantPickerProduct(null);
-    if (variant.soldByWeight) {
+    // Por Kg o por Mt: se pide la cantidad exacta. soldByWeight se mantiene por las variantes
+    // que ya venían marcadas así antes de que existiera saleUnit.
+    if (variant.soldByWeight || product.saleUnit === 'KG' || product.saleUnit === 'MT') {
       setWeightProduct(product);
       setWeightVariant(variant);
       setWeightInput('');
@@ -1421,9 +1425,15 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
           </DialogHeader>
           {weightProduct && (
             <>
-              <p className="text-sm text-brand-950/50">{money(weightProduct.price)} / Kg{weightVariant?.v1 && weightVariant.v1 !== 'Kg' ? ` · ${weightVariant.v1}` : ''}</p>
+              <p className="text-sm text-brand-950/50">
+                {money(weightProduct.price)} / {unidadDe(weightProduct)}
+                {moneyBs(weightProduct.price) && ` · ${moneyBs(weightProduct.price)} / ${unidadDe(weightProduct)}`}
+                {weightVariant?.v1 && weightVariant.v1 !== 'Kg' ? ` · ${weightVariant.v1}` : ''}
+              </p>
               <label className="block text-sm">
-                <span className="text-brand-950/70">Peso (Kg)</span>
+                <span className="text-brand-950/70">
+                  {weightProduct.saleUnit === 'MT' ? 'Metros' : 'Peso (Kg)'}
+                </span>
                 <input
                   type="number"
                   step="0.001"
@@ -1435,8 +1445,23 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
                   className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
                 />
               </label>
+              {/* El monto exacto en las dos monedas: es lo que el cliente pregunta apenas se pesa
+                  o se mide, y tenerlo acá evita calcularlo aparte. */}
               {Number(weightInput) > 0 && (
-                <p className="text-sm font-semibold text-brand-950">Subtotal: {money(weightProduct.price * Number(weightInput))}</p>
+                <div className="rounded-xl bg-brand-950/[0.04] px-3 py-2">
+                  <p className="text-[11px] font-light text-brand-950/50">
+                    {Number(weightInput)} {unidadDe(weightProduct)} × {money(weightProduct.price)}
+                  </p>
+                  <p className="text-lg font-bold tabular-nums text-brand-950">
+                    {moneyBs(weightProduct.price * Number(weightInput)) ??
+                      money(weightProduct.price * Number(weightInput))}
+                  </p>
+                  {moneyBs(weightProduct.price * Number(weightInput)) && (
+                    <p className="text-sm font-medium tabular-nums text-brand-950/60">
+                      {money(weightProduct.price * Number(weightInput))}
+                    </p>
+                  )}
+                </div>
               )}
               <DialogFooter>
                 <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setWeightOpen(false)}>

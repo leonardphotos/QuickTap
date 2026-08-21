@@ -273,6 +273,11 @@ export interface NewProductInput {
   pricingMode?: 'UNIT' | 'AREA_ROLL' | 'SERVICE';
   rollWidths?: number[];
   rollLengthM?: number;
+  /** Unidad de venta: por unidad, kilo o metro (ver ShopProduct.saleUnit). */
+  saleUnit?: 'UND' | 'KG' | 'MT';
+  isEvent?: boolean;
+  eventDate?: string;
+  eventSeats?: number;
 }
 
 // Una cuenta nueva arranca sin nada: el dueño carga su propio catálogo desde cero (Inventario
