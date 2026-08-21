@@ -88,7 +88,13 @@ const DIM_RULES: DimRule[] = [
     dims: { dim1: 'Presentación', dim1Example: '10kg', dim2: null },
   },
   {
-    keywords: ['tornillo', 'tuerca', 'tuberia', 'pintura', 'ferreteria', 'plomeria', 'electricidad'],
+    // Una manguera se distingue por la presión que aguanta, no por su medida: el diámetro ya va
+    // en el nombre del producto y lo que cambia entre variantes es el PSI (y con él el precio).
+    keywords: ['manguera'],
+    dims: { dim1: 'Presión', dim1Example: '90 PSI', dim2: null },
+  },
+  {
+    keywords: ['tornillo', 'tuerca', 'tuberia', 'pintura', 'ferreteria', 'plomeria', 'electricidad', 'griferia'],
     dims: { dim1: 'Medida', dim1Example: '1/2 pulgada', dim2: null },
   },
   {

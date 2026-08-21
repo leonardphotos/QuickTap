@@ -8,7 +8,7 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
 import { getRubroFeatures, isServiceRubro, type ShopProductSeed, type ShopRubro, type ShopVariant } from '@/data/shopRubros';
-import { formatStock, formatUnidad, shopMoneyFormatters } from './shopFormat';
+import { formatStock, formatUnidad, shopMoneyFormatters, tienePreciosDistintos } from './shopFormat';
 import { productStatus, productStock, type ShopProduct, type ShopSession } from './shopSession';
 import { shopApi, fetchProductLots, type ProductLots } from './shopApi';
 import { costPerM2FromRoll, formatRollWidths, parseRollWidths, rollWidthLabel } from './printPricing';
@@ -740,8 +740,19 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                         </td>
                         <td className="py-3 pr-3 text-brand-950/60">{p.location || '—'}</td>
                         <td className="py-3 pr-3">
-                          {money(p.price)}
-                          {moneyBs(p.price) && <span className="block text-[11px] text-brand-950/40">{moneyBs(p.price)}</span>}
+                          {/* Rango cuando las variantes valen distinto (ej. 60/90/150 PSI): un solo
+                              número sería mentira en las otras dos. */}
+                          {tienePreciosDistintos(p) ? (
+                            (() => {
+                              const precios = p.variants.map((v) => v.price ?? p.price);
+                              return <span className="whitespace-nowrap">{money(Math.min(...precios))} – {money(Math.max(...precios))}</span>;
+                            })()
+                          ) : (
+                            <>
+                              {money(p.price)}
+                              {moneyBs(p.price) && <span className="block text-[11px] text-brand-950/40">{moneyBs(p.price)}</span>}
+                            </>
+                          )}
                         </td>
                         <td className="py-3 pr-3 text-brand-950/70">
                           {p.pricingMode === 'AREA_ROLL'
