@@ -11,6 +11,8 @@ export interface RawShopVariant {
   v2: string;
   stock: number;
   soldByWeight: boolean;
+  price?: number | null;
+  cost?: number | null;
 }
 
 export interface RawShopProduct {
@@ -228,7 +230,15 @@ export const shopApi = {
 };
 
 export function toShopVariant(v: RawShopVariant): ShopVariant {
-  return { v1: v.v1, v2: v.v2, stock: v.stock, soldByWeight: v.soldByWeight, description: v.description ?? undefined };
+  return {
+    v1: v.v1,
+    v2: v.v2,
+    stock: v.stock,
+    soldByWeight: v.soldByWeight,
+    description: v.description ?? undefined,
+    price: v.price ?? undefined,
+    cost: v.cost ?? undefined,
+  };
 }
 
 export function toShopProduct(p: RawShopProduct) {
@@ -266,9 +276,31 @@ export function toShopProduct(p: RawShopProduct) {
 }
 
 /** Lotes vivos de un producto: cada entrada con lo que queda y lo que costó (GET /shop/products/:id/lots). */
+export type ProductLot = {
+  id: string;
+  numero: number;
+  proveedor: string;
+  entro: number;
+  queda: number;
+  costo: number;
+  valor: number;
+  fecha: string;
+};
+
 export type ProductLots = {
   producto: { id: string; nombre: string; unidad: string | null; precio: number; costoPromedio: number };
-  lotes: { id: string; numero: number; proveedor: string; variante: string; entro: number; queda: number; costo: number; valor: number; fecha: string }[];
+  /** Los lotes van agrupados por variante: con 60/90/150 PSI en la misma ficha, mezclarlos
+   *  daría un montón sin origen. */
+  variantes: {
+    variante: string;
+    precio: number;
+    costoActual: number;
+    stock: number;
+    enLotes: number;
+    sinLote: number;
+    valor: number;
+    lotes: ProductLot[];
+  }[];
   totales: { enLotes: number; stock: number; sinLote: number; valor: number; costoActual: number };
 };
 

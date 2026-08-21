@@ -25,3 +25,9 @@ export function formatUnidad(n: number, unidad?: string | null): string {
   const valor = Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, '');
   return `${valor.replace('.', ',')} ${etiqueta}`;
 }
+
+/** ¿Las variantes de este producto valen distinto entre sí? */
+export function tienePreciosDistintos(p: { price: number; variants: { price?: number }[] }): boolean {
+  const precios = new Set(p.variants.map((v) => v.price ?? p.price));
+  return precios.size > 1;
+}

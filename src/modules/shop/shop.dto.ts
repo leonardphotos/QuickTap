@@ -14,6 +14,11 @@ const variantSchema = z.object({
   soldByWeight: z.boolean().optional().default(false),
   // Descripción propia de la variante. Vacío = se usa la del producto.
   description: z.string().max(500).optional(),
+  // Precio y costo propios de la variante (null/ausente = usa los del producto). Ver
+  // ShopProductVariant: las variantes de presión de una manguera se venden y se compran a
+  // precios distintos entre sí.
+  price: z.coerce.number().min(0).nullable().optional(),
+  cost: z.coerce.number().min(0).nullable().optional(),
 });
 
 export const createShopProductSchema = z.object({

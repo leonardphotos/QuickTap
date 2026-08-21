@@ -481,7 +481,11 @@ export function useShopSession(initialCategories: string[] = []) {
           key,
           productId: product.id,
           name: product.name,
-          price: product.price,
+          // La variante manda cuando trae precio propio: en la lista de Monteranch la misma
+          // manguera vale distinto según la presión, y todo lo de abajo (subtotal, comanda,
+          // cobro) sale de este número.
+          price: variant.price ?? product.price,
+          cost: variant.cost,
           wholesalePrice: product.wholesalePrice,
           wholesaleMinQty: product.wholesaleMinQty,
           promoPrice: product.promoPrice,
@@ -629,6 +633,8 @@ export function useShopSession(initialCategories: string[] = []) {
         category: product ? product.category : null,
         qty: c.qty,
         price: effectivePrice(c) * (1 - (c.disc || 0) / 100),
+        // Mismo criterio que el precio: costo de la variante si lo tiene. El servidor lo
+        // vuelve a resolver al guardar (ver recordSale), esto es para el margen en pantalla.
         cost: c.cost ?? (product ? product.cost : 0),
         soldByWeight: c.soldByWeight,
         detail: c.detail,

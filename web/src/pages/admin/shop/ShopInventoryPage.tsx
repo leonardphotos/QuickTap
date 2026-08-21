@@ -763,33 +763,62 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                               <p className="text-[11px] font-bold uppercase text-brand-950/40 mb-1.5">Lotes en existencia</p>
                               {lotsLoading ? (
                                 <p className="text-[12px] text-brand-950/40">Cargando…</p>
-                              ) : !lots || lots.lotes.length === 0 ? (
+                              ) : !lots || lots.variantes.every((g) => g.lotes.length === 0) ? (
                                 <p className="text-[12px] text-brand-950/40">
                                   Sin lotes registrados. Cada compra que cargues desde “Registrar compra” entra como un lote con su propio costo.
                                 </p>
                               ) : (
-                                <div className="flex flex-col gap-1">
-                                  {lots.lotes.map((l) => (
-                                    <div key={l.id} className="flex items-center justify-between gap-2 text-[12.5px]">
-                                      <span className="text-brand-950/70">
-                                        <span className="font-semibold text-brand-950">Lote {l.numero}</span>
-                                        {' · '}{formatUnidad(l.queda, lots.producto.unidad)} a {money(l.costo)}
-                                        {l.queda !== l.entro && (
-                                          <span className="text-brand-950/40"> (entraron {formatUnidad(l.entro, lots.producto.unidad)})</span>
+                                <div className="flex flex-col gap-2.5">
+                                  {lots.variantes
+                                    .filter((g) => g.lotes.length > 0 || g.stock > 0)
+                                    .map((g) => (
+                                      <div key={g.variante}>
+                                        {/* El encabezado por variante solo tiene sentido si hay más de una:
+                                            en un producto simple sería una línea que dice "Único". */}
+                                        {lots.variantes.length > 1 && (
+                                          <p className="text-[12px] font-semibold text-brand-950 mb-0.5">
+                                            {g.variante}
+                                            <span className="ml-1.5 font-normal text-brand-950/40">
+                                              {money(g.precio)} · costo {money(g.costoActual)}
+                                            </span>
+                                          </p>
                                         )}
-                                        <span className="block text-[11px] text-brand-950/40">
-                                          {l.proveedor} · {new Date(l.fecha).toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: '2-digit' })}
-                                        </span>
-                                      </span>
-                                      <span className="font-semibold text-brand-950/70 shrink-0">{money(l.valor)}</span>
-                                    </div>
-                                  ))}
-                                  <div className="flex items-center justify-between gap-2 text-[12.5px] pt-1.5 mt-0.5 border-t border-brand-950/[0.06]">
+                                        {g.lotes.length === 0 ? (
+                                          <p className="text-[12px] text-brand-950/35 pl-2">
+                                            {formatUnidad(g.stock, lots.producto.unidad)} sin lote registrado.
+                                          </p>
+                                        ) : (
+                                          <div className="flex flex-col gap-1 pl-2">
+                                            {g.lotes.map((l) => (
+                                              <div key={l.id} className="flex items-center justify-between gap-2 text-[12.5px]">
+                                                <span className="text-brand-950/70">
+                                                  <span className="font-semibold text-brand-950">Lote {l.numero}</span>
+                                                  {' · '}{formatUnidad(l.queda, lots.producto.unidad)} a {money(l.costo)}
+                                                  {l.queda !== l.entro && (
+                                                    <span className="text-brand-950/40"> (entraron {formatUnidad(l.entro, lots.producto.unidad)})</span>
+                                                  )}
+                                                  <span className="block text-[11px] text-brand-950/40">
+                                                    {l.proveedor} · {new Date(l.fecha).toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: '2-digit' })}
+                                                  </span>
+                                                </span>
+                                                <span className="font-semibold text-brand-950/70 shrink-0">{money(l.valor)}</span>
+                                              </div>
+                                            ))}
+                                            {g.sinLote > 0.001 && (
+                                              <p className="text-[11px] text-brand-950/35">
+                                                {formatUnidad(g.sinLote, lots.producto.unidad)} en stock sin lote que lo respalde.
+                                              </p>
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    ))}
+                                  <div className="flex items-center justify-between gap-2 text-[12.5px] pt-1.5 border-t border-brand-950/[0.06]">
                                     <span className="text-brand-950/70">
                                       Total {formatUnidad(lots.totales.enLotes, lots.producto.unidad)}
                                       <span className="block text-[11px] text-brand-950/40">
-                                        Costo actual {money(lots.totales.costoActual)} por {lots.producto.unidad === 'MT' ? 'Mt' : lots.producto.unidad === 'KG' ? 'Kg' : 'unidad'} · se vende a {money(lots.producto.precio)}
-                                        {lots.totales.sinLote > 0.001 && ` · ${formatUnidad(lots.totales.sinLote, lots.producto.unidad)} sin lote`}
+                                        Costo promedio {money(lots.totales.costoActual)} por{' '}
+                                        {lots.producto.unidad === 'MT' ? 'Mt' : lots.producto.unidad === 'KG' ? 'Kg' : 'unidad'}
                                       </span>
                                     </span>
                                     <span className="font-bold text-brand-950 shrink-0">{money(lots.totales.valor)}</span>
@@ -1597,6 +1626,45 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                       placeholder="Descripción de esta variante (opcional)"
                       className="mt-1.5 w-full rounded-md border border-brand-950/10 bg-white px-2 py-1 text-[12px]"
                     />
+                    {/* Precio y costo propios: para catálogos donde la variante no es una talla
+                        sino otro producto en precio (ej. 60/90/150 PSI de la misma manguera).
+                        Vacíos = usa los del producto, que es el caso de siempre. */}
+                    <div className="flex gap-1.5 mt-1.5">
+                      <label className="block text-[11px] flex-1">
+                        <span className="text-brand-950/45">Precio propio</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={v.price ?? ''}
+                          onChange={(e) =>
+                            setNpVariants((prev) =>
+                              prev.map((x, idx) =>
+                                idx === i ? { ...x, price: e.target.value === '' ? undefined : Number(e.target.value) } : x,
+                              ),
+                            )
+                          }
+                          placeholder={npPrice || 'del producto'}
+                          className="mt-0.5 w-full rounded-md border border-brand-950/10 bg-white px-2 py-1 text-[12px]"
+                        />
+                      </label>
+                      <label className="block text-[11px] flex-1">
+                        <span className="text-brand-950/45">Costo propio</span>
+                        <input
+                          type="number"
+                          step="0.01"
+                          value={v.cost ?? ''}
+                          onChange={(e) =>
+                            setNpVariants((prev) =>
+                              prev.map((x, idx) =>
+                                idx === i ? { ...x, cost: e.target.value === '' ? undefined : Number(e.target.value) } : x,
+                              ),
+                            )
+                          }
+                          placeholder={npCost || 'del producto'}
+                          className="mt-0.5 w-full rounded-md border border-brand-950/10 bg-white px-2 py-1 text-[12px]"
+                        />
+                      </label>
+                    </div>
                   </div>
                 ))}
               </div>

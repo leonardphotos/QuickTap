@@ -15,6 +15,11 @@ export interface ShopVariant {
   soldByWeight?: boolean;
   /** Descripción propia de la variante. Vacío = se usa la del producto. */
   description?: string;
+  /** Precio de venta propio. Ausente = usa el del producto. Lo usan los catálogos donde la
+   *  variante cambia el precio y no solo el nombre (ej. presión de una manguera). */
+  price?: number;
+  /** Costo propio, promedio de SUS lotes. Ausente = usa el del producto. */
+  cost?: number;
 }
 
 export interface ShopProductSeed {

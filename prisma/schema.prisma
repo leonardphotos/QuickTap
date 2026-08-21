@@ -3251,6 +3251,19 @@ model ShopProductVariant {
   stock        Float
   // Se vende por peso (Kg): en el carrito la cantidad es decimal, no unidades enteras.
   soldByWeight Boolean @default(false)
+
+  /// Precio de venta propio de esta variante. Null = usa el del producto.
+  ///
+  /// Existe porque hay catálogos donde la variante no es una talla o un color sino otro
+  /// producto en precio: en la lista de Monteranch, una manguera de 1/2" vale $21,50 a 60 PSI
+  /// y $36,50 a 150 PSI. Antes había que partirlas en productos separados y el catálogo se
+  /// llenaba de filas que en realidad son la misma manguera.
+  price        Float?
+  /// Costo propio de esta variante, promedio ponderado de SUS lotes (ver recordPurchase).
+  /// Null = usa el del producto. Va aparte del precio porque si las variantes se venden a
+  /// distinto precio también se compran a distinto costo, y un promedio único entre las tres
+  /// daría márgenes falsos en las tres.
+  cost         Float?
   /// Descripción propia de esta variante, para cuando entre una y otra cambia algo más que el
   /// nombre. Null = se muestra la del producto.
   description  String?

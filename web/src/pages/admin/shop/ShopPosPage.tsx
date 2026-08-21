@@ -26,6 +26,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Toast } from '@/components/ui/toast';
 import type { ShopRubro, ShopVariant } from '@/data/shopRubros';
 import { formatStock, shopMoneyFormatters } from './shopFormat';
+import { tienePreciosDistintos } from './shopFormat';
 import { effectivePrice, lineTotal, productStatus, productStock, type PaymentMeta, type Sale, type ShopProduct, type ShopSession } from './shopSession';
 import ShopBarcodeScanDialog from './ShopBarcodeScanDialog';
 import { playCashSound } from './shopSounds';
@@ -141,6 +142,18 @@ const PAYMENT_METHOD_META: { key: PaymentMethodKey; label: string }[] = [
 
 export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
+
+  /**
+   * Qué precio mostrar en la tarjeta cuando las variantes valen distinto. Un solo número sería
+   * mentira en dos de las tres presiones, así que se muestra el rango y el precio exacto queda
+   * en el selector de variante.
+   */
+  const rangoPrecio = (p: ShopProduct) => {
+    const precios = p.variants.map((v) => v.price ?? p.price);
+    const min = Math.min(...precios, p.price);
+    const max = Math.max(...precios, p.price);
+    return min === max ? money(p.price) : `${money(min)} – ${money(max)}`;
+  };
   const { products, cart, till, closedTills, categories, addToCart, addAdhocLine, addPrintLine, activeStaffUserId, setActiveStaffUserId, updateCartQty, setCartQty, removeFromCart, setCartLineDiscount, openTill, closeTill, checkout, quickSale, addProduct } = session;
   const { show, toastMessage } = useToast();
   const { user } = useAuth();
@@ -812,9 +825,11 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
                         <span className="text-[11px] font-medium text-brand-950/35 line-through">{money(p.price)}</span>
                       </p>
                     ) : (
-                      <p className="text-sm font-bold text-brand-500 mt-1">{money(p.price)}{unitSuffix}</p>
+                      <p className="text-sm font-bold text-brand-500 mt-1">{rangoPrecio(p)}{unitSuffix}</p>
                     )}
-                    {moneyBs(p.price) && <p className="text-[11px] text-brand-950/40">{moneyBs(p.promoPrice ?? p.price)}{unitSuffix}</p>}
+                    {moneyBs(p.price) && !tienePreciosDistintos(p) && (
+                      <p className="text-[11px] text-brand-950/40">{moneyBs(p.promoPrice ?? p.price)}{unitSuffix}</p>
+                    )}
                     {p.wholesalePrice != null && p.wholesaleMinQty != null && (
                       <p className="text-[10.5px] font-medium text-emerald-600 mt-0.5">Mayorista {money(p.wholesalePrice)} desde {p.wholesaleMinQty} uds.</p>
                     )}
@@ -1459,7 +1474,14 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
                       out ? 'opacity-40 cursor-not-allowed' : 'hover:bg-brand-950/[0.04]'
                     }`}
                   >
-                    <span className="font-medium text-brand-950">{label}</span>
+                    <span className="min-w-0">
+                      <span className="block font-medium text-brand-950">{label}</span>
+                      {/* El precio va acá porque con variantes que valen distinto (60/90/150 PSI)
+                          elegir a ciegas y descubrir el monto en el carrito hace perder ventas. */}
+                      <span className="block text-[12px] text-brand-500 font-semibold">
+                        {money(v.price ?? variantPickerProduct.price)}
+                      </span>
+                    </span>
                     <span className="text-sm text-brand-950/50 shrink-0">
                       {out ? 'Agotado' : v.soldByWeight ? 'Por Kg' : `${formatStock(v.stock)} en stock`}
                     </span>

@@ -595,17 +595,25 @@ export const shopService = {
 
         // El costo lo pone el servidor, no el ticket: el POS manda el que tenía cargado en
         // pantalla, que puede haber quedado viejo si entró un lote mientras se armaba la venta.
-        const producto = await tx.shopProduct.findUnique({ where: { id: item.productId }, select: { cost: true } });
-        if (producto && producto.cost !== item.cost) {
-          await tx.shopSaleItem.update({ where: { id: item.id }, data: { cost: producto.cost } });
-          item.cost = producto.cost;
+        // Manda el de la variante cuando lo tiene (60/90/150 PSI se compran a precios muy
+        // distintos); si no, el del producto, que es el caso de siempre.
+        const producto = await tx.shopProduct.findUnique({
+          where: { id: item.productId },
+          select: { cost: true, variants: { where: { v1: item.v1, v2: item.v2 }, select: { cost: true } } },
+        });
+        const costoReal = producto?.variants[0]?.cost ?? producto?.cost;
+        if (costoReal != null && costoReal !== item.cost) {
+          await tx.shopSaleItem.update({ where: { id: item.id }, data: { cost: costoReal } });
+          item.cost = costoReal;
         }
 
         const aConsumir = item.stockQty ?? item.qty;
         if (aConsumir <= 0) continue;
 
+        // Solo los lotes de ESTA variante: vender una manguera de 90 PSI no puede descargar el
+        // rollo de 150 que está en la misma ficha.
         const lotes = await tx.shopPurchase.findMany({
-          where: { restaurantId, productId: item.productId, remainingQty: { gt: 0 } },
+          where: { restaurantId, productId: item.productId, v1: item.v1, v2: item.v2, remainingQty: { gt: 0 } },
           orderBy: { time: 'asc' },
           select: { id: true, remainingQty: true },
         });
@@ -720,15 +728,30 @@ export const shopService = {
       await tx.shopProductVariant.update({ where: { id: variant.id }, data: { stock: { increment: input.qty } } });
 
       /**
-       * Cada entrada llega con su propio costo: en Monte Ranch un mismo producto pesa distinto
-       * cada vez, así que lo que costó este lote no es lo que costó el anterior. El precio de
-       * venta NO se toca —es el mismo siempre—, pero el costo del producto pasa a ser el
-       * promedio ponderado de lo que hay en stock.
+       * Cada entrada llega con su propio costo: en Monteranch un mismo rollo pesa distinto cada
+       * vez, así que lo que costó este lote no es lo que costó el anterior. El precio de venta
+       * NO se toca —es el mismo siempre—, pero el costo pasa a ser el promedio ponderado de lo
+       * que hay en stock.
        *
        * Ponderado y no "el último costo": con el último, vender mercancía vieja mostraría el
        * margen del lote nuevo y las ganancias saldrían mal. Cada compra queda igual guardada
        * con su costo real en ShopPurchase, así que el histórico por lote no se pierde.
+       *
+       * El promedio se lleva POR VARIANTE, no por producto: cuando las variantes son presiones
+       * distintas de la misma manguera (60/90/150 PSI) se compran a precios muy distintos, y un
+       * promedio único entre las tres daría un margen falso en las tres. El costo del producto
+       * se sigue actualizando como promedio de todo, que es lo que ve un producto de una sola
+       * variante y lo que usan las pantallas que resumen el inventario.
        */
+      const stockPrevioVariante = variant.stock;
+      const stockNuevoVariante = stockPrevioVariante + input.qty;
+      if (stockNuevoVariante > 0) {
+        const costoBase = variant.cost ?? product.cost;
+        const costoVariante =
+          Math.round(((costoBase * Math.max(0, stockPrevioVariante) + input.cost * input.qty) / stockNuevoVariante) * 10000) / 10000;
+        await tx.shopProductVariant.update({ where: { id: variant.id }, data: { cost: costoVariante } });
+      }
+
       const stockPrevio = product.variants.reduce((a, v) => a + v.stock, 0);
       const stockNuevo = stockPrevio + input.qty;
       if (stockNuevo > 0) {
@@ -737,8 +760,11 @@ export const shopService = {
         await tx.shopProduct.update({ where: { id: product.id }, data: { cost: costoPromedio } });
       }
 
-      // El lote se numera por producto para poder decir "lote 1", "lote 2" en el inventario.
-      const lotesPrevios = await tx.shopPurchase.count({ where: { restaurantId, productId: product.id } });
+      // El lote se numera por VARIANTE: "lote 2" de la de 90 PSI no tiene nada que ver con el
+      // lote 2 de la de 150, son mercancías distintas que solo comparten la ficha del producto.
+      const lotesPrevios = await tx.shopPurchase.count({
+        where: { restaurantId, productId: product.id, v1: variant.v1, v2: variant.v2 },
+      });
 
       return tx.shopPurchase.create({
         data: {
@@ -765,7 +791,14 @@ export const shopService = {
   async productLots(restaurantId: string, productId: string) {
     const product = await prisma.shopProduct.findFirst({
       where: { id: productId, restaurantId },
-      select: { id: true, name: true, saleUnit: true, price: true, cost: true, variants: { select: { stock: true } } },
+      select: {
+        id: true,
+        name: true,
+        saleUnit: true,
+        price: true,
+        cost: true,
+        variants: { select: { id: true, v1: true, v2: true, stock: true, price: true, cost: true } },
+      },
     });
     if (!product) throw notFound('Producto no encontrado.');
 
@@ -775,35 +808,50 @@ export const shopService = {
       select: { id: true, lotNumber: true, supplier: true, qty: true, remainingQty: true, cost: true, time: true, v1: true, v2: true },
     });
 
-    const enLotes = lotes.reduce((a, l) => a + l.remainingQty, 0);
-    const valor = lotes.reduce((a, l) => a + l.remainingQty * l.cost, 0);
+    const r3 = (n: number) => Math.round(n * 1000) / 1000;
+    const r2 = (n: number) => Math.round(n * 100) / 100;
+
+    // Los lotes se agrupan por variante: con 60/90/150 PSI en la misma ficha, mezclarlos daría
+    // un montón sin origen y es justo lo que el control por lotes viene a evitar.
+    const grupos = product.variants.map((v) => {
+      const suyos = lotes.filter((l) => l.v1 === v.v1 && l.v2 === v.v2);
+      const enLotes = suyos.reduce((a, l) => a + l.remainingQty, 0);
+      const valor = suyos.reduce((a, l) => a + l.remainingQty * l.cost, 0);
+      return {
+        variante: [v.v1, v.v2].filter(Boolean).join(' / ') || 'Único',
+        precio: v.price ?? product.price,
+        costoActual: v.cost ?? product.cost,
+        stock: r3(v.stock),
+        enLotes: r3(enLotes),
+        // Mercancía en stock sin lote que la respalde: existencias cargadas antes de que
+        // existiera el control por lotes, o ajustes de conteo manuales.
+        sinLote: r3(v.stock - enLotes),
+        valor: r2(valor),
+        lotes: suyos.map((l) => ({
+          id: l.id,
+          numero: l.lotNumber,
+          proveedor: l.supplier,
+          entro: r3(l.qty),
+          queda: r3(l.remainingQty),
+          costo: l.cost,
+          valor: r2(l.remainingQty * l.cost),
+          fecha: l.time,
+        })),
+      };
+    });
+
     const stockTotal = product.variants.reduce((a, v) => a + v.stock, 0);
+    const enLotesTotal = lotes.reduce((a, l) => a + l.remainingQty, 0);
+    const valorTotal = lotes.reduce((a, l) => a + l.remainingQty * l.cost, 0);
 
     return {
       producto: { id: product.id, nombre: product.name, unidad: product.saleUnit, precio: product.price, costoPromedio: product.cost },
-      lotes: lotes.map((l) => ({
-        id: l.id,
-        numero: l.lotNumber,
-        proveedor: l.supplier,
-        variante: [l.v1, l.v2].filter(Boolean).join(' / '),
-        entro: Math.round(l.qty * 1000) / 1000,
-        queda: Math.round(l.remainingQty * 1000) / 1000,
-        costo: l.cost,
-        valor: Math.round(l.remainingQty * l.cost * 100) / 100,
-        fecha: l.time,
-      })),
+      variantes: grupos,
       totales: {
-        enLotes: Math.round(enLotes * 1000) / 1000,
-        stock: Math.round(stockTotal * 1000) / 1000,
-        // Mercancía que está en stock pero sin lote que la respalde: son las existencias
-        // cargadas antes de que existiera el control por lotes, o ajustes de conteo manuales.
-        sinLote: Math.round((stockTotal - enLotes) * 1000) / 1000,
-        // Lo que costó la mercancía que hay, cada lote a su precio real de compra.
-        valor: Math.round(valor * 100) / 100,
-        // El costo por unidad vigente del producto: el que sube o baja con cada lote que entra
-        // y con el que se calcula el margen de cada venta. Es Product.cost, no un promedio de
-        // los lotes que quedan — los dos se separan cuando se vende parte de un lote, y el que
-        // manda para vender es este.
+        enLotes: r3(enLotesTotal),
+        stock: r3(stockTotal),
+        sinLote: r3(stockTotal - enLotesTotal),
+        valor: r2(valorTotal),
         costoActual: product.cost,
       },
     };
