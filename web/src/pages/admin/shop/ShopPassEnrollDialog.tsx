@@ -49,9 +49,20 @@ export function ShopPassEnrollDialog({ saldo, money, moneyBs, onClose, onListo }
   const cuotas = Math.max(1, Number(cantidad) || 1);
   const pct = Math.max(0, Number(recargo) || 0);
   const totalConRecargo = Math.round(saldo * (1 + pct / 100) * 100) / 100;
-  const porCuota = Math.round((totalConRecargo / cuotas) * 100) / 100;
+  // Mismo reparto que el backend (shop-installments.service): el sobrante del redondeo va a la
+  // PRIMERA cuota, para que la suma cuadre exacta. Se replica acá para que lo que el cajero le
+  // muestra al cliente sea idéntico a lo que se va a crear, centavo por centavo.
+  const base = Math.floor((totalConRecargo / cuotas) * 100) / 100;
+  const sobrante = Math.round((totalConRecargo - base * cuotas) * 100) / 100;
   const dias = FRECUENCIAS.find((f) => f.id === frecuencia)?.dias ?? 30;
   const primeraFecha = new Date(Date.now() + dias * 86400000).toLocaleDateString('en-CA');
+
+  const inicio = Date.parse(`${primeraFecha}T00:00:00Z`);
+  const detalleCuotas = Array.from({ length: cuotas }, (_, i) => ({
+    numero: i + 1,
+    monto: i === 0 ? Math.round((base + sobrante) * 100) / 100 : base,
+    fecha: new Date(inicio + i * dias * 86400000).toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit' }),
+  }));
 
   async function siguiente() {
     if (name.trim().length < 2) return setError('Escribe el nombre del cliente.');
@@ -169,20 +180,22 @@ export function ShopPassEnrollDialog({ saldo, money, moneyBs, onClose, onListo }
                 <span>Total a pagar</span>
                 <span className="tabular-nums">{money(totalConRecargo)}</span>
               </div>
-              {/* Lo que paga en CADA cuota, destacado: es el número que el cliente decide, más
-                  que el total. Bs primero porque es como paga. */}
-              <div className="mt-2 rounded-lg bg-white px-3 py-2 text-center">
-                <p className="text-[11px] font-light text-brand-950/50">Paga en cada cuota</p>
-                <p className="text-xl font-bold tabular-nums text-brand-950">
-                  {moneyBs(porCuota) ?? money(porCuota)}
-                </p>
-                {moneyBs(porCuota) && (
-                  <p className="text-[13px] font-semibold tabular-nums text-brand-950/60">{money(porCuota)}</p>
-                )}
-                <p className="mt-0.5 text-[11px] font-light text-brand-950/45">
-                  {cuotas} cuotas · la primera vence el{' '}
-                  {new Date(`${primeraFecha}T00:00:00`).toLocaleDateString('es-VE')}
-                </p>
+              {/* Cuota por cuota, con su fecha y el monto en las dos monedas: es lo que el
+                  cajero le lee al cliente antes de cerrar el trato. */}
+              <div className="mt-2 max-h-52 space-y-1 overflow-y-auto rounded-lg bg-white px-3 py-2">
+                {detalleCuotas.map((c) => (
+                  <div key={c.numero} className="flex items-baseline justify-between gap-2 text-[12.5px]">
+                    <span className="font-light text-brand-950/55">
+                      Cuota {c.numero} · {c.fecha}
+                    </span>
+                    <span className="tabular-nums font-semibold text-brand-950">
+                      {money(c.monto)}
+                      {moneyBs(c.monto) && (
+                        <span className="font-normal text-brand-950/55"> · {moneyBs(c.monto)}</span>
+                      )}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
 
