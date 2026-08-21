@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { PanelLeftOpen } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import { ShieldCheck, Banknote, Boxes, Building2, Calculator, FileText, Scale, HandCoins, Home, Landmark, Lock, Receipt, Settings, ShoppingBag, TrendingUp, Users, Wallet } from 'lucide-react';
+import { Truck, Wallet2, ShieldCheck, Banknote, Boxes, Building2, Calculator, FileText, Scale, HandCoins, Home, Landmark, Lock, Receipt, Settings, ShoppingBag, TrendingUp, Users, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getShopRubro } from '@/data/shopRubros';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -15,6 +15,8 @@ import ShopInventoryPage from './ShopInventoryPage';
 import { CrmHub } from '@/components/admin/crm/CrmHub';
 import ShopSettingsPage from './ShopSettingsPage';
 import ShopStatsPage from './ShopStatsPage';
+import ShopPurchasesPage from './ShopPurchasesPage';
+import ExpensesPage from '@/pages/admin/ExpensesPage';
 import ShopApprovalsPage from './ShopApprovalsPage';
 import { BankAccountsSection } from '@/components/admin/BankAccountsSection';
 import ShopReceivablesPage from './ShopReceivablesPage';
@@ -29,7 +31,7 @@ import { PlanUpgradeNotice } from '@/components/admin/PlanUpgradeNotice';
 import { allowsBranches, daysRemaining, graceHoursRemaining, hasFeature, type FeatureFlag } from '@/utils/subscription';
 import ShopSucursalesPage from './ShopSucursalesPage';
 
-export type ShopScreen = 'admin' | 'venta' | 'pedidos' | 'inventario' | 'clientes' | 'ajustes' | 'cotizaciones' | 'cuentas' | 'ordenes' | 'contabilidad' | 'sucursales' | 'factura' | 'pass' | 'ventas-unidad' | 'estadisticas' | 'bancos' | 'solicitudes';
+export type ShopScreen = 'admin' | 'venta' | 'pedidos' | 'inventario' | 'clientes' | 'ajustes' | 'cotizaciones' | 'cuentas' | 'ordenes' | 'contabilidad' | 'sucursales' | 'factura' | 'pass' | 'ventas-unidad' | 'estadisticas' | 'bancos' | 'solicitudes' | 'gastos' | 'compras';
 
 // Cotizaciones, Cuentas por Cobrar y Facturación no van en el dock flotante de celular (ya tiene
 // 5 iconos, más lo dejaría apretado) — se llega a ellas desde los accesos de Inicio
@@ -41,6 +43,8 @@ const MORE_TABS: { id: ShopScreen; label: string; icon: typeof FileText; feature
   { id: 'cuentas', label: 'Cuentas por Cobrar', icon: Landmark },
   { id: 'pass', label: 'QuickTap Pass', icon: Wallet },
   { id: 'estadisticas', label: 'Estadísticas', icon: TrendingUp },
+  { id: 'gastos', label: 'Gastos', icon: Wallet2 },
+  { id: 'compras', label: 'Compras', icon: Truck },
   { id: 'ventas-unidad', label: 'Ventas por unidad', icon: Scale },
   { id: 'bancos', label: 'Cuentas bancarias', icon: Banknote, feature: 'accounting' },
   { id: 'solicitudes', label: 'Solicitudes', icon: ShieldCheck },
@@ -247,6 +251,12 @@ export default function ShopLayout() {
           </div>
         )}
         {screen === 'estadisticas' && <ShopStatsPage restaurant={restaurant} />}
+        {screen === 'gastos' && (
+          <div className="max-w-5xl mx-auto px-4 py-6">
+            <ExpensesPage />
+          </div>
+        )}
+        {screen === 'compras' && <ShopPurchasesPage session={session} restaurant={restaurant} />}
         {screen === 'solicitudes' && <ShopApprovalsPage />}
         {screen === 'bancos' && (
           <div className="max-w-5xl mx-auto px-4 py-6">
