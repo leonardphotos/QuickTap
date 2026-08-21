@@ -560,6 +560,7 @@ model Restaurant {
   shopCashSessions     ShopCashSession[]
   shopCategories       ShopCategory[]
   shopInstallmentPlans ShopInstallmentPlan[]
+  shopPassPayments     ShopPassPayment[]
   shopSubcategories    ShopSubcategory[]
   shopServiceSupplies  ShopServiceSupply[]
   // Pedidos que entran por el catálogo público de la tienda virtual (ver ShopOrder).
@@ -3166,6 +3167,7 @@ model ShopSale {
   items          ShopSaleItem[]
   payments       ShopSalePayment[]
   installmentPlan ShopInstallmentPlan?
+  passPayments    ShopPassPayment[]
 
   @@index([restaurantId])
   @@index([restaurantId, creditTerms, settledAt])
@@ -3404,6 +3406,44 @@ model ShopInstallment {
   @@index([planId])
   @@index([dueDate])
   @@map("shop_installments")
+}
+
+/// Abono que el CLIENTE reporta desde QuickTap Pass, a la espera de que el local lo verifique.
+///
+/// No toca el saldo al crearse: mientras está en PENDING no existe para las cuentas del negocio.
+/// Solo al aprobarlo se crea el ShopSalePayment real. Es la misma idea que la verificación de
+/// comprobantes de suscripción: quien dice haber pagado no puede darse por pagado solo.
+///
+/// Guarda `installmentId` porque el cliente elige contra qué cuota abona; null = contra el saldo
+/// general de la compra.
+model ShopPassPayment {
+  id            String  @id @default(cuid())
+  restaurantId  String
+  shopSaleId    String
+  customerId    String
+  installmentId String?
+
+  amount        Float
+  method        String
+  proofImageUrl String?
+
+  /// PENDING | APPROVED | REJECTED
+  status          String    @default("PENDING")
+  reviewedAt      DateTime?
+  reviewedById    String?
+  rejectionReason String?
+  /// Pago real que se creó al aprobarlo, para poder rastrear de dónde salió.
+  salePaymentId   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  shopSale   ShopSale   @relation(fields: [shopSaleId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, status])
+  @@index([shopSaleId])
+  @@map("shop_pass_payments")
 }
 
 model ShopSubcategory {

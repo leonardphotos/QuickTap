@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authRateLimit } from '../../middlewares/rate-limit.middleware';
+import { optimizeImage, uploadShopPaymentProof } from '../../middlewares/upload.middleware';
 import { passController } from './pass.controller';
 import { passGuard } from './pass.middleware';
 
@@ -15,5 +16,9 @@ const router = Router();
 
 router.post('/login', authRateLimit, passController.login);
 router.get('/me', passGuard, passController.me);
+router.get('/reports', passGuard, passController.misReportes);
+router.get('/sales/:id/methods', passGuard, passController.metodos);
+router.post('/sales/:id/payments', passGuard, passController.reportar);
+router.post('/proof', passGuard, uploadShopPaymentProof, optimizeImage(1200, 1200), passController.subirComprobante);
 
 export default router;

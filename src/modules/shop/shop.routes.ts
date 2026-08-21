@@ -3,6 +3,7 @@ import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
 import { optimizeImage, uploadShopProductPhoto, uploadShopPaymentProof } from '../../middlewares/upload.middleware';
 import { shopController } from './shop.controller';
 import { shopInstallmentsController } from './shop-installments.controller';
+import { shopPassController } from './shop-pass.controller';
 import { shopOrdersController } from './shop-storefront.controller';
 
 /** Base: /api/v1/shop (el tenant activo, resuelto por JWT) — QuickTap Shop (businessType = SHOP). */
@@ -35,6 +36,13 @@ router.get('/sales/:id/installments', shopInstallmentsController.plan);
 router.post('/sales/:id/installments', shopInstallmentsController.crear);
 router.patch('/installments/:cuotaId', shopInstallmentsController.editar);
 router.post('/installments/:cuotaId/payments', shopInstallmentsController.abonar);
+
+// --- QuickTap Pass: deudores y abonos que los clientes reportan desde su portal ---
+router.get('/pass/pending', shopPassController.pendientes);
+router.get('/pass/debtors', shopPassController.deudores);
+// Verificar un abono mueve dinero en las cuentas del local: solo dueño/admin/cajero.
+router.post('/pass/:id/approve', requireRole('OWNER', 'ADMIN', 'CASHIER'), shopPassController.aprobar);
+router.post('/pass/:id/reject', requireRole('OWNER', 'ADMIN', 'CASHIER'), shopPassController.rechazar);
 router.patch('/sales/:id/due-date', shopController.setSaleDueDate);
 
 router.put('/products/:id/supplies', shopController.setServiceSupplies);
