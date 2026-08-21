@@ -13,6 +13,8 @@ import { masterWhatsappBotService } from '../master-whatsapp/master-whatsapp-bot
 import { subscriptionReminderService } from '../master-whatsapp/subscription-reminder.service';
 import {
   CreateAdditionalChargeInput,
+  CreateCustomizationInput,
+  UpdateCustomizationInput,
   CreateBranchForRestaurantInput,
   UpdateRestaurantUserInput,
 } from './master-restaurants.dto';
@@ -228,6 +230,88 @@ export const masterRestaurantsService = {
     if (!charge) throw notFound('Cargo no encontrado.');
     if (charge.chargedAt) throw badRequest('Ese cargo ya estaba marcado como pagado.');
     return prisma.additionalCharge.update({ where: { id: chargeId }, data: { chargedAt: new Date() } });
+  },
+
+  /**
+   * Personalizaciones (Dashboard maestro → Personalizaciones). Es el registro de lo que se le
+   * construyó a medida a cada negocio: qué pidió, en qué va y cuánto se le cobró por eso.
+   *
+   * El cobro se apoya en los cargos adicionales que ya existían, no los duplica: al marcar una
+   * personalización ENTREGADA se crea su AdditionalCharge, que entra en la próxima mensualidad
+   * y que el local ve desglosado. Lo que agrega esta tabla es la memoria — un cargo se cobra
+   * una vez y desaparece del pendiente, mientras que la personalización sigue viva en el
+   * producto y hay que poder mirar atrás y saber qué se le hizo a quién.
+   */
+  async listCustomizations(restaurantId: string) {
+    return prisma.customization.findMany({
+      where: { restaurantId },
+      orderBy: { requestedAt: 'desc' },
+      include: { additionalCharge: { select: { id: true, chargedAt: true, amountUsd: true } } },
+    });
+  },
+
+  async createCustomization(restaurantId: string, input: CreateCustomizationInput) {
+    const existing = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { id: true } });
+    if (!existing) throw notFound('Restaurante no encontrado.');
+    return prisma.customization.create({
+      data: {
+        restaurantId,
+        title: input.title,
+        detail: input.detail ?? null,
+        amountUsd: input.amountUsd,
+        status: input.status ?? 'SOLICITADA',
+      },
+    });
+  },
+
+  /**
+   * Cambia el estado. Pasar a ENTREGADA es lo que dispara el cobro, una sola vez: si ya tiene
+   * cargo enlazado no se crea otro, así que volver a marcarla entregada (o corregir el estado
+   * ida y vuelta) no le cobra dos veces al local.
+   *
+   * Con monto 0 no se crea cargo: hay personalizaciones que se regalan para cerrar una venta y
+   * un cargo de $0 solo ensuciaría el desglose de su factura.
+   */
+  async updateCustomization(restaurantId: string, id: string, input: UpdateCustomizationInput) {
+    const actual = await prisma.customization.findFirst({ where: { id, restaurantId } });
+    if (!actual) throw notFound('Personalización no encontrada.');
+
+    const status = input.status ?? actual.status;
+    const amountUsd = input.amountUsd ?? Number(actual.amountUsd);
+    const seEntrega = status === 'ENTREGADA' && !actual.additionalChargeId && amountUsd > 0;
+
+    return prisma.$transaction(async (tx) => {
+      let additionalChargeId = actual.additionalChargeId;
+      if (seEntrega) {
+        const cargo = await tx.additionalCharge.create({
+          data: { restaurantId, amountUsd, description: input.title ?? actual.title },
+        });
+        additionalChargeId = cargo.id;
+      }
+      return tx.customization.update({
+        where: { id },
+        data: {
+          title: input.title ?? actual.title,
+          detail: input.detail === undefined ? actual.detail : input.detail,
+          amountUsd,
+          status,
+          additionalChargeId,
+          deliveredAt: status === 'ENTREGADA' ? (actual.deliveredAt ?? new Date()) : null,
+        },
+        include: { additionalCharge: { select: { id: true, chargedAt: true, amountUsd: true } } },
+      });
+    });
+  },
+
+  /**
+   * Borrar la personalización NO borra su cargo: si ya se le cobró al local, ese cobro es
+   * histórico y tiene que seguir apareciendo en su factura aunque acá se limpie el registro.
+   */
+  async removeCustomization(restaurantId: string, id: string) {
+    const actual = await prisma.customization.findFirst({ where: { id, restaurantId } });
+    if (!actual) throw notFound('Personalización no encontrada.');
+    await prisma.customization.delete({ where: { id } });
+    return { deleted: true, cargoConservado: !!actual.additionalChargeId };
   },
 
   /** Edita nombre/correo/contraseña de un usuario del restaurante (incluido el dueño). */

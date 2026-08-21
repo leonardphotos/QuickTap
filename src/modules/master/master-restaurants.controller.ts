@@ -4,6 +4,8 @@ import { activateRestaurantSchema } from '../plan-requests/plan-request.dto';
 import { planRequestService } from '../plan-requests/plan-request.service';
 import {
   createAdditionalChargeSchema,
+  createCustomizationSchema,
+  updateCustomizationSchema,
   createBranchForRestaurantSchema,
   extendDaysSchema,
   setBillingPhoneSchema,
@@ -84,6 +86,24 @@ export const masterRestaurantsController = {
   /** DELETE /master/restaurants/:id/additional-charges/:chargeId — solo si aún no se cobró. */
   removeAdditionalCharge: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await masterRestaurantsService.removeAdditionalCharge(req.params.id, req.params.chargeId) });
+  }),
+  /** GET /master/restaurants/:id/customizations — qué se le construyó a medida a este local. */
+  listCustomizations: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await masterRestaurantsService.listCustomizations(req.params.id) });
+  }),
+  /** POST /master/restaurants/:id/customizations — registra una personalización. */
+  createCustomization: asyncHandler(async (req: Request, res: Response) => {
+    const input = createCustomizationSchema.parse(req.body);
+    res.status(201).json({ data: await masterRestaurantsService.createCustomization(req.params.id, input) });
+  }),
+  /** PATCH /master/restaurants/:id/customizations/:customizationId — pasar a ENTREGADA genera el cargo. */
+  updateCustomization: asyncHandler(async (req: Request, res: Response) => {
+    const input = updateCustomizationSchema.parse(req.body);
+    res.json({ data: await masterRestaurantsService.updateCustomization(req.params.id, req.params.customizationId, input) });
+  }),
+  /** DELETE /master/restaurants/:id/customizations/:customizationId — el cargo ya emitido se conserva. */
+  removeCustomization: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await masterRestaurantsService.removeCustomization(req.params.id, req.params.customizationId) });
   }),
   /** Edita nombre/correo/contraseña de un usuario del restaurante. */
   updateUser: asyncHandler(async (req: Request, res: Response) => {

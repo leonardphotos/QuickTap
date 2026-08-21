@@ -265,9 +265,19 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   const [successOpen, setSuccessOpen] = useState(false);
 
   const subtotal = cart.reduce((a, c) => a + lineTotal(c), 0);
+  // Costo de lo que hay en el carrito, para ver la ganancia antes de cobrar (ver el bloque de
+  // "Costo / Ganancia" bajo el Total). La línea solo trae `cost` propio cuando es una venta
+  // suelta escrita a mano; en lo demás sale del producto, igual que lo resuelve el cobro
+  // (ver shopSession.ts -> checkout), o el margen saldría 100% en todo.
+  const costoCarrito = cart.reduce((a, c) => {
+    const costo = c.cost ?? products.find((p) => p.id === c.productId)?.cost ?? 0;
+    return a + costo * c.qty;
+  }, 0);
+  const puedeVerMargen = user?.role === 'OWNER' || user?.role === 'ADMIN';
   const totalBeforePromo = subtotal * (1 - discount / 100);
   const posPromoDiscount = posPromo ? promoDiscountAmount(posPromo, totalBeforePromo) : 0;
   const total = Math.max(0, Math.round((totalBeforePromo - posPromoDiscount + Number.EPSILON) * 100) / 100);
+  const margenCarrito = total > 0 ? ((total - costoCarrito) / total) * 100 : 0;
   // Datos de cobro que se le muestran al cliente: los del BARBERO si tiene los suyos cargados
   // (le paga directo a él), si no los del local. La venta se registra igual en el local.
   const payToConfig = qsPendingPayment ? restaurant.paymentMethodsConfig : (activeProvider?.paymentMethodsConfig ?? restaurant.paymentMethodsConfig);
@@ -1005,6 +1015,21 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
                 {moneyBs(total) && <span className="block text-[11px] font-medium text-brand-950/40">{moneyBs(total)}</span>}
               </span>
             </div>
+            {/*
+              Costo y margen de lo que está en el carrito. Solo dueño y administrador: el costo
+              de la mercancía no es algo que deba tener a la vista quien atiende la caja.
+              Es una estimación al costo promedio del producto; al cobrar, el servidor recalcula
+              con los lotes reales que salen (el más viejo primero), así que el margen final
+              puede moverse un poco si el carrito consume dos lotes distintos.
+            */}
+            {puedeVerMargen && cart.length > 0 && (
+              <div className="flex items-center justify-between text-[12px] text-brand-950/50 -mt-1">
+                <span>Costo {money(costoCarrito)}</span>
+                <span className={margenCarrito >= 0 ? 'font-semibold text-emerald-600' : 'font-semibold text-red-600'}>
+                  Ganancia {money(total - costoCarrito)} · {margenCarrito.toFixed(1)}%
+                </span>
+              </div>
+            )}
             <div className="flex gap-2 mt-1">
               <TextureButton
                 variant="brand"

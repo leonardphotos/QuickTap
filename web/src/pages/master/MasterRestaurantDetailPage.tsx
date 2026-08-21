@@ -821,6 +821,10 @@ export default function MasterRestaurantDetailPage() {
         <div className="pt-1 border-t border-brand-950/[0.06]" />
 
         <AdditionalChargesBlock restaurantId={id!} />
+
+        <div className="pt-1 border-t border-brand-950/[0.06]" />
+
+        <CustomizationsBlock restaurantId={id!} />
       </div>
 
       {!detail.parentRestaurantId && (
@@ -1246,6 +1250,218 @@ function DeleteRestaurantDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+interface Customization {
+  id: string;
+  title: string;
+  detail: string | null;
+  status: 'SOLICITADA' | 'EN_DESARROLLO' | 'ENTREGADA' | 'DESCARTADA';
+  amountUsd: string;
+  requestedAt: string;
+  deliveredAt: string | null;
+  additionalCharge: { id: string; chargedAt: string | null; amountUsd: string } | null;
+}
+
+const CUSTOMIZATION_STATUS: { value: Customization['status']; label: string; className: string }[] = [
+  { value: 'SOLICITADA', label: 'Solicitada', className: 'bg-brand-950/[0.06] text-brand-950/60' },
+  { value: 'EN_DESARROLLO', label: 'En desarrollo', className: 'bg-blue-50 text-blue-700' },
+  { value: 'ENTREGADA', label: 'Entregada', className: 'bg-emerald-50 text-emerald-700' },
+  { value: 'DESCARTADA', label: 'Descartada', className: 'bg-brand-950/[0.04] text-brand-950/35' },
+];
+
+/**
+ * "Personalizaciones" del detalle del local: el registro de lo que se le construyó a medida
+ * (una pantalla, un cálculo, un reporte que solo ese negocio necesita).
+ *
+ * Sirve para dos cosas distintas y conviene no confundirlas con el bloque de Costos adicionales
+ * de arriba: acá se lleva la MEMORIA de qué se hizo y en qué va; el cobro se delega en un cargo
+ * adicional que se crea solo al marcarla Entregada. Un cargo se cobra una vez y desaparece del
+ * pendiente, mientras que la personalización sigue viva en el producto para siempre.
+ */
+function CustomizationsBlock({ restaurantId }: { restaurantId: string }) {
+  const [items, setItems] = useState<Customization[]>([]);
+  const [title, setTitle] = useState('');
+  const [detail, setDetail] = useState('');
+  const [amount, setAmount] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    masterApi
+      .get(`/master/restaurants/${restaurantId}/customizations`)
+      .then((res) => setItems(res.data.data))
+      .catch(() => setItems([]));
+  }
+
+  useEffect(load, [restaurantId]);
+
+  async function add() {
+    setBusy(true);
+    setError(null);
+    try {
+      await masterApi.post(`/master/restaurants/${restaurantId}/customizations`, {
+        title: title.trim(),
+        detail: detail.trim() || undefined,
+        amountUsd: Number(amount || 0),
+      });
+      setTitle('');
+      setDetail('');
+      setAmount('');
+      load();
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo registrar la personalización.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function changeStatus(item: Customization, status: Customization['status']) {
+    // El aviso solo aparece la primera vez que se entrega y con monto: es el momento en que se
+    // le empieza a cobrar de verdad al local, y no hay forma de deshacerlo desde acá.
+    if (status === 'ENTREGADA' && !item.additionalCharge && Number(item.amountUsd) > 0) {
+      const ok = confirm(
+        `Se le va a cobrar $${Number(item.amountUsd).toFixed(2)} por "${item.title}" en su próxima mensualidad. ¿Confirmas?`,
+      );
+      if (!ok) return;
+    }
+    setError(null);
+    try {
+      await masterApi.patch(`/master/restaurants/${restaurantId}/customizations/${item.id}`, { status });
+      load();
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo cambiar el estado.');
+    }
+  }
+
+  async function remove(item: Customization) {
+    const aviso = item.additionalCharge
+      ? '¿Eliminar este registro? El cargo que ya se le generó al local NO se borra.'
+      : '¿Eliminar este registro?';
+    if (!confirm(aviso)) return;
+    try {
+      await masterApi.delete(`/master/restaurants/${restaurantId}/customizations/${item.id}`);
+      load();
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo eliminar.');
+    }
+  }
+
+  const activas = items.filter((c) => c.status !== 'DESCARTADA');
+  const cobrado = activas.reduce((a, c) => a + (c.additionalCharge ? Number(c.additionalCharge.amountUsd) : 0), 0);
+  const porEntregar = activas.filter((c) => c.status !== 'ENTREGADA');
+
+  return (
+    <div>
+      <p className="font-semibold text-brand-950">Personalizaciones</p>
+      <p className="text-sm text-brand-950/60 font-light mt-1 mb-4">
+        Lo que se le construyó a medida a este negocio. Al marcar una como <strong className="font-medium">Entregada</strong>{' '}
+        se le genera el cargo por su monto, que entra en la próxima mensualidad y que el local ve desglosado en su
+        Facturación. Se cobra una sola vez: volver a marcarla entregada no la vuelve a cobrar.
+      </p>
+
+      <div className="flex flex-wrap items-end gap-3 mb-2">
+        <label className="text-sm flex-1 min-w-[14rem]">
+          <span className="block text-brand-950/70 mb-1">Qué se personalizó</span>
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Ej: Control de lotes por peso"
+            className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+          />
+        </label>
+        <label className="text-sm">
+          <span className="block text-brand-950/70 mb-1">Monto (USD)</span>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0.00"
+            className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm w-32"
+          />
+        </label>
+        <TextureButton
+          variant="minimal"
+          size="default"
+          disabled={busy || !title.trim()}
+          className="!w-auto disabled:opacity-50"
+          onClick={add}
+        >
+          {busy ? 'Registrando…' : 'Registrar'}
+        </TextureButton>
+      </div>
+      <label className="block text-sm mb-3">
+        <span className="block text-brand-950/70 mb-1">Nota interna (opcional)</span>
+        <textarea
+          value={detail}
+          onChange={(e) => setDetail(e.target.value)}
+          placeholder="Qué pidió exactamente, qué se hizo, cualquier cosa que sirva para retomarlo dentro de un año. Esto no lo ve el local."
+          className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm h-16 resize-none"
+        />
+      </label>
+
+      {error && <p className="text-sm text-red-600 mb-2">{error}</p>}
+
+      {items.length === 0 ? (
+        <p className="text-sm text-brand-950/40 font-light">Sin personalizaciones registradas.</p>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-4 text-xs text-brand-950/50 mb-2">
+            <span>
+              Cobrado por personalizaciones: <strong className="font-semibold text-brand-950/70">${cobrado.toFixed(2)}</strong>
+            </span>
+            {porEntregar.length > 0 && <span>{porEntregar.length} sin entregar</span>}
+          </div>
+          <ul className="space-y-2">
+            {items.map((c) => {
+              const badge = CUSTOMIZATION_STATUS.find((s) => s.value === c.status)!;
+              return (
+                <li key={c.id} className="rounded-xl border border-brand-950/10 p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-brand-950">{c.title}</p>
+                      {c.detail && <p className="text-xs text-brand-950/50 font-light mt-0.5 whitespace-pre-wrap">{c.detail}</p>}
+                      <p className="text-[11px] text-brand-950/40 mt-1">
+                        Pedida el {new Date(c.requestedAt).toLocaleDateString('es-VE')}
+                        {c.deliveredAt && ` · entregada el ${new Date(c.deliveredAt).toLocaleDateString('es-VE')}`}
+                        {c.additionalCharge
+                          ? c.additionalCharge.chargedAt
+                            ? ' · ya cobrada'
+                            : ' · cargo pendiente de cobro'
+                          : Number(c.amountUsd) > 0
+                            ? ' · todavía sin cobrar'
+                            : ' · sin costo'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-sm font-medium text-brand-950">${Number(c.amountUsd).toFixed(2)}</span>
+                      <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${badge.className}`}>{badge.label}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    {CUSTOMIZATION_STATUS.filter((s) => s.value !== c.status).map((s) => (
+                      <button
+                        key={s.value}
+                        onClick={() => changeStatus(c, s.value)}
+                        className="text-[11px] px-2 py-0.5 rounded-full border border-brand-950/10 text-brand-950/50 hover:text-brand-950 hover:border-brand-950/25"
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                    <button onClick={() => remove(c)} className="text-[11px] text-red-600 hover:text-red-700 ml-auto">
+                      Eliminar
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
+    </div>
   );
 }
 

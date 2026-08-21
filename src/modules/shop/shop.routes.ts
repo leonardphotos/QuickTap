@@ -27,7 +27,9 @@ router.post('/upload-payment-proof', uploadShopPaymentProof, optimizeImage(1200,
 router.post('/sales', shopController.recordSale);
 router.post('/sales/:id/return', shopController.returnSale);
 
+router.get('/sales-stats', requireRole('OWNER', 'ADMIN'), shopController.salesStats);
 router.get('/sales-by-unit', shopController.salesByUnit);
+router.get('/products/:id/lots', shopController.productLots);
 router.get('/breakeven', requireRole('OWNER', 'ADMIN'), shopController.breakEven);
 
 router.get('/receivables', shopController.listReceivables);

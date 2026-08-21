@@ -525,31 +525,39 @@ model Restaurant {
   preparationIngredients PreparationIngredient[]
   deliveryCouriers       DeliveryCourier[]
   additionalCharges      AdditionalCharge[]
-  quotes                 Quote[]
-  deliveryZones          DeliveryZone[]
-  movements              Movement[]
-  paymentOrders          PaymentOrder[]
-  bankAccounts           BankAccount[]
-  bankTransactions       BankTransaction[]
-  employees              Employee[]
-  employeePayments       EmployeePayment[]
-  cashSessions           CashSession[]
-  suppliers              Supplier[]
-  supplierRatings        SupplierRating[]
-  costStructureConfig    CostStructureConfig?
-  productCostStructures  ProductCostStructure[]
-  wasteRecords           WasteRecord[]
-  customers              Customer[]
-  promotions             Promotion[]
-  promotionRedemptions   PromotionRedemption[]
-  modifierCategories     ModifierCategory[]
-  modifiers              Modifier[]
-  productVariants        ProductVariant[]
-  schedules              RestaurantSchedule[]
-  reservations           Reservation[]
-  waitlistEntries        WaitlistEntry[]
-  syncConflicts          SyncConflict[]
-  fiscalInvoicingConfig  FiscalInvoicingConfig?
+  customizations         Customization[]
+  approvalRequests       ApprovalRequest[]
+
+  /// Qué acciones de un administrador necesitan el visto bueno del dueño. Array de
+  /// ApprovalAction; vacío o null = ninguna, que es como funcionaba antes de que esto
+  /// existiera. Se deja configurable en vez de fijar una lista: cada negocio confía en su
+  /// administrador para cosas distintas.
+  approvalActions       Json?
+  quotes                Quote[]
+  deliveryZones         DeliveryZone[]
+  movements             Movement[]
+  paymentOrders         PaymentOrder[]
+  bankAccounts          BankAccount[]
+  bankTransactions      BankTransaction[]
+  employees             Employee[]
+  employeePayments      EmployeePayment[]
+  cashSessions          CashSession[]
+  suppliers             Supplier[]
+  supplierRatings       SupplierRating[]
+  costStructureConfig   CostStructureConfig?
+  productCostStructures ProductCostStructure[]
+  wasteRecords          WasteRecord[]
+  customers             Customer[]
+  promotions            Promotion[]
+  promotionRedemptions  PromotionRedemption[]
+  modifierCategories    ModifierCategory[]
+  modifiers             Modifier[]
+  productVariants       ProductVariant[]
+  schedules             RestaurantSchedule[]
+  reservations          Reservation[]
+  waitlistEntries       WaitlistEntry[]
+  syncConflicts         SyncConflict[]
+  fiscalInvoicingConfig FiscalInvoicingConfig?
 
   // --- QuickTap Shop (businessType = SHOP): catálogo/ventas/caja propios, sin relación con
   // Product/Order (esos son del vertical restaurante) — ver web/src/pages/admin/shop/. ---
@@ -939,9 +947,9 @@ model ModifierCategory {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurant Restaurant                @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  modifiers  Modifier[]
-  products   ProductModifierCategory[]
+  restaurant  Restaurant                @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  modifiers   Modifier[]
+  products    ProductModifierCategory[]
   // Líneas de receta "A elección del cliente" que resuelven el topping según lo que se
   // eligió en esta categoría (ver RecipeIngredient.customerChoiceModifierCategoryId).
   recipeLines RecipeIngredient[]
@@ -1148,8 +1156,8 @@ model Table {
   mergedIntoTableId String?
   mergedAt          DateTime?
   // Dónde estaba en el plano antes de unirse, para devolverla a su sitio al separarla.
-  preMergePlanX Decimal? @db.Decimal(5, 2)
-  preMergePlanY Decimal? @db.Decimal(5, 2)
+  preMergePlanX     Decimal?  @db.Decimal(5, 2)
+  preMergePlanY     Decimal?  @db.Decimal(5, 2)
 
   restaurant     Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   zone           Zone?          @relation(fields: [zoneId], references: [id], onDelete: SetNull)
@@ -1236,15 +1244,15 @@ enum SyncConflictKind {
 /// completo y se le muestra a una persona: gana lo que ya estaba en la nube, y el pedido
 /// descartado queda visible para decidir qué hacer con él.
 model SyncConflict {
-  id           String           @id @default(cuid())
-  restaurantId String
-  kind         SyncConflictKind
+  id               String           @id @default(cuid())
+  restaurantId     String
+  kind             SyncConflictKind
   /// Referencia de la comanda impresa durante el corte ("R-3"), para encontrar el papel.
   offlineTicketRef String?
   /// Explicación en español, lista para mostrar.
-  reason       String
+  reason           String
   /// El pedido completo tal como lo mandó el relé, por si hay que recrearlo a mano.
-  payload      Json
+  payload          Json
 
   resolvedAt   DateTime?
   resolvedById String?
@@ -1457,24 +1465,24 @@ model Order {
 // de Pedidos. Un pedido puede tener varios (pago fraccionado en distintos
 // métodos); lo pagado se compara contra totalBase para saber el saldo.
 model OrderPayment {
-  id                           String        @id @default(cuid())
+  id                           String         @id @default(cuid())
   orderId                      String
-  amountBase                   Decimal       @db.Decimal(12, 2)
+  amountBase                   Decimal        @db.Decimal(12, 2)
   method                       PaymentMethod
   // Descuento aplicado a este pago puntual (no al pedido completo, porque
   // pagos fraccionados distintos pueden llevar descuentos distintos).
-  discountPercent              Decimal?      @db.Decimal(5, 2)
-  discountBase                 Decimal?      @db.Decimal(12, 2)
+  discountPercent              Decimal?       @db.Decimal(5, 2)
+  discountBase                 Decimal?       @db.Decimal(12, 2)
   // Ajuste puntual al cargo de servicio de ESTE cobro (perdona parte/todo el servicio de este
   // pago) — mismo criterio que discountPercent/discountBase, nunca toca Order.serviceChargeBase.
-  serviceChargeDiscountPercent Decimal?      @db.Decimal(5, 2)
-  serviceChargeDiscountBase    Decimal?      @db.Decimal(12, 2)
+  serviceChargeDiscountPercent Decimal?       @db.Decimal(5, 2)
+  serviceChargeDiscountBase    Decimal?       @db.Decimal(12, 2)
   // Propina cobrada EN ESTE pago puntual (plata real, entra a la cuenta bancaria del método
   // igual que amountBase). Aparte de Order.tipBase — que es la propina declarada/esperada del
   // pedido completo — porque puede fraccionarse en varios cobros o crecer si el cliente decide
   // dejar más al pagar. Ver cash-session.service.ts#computeSummary: se reporta como un segmento
   // aparte de las ventas, nunca sumado a totalNet.
-  tipBase                      Decimal?      @db.Decimal(12, 2)
+  tipBase                      Decimal?       @db.Decimal(12, 2)
   // Número de referencia/comprobante (Pago Móvil, Zelle) o de ticket (Punto de venta).
   referenceNumber              String?
   // Foto del comprobante (Pago Móvil/Zelle/Binance/PayPal/Transferencia) — obligatoria para
@@ -1486,13 +1494,13 @@ model OrderPayment {
   // pedido; la diferencia es el vuelto. La caja registra el efectivo completo que entró (esto) y
   // el vuelto como salida por el método con que se devolvió — así cada método cuadra con lo que
   // físicamente entró y salió por ahí (ver cash-session.service.ts#computeSummary).
-  amountReceivedBase           Decimal?      @db.Decimal(12, 2)
-  changeBase                   Decimal?      @db.Decimal(12, 2)
+  amountReceivedBase           Decimal?       @db.Decimal(12, 2)
+  changeBase                   Decimal?       @db.Decimal(12, 2)
   // Con qué método se devolvió el vuelto: mismo efectivo, o Pago Móvil en Bs (caso típico
   // venezolano: paga en dólares y se le devuelve el cambio en bolívares por pago móvil).
   changeMethod                 PaymentMethod?
   changeReferenceNumber        String?
-  createdAt                    DateTime      @default(now())
+  createdAt                    DateTime       @default(now())
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 
@@ -1771,7 +1779,7 @@ model Employee {
   idNumber   String?
   /// Sueldo acordado, como referencia al pagar. No dispara nada solo: los pagos se
   /// registran a mano (ver EmployeePayment), porque casi nunca coinciden exactos.
-  salaryBase Decimal? @db.Decimal(12, 2)
+  salaryBase Decimal?  @db.Decimal(12, 2)
   /// Fecha en la que el trabajador entró — solo informativo (antigüedad), no dispara nada.
   hireDate   DateTime?
 
@@ -2426,7 +2434,7 @@ model PlanRequest {
   // adjunta, se reenvía de una vez al número verificador por WhatsApp (ver
   // plan-request.controller.ts#notifyVerifierOfProof) para que el equipo lo revise sin tener que
   // entrar al Dashboard maestro. Null = no adjuntó nada, sigue el flujo de siempre.
-  proofImageUrl String?
+  proofImageUrl    String?
 
   // Id de la transacción/sesión de pago en Ramblay (solo paymentMethod = RAMBLAY).
   // Correlaciona el webhook de "pago aprobado/rechazado" con esta solicitud.
@@ -2530,6 +2538,117 @@ model Quote {
 // extra, etc. Se suma al total de la próxima mensualidad, pero SIEMPRE se
 // muestra desglosado y etiquetado como cargo adicional — el restaurante tiene
 // que poder ver por qué está pagando más que su tarifa mensual habitual.
+// Acciones que el dueño puede poner bajo aprobación (ver ApprovalRequest y Restaurant.approvalActions).
+enum ApprovalAction {
+  PRODUCT_PRICE // Cambiar el precio de venta de un producto.
+  PRODUCT_DELETE // Eliminar un producto del catálogo.
+  PRICE_RAISE // Aumento general de precios del local.
+  STOCK_ADJUST // Recuento físico: fijar el stock a mano.
+  SALE_RETURN // Anular/devolver una venta ya cobrada.
+}
+
+enum ApprovalStatus {
+  PENDIENTE
+  APROBADA
+  RECHAZADA
+}
+
+/// Cambio que un administrador quiso hacer y que quedó esperando el visto bueno del dueño.
+///
+/// Existe porque el dueño de un local no está en el mostrador: delega en un administrador, pero
+/// hay cosas que no quiere que pasen sin enterarse — bajarle el precio a un producto, anular una
+/// venta cobrada, "corregir" el stock. Ninguna de esas deja rastro evidente si se hace y ya.
+///
+/// La acción NO se ejecuta al pedirla: se guarda con todo lo necesario para ejecutarla después
+/// (`payload`), y recién corre cuando el dueño aprueba. Se guarda también `summary`, la frase en
+/// español que describe el pedido, congelada al momento de pedirlo: si se arma al mostrarla, un
+/// producto renombrado o borrado haría que el historial dijera otra cosa de la que se aprobó.
+model ApprovalRequest {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  action  ApprovalAction
+  /// Lo que hace falta para ejecutar la acción (ids, montos). Es JSON porque cada acción lleva
+  /// datos distintos y no vale la pena una columna por cada una.
+  payload Json
+  /// "Bajar Manguera 1/2 de $6,00 a $4,50" — congelado al pedirlo, ver arriba.
+  summary String
+
+  status              ApprovalStatus @default(PENDIENTE)
+  requestedByUserId   String
+  /// Congelado igual que el resumen: si al empleado lo dan de baja, el historial debe seguir
+  /// diciendo quién pidió el cambio.
+  requestedByUserName String
+
+  reviewedByUserId String?
+  reviewedAt       DateTime?
+  reviewNote       String?
+
+  appliedAt  DateTime?
+  /// Por qué falló al aplicarse (ej. el producto ya no existe). Se guarda en vez de perderse:
+  /// una solicitud aprobada que no se ejecutó tiene que poder verse, o el dueño cree que el
+  /// cambio se hizo.
+  applyError String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, status])
+  @@map("approval_requests")
+}
+
+// En qué va una personalización pedida por un local (ver Customization).
+enum CustomizationStatus {
+  SOLICITADA // Pedida por el local, todavía sin empezar.
+  EN_DESARROLLO
+  ENTREGADA // Ya está en producción; es cuando se genera el cargo.
+  DESCARTADA // No se va a hacer (no se cobra).
+}
+
+/// Trabajo a medida que se le hace a UN local: una pantalla, un cálculo, un reporte que solo
+/// ese negocio necesita (ej. el control de lotes por peso de Monte Ranch).
+///
+/// Existe por dos motivos, y el segundo es el que no cubría nada:
+///  1. Cobrar: al marcarla ENTREGADA se crea el AdditionalCharge por su monto, que entra en la
+///     próxima mensualidad y que el local ve desglosado (ver ChargeBreakdown).
+///  2. Recordar: con varios locales encima es fácil perder de vista qué se le construyó a cada
+///     uno y quién lo pidió. El cargo por sí solo no lo dice — se cobra una vez y desaparece
+///     del pendiente, mientras que la personalización sigue viva en el producto para siempre.
+model Customization {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  /// Lo que se le muestra al local al cobrarlo, así que se escribe en su idioma, no en el
+  /// nuestro: "Control de lotes por peso", no "FIFO en shop.service".
+  title  String
+  /// Detalle interno: qué se hizo, qué pidió exactamente, cualquier cosa que sirva para
+  /// retomarlo dentro de un año. No se le muestra al local.
+  detail String?
+
+  status    CustomizationStatus @default(SOLICITADA)
+  /// Lo que se le cobra por el desarrollo, una sola vez. Puede ser 0: hay personalizaciones que
+  /// se regalan para cerrar una venta, y conviene dejarlas registradas igual.
+  amountUsd Decimal             @db.Decimal(10, 2)
+
+  requestedAt DateTime  @default(now())
+  deliveredAt DateTime?
+
+  /// El cargo que se generó al entregarla. Queda enlazado para no cobrar dos veces si se
+  /// marca ENTREGADA de nuevo, y para poder rastrear el cobro desde la personalización.
+  additionalChargeId String? @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant       Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  additionalCharge AdditionalCharge? @relation(fields: [additionalChargeId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId, status])
+  @@map("customizations")
+}
+
 model AdditionalCharge {
   id           String @id @default(cuid())
   restaurantId String
@@ -2546,7 +2665,8 @@ model AdditionalCharge {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  restaurant    Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  customization Customization?
 
   @@index([restaurantId, chargedAt])
   @@map("additional_charges")
@@ -2879,11 +2999,11 @@ model InventoryTransfer {
 // si la línea apunta a una preparación, se resuelve recursivamente hasta sus
 // insumos (ver resolveConsumedInventoryItems en costing.ts).
 model RecipeIngredient {
-  id              String  @id @default(cuid())
-  restaurantId    String
-  productId       String
-  inventoryItemId String?
-  preparationId   String?
+  id                               String  @id @default(cuid())
+  restaurantId                     String
+  productId                        String
+  inventoryItemId                  String?
+  preparationId                    String?
   // "A elección del cliente": en vez de un insumo/preparación fijo, esta línea representa un
   // topping que el cliente elige al pedir, a través de un modificador de esta categoría (ej.
   // "Toppings"). Al servir, se descuentan estos mismos `quantity` gramos del insumo vinculado
@@ -2897,7 +3017,7 @@ model RecipeIngredient {
   // topping concreto (ej. "Queso → 100 gr"), y le gana a la línea genérica de la misma categoría
   // ("cualquiera → 60 gr"), que queda como valor por defecto para los toppings sin porción propia.
   // Siempre va acompañado de customerChoiceModifierCategoryId (la categoría de ese modificador).
-  customerChoiceModifierId String?
+  customerChoiceModifierId         String?
 
   // Si no es null, esta línea solo aplica cuando se vendió ESA variante/tamaño del producto
   // (ej. "Grande") — null = aplica a todos los tamaños (o el producto no usa variantes de
@@ -3172,9 +3292,9 @@ model ShopSale {
   // Null = todavía tiene saldo pendiente.
   settledAt DateTime?
 
-  restaurant     Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  items          ShopSaleItem[]
-  payments       ShopSalePayment[]
+  restaurant      Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items           ShopSaleItem[]
+  payments        ShopSalePayment[]
   installmentPlan ShopInstallmentPlan?
   passPayments    ShopPassPayment[]
 
@@ -3194,7 +3314,7 @@ model ShopSalePayment {
   createdAt  DateTime @default(now())
 
   /// Cuota a la que se imputa este abono. Null = abono libre contra el saldo general (así se
-   /// comportaban todos antes de que existieran las cuotas, y se sigue permitiendo).
+  /// comportaban todos antes de que existieran las cuotas, y se sigue permitiendo).
   installmentId String?
 
   shopSale    ShopSale         @relation(fields: [shopSaleId], references: [id], onDelete: Cascade)
@@ -3288,6 +3408,13 @@ model ShopPurchase {
   cost        Float
   time        DateTime @default(now())
 
+  /// Cuánto queda de ESTE lote. Baja al vender, en orden de llegada (el más viejo primero), y
+  /// es lo que permite ver en inventario "lote 1: 50 kg a $3, lote 2: 54 kg a $4,50" en vez de
+  /// un solo promedio. `qty` se conserva como lo que entró originalmente.
+  remainingQty Float @default(0)
+  /// Etiqueta corta para reconocerlo (ej. "Lote 1"). Se numera por producto al registrarlo.
+  lotNumber    Int   @default(0)
+
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@index([restaurantId])
@@ -3354,13 +3481,13 @@ model ShopCategory {
 //  EVENTOS Y PAGO POR CUOTAS (locales comerciales)
 // ----------------------------------------------------------------------------
 
- /// Plan de cuotas de una venta a crédito (ShopSale.creditTerms = 'INSTALLMENT').
- /// Es un método de pago más de la caja, no algo exclusivo de los eventos: el local puede vender
- /// a cuotas una entrada o una nevera con el mismo mecanismo.
- /// `lateFeeAmount` y `alertDaysBefore` se congelan al crear el plan a propósito: si el local
- /// cambia después su política de mora, los planes ya pactados conservan lo que se le prometió al
- /// cliente. Mismo criterio que los montos congelados de Order (ver arriba).
- /// /
+/// Plan de cuotas de una venta a crédito (ShopSale.creditTerms = 'INSTALLMENT').
+/// Es un método de pago más de la caja, no algo exclusivo de los eventos: el local puede vender
+/// a cuotas una entrada o una nevera con el mismo mecanismo.
+/// `lateFeeAmount` y `alertDaysBefore` se congelan al crear el plan a propósito: si el local
+/// cambia después su política de mora, los planes ya pactados conservan lo que se le prometió al
+/// cliente. Mismo criterio que los montos congelados de Order (ver arriba).
+/// /
 model ShopInstallmentPlan {
   id           String @id @default(cuid())
   restaurantId String
@@ -3372,13 +3499,13 @@ model ShopInstallmentPlan {
   alertDaysBefore Int   @default(3)
 
   /// Cada cuánto vence una cuota: SEMANAL | QUINCENAL | MENSUAL | TRIMESTRAL | SEMESTRAL.
-  frequency String @default("MENSUAL")
+  frequency        String @default("MENSUAL")
   /// Recargo por financiar, en % sobre el saldo. Se aplica UNA vez al crear el plan y su monto
   /// resultante queda congelado abajo: es lo que se le prometió al cliente, y recalcularlo
   /// después con otro porcentaje le cambiaría la deuda por detrás.
-  surchargePercent Float @default(0)
+  surchargePercent Float  @default(0)
   /// El recargo ya calculado, en dinero. Suma al saldo de la venta.
-  surchargeAmount  Float @default(0)
+  surchargeAmount  Float  @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3391,14 +3518,14 @@ model ShopInstallmentPlan {
   @@map("shop_installment_plans")
 }
 
- /// Una cuota del plan. Monto y fecha son editables por el local después de creada — es lo normal
- /// cuando un cliente pide reacomodar el pago, y evita tener que anular la venta y rehacerla.
- /// `dueDate` es texto ISO yyyy-mm-dd y no DateTime, igual que ShopSale.dueDate: una fecha de
- /// vencimiento es un día del calendario del local, y guardarla con hora la corría de día al
- /// cruzar husos.
- /// `lateFeeCharged` se sella cuando se aplica la mora, en vez de recalcularla al vuelo, para que
- /// lo que se le cobró al cliente no cambie si el local edita su política más adelante.
- /// /
+/// Una cuota del plan. Monto y fecha son editables por el local después de creada — es lo normal
+/// cuando un cliente pide reacomodar el pago, y evita tener que anular la venta y rehacerla.
+/// `dueDate` es texto ISO yyyy-mm-dd y no DateTime, igual que ShopSale.dueDate: una fecha de
+/// vencimiento es un día del calendario del local, y guardarla con hora la corría de día al
+/// cruzar husos.
+/// `lateFeeCharged` se sella cuando se aplica la mora, en vez de recalcularla al vuelo, para que
+/// lo que se le cobró al cliente no cambie si el local edita su política más adelante.
+/// /
 model ShopInstallment {
   id     String @id @default(cuid())
   planId String

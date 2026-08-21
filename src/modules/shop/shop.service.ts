@@ -160,7 +160,38 @@ export const shopService = {
       include: { variants: true },
     });
     await this.ensureCategory(restaurantId, input.category, input.subcategory);
+
+    // El stock con el que nace el producto es su primer lote: si no, "lote 1" no existiría y
+    // esa mercancía saldría sin costo al venderse (ver el consumo por lotes en recordSale).
+    const stockInicial = product.variants.reduce((a, v) => a + v.stock, 0);
+    if (stockInicial > 0) {
+      const conStock = product.variants.find((v) => v.stock > 0)!;
+      await prisma.shopPurchase.create({
+        data: {
+          restaurantId,
+          supplier: 'Existencia inicial',
+          productId: product.id,
+          productName: product.name,
+          v1: conStock.v1,
+          v2: conStock.v2,
+          qty: stockInicial,
+          cost: input.cost,
+          remainingQty: stockInicial,
+          lotNumber: 1,
+        },
+      });
+    }
+
     return product;
+  },
+
+  /** Lectura puntual, para el control de aprobación (ver shop.controller.ts -> pidePermiso). */
+  async getProduct(restaurantId: string, id: string) {
+    return prisma.shopProduct.findFirst({ where: { id, restaurantId }, select: { id: true, name: true, price: true } });
+  },
+
+  async getSale(restaurantId: string, id: string) {
+    return prisma.shopSale.findFirst({ where: { id, restaurantId }, select: { id: true, total: true, time: true, customerName: true } });
   },
 
   async updateProduct(restaurantId: string, id: string, input: UpdateShopProductInput) {
@@ -215,6 +246,92 @@ export const shopService = {
    * directo "cuántos kilos de manguera se vendieron" sin conversiones. Se separa por unidad
    * para no sumar kilos con unidades en el mismo número, que no querría decir nada.
    */
+  /**
+   * Estadísticas de venta del local (Administración → Estadísticas). Es el equivalente de
+   * /orders/reports/sales-stats de restaurantes, pero sobre ShopSale en vez de Order — un local
+   * no tiene pedidos ni mesas, vende en el punto de venta.
+   *
+   * Siempre compara contra el período inmediatamente anterior de la MISMA duración: "$1.200 esta
+   * semana" no dice nada solo; "$1.200, 18% menos que la semana pasada" sí. Por eso el tramo
+   * anterior se calcula corriendo las mismas fechas hacia atrás, no usando "el mes pasado".
+   *
+   * Las devueltas se excluyen: una venta anulada no es venta y contarla infla el período y,
+   * peor, el ranking del vendedor que la hizo.
+   */
+  async salesStats(restaurantId: string, range: 'week' | 'month', desde?: string, hasta?: string) {
+    const ahora = new Date();
+    const custom = !!(desde && hasta);
+
+    const hastaFecha = custom ? new Date(`${hasta}T23:59:59`) : ahora;
+    const desdeFecha = custom
+      ? new Date(`${desde}T00:00:00`)
+      : new Date(ahora.getTime() - (range === 'week' ? 7 : 30) * 24 * 60 * 60 * 1000);
+
+    const duracion = hastaFecha.getTime() - desdeFecha.getTime();
+    const desdePrevio = new Date(desdeFecha.getTime() - duracion);
+
+    const [actuales, previas] = await Promise.all([
+      prisma.shopSale.findMany({
+        where: { restaurantId, returned: false, time: { gte: desdeFecha, lte: hastaFecha } },
+        select: { id: true, total: true, soldByUserId: true, soldByUserName: true, time: true, items: { select: { qty: true, price: true, cost: true } } },
+      }),
+      prisma.shopSale.findMany({
+        where: { restaurantId, returned: false, time: { gte: desdePrevio, lt: desdeFecha } },
+        select: { id: true, total: true },
+      }),
+    ]);
+
+    const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+    const total = actuales.reduce((a, v) => a + v.total, 0);
+    const totalPrevio = previas.reduce((a, v) => a + v.total, 0);
+    const costo = actuales.reduce((a, v) => a + v.items.reduce((b, it) => b + it.cost * it.qty, 0), 0);
+
+    // Ranking por vendedor: el nombre viene congelado en la venta, así que sigue saliendo bien
+    // aunque después se le cambie el nombre al usuario o se le dé de baja.
+    const porUsuario = new Map<string, { userId: string; name: string; count: number; total: number }>();
+    for (const v of actuales) {
+      const key = v.soldByUserId ?? 'SIN_USUARIO';
+      const fila = porUsuario.get(key) ?? { userId: key, name: v.soldByUserName ?? 'Sin registrar', count: 0, total: 0 };
+      fila.count += 1;
+      fila.total += v.total;
+      porUsuario.set(key, fila);
+    }
+
+    // Por día, para el gráfico. Se llenan también los días sin ventas: un hueco en la línea
+    // se lee como "no hay dato", y lo que pasó fue que no se vendió nada.
+    const porDia = new Map<string, number>();
+    for (let d = new Date(desdeFecha); d <= hastaFecha; d.setDate(d.getDate() + 1)) {
+      porDia.set(d.toISOString().slice(0, 10), 0);
+    }
+    for (const v of actuales) {
+      const dia = v.time.toISOString().slice(0, 10);
+      if (porDia.has(dia)) porDia.set(dia, porDia.get(dia)! + v.total);
+    }
+
+    return {
+      range,
+      custom,
+      desde: desdeFecha.toISOString(),
+      hasta: hastaFecha.toISOString(),
+      ventasCount: actuales.length,
+      total: r2(total),
+      costo: r2(costo),
+      ganancia: r2(total - costo),
+      margenPercent: total > 0 ? r2(((total - costo) / total) * 100) : 0,
+      ticketPromedio: actuales.length > 0 ? r2(total / actuales.length) : 0,
+      previo: {
+        ventasCount: previas.length,
+        total: r2(totalPrevio),
+        ticketPromedio: previas.length > 0 ? r2(totalPrevio / previas.length) : 0,
+      },
+      // null y no 0 cuando el período anterior no tuvo ventas: no se puede decir "subió 100%"
+      // desde cero, y mostrarlo como 0% haría creer que quedó igual.
+      cambioPercent: totalPrevio > 0 ? r2(((total - totalPrevio) / totalPrevio) * 100) : null,
+      porUsuario: [...porUsuario.values()].map((u) => ({ ...u, total: r2(u.total) })).sort((a, b) => b.total - a.total),
+      porDia: [...porDia.entries()].map(([dia, monto]) => ({ dia, monto: r2(monto) })),
+    };
+  },
+
   async salesByUnit(restaurantId: string, desde?: string, hasta?: string) {
     const ventas = await prisma.shopSale.findMany({
       where: {
@@ -459,6 +576,52 @@ export const shopService = {
         data: { stock: 0 },
       });
 
+      /**
+       * Descarga de los lotes y costo de lo vendido.
+       *
+       * El costo que se congela en la venta es el costo POR UNIDAD que tiene el producto en ese
+       * momento (Product.cost), que es el promedio ponderado y se recalcula con cada lote que
+       * entra (ver recordPurchase). No se usa el costo del lote que sale: si se hiciera, vender
+       * mercancía vieja daría un margen y vender la nueva otro, para el mismo producto al mismo
+       * precio, y el margen que muestra el POS antes de cobrar —que sale de ese mismo promedio—
+       * no coincidiría con el que queda guardado.
+       *
+       * Los lotes igual se descargan en orden de llegada (el más viejo primero). Eso no decide
+       * el costo, decide QUÉ QUEDA: es lo que permite ver en inventario "quedan 30 Kg del lote
+       * de 50 y los 54 del segundo" en vez de un único montón sin origen.
+       */
+      for (const item of sale.items) {
+        if (!item.productId || !ownedProductIds.has(item.productId)) continue;
+
+        // El costo lo pone el servidor, no el ticket: el POS manda el que tenía cargado en
+        // pantalla, que puede haber quedado viejo si entró un lote mientras se armaba la venta.
+        const producto = await tx.shopProduct.findUnique({ where: { id: item.productId }, select: { cost: true } });
+        if (producto && producto.cost !== item.cost) {
+          await tx.shopSaleItem.update({ where: { id: item.id }, data: { cost: producto.cost } });
+          item.cost = producto.cost;
+        }
+
+        const aConsumir = item.stockQty ?? item.qty;
+        if (aConsumir <= 0) continue;
+
+        const lotes = await tx.shopPurchase.findMany({
+          where: { restaurantId, productId: item.productId, remainingQty: { gt: 0 } },
+          orderBy: { time: 'asc' },
+          select: { id: true, remainingQty: true },
+        });
+
+        let pendiente = aConsumir;
+        for (const lote of lotes) {
+          if (pendiente <= 0) break;
+          const toma = Math.min(lote.remainingQty, pendiente);
+          pendiente -= toma;
+          await tx.shopPurchase.update({
+            where: { id: lote.id },
+            data: { remainingQty: Math.round((lote.remainingQty - toma) * 10000) / 10000 },
+          });
+        }
+      }
+
       // Código de promoción (CRM): el POS ya restó el descuento del total; acá se valida el
       // código (lista, vigencia, canjes) y se registra el canje con el descuento RECALCULADO
       // sobre el total original — el monto que reclame el cliente no se toma tal cual.
@@ -574,6 +737,9 @@ export const shopService = {
         await tx.shopProduct.update({ where: { id: product.id }, data: { cost: costoPromedio } });
       }
 
+      // El lote se numera por producto para poder decir "lote 1", "lote 2" en el inventario.
+      const lotesPrevios = await tx.shopPurchase.count({ where: { restaurantId, productId: product.id } });
+
       return tx.shopPurchase.create({
         data: {
           restaurantId,
@@ -584,9 +750,63 @@ export const shopService = {
           v2: variant.v2,
           qty: input.qty,
           cost: input.cost,
+          remainingQty: input.qty,
+          lotNumber: lotesPrevios + 1,
         },
       });
     });
+  },
+
+  /**
+   * Lotes vivos de un producto: lo que queda de cada entrada con su costo real.
+   * Es la vista que pidió Monte Ranch — "lote 1: 50 kg a $3, lote 2: 54 kg a $4,50" — en vez
+   * de un único costo promedio que esconde de dónde viene la mercancía.
+   */
+  async productLots(restaurantId: string, productId: string) {
+    const product = await prisma.shopProduct.findFirst({
+      where: { id: productId, restaurantId },
+      select: { id: true, name: true, saleUnit: true, price: true, cost: true, variants: { select: { stock: true } } },
+    });
+    if (!product) throw notFound('Producto no encontrado.');
+
+    const lotes = await prisma.shopPurchase.findMany({
+      where: { restaurantId, productId, remainingQty: { gt: 0 } },
+      orderBy: { time: 'asc' },
+      select: { id: true, lotNumber: true, supplier: true, qty: true, remainingQty: true, cost: true, time: true, v1: true, v2: true },
+    });
+
+    const enLotes = lotes.reduce((a, l) => a + l.remainingQty, 0);
+    const valor = lotes.reduce((a, l) => a + l.remainingQty * l.cost, 0);
+    const stockTotal = product.variants.reduce((a, v) => a + v.stock, 0);
+
+    return {
+      producto: { id: product.id, nombre: product.name, unidad: product.saleUnit, precio: product.price, costoPromedio: product.cost },
+      lotes: lotes.map((l) => ({
+        id: l.id,
+        numero: l.lotNumber,
+        proveedor: l.supplier,
+        variante: [l.v1, l.v2].filter(Boolean).join(' / '),
+        entro: Math.round(l.qty * 1000) / 1000,
+        queda: Math.round(l.remainingQty * 1000) / 1000,
+        costo: l.cost,
+        valor: Math.round(l.remainingQty * l.cost * 100) / 100,
+        fecha: l.time,
+      })),
+      totales: {
+        enLotes: Math.round(enLotes * 1000) / 1000,
+        stock: Math.round(stockTotal * 1000) / 1000,
+        // Mercancía que está en stock pero sin lote que la respalde: son las existencias
+        // cargadas antes de que existiera el control por lotes, o ajustes de conteo manuales.
+        sinLote: Math.round((stockTotal - enLotes) * 1000) / 1000,
+        // Lo que costó la mercancía que hay, cada lote a su precio real de compra.
+        valor: Math.round(valor * 100) / 100,
+        // El costo por unidad vigente del producto: el que sube o baja con cada lote que entra
+        // y con el que se calcula el margen de cada venta. Es Product.cost, no un promedio de
+        // los lotes que quedan — los dos se separan cuando se vende parte de un lote, y el que
+        // manda para vender es este.
+        costoActual: product.cost,
+      },
+    };
   },
 
   // --- Ajustes de stock (fijan el valor contado) ---

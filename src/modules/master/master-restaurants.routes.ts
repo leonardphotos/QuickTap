@@ -23,6 +23,13 @@ router.get('/:id/additional-charges', masterRestaurantsController.listAdditional
 router.post('/:id/additional-charges', masterRestaurantsController.createAdditionalCharge);
 router.delete('/:id/additional-charges/:chargeId', masterRestaurantsController.removeAdditionalCharge);
 router.patch('/:id/additional-charges/:chargeId/mark-paid', masterRestaurantsController.markAdditionalChargePaid);
+
+// Personalizaciones por local (ver modelo Customization): el registro de lo hecho a medida,
+// y el cargo que se genera al entregarlo.
+router.get('/:id/customizations', masterRestaurantsController.listCustomizations);
+router.post('/:id/customizations', masterRestaurantsController.createCustomization);
+router.patch('/:id/customizations/:customizationId', masterRestaurantsController.updateCustomization);
+router.delete('/:id/customizations/:customizationId', masterRestaurantsController.removeCustomization);
 router.patch('/:id/users/:userId', masterRestaurantsController.updateUser);
 router.post('/:id/installation-notice', masterRestaurantsController.sendInstallationNotice);
 router.delete('/:id', masterRestaurantsController.remove);

@@ -18,3 +18,10 @@ export function shopMoneyFormatters(restaurant: Pick<AuthRestaurant, 'currencySy
 export function formatStock(n: number): string {
   return String(Math.round((n + Number.EPSILON) * 1000) / 1000);
 }
+
+/** "50 KG", "12,5 Mt", "3 und" — la unidad en que de verdad se vende el producto. */
+export function formatUnidad(n: number, unidad?: string | null): string {
+  const etiqueta = unidad === 'KG' ? 'Kg' : unidad === 'MT' ? 'Mt' : 'und';
+  const valor = Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, '');
+  return `${valor.replace('.', ',')} ${etiqueta}`;
+}

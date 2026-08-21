@@ -264,3 +264,15 @@ export function toShopProduct(p: RawShopProduct) {
     eventSeats: p.eventSeats ?? undefined,
   };
 }
+
+/** Lotes vivos de un producto: cada entrada con lo que queda y lo que costó (GET /shop/products/:id/lots). */
+export type ProductLots = {
+  producto: { id: string; nombre: string; unidad: string | null; precio: number; costoPromedio: number };
+  lotes: { id: string; numero: number; proveedor: string; variante: string; entro: number; queda: number; costo: number; valor: number; fecha: string }[];
+  totales: { enLotes: number; stock: number; sinLote: number; valor: number; costoActual: number };
+};
+
+export async function fetchProductLots(productId: string): Promise<ProductLots> {
+  const r = await api.get(`/shop/products/${productId}/lots`);
+  return r.data.data as ProductLots;
+}

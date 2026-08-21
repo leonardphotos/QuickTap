@@ -84,6 +84,23 @@ export const createAdditionalChargeSchema = z.object({
 
 export type CreateAdditionalChargeInput = z.infer<typeof createAdditionalChargeSchema>;
 
+// Dashboard maestro → Personalizaciones: trabajo a medida hecho para UN local. Ver modelo
+// Customization. El monto admite 0 — hay personalizaciones que se regalan para cerrar la venta
+// y conviene dejarlas registradas igual, aunque no generen cargo.
+export const customizationStatusSchema = z.enum(['SOLICITADA', 'EN_DESARROLLO', 'ENTREGADA', 'DESCARTADA']);
+
+export const createCustomizationSchema = z.object({
+  title: z.string().min(1, 'Escribe qué se personalizó.').max(200),
+  detail: z.string().max(4000).optional(),
+  amountUsd: z.coerce.number().min(0, 'El monto no puede ser negativo.').max(100000),
+  status: customizationStatusSchema.optional(),
+});
+
+export const updateCustomizationSchema = createCustomizationSchema.partial();
+
+export type CreateCustomizationInput = z.infer<typeof createCustomizationSchema>;
+export type UpdateCustomizationInput = z.infer<typeof updateCustomizationSchema>;
+
 // Dashboard maestro → botón "Avisar sistema listo": monto de instalación en $ que se le informa
 // al restaurante por WhatsApp junto con sus credenciales y los datos de Pago Móvil de QuickTap.
 export const sendInstallationNoticeSchema = z.object({

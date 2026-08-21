@@ -8,9 +8,9 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
 import { getRubroFeatures, isServiceRubro, type ShopProductSeed, type ShopRubro, type ShopVariant } from '@/data/shopRubros';
-import { formatStock, shopMoneyFormatters } from './shopFormat';
+import { formatStock, formatUnidad, shopMoneyFormatters } from './shopFormat';
 import { productStatus, productStock, type ShopProduct, type ShopSession } from './shopSession';
-import { shopApi } from './shopApi';
+import { shopApi, fetchProductLots, type ProductLots } from './shopApi';
 import { costPerM2FromRoll, formatRollWidths, parseRollWidths, rollWidthLabel } from './printPricing';
 import { resolveVariantDims } from '@/data/variantDims';
 import ShopSkuScanDialog from './ShopSkuScanDialog';
@@ -46,6 +46,19 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   const [category, setCategory] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  // Lotes del producto abierto: cada entrada con lo que queda y lo que costó. Se pide al abrir
+  // la fila y no con el listado — son varias consultas y casi siempre se mira un producto a la vez.
+  const [lots, setLots] = useState<ProductLots | null>(null);
+  const [lotsLoading, setLotsLoading] = useState(false);
+
+  const loadLots = (productId: string) => {
+    setLots(null);
+    setLotsLoading(true);
+    fetchProductLots(productId)
+      .then(setLots)
+      .catch(() => setLots(null))
+      .finally(() => setLotsLoading(false));
+  };
 
   const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [puSupplier, setPuSupplier] = useState('');
@@ -53,6 +66,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   const [puVariantIndex, setPuVariantIndex] = useState(0);
   const [puQty, setPuQty] = useState('');
   const [puCost, setPuCost] = useState('');
+  const [puCostoTotal, setPuCostoTotal] = useState(false);
 
   const [newOpen, setNewOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
@@ -261,6 +275,16 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   });
 
   const puProduct = products.find((p) => p.id === puProductId);
+  // "Fraccionable" = se compra y se vende en cantidades con decimales (Kg, Mt). soldByWeight es
+  // la marca vieja y solo cubre peso; saleUnit es la que usa el POS, así que se miran las dos.
+  const puFraccionable =
+    puProduct?.saleUnit === 'KG' || puProduct?.saleUnit === 'MT' || !!puProduct?.variants[puVariantIndex]?.soldByWeight;
+  const puCostoUnitarioCalculado = (() => {
+    const qty = Number(puQty.replace(',', '.'));
+    const costo = Number(puCost.replace(',', '.'));
+    if (!puCostoTotal || !puFraccionable || !(qty > 0) || !(costo > 0)) return null;
+    return Math.round((costo / qty) * 10000) / 10000;
+  })();
 
   function openPurchaseDialog() {
     setPuSupplier('');
@@ -280,11 +304,21 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   }
 
   function confirmPurchase() {
-    const qty = Number(puQty) || 0;
-    const cost = Number(puCost) || 0;
+    const qty = Number(puQty.replace(',', '.')) || 0;
+    // El backend guarda el lote con costo POR UNIDAD; si se escribió el monto del lote completo
+    // se divide acá, que es la misma cuenta que muestra el "Sale a $X por kilo" del formulario.
+    const cost = puCostoUnitarioCalculado ?? (Number(puCost.replace(',', '.')) || 0);
     if (!puSupplier.trim() || !puProduct || qty <= 0) return;
-    registerPurchase(puSupplier.trim(), puProduct.id, puVariantIndex, qty, cost);
-    setPurchaseOpen(false);
+    const productId = puProduct.id;
+    // Los lotes se releen cuando el servidor confirmó la compra: si se pidieran de una, la
+    // respuesta llegaría sin el lote recién creado y el panel mostraría el total viejo.
+    void registerPurchase(puSupplier.trim(), productId, puVariantIndex, qty, cost)?.then(() => {
+      if (expandedId === productId) loadLots(productId);
+    });
+    // El diálogo queda abierto con proveedor y producto puestos: cargar un rollo tras otro
+    // (40 Kg, 43 Kg, 68 Kg) es un solo trámite, no tres veces el mismo formulario.
+    setPuQty('');
+    setPuCost('');
   }
 
   function openNewProductDialog(initialSku?: string) {
@@ -642,7 +676,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                   return (
                     <Fragment key={p.id}>
                       <tr
-                        onClick={() => setExpandedId(expanded ? null : p.id)}
+                        onClick={() => { const abrir = !expanded; setExpandedId(abrir ? p.id : null); if (abrir) loadLots(p.id); }}
                         className="cursor-pointer hover:bg-brand-950/[0.03] border-t border-brand-950/[0.05]"
                       >
                         <td className="py-3 pr-3">
@@ -725,6 +759,44 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                                 </div>
                               );
                             })}
+                            <div className="mt-2.5 pt-2.5 border-t border-brand-950/[0.06]">
+                              <p className="text-[11px] font-bold uppercase text-brand-950/40 mb-1.5">Lotes en existencia</p>
+                              {lotsLoading ? (
+                                <p className="text-[12px] text-brand-950/40">Cargando…</p>
+                              ) : !lots || lots.lotes.length === 0 ? (
+                                <p className="text-[12px] text-brand-950/40">
+                                  Sin lotes registrados. Cada compra que cargues desde “Registrar compra” entra como un lote con su propio costo.
+                                </p>
+                              ) : (
+                                <div className="flex flex-col gap-1">
+                                  {lots.lotes.map((l) => (
+                                    <div key={l.id} className="flex items-center justify-between gap-2 text-[12.5px]">
+                                      <span className="text-brand-950/70">
+                                        <span className="font-semibold text-brand-950">Lote {l.numero}</span>
+                                        {' · '}{formatUnidad(l.queda, lots.producto.unidad)} a {money(l.costo)}
+                                        {l.queda !== l.entro && (
+                                          <span className="text-brand-950/40"> (entraron {formatUnidad(l.entro, lots.producto.unidad)})</span>
+                                        )}
+                                        <span className="block text-[11px] text-brand-950/40">
+                                          {l.proveedor} · {new Date(l.fecha).toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: '2-digit' })}
+                                        </span>
+                                      </span>
+                                      <span className="font-semibold text-brand-950/70 shrink-0">{money(l.valor)}</span>
+                                    </div>
+                                  ))}
+                                  <div className="flex items-center justify-between gap-2 text-[12.5px] pt-1.5 mt-0.5 border-t border-brand-950/[0.06]">
+                                    <span className="text-brand-950/70">
+                                      Total {formatUnidad(lots.totales.enLotes, lots.producto.unidad)}
+                                      <span className="block text-[11px] text-brand-950/40">
+                                        Costo actual {money(lots.totales.costoActual)} por {lots.producto.unidad === 'MT' ? 'Mt' : lots.producto.unidad === 'KG' ? 'Kg' : 'unidad'} · se vende a {money(lots.producto.precio)}
+                                        {lots.totales.sinLote > 0.001 && ` · ${formatUnidad(lots.totales.sinLote, lots.producto.unidad)} sin lote`}
+                                      </span>
+                                    </span>
+                                    <span className="font-bold text-brand-950 shrink-0">{money(lots.totales.valor)}</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
                             <div className="mt-2.5 pt-2.5 border-t border-brand-950/[0.06]">
                               <p className="text-[11px] font-bold uppercase text-brand-950/40 mb-1.5">Historial de movimientos</p>
                               {productMovements(p).length === 0 ? (
@@ -862,13 +934,13 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                 Cantidad
                 {puProduct?.pricingMode === 'AREA_ROLL'
                   ? ' (m² del rollo)'
-                  : puProduct?.variants[puVariantIndex]?.soldByWeight
-                    ? ' (Kg)'
+                  : puFraccionable
+                    ? ` (${puProduct?.saleUnit === 'MT' ? 'Mt' : 'Kg'})`
                     : ''}
               </span>
               <input
                 type="number"
-                step={puProduct?.pricingMode === 'AREA_ROLL' || puProduct?.variants[puVariantIndex]?.soldByWeight ? '0.001' : '1'}
+                step={puProduct?.pricingMode === 'AREA_ROLL' || puFraccionable ? '0.001' : '1'}
                 value={puQty}
                 onChange={(e) => setPuQty(e.target.value)}
                 placeholder={
@@ -880,7 +952,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                             Number.EPSILON) * 100,
                         ) / 100 || puProduct.rollLengthM || 50,
                       )
-                    : puProduct?.variants[puVariantIndex]?.soldByWeight
+                    : puFraccionable
                       ? '10.000'
                       : '10'
                 }
@@ -888,10 +960,33 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
               />
             </label>
             <label className="block text-sm flex-1">
-              <span className="text-brand-950/70">Costo unitario</span>
+              <span className="text-brand-950/70">{puCostoTotal ? 'Costo del lote' : 'Costo unitario'}</span>
               <input type="number" value={puCost} onChange={(e) => setPuCost(e.target.value)} placeholder="0.00" className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500" />
             </label>
           </div>
+          {/*
+            Un rollo de manguera se compra por rollo, no por kilo: lo que se sabe es "este rollo
+            de 43 Kg me costó $150", no cuánto salió el kilo. Con este interruptor se escribe el
+            monto del lote completo y el costo por unidad lo saca el sistema, en vez de obligar a
+            dividir a mano y arrastrar el error de redondeo al margen.
+          */}
+          {puFraccionable && (
+            <label className="flex items-center gap-2 text-[13px] text-brand-950/70">
+              <input
+                type="checkbox"
+                checked={puCostoTotal}
+                onChange={(e) => setPuCostoTotal(e.target.checked)}
+                className="h-4 w-4 rounded border-brand-950/25 accent-brand-500"
+              />
+              Escribí el costo del lote completo, no el de cada {puProduct?.saleUnit === 'MT' ? 'metro' : 'kilo'}
+            </label>
+          )}
+          {puCostoUnitarioCalculado !== null && (
+            <p className="text-[12px] text-brand-950/50">
+              Sale a <span className="font-semibold text-brand-950/70">{money(puCostoUnitarioCalculado)}</span> por{' '}
+              {puProduct?.saleUnit === 'MT' ? 'metro' : 'kilo'} · se vende a {money(puProduct?.price ?? 0)}
+            </p>
+          )}
           <DialogFooter>
             <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setPurchaseOpen(false)}>
               Cancelar

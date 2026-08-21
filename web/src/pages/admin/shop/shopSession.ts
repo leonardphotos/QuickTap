@@ -758,16 +758,28 @@ export function useShopSession(initialCategories: string[] = []) {
   function registerPurchase(supplier: string, productId: string, variantIndex: number, qty: number, cost: number) {
     const product = products.find((p) => p.id === productId);
     const variant = product?.variants[variantIndex];
-    if (!product || !variant) return;
+    if (!product || !variant) return Promise.resolve();
+    // El costo del producto también sube al promedio ponderado, igual que lo hace el servidor
+    // (ver shop.service.ts -> recordPurchase). Sin esto el "Stock valorizado" se calculaba con
+    // el costo viejo sobre el stock nuevo, y quedaba inflado hasta recargar la página.
+    const stockPrevio = product.variants.reduce((a, v) => a + v.stock, 0);
+    const stockNuevo = stockPrevio + qty;
+    const costoPromedio =
+      stockNuevo > 0
+        ? Math.round(((product.cost * Math.max(0, stockPrevio) + cost * qty) / stockNuevo) * 10000) / 10000
+        : product.cost;
     setProducts((prev) => prev.map((p) => (p.id !== productId ? p : {
       ...p,
+      cost: costoPromedio,
       variants: p.variants.map((v, i) => (i === variantIndex ? { ...v, stock: v.stock + qty } : v)),
     })));
     setPurchases((prev) => [
       { id: `pu${Date.now()}`, supplier, productName: product.name, v1: variant.v1, v2: variant.v2, qty, cost, time: new Date() },
       ...prev,
     ]);
-    (async () => {
+    // Se devuelve la promesa para que quien registre la compra pueda refrescar lo que dependa
+    // del servidor (los lotes del producto) recién cuando el lote quedó guardado de verdad.
+    return (async () => {
       try {
         const realProductId = await resolveServerProductId(productId);
         await shopApi.recordPurchase({ supplier, productId: realProductId, v1: variant.v1, v2: variant.v2, qty, cost });
