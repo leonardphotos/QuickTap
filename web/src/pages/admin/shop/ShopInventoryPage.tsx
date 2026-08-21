@@ -1,6 +1,6 @@
 import { Fragment, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { ChevronDown, ClipboardList, FlaskConical, FolderPlus, Package, Pencil, Plus, ScanLine, Search, Sparkles, Trash2, TrendingUp, Truck, X } from 'lucide-react';
+import { PackagePlus, ChevronDown, ClipboardList, FlaskConical, FolderPlus, Package, Pencil, Plus, ScanLine, Search, Sparkles, Trash2, TrendingUp, Truck, X } from 'lucide-react';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/api/client';
@@ -67,6 +67,16 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   const [puQty, setPuQty] = useState('');
   const [puCost, setPuCost] = useState('');
   const [puCostoTotal, setPuCostoTotal] = useState(false);
+
+  // "Agregar lote" desde la fila del producto: el camino corto para cargar mercancía sin pasar
+  // por Registrar compra y buscar el producto en una lista de 300.
+  const [lotProduct, setLotProduct] = useState<ShopProduct | null>(null);
+  const [lotVariantIndex, setLotVariantIndex] = useState(0);
+  const [lotKg, setLotKg] = useState('');
+  const [lotCost, setLotCost] = useState('');
+  const [lotUnits, setLotUnits] = useState('1');
+  const [lotSupplier, setLotSupplier] = useState('');
+  const [lotBusy, setLotBusy] = useState(false);
 
   const [newOpen, setNewOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
@@ -319,6 +329,40 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     // (40 Kg, 43 Kg, 68 Kg) es un solo trámite, no tres veces el mismo formulario.
     setPuQty('');
     setPuCost('');
+  }
+
+  function openLotDialog(p: ShopProduct) {
+    setLotProduct(p);
+    setLotVariantIndex(0);
+    setLotKg('');
+    setLotCost('');
+    setLotUnits('1');
+    setLotSupplier(purchases[0]?.supplier ?? '');
+  }
+
+  function confirmLot() {
+    if (!lotProduct) return;
+    const kg = Number(lotKg.replace(',', '.')) || 0;
+    const costoLote = Number(lotCost.replace(',', '.')) || 0;
+    // Cuánto entra al stock: en un producto que se vende por peso, los Kg SON la cantidad; en uno
+    // que se vende por rollo o por unidad, entran las unidades y el peso queda como dato del lote.
+    const porPeso = lotProduct.saleUnit === 'KG' || lotProduct.saleUnit === 'MT';
+    const cantidad = porPeso ? kg : Number(lotUnits.replace(',', '.')) || 0;
+    if (cantidad <= 0) return;
+    // El backend guarda el costo POR UNIDAD; acá siempre se escribe lo que costó el lote entero,
+    // que es lo que dice la factura del proveedor.
+    const costoUnitario = Math.round((costoLote / cantidad) * 10000) / 10000;
+
+    const productId = lotProduct.id;
+    setLotBusy(true);
+    void registerPurchase(lotSupplier.trim() || 'Sin proveedor', productId, lotVariantIndex, cantidad, costoUnitario, kg || undefined)
+      ?.then(() => {
+        if (expandedId === productId) loadLots(productId);
+      })
+      .finally(() => {
+        setLotBusy(false);
+        setLotProduct(null);
+      });
   }
 
   function openNewProductDialog(initialSku?: string) {
@@ -711,6 +755,14 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                             <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${STATUS_CLASS[status]}`}>{STATUS_LABEL[status]}</span>
                             <button
                               type="button"
+                              onClick={(e) => { e.stopPropagation(); openLotDialog(p); }}
+                              title="Agregar lote (peso y costo de esta carga)"
+                              className="text-brand-950/30 hover:text-brand-500"
+                            >
+                              <PackagePlus className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
                               onClick={(e) => { e.stopPropagation(); openEditProductDialog(p); }}
                               title="Editar producto"
                               className="text-brand-950/30 hover:text-brand-500"
@@ -794,6 +846,11 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                                                 <span className="text-brand-950/70">
                                                   <span className="font-semibold text-brand-950">Lote {l.numero}</span>
                                                   {' · '}{formatUnidad(l.queda, lots.producto.unidad)} a {money(l.costo)}
+                                                  {/* El peso es lo que distingue una carga de otra cuando se
+                                                      compra por kilo y se vende por rollo. */}
+                                                  {l.pesoKg != null && l.pesoKg > 0 && (
+                                                    <span className="text-brand-950/45"> · pesó {formatUnidad(l.pesoKg, 'KG')}</span>
+                                                  )}
                                                   {l.queda !== l.entro && (
                                                     <span className="text-brand-950/40"> (entraron {formatUnidad(l.entro, lots.producto.unidad)})</span>
                                                   )}
@@ -916,6 +973,129 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
       />
 
       {/* ---------- Registrar compra ---------- */}
+      {/* ---------- Agregar lote (desde la fila del producto) ---------- */}
+      <Dialog open={!!lotProduct} onOpenChange={(open) => !open && setLotProduct(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Agregar lote</DialogTitle>
+          </DialogHeader>
+          {lotProduct && (() => {
+            const porPeso = lotProduct.saleUnit === 'KG' || lotProduct.saleUnit === 'MT';
+            const unidad = lotProduct.saleUnit === 'MT' ? 'Mt' : 'Kg';
+            const kg = Number(lotKg.replace(',', '.')) || 0;
+            const costoLote = Number(lotCost.replace(',', '.')) || 0;
+            const cantidad = porPeso ? kg : Number(lotUnits.replace(',', '.')) || 0;
+            const costoUnit = cantidad > 0 ? costoLote / cantidad : 0;
+            const costoPorKg = kg > 0 ? costoLote / kg : 0;
+            const variante = lotProduct.variants[lotVariantIndex];
+            const precio = variante?.price ?? lotProduct.price;
+
+            return (
+              <>
+                <p className="text-sm text-brand-950/60 -mt-1">{lotProduct.name}</p>
+
+                {lotProduct.variants.length > 1 && (
+                  <label className="block text-sm">
+                    <span className="text-brand-950/70">Variante</span>
+                    <select
+                      value={lotVariantIndex}
+                      onChange={(e) => setLotVariantIndex(Number(e.target.value))}
+                      className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
+                    >
+                      {lotProduct.variants.map((v, i) => (
+                        <option key={i} value={i}>
+                          {v.v1}{v.v2 ? ` · ${v.v2}` : ''} — {money(v.price ?? lotProduct.price)} (stock {formatStock(v.stock)})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+
+                <div className="flex gap-3">
+                  {/* En un producto por rollo/unidad hace falta saber cuántos entran; el peso es
+                      del lote completo. En uno que se vende por Kg, los Kg ya son la cantidad. */}
+                  {!porPeso && (
+                    <label className="block text-sm w-28 shrink-0">
+                      <span className="text-brand-950/70">Cantidad</span>
+                      <input
+                        type="number"
+                        step="1"
+                        value={lotUnits}
+                        onChange={(e) => setLotUnits(e.target.value)}
+                        className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
+                      />
+                    </label>
+                  )}
+                  <label className="block text-sm flex-1">
+                    <span className="text-brand-950/70">Peso ({unidad})</span>
+                    <input
+                      type="number"
+                      step="0.001"
+                      value={lotKg}
+                      onChange={(e) => setLotKg(e.target.value)}
+                      placeholder="43.000"
+                      className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
+                    />
+                  </label>
+                  <label className="block text-sm flex-1">
+                    <span className="text-brand-950/70">Costo del lote</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={lotCost}
+                      onChange={(e) => setLotCost(e.target.value)}
+                      placeholder="150.00"
+                      className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
+                    />
+                  </label>
+                </div>
+
+                <label className="block text-sm">
+                  <span className="text-brand-950/70">Proveedor</span>
+                  <input
+                    value={lotSupplier}
+                    onChange={(e) => setLotSupplier(e.target.value)}
+                    placeholder="Nombre del proveedor"
+                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
+                  />
+                </label>
+
+                {/* A cuánto sale, antes de guardar: es lo que decide si el precio de venta
+                    todavía deja margen con este lote. */}
+                {costoLote > 0 && cantidad > 0 && (
+                  <p className="text-[12.5px] text-brand-950/55">
+                    Sale a <span className="font-semibold text-brand-950">{money(costoUnit)}</span>
+                    {porPeso ? ` por ${unidad}` : ' cada uno'}
+                    {!porPeso && kg > 0 && <> · {money(costoPorKg)} por {unidad}</>}
+                    {' · se vende a '}{money(precio)}
+                    {precio > 0 && (
+                      <span className={costoUnit < precio ? ' text-emerald-600 font-medium' : ' text-red-600 font-medium'}>
+                        {' '}({(((precio - costoUnit) / precio) * 100).toFixed(1)}% de margen)
+                      </span>
+                    )}
+                  </p>
+                )}
+
+                <DialogFooter>
+                  <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setLotProduct(null)}>
+                    Cancelar
+                  </TextureButton>
+                  <TextureButton
+                    variant="brand"
+                    size="default"
+                    className="!w-auto disabled:opacity-40"
+                    disabled={lotBusy || cantidad <= 0}
+                    onClick={confirmLot}
+                  >
+                    {lotBusy ? 'Guardando…' : 'Agregar lote'}
+                  </TextureButton>
+                </DialogFooter>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={purchaseOpen} onOpenChange={setPurchaseOpen}>
         <DialogContent>
           <DialogHeader>

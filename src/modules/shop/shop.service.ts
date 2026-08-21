@@ -776,6 +776,7 @@ export const shopService = {
           v2: variant.v2,
           qty: input.qty,
           cost: input.cost,
+          weightKg: input.weightKg ?? null,
           remainingQty: input.qty,
           lotNumber: lotesPrevios + 1,
         },
@@ -805,7 +806,7 @@ export const shopService = {
     const lotes = await prisma.shopPurchase.findMany({
       where: { restaurantId, productId, remainingQty: { gt: 0 } },
       orderBy: { time: 'asc' },
-      select: { id: true, lotNumber: true, supplier: true, qty: true, remainingQty: true, cost: true, time: true, v1: true, v2: true },
+      select: { id: true, lotNumber: true, supplier: true, qty: true, remainingQty: true, cost: true, weightKg: true, time: true, v1: true, v2: true },
     });
 
     const r3 = (n: number) => Math.round(n * 1000) / 1000;
@@ -833,6 +834,7 @@ export const shopService = {
           proveedor: l.supplier,
           entro: r3(l.qty),
           queda: r3(l.remainingQty),
+          pesoKg: l.weightKg,
           costo: l.cost,
           valor: r2(l.remainingQty * l.cost),
           fecha: l.time,

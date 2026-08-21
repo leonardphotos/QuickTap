@@ -143,6 +143,9 @@ export const createShopPurchaseSchema = z.object({
   v2: z.string(),
   qty: z.coerce.number().gt(0),
   cost: z.coerce.number().min(0),
+  // Peso de esta carga en Kg. Aparte de qty: un rollo de manguera entra como 1 rollo pero pesa
+  // 43 Kg, y cada rollo del mismo tipo pesa distinto. Ver ShopPurchase.weightKg.
+  weightKg: z.coerce.number().min(0).nullable().optional(),
 });
 
 export const createShopAdjustmentSchema = z.object({

@@ -204,7 +204,7 @@ export const shopApi = {
     await api.post(`/shop/sales/${id}/return`);
   },
 
-  async recordPurchase(payload: { supplier: string; productId: string; v1: string; v2: string; qty: number; cost: number }): Promise<void> {
+  async recordPurchase(payload: { supplier: string; productId: string; v1: string; v2: string; qty: number; cost: number; weightKg?: number }): Promise<void> {
     await api.post('/shop/purchases', payload);
   },
 
@@ -282,6 +282,8 @@ export type ProductLot = {
   proveedor: string;
   entro: number;
   queda: number;
+  /** Lo que pesó esta carga en Kg. Null si no se anotó o no aplica. */
+  pesoKg: number | null;
   costo: number;
   valor: number;
   fecha: string;

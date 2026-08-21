@@ -116,6 +116,8 @@ export interface Purchase {
   v2: string;
   qty: number;
   cost: number;
+  /** Lo que pesó esta carga en Kg (ver ShopPurchase.weightKg). */
+  weightKg?: number;
   time: Date;
 }
 
@@ -761,7 +763,7 @@ export function useShopSession(initialCategories: string[] = []) {
     shopApi.returnSale(saleId).catch((err) => console.error('No se pudo registrar la devolución en el servidor', err));
   }
 
-  function registerPurchase(supplier: string, productId: string, variantIndex: number, qty: number, cost: number) {
+  function registerPurchase(supplier: string, productId: string, variantIndex: number, qty: number, cost: number, weightKg?: number) {
     const product = products.find((p) => p.id === productId);
     const variant = product?.variants[variantIndex];
     if (!product || !variant) return Promise.resolve();
@@ -780,7 +782,7 @@ export function useShopSession(initialCategories: string[] = []) {
       variants: p.variants.map((v, i) => (i === variantIndex ? { ...v, stock: v.stock + qty } : v)),
     })));
     setPurchases((prev) => [
-      { id: `pu${Date.now()}`, supplier, productName: product.name, v1: variant.v1, v2: variant.v2, qty, cost, time: new Date() },
+      { id: `pu${Date.now()}`, supplier, productName: product.name, v1: variant.v1, v2: variant.v2, qty, cost, weightKg, time: new Date() },
       ...prev,
     ]);
     // Se devuelve la promesa para que quien registre la compra pueda refrescar lo que dependa
@@ -788,7 +790,7 @@ export function useShopSession(initialCategories: string[] = []) {
     return (async () => {
       try {
         const realProductId = await resolveServerProductId(productId);
-        await shopApi.recordPurchase({ supplier, productId: realProductId, v1: variant.v1, v2: variant.v2, qty, cost });
+        await shopApi.recordPurchase({ supplier, productId: realProductId, v1: variant.v1, v2: variant.v2, qty, cost, weightKg });
       } catch (err) {
         console.error('No se pudo guardar la compra en el servidor', err);
       }

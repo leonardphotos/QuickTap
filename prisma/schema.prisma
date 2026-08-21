@@ -3425,6 +3425,11 @@ model ShopPurchase {
   /// es lo que permite ver en inventario "lote 1: 50 kg a $3, lote 2: 54 kg a $4,50" en vez de
   /// un solo promedio. `qty` se conserva como lo que entró originalmente.
   remainingQty Float @default(0)
+  /// Cuánto pesó ESTA carga, en Kg. Va aparte de `qty` porque son dos cosas distintas: un rollo
+  /// de manguera se vende como un rollo (qty = 1) pero se compra por peso, y cada rollo del
+  /// mismo tipo pesa distinto — 40, 43, 68 Kg. Es lo que permite ver en inventario el peso real
+  /// de cada carga. Null en productos donde el peso no aplica o no se anotó.
+  weightKg     Float?
   /// Etiqueta corta para reconocerlo (ej. "Lote 1"). Se numera por producto al registrarlo.
   lotNumber    Int   @default(0)
 
