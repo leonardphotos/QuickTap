@@ -16,6 +16,8 @@ router.get('/service-providers', shopController.listServiceProviders);
 router.post('/products', shopController.createProduct);
 // Antes de '/products/:id': si no, Express tomaría "published" como un id de producto.
 router.patch('/products/published', requireRole('OWNER', 'ADMIN'), shopController.setProductsPublished);
+// Mover TODOS los precios del catálogo es una decisión de dueño/admin, no de caja.
+router.post('/products/raise-prices', requireRole('OWNER', 'ADMIN'), shopController.raisePrices);
 router.patch('/products/:id', shopController.updateProduct);
 // Borrar producto es de administración: el cajero cobra, no depura el catálogo.
 router.delete('/products/:id', requireRole('OWNER', 'ADMIN'), shopController.deleteProduct);

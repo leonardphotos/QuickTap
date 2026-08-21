@@ -5,6 +5,7 @@ import type { NewProductInput, PaymentMeta, CreditTerms } from './shopSession';
 /** Forma cruda que devuelve el backend — shop.service.ts (src/modules/shop/) es la contraparte. */
 
 export interface RawShopVariant {
+  description?: string | null;
   id: string;
   v1: string;
   v2: string;
@@ -227,7 +228,7 @@ export const shopApi = {
 };
 
 export function toShopVariant(v: RawShopVariant): ShopVariant {
-  return { v1: v.v1, v2: v.v2, stock: v.stock, soldByWeight: v.soldByWeight };
+  return { v1: v.v1, v2: v.v2, stock: v.stock, soldByWeight: v.soldByWeight, description: v.description ?? undefined };
 }
 
 export function toShopProduct(p: RawShopProduct) {

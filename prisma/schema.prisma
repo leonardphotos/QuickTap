@@ -3131,6 +3131,9 @@ model ShopProductVariant {
   stock        Float
   // Se vende por peso (Kg): en el carrito la cantidad es decimal, no unidades enteras.
   soldByWeight Boolean @default(false)
+  /// Descripción propia de esta variante, para cuando entre una y otra cambia algo más que el
+  /// nombre. Null = se muestra la del producto.
+  description  String?
 
   product ShopProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
 

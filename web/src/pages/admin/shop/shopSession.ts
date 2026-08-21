@@ -898,8 +898,16 @@ export function useShopSession(initialCategories: string[] = []) {
     })();
   }
 
+  /** Vuelve a traer el estado del backend. Lo usa el aumento general de precios: cambia el
+   *  catálogo entero de un golpe y no tiene sentido reconstruirlo a mano. */
+  async function reload() {
+    const state = await shopApi.getState();
+    setProducts(state.products.map(toShopProduct));
+  }
+
   return {
     loading,
+    reload,
     products,
     sales,
     purchases,

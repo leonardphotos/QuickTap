@@ -186,6 +186,28 @@ export const shopService = {
     return product;
   },
 
+  /**
+   * Aumento general de los precios de venta del local.
+   *
+   * Solo toca `price`: el costo no se mueve (no cambió lo que se pagó por la mercancía) y los
+   * precios especiales —mayorista y promoción— tampoco, porque son acuerdos puntuales que el
+   * dueño fijó a mano y subirlos de rebote rompería esos tratos sin que se entere.
+   *
+   * Se redondea a 2 decimales para no dejar precios con fracciones de centavo.
+   */
+  async raisePrices(restaurantId: string, percent: number) {
+    if (percent === 0) throw badRequest('El aumento no puede ser 0%.');
+    if (percent < -90 || percent > 500) throw badRequest('El aumento debe estar entre -90% y 500%.');
+    const factor = 1 + percent / 100;
+    const result = await prisma.$executeRaw`
+      UPDATE shop_products
+         SET price = ROUND((price * ${factor})::numeric, 2)
+       WHERE "restaurantId" = ${restaurantId}
+         AND price > 0
+    `;
+    return { updated: result, percent };
+  },
+
   /** Publica/despublica varios productos de una en la tienda virtual. El filtro por
    * restaurantId no es decorativo: sin él, un id de otro local publicaría su catálogo. */
   async setProductsPublished(restaurantId: string, productIds: string[], isPublished: boolean) {

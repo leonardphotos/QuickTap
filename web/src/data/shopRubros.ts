@@ -13,6 +13,8 @@ export interface ShopVariant {
   /** Se vende por peso (Kg): en el carrito la cantidad se ingresa en Kg (decimal), no en
    * unidades enteras — pensado para verduras/frutas/carnes y otros productos a granel. */
   soldByWeight?: boolean;
+  /** Descripción propia de la variante. Vacío = se usa la del producto. */
+  description?: string;
 }
 
 export interface ShopProductSeed {

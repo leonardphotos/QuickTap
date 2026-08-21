@@ -1,8 +1,9 @@
 import { Fragment, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { ChevronDown, ClipboardList, FlaskConical, FolderPlus, Package, Pencil, Plus, ScanLine, Search, Sparkles, Trash2, Truck, X } from 'lucide-react';
+import { ChevronDown, ClipboardList, FlaskConical, FolderPlus, Package, Pencil, Plus, ScanLine, Search, Sparkles, Trash2, TrendingUp, Truck, X } from 'lucide-react';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { useAuth } from '@/context/AuthContext';
+import { api } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
@@ -69,6 +70,11 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   // Unidad de venta: por unidad, por kilo o por metro. Se ofrece en ferretería y en los rubros
   // que venden a granel; el resto no necesita la decisión y no se le muestra.
   const [npSaleUnit, setNpSaleUnit] = useState<'UND' | 'KG' | 'MT'>('UND');
+  // Aumento general de precios: mueve el precio de venta de todo el catálogo de una vez.
+  const [raiseOpen, setRaiseOpen] = useState(false);
+  const [raisePercent, setRaisePercent] = useState('');
+  const [raiseBusy, setRaiseBusy] = useState(false);
+  const [raiseError, setRaiseError] = useState<string | null>(null);
   const [npEventDate, setNpEventDate] = useState('');
   const [npEventSeats, setNpEventSeats] = useState('');
   const [npBrand, setNpBrand] = useState('');
@@ -516,6 +522,9 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
           </TextureButton>
           <TextureButton variant="minimal" size="default" className="!w-auto" onClick={openPurchaseDialog}>
             <Truck className="h-4 w-4" /> Registrar compra
+          </TextureButton>
+          <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => { setRaisePercent(''); setRaiseError(null); setRaiseOpen(true); }}>
+            <TrendingUp className="h-4 w-4" /> Aumentar precios
           </TextureButton>
           <TextureButton variant="brand" size="default" className="!w-auto" onClick={() => openNewProductDialog()}>
             <Plus className="h-4 w-4" /> {isServiceShop ? 'Nuevo servicio' : 'Nuevo producto'}
@@ -1473,12 +1482,26 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
             ) : (
               <div className="flex flex-col gap-1.5">
                 {npVariants.map((v, i) => (
-                  <div key={i} className="flex items-center gap-2.5 bg-brand-950/[0.04] rounded-lg px-3 py-2">
-                    <span className="flex-1 text-[13px] font-semibold text-brand-950">{v.v1}{v.v2 ? ` · ${v.v2}` : ''}</span>
-                    <span className="text-xs text-brand-950/50 w-20">Stock: {v.soldByWeight ? `${formatStock(v.stock)} Kg` : formatStock(v.stock)}</span>
-                    <button type="button" onClick={() => setNpVariants((prev) => prev.filter((_, idx) => idx !== i))} className="text-brand-950/40 hover:text-red-500">
-                      <X className="h-3.5 w-3.5" />
-                    </button>
+                  <div key={i} className="bg-brand-950/[0.04] rounded-lg px-3 py-2">
+                    <div className="flex items-center gap-2.5">
+                      <span className="flex-1 text-[13px] font-semibold text-brand-950">{v.v1}{v.v2 ? ` · ${v.v2}` : ''}</span>
+                      <span className="text-xs text-brand-950/50 w-20">Stock: {v.soldByWeight ? `${formatStock(v.stock)} Kg` : formatStock(v.stock)}</span>
+                      <button type="button" onClick={() => setNpVariants((prev) => prev.filter((_, idx) => idx !== i))} className="text-brand-950/40 hover:text-red-500">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    {/* Descripción propia: para cuando entre una variante y otra cambia algo más
+                        que el nombre. Vacía = se muestra la del producto. */}
+                    <input
+                      value={v.description ?? ''}
+                      onChange={(e) =>
+                        setNpVariants((prev) =>
+                          prev.map((x, idx) => (idx === i ? { ...x, description: e.target.value } : x)),
+                        )
+                      }
+                      placeholder="Descripción de esta variante (opcional)"
+                      className="mt-1.5 w-full rounded-md border border-brand-950/10 bg-white px-2 py-1 text-[12px]"
+                    />
                   </div>
                 ))}
               </div>
@@ -1602,6 +1625,63 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* Aumento general: mueve solo el precio de venta. El costo y los precios especiales
+          (mayorista/promoción) no se tocan — son acuerdos que el dueño fijó a mano. */}
+      <Dialog open={raiseOpen} onOpenChange={setRaiseOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Aumentar precios</DialogTitle>
+          </DialogHeader>
+          {raiseError && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{raiseError}</p>}
+          <label className="block text-sm">
+            <span className="text-brand-950/70">Porcentaje</span>
+            <input
+              type="number"
+              step="0.5"
+              autoFocus
+              value={raisePercent}
+              onChange={(e) => setRaisePercent(e.target.value)}
+              placeholder="Ej: 10"
+              className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2"
+            />
+            <span className="mt-1 block text-[11px] font-light text-brand-950/50">
+              Se aplica al precio de venta de los {totalSkus} productos. Un valor negativo los baja.
+              El costo y los precios mayorista/promocional no se tocan.
+            </span>
+          </label>
+          <DialogFooter>
+            <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setRaiseOpen(false)}>
+              Cancelar
+            </TextureButton>
+            <TextureButton
+              variant="brand"
+              size="default"
+              className="!w-auto"
+              disabled={raiseBusy || !raisePercent}
+              onClick={async () => {
+                const pct = Number(raisePercent);
+                if (!pct) return setRaiseError('Escribe un porcentaje distinto de 0.');
+                if (!window.confirm(`Se van a ${pct > 0 ? 'subir' : 'bajar'} TODOS los precios de venta un ${Math.abs(pct)}%. ¿Confirmas?`)) return;
+                setRaiseBusy(true);
+                setRaiseError(null);
+                try {
+                  const res = await api.post('/shop/products/raise-prices', { percent: pct });
+                  setRaiseOpen(false);
+                  await session.reload();
+                  window.alert(`${res.data.data.updated} precios actualizados.`);
+                } catch (e: any) {
+                  setRaiseError(e.response?.data?.error ?? 'No se pudieron actualizar los precios.');
+                } finally {
+                  setRaiseBusy(false);
+                }
+              }}
+            >
+              {raiseBusy ? 'Aplicando…' : 'Aplicar'}
+            </TextureButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
     </div>
   );
 }

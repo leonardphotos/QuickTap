@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { z } from 'zod';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest } from '../../utils/http-error';
 import {
@@ -43,6 +44,12 @@ export const shopController = {
   }),
 
   /** PATCH /shop/products/published — publica/despublica varios en la tienda virtual. */
+  /** POST /shop/products/raise-prices — sube (o baja) todos los precios de venta un %. */
+  raisePrices: asyncHandler(async (req: Request, res: Response) => {
+    const { percent } = z.object({ percent: z.coerce.number() }).parse(req.body);
+    res.json({ data: await shopService.raisePrices(req.restaurantId!, percent) });
+  }),
+
   setProductsPublished: asyncHandler(async (req: Request, res: Response) => {
     const { productIds, isPublished } = setShopProductsPublishedSchema.parse(req.body);
     res.json({ data: await shopService.setProductsPublished(req.restaurantId!, productIds, isPublished) });

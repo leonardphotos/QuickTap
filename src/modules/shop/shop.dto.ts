@@ -12,6 +12,8 @@ const variantSchema = z.object({
   v2: z.string().max(60).optional().default(''),
   stock: z.coerce.number().min(0),
   soldByWeight: z.boolean().optional().default(false),
+  // Descripción propia de la variante. Vacío = se usa la del producto.
+  description: z.string().max(500).optional(),
 });
 
 export const createShopProductSchema = z.object({
