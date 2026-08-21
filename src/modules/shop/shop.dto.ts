@@ -43,9 +43,21 @@ export const createShopProductSchema = z.object({
   // Aparece en el catálogo público de la tienda virtual. Apagado por defecto: el inventario
   // también guarda insumos internos que no se le venden a nadie (ver ShopProduct.isPublished).
   isPublished: z.boolean().optional(),
-});
+  // --- Eventos ---
+  // Un evento se vende y se cobra como cualquier producto, pero además tiene día y cupo. Se
+  // marca con esta bandera y no por el nombre de la categoría, para que el local pueda
+  // renombrar "Eventos" sin que el comportamiento cambie.
+  isEvent: z.boolean().optional(),
+  eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha del evento debe ser yyyy-mm-dd.').optional(),
+  eventSeats: z.coerce.number().int().min(1).max(100000).optional(),
+})
+  .refine((v) => !v.isEvent || (v.eventDate && v.eventSeats), {
+    message: 'Un evento necesita fecha y cantidad de puestos.',
+    path: ['eventDate'],
+  });
 
-export const updateShopProductSchema = createShopProductSchema.partial();
+// El schema base sin el refine, porque .partial() no existe sobre un schema con refine.
+export const updateShopProductSchema = createShopProductSchema.innerType().partial();
 
 /** Publicar/despublicar varios productos de una — el dueño de una tienda con cientos de
  * artículos no va a entrar uno por uno para encender su vitrina. */

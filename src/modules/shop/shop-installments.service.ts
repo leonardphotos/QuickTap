@@ -232,3 +232,33 @@ export const shopInstallmentsService = {
     };
   },
 };
+
+/**
+ * Puestos vendidos de cada evento del local.
+ *
+ * Se cuenta sobre las líneas de venta y no se guarda un contador: así una devolución libera el
+ * puesto sola, sin que nadie tenga que acordarse de descontarlo. El nombre se congela en la
+ * línea al vender (ShopSaleItem.name), así que se cruza por ahí.
+ */
+export async function puestosVendidosPorEvento(restaurantId: string): Promise<Record<string, number>> {
+  const eventos = await prisma.shopProduct.findMany({
+    where: { restaurantId, isEvent: true },
+    select: { id: true, name: true, eventSeats: true },
+  });
+  if (eventos.length === 0) return {};
+
+  const lineas = await prisma.shopSaleItem.findMany({
+    where: {
+      sale: { restaurantId, returned: false },
+      name: { in: eventos.map((e) => e.name) },
+    },
+    select: { name: true, qty: true },
+  });
+
+  const porNombre = new Map<string, number>();
+  for (const l of lineas) porNombre.set(l.name, (porNombre.get(l.name) ?? 0) + l.qty);
+
+  const salida: Record<string, number> = {};
+  for (const e of eventos) salida[e.id] = porNombre.get(e.name) ?? 0;
+  return salida;
+}

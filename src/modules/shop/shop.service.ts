@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
+import { puestosVendidosPorEvento } from './shop-installments.service';
 import { bankLedgerService } from '../bank-accounts/bank-ledger.service';
 import { customerService } from '../customers/customer.service';
 import { round2, toDecimal } from '../../utils/money';
@@ -99,7 +100,11 @@ export const shopService = {
       (subcategoriesByCategory[s.category] ??= []).push(s.name);
     }
 
-    return { products, sales, purchases, adjustments, categories: categories.map((c) => c.name), subcategories: subcategoriesByCategory, till, closedTills, serviceSupplies };
+    // Puestos ya vendidos de cada evento, para que el panel muestre el cupo restante sin tener
+    // que recorrer las ventas del lado del navegador.
+    const eventSeatsSold = await puestosVendidosPorEvento(restaurantId);
+
+    return { products, sales, purchases, adjustments, categories: categories.map((c) => c.name), subcategories: subcategoriesByCategory, till, closedTills, serviceSupplies, eventSeatsSold };
   },
 
   /**
@@ -134,6 +139,10 @@ export const shopService = {
         brand: input.brand ?? '',
         sku: input.sku ?? '',
         location: input.location ?? '',
+        // Eventos: fecha y cupo viajan con el producto (ver ShopProduct.isEvent).
+        isEvent: input.isEvent ?? false,
+        eventDate: input.eventDate ?? null,
+        eventSeats: input.eventSeats ?? null,
         price: input.price,
         cost: input.cost,
         minStock: input.minStock,
