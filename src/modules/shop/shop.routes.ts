@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
 import { optimizeImage, uploadShopProductPhoto, uploadShopPaymentProof } from '../../middlewares/upload.middleware';
 import { shopController } from './shop.controller';
+import { shopInstallmentsController } from './shop-installments.controller';
 import { shopOrdersController } from './shop-storefront.controller';
 
 /** Base: /api/v1/shop (el tenant activo, resuelto por JWT) — QuickTap Shop (businessType = SHOP). */
@@ -28,6 +29,12 @@ router.get('/breakeven', requireRole('OWNER', 'ADMIN'), shopController.breakEven
 router.get('/receivables', shopController.listReceivables);
 router.get('/receivables/history', shopController.listAllCredit);
 router.post('/sales/:id/payments', shopController.addSalePayment);
+
+// --- Cuotas: método de pago para cualquier venta a crédito del local (no solo eventos) ---
+router.get('/sales/:id/installments', shopInstallmentsController.plan);
+router.post('/sales/:id/installments', shopInstallmentsController.crear);
+router.patch('/installments/:cuotaId', shopInstallmentsController.editar);
+router.post('/installments/:cuotaId/payments', shopInstallmentsController.abonar);
 router.patch('/sales/:id/due-date', shopController.setSaleDueDate);
 
 router.put('/products/:id/supplies', shopController.setServiceSupplies);
