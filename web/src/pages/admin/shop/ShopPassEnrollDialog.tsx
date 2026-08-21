@@ -169,13 +169,21 @@ export function ShopPassEnrollDialog({ saldo, money, moneyBs, onClose, onListo }
                 <span>Total a pagar</span>
                 <span className="tabular-nums">{money(totalConRecargo)}</span>
               </div>
-              <p className="mt-1 text-[12px] font-medium text-brand-950">
-                {cuotas} cuotas de {money(porCuota)}
-                {moneyBs(porCuota) && ` · ${moneyBs(porCuota)}`}
-              </p>
-              <p className="text-[11px] font-light text-brand-950/45">
-                La primera vence el {new Date(`${primeraFecha}T00:00:00`).toLocaleDateString('es-VE')}.
-              </p>
+              {/* Lo que paga en CADA cuota, destacado: es el número que el cliente decide, más
+                  que el total. Bs primero porque es como paga. */}
+              <div className="mt-2 rounded-lg bg-white px-3 py-2 text-center">
+                <p className="text-[11px] font-light text-brand-950/50">Paga en cada cuota</p>
+                <p className="text-xl font-bold tabular-nums text-brand-950">
+                  {moneyBs(porCuota) ?? money(porCuota)}
+                </p>
+                {moneyBs(porCuota) && (
+                  <p className="text-[13px] font-semibold tabular-nums text-brand-950/60">{money(porCuota)}</p>
+                )}
+                <p className="mt-0.5 text-[11px] font-light text-brand-950/45">
+                  {cuotas} cuotas · la primera vence el{' '}
+                  {new Date(`${primeraFecha}T00:00:00`).toLocaleDateString('es-VE')}
+                </p>
+              </div>
             </div>
 
             <div className="flex gap-2">
