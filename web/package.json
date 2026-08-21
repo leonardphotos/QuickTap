@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "android:sync": "CAP_SERVER_URL=${CAP_SERVER_URL:-https://quicktap.club} npm run build && CAP_SERVER_URL=${CAP_SERVER_URL:-https://quicktap.club} cap sync android",
     "android:apk": "npm run android:sync && cd android && ./gradlew assembleRelease",
+    "android:aab": "npm run android:sync && cd android && ./gradlew bundleRelease",
     "ios:sync": "CAP_SERVER_URL=${CAP_SERVER_URL:-https://quicktap.club} npm run build && CAP_SERVER_URL=${CAP_SERVER_URL:-https://quicktap.club} cap sync ios",
     "ios:open": "npm run ios:sync && cap open ios"
   },
