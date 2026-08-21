@@ -559,6 +559,7 @@ model Restaurant {
   shopStockAdjustments ShopStockAdjustment[]
   shopCashSessions     ShopCashSession[]
   shopCategories       ShopCategory[]
+  shopInstallmentPlans ShopInstallmentPlan[]
   shopSubcategories    ShopSubcategory[]
   shopServiceSupplies  ShopServiceSupply[]
   // Pedidos que entran por el catálogo público de la tienda virtual (ver ShopOrder).
@@ -3076,6 +3077,17 @@ model ShopProduct {
   // filtrar/agrupar el inventario por marca sin mezclarlo con la clasificación por tipo.
   brand           String  @default("")
 
+  // --- Eventos (categoría "Eventos" de locales comerciales) ---
+  // Un evento es un producto como cualquier otro —se vende y se cobra igual— pero además tiene
+  // fecha y un cupo limitado de puestos. Se marca con una bandera propia y no por el nombre de
+  // la categoría: el local puede renombrar "Eventos" y el comportamiento no debe depender de eso.
+  isEvent    Boolean @default(false)
+  // Día del evento, ISO yyyy-mm-dd (mismo criterio que expiryDate: es una fecha de calendario).
+  eventDate  String?
+  // Puestos totales a la venta. Los ocupados se cuentan sobre las ventas, no se guardan acá,
+  // para que una devolución libere el puesto sola.
+  eventSeats Int?
+
   // --- Impresión de gran formato (rubro Agencia de Publicidad) ---
   // 'UNIT' (por defecto) = se vende por unidad, como cualquier producto.
   // 'AREA_ROLL' = se vende por metro cuadrado saliendo de un rollo: el cliente pide una pieza
@@ -3150,9 +3162,10 @@ model ShopSale {
   // Null = todavía tiene saldo pendiente.
   settledAt DateTime?
 
-  restaurant Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  items      ShopSaleItem[]
-  payments   ShopSalePayment[]
+  restaurant     Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items          ShopSaleItem[]
+  payments       ShopSalePayment[]
+  installmentPlan ShopInstallmentPlan?
 
   @@index([restaurantId])
   @@index([restaurantId, creditTerms, settledAt])
@@ -3169,9 +3182,15 @@ model ShopSalePayment {
   method     String?
   createdAt  DateTime @default(now())
 
-  shopSale ShopSale @relation(fields: [shopSaleId], references: [id], onDelete: Cascade)
+  /// Cuota a la que se imputa este abono. Null = abono libre contra el saldo general (así se
+   /// comportaban todos antes de que existieran las cuotas, y se sigue permitiendo).
+  installmentId String?
+
+  shopSale    ShopSale         @relation(fields: [shopSaleId], references: [id], onDelete: Cascade)
+  installment ShopInstallment? @relation(fields: [installmentId], references: [id], onDelete: SetNull)
 
   @@index([shopSaleId])
+  @@index([installmentId])
   @@map("shop_sale_payments")
 }
 
@@ -3318,6 +3337,73 @@ model ShopCategory {
 
   @@unique([restaurantId, name])
   @@map("shop_categories")
+}
+
+// ----------------------------------------------------------------------------
+//  EVENTOS Y PAGO POR CUOTAS (locales comerciales)
+// ----------------------------------------------------------------------------
+
+ /// Plan de cuotas de una venta a crédito (ShopSale.creditTerms = 'INSTALLMENT').
+ /// Es un método de pago más de la caja, no algo exclusivo de los eventos: el local puede vender
+ /// a cuotas una entrada o una nevera con el mismo mecanismo.
+ /// `lateFeeAmount` y `alertDaysBefore` se congelan al crear el plan a propósito: si el local
+ /// cambia después su política de mora, los planes ya pactados conservan lo que se le prometió al
+ /// cliente. Mismo criterio que los montos congelados de Order (ver arriba).
+ /// /
+model ShopInstallmentPlan {
+  id           String @id @default(cuid())
+  restaurantId String
+  shopSaleId   String @unique
+
+  /// Monto fijo que se cobra por CADA cuota vencida (no porcentaje, no crece por día).
+  lateFeeAmount   Float @default(0)
+  /// Días antes del vencimiento en que la cuota empieza a avisarse como próxima a vencer.
+  alertDaysBefore Int   @default(3)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant   Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  shopSale     ShopSale          @relation(fields: [shopSaleId], references: [id], onDelete: Cascade)
+  installments ShopInstallment[]
+
+  @@index([restaurantId])
+  @@map("shop_installment_plans")
+}
+
+ /// Una cuota del plan. Monto y fecha son editables por el local después de creada — es lo normal
+ /// cuando un cliente pide reacomodar el pago, y evita tener que anular la venta y rehacerla.
+ /// `dueDate` es texto ISO yyyy-mm-dd y no DateTime, igual que ShopSale.dueDate: una fecha de
+ /// vencimiento es un día del calendario del local, y guardarla con hora la corría de día al
+ /// cruzar husos.
+ /// `lateFeeCharged` se sella cuando se aplica la mora, en vez de recalcularla al vuelo, para que
+ /// lo que se le cobró al cliente no cambie si el local edita su política más adelante.
+ /// /
+model ShopInstallment {
+  id     String @id @default(cuid())
+  planId String
+
+  /// 1, 2, 3… en orden de vencimiento.
+  number  Int
+  amount  Float
+  dueDate String
+
+  /// Suma de los abonos imputados a esta cuota. El saldo se calcula, nunca se cachea.
+  paidAmount     Float     @default(0)
+  paidAt         DateTime?
+  /// Mora ya aplicada a esta cuota. 0 = todavía no venció o se pagó a tiempo.
+  lateFeeCharged Float     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  plan     ShopInstallmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  payments ShopSalePayment[]
+
+  @@unique([planId, number])
+  @@index([planId])
+  @@index([dueDate])
+  @@map("shop_installments")
 }
 
 model ShopSubcategory {
