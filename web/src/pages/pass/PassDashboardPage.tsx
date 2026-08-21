@@ -5,6 +5,7 @@ import { api } from '@/api/client';
 import { useDocumentMeta } from '@/hooks/useDocumentMeta';
 import { PASS_LOGO_URL, PASS_NAME } from './passBrand';
 import { clearPassToken, getPassToken } from './passSession';
+import { AbonarDialog } from './AbonarDialog';
 
 /**
  * Panel del cliente en QuickTap Pass.
@@ -86,6 +87,8 @@ export default function PassDashboardPage() {
   const [abierta, setAbierta] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
   const [buscando, setBuscando] = useState(false);
+  const [abonando, setAbonando] = useState<Compra | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   useEffect(() => {
     if (!getPassToken()) {
@@ -104,6 +107,13 @@ export default function PassDashboardPage() {
         setError('No pudimos cargar tus compras.');
       });
   }, [navigate]);
+
+  function recargar() {
+    api
+      .get('/public/pass/me', { headers: { Authorization: `Bearer ${getPassToken()}` } })
+      .then((res) => setData(res.data.data))
+      .catch(() => undefined);
+  }
 
   function salir() {
     clearPassToken();
@@ -262,6 +272,16 @@ export default function PassDashboardPage() {
 
               {c.proximaCuota && <AvisoCuota cuota={c.proximaCuota} mora={c.mora} />}
 
+              {c.saldo > 0 && (
+                <button
+                  onClick={() => setAbonando(c)}
+                  className="mt-3 w-full rounded-full py-2.5 text-[13px] font-semibold text-white"
+                  style={{ background: 'linear-gradient(135deg, #009aff 0%, #056CF2 100%)' }}
+                >
+                  Abonar o pagar completo
+                </button>
+              )}
+
               {abierto && (
                 <div className="mt-3 space-y-1.5 border-t border-white/[0.06] pt-3">
                   {c.cuotas.map((q) => (
@@ -292,6 +312,28 @@ export default function PassDashboardPage() {
           );
         })}
       </div>
+
+      {aviso && (
+        <div className="fixed inset-x-4 bottom-6 z-50 rounded-2xl bg-emerald-500 px-4 py-3 text-center text-[13px] font-medium text-white shadow-lg">
+          {aviso}
+        </div>
+      )}
+
+      {abonando && (
+        <AbonarDialog
+          compraId={abonando.id}
+          negocio={abonando.negocio}
+          saldo={abonando.saldo}
+          cuotas={abonando.cuotas}
+          onClose={() => setAbonando(null)}
+          onListo={() => {
+            setAbonando(null);
+            setAviso('Abono reportado. El negocio lo verificará en breve.');
+            window.setTimeout(() => setAviso(null), 5000);
+            recargar();
+          }}
+        />
+      )}
     </div>
   );
 }

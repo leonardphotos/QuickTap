@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Home, Receipt, Boxes, Users, Settings, Calculator, FileText, HandCoins, Landmark, ShoppingBag, CreditCard, Building2, Lock } from 'lucide-react';
+import { Boxes, Building2, Calculator, CreditCard, FileText, HandCoins, Home, Landmark, Lock, Receipt, Settings, ShoppingBag, Users, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getShopRubro } from '@/data/shopRubros';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -14,6 +14,7 @@ import ShopInventoryPage from './ShopInventoryPage';
 import { CrmHub } from '@/components/admin/crm/CrmHub';
 import ShopSettingsPage from './ShopSettingsPage';
 import ShopReceivablesPage from './ShopReceivablesPage';
+import ShopPassPage from './ShopPassPage';
 import ShopBillingPage from './ShopBillingPage';
 import { PayablesSection } from '@/components/admin/PayablesSection';
 import { AccountingHub } from '@/components/admin/AccountingHub';
@@ -21,7 +22,7 @@ import { PlanUpgradeNotice } from '@/components/admin/PlanUpgradeNotice';
 import { allowsBranches, daysRemaining, graceHoursRemaining, hasFeature, type FeatureFlag } from '@/utils/subscription';
 import ShopSucursalesPage from './ShopSucursalesPage';
 
-export type ShopScreen = 'admin' | 'venta' | 'pedidos' | 'inventario' | 'clientes' | 'ajustes' | 'cotizaciones' | 'cuentas' | 'ordenes' | 'contabilidad' | 'sucursales' | 'factura';
+export type ShopScreen = 'admin' | 'venta' | 'pedidos' | 'inventario' | 'clientes' | 'ajustes' | 'cotizaciones' | 'cuentas' | 'ordenes' | 'contabilidad' | 'sucursales' | 'factura' | 'pass';
 
 // Cotizaciones, Cuentas por Cobrar y Facturación no van en el dock flotante de celular (ya tiene
 // 5 iconos, más lo dejaría apretado) — se llega a ellas desde los accesos de Inicio
@@ -31,6 +32,7 @@ export type ShopScreen = 'admin' | 'venta' | 'pedidos' | 'inventario' | 'cliente
 const MORE_TABS: { id: ShopScreen; label: string; icon: typeof FileText; feature?: FeatureFlag | 'branches' }[] = [
   { id: 'cotizaciones', label: 'Cotizaciones', icon: FileText },
   { id: 'cuentas', label: 'Cuentas por Cobrar', icon: Landmark },
+  { id: 'pass', label: 'QuickTap Pass', icon: Wallet },
   { id: 'ordenes', label: 'Órdenes de pago', icon: HandCoins, feature: 'accounting' },
   { id: 'contabilidad', label: 'Contabilidad', icon: Calculator, feature: 'accounting' },
   { id: 'sucursales', label: 'Sucursales', icon: Building2, feature: 'branches' },
@@ -183,6 +185,7 @@ export default function ShopLayout() {
         {screen === 'factura' && <ShopBillingPage restaurant={restaurant} onDone={() => setScreen('admin')} />}
         {screen === 'cotizaciones' && <QuoteManager />}
         {screen === 'cuentas' && <ShopReceivablesPage />}
+        {screen === 'pass' && <ShopPassPage />}
         {screen === 'ordenes' && !canAccounting && (
           <PlanUpgradeNotice feature="Órdenes de pago" onGoToBilling={() => setScreen('factura')} />
         )}
