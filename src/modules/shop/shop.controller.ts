@@ -45,6 +45,12 @@ export const shopController = {
 
   /** PATCH /shop/products/published — publica/despublica varios en la tienda virtual. */
   /** POST /shop/products/raise-prices — sube (o baja) todos los precios de venta un %. */
+  /** GET /shop/sales-by-unit — cuánto se vendió por categoría y producto, en su unidad. */
+  salesByUnit: asyncHandler(async (req: Request, res: Response) => {
+    const { desde, hasta } = z.object({ desde: z.string().optional(), hasta: z.string().optional() }).parse(req.query);
+    res.json({ data: await shopService.salesByUnit(req.restaurantId!, desde, hasta) });
+  }),
+
   raisePrices: asyncHandler(async (req: Request, res: Response) => {
     const { percent } = z.object({ percent: z.coerce.number() }).parse(req.body);
     res.json({ data: await shopService.raisePrices(req.restaurantId!, percent) });

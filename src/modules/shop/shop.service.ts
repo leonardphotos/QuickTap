@@ -208,6 +208,70 @@ export const shopService = {
     return { updated: result, percent };
   },
 
+  /**
+   * Cuánto se vendió por categoría y por producto, en la unidad de cada uno.
+   *
+   * Para lo que se vende por Kg o Mt, `qty` ya viene en esa unidad, así que sumarlo responde
+   * directo "cuántos kilos de manguera se vendieron" sin conversiones. Se separa por unidad
+   * para no sumar kilos con unidades en el mismo número, que no querría decir nada.
+   */
+  async salesByUnit(restaurantId: string, desde?: string, hasta?: string) {
+    const ventas = await prisma.shopSale.findMany({
+      where: {
+        restaurantId,
+        returned: false,
+        ...(desde || hasta
+          ? { time: { ...(desde ? { gte: new Date(`${desde}T00:00:00`) } : {}), ...(hasta ? { lte: new Date(`${hasta}T23:59:59`) } : {}) } }
+          : {}),
+      },
+      include: { items: true },
+    });
+
+    const productos = await prisma.shopProduct.findMany({
+      where: { restaurantId },
+      select: { id: true, name: true, category: true, saleUnit: true, cost: true },
+    });
+    const porId = new Map(productos.map((p) => [p.id, p]));
+
+    const filas = new Map<string, { categoria: string; producto: string; unidad: string; cantidad: number; ingreso: number; costo: number }>();
+    for (const v of ventas) {
+      for (const it of v.items) {
+        const prod = it.productId ? porId.get(it.productId) : undefined;
+        const categoria = it.category ?? prod?.category ?? 'Sin categoría';
+        const unidad = prod?.saleUnit ?? 'UND';
+        const clave = `${categoria}|${it.name}|${unidad}`;
+        const actual = filas.get(clave) ?? { categoria, producto: it.name, unidad, cantidad: 0, ingreso: 0, costo: 0 };
+        actual.cantidad += it.qty;
+        actual.ingreso += it.qty * it.price;
+        actual.costo += it.qty * it.cost;
+        filas.set(clave, actual);
+      }
+    }
+
+    const detalle = [...filas.values()]
+      .map((f) => ({
+        ...f,
+        cantidad: Math.round(f.cantidad * 1000) / 1000,
+        ingreso: Math.round(f.ingreso * 100) / 100,
+        costo: Math.round(f.costo * 100) / 100,
+        ganancia: Math.round((f.ingreso - f.costo) * 100) / 100,
+      }))
+      .sort((a, b) => b.ingreso - a.ingreso);
+
+    // Totales por categoría y unidad — es la vista que responde "cuántos kg de cada manguera".
+    const porCategoria = new Map<string, { categoria: string; unidad: string; cantidad: number; ingreso: number; ganancia: number }>();
+    for (const d of detalle) {
+      const clave = `${d.categoria}|${d.unidad}`;
+      const actual = porCategoria.get(clave) ?? { categoria: d.categoria, unidad: d.unidad, cantidad: 0, ingreso: 0, ganancia: 0 };
+      actual.cantidad = Math.round((actual.cantidad + d.cantidad) * 1000) / 1000;
+      actual.ingreso = Math.round((actual.ingreso + d.ingreso) * 100) / 100;
+      actual.ganancia = Math.round((actual.ganancia + d.ganancia) * 100) / 100;
+      porCategoria.set(clave, actual);
+    }
+
+    return { categorias: [...porCategoria.values()].sort((a, b) => b.ingreso - a.ingreso), detalle };
+  },
+
   /** Publica/despublica varios productos de una en la tienda virtual. El filtro por
    * restaurantId no es decorativo: sin él, un id de otro local publicaría su catálogo. */
   async setProductsPublished(restaurantId: string, productIds: string[], isPublished: boolean) {
@@ -491,6 +555,25 @@ export const shopService = {
 
     return prisma.$transaction(async (tx) => {
       await tx.shopProductVariant.update({ where: { id: variant.id }, data: { stock: { increment: input.qty } } });
+
+      /**
+       * Cada entrada llega con su propio costo: en Monte Ranch un mismo producto pesa distinto
+       * cada vez, así que lo que costó este lote no es lo que costó el anterior. El precio de
+       * venta NO se toca —es el mismo siempre—, pero el costo del producto pasa a ser el
+       * promedio ponderado de lo que hay en stock.
+       *
+       * Ponderado y no "el último costo": con el último, vender mercancía vieja mostraría el
+       * margen del lote nuevo y las ganancias saldrían mal. Cada compra queda igual guardada
+       * con su costo real en ShopPurchase, así que el histórico por lote no se pierde.
+       */
+      const stockPrevio = product.variants.reduce((a, v) => a + v.stock, 0);
+      const stockNuevo = stockPrevio + input.qty;
+      if (stockNuevo > 0) {
+        const costoPromedio =
+          Math.round(((product.cost * Math.max(0, stockPrevio) + input.cost * input.qty) / stockNuevo) * 10000) / 10000;
+        await tx.shopProduct.update({ where: { id: product.id }, data: { cost: costoPromedio } });
+      }
+
       return tx.shopPurchase.create({
         data: {
           restaurantId,

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { PanelLeftOpen } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import { Boxes, Building2, Calculator, FileText, HandCoins, Home, Landmark, Lock, Receipt, Settings, ShoppingBag, Users, Wallet } from 'lucide-react';
+import { Boxes, Building2, Calculator, FileText, Scale, HandCoins, Home, Landmark, Lock, Receipt, Settings, ShoppingBag, Users, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getShopRubro } from '@/data/shopRubros';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -16,6 +16,7 @@ import { CrmHub } from '@/components/admin/crm/CrmHub';
 import ShopSettingsPage from './ShopSettingsPage';
 import ShopReceivablesPage from './ShopReceivablesPage';
 import ShopPassPage from './ShopPassPage';
+import ShopSalesByUnitPage from './ShopSalesByUnitPage';
 import { ShopSidebar, type ShopSidebarTab } from './ShopSidebar';
 import { PLAN_LABELS } from '@/pages/admin/nav-links';
 import ShopBillingPage from './ShopBillingPage';
@@ -25,7 +26,7 @@ import { PlanUpgradeNotice } from '@/components/admin/PlanUpgradeNotice';
 import { allowsBranches, daysRemaining, graceHoursRemaining, hasFeature, type FeatureFlag } from '@/utils/subscription';
 import ShopSucursalesPage from './ShopSucursalesPage';
 
-export type ShopScreen = 'admin' | 'venta' | 'pedidos' | 'inventario' | 'clientes' | 'ajustes' | 'cotizaciones' | 'cuentas' | 'ordenes' | 'contabilidad' | 'sucursales' | 'factura' | 'pass';
+export type ShopScreen = 'admin' | 'venta' | 'pedidos' | 'inventario' | 'clientes' | 'ajustes' | 'cotizaciones' | 'cuentas' | 'ordenes' | 'contabilidad' | 'sucursales' | 'factura' | 'pass' | 'ventas-unidad';
 
 // Cotizaciones, Cuentas por Cobrar y Facturación no van en el dock flotante de celular (ya tiene
 // 5 iconos, más lo dejaría apretado) — se llega a ellas desde los accesos de Inicio
@@ -36,6 +37,7 @@ const MORE_TABS: { id: ShopScreen; label: string; icon: typeof FileText; feature
   { id: 'cotizaciones', label: 'Cotizaciones', icon: FileText },
   { id: 'cuentas', label: 'Cuentas por Cobrar', icon: Landmark },
   { id: 'pass', label: 'QuickTap Pass', icon: Wallet },
+  { id: 'ventas-unidad', label: 'Ventas por unidad', icon: Scale },
   { id: 'ordenes', label: 'Órdenes de pago', icon: HandCoins, feature: 'accounting' },
   { id: 'contabilidad', label: 'Contabilidad', icon: Calculator, feature: 'accounting' },
   { id: 'sucursales', label: 'Sucursales', icon: Building2, feature: 'branches' },
@@ -243,6 +245,7 @@ export default function ShopLayout() {
         {screen === 'cotizaciones' && <QuoteManager />}
         {screen === 'cuentas' && <ShopReceivablesPage />}
         {screen === 'pass' && <ShopPassPage />}
+        {screen === 'ventas-unidad' && <ShopSalesByUnitPage restaurant={restaurant} />}
         {screen === 'ordenes' && !canAccounting && (
           <PlanUpgradeNotice feature="Órdenes de pago" onGoToBilling={() => setScreen('factura')} />
         )}
