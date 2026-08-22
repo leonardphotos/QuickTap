@@ -2070,11 +2070,14 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
  * otros dos caminos —Registrar compra y Agregar lote— piden el costo del lote entero o el unitario, y
  * obligan a sacar la cuenta a mano cada vez.
  *
- * Cuánto entra al stock depende de cómo se venda el producto, y es la parte que se presta a
- * confusión: si se vende por Kg o por metro, los kilos SON la cantidad. Si se vende por rollo o
- * por unidad, los kilos son el peso de la carga y hay que decir cuántos LOTES entran, porque
- * "120 Kg de manguera" pueden ser dos rollos o cinco. Un lote es una pieza entera —en Monteranch,
- * una manguera de 100 mt— y por eso se cuentan en lotes y no en kilos.
+ * Cada carga es UN lote: una pieza entera —en Monteranch, una manguera de 100 mt— con su propio
+ * peso. No se permite cargar varias de una vez a propósito: el formulario recibe un solo total en
+ * kilos, así que dos mangueras juntas quedarían con el mismo peso y se perdería justo lo que el
+ * control por lotes viene a mostrar, que una pesó 40 Kg y la otra 43. Si entraron tres, se cargan
+ * de a una.
+ *
+ * En un producto que se vende por Kg o por metro no hay pieza que contar: los kilos SON la
+ * cantidad que entra al stock.
  */
 function SumarAInventarioDialog({
   productos,
@@ -2101,7 +2104,6 @@ function SumarAInventarioDialog({
   const [variantIndex, setVariantIndex] = useState(0);
   const [kg, setKg] = useState('');
   const [costoKg, setCostoKg] = useState('');
-  const [lotes, setLotes] = useState('1');
   const [proveedor, setProveedor] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -2112,9 +2114,9 @@ function SumarAInventarioDialog({
 
   const nKg = Number(kg.replace(',', '.')) || 0;
   const nCostoKg = Number(costoKg.replace(',', '.')) || 0;
-  const nLotes = Number(lotes.replace(',', '.')) || 0;
   const totalLote = Math.round(nKg * nCostoKg * 100) / 100;
-  const qty = porPeso ? nKg : nLotes;
+  // Por peso, los kilos son la cantidad. Por pieza, siempre entra UNA (ver el comentario de arriba).
+  const qty = porPeso ? nKg : 1;
   const costoUnitario = qty > 0 ? Math.round((totalLote / qty) * 10000) / 10000 : 0;
 
   const variante = producto?.variants[variantIndex];
@@ -2217,16 +2219,6 @@ function SumarAInventarioDialog({
                   className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
                 />
               </label>
-              {/* Solo si se vende por pieza: con venta por peso, los Kg ya son la cantidad. */}
-              {!porPeso && (
-                <label className="block text-sm w-28 shrink-0">
-                  <span className="text-brand-950/70">Lotes</span>
-                  <input
-                    type="number" step="1" value={lotes} onChange={(e) => setLotes(e.target.value)}
-                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
-                  />
-                </label>
-              )}
             </div>
 
             <label className="block text-sm">
@@ -2243,14 +2235,8 @@ function SumarAInventarioDialog({
               <div className="rounded-xl bg-brand-950/[0.04] p-3 text-[13px] text-brand-950/70 flex flex-col gap-0.5">
                 <span>
                   Total del lote <strong className="text-brand-950">{money(totalLote)}</strong>
-                  {!porPeso && <> · entran {qty} {qty === 1 ? 'lote' : 'lotes'} a {money(costoUnitario)} cada uno</>}
+                  {!porPeso && <> · entra 1 lote de {producto.name.match(/\d+\s*mt/i)?.[0] ?? 'una pieza'}</>}
                 </span>
-                {!porPeso && qty > 1 && (
-                  <span className="text-amber-700">
-                    Los {qty} lotes quedan con el mismo peso ({Math.round((nKg / qty) * 1000) / 1000} {unidadPeso} cada uno).
-                    Si cada pieza pesa distinto, cárgalas de a una.
-                  </span>
-                )}
                 {precio > 0 && (
                   <span>
                     Se vende a {money(precio)}
