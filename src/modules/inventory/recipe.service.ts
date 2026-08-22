@@ -4,7 +4,7 @@ import { prisma } from '../../config/prisma';
 import { resolveInventoryScopeById } from './inventory-scope';
 import { badRequest, notFound } from '../../utils/http-error';
 import { round2, toDecimal } from '../../utils/money';
-import { CreateRecipeIngredientInput, UpdateCascadeConfigInput, UpdateRecipeIngredientInput } from './recipe.dto';
+import { CreateRecipeIngredientInput, DuplicateRecipeInput, UpdateCascadeConfigInput, UpdateRecipeIngredientInput } from './recipe.dto';
 import { buildCostGraph, resolveCostPerBaseUnit, resolveCustomerChoiceCostPerUnit } from './costing';
 
 /** La categoría de modificadores de una línea "A elección del cliente" tiene que estar
@@ -211,6 +211,113 @@ export const recipeService = {
         },
       });
       return created;
+    });
+  },
+
+  /**
+   * Copia la receta de un plato a otro. Es el atajo para los platos que se parecen: la misma
+   * hamburguesa con otro término, la pizza que solo cambia un topping. Rearmar quince
+   * ingredientes a mano para cambiar uno es donde se cometen los errores.
+   *
+   * No todo se puede copiar tal cual, y eso es lo delicado:
+   *  - Los insumos y las preparaciones son del restaurante, así que pasan siempre.
+   *  - Un ingrediente atado a un TAMAÑO del plato origen no significa nada en el destino, que
+   *    tiene otros tamaños. Se intenta emparejar por nombre ("Grande" con "Grande"); si el
+   *    destino no lo tiene, la línea pasa aplicada al plato completo y se avisa — perderla en
+   *    silencio dejaría la receta corta sin que nadie lo note.
+   *  - Un ingrediente atado a una categoría de modificadores solo pasa si esa categoría también
+   *    está asociada al plato destino. Si no, se omite: apuntaría a toppings que ese plato no
+   *    ofrece.
+   *
+   * El costo se recalcula contra los precios de HOY, no se copia el del origen: si el insumo
+   * cambió de precio desde que se armó la receta original, copiar el costo viejo arrastraría un
+   * margen falso al plato nuevo.
+   */
+  async duplicate(restaurantId: string, productId: string, input: DuplicateRecipeInput) {
+    if (productId === input.targetProductId) throw badRequest('Elige un plato distinto al de origen.');
+
+    const [origen, destino] = await Promise.all([
+      prisma.product.findFirst({ where: { id: productId, restaurantId }, select: { id: true, name: true } }),
+      prisma.product.findFirst({ where: { id: input.targetProductId, restaurantId }, select: { id: true, name: true } }),
+    ]);
+    if (!origen) throw notFound('El plato de origen no existe.');
+    if (!destino) throw notFound('El plato de destino no existe.');
+
+    const ingredientes = await prisma.recipeIngredient.findMany({ where: { restaurantId, productId } });
+    if (ingredientes.length === 0) throw badRequest(`"${origen.name}" no tiene receta que copiar.`);
+
+    const yaTiene = await prisma.recipeIngredient.count({ where: { restaurantId, productId: destino.id } });
+    // Nunca se pisa una receta existente sin permiso: puede ser trabajo de horas.
+    if (yaTiene > 0 && !input.replace) {
+      throw badRequest(`"${destino.name}" ya tiene ${yaTiene} ingrediente(s). Marca "reemplazar" si quieres sustituir su receta.`);
+    }
+
+    // Tamaños del destino, por nombre, para reubicar los ingredientes por tamaño.
+    const [variantesOrigen, variantesDestino, categoriasDestino] = await Promise.all([
+      prisma.productVariant.findMany({ where: { productId, restaurantId }, select: { id: true, name: true } }),
+      prisma.productVariant.findMany({ where: { productId: destino.id, restaurantId }, select: { id: true, name: true } }),
+      prisma.productModifierCategory.findMany({ where: { productId: destino.id }, select: { modifierCategoryId: true } }),
+    ]);
+    const nombreVarianteOrigen = new Map(variantesOrigen.map((v) => [v.id, v.name]));
+    const varianteDestinoPorNombre = new Map(variantesDestino.map((v) => [v.name.trim().toLowerCase(), v.id]));
+    const categoriasPermitidas = new Set(categoriasDestino.map((c) => c.modifierCategoryId));
+
+    const avisos: string[] = [];
+    const aCrear: Prisma.RecipeIngredientCreateManyInput[] = [];
+
+    for (const ing of ingredientes) {
+      if (ing.customerChoiceModifierCategoryId && !categoriasPermitidas.has(ing.customerChoiceModifierCategoryId)) {
+        avisos.push('Se omitió un ingrediente por topping: esa categoría de modificadores no está en el plato destino.');
+        continue;
+      }
+      let productVariantId: string | null = null;
+      if (ing.productVariantId) {
+        const nombre = (nombreVarianteOrigen.get(ing.productVariantId) ?? '').trim().toLowerCase();
+        productVariantId = varianteDestinoPorNombre.get(nombre) ?? null;
+        if (!productVariantId) {
+          avisos.push(`El tamaño "${nombreVarianteOrigen.get(ing.productVariantId) ?? '?'}" no existe en el destino: ese ingrediente quedó aplicado al plato completo.`);
+        }
+      }
+      aCrear.push({
+        restaurantId,
+        productId: destino.id,
+        inventoryItemId: ing.inventoryItemId,
+        preparationId: ing.preparationId,
+        customerChoiceModifierCategoryId: ing.customerChoiceModifierCategoryId,
+        customerChoiceModifierId: ing.customerChoiceModifierId,
+        productVariantId,
+        quantity: ing.quantity,
+        costBase: ing.costBase,
+      });
+    }
+
+    if (aCrear.length === 0) throw badRequest('Ningún ingrediente de esa receta se puede aplicar a este plato.');
+
+    return prisma.$transaction(async (tx) => {
+      if (yaTiene > 0) await tx.recipeIngredient.deleteMany({ where: { restaurantId, productId: destino.id } });
+      await tx.recipeIngredient.createMany({ data: aCrear });
+
+      // Costo recalculado a precios de hoy (ver el comentario de arriba).
+      const graph = await buildCostGraph(tx, restaurantId);
+      const creados = await tx.recipeIngredient.findMany({ where: { restaurantId, productId: destino.id } });
+      for (const ing of creados) {
+        const costPerUnit = ing.customerChoiceModifierCategoryId
+          ? await resolveCustomerChoiceCostPerUnit(tx, graph, restaurantId, ing.customerChoiceModifierCategoryId, ing.customerChoiceModifierId)
+          : resolveCostPerBaseUnit(graph, { inventoryItemId: ing.inventoryItemId, preparationId: ing.preparationId });
+        const costBase = round2(costPerUnit.mul(ing.quantity));
+        if (!costBase.equals(ing.costBase)) {
+          await tx.recipeIngredient.update({ where: { id: ing.id }, data: { costBase } });
+        }
+      }
+
+      return {
+        origen: origen.name,
+        destino: destino.name,
+        copiados: aCrear.length,
+        omitidos: ingredientes.length - aCrear.length,
+        reemplazo: yaTiene > 0,
+        avisos: [...new Set(avisos)],
+      };
     });
   },
 

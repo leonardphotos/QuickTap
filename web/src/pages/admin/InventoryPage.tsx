@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { AlertTriangle, FileSpreadsheet, Plus, Printer, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, Copy, FileSpreadsheet, Plus, Printer, Trash2, Upload, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { hasFeature } from '@/utils/subscription';
 import { CURRENCY_SYMBOLS } from '@/utils/format';
 import type { Product } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
 import { AddStockDialog } from '@/components/admin/AddStockDialog';
 import { InventoryAlertsTab } from '@/components/admin/InventoryAlertsTab';
@@ -1757,6 +1757,8 @@ function RecetasTab({ insumos }: { insumos: InventoryItem[] }) {
   const [rows, setRows] = useState<RecipeOverviewRow[] | null>(null);
   const [preparations, setPreparations] = useState<PreparationOverviewRow[]>([]);
   const [openProductId, setOpenProductId] = useState<string | null>(null);
+  // Plato cuya receta se va a copiar a otro (ver DuplicarRecetaDialog).
+  const [duplicarDe, setDuplicarDe] = useState<RecipeOverviewRow | null>(null);
   // Filtro por categoría del menú (la del producto). '' = todas; 'SIN_RECETA' = solo los
   // productos que todavía no tienen receta, para atacar primero lo que falta.
   const [category, setCategory] = useState<string>('');
@@ -1829,14 +1831,27 @@ function RecetasTab({ insumos }: { insumos: InventoryItem[] }) {
                 </p>
               </div>
             </div>
-            <TextureButton
-              variant={r.hasRecipe ? 'minimal' : 'brand'}
-              size="sm"
-              className="!w-auto shrink-0"
-              onClick={() => setOpenProductId(r.productId)}
-            >
-              Receta
-            </TextureButton>
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Solo tiene sentido copiar desde un plato que ya tiene receta armada. */}
+              {r.hasRecipe && (
+                <button
+                  type="button"
+                  onClick={() => setDuplicarDe(r)}
+                  title="Copiar esta receta a otro plato"
+                  className="flex items-center gap-1 rounded-lg border border-brand-950/10 px-2.5 py-1.5 text-xs font-medium text-brand-950/50 hover:text-brand-500 hover:border-brand-500/30"
+                >
+                  <Copy className="h-3.5 w-3.5" /> Copiar
+                </button>
+              )}
+              <TextureButton
+                variant={r.hasRecipe ? 'minimal' : 'brand'}
+                size="sm"
+                className="!w-auto"
+                onClick={() => setOpenProductId(r.productId)}
+              >
+                Receta
+              </TextureButton>
+            </div>
           </div>
         ))}
       </div>
@@ -1850,7 +1865,152 @@ function RecetasTab({ insumos }: { insumos: InventoryItem[] }) {
           onSaved={load}
         />
       )}
+
+      {duplicarDe && (
+        <DuplicarRecetaDialog
+          origen={duplicarDe}
+          candidatos={(rows ?? []).filter((x) => x.productId !== duplicarDe.productId)}
+          onClose={() => setDuplicarDe(null)}
+          onDone={load}
+        />
+      )}
     </div>
+  );
+}
+
+
+/**
+ * Copiar la receta de un plato a otro (Inventario → Recetas → "Copiar").
+ *
+ * El atajo para los platos que se parecen: la misma hamburguesa con otro término, la pizza que
+ * solo cambia un topping. Rearmar quince ingredientes a mano para cambiar uno es donde se
+ * cometen los errores.
+ *
+ * Si el destino ya tiene receta hay que marcar "reemplazar" a propósito: puede ser trabajo de
+ * horas y no se pisa sin querer.
+ */
+function DuplicarRecetaDialog({
+  origen,
+  candidatos,
+  onClose,
+  onDone,
+}: {
+  origen: RecipeOverviewRow;
+  candidatos: RecipeOverviewRow[];
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [destino, setDestino] = useState('');
+  const [reemplazar, setReemplazar] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busqueda, setBusqueda] = useState('');
+
+  const elegido = candidatos.find((c) => c.productId === destino);
+  const visibles = candidatos.filter((c) =>
+    busqueda.trim() ? c.name.toLowerCase().includes(busqueda.trim().toLowerCase()) : true,
+  );
+
+  async function copiar() {
+    if (!destino) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.post(`/inventory/recipes/${origen.productId}/duplicate`, {
+        targetProductId: destino,
+        replace: reemplazar,
+      });
+      const d = res.data.data;
+      const avisos = (d.avisos ?? []) as string[];
+      alert(
+        `Se copiaron ${d.copiados} ingrediente(s) de "${d.origen}" a "${d.destino}".` +
+          (d.omitidos ? `\n\nSe omitieron ${d.omitidos}.` : '') +
+          (avisos.length ? `\n\n${avisos.join('\n')}` : ''),
+      );
+      onDone();
+      onClose();
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo copiar la receta.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Copiar receta</DialogTitle>
+        </DialogHeader>
+
+        <p className="text-sm text-brand-950/60 -mt-1">
+          De <span className="font-medium text-brand-950">{origen.name}</span> ({origen.ingredientCount} ingrediente
+          {origen.ingredientCount === 1 ? '' : 's'}, costo ${origen.totalCostBase}) a:
+        </p>
+
+        <input
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder="Buscar plato…"
+          className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+        />
+
+        <div className="max-h-56 overflow-y-auto rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
+          {visibles.length === 0 && <p className="p-3 text-sm text-brand-950/40">Ningún plato con ese nombre.</p>}
+          {visibles.map((c) => (
+            <button
+              key={c.productId}
+              type="button"
+              onClick={() => {
+                setDestino(c.productId);
+                setReemplazar(false);
+              }}
+              className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm ${
+                destino === c.productId ? 'bg-brand-500/10' : 'hover:bg-brand-950/[0.03]'
+              }`}
+            >
+              <span className="min-w-0 truncate text-brand-950">{c.name}</span>
+              {/* Se avisa acá, no al guardar: es lo que decide si hace falta marcar reemplazar. */}
+              <span className={`shrink-0 text-[11px] ${c.hasRecipe ? 'text-amber-600' : 'text-brand-950/35'}`}>
+                {c.hasRecipe ? `ya tiene ${c.ingredientCount}` : 'sin receta'}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {elegido?.hasRecipe && (
+          <label className="flex items-start gap-2 rounded-xl bg-amber-50/70 p-3 text-[13px] text-amber-900">
+            <input
+              type="checkbox"
+              checked={reemplazar}
+              onChange={(e) => setReemplazar(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-amber-300 accent-amber-600"
+            />
+            <span>
+              <strong className="font-semibold">{elegido.name}</strong> ya tiene una receta de {elegido.ingredientCount}{' '}
+              ingrediente(s). Marca esto para sustituirla — se borra y no se puede deshacer.
+            </span>
+          </label>
+        )}
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <DialogFooter>
+          <TextureButton variant="minimal" size="default" className="!w-auto" onClick={onClose}>
+            Cancelar
+          </TextureButton>
+          <TextureButton
+            variant="brand"
+            size="default"
+            className="!w-auto disabled:opacity-40"
+            disabled={busy || !destino || (elegido?.hasRecipe === true && !reemplazar)}
+            onClick={copiar}
+          >
+            {busy ? 'Copiando…' : 'Copiar receta'}
+          </TextureButton>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

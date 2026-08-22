@@ -59,3 +59,12 @@ export const updateCascadeConfigSchema = z.object({
 export type CreateRecipeIngredientInput = z.infer<typeof createRecipeIngredientSchema>;
 export type UpdateRecipeIngredientInput = z.infer<typeof updateRecipeIngredientSchema>;
 export type UpdateCascadeConfigInput = z.infer<typeof updateCascadeConfigSchema>;
+
+// Copiar la receta de un plato a otro (ver recipe.service.ts -> duplicate). `replace` es
+// obligatorio para pisar una receta que ya existe: rearmarla puede ser trabajo de horas.
+export const duplicateRecipeSchema = z.object({
+  targetProductId: z.string().min(1, 'Elige el plato al que copiar la receta.'),
+  replace: z.boolean().optional().default(false),
+});
+
+export type DuplicateRecipeInput = z.infer<typeof duplicateRecipeSchema>;
