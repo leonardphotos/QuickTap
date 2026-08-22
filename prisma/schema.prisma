@@ -905,6 +905,8 @@ model Product {
   packagingItem      InventoryItem?            @relation("ProductPackaging", fields: [packagingItemId], references: [id], onDelete: SetNull)
   orderItems         OrderItem[]
   recipeIngredients  RecipeIngredient[]
+  /// Recetas de OTROS platos que incluyen a este como parte de un combo.
+  enCombos           RecipeIngredient[]        @relation("ComboComponente")
   costStructure      ProductCostStructure?
   wasteRecords       WasteRecord[]
   modifierCategories ProductModifierCategory[]
@@ -3022,6 +3024,15 @@ model RecipeIngredient {
   // Si no es null, esta línea solo aplica cuando se vendió ESA variante/tamaño del producto
   // (ej. "Grande") — null = aplica a todos los tamaños (o el producto no usa variantes de
   // precio). Permite que cada tamaño tenga sus propias porciones (ver RecetasTab).
+  /// Combos: esta línea es OTRO PLATO completo con su propia receta. "Combo familiar = 2
+  /// hamburguesas + 1 papas grandes" se arma apuntando a esos platos en vez de recopiar sus
+  /// quince ingredientes, y así el combo se corrige solo cuando cambia la receta del plato.
+  ///
+  /// El costo y el descuento de stock bajan hasta los insumos finales igual que con las
+  /// preparaciones (ver costing.ts). Los ciclos —A incluye B y B incluye A— se rechazan al
+  /// guardar, y además el resolutor los corta: una receta mal armada no puede colgar el POS.
+  componentProductId String?
+
   productVariantId String?
 
   // Cantidad usada por una unidad del producto, en la unidad base del insumo
@@ -3041,6 +3052,7 @@ model RecipeIngredient {
   customerChoiceCategory ModifierCategory? @relation(fields: [customerChoiceModifierCategoryId], references: [id], onDelete: SetNull)
   customerChoiceModifier Modifier?         @relation(fields: [customerChoiceModifierId], references: [id], onDelete: Cascade)
   productVariant         ProductVariant?   @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+  componentProduct       Product?          @relation("ComboComponente", fields: [componentProductId], references: [id], onDelete: Cascade)
 
   @@index([restaurantId, productId])
   @@index([inventoryItemId])
@@ -3258,15 +3270,15 @@ model ShopProductVariant {
   /// producto en precio: en la lista de Monteranch, una manguera de 1/2" vale $21,50 a 60 PSI
   /// y $36,50 a 150 PSI. Antes había que partirlas en productos separados y el catálogo se
   /// llenaba de filas que en realidad son la misma manguera.
-  price        Float?
+  price       Float?
   /// Costo propio de esta variante, promedio ponderado de SUS lotes (ver recordPurchase).
   /// Null = usa el del producto. Va aparte del precio porque si las variantes se venden a
   /// distinto precio también se compran a distinto costo, y un promedio único entre las tres
   /// daría márgenes falsos en las tres.
-  cost         Float?
+  cost        Float?
   /// Descripción propia de esta variante, para cuando entre una y otra cambia algo más que el
   /// nombre. Null = se muestra la del producto.
-  description  String?
+  description String?
 
   product ShopProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
 
@@ -3424,14 +3436,14 @@ model ShopPurchase {
   /// Cuánto queda de ESTE lote. Baja al vender, en orden de llegada (el más viejo primero), y
   /// es lo que permite ver en inventario "lote 1: 50 kg a $3, lote 2: 54 kg a $4,50" en vez de
   /// un solo promedio. `qty` se conserva como lo que entró originalmente.
-  remainingQty Float @default(0)
+  remainingQty Float  @default(0)
   /// Cuánto pesó ESTA carga, en Kg. Va aparte de `qty` porque son dos cosas distintas: un rollo
   /// de manguera se vende como un rollo (qty = 1) pero se compra por peso, y cada rollo del
   /// mismo tipo pesa distinto — 40, 43, 68 Kg. Es lo que permite ver en inventario el peso real
   /// de cada carga. Null en productos donde el peso no aplica o no se anotó.
   weightKg     Float?
   /// Etiqueta corta para reconocerlo (ej. "Lote 1"). Se numera por producto al registrarlo.
-  lotNumber    Int   @default(0)
+  lotNumber    Int    @default(0)
 
   restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 

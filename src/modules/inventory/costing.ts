@@ -36,6 +36,8 @@ interface GraphPreparation {
 export interface CostGraph {
   items: Map<string, GraphItem>;
   preparations: Map<string, GraphPreparation>;
+  /** Recetas por plato, para resolver los combos que incluyen otros platos. */
+  products: Map<string, IngredientRef[]>;
 }
 
 /** Referencia genérica a "un insumo o una preparación" — misma forma que usan
@@ -43,6 +45,9 @@ export interface CostGraph {
 export interface IngredientRef {
   inventoryItemId?: string | null;
   preparationId?: string | null;
+  /** Combos: la línea es otro plato entero, con su propia receta. */
+  componentProductId?: string | null;
+  quantity?: Prisma.Decimal;
 }
 
 /** Carga en memoria todo el grafo de costeo del restaurante (insumos + preparaciones
@@ -50,7 +55,7 @@ export interface IngredientRef {
  * de cientos de filas), así que traer todo de una vez es más simple y más correcto que
  * ir resolviendo dependencias fila por fila. */
 export async function buildCostGraph(tx: TxClient, restaurantId: string): Promise<CostGraph> {
-  const [items, preparations, preparationIngredients] = await Promise.all([
+  const [items, preparations, preparationIngredients, recipeLines] = await Promise.all([
     tx.inventoryItem.findMany({
       where: { restaurantId },
       select: { id: true, pricePerUnitBase: true, yieldPercent: true, correctionPercent: true },
@@ -59,6 +64,13 @@ export async function buildCostGraph(tx: TxClient, restaurantId: string): Promis
     tx.preparationIngredient.findMany({
       where: { restaurantId },
       select: { preparationId: true, inventoryItemId: true, componentPreparationId: true, quantity: true },
+    }),
+    // Recetas de los platos: hacen falta para resolver los combos, que apuntan a otro plato
+    // en vez de a un insumo. Se traen enteras por el mismo motivo que las preparaciones — el
+    // catálogo es chico y resolver fila por fila sería más frágil.
+    tx.recipeIngredient.findMany({
+      where: { restaurantId },
+      select: { productId: true, inventoryItemId: true, preparationId: true, componentProductId: true, quantity: true },
     }),
   ]);
 
@@ -69,7 +81,19 @@ export async function buildCostGraph(tx: TxClient, restaurantId: string): Promis
     if (prep) prep.ingredients.push({ inventoryItemId: pi.inventoryItemId, preparationId: pi.componentPreparationId, quantity: pi.quantity });
   }
 
-  return { items: new Map(items.map((i) => [i.id, i])), preparations: preparationMap };
+  const productMap = new Map<string, IngredientRef[]>();
+  for (const rl of recipeLines) {
+    const lineas = productMap.get(rl.productId) ?? [];
+    lineas.push({
+      inventoryItemId: rl.inventoryItemId,
+      preparationId: rl.preparationId,
+      componentProductId: rl.componentProductId,
+      quantity: rl.quantity,
+    });
+    productMap.set(rl.productId, lineas);
+  }
+
+  return { items: new Map(items.map((i) => [i.id, i])), preparations: preparationMap, products: productMap };
 }
 
 function costPerBaseUnitForItem(item: GraphItem): Prisma.Decimal {
@@ -94,10 +118,23 @@ export function resolveCostPerBaseUnit(graph: CostGraph, ref: IngredientRef, see
     if (!prep || prep.yieldQuantity.lessThanOrEqualTo(0)) return toDecimal(0);
     const nextSeen = new Set(seen).add(ref.preparationId);
     const total = prep.ingredients.reduce(
-      (acc, ing) => acc.add(ing.quantity.mul(resolveCostPerBaseUnit(graph, ing, nextSeen))),
+      (acc, ing) => acc.add((ing.quantity ?? toDecimal(0)).mul(resolveCostPerBaseUnit(graph, ing, nextSeen))),
       toDecimal(0),
     );
     return total.div(prep.yieldQuantity);
+  }
+  // Combos: cuesta lo que cuesta la receta entera del plato incluido. A diferencia de una
+  // preparación no se divide por rendimiento — una hamburguesa es una hamburguesa, no un lote
+  // del que salen porciones.
+  if (ref.componentProductId) {
+    if (seen.has(ref.componentProductId)) return toDecimal(0);
+    const lineas = graph.products.get(ref.componentProductId);
+    if (!lineas) return toDecimal(0);
+    const nextSeen = new Set(seen).add(ref.componentProductId);
+    return lineas.reduce(
+      (acc, l) => acc.add((l.quantity ?? toDecimal(0)).mul(resolveCostPerBaseUnit(graph, l, nextSeen))),
+      toDecimal(0),
+    );
   }
   return toDecimal(0);
 }
@@ -161,7 +198,11 @@ export async function recomputeDependentCosts(tx: TxClient, restaurantId: string
   for (const ri of recipeIngredients) {
     const perUnit = ri.customerChoiceModifierCategoryId
       ? await resolveCustomerChoiceCostPerUnit(tx, graph, restaurantId, ri.customerChoiceModifierCategoryId, ri.customerChoiceModifierId)
-      : resolveCostPerBaseUnit(graph, { inventoryItemId: ri.inventoryItemId, preparationId: ri.preparationId });
+      : resolveCostPerBaseUnit(graph, {
+          inventoryItemId: ri.inventoryItemId,
+          preparationId: ri.preparationId,
+          componentProductId: ri.componentProductId,
+        });
     const costBase = round2(perUnit.mul(ri.quantity));
     if (!costBase.equals(ri.costBase)) {
       await tx.recipeIngredient.update({ where: { id: ri.id }, data: { costBase } });
@@ -193,7 +234,18 @@ export function resolveConsumedInventoryItems(
     const nextSeen = new Set(seen).add(ref.preparationId);
     const ratio = multiplier.div(prep.yieldQuantity);
     for (const ing of prep.ingredients) {
-      resolveConsumedInventoryItems(graph, ing, ing.quantity.mul(ratio), acc, nextSeen);
+      resolveConsumedInventoryItems(graph, ing, (ing.quantity ?? toDecimal(0)).mul(ratio), acc, nextSeen);
+    }
+  }
+  // Combos: vender el combo descuenta los insumos de cada plato que lo compone, hasta el fondo.
+  // Sin esto el stock del combo no movería nada y el inventario quedaría inflado.
+  if (ref.componentProductId) {
+    if (seen.has(ref.componentProductId)) return acc;
+    const lineas = graph.products.get(ref.componentProductId);
+    if (!lineas) return acc;
+    const nextSeen = new Set(seen).add(ref.componentProductId);
+    for (const l of lineas) {
+      resolveConsumedInventoryItems(graph, l, (l.quantity ?? toDecimal(0)).mul(multiplier), acc, nextSeen);
     }
   }
   return acc;

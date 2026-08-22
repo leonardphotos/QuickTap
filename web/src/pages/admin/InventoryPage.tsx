@@ -1861,6 +1861,7 @@ function RecetasTab({ insumos }: { insumos: InventoryItem[] }) {
           productId={openProductId}
           insumos={insumos}
           preparations={preparations}
+          platosConReceta={rows ?? []}
           onClose={() => setOpenProductId(null)}
           onSaved={load}
         />
@@ -2211,12 +2212,15 @@ function RecipeDialog({
   productId,
   insumos,
   preparations,
+  /** Platos que ya tienen receta, para armar combos incluyéndolos enteros. */
+  platosConReceta,
   onClose,
   onSaved,
 }: {
   productId: string;
   insumos: InventoryItem[];
   preparations: PreparationOverviewRow[];
+  platosConReceta: RecipeOverviewRow[];
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -2261,9 +2265,14 @@ function RecipeDialog({
   const selectedUnit =
     refType === 'cliente'
       ? (selectedTopping?.inventoryItemUnit ?? 'kg')
-      : (selectedInsumo?.unit ?? selectedPrep?.unit ?? '');
+      // Un plato incluido en un combo se cuenta en piezas enteras: "2 hamburguesas", no gramos.
+      : refType === 'plato'
+        ? 'unidad'
+        : (selectedInsumo?.unit ?? selectedPrep?.unit ?? '');
   const subUnitOptions = selectedUnit ? SUB_UNITS[selectedUnit] ?? SUB_UNITS.unidad : [];
   const visibleLines = (lines ?? []).filter((l) => (l.productVariantId ?? '') === activeVariantId);
+  // Un plato no puede incluirse a sí mismo; los ciclos indirectos los rechaza el servidor.
+  const platosParaCombo = platosConReceta.filter((x) => x.productId !== productId && x.hasRecipe);
 
   function load() {
     api.get(`/inventory/recipes/${productId}`).then((res) => {
@@ -2306,6 +2315,7 @@ function RecipeDialog({
       await api.post(`/inventory/recipes/${productId}`, {
         inventoryItemId: refType === 'insumo' ? refId : undefined,
         preparationId: refType === 'prep' ? refId : undefined,
+        componentProductId: refType === 'plato' ? refId : undefined,
         customerChoiceModifierCategoryId: refType === 'cliente' ? refId : undefined,
         customerChoiceModifierId: refType === 'cliente' && newItem.modifierId ? newItem.modifierId : undefined,
         productVariantId: activeVariantId || null,
@@ -2501,7 +2511,12 @@ function RecipeDialog({
                     return;
                   }
                   const item = t === 'insumo' ? insumos.find((i) => i.id === rid) : preparations.find((p) => p.id === rid);
-                  const u = t === 'insumo' ? (item as InventoryItem | undefined)?.unit : (item as PreparationOverviewRow | undefined)?.unit;
+                  const u =
+                    t === 'plato'
+                      ? 'unidad'
+                      : t === 'insumo'
+                        ? (item as InventoryItem | undefined)?.unit
+                        : (item as PreparationOverviewRow | undefined)?.unit;
                   const defaultSubUnit = u ? (SUB_UNITS[u] ?? SUB_UNITS.unidad)[0]?.value ?? '' : '';
                   setNewItem({ ref: e.target.value, quantity: '', subUnit: defaultSubUnit, modifierId: '' });
                 }}
@@ -2520,6 +2535,17 @@ function RecipeDialog({
                     {preparations.map((p) => (
                       <option key={p.id} value={`prep:${p.id}`}>
                         🍯 {p.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {/* Combos: incluir otro plato entero con su receta. Se excluye el que se está
+                    editando; los ciclos indirectos los rechaza el servidor. */}
+                {platosParaCombo.length > 0 && (
+                  <optgroup label="Otro plato (combo)">
+                    {platosParaCombo.map((pl) => (
+                      <option key={pl.productId} value={`plato:${pl.productId}`}>
+                        🍽️ {pl.name} (${pl.totalCostBase})
                       </option>
                     ))}
                   </optgroup>

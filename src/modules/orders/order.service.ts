@@ -385,6 +385,7 @@ async function resolveRecipeInventoryDeltas(
     productId: string;
     inventoryItemId: string | null;
     preparationId: string | null;
+    componentProductId: string | null;
     quantity: Prisma.Decimal;
     productVariantId: string | null;
     productVariant: { name: string } | null;
@@ -399,7 +400,14 @@ async function resolveRecipeInventoryDeltas(
       : (qtyByProduct.get(line.productId) ?? 0);
     if (soldQty <= 0) continue;
     const used = toDecimal(line.quantity).mul(soldQty);
-    resolveConsumedInventoryItems(graph, { inventoryItemId: line.inventoryItemId, preparationId: line.preparationId }, used, acc);
+    // componentProductId incluido: vender un combo tiene que descontar los insumos de los platos
+    // que lo componen, no solo los suyos propios (ver costing.ts).
+    resolveConsumedInventoryItems(
+      graph,
+      { inventoryItemId: line.inventoryItemId, preparationId: line.preparationId, componentProductId: line.componentProductId },
+      used,
+      acc,
+    );
   }
   return acc;
 }

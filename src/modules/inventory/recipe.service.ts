@@ -41,6 +41,43 @@ function styleHeader(sheet: ExcelJS.Worksheet) {
  * SERVED) descuenta esas cantidades del stock del insumo automáticamente
  * (ver deductRecipeStock en order.service.ts).
  */
+/**
+ * Un combo no puede incluirse a sí mismo, ni directa ni indirectamente. Si el Combo A incluye
+ * al Combo B y alguien mete el A dentro del B, el costo y el descuento de stock se llamarían
+ * en círculo para siempre.
+ *
+ * El resolutor de costos corta los ciclos igual (devuelve 0 al reencontrarse), pero eso deja
+ * una receta que miente en silencio: mostraría un costo demasiado bajo sin avisar. Por eso se
+ * rechaza al guardar, que es donde el usuario todavía entiende qué hizo mal.
+ */
+async function assertSinCiclo(restaurantId: string, productId: string, componentProductId: string) {
+  if (componentProductId === productId) throw badRequest('Un plato no puede incluirse a sí mismo.');
+
+  const lineas = await prisma.recipeIngredient.findMany({
+    where: { restaurantId, componentProductId: { not: null } },
+    select: { productId: true, componentProductId: true },
+  });
+  const hijos = new Map<string, string[]>();
+  for (const l of lineas) {
+    if (!l.componentProductId) continue;
+    hijos.set(l.productId, [...(hijos.get(l.productId) ?? []), l.componentProductId]);
+  }
+
+  // ¿Desde el plato que se quiere incluir se llega de vuelta al que estamos editando?
+  const pila = [componentProductId];
+  const vistos = new Set<string>();
+  while (pila.length) {
+    const actual = pila.pop()!;
+    if (actual === productId) {
+      const nombre = await prisma.product.findFirst({ where: { id: componentProductId }, select: { name: true } });
+      throw badRequest(`No se puede: "${nombre?.name ?? 'ese plato'}" ya incluye a este, y quedarían uno dentro del otro.`);
+    }
+    if (vistos.has(actual)) continue;
+    vistos.add(actual);
+    pila.push(...(hijos.get(actual) ?? []));
+  }
+}
+
 export const recipeService = {
   /** Todos los productos del restaurante, con si tienen receta y su costo total. */
   async listOverview(restaurantId: string) {
@@ -116,6 +153,7 @@ export const recipeService = {
       include: {
         inventoryItem: { select: { id: true, name: true, unit: true, quantity: true } },
         preparation: { select: { id: true, name: true, unit: true } },
+        componentProduct: { select: { id: true, name: true } },
         customerChoiceCategory: { select: { id: true, name: true } },
         customerChoiceModifier: { select: { id: true, name: true, inventoryItem: { select: { name: true, unit: true } } } },
         productVariant: { select: { id: true, name: true } },
@@ -146,9 +184,12 @@ export const recipeService = {
           ? ('insumo' as const)
           : l.preparationId
             ? ('preparacion' as const)
-            : ('cliente' as const),
+            : l.componentProductId
+              ? ('plato' as const)
+              : ('cliente' as const),
         inventoryItemId: l.inventoryItemId,
         preparationId: l.preparationId,
+        componentProductId: l.componentProductId,
         customerChoiceModifierCategoryId: l.customerChoiceModifierCategoryId,
         customerChoiceCategoryName: l.customerChoiceCategory?.name ?? null,
         customerChoiceModifierId: l.customerChoiceModifierId,
@@ -159,6 +200,7 @@ export const recipeService = {
         name:
           l.inventoryItem?.name ??
           l.preparation?.name ??
+          l.componentProduct?.name ??
           (l.customerChoiceModifier
             ? `${l.customerChoiceModifier.name} (topping${l.customerChoiceCategory ? ` · ${l.customerChoiceCategory.name}` : ''})`
             : `Cualquier topping${l.customerChoiceCategory ? ` (${l.customerChoiceCategory.name})` : ''}`),
@@ -184,6 +226,13 @@ export const recipeService = {
     } else if (input.preparationId) {
       const preparation = await prisma.preparation.findFirst({ where: { id: input.preparationId, restaurantId } });
       if (!preparation) throw badRequest('La preparación elegida no existe.');
+    } else if (input.componentProductId) {
+      const componente = await prisma.product.findFirst({
+        where: { id: input.componentProductId, restaurantId },
+        select: { id: true, name: true },
+      });
+      if (!componente) throw badRequest('El plato que quieres incluir no existe.');
+      await assertSinCiclo(restaurantId, productId, input.componentProductId);
     } else if (input.customerChoiceModifierCategoryId) {
       await assertCategoryBelongsToProduct(restaurantId, productId, input.customerChoiceModifierCategoryId);
       if (input.customerChoiceModifierId) {
@@ -196,13 +245,18 @@ export const recipeService = {
       const graph = await buildCostGraph(tx, restaurantId);
       const costPerUnit = input.customerChoiceModifierCategoryId
         ? await resolveCustomerChoiceCostPerUnit(tx, graph, restaurantId, input.customerChoiceModifierCategoryId, input.customerChoiceModifierId)
-        : resolveCostPerBaseUnit(graph, { inventoryItemId: input.inventoryItemId, preparationId: input.preparationId });
+        : resolveCostPerBaseUnit(graph, {
+            inventoryItemId: input.inventoryItemId,
+            preparationId: input.preparationId,
+            componentProductId: input.componentProductId,
+          });
       const created = await tx.recipeIngredient.create({
         data: {
           restaurantId,
           productId,
           inventoryItemId: input.inventoryItemId ?? null,
           preparationId: input.preparationId ?? null,
+          componentProductId: input.componentProductId ?? null,
           customerChoiceModifierCategoryId: input.customerChoiceModifierCategoryId ?? null,
           customerChoiceModifierId: input.customerChoiceModifierCategoryId ? (input.customerChoiceModifierId ?? null) : null,
           productVariantId: input.productVariantId ?? null,
