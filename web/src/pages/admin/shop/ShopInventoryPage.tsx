@@ -78,6 +78,11 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   const [lotSupplier, setLotSupplier] = useState('');
   const [lotBusy, setLotBusy] = useState(false);
 
+  // "Sumar a inventario": entra mercancía comprada por peso, con el precio por Kg que cobró el
+  // proveedor. Es el camino corto de la ferretería, donde la factura dice "$1,20 el kilo" y no
+  // el monto del rollo.
+  const [sumarOpen, setSumarOpen] = useState(false);
+
   const [newOpen, setNewOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [npName, setNpName] = useState('');
@@ -598,6 +603,9 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
           <TextureButton variant="minimal" size="default" className="!w-auto" onClick={openRecountDialog}>
             <ClipboardList className="h-4 w-4" /> Recuento físico
           </TextureButton>
+          <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setSumarOpen(true)}>
+            <PackagePlus className="h-4 w-4" /> Sumar a inventario
+          </TextureButton>
           <TextureButton variant="minimal" size="default" className="!w-auto" onClick={openPurchaseDialog}>
             <Truck className="h-4 w-4" /> Registrar compra
           </TextureButton>
@@ -984,6 +992,20 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
       />
 
       {/* ---------- Registrar compra ---------- */}
+      {sumarOpen && (
+        <SumarAInventarioDialog
+          productos={products}
+          rubro={rubro}
+          money={money}
+          onClose={() => setSumarOpen(false)}
+          onSubmit={(productoId, variantIndex, qty, costoUnitario, kg, proveedor) =>
+            registerPurchase(proveedor, productoId, variantIndex, qty, costoUnitario, kg)?.then(() => {
+              if (expandedId === productoId) loadLots(productoId);
+            })
+          }
+        />
+      )}
+
       {/* ---------- Agregar lote (desde la fila del producto) ---------- */}
       <Dialog open={!!lotProduct} onOpenChange={(open) => !open && setLotProduct(null)}>
         <DialogContent>
@@ -2037,5 +2059,221 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
       </Dialog>
 
     </div>
+  );
+}
+
+
+/**
+ * "Sumar a inventario": entra mercancía comprada por peso.
+ *
+ * Existe porque la factura de la ferretería dice "$1,20 el kilo", no lo que costó el rollo. Los
+ * otros dos caminos —Registrar compra y Agregar lote— piden el costo del bulto o el unitario, y
+ * obligan a sacar la cuenta a mano cada vez.
+ *
+ * Cuánto entra al stock depende de cómo se venda el producto, y es la parte que se presta a
+ * confusión: si se vende por Kg o por metro, los kilos SON la cantidad. Si se vende por rollo o
+ * por unidad, los kilos son el peso de la carga y hay que decir cuántos bultos entran, porque
+ * "120 Kg de manguera" pueden ser dos rollos o cinco.
+ */
+function SumarAInventarioDialog({
+  productos,
+  rubro,
+  money,
+  onClose,
+  onSubmit,
+}: {
+  productos: ShopProduct[];
+  rubro: ShopRubro;
+  money: (n: number) => string;
+  onClose: () => void;
+  onSubmit: (
+    productId: string,
+    variantIndex: number,
+    qty: number,
+    costoUnitario: number,
+    kg: number,
+    proveedor: string,
+  ) => Promise<void> | undefined;
+}) {
+  const [busqueda, setBusqueda] = useState('');
+  const [productId, setProductId] = useState('');
+  const [variantIndex, setVariantIndex] = useState(0);
+  const [kg, setKg] = useState('');
+  const [costoKg, setCostoKg] = useState('');
+  const [bultos, setBultos] = useState('1');
+  const [proveedor, setProveedor] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const producto = productos.find((p) => p.id === productId);
+  const porPeso = producto?.saleUnit === 'KG' || producto?.saleUnit === 'MT';
+  const unidadPeso = producto?.saleUnit === 'MT' ? 'Mt' : 'Kg';
+
+  const nKg = Number(kg.replace(',', '.')) || 0;
+  const nCostoKg = Number(costoKg.replace(',', '.')) || 0;
+  const nBultos = Number(bultos.replace(',', '.')) || 0;
+  const totalLote = Math.round(nKg * nCostoKg * 100) / 100;
+  const qty = porPeso ? nKg : nBultos;
+  const costoUnitario = qty > 0 ? Math.round((totalLote / qty) * 10000) / 10000 : 0;
+
+  const variante = producto?.variants[variantIndex];
+  const precio = variante?.price ?? producto?.price ?? 0;
+  const margen = precio > 0 ? ((precio - costoUnitario) / precio) * 100 : null;
+
+  const visibles = productos.filter((p) =>
+    busqueda.trim() ? `${p.name} ${p.sku}`.toLowerCase().includes(busqueda.trim().toLowerCase()) : true,
+  );
+
+  async function guardar() {
+    if (!producto || qty <= 0 || nKg <= 0 || nCostoKg <= 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await onSubmit(producto.id, variantIndex, qty, costoUnitario, nKg, proveedor.trim() || 'Sin proveedor');
+      onClose();
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      setError(e.response?.data?.error ?? 'No se pudo sumar al inventario.');
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Sumar a inventario</DialogTitle>
+        </DialogHeader>
+
+        {!producto ? (
+          <>
+            <p className="text-sm text-brand-950/60 -mt-1">Elige el producto al que entra la mercancía.</p>
+            <input
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar por nombre o SKU…"
+              className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm"
+              autoFocus
+            />
+            <div className="max-h-64 overflow-y-auto rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
+              {visibles.length === 0 && <p className="p-3 text-sm text-brand-950/40">Ningún producto con ese nombre.</p>}
+              {visibles.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => { setProductId(p.id); setVariantIndex(0); }}
+                  className="flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm hover:bg-brand-950/[0.03]"
+                >
+                  <span className="min-w-0">
+                    <span className="block text-brand-950 truncate">{p.name}</span>
+                    {p.sku && <span className="block text-[11px] text-brand-950/35">{p.sku}</span>}
+                  </span>
+                  <span className="shrink-0 text-[11px] text-brand-950/40">{formatStock(productStock(p))} en stock</span>
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-baseline justify-between gap-3 -mt-1">
+              <p className="text-sm font-medium text-brand-950 min-w-0 truncate">{producto.name}</p>
+              <button type="button" onClick={() => setProductId('')} className="shrink-0 text-[12px] text-brand-500 hover:underline">
+                Cambiar
+              </button>
+            </div>
+
+            {producto.variants.length > 1 && (
+              <label className="block text-sm">
+                <span className="text-brand-950/70">{resolveVariantDims(rubro, producto.category).dim1}</span>
+                <select
+                  value={variantIndex}
+                  onChange={(e) => setVariantIndex(Number(e.target.value))}
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
+                >
+                  {producto.variants.map((v, i) => (
+                    <option key={i} value={i}>
+                      {v.v1}{v.v2 ? ` · ${v.v2}` : ''} — {money(v.price ?? producto.price)} (stock {formatStock(v.stock)})
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            <div className="flex gap-3">
+              <label className="block text-sm flex-1">
+                <span className="text-brand-950/70">{unidadPeso} que entran</span>
+                <input
+                  type="number" step="0.001" value={kg} onChange={(e) => setKg(e.target.value)}
+                  placeholder="120.000" autoFocus
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
+                />
+              </label>
+              <label className="block text-sm flex-1">
+                <span className="text-brand-950/70">Costo por {unidadPeso}</span>
+                <input
+                  type="number" step="0.01" value={costoKg} onChange={(e) => setCostoKg(e.target.value)}
+                  placeholder="1.20"
+                  className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
+                />
+              </label>
+              {/* Solo si se vende por bulto: con venta por peso, los Kg ya son la cantidad. */}
+              {!porPeso && (
+                <label className="block text-sm w-28 shrink-0">
+                  <span className="text-brand-950/70">Bultos</span>
+                  <input
+                    type="number" step="1" value={bultos} onChange={(e) => setBultos(e.target.value)}
+                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
+                  />
+                </label>
+              )}
+            </div>
+
+            <label className="block text-sm">
+              <span className="text-brand-950/70">Proveedor</span>
+              <input
+                value={proveedor} onChange={(e) => setProveedor(e.target.value)}
+                placeholder="Nombre del proveedor"
+                className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
+              />
+            </label>
+
+            {/* Qué va a quedar guardado, antes de guardarlo. */}
+            {totalLote > 0 && qty > 0 && (
+              <div className="rounded-xl bg-brand-950/[0.04] p-3 text-[13px] text-brand-950/70 flex flex-col gap-0.5">
+                <span>
+                  Total del lote <strong className="text-brand-950">{money(totalLote)}</strong>
+                  {!porPeso && <> · entran {qty} {qty === 1 ? 'bulto' : 'bultos'} a {money(costoUnitario)} cada uno</>}
+                </span>
+                {precio > 0 && (
+                  <span>
+                    Se vende a {money(precio)}
+                    {margen !== null && (
+                      <span className={margen >= 0 ? ' text-emerald-600 font-medium' : ' text-red-600 font-medium'}>
+                        {' '}({margen.toFixed(1)}% de margen)
+                      </span>
+                    )}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {error && <p className="text-sm text-red-600">{error}</p>}
+          </>
+        )}
+
+        <DialogFooter>
+          <TextureButton variant="minimal" size="default" className="!w-auto" onClick={onClose}>
+            Cancelar
+          </TextureButton>
+          <TextureButton
+            variant="brand" size="default" className="!w-auto disabled:opacity-40"
+            disabled={busy || !producto || nKg <= 0 || nCostoKg <= 0 || qty <= 0}
+            onClick={guardar}
+          >
+            {busy ? 'Sumando…' : 'Sumar a inventario'}
+          </TextureButton>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
