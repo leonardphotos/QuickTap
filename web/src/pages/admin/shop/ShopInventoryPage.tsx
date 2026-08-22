@@ -2070,11 +2070,13 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
  * otros dos caminos —Registrar compra y Agregar lote— piden el costo del lote entero o el unitario, y
  * obligan a sacar la cuenta a mano cada vez.
  *
- * Cada carga es UN lote: una pieza entera —en Monteranch, una manguera de 100 mt— con su propio
- * peso. No se permite cargar varias de una vez a propósito: el formulario recibe un solo total en
- * kilos, así que dos mangueras juntas quedarían con el mismo peso y se perdería justo lo que el
- * control por lotes viene a mostrar, que una pesó 40 Kg y la otra 43. Si entraron tres, se cargan
- * de a una.
+ * El peso se pide POR UNIDAD, no como total de la carga, y de ahí sale todo lo demás. Así se
+ * pueden meter tres mangueras de 60 Kg de un tirón sin perder información: pesan lo mismo de
+ * verdad, no es un promedio inventado. Y cuando cada pieza pesa distinto —40, 43 y 68— se cargan
+ * de a una, que es lo correcto porque son cargas distintas.
+ *
+ * Fue un total de kilos repartido entre las piezas en una versión anterior; se cambió porque
+ * escondía justamente lo que el control por lotes viene a mostrar.
  *
  * En un producto que se vende por Kg o por metro no hay pieza que contar: los kilos SON la
  * cantidad que entra al stock.
@@ -2102,6 +2104,7 @@ function SumarAInventarioDialog({
   const [busqueda, setBusqueda] = useState('');
   const [productId, setProductId] = useState('');
   const [variantIndex, setVariantIndex] = useState(0);
+  const [unidades, setUnidades] = useState('1');
   const [kg, setKg] = useState('');
   const [costoKg, setCostoKg] = useState('');
   const [proveedor, setProveedor] = useState('');
@@ -2112,11 +2115,13 @@ function SumarAInventarioDialog({
   const porPeso = producto?.saleUnit === 'KG' || producto?.saleUnit === 'MT';
   const unidadPeso = producto?.saleUnit === 'MT' ? 'Mt' : 'Kg';
 
-  const nKg = Number(kg.replace(',', '.')) || 0;
+  const nKg = Number(kg.replace(',', '.')) || 0; // peso de CADA unidad
   const nCostoKg = Number(costoKg.replace(',', '.')) || 0;
-  const totalLote = Math.round(nKg * nCostoKg * 100) / 100;
-  // Por peso, los kilos son la cantidad. Por pieza, siempre entra UNA (ver el comentario de arriba).
-  const qty = porPeso ? nKg : 1;
+  const nUnidades = Number(unidades.replace(',', '.')) || 0;
+  // Por peso, los kilos son la cantidad y no hay piezas que contar.
+  const qty = porPeso ? nKg : nUnidades;
+  const kgTotal = porPeso ? nKg : Math.round(nKg * nUnidades * 1000) / 1000;
+  const totalLote = Math.round(kgTotal * nCostoKg * 100) / 100;
   const costoUnitario = qty > 0 ? Math.round((totalLote / qty) * 10000) / 10000 : 0;
 
   const variante = producto?.variants[variantIndex];
@@ -2132,7 +2137,7 @@ function SumarAInventarioDialog({
     setBusy(true);
     setError(null);
     try {
-      await onSubmit(producto.id, variantIndex, qty, costoUnitario, nKg, proveedor.trim() || 'Sin proveedor');
+      await onSubmit(producto.id, variantIndex, qty, costoUnitario, kgTotal, proveedor.trim() || 'Sin proveedor');
       onClose();
     } catch (err: unknown) {
       const e = err as { response?: { data?: { error?: string } } };
@@ -2203,8 +2208,18 @@ function SumarAInventarioDialog({
             )}
 
             <div className="flex gap-3">
+              {/* Con venta por peso los kilos ya son la cantidad: no hay unidades que contar. */}
+              {!porPeso && (
+                <label className="block text-sm w-24 shrink-0">
+                  <span className="text-brand-950/70">Unidades</span>
+                  <input
+                    type="number" step="1" min="1" value={unidades} onChange={(e) => setUnidades(e.target.value)}
+                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2"
+                  />
+                </label>
+              )}
               <label className="block text-sm flex-1">
-                <span className="text-brand-950/70">{unidadPeso} que entran</span>
+                <span className="text-brand-950/70">{porPeso ? `${unidadPeso} que entran` : `${unidadPeso} de cada una`}</span>
                 <input
                   type="number" step="0.001" value={kg} onChange={(e) => setKg(e.target.value)}
                   placeholder="120.000" autoFocus
@@ -2234,8 +2249,10 @@ function SumarAInventarioDialog({
             {totalLote > 0 && qty > 0 && (
               <div className="rounded-xl bg-brand-950/[0.04] p-3 text-[13px] text-brand-950/70 flex flex-col gap-0.5">
                 <span>
-                  Total del lote <strong className="text-brand-950">{money(totalLote)}</strong>
-                  {!porPeso && <> · entra 1 lote de {producto.name.match(/\d+\s*mt/i)?.[0] ?? 'una pieza'}</>}
+                  Total <strong className="text-brand-950">{money(totalLote)}</strong>
+                  {!porPeso && (
+                    <> · {qty} {qty === 1 ? 'unidad' : 'unidades'} de {nKg} {unidadPeso} ({kgTotal} {unidadPeso} en total) a {money(costoUnitario)} cada una</>
+                  )}
                 </span>
                 {precio > 0 && (
                   <span>
