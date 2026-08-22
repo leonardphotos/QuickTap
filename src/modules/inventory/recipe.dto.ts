@@ -68,3 +68,13 @@ export const duplicateRecipeSchema = z.object({
 });
 
 export type DuplicateRecipeInput = z.infer<typeof duplicateRecipeSchema>;
+
+// Copiar los ingredientes de un tamaño a otro del MISMO plato (ver duplicateVariant).
+// null en cualquiera de los dos = las líneas compartidas ("Todos los tamaños").
+export const duplicateRecipeVariantSchema = z.object({
+  fromVariantId: z.string().nullable().optional(),
+  toVariantId: z.string().nullable().optional(),
+  replace: z.boolean().optional().default(false),
+});
+
+export type DuplicateRecipeVariantInput = z.infer<typeof duplicateRecipeVariantSchema>;

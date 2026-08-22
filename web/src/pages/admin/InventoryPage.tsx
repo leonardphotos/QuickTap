@@ -1879,6 +1879,145 @@ function RecetasTab({ insumos }: { insumos: InventoryItem[] }) {
 }
 
 
+
+/**
+ * Copiar los ingredientes de un tamaño a otro del MISMO plato (Receta → "Copiar a otro tamaño").
+ *
+ * El caso de la pizza: la Grande lleva lo mismo que la Mediana, solo que más. Sin esto hay que
+ * volver a cargar cada línea a mano en la pestaña del otro tamaño.
+ *
+ * Las cantidades se copian tal cual y se ajustan después: cuánto más lleva la Grande lo sabe el
+ * cocinero, y un factor automático saldría mal en la mitad de los ingredientes.
+ */
+function CopiarATamanoDialog({
+  productId,
+  desdeId,
+  desdeNombre,
+  cantidad,
+  variantes,
+  conteoPorTamano,
+  onClose,
+  onDone,
+}: {
+  productId: string;
+  desdeId: string | null;
+  desdeNombre: string;
+  cantidad: number;
+  variantes: { id: string; name: string }[];
+  conteoPorTamano: (id: string | null) => number;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [hasta, setHasta] = useState<string | null | undefined>(undefined);
+  const [reemplazar, setReemplazar] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // "Todos los tamaños" es un destino más: son las líneas compartidas del plato.
+  const destinos: { id: string | null; nombre: string }[] = [
+    { id: null, nombre: 'Todos los tamaños' },
+    ...variantes.map((v) => ({ id: v.id as string | null, nombre: v.name })),
+  ].filter((d) => d.id !== desdeId);
+
+  const ocupados = hasta !== undefined ? conteoPorTamano(hasta ?? null) : 0;
+
+  async function copiar() {
+    if (hasta === undefined) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.post(`/inventory/recipes/${productId}/duplicate-variant`, {
+        fromVariantId: desdeId,
+        toVariantId: hasta,
+        replace: reemplazar,
+      });
+      const d = res.data.data;
+      alert(`Se copiaron ${d.copiados} ingrediente(s) de "${d.desde}" a "${d.hasta}".`);
+      onDone();
+      onClose();
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo copiar.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Copiar a otro tamaño</DialogTitle>
+        </DialogHeader>
+
+        <p className="text-sm text-brand-950/60 -mt-1">
+          Los {cantidad} ingrediente{cantidad === 1 ? '' : 's'} de{' '}
+          <span className="font-medium text-brand-950">{desdeNombre}</span> se copian a:
+        </p>
+
+        <div className="rounded-xl border border-brand-950/10 divide-y divide-brand-950/[0.06]">
+          {destinos.map((d) => {
+            const n = conteoPorTamano(d.id);
+            return (
+              <button
+                key={d.id ?? 'compartidos'}
+                type="button"
+                onClick={() => {
+                  setHasta(d.id);
+                  setReemplazar(false);
+                }}
+                className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm ${
+                  hasta !== undefined && (hasta ?? null) === d.id ? 'bg-brand-500/10' : 'hover:bg-brand-950/[0.03]'
+                }`}
+              >
+                <span className="text-brand-950">{d.nombre}</span>
+                <span className={`shrink-0 text-[11px] ${n > 0 ? 'text-amber-600' : 'text-brand-950/35'}`}>
+                  {n > 0 ? `ya tiene ${n}` : 'vacío'}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        {ocupados > 0 && (
+          <label className="flex items-start gap-2 rounded-xl bg-amber-50/70 p-3 text-[13px] text-amber-900">
+            <input
+              type="checkbox"
+              checked={reemplazar}
+              onChange={(e) => setReemplazar(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-amber-300 accent-amber-600"
+            />
+            <span>
+              Ese tamaño ya tiene {ocupados} ingrediente(s). Marca esto para sustituirlos — se borran y no se puede
+              deshacer.
+            </span>
+          </label>
+        )}
+
+        <p className="text-[12px] text-brand-950/40 font-light">
+          Las cantidades se copian iguales. Si el tamaño lleva más, ajústalas después en su pestaña.
+        </p>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <DialogFooter>
+          <TextureButton variant="minimal" size="default" className="!w-auto" onClick={onClose}>
+            Cancelar
+          </TextureButton>
+          <TextureButton
+            variant="brand"
+            size="default"
+            className="!w-auto disabled:opacity-40"
+            disabled={busy || hasta === undefined || (ocupados > 0 && !reemplazar)}
+            onClick={copiar}
+          >
+            {busy ? 'Copiando…' : 'Copiar'}
+          </TextureButton>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /**
  * Copiar la receta de un plato a otro (Inventario → Recetas → "Copiar").
  *
@@ -2093,6 +2232,8 @@ function RecipeDialog({
   // Pestaña de tamaño activa: '' = "Todos los tamaños" (líneas compartidas). Solo se muestra
   // si el producto tiene variantes — cada receta puede tener sus propias porciones por tamaño.
   const [activeVariantId, setActiveVariantId] = useState('');
+  // Diálogo para copiar los ingredientes del tamaño abierto a otro del mismo plato.
+  const [copiarTamano, setCopiarTamano] = useState(false);
   // Observaciones de la receta (técnica, emplatado, alérgenos): se guardan aparte de los
   // ingredientes, con su propio botón, para no disparar un PATCH por cada tecla.
   const [notes, setNotes] = useState('');
@@ -2280,11 +2421,37 @@ function RecipeDialog({
             </div>
           )}
           {variants.length > 0 && (
-            <p className="text-xs text-brand-950/40 font-light -mt-1">
-              {activeVariantId === ''
-                ? 'Ingredientes compartidos: se usan sin importar el tamaño que se venda.'
-                : `Ingredientes solo de "${variants.find((v) => v.id === activeVariantId)?.name}" — además de los compartidos.`}
-            </p>
+            <div className="flex items-start justify-between gap-3 -mt-1">
+              <p className="text-xs text-brand-950/40 font-light">
+                {activeVariantId === ''
+                  ? 'Ingredientes compartidos: se usan sin importar el tamaño que se venda.'
+                  : `Ingredientes solo de "${variants.find((v) => v.id === activeVariantId)?.name}" — además de los compartidos.`}
+              </p>
+              {/* Copiar a otro tamaño: solo tiene sentido si el tamaño abierto ya tiene líneas
+                  propias y hay a dónde copiarlas. */}
+              {visibleLines.length > 0 && variants.length > (activeVariantId === '' ? 0 : 1) && (
+                <button
+                  type="button"
+                  onClick={() => setCopiarTamano(true)}
+                  className="flex shrink-0 items-center gap-1 rounded-lg border border-brand-950/10 px-2 py-1 text-[11px] font-medium text-brand-950/50 hover:text-brand-500 hover:border-brand-500/30"
+                >
+                  <Copy className="h-3 w-3" /> Copiar a otro tamaño
+                </button>
+              )}
+            </div>
+          )}
+
+          {copiarTamano && (
+            <CopiarATamanoDialog
+              productId={productId}
+              desdeId={activeVariantId || null}
+              desdeNombre={activeVariantId ? (variants.find((v) => v.id === activeVariantId)?.name ?? '') : 'Todos los tamaños'}
+              cantidad={visibleLines.length}
+              variantes={variants}
+              conteoPorTamano={(id: string | null) => (lines ?? []).filter((l) => (l.productVariantId ?? '') === (id ?? '')).length}
+              onClose={() => setCopiarTamano(false)}
+              onDone={load}
+            />
           )}
 
           {visibleLines.length === 0 && !adding && (

@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest } from '../../utils/http-error';
-import { createRecipeIngredientSchema, duplicateRecipeSchema, updateCascadeConfigSchema, updateRecipeIngredientSchema } from './recipe.dto';
+import { createRecipeIngredientSchema, duplicateRecipeSchema, duplicateRecipeVariantSchema, updateCascadeConfigSchema, updateRecipeIngredientSchema } from './recipe.dto';
 import { recipeService } from './recipe.service';
 
 export const recipeController = {
@@ -18,6 +18,12 @@ export const recipeController = {
   getByProduct: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await recipeService.getByProduct(req.restaurantId!, req.params.productId) });
   }),
+  /** POST /inventory/recipes/:productId/duplicate-variant — copia de un tamaño a otro del mismo plato. */
+  duplicateVariant: asyncHandler(async (req: Request, res: Response) => {
+    const input = duplicateRecipeVariantSchema.parse(req.body);
+    res.json({ data: await recipeService.duplicateVariant(req.restaurantId!, req.params.productId, input) });
+  }),
+
   /** POST /inventory/recipes/:productId/duplicate — copia esta receta a otro plato. */
   duplicate: asyncHandler(async (req: Request, res: Response) => {
     const input = duplicateRecipeSchema.parse(req.body);

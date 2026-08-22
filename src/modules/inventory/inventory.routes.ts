@@ -88,6 +88,8 @@ router.get(
 router.post('/recipes/:productId', requireFeature('inventoryRecipe'), mutate, recipeController.addIngredient);
 // Copiar la receta completa a otro plato (ver recipe.service.ts -> duplicate).
 router.post('/recipes/:productId/duplicate', requireFeature('inventoryRecipe'), mutate, recipeController.duplicate);
+// Copiar los ingredientes de un tamaño a otro del mismo plato.
+router.post('/recipes/:productId/duplicate-variant', requireFeature('inventoryRecipe'), mutate, recipeController.duplicateVariant);
 // Cascada de precio sugerido: resguardo % / food cost objetivo % (editables) + servicio/IVA
 // reales del restaurante (solo lectura) comparados contra Product.price.
 router.get('/recipes/:productId/cascade', requireFeature('inventoryRecipe'), requireInventoryAccess, recipeController.getCascade);

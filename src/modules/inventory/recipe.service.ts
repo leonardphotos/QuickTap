@@ -4,7 +4,7 @@ import { prisma } from '../../config/prisma';
 import { resolveInventoryScopeById } from './inventory-scope';
 import { badRequest, notFound } from '../../utils/http-error';
 import { round2, toDecimal } from '../../utils/money';
-import { CreateRecipeIngredientInput, DuplicateRecipeInput, UpdateCascadeConfigInput, UpdateRecipeIngredientInput } from './recipe.dto';
+import { CreateRecipeIngredientInput, DuplicateRecipeInput, DuplicateRecipeVariantInput, UpdateCascadeConfigInput, UpdateRecipeIngredientInput } from './recipe.dto';
 import { buildCostGraph, resolveCostPerBaseUnit, resolveCustomerChoiceCostPerUnit } from './costing';
 
 /** La categoría de modificadores de una línea "A elección del cliente" tiene que estar
@@ -317,6 +317,72 @@ export const recipeService = {
         omitidos: ingredientes.length - aCrear.length,
         reemplazo: yaTiene > 0,
         avisos: [...new Set(avisos)],
+      };
+    });
+  },
+
+  /**
+   * Copia los ingredientes de un tamaño a otro DENTRO del mismo plato.
+   *
+   * Es el caso de la pizza: la Grande lleva lo mismo que la Mediana, solo que más. Hoy hay que
+   * volver a cargar cada línea a mano en la pestaña del otro tamaño.
+   *
+   * `fromVariantId`/`toVariantId` en null son las líneas compartidas ("Todos los tamaños"), que
+   * es una pestaña más y se copia igual que cualquier otra.
+   *
+   * Las cantidades se copian tal cual, no se escalan: cuánto más lleva la Grande lo sabe el
+   * cocinero, no el sistema, y un factor inventado saldría mal en la mitad de los ingredientes
+   * (el queso escala, el palito de la aceituna no). Se copia y se ajusta lo que haga falta.
+   */
+  async duplicateVariant(restaurantId: string, productId: string, input: DuplicateRecipeVariantInput) {
+    const desde = input.fromVariantId ?? null;
+    const hasta = input.toVariantId ?? null;
+    if (desde === hasta) throw badRequest('Elige un tamaño distinto al de origen.');
+
+    const product = await prisma.product.findFirst({ where: { id: productId, restaurantId }, select: { id: true } });
+    if (!product) throw notFound('Producto no encontrado.');
+    if (desde) await assertVariantBelongsToProduct(restaurantId, productId, desde);
+    if (hasta) await assertVariantBelongsToProduct(restaurantId, productId, hasta);
+
+    const nombreDe = async (id: string | null) =>
+      id
+        ? (await prisma.productVariant.findFirst({ where: { id }, select: { name: true } }))?.name ?? 'ese tamaño'
+        : 'Todos los tamaños';
+
+    const origen = await prisma.recipeIngredient.findMany({ where: { restaurantId, productId, productVariantId: desde } });
+    if (origen.length === 0) throw badRequest(`"${await nombreDe(desde)}" no tiene ingredientes que copiar.`);
+
+    const yaTiene = await prisma.recipeIngredient.count({ where: { restaurantId, productId, productVariantId: hasta } });
+    // Mismo criterio que copiar entre platos: no se pisa lo ya cargado sin permiso.
+    if (yaTiene > 0 && !input.replace) {
+      throw badRequest(`"${await nombreDe(hasta)}" ya tiene ${yaTiene} ingrediente(s). Marca "reemplazar" para sustituirlos.`);
+    }
+
+    return prisma.$transaction(async (tx) => {
+      if (yaTiene > 0) {
+        await tx.recipeIngredient.deleteMany({ where: { restaurantId, productId, productVariantId: hasta } });
+      }
+      // El costo se copia tal cual: es el mismo insumo, la misma cantidad y el mismo plato, así
+      // que ya está calculado a precio de hoy — a diferencia de copiar a OTRO plato, donde la
+      // receta original puede ser vieja.
+      await tx.recipeIngredient.createMany({
+        data: origen.map((ing) => ({
+          restaurantId,
+          productId,
+          inventoryItemId: ing.inventoryItemId,
+          preparationId: ing.preparationId,
+          customerChoiceModifierCategoryId: ing.customerChoiceModifierCategoryId,
+          customerChoiceModifierId: ing.customerChoiceModifierId,
+          productVariantId: hasta,
+          quantity: ing.quantity,
+          costBase: ing.costBase,
+        })),
+      });
+      return {
+        desde: await nombreDe(desde),
+        hasta: await nombreDe(hasta),
+        copiados: origen.length,
+        reemplazo: yaTiene > 0,
       };
     });
   },
