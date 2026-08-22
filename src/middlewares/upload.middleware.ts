@@ -206,6 +206,43 @@ export const uploadSpreadsheet = multer({
 }).single('file');
 
 /**
+ * Formatos que de verdad aceptamos, comprobados por los BYTES del archivo y no por el
+ * `Content-Type` que declara el cliente, que se falsifica escribiendo otra cosa en el formulario.
+ *
+ * Importa por seguridad, no por prolijidad: las vulnerabilidades conocidas de libvips —la
+ * librería que hay debajo de sharp— están en los decodificadores de GIF, TIFF y VIPS, y el
+ * propio aviso dice que se mitigan impidiendo que esos formatos se decodifiquen. El filtro por
+ * MIME no alcanza: un TIFF que se anuncia como `image/jpeg` pasa el filtro y sharp igual lo
+ * decodifica como TIFF, porque sharp mira el contenido.
+ *
+ * El servidor de producción no puede actualizar sharp: sus binarios exigen microarquitectura
+ * x86-64-v2 desde la versión 0.34 y ese CPU (QEMU virtual, sin SSE3/SSSE3/SSE4) no la tiene.
+ * Así que este chequeo no es un extra, es lo que cierra el hueco donde estamos.
+ */
+function bufferFormatoPermitido(head: Buffer): boolean {
+  if (head.length < 12) return false;
+  if (head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return true;
+  if (head.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return true;
+  if (head.subarray(0, 4).toString('latin1') === 'RIFF' && head.subarray(8, 12).toString('latin1') === 'WEBP') return true;
+  return false;
+}
+
+function formatoRealPermitido(filePath: string): boolean {
+  let fd: number | null = null;
+  try {
+    fd = fs.openSync(filePath, 'r');
+    const head = Buffer.alloc(12);
+    if (fs.readSync(fd, head, 0, 12, 0) < 12) return false;
+    // JPEG: FF D8 FF · PNG: 89 50 4E 47 0D 0A 1A 0A · WebP: "RIFF"…"WEBP"
+    return bufferFormatoPermitido(head);
+  } catch {
+    return false;
+  } finally {
+    if (fd !== null) fs.closeSync(fd);
+  }
+}
+
+/**
  * Redimensiona/recomprime la imagen recién subida (en el mismo archivo, sin
  * cambiar de nombre ni extensión). El cliente ya comprime antes de subir,
  * pero esto es la garantía real: sin importar lo que llegue, nunca se sirve
@@ -216,6 +253,11 @@ export function optimizeImage(maxWidth: number, maxHeight: number, quality = 80)
     if (!sharp || !req.file || req.file.mimetype === 'application/pdf') return next();
 
     const filePath = req.file.path;
+    // Antes de que sharp toque el archivo: si los bytes no son JPG/PNG/WEBP, no entra.
+    if (!formatoRealPermitido(filePath)) {
+      fs.rmSync(filePath, { force: true });
+      throw badRequest('Ese archivo no es una imagen JPG, PNG o WEBP. Conviértela y vuelve a subirla.');
+    }
     const tmpPath = `${filePath}.tmp`;
     let pipeline = sharp(filePath).rotate().resize(maxWidth, maxHeight, { fit: 'inside', withoutEnlargement: true });
 
@@ -252,6 +294,10 @@ export function optimizeImages(maxWidth: number, maxHeight: number, quality = 80
     for (const file of files) {
       if (file.mimetype === 'application/pdf') continue;
       const filePath = file.path;
+      if (!formatoRealPermitido(filePath)) {
+        fs.rmSync(filePath, { force: true });
+        throw badRequest('Uno de los archivos no es una imagen JPG, PNG o WEBP. Conviértela y vuelve a subirla.');
+      }
       const tmpPath = `${filePath}.tmp`;
       let pipeline = sharp(filePath).rotate().resize(maxWidth, maxHeight, { fit: 'inside', withoutEnlargement: true });
 
@@ -281,6 +327,8 @@ export function optimizeImages(maxWidth: number, maxHeight: number, quality = 80
  */
 export async function compressImageBuffer(buffer: Buffer, maxWidth = 1200, maxHeight = 1200, quality = 80): Promise<Buffer> {
   if (!sharp) return buffer;
+  // Mismo criterio que en disco: si los bytes no son JPG/PNG/WEBP, sharp no lo toca.
+  if (!bufferFormatoPermitido(buffer)) throw badRequest('Ese archivo no es una imagen JPG, PNG o WEBP.');
   try {
     const out = await sharp(buffer)
       .rotate()
