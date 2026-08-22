@@ -277,15 +277,14 @@ export function toShopProduct(p: RawShopProduct) {
 
 /** Lotes vivos de un producto: cada entrada con lo que queda y lo que costó (GET /shop/products/:id/lots). */
 export type ProductLot = {
-  id: string;
-  numero: number;
-  proveedor: string;
-  entro: number;
   queda: number;
-  /** Lo que pesó esta carga en Kg. Null si no se anotó o no aplica. */
-  pesoKg: number | null;
   costo: number;
+  /** Peso de CADA unidad en Kg. Null si no se anotó o el producto se vende por peso. */
+  pesoKg: number | null;
   valor: number;
+  /** Cuántas entradas se agruparon en esta línea (mismo costo y mismo peso por unidad). */
+  cargas: number;
+  proveedor: string;
   fecha: string;
 };
 

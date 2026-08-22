@@ -860,21 +860,21 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                                           </p>
                                         ) : (
                                           <div className="flex flex-col gap-1 pl-2">
-                                            {g.lotes.map((l) => (
-                                              <div key={l.id} className="flex items-center justify-between gap-2 text-[12.5px]">
+                                            {g.lotes.map((l, i) => (
+                                              <div key={`${l.costo}-${l.pesoKg ?? 'x'}-${i}`} className="flex items-center justify-between gap-2 text-[12.5px]">
                                                 <span className="text-brand-950/70">
-                                                  <span className="font-semibold text-brand-950">Lote {l.numero}</span>
-                                                  {' · '}{formatUnidad(l.queda, lots.producto.unidad)} a {money(l.costo)}
+                                                  <span className="font-semibold text-brand-950">
+                                                    {formatUnidad(l.queda, lots.producto.unidad)}
+                                                  </span>
+                                                  {' a '}{money(l.costo)}
                                                   {/* El peso es lo que distingue una carga de otra cuando se
                                                       compra por kilo y se vende por rollo. */}
                                                   {l.pesoKg != null && l.pesoKg > 0 && (
-                                                    <span className="text-brand-950/45"> · pesó {formatUnidad(l.pesoKg, 'KG')}</span>
-                                                  )}
-                                                  {l.queda !== l.entro && (
-                                                    <span className="text-brand-950/40"> (entraron {formatUnidad(l.entro, lots.producto.unidad)})</span>
+                                                    <span className="text-brand-950/45"> · peso {formatUnidad(l.pesoKg, 'KG')}</span>
                                                   )}
                                                   <span className="block text-[11px] text-brand-950/40">
                                                     {l.proveedor} · {new Date(l.fecha).toLocaleDateString('es-VE', { day: '2-digit', month: 'short', year: '2-digit' })}
+                                                    {l.cargas > 1 && ` · ${l.cargas} entradas`}
                                                   </span>
                                                 </span>
                                                 <span className="font-semibold text-brand-950/70 shrink-0">{money(l.valor)}</span>

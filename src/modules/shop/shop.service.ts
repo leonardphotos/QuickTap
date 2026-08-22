@@ -818,27 +818,51 @@ export const shopService = {
       const suyos = lotes.filter((l) => l.v1 === v.v1 && l.v2 === v.v2);
       const enLotes = suyos.reduce((a, l) => a + l.remainingQty, 0);
       const valor = suyos.reduce((a, l) => a + l.remainingQty * l.cost, 0);
+      /**
+       * Las entradas se agrupan por costo y peso POR UNIDAD: cinco mangueras de 56 Kg al mismo
+       * precio son la misma mercancía aunque hayan llegado en dos camiones, y listarlas por
+       * separado solo alarga la pantalla. Lo que de verdad distingue una carga de otra —que una
+       * pesó 43 Kg y otra 56— sigue en líneas distintas, que es para lo que existe todo esto.
+       *
+       * El peso guardado es el de la carga completa, así que se divide entre las unidades que
+       * entraron para obtener el de cada pieza; con venta por peso no aplica y queda null.
+       */
+      const grupos = new Map<string, { queda: number; costo: number; pesoUnitario: number | null; valor: number; cargas: number; proveedores: Set<string>; desde: Date }>();
+      for (const l of suyos) {
+        const pesoUnitario = l.weightKg != null && l.qty > 0 ? Math.round((l.weightKg / l.qty) * 1000) / 1000 : null;
+        const clave = `${l.cost}|${pesoUnitario ?? ''}`;
+        const g = grupos.get(clave) ?? { queda: 0, costo: l.cost, pesoUnitario, valor: 0, cargas: 0, proveedores: new Set<string>(), desde: l.time };
+        g.queda += l.remainingQty;
+        g.valor += l.remainingQty * l.cost;
+        g.cargas += 1;
+        g.proveedores.add(l.supplier);
+        if (l.time < g.desde) g.desde = l.time;
+        grupos.set(clave, g);
+      }
+
       return {
         variante: [v.v1, v.v2].filter(Boolean).join(' / ') || 'Único',
         precio: v.price ?? product.price,
         costoActual: v.cost ?? product.cost,
         stock: r3(v.stock),
         enLotes: r3(enLotes),
-        // Mercancía en stock sin lote que la respalde: existencias cargadas antes de que
+        // Mercancía en stock sin entrada que la respalde: existencias cargadas antes de que
         // existiera el control por lotes, o ajustes de conteo manuales.
         sinLote: r3(v.stock - enLotes),
         valor: r2(valor),
-        lotes: suyos.map((l) => ({
-          id: l.id,
-          numero: l.lotNumber,
-          proveedor: l.supplier,
-          entro: r3(l.qty),
-          queda: r3(l.remainingQty),
-          pesoKg: l.weightKg,
-          costo: l.cost,
-          valor: r2(l.remainingQty * l.cost),
-          fecha: l.time,
-        })),
+        lotes: [...grupos.values()]
+          .sort((a, b) => a.desde.getTime() - b.desde.getTime())
+          .map((g) => ({
+            queda: r3(g.queda),
+            costo: g.costo,
+            pesoKg: g.pesoUnitario,
+            valor: r2(g.valor),
+            // Cuántas entradas se juntaron acá: con más de una conviene decirlo, para que nadie
+            // crea que llegaron todas el mismo día.
+            cargas: g.cargas,
+            proveedor: [...g.proveedores].join(', '),
+            fecha: g.desde,
+          })),
       };
     });
 
