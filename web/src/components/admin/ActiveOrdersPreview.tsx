@@ -10,7 +10,7 @@ import { hasFeature } from '@/utils/subscription';
 import { abbreviateTableBadge } from '@/utils/format';
 import { useToast } from '@/hooks/useToast';
 import { Toast } from '@/components/ui/toast';
-import { EditOrderDialog, getPaymentStatus, handleWhatsappSendResult, type LiveOrder } from './LiveOrdersPanel';
+import { EditOrderDialog, getPaymentStatus, handleWhatsappSendResult, leCorresponde, type LiveOrder } from './LiveOrdersPanel';
 import { PaymentDialog } from './PaymentDialog';
 
 const CHANNEL_LABEL: Record<LiveOrder['channel'], string> = {
@@ -156,13 +156,9 @@ export function ActiveOrdersPreview() {
     }
   }
 
-  // Mismo criterio de "me corresponde" que usa LiveOrdersPanel para el rol Mesero.
-  const mine = (orders ?? []).filter((o) => {
-    if (o.placedByUser?.id === user?.id) return true;
-    if (o.acceptedByUserId === user?.id) return true;
-    if (o.table?.assignedWaiterId) return o.table.assignedWaiterId === user?.id;
-    return !o.placedByUser && !o.acceptedByUserId;
-  });
+  // Mismo criterio de "me corresponde" que usa el panel de Pedidos: función compartida,
+  // no una copia — antes eran dos listas iguales que había que acordarse de tocar juntas.
+  const mine = user ? (orders ?? []).filter((o) => leCorresponde(o, user.id)) : [];
   const visible = mine.filter((o) => !dismissedIds.has(o.id));
 
   if (!orders || visible.length === 0) return null;

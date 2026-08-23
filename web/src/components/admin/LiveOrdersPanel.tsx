@@ -257,6 +257,30 @@ function canAcceptOrder(role: string | undefined, channel: LiveOrder['channel'],
   return true;
 }
 
+/**
+ * Qué pedidos le tocan a un Mesero. Fuente única: la usan el panel de Pedidos y la vista
+ * previa de comandas del mesero, que antes llevaban dos copias del mismo criterio.
+ *
+ * Ve los que él mismo tomó, los que aceptó de un cliente que pidió desde su mesa, los de una
+ * mesa que tiene asignada (Equipo → "Asignar mesas", o porque aceptó el primer pedido de esa
+ * mesa), y los que un cliente pidió desde una mesa sin dueño que nadie aceptó todavía, para
+ * poder tomarlos. En cuanto la mesa queda asignada a otro mesero, deja de aparecerle.
+ *
+ * Los pedidos de BARRA son de todos: no tienen mesa, así que no hay dueño natural de dónde
+ * colgarlos. Sin esta línea, una comanda de barra tomada en caja no le aparecía a NINGÚN
+ * mesero — quedaba visible solo para caja y administración, y el mesero veía la pantalla
+ * vacía teniendo cuentas sin cobrar. Delivery y Pickup se quedan fuera a propósito: tampoco
+ * tienen mesa, pero solo Caja/Admin los acepta (ver canAcceptOrder), así que al mesero solo
+ * le harían ruido.
+ */
+export function leCorresponde(o: LiveOrder, userId: string): boolean {
+  if (o.placedByUser?.id === userId) return true;
+  if (o.acceptedByUserId === userId) return true;
+  if (o.channel === 'BAR') return true;
+  if (o.table?.assignedWaiterId) return o.table.assignedWaiterId === userId;
+  return !o.placedByUser && !o.acceptedByUserId;
+}
+
 /** Panel "Pedidos": todos los pedidos activos con Aceptar/Cancelar/Finalizar/Delivery. Va en el Dashboard. */
 export function LiveOrdersPanel({
   hideCreateButton,
@@ -508,22 +532,8 @@ export function LiveOrdersPanel({
     setCourierPickerFor(order.id);
   }
 
-  // El rol Mesero solo ve: los pedidos que él mismo tomó (placedByUser), los
-  // que ya aceptó de un cliente que pidió desde su mesa (acceptedByUserId),
-  // los de una mesa que tiene asignada (Equipo → "Asignar mesas", o porque él
-  // fue quien aceptó el primer pedido de esa mesa), y los que un cliente pidió
-  // desde una mesa sin dueño y todavía nadie aceptó (para poder tomarlos). En
-  // cuanto la mesa queda asignada a otro mesero, deja de aparecerle.
   // El resto de los roles (Admin, Cajero, Cocina, Pantalla) ve todos.
-  const roleFiltered =
-    user?.role === 'WAITER'
-      ? (orders ?? []).filter((o) => {
-          if (o.placedByUser?.id === user.id) return true;
-          if (o.acceptedByUserId === user.id) return true;
-          if (o.table?.assignedWaiterId) return o.table.assignedWaiterId === user.id;
-          return !o.placedByUser && !o.acceptedByUserId;
-        })
-      : orders;
+  const roleFiltered = user?.role === 'WAITER' ? (orders ?? []).filter((o) => leCorresponde(o, user.id)) : orders;
 
   const visibleOrders = !channelFilter
     ? roleFiltered
