@@ -21,6 +21,7 @@ export const PLAN_LABELS: Record<string, string> = {
   SHOP: 'QuickTap Shop',
   ELITE_SHOP: 'Elite Shop',
   CLUB: 'QuickTap Club',
+  OFFICE: 'QuickTap Administración',
 };
 
 // Todas las pestañas del panel. Mesero/Cocina solo ven Comandas, Cocina y Órdenes de Mesa.

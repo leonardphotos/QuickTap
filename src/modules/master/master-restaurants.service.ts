@@ -53,7 +53,8 @@ export const masterRestaurantsService = {
         periodEnd: true,
         suspended: true,
         createdAt: true,
-        _count: { select: { users: true, tables: true, orders: true } },
+        // `companies` es del vertical Administrativo: en los demás siempre da 0 y no se muestra.
+        _count: { select: { users: true, tables: true, orders: true, companies: true } },
       },
     });
     return restaurants.map(withSubscriptionInfo);

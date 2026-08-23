@@ -57,7 +57,7 @@ export function renderTemplate(template: string, vars: Record<string, string>): 
     .trim();
 }
 
-export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP' | 'ELITE_SHOP' | 'CLUB';
+export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP' | 'ELITE_SHOP' | 'CLUB' | 'OFFICE';
 export type PlanBillingCycle = 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL';
 
 export interface PlanContentEntry {
@@ -169,6 +169,21 @@ export const DEFAULT_PLAN_CONTENT: PlanContent = {
       'Soporte prioritario por WhatsApp',
     ],
     prices: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40 },
+  },
+  OFFICE: {
+    name: 'QuickTap Administración',
+    subtitle: 'Contabilidad y administración de una o varias empresas, desde una sola cuenta',
+    capacity: 'Empresas ilimitadas, cada una con sus propios libros',
+    features: [
+      'Varias empresas en la misma cuenta, con su propia moneda y ejercicio fiscal',
+      'Plan de cuentas jerárquico, listo para usar desde el primer día',
+      'Libro diario con partida doble: el asiento no se guarda si no cuadra',
+      'Anulación con contra-asiento: nada se borra, todo queda trazable',
+      'Balance de comprobación, estado de resultados y balance general',
+      'Clientes, proveedores y empleados por empresa',
+      'Soporte por WhatsApp',
+    ],
+    prices: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99 },
   },
   CLUB: {
     name: 'QuickTap Club',

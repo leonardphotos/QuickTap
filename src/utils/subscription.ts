@@ -110,11 +110,12 @@ const CUSTOM_FLAG_FIELD: Partial<Record<FeatureFlag, keyof FeatureCheckRestauran
  * pruebe TODO el producto antes de elegir. Vive aquí y no repetido en
  * auth.service porque se usa en los dos caminos de registro (normal y Google).
  */
-export function trialPlanFor(businessType?: string | null): 'ELITE_SHOP' | 'CLUB' | 'ELITE' {
+export function trialPlanFor(businessType?: string | null): 'ELITE_SHOP' | 'CLUB' | 'ELITE' | 'OFFICE' {
   // El local arranca en Elite Shop por la misma razón que el restaurante en Elite: que
   // pruebe TODO (contabilidad, bancos, sucursales) antes de elegir.
   if (businessType === 'SHOP') return 'ELITE_SHOP';
   if (businessType === 'SPORTS_CLUB') return 'CLUB';
+  if (businessType === 'ADMIN_OFFICE') return 'OFFICE';
   return 'ELITE';
 }
 
@@ -175,6 +176,11 @@ export function hasFeature(restaurant: FeatureCheckRestaurant, feature: FeatureF
   if (plan === 'SHOP') return feature !== 'accounting' || hasLegacyFullAccess(restaurant);
   // QuickTap Club: plan único con todo incluido.
   if (plan === 'CLUB') return true;
+  // Administración: plan único. Las banderas de esta lista son de los otros verticales (menú,
+  // inventario, CRM…) y no aplican acá — el vertical vive entero bajo /office, que no está
+  // gateado por feature. Se devuelve true para no dejarlo a mitad de camino si alguna pantalla
+  // compartida las consulta.
+  if (plan === 'OFFICE') return true;
   if (plan === 'CUSTOM') {
     const field = CUSTOM_FLAG_FIELD[feature];
     return field ? Boolean(restaurant[field]) : false;

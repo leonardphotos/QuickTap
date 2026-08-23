@@ -6,7 +6,7 @@ interface MasterRestaurant {
   id: string;
   slug: string;
   name: string;
-  businessType: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB';
+  businessType: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB' | 'ADMIN_OFFICE';
   isActive: boolean;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';
   subscriptionPlan: string | null;
@@ -15,12 +15,21 @@ interface MasterRestaurant {
   createdAt: string;
   locked: boolean;
   daysRemaining: number;
-  _count: { users: number; tables: number; orders: number };
+  _count: { users: number; tables: number; orders: number; companies: number };
 }
+
+type Vertical = 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB' | 'ADMIN_OFFICE';
+
+const VERTICALES: { id: Vertical; label: string; vacio: string }[] = [
+  { id: 'RESTAURANT', label: 'Restaurantes', vacio: 'Todavía no hay restaurantes.' },
+  { id: 'SHOP', label: 'Locales Comerciales', vacio: 'Todavía no hay locales comerciales.' },
+  { id: 'SPORTS_CLUB', label: 'Canchas', vacio: 'Todavía no hay clubes de canchas.' },
+  { id: 'ADMIN_OFFICE', label: 'Administración', vacio: 'Todavía no hay cuentas de administración.' },
+];
 
 export default function MasterRestaurantsPage() {
   const [restaurants, setRestaurants] = useState<MasterRestaurant[] | null>(null);
-  const [vertical, setVertical] = useState<'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB'>('RESTAURANT');
+  const [vertical, setVertical] = useState<Vertical>('RESTAURANT');
 
   useEffect(() => {
     masterApi.get('/master/restaurants').then((res) => setRestaurants(res.data.data));
@@ -34,42 +43,25 @@ export default function MasterRestaurantsPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Locales</h1>
-        <div className="inline-flex items-center gap-1 rounded-full border border-brand-950/10 bg-brand-950/[0.03] p-1 mt-4">
-          <button
-            type="button"
-            onClick={() => setVertical('RESTAURANT')}
-            className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
-              vertical === 'RESTAURANT' ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950/80'
-            }`}
-          >
-            Restaurantes ({restaurants.filter((r) => r.businessType === 'RESTAURANT').length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setVertical('SHOP')}
-            className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
-              vertical === 'SHOP' ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950/80'
-            }`}
-          >
-            Locales Comerciales ({restaurants.filter((r) => r.businessType === 'SHOP').length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setVertical('SPORTS_CLUB')}
-            className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
-              vertical === 'SPORTS_CLUB' ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950/80'
-            }`}
-          >
-            Canchas ({restaurants.filter((r) => r.businessType === 'SPORTS_CLUB').length})
-          </button>
+        <div className="inline-flex flex-wrap items-center gap-1 rounded-full border border-brand-950/10 bg-brand-950/[0.03] p-1 mt-4">
+          {VERTICALES.map((v) => (
+            <button
+              key={v.id}
+              type="button"
+              onClick={() => setVertical(v.id)}
+              className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${
+                vertical === v.id ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950/80'
+              }`}
+            >
+              {v.label} ({restaurants.filter((r) => r.businessType === v.id).length})
+            </button>
+          ))}
         </div>
       </div>
 
       {filtered.length === 0 && (
         <p className="text-sm text-brand-950/40 font-light">
-          {vertical === 'RESTAURANT' && 'Todavía no hay restaurantes.'}
-          {vertical === 'SHOP' && 'Todavía no hay locales comerciales.'}
-          {vertical === 'SPORTS_CLUB' && 'Todavía no hay clubes de canchas.'}
+          {VERTICALES.find((v) => v.id === vertical)?.vacio}
         </p>
       )}
 
@@ -86,8 +78,14 @@ export default function MasterRestaurantsPage() {
             </div>
             <div className="flex items-center gap-3 shrink-0 text-xs text-brand-950/50 font-light">
               <span>{r._count.users} usuarios</span>
-              <span>{r._count.tables} mesas</span>
-              <span>{r._count.orders} pedidos</span>
+              {r.businessType === 'ADMIN_OFFICE' ? (
+                <span>{r._count.companies} empresa{r._count.companies === 1 ? '' : 's'}</span>
+              ) : (
+                <>
+                  <span>{r._count.tables} mesas</span>
+                  <span>{r._count.orders} pedidos</span>
+                </>
+              )}
               <StatusBadge r={r} />
             </div>
           </Link>

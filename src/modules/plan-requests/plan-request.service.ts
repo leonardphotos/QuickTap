@@ -33,6 +33,7 @@ export const PLAN_LABELS: Record<SubscriptionPlan, string> = {
   SHOP: 'Plan QuickTap Shop',
   ELITE_SHOP: 'Plan Elite Shop',
   CLUB: 'Plan QuickTap Club',
+  OFFICE: 'Plan QuickTap Administración',
 };
 
 // Beneficios breves para el mensaje de bienvenida por WhatsApp al activar la cuenta.
@@ -49,6 +50,7 @@ const PLAN_BENEFITS: Record<SubscriptionPlan, string> = {
   SHOP: 'Punto de venta, inventario con variantes, caja, cuentas por cobrar, CRM con promociones y reportes para tu local comercial.',
   ELITE_SHOP: 'Todo el Plan Shop más contabilidad completa (bancos, proveedores, libros fiscales, órdenes de pago, Excel) y sucursales ilimitadas.',
   CLUB: 'Reservas de canchas 24/7, calendario en vivo, control de acceso por QR, caja y tienda para tu club.',
+  OFFICE: 'Contabilidad con partida doble para todas las empresas que administres: plan de cuentas, libro diario, balance de comprobación, estado de resultados y balance general.',
 };
 
 function buildAcceptedMessage(plan: SubscriptionPlan): string {
@@ -74,7 +76,7 @@ function buildPaymentNotReceivedMessage(): string {
   ].join('\n\n');
 }
 
-export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP' | 'ELITE_SHOP' | 'CLUB';
+export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP' | 'ELITE_SHOP' | 'CLUB' | 'OFFICE';
 
 /**
  * Precios fijos por plan y ciclo de facturación (USD/mes). Única fuente de
@@ -94,17 +96,20 @@ const FIXED_PLAN_PRICES: Record<PurchasablePlan, Record<BillingCycle, number>> =
   SHOP: { MONTHLY: 20, QUARTERLY: 18, SEMIANNUAL: 16 },
   ELITE_SHOP: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40 },
   CLUB: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40 },
+  // Mismos escalones de descuento que Pro: 10% al trimestre, 20% al semestre.
+  OFFICE: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99 },
 };
 
 /** A qué businessType le corresponde cada plan comprable — un local/club no puede pedir el plan
  * de otro vertical, aunque adivine el nombre del plan (ver resolvePrice). */
-const BUSINESS_TYPE_FOR_PLAN: Record<PurchasablePlan, 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB'> = {
+const BUSINESS_TYPE_FOR_PLAN: Record<PurchasablePlan, 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB' | 'ADMIN_OFFICE'> = {
   DELIVERY: 'RESTAURANT',
   PRO: 'RESTAURANT',
   ELITE: 'RESTAURANT',
   SHOP: 'SHOP',
   ELITE_SHOP: 'SHOP',
   CLUB: 'SPORTS_CLUB',
+  OFFICE: 'ADMIN_OFFICE',
 };
 
 export interface CustomAddons {

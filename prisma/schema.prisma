@@ -319,6 +319,7 @@ enum SubscriptionPlan {
   SHOP // Plan base de QuickTap Shop (businessType SHOP): operación diaria + CRM, sin contabilidad avanzada ni sucursales
   ELITE_SHOP // Plan Elite de QuickTap Shop: todo lo del Shop + órdenes de pago, contabilidad, bancos, proveedores, libros y sucursales
   CLUB // Plan único de QuickTap Club (businessType SPORTS_CLUB — Canchas)
+  OFFICE // Plan único del vertical Administrativo (businessType ADMIN_OFFICE): contabilidad multi-empresa
 }
 
 enum BillingCycle {

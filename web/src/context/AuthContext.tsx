@@ -78,7 +78,7 @@ export interface AuthRestaurant {
   screenPageIntervalSec: number;
   screenItemsPerPage: number;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';
-  subscriptionPlan: 'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM' | 'CUSTOM' | 'SUCURSALES' | 'DELIVERY_SUCURSALES' | 'ELITE' | 'SHOP' | 'ELITE_SHOP' | 'CLUB' | null;
+  subscriptionPlan: 'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM' | 'CUSTOM' | 'SUCURSALES' | 'DELIVERY_SUCURSALES' | 'ELITE' | 'SHOP' | 'ELITE_SHOP' | 'CLUB' | 'OFFICE' | null;
   billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | null;
   /** Fin del período vigente (prueba o ciclo pagado). El bloqueo por vencimiento se calcula a partir de esto. */
   periodEnd: string;

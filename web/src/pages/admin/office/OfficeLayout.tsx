@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import {
-  BookOpen, Building2, ChevronDown, FileBarChart, LayoutDashboard, ListTree, LogOut, Plus, Users,
+  BookOpen, Building2, ChevronDown, CreditCard, FileBarChart, LayoutDashboard, ListTree, LogOut, Plus, Users,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { officeApi, type Empresa } from './officeApi';
+import OfficeBillingPage from './OfficeBillingPage';
 import OfficePanelPage from './OfficePanelPage';
 import OfficeAsientosPage from './OfficeAsientosPage';
 import OfficeCuentasPage from './OfficeCuentasPage';
@@ -11,7 +12,7 @@ import OfficeContactosPage from './OfficeContactosPage';
 import OfficeReportesPage from './OfficeReportesPage';
 import OfficeEmpresasPage from './OfficeEmpresasPage';
 
-export type OfficeScreen = 'panel' | 'asientos' | 'cuentas' | 'contactos' | 'reportes' | 'empresas';
+export type OfficeScreen = 'panel' | 'asientos' | 'cuentas' | 'contactos' | 'reportes' | 'empresas' | 'facturacion';
 
 const NAV: { id: OfficeScreen; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'panel', label: 'Panel', icon: LayoutDashboard },
@@ -20,6 +21,7 @@ const NAV: { id: OfficeScreen; label: string; icon: typeof LayoutDashboard }[] =
   { id: 'contactos', label: 'Clientes y proveedores', icon: Users },
   { id: 'reportes', label: 'Reportes', icon: FileBarChart },
   { id: 'empresas', label: 'Empresas', icon: Building2 },
+  { id: 'facturacion', label: 'Facturación', icon: CreditCard },
 ];
 
 /**
@@ -38,7 +40,7 @@ const NAV: { id: OfficeScreen; label: string; icon: typeof LayoutDashboard }[] =
  * modal que tapa la pantalla estorba. Cada formulario vive dentro de su pantalla.
  */
 export default function OfficeLayout() {
-  const { user, logout } = useAuth();
+  const { user, restaurant, logout } = useAuth();
   const [screen, setScreen] = useState<OfficeScreen>('panel');
   const [empresas, setEmpresas] = useState<Empresa[] | null>(null);
   const [empresaId, setEmpresaId] = useState<string>(() => localStorage.getItem('office_empresa') ?? '');
@@ -166,6 +168,12 @@ export default function OfficeLayout() {
 
           {empresas === null ? (
             <p className="p-8 text-sm text-brand-950/40">Cargando…</p>
+          ) : screen === 'facturacion' ? (
+            // Va antes que el resto: se paga la CUENTA, no una empresa, así que debe poder
+            // abrirse aunque todavía no haya ninguna creada.
+            <div className="p-5 sm:p-7">
+              <OfficeBillingPage restaurant={restaurant!} onDone={() => setScreen('panel')} />
+            </div>
           ) : empresas.length === 0 || screen === 'empresas' ? (
             <OfficeEmpresasPage
               empresas={empresas}
