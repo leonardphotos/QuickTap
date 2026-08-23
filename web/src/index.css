@@ -276,13 +276,22 @@ body {
    El portal del cliente es oscuro, así que el blanco de la intro funciona como
    telón: se levanta y debajo ya está el panel. */
 @keyframes pass-logo-in {
-  from {
+  /* El logo entra en el primer tercio y el resto es una deriva lenta hacia
+     adelante: durante la espera el telón respira en vez de quedarse tieso.
+     Cada tramo lleva su propia curva, por eso el easing va acá adentro. */
+  0% {
     opacity: 0;
-    transform: scale(0.86);
+    transform: scale(0.78);
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
   }
-  to {
+  34% {
     opacity: 1;
     transform: scale(1);
+    animation-timing-function: linear;
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1.06);
   }
 }
 
@@ -304,14 +313,14 @@ body {
   }
   to {
     opacity: 0;
-    transform: scale(1.04);
+    transform: scale(1.08);
   }
 }
 
 @keyframes pass-panel-in {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(18px);
   }
   to {
     opacity: 1;
@@ -320,19 +329,19 @@ body {
 }
 
 .pass-intro-logo {
-  animation: pass-logo-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: pass-logo-in 2600ms both;
 }
 
 .pass-intro-label {
-  animation: pass-label-in 620ms cubic-bezier(0.22, 1, 0.36, 1) 140ms both;
+  animation: pass-label-in 900ms cubic-bezier(0.22, 1, 0.36, 1) 520ms both;
 }
 
 .pass-intro--saliendo {
-  animation: pass-intro-out 460ms cubic-bezier(0.4, 0, 1, 1) both;
+  animation: pass-intro-out 650ms cubic-bezier(0.4, 0, 1, 1) both;
 }
 
 .pass-panel {
-  animation: pass-panel-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: pass-panel-in 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 /* Quien pidió menos movimiento ve el resultado, no el recorrido. */

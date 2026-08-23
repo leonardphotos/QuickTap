@@ -122,9 +122,10 @@ export default function PassDashboardPage() {
   /**
    * Mínimo que el logo se queda en pantalla. Sin esto, en una conexión rápida la
    * respuesta llega en ~150 ms y el telón sería un parpadeo blanco, peor que no tenerlo.
+   * Da tiempo a que el logo termine de entrar (~880 ms) y se quede un rato a la vista.
    */
-  const INTRO_MINIMO_MS = 1100;
-  const INTRO_SALIDA_MS = 460; // debe coincidir con .pass-intro--saliendo en index.css
+  const INTRO_MINIMO_MS = 2400;
+  const INTRO_SALIDA_MS = 650; // debe coincidir con .pass-intro--saliendo en index.css
 
   useEffect(() => {
     if (!data || introSaliendo) return;
