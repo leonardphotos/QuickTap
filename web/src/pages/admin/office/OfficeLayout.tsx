@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
-  BookOpen, Building2, ChevronDown, CreditCard, FileBarChart, LayoutDashboard, ListTree, LogOut, Plus, Users,
+  BookOpen, Building2, ChevronDown, CreditCard, FileBarChart, FileSpreadsheet, LayoutDashboard, ListTree, LogOut, Plus, Users,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { officeApi, type Empresa } from './officeApi';
@@ -11,8 +11,9 @@ import OfficeCuentasPage from './OfficeCuentasPage';
 import OfficeContactosPage from './OfficeContactosPage';
 import OfficeReportesPage from './OfficeReportesPage';
 import OfficeEmpresasPage from './OfficeEmpresasPage';
+import OfficeImportarPage from './OfficeImportarPage';
 
-export type OfficeScreen = 'panel' | 'asientos' | 'cuentas' | 'contactos' | 'reportes' | 'empresas' | 'facturacion';
+export type OfficeScreen = 'panel' | 'asientos' | 'cuentas' | 'contactos' | 'reportes' | 'importar' | 'empresas' | 'facturacion';
 
 const NAV: { id: OfficeScreen; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'panel', label: 'Panel', icon: LayoutDashboard },
@@ -20,6 +21,7 @@ const NAV: { id: OfficeScreen; label: string; icon: typeof LayoutDashboard }[] =
   { id: 'cuentas', label: 'Plan de cuentas', icon: ListTree },
   { id: 'contactos', label: 'Clientes y proveedores', icon: Users },
   { id: 'reportes', label: 'Reportes', icon: FileBarChart },
+  { id: 'importar', label: 'Cargar desde Excel', icon: FileSpreadsheet },
   { id: 'empresas', label: 'Empresas', icon: Building2 },
   { id: 'facturacion', label: 'Facturación', icon: CreditCard },
 ];
@@ -188,6 +190,9 @@ export default function OfficeLayout() {
               {screen === 'cuentas' && <OfficeCuentasPage empresa={empresa} />}
               {screen === 'contactos' && <OfficeContactosPage empresa={empresa} />}
               {screen === 'reportes' && <OfficeReportesPage empresa={empresa} />}
+              {screen === 'importar' && (
+                <OfficeImportarPage empresa={empresa} onCargado={cargarEmpresas} />
+              )}
             </>
           )}
         </main>

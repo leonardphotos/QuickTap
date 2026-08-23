@@ -2,6 +2,8 @@ import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { accountingService } from './accounting.service';
+import { accountingImportService } from './accounting-import.service';
+import { badRequest } from '../../utils/http-error';
 import {
   createAccountSchema,
   createCompanySchema,
@@ -64,5 +66,26 @@ export const accountingController = {
   }),
   dashboard: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await accountingService.dashboard(req.restaurantId!, req.params.companyId) });
+  }),
+
+  /** GET /office/companies/:companyId/import-template — plantilla ya llena con lo cargado. */
+  downloadImportTemplate: asyncHandler(async (req: Request, res: Response) => {
+    const workbook = await accountingImportService.buildTemplate(req.restaurantId!, req.params.companyId);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="plantilla-administracion.xlsx"');
+    await workbook.xlsx.write(res);
+    res.end();
+  }),
+
+  /** POST /office/companies/:companyId/import — carga cuentas, contactos y asientos de una sola vez. */
+  importExcel: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw badRequest('No se recibió ningún archivo.');
+    const data = await accountingImportService.importFromExcel(
+      req.restaurantId!,
+      req.params.companyId,
+      req.auth?.userId,
+      req.file.buffer,
+    );
+    res.json({ data });
   }),
 };

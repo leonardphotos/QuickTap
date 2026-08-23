@@ -80,4 +80,13 @@ export const officeApi = {
     api.post(`${base}/companies/${companyId}/contacts`, body).then((r) => r.data.data),
   reportes: (companyId: string, params?: Record<string, string>) =>
     api.get<{ data: Reportes }>(`${base}/companies/${companyId}/reports`, { params }).then((r) => r.data.data),
+
+  /** Plantilla de carga masiva: baja llena con lo que la empresa ya tenga. */
+  plantilla: (companyId: string) =>
+    api.get(`${base}/companies/${companyId}/import-template`, { responseType: 'blob' }).then((r) => r.data as Blob),
+  importar: (companyId: string, file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api.post(`${base}/companies/${companyId}/import`, fd).then((r) => r.data.data);
+  },
 };

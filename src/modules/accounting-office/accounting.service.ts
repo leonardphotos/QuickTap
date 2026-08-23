@@ -14,8 +14,8 @@ const d = (n: number | string | Prisma.Decimal) => new Prisma.Decimal(n);
 const cero = d(0);
 
 /** Toda consulta pasa por acá: la empresa tiene que ser de ESTE inquilino. */
-async function assertCompany(restaurantId: string, companyId: string) {
-  const c = await prisma.company.findFirst({ where: { id: companyId, restaurantId }, select: { id: true, currency: true } });
+export async function assertCompany(restaurantId: string, companyId: string) {
+  const c = await prisma.company.findFirst({ where: { id: companyId, restaurantId }, select: { id: true, name: true, currency: true } });
   if (!c) throw notFound('Empresa no encontrada.');
   return c;
 }

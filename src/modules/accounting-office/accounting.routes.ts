@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
+import { uploadSpreadsheet } from '../../middlewares/upload.middleware';
 import { accountingController } from './accounting.controller';
 
 /**
@@ -32,5 +33,10 @@ router.get('/companies/:companyId/contacts', accountingController.listContacts);
 router.post('/companies/:companyId/contacts', requireRole('OWNER', 'ADMIN'), accountingController.createContact);
 
 router.get('/companies/:companyId/reports', accountingController.reports);
+
+// Carga masiva por Excel: la plantilla baja llena con lo que la empresa tenga, y la subida
+// escribe cuentas, contactos y asientos en una sola transacción.
+router.get('/companies/:companyId/import-template', accountingController.downloadImportTemplate);
+router.post('/companies/:companyId/import', requireRole('OWNER', 'ADMIN'), uploadSpreadsheet, accountingController.importExcel);
 
 export const officeRoutes = router;
