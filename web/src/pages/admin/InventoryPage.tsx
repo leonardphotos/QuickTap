@@ -1759,6 +1759,10 @@ function RecetasTab({ insumos }: { insumos: InventoryItem[] }) {
   const [openProductId, setOpenProductId] = useState<string | null>(null);
   // Plato cuya receta se va a copiar a otro (ver DuplicarRecetaDialog).
   const [duplicarDe, setDuplicarDe] = useState<RecipeOverviewRow | null>(null);
+  // Recetario completo por Excel: cargar un plato a la vez no escala a una carta entera.
+  const recetarioRef = useRef<HTMLInputElement>(null);
+  const [importando, setImportando] = useState(false);
+  const [importResultado, setImportResultado] = useState<{ imported: number; platos: number; errors: { row: number; message: string }[] } | null>(null);
   // Filtro por categoría del menú (la del producto). '' = todas; 'SIN_RECETA' = solo los
   // productos que todavía no tienen receta, para atacar primero lo que falta.
   const [category, setCategory] = useState<string>('');
@@ -1782,8 +1786,77 @@ function RecetasTab({ insumos }: { insumos: InventoryItem[] }) {
         : (r.categoryName ?? 'Sin categoría') === category,
   );
 
+  async function descargarRecetario() {
+    const res = await api.get('/inventory/recipes/import-template', { responseType: 'blob' });
+    const url = URL.createObjectURL(res.data as Blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'recetario.xlsx';
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  async function importarRecetario(file: File) {
+    setImportando(true);
+    setImportResultado(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await api.post('/inventory/recipes/import', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setImportResultado(res.data.data);
+      load();
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      setImportResultado({ imported: 0, platos: 0, errors: [{ row: 0, message: e.response?.data?.error ?? 'No se pudo importar.' }] });
+    } finally {
+      setImportando(false);
+    }
+  }
+
+
   return (
     <div className="space-y-5">
+      {/* Se baja lleno con lo cargado, así que sirve también de respaldo. */}
+      <div className="flex flex-wrap items-center gap-2">
+        <TextureButton variant="secondary" size="sm" className="!w-auto" onClick={descargarRecetario}>
+          <FileSpreadsheet className="h-4 w-4" /> Descargar recetario
+        </TextureButton>
+        <TextureButton variant="secondary" size="sm" className="!w-auto" disabled={importando} onClick={() => recetarioRef.current?.click()}>
+          <Upload className="h-4 w-4" /> {importando ? 'Importando…' : 'Importar recetario'}
+        </TextureButton>
+        <input
+          ref={recetarioRef}
+          type="file"
+          accept=".xlsx"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) void importarRecetario(f);
+            e.target.value = '';
+          }}
+        />
+        <span className="text-xs text-brand-950/40 font-light">
+          Se baja con lo que ya tienes cargado; lo corriges en Excel y lo vuelves a subir.
+        </span>
+      </div>
+
+      {importResultado && (
+        <div className={`rounded-xl p-3 text-sm ${importResultado.errors.length > 0 ? 'bg-red-50 text-red-700' : 'bg-emerald-50 text-emerald-700'}`}>
+          {importResultado.errors.length > 0 ? (
+            <>
+              <p className="font-medium">No se importó nada. Corrige y vuelve a subir:</p>
+              <ul className="mt-1 space-y-0.5 max-h-40 overflow-y-auto">
+                {importResultado.errors.map((e, i) => (
+                  <li key={i}>{e.row > 0 ? `Fila ${e.row}: ` : ''}{e.message}</li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p>Se cargaron {importResultado.imported} líneas en {importResultado.platos} plato(s).</p>
+          )}
+        </div>
+      )}
+
       {insumos.length === 0 && (
         <p className="text-sm text-amber-600 bg-amber-50 rounded-xl p-3">
           Primero agrega insumos en la pestaña "Insumos (normal)": las recetas se arman a partir de ellos.

@@ -18,6 +18,21 @@ export const recipeController = {
   getByProduct: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await recipeService.getByProduct(req.restaurantId!, req.params.productId) });
   }),
+  /** GET /inventory/recipes/import-template — plantilla del recetario COMPLETO. */
+  downloadGlobalImportTemplate: asyncHandler(async (req: Request, res: Response) => {
+    const workbook = await recipeService.buildGlobalImportTemplate(req.restaurantId!);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="recetario.xlsx"');
+    await workbook.xlsx.write(res);
+    res.end();
+  }),
+
+  /** POST /inventory/recipes/import — carga el recetario completo desde el Excel. */
+  importGlobal: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw badRequest('Sube el archivo de Excel.');
+    res.json({ data: await recipeService.importGlobalFromExcel(req.restaurantId!, req.file.buffer) });
+  }),
+
   /** POST /inventory/recipes/:productId/duplicate-variant — copia de un tamaño a otro del mismo plato. */
   duplicateVariant: asyncHandler(async (req: Request, res: Response) => {
     const input = duplicateRecipeVariantSchema.parse(req.body);

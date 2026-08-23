@@ -79,6 +79,11 @@ router.delete('/preparations/ingredient/:ingredientId', requireFeature('inventor
 
 // Recetas: vincula productos del menú con insumos (descuenta stock al vender).
 router.get('/recipes', requireFeature('inventoryRecipe'), requireInventoryAccess, recipeController.listOverview);
+// Recetario COMPLETO por Excel. Va antes de '/recipes/:productId' a propósito: si no, Express
+// tomaría "import-template" como si fuera el id de un producto.
+router.get('/recipes/import-template', requireFeature('inventoryRecipe'), requireInventoryAccess, recipeController.downloadGlobalImportTemplate);
+router.post('/recipes/import', requireFeature('inventoryRecipe'), mutate, uploadSpreadsheet, recipeController.importGlobal);
+
 router.get(
   '/recipes/:productId',
   requireFeature('inventoryRecipe'),

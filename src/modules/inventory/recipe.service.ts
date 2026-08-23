@@ -5,7 +5,7 @@ import { resolveInventoryScopeById } from './inventory-scope';
 import { badRequest, notFound } from '../../utils/http-error';
 import { round2, toDecimal } from '../../utils/money';
 import { CreateRecipeIngredientInput, DuplicateRecipeInput, DuplicateRecipeVariantInput, UpdateCascadeConfigInput, UpdateRecipeIngredientInput } from './recipe.dto';
-import { buildCostGraph, resolveCostPerBaseUnit, resolveCustomerChoiceCostPerUnit } from './costing';
+import { buildCostGraph, recomputeDependentCosts, resolveCostPerBaseUnit, resolveCustomerChoiceCostPerUnit } from './costing';
 
 /** La categoría de modificadores de una línea "A elección del cliente" tiene que estar
  * asociada al producto (si no, el cliente nunca la vería al pedir ese plato). */
@@ -438,6 +438,216 @@ export const recipeService = {
         copiados: origen.length,
         reemplazo: yaTiene > 0,
       };
+    });
+  },
+
+  /**
+   * Plantilla del RECETARIO COMPLETO, no de un plato. La que ya existía carga un plato por
+   * archivo, que sirve para corregir uno suelto pero no para montar una carta de sesenta.
+   *
+   * Sale llena con lo que ya hay cargado, así que también funciona como respaldo: se baja, se
+   * corrige en Excel y se vuelve a subir. Y trae una segunda hoja con los nombres válidos de
+   * insumos, preparaciones y platos, porque la importación empareja por NOMBRE y sin esa lista
+   * el usuario adivina cómo se escribe cada cosa.
+   */
+  async buildGlobalImportTemplate(restaurantId: string) {
+    const [productos, insumos, preparaciones] = await Promise.all([
+      prisma.product.findMany({
+        where: { restaurantId },
+        select: {
+          name: true,
+          recipeIngredients: {
+            select: {
+              quantity: true,
+              inventoryItem: { select: { name: true, unit: true } },
+              preparation: { select: { name: true, unit: true } },
+              componentProduct: { select: { name: true } },
+              productVariant: { select: { name: true } },
+            },
+          },
+        },
+        orderBy: { name: 'asc' },
+      }),
+      prisma.inventoryItem.findMany({ where: { restaurantId: await resolveInventoryScopeById(restaurantId) }, select: { name: true, unit: true }, orderBy: { name: 'asc' } }),
+      prisma.preparation.findMany({ where: { restaurantId }, select: { name: true, unit: true }, orderBy: { name: 'asc' } }),
+    ]);
+
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Recetas');
+    sheet.columns = [
+      { header: 'Plato', width: 32 },
+      { header: 'Tipo', width: 14 },
+      { header: 'Ingrediente', width: 32 },
+      { header: 'Cantidad', width: 12 },
+      { header: 'Unidad', width: 10 },
+      { header: 'Tamaño', width: 16 },
+    ];
+    styleHeader(sheet);
+
+    let hayFilas = false;
+    for (const prod of productos) {
+      for (const l of prod.recipeIngredients) {
+        const tipo = l.inventoryItem ? 'Insumo' : l.preparation ? 'Preparación' : l.componentProduct ? 'Plato' : null;
+        // Las líneas "a elección del cliente" se omiten: dependen de lo que elija el comensal y
+        // no se pueden expresar como una fila fija sin mentir.
+        if (!tipo) continue;
+        hayFilas = true;
+        sheet.addRow([
+          prod.name,
+          tipo,
+          l.inventoryItem?.name ?? l.preparation?.name ?? l.componentProduct?.name ?? '',
+          l.quantity.toNumber(),
+          l.inventoryItem?.unit ?? l.preparation?.unit ?? 'unidad',
+          l.productVariant?.name ?? '',
+        ]);
+      }
+    }
+    if (!hayFilas) {
+      const ejemploInsumo = insumos[0]?.name ?? 'Pan de hamburguesa';
+      const ejemploPlato = productos[0]?.name ?? 'Hamburguesa clásica';
+      sheet.addRow([ejemploPlato, 'Insumo', ejemploInsumo, 2, insumos[0]?.unit ?? 'unidad', '']);
+      if (productos[1]) sheet.addRow(['Combo familiar', 'Plato', ejemploPlato, 2, 'unidad', '']);
+    }
+
+    // Hoja de referencia: los nombres tienen que escribirse igual que acá.
+    const ref = workbook.addWorksheet('Nombres válidos');
+    ref.columns = [
+      { header: 'Tipo', width: 14 },
+      { header: 'Nombre', width: 34 },
+      { header: 'Unidad', width: 10 },
+    ];
+    styleHeader(ref);
+    for (const i of insumos) ref.addRow(['Insumo', i.name, i.unit]);
+    for (const pr of preparaciones) ref.addRow(['Preparación', pr.name, pr.unit]);
+    for (const pr of productos) ref.addRow(['Plato', pr.name, 'unidad']);
+
+    return workbook;
+  },
+
+  /**
+   * Importa el recetario completo. Reemplaza la receta de CADA plato que aparezca en el archivo
+   * y no toca los que no aparecen: así se puede subir un archivo con tres platos sin borrar los
+   * otros cincuenta.
+   *
+   * Nada se escribe si hay errores de forma. Media carta importada y media no es peor que no
+   * haber importado nada, porque nadie sabe dónde quedó el corte.
+   */
+  async importGlobalFromExcel(restaurantId: string, buffer: Buffer) {
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(buffer as never);
+    const sheet = workbook.worksheets[0];
+    if (!sheet) throw badRequest('El archivo no tiene ninguna hoja.');
+
+    const scope = await resolveInventoryScopeById(restaurantId);
+    const [productos, insumos, preparaciones] = await Promise.all([
+      prisma.product.findMany({ where: { restaurantId }, select: { id: true, name: true, variants: { select: { id: true, name: true } } } }),
+      prisma.inventoryItem.findMany({ where: { restaurantId: scope }, select: { id: true, name: true } }),
+      prisma.preparation.findMany({ where: { restaurantId }, select: { id: true, name: true } }),
+    ]);
+    const clave = (s: string) => s.trim().toLowerCase();
+    const porPlato = new Map(productos.map((p) => [clave(p.name), p]));
+    const porInsumo = new Map(insumos.map((i) => [clave(i.name), i.id]));
+    const porPrep = new Map(preparaciones.map((p) => [clave(p.name), p.id]));
+
+    const errores: { row: number; message: string }[] = [];
+    const filas: { productId: string; ref: { inventoryItemId?: string; preparationId?: string; componentProductId?: string }; quantity: number; productVariantId: string | null }[] = [];
+
+    for (let n = 2; n <= sheet.rowCount; n++) {
+      const row = sheet.getRow(n);
+      const plato = String(row.getCell(1).value ?? '').trim();
+      const tipo = clave(String(row.getCell(2).value ?? ''));
+      const ingrediente = String(row.getCell(3).value ?? '').trim();
+      const cantidadRaw = row.getCell(4).value;
+      const tamano = String(row.getCell(6).value ?? '').trim();
+      if (!plato && !ingrediente) continue; // fila vacía
+
+      const prod = porPlato.get(clave(plato));
+      if (!prod) { errores.push({ row: n, message: `No existe el plato "${plato}".` }); continue; }
+      const cantidad = Number(cantidadRaw);
+      if (!Number.isFinite(cantidad) || cantidad <= 0) { errores.push({ row: n, message: 'La cantidad debe ser mayor a 0.' }); continue; }
+
+      let ref: { inventoryItemId?: string; preparationId?: string; componentProductId?: string };
+      if (tipo.startsWith('insumo')) {
+        const id = porInsumo.get(clave(ingrediente));
+        if (!id) { errores.push({ row: n, message: `No existe el insumo "${ingrediente}".` }); continue; }
+        ref = { inventoryItemId: id };
+      } else if (tipo.startsWith('prepar')) {
+        const id = porPrep.get(clave(ingrediente));
+        if (!id) { errores.push({ row: n, message: `No existe la preparación "${ingrediente}".` }); continue; }
+        ref = { preparationId: id };
+      } else if (tipo.startsWith('plato')) {
+        const comp = porPlato.get(clave(ingrediente));
+        if (!comp) { errores.push({ row: n, message: `No existe el plato "${ingrediente}".` }); continue; }
+        if (comp.id === prod.id) { errores.push({ row: n, message: 'Un plato no puede incluirse a sí mismo.' }); continue; }
+        ref = { componentProductId: comp.id };
+      } else {
+        errores.push({ row: n, message: 'La columna Tipo debe decir Insumo, Preparación o Plato.' });
+        continue;
+      }
+
+      let productVariantId: string | null = null;
+      if (tamano) {
+        const v = prod.variants.find((x) => clave(x.name) === clave(tamano));
+        if (!v) { errores.push({ row: n, message: `"${plato}" no tiene el tamaño "${tamano}".` }); continue; }
+        productVariantId = v.id;
+      }
+      filas.push({ productId: prod.id, ref, quantity: cantidad, productVariantId });
+    }
+
+    if (errores.length > 0) return { imported: 0, platos: 0, errors: errores };
+    if (filas.length === 0) throw badRequest('El archivo no tiene ninguna fila con datos.');
+
+    // Ciclos entre combos: se valida sobre el resultado FINAL, no fila por fila, porque el
+    // archivo puede armar el ciclo entre dos filas que por separado son válidas.
+    const hijos = new Map<string, string[]>();
+    for (const f of filas) {
+      if (!f.ref.componentProductId) continue;
+      hijos.set(f.productId, [...(hijos.get(f.productId) ?? []), f.ref.componentProductId]);
+    }
+    const platosDelArchivo = new Set(filas.map((f) => f.productId));
+    const existentes = await prisma.recipeIngredient.findMany({
+      where: { restaurantId, componentProductId: { not: null }, productId: { notIn: [...platosDelArchivo] } },
+      select: { productId: true, componentProductId: true },
+    });
+    for (const e of existentes) {
+      if (e.componentProductId) hijos.set(e.productId, [...(hijos.get(e.productId) ?? []), e.componentProductId]);
+    }
+    for (const raiz of hijos.keys()) {
+      const pila = [...(hijos.get(raiz) ?? [])];
+      const vistos = new Set<string>();
+      while (pila.length) {
+        const actual = pila.pop()!;
+        if (actual === raiz) {
+          const nombre = productos.find((p) => p.id === raiz)?.name ?? 'un plato';
+          return { imported: 0, platos: 0, errors: [{ row: 0, message: `"${nombre}" quedaría dentro de sí mismo. Revisa los combos del archivo.` }] };
+        }
+        if (vistos.has(actual)) continue;
+        vistos.add(actual);
+        pila.push(...(hijos.get(actual) ?? []));
+      }
+    }
+
+    return prisma.$transaction(async (tx) => {
+      await tx.recipeIngredient.deleteMany({ where: { restaurantId, productId: { in: [...platosDelArchivo] } } });
+      const graph = await buildCostGraph(tx, restaurantId);
+      for (const f of filas) {
+        const perUnit = resolveCostPerBaseUnit(graph, f.ref);
+        await tx.recipeIngredient.create({
+          data: {
+            restaurantId,
+            productId: f.productId,
+            inventoryItemId: f.ref.inventoryItemId ?? null,
+            preparationId: f.ref.preparationId ?? null,
+            componentProductId: f.ref.componentProductId ?? null,
+            productVariantId: f.productVariantId,
+            quantity: f.quantity,
+            costBase: round2(perUnit.mul(f.quantity)),
+          },
+        });
+      }
+      // Los combos apuntan a recetas que acaban de cambiar: se recalcula todo lo dependiente.
+      await recomputeDependentCosts(tx, restaurantId);
+      return { imported: filas.length, platos: platosDelArchivo.size, errors: [] };
     });
   },
 
