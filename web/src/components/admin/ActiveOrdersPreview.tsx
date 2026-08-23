@@ -18,6 +18,7 @@ const CHANNEL_LABEL: Record<LiveOrder['channel'], string> = {
   DELIVERY: 'Delivery',
   PICKUP: 'Para llevar',
   BAR: 'Barra',
+  EXPRESS: 'Express',
 };
 
 const STATUS_META: Record<string, { label: string; bg: string; fg: string }> = {

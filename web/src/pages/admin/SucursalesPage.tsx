@@ -12,7 +12,7 @@ import type { OrderChannel, PaymentMethod } from '@/types';
 
 type Range = 'day' | 'week' | 'month' | 'year' | 'all';
 const RANGE_LABELS: Record<Range, string> = { day: 'Hoy', week: 'Semana', month: 'Mes', year: 'Año', all: 'Todo' };
-const CHANNEL_ROW_LABELS: Record<OrderChannel, string> = { DINE_IN: 'Mesa', DELIVERY: 'Delivery', PICKUP: 'Pickup', BAR: 'Barra' };
+const CHANNEL_ROW_LABELS: Record<OrderChannel, string> = { DINE_IN: 'Mesa', DELIVERY: 'Delivery', PICKUP: 'Pickup', BAR: 'Barra', EXPRESS: 'Express' };
 
 const TABS = [
   { id: 'summary', label: 'Resumen' },

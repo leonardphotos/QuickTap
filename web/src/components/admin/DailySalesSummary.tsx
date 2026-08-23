@@ -16,7 +16,7 @@ interface TodaySummary {
   totalBase: string;
   totalBs: string;
   currency: Currency;
-  byChannel: { DINE_IN: number; DELIVERY: number; PICKUP: number; BAR: number };
+  byChannel: { DINE_IN: number; DELIVERY: number; PICKUP: number; BAR: number; EXPRESS: number };
   ingresosBase: string;
   ingresosBs: string;
   egresosBase: string;
@@ -42,7 +42,7 @@ interface MovementRow {
   createdAt: string;
 }
 
-const CHANNEL_LABEL: Record<string, string> = { DINE_IN: 'Mesa', DELIVERY: 'Delivery', PICKUP: 'Retiro', BAR: 'Barra' };
+const CHANNEL_LABEL: Record<string, string> = { DINE_IN: 'Mesa', DELIVERY: 'Delivery', PICKUP: 'Retiro', BAR: 'Barra', EXPRESS: 'Express' };
 
 /** Resumen de ventas del día (hora de Caracas) en el Dashboard del restaurante. En celular es
  * una tarjeta compacta de 3 columnas; en pantallas anchas se desglosa hacia abajo (Balance,

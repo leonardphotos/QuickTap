@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-type OrderChannelValue = 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR';
+type OrderChannelValue = 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR' | 'EXPRESS';
 
 /** Un ítem del carrito tal como lo envía el cliente/mesero. */
 export const cartItemSchema = z.object({
@@ -38,7 +38,7 @@ export const dineInCheckoutSchema = z.object({
  */
 export const manualOrderSchema = z
   .object({
-    channel: z.enum(['DINE_IN', 'DELIVERY', 'PICKUP', 'BAR']).optional().default('DINE_IN'),
+    channel: z.enum(['DINE_IN', 'DELIVERY', 'PICKUP', 'BAR', 'EXPRESS']).optional().default('DINE_IN'),
     tableId: z.string().min(1).optional(),
     // Mesa con varias cuentas abiertas: a cuál de ellas se agrega este pedido.
     sessionId: z.string().min(1).optional(),
@@ -76,7 +76,9 @@ export const manualOrderSchema = z
     }
     // El nombre puede venir suelto (formulario) o resolverse en el service a partir de
     // `customerId` (wizard → paso Clientes), por eso aquí basta con que venga alguno de los dos.
-    if (data.channel !== 'DINE_IN' && !data.customerName?.trim() && !data.customerId) {
+    // EXPRESS queda fuera a propósito: es una venta de mostrador al paso, se cobra y se va.
+    // Exigirle un cliente sería justo lo que el canal existe para evitar.
+    if (data.channel !== 'DINE_IN' && data.channel !== 'EXPRESS' && !data.customerName?.trim() && !data.customerId) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Elige o crea un cliente.', path: ['customerName'] });
     }
     if (data.channel === 'DELIVERY' && !data.customerAddress?.trim()) {
@@ -263,7 +265,7 @@ export const updateOrderCustomerSchema = z.object({
 /** Cambiar el tipo (canal) de un pedido ya creado, ej. de Mesa a Delivery. */
 export const changeChannelSchema = z
   .object({
-    channel: z.enum(['DINE_IN', 'DELIVERY', 'PICKUP', 'BAR']),
+    channel: z.enum(['DINE_IN', 'DELIVERY', 'PICKUP', 'BAR', 'EXPRESS']),
     tableId: z.string().min(1).optional(),
     customerAddress: z.string().max(300).optional(),
     customerLat: z.number().min(-90).max(90).optional(),
@@ -299,7 +301,7 @@ export const orderHistoryQuerySchema = z.object({
   // Tramo libre desde–hasta (inclusivos, "YYYY-MM-DD"): si viene alguno, manda sobre `range` y `date`.
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  channel: z.enum(['DINE_IN', 'DELIVERY', 'PICKUP', 'BAR']).optional(),
+  channel: z.enum(['DINE_IN', 'DELIVERY', 'PICKUP', 'BAR', 'EXPRESS']).optional(),
   // Varios canales a la vez, separados por coma ("DELIVERY,PICKUP"): lo usa la pantalla
   // de Delivery, que solo muestra su propio historial. `channel` (uno solo) tiene prioridad.
   channels: z
@@ -307,7 +309,7 @@ export const orderHistoryQuerySchema = z.object({
     .optional()
     .transform((v) =>
       v
-        ? (v.split(',').filter((c) => ['DINE_IN', 'DELIVERY', 'PICKUP', 'BAR'].includes(c)) as OrderChannelValue[])
+        ? (v.split(',').filter((c) => ['DINE_IN', 'DELIVERY', 'PICKUP', 'BAR', 'EXPRESS'].includes(c)) as OrderChannelValue[])
         : undefined,
     ),
   paymentMethod: z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER']).optional(),

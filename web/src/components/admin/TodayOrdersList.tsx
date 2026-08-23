@@ -9,7 +9,7 @@ import type { Currency } from '@/types';
 interface OrderRow {
   id: string;
   orderNumber: number;
-  channel: 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR';
+  channel: 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR' | 'EXPRESS';
   totalBase: string;
   currency: Currency;
   customerName: string | null;
@@ -17,7 +17,7 @@ interface OrderRow {
   createdAt: string;
 }
 
-const CHANNEL_LABEL: Record<string, string> = { DINE_IN: 'Mesa', DELIVERY: 'Delivery', PICKUP: 'Retiro', BAR: 'Barra' };
+const CHANNEL_LABEL: Record<string, string> = { DINE_IN: 'Mesa', DELIVERY: 'Delivery', PICKUP: 'Retiro', BAR: 'Barra', EXPRESS: 'Express' };
 
 /** Lista de solo lectura de los pedidos del día (Resumen, escritorio/iPad). Se actualiza sola
  * en vivo por socket — la cola accionable (aceptar, cambiar estado) vive aparte en Comandas. */

@@ -12,6 +12,7 @@ const CHANNEL_LABELS: Record<LiveOrder['channel'], string> = {
   DELIVERY: 'Delivery',
   PICKUP: 'Pickup',
   BAR: 'Barra',
+  EXPRESS: 'Express',
 };
 
 /** Saldo pendiente de un pedido: a diferencia de `getPaymentStatus` de LiveOrdersPanel (pensada

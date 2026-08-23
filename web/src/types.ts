@@ -504,7 +504,7 @@ export interface PublicTableSessionStatus {
 }
 
 export type OrderStatus = 'NEEDS_CONFIRMATION' | 'NEEDS_PAYMENT' | 'PENDING' | 'KITCHEN' | 'SERVED' | 'CANCELLED';
-export type OrderChannel = 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR';
+export type OrderChannel = 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR' | 'EXPRESS';
 export type PaymentMethod = PaymentMethodKey;
 
 export interface OrderItemView {

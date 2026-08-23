@@ -14,7 +14,7 @@ import { TextureButton } from '@/components/ui/texture-button';
 // -----------------------------------------------------------------------------
 
 export type Range = 'day' | 'week' | 'month' | 'year' | 'all';
-export type Channel = 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR';
+export type Channel = 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR' | 'EXPRESS';
 export type HistoryPaymentMethod = 'MOBILE_PAYMENT' | 'ZELLE' | 'CASH' | 'CARD';
 /** Quién cargó el pedido: personal, el propio cliente desde su teléfono o la tablet de autoservicio. */
 export type OrderSource = 'STAFF' | 'CUSTOMER' | 'KIOSK';
@@ -31,6 +31,7 @@ export const CHANNEL_ROW_LABELS: Record<Channel, string> = {
   DELIVERY: 'Delivery',
   PICKUP: 'Pickup',
   BAR: 'Barra',
+  EXPRESS: 'Express',
 };
 export const HISTORY_PAYMENT_LABELS: Record<HistoryPaymentMethod, string> = {
   MOBILE_PAYMENT: 'Pago Móvil',
@@ -267,7 +268,7 @@ export function OrderHistorySection({
 }) {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
-  const channelOptions = channels ?? (['DINE_IN', 'BAR', 'DELIVERY', 'PICKUP'] as Channel[]);
+  const channelOptions = channels ?? (['DINE_IN', 'BAR', 'EXPRESS', 'DELIVERY', 'PICKUP'] as Channel[]);
 
   const [range, setRange] = useState<Range>(defaultRange);
   const [from, setFrom] = useState('');

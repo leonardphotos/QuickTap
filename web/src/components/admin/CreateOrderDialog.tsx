@@ -12,6 +12,7 @@ import {
   Store,
   UtensilsCrossed,
   X,
+  Zap,
 } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
@@ -27,7 +28,7 @@ import type { LiveOrder } from './LiveOrdersPanel';
 interface ExistingOrderOption {
   id: string;
   orderNumber: number;
-  channel: 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR';
+  channel: 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR' | 'EXPRESS';
   customerName: string | null;
   table: { number: string } | null;
 }
@@ -40,7 +41,7 @@ interface Props {
   onSelectExisting: (orderId: string) => void;
 }
 
-type Channel = 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR';
+type Channel = 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR' | 'EXPRESS';
 type PaymentIntent = 'FULL' | 'SPLIT' | 'DEBT';
 type Step = 1 | 2 | 3;
 // Solo aplica al canal Mesa: "Abrir mesa" arma una cuenta nueva (pasos 2 y 3 normales);
@@ -57,12 +58,26 @@ interface AvailableTable {
 
 const CHANNEL_OPTIONS: { value: Channel; label: string; icon: typeof UtensilsCrossed }[] = [
   { value: 'DINE_IN', label: 'Mesa', icon: UtensilsCrossed },
+  { value: 'EXPRESS', label: 'Express', icon: Zap },
   { value: 'BAR', label: 'Barra', icon: Martini },
   { value: 'DELIVERY', label: 'Delivery', icon: Bike },
   { value: 'PICKUP', label: 'Pick-up', icon: Store },
 ];
 
-const CHANNEL_LABELS: Record<Channel, string> = { DINE_IN: 'Mesa', DELIVERY: 'Delivery', PICKUP: 'Pickup', BAR: 'Barra' };
+const CHANNEL_LABELS: Record<Channel, string> = {
+  DINE_IN: 'Mesa',
+  DELIVERY: 'Delivery',
+  PICKUP: 'Pickup',
+  BAR: 'Barra',
+  EXPRESS: 'Express',
+};
+
+/**
+ * Express no pasa por la pantalla de Cliente: es una venta al paso, se cobra y se va. Pedirle
+ * nombre y teléfono a quien compra un café en el mostrador solo agrega un toque de más por
+ * venta. Barra sí la conserva, porque ahí a veces se abre una cuenta a nombre de alguien.
+ */
+const CHANNELS_SIN_CLIENTE: Channel[] = ['EXPRESS'];
 
 const STEP_LABELS: Record<Step, string> = { 1: 'Cliente', 2: 'Menú', 3: 'Pago' };
 
@@ -127,6 +142,10 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [step, setStep] = useState<Step>(1);
   const [channel, setChannel] = useState<Channel>('DINE_IN');
+  // Qué canales ofrece este restaurante (ver availableChannels en el backend). Hasta que
+  // responda queda null y se muestran todos: es preferible ofrecer de más por un instante
+  // que parpadear escondiendo el canal que el cajero iba a tocar.
+  const [canales, setCanales] = useState<Record<Channel, boolean> | null>(null);
   const [tableMode, setTableMode] = useState<TableMode>('OPEN');
 
   const [products, setProducts] = useState<Product[]>([]);
@@ -193,6 +212,24 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
     );
   }
 
+  const opcionesCanal = useMemo(
+    () => (canales ? CHANNEL_OPTIONS.filter((o) => canales[o.value]) : CHANNEL_OPTIONS),
+    [canales],
+  );
+
+  // Si el canal elegido no lo ofrece este restaurante (arranca en Mesa y resulta que no tiene
+  // mesas), se cae al primero disponible en vez de dejar el selector marcando algo imposible.
+  useEffect(() => {
+    if (!canales || canales[channel]) return;
+    const primero = opcionesCanal[0]?.value;
+    if (primero) setChannel(primero);
+  }, [canales, channel, opcionesCanal]);
+
+  // Express no tiene pantalla de Cliente: si se elige estando en ella, se pasa derecho al menú.
+  useEffect(() => {
+    if (CHANNELS_SIN_CLIENTE.includes(channel) && step === 1) setStep(2);
+  }, [channel, step]);
+
   useEffect(() => {
     api.get('/products').then((res) => setProducts(res.data.data));
     api.get('/tables/floor-plan').then((res) => {
@@ -205,6 +242,10 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
       const unzoned = plan.unzoned.map((t) => ({ id: t.id, number: t.number, zoneName: null, sessions: t.sessions }));
       setTables([...zoned, ...unzoned]);
     });
+    api
+      .get('/orders/channels')
+      .then((res) => setCanales(res.data.data))
+      .catch(() => setCanales(null));
     api
       .get('/public/exchange-rate')
       .then((res) => setRateBs(res.data.data?.[restaurant?.baseCurrency ?? 'USD']?.rateBs ?? null))
@@ -523,10 +564,19 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
     </>
   );
 
+  // Express no tiene pantalla de Cliente, así que desde el menú no hay a dónde volver: el
+  // "Atrás" cierra. Sin esto el botón quedaba muerto — mandaba al paso 1 y el efecto de
+  // arriba devolvía al 2 en el mismo tick.
+  const sinPasoCliente = CHANNELS_SIN_CLIENTE.includes(channel);
+  function atras() {
+    if (step > 1 && !(step === 2 && sinPasoCliente)) setStep((step - 1) as Step);
+    else onClose();
+  }
+
   const actionButtons = (
     <div className="flex gap-2 pt-2">
-      {step > 1 && (
-        <TextureButton variant="secondary" size="default" className="!w-auto" onClick={() => setStep((step - 1) as Step)}>
+      {step > 1 && !(step === 2 && sinPasoCliente) && (
+        <TextureButton variant="secondary" size="default" className="!w-auto" onClick={atras}>
           Atrás
         </TextureButton>
       )}
@@ -571,7 +621,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
           <div className="flex items-center gap-3 md:flex-1 md:min-w-0">
             <button
               type="button"
-              onClick={() => (step > 1 ? setStep((step - 1) as Step) : onClose())}
+              onClick={atras}
               className="flex items-center justify-center h-9 w-9 rounded-xl border border-brand-950/10 text-brand-950 hover:bg-brand-950/5 shrink-0"
             >
               <ArrowLeft className="h-4 w-4" />
@@ -586,7 +636,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
           </div>
           {step === 2 && (
             <div className="flex gap-1 bg-brand-950/[0.05] p-1 rounded-xl overflow-x-auto md:shrink-0">
-              {CHANNEL_OPTIONS.map((opt) => (
+              {opcionesCanal.map((opt) => (
                 <button
                   key={opt.value}
                   onClick={() => setChannel(opt.value)}

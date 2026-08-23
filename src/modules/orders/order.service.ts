@@ -886,7 +886,7 @@ function salesStatsPeriodStart(range: 'week' | 'month', now: Date): Date {
  * registrados todavía — el negocio tiene que poder vender igual sin esto configurado.
  */
 async function sendNewOrderPush(restaurantId: string, order: { orderNumber: number; channel: OrderChannel }) {
-  const CHANNEL_LABEL: Record<OrderChannel, string> = { DINE_IN: 'Mesa', DELIVERY: 'Delivery', PICKUP: 'Pick-up', BAR: 'Barra' };
+  const CHANNEL_LABEL: Record<OrderChannel, string> = { DINE_IN: 'Mesa', DELIVERY: 'Delivery', PICKUP: 'Pick-up', BAR: 'Barra', EXPRESS: 'Express' };
   await sendPushToRestaurant(restaurantId, {
     title: `Nuevo pedido #${order.orderNumber}`,
     body: CHANNEL_LABEL[order.channel],
@@ -2214,6 +2214,36 @@ export const orderService = {
    * nunca cierra sus cuentas ahí ve crecer esta lista sin límite; es la contraparte aceptada
    * de no volver a esconder deuda en silencio (ver incidente del 2026-08-14 en el historial).
    */
+  /**
+   * Qué canales tiene sentido ofrecerle a ESTE restaurante al crear un pedido.
+   *
+   * No hay una configuración de "hago delivery" en ninguna parte, así que se deduce del uso
+   * real. Mesa depende de tener mesas cargadas, que es un hecho y no una suposición: sin
+   * mesas el canal ni siquiera se puede usar, porque exige un tableId.
+   *
+   * Delivery mira tres cosas y le basta una: zonas dibujadas, repartidores cargados, o haber
+   * despachado un delivery alguna vez. Las dos primeras son la configuración; la tercera es
+   * el resguardo — un restaurante que reparte sin zonas ni repartidores cargados perdería el
+   * botón sin entender por qué, y su historial demuestra que sí lo usa.
+   *
+   * Barra, Express y Pick-up no dependen de nada, así que siempre se ofrecen.
+   */
+  async availableChannels(restaurantId: string) {
+    const [mesas, zonas, repartidores, deliveriesPrevios] = await Promise.all([
+      prisma.table.count({ where: { restaurantId } }),
+      prisma.deliveryZone.count({ where: { restaurantId } }),
+      prisma.deliveryCourier.count({ where: { restaurantId } }),
+      prisma.order.count({ where: { restaurantId, channel: 'DELIVERY' } }),
+    ]);
+    return {
+      DINE_IN: mesas > 0,
+      BAR: true,
+      EXPRESS: true,
+      DELIVERY: zonas > 0 || repartidores > 0 || deliveriesPrevios > 0,
+      PICKUP: true,
+    };
+  },
+
   async listLiveOrders(restaurantId: string) {
     const orders = await prisma.order.findMany({
       where: {
@@ -2746,7 +2776,7 @@ export const orderService = {
 
     const totalBase = round2(orders.reduce((acc, o) => acc.add(o.totalBase), toDecimal(0)));
     const totalBs = round2(orders.reduce((acc, o) => acc.add(o.totalBs), toDecimal(0)));
-    const byChannel: Record<OrderChannel, number> = { DINE_IN: 0, DELIVERY: 0, PICKUP: 0, BAR: 0 };
+    const byChannel: Record<OrderChannel, number> = { DINE_IN: 0, DELIVERY: 0, PICKUP: 0, BAR: 0, EXPRESS: 0 };
     for (const o of orders) byChannel[o.channel]++;
 
     const tipBase = round2(orders.reduce((acc, o) => acc.add(o.tipBase), toDecimal(0)));

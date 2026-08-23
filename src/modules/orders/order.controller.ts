@@ -247,6 +247,11 @@ export const orderController = {
     res.json({ data: orders });
   }),
 
+  /** GET /orders/channels — qué canales ofrecerle a este restaurante al crear un pedido. */
+  availableChannels: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await orderService.availableChannels(req.restaurantId!) });
+  }),
+
   /** DELETE /api/v1/orders/:id — "Cancelar" desde Pedidos en vivo: borra, no queda registrado.
    * Si quien elimina es Mesero, exige el código de 6 dígitos creado en Ajustes. */
   remove: asyncHandler(async (req: Request, res: Response) => {

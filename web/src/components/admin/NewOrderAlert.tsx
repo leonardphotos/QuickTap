@@ -4,7 +4,7 @@ import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import { Capacitor } from '@capacitor/core';
 import { apiOrigin } from '@/utils/apiOrigin';
-import { Bike, Grid2x2, Martini, ShoppingBag } from 'lucide-react';
+import { Bike, Grid2x2, Martini, ShoppingBag, Zap } from 'lucide-react';
 import { api, getToken } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { isAdminCashier } from '@/utils/roles';
@@ -17,6 +17,7 @@ const CHANNEL_META: Record<LiveOrder['channel'], { label: string; icon: typeof B
   DELIVERY: { label: 'Delivery', icon: Bike, className: 'bg-accent text-accent-foreground' },
   PICKUP: { label: 'Pick-up', icon: ShoppingBag, className: 'bg-[#e3f5ec] text-[#0f6e46]' },
   BAR: { label: 'Barra', icon: Martini, className: 'bg-secondary text-brand-950' },
+  EXPRESS: { label: 'Express', icon: Zap, className: 'bg-secondary text-brand-950' },
 };
 
 interface Props {
