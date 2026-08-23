@@ -42,6 +42,7 @@ const LandscapeStaffLayout = lazy(() => import('./landscape/LandscapeStaffLayout
 const ComandaKioskPage = lazy(() => import('./ComandaKioskPage'));
 const NumeroPage = lazy(() => import('./NumeroPage'));
 const ShopLayout = lazy(() => import('./shop/ShopLayout'));
+const OfficeLayout = lazy(() => import('./office/OfficeLayout'));
 const ClubLayout = lazy(() => import('./club/ClubLayout'));
 const CoachLayout = lazy(() => import('./club/CoachLayout'));
 const ClubTabletPage = lazy(() => import('./club/ClubTabletPage'));
@@ -134,6 +135,12 @@ export default function AdminLayout() {
 
   // Club deportivo (canchas): mismo criterio que Locales — panel propio, con su
   // navegación interna (Calendario / Reservas / Acceso / Canchas).
+  // Vertical Administrativo: contabilidad multi-empresa. Mismo criterio que Locales y Club —
+  // panel propio, con su navegación interna (Panel / Asientos / Cuentas / Reportes).
+  if (restaurant.businessType === 'ADMIN_OFFICE') {
+    return <OfficeLayout />;
+  }
+
   if (restaurant.businessType === 'SPORTS_CLUB') {
     // Tablet fija de una cancha: kiosco a pantalla completa, sin nada del panel.
     // Va antes que ClubLayout porque este rol no tiene panel que mostrar.

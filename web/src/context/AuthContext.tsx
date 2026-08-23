@@ -24,7 +24,7 @@ export interface AuthRestaurant {
   logoUrl?: string | null;
   /** Vertical de negocio elegido al registrarse (ver /empezar). SHOP renderiza un panel
    * completamente distinto (ver AdminLayout -> ShopLayout), no editable desde Ajustes. */
-  businessType: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB';
+  businessType: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB' | 'ADMIN_OFFICE';
   /** Rubro de retail (indexa web/src/data/shopRubros.ts) cuando businessType = SHOP. */
   shopRubro?: string | null;
   /** Tienda virtual del Local Comercial: tarifa plana de envío, en la moneda base. */
@@ -116,7 +116,7 @@ interface AuthState {
     password: string;
     whatsappPhone?: string;
     baseCurrency?: Currency;
-    businessType?: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB';
+    businessType?: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB' | 'ADMIN_OFFICE';
     shopRubro?: string;
   }) => Promise<void>;
   logout: () => void;
@@ -131,7 +131,7 @@ interface AuthState {
       slug: string;
       whatsappPhone?: string;
       baseCurrency?: Currency;
-      businessType?: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB';
+      businessType?: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB' | 'ADMIN_OFFICE';
       shopRubro?: string;
     },
   ) => Promise<{ needsRegistration: true; email: string; name: string } | { needsRegistration?: undefined }>;
@@ -212,7 +212,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     password: string;
     whatsappPhone?: string;
     baseCurrency?: Currency;
-    businessType?: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB';
+    businessType?: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB' | 'ADMIN_OFFICE';
     shopRubro?: string;
   }) {
     const { data } = await api.post('/auth/register', input);
@@ -230,7 +230,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       slug: string;
       whatsappPhone?: string;
       baseCurrency?: Currency;
-      businessType?: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB';
+      businessType?: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB' | 'ADMIN_OFFICE';
       shopRubro?: string;
     },
   ) {

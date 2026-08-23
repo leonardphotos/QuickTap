@@ -123,6 +123,164 @@ enum BusinessType {
   RESTAURANT
   SHOP
   SPORTS_CLUB
+  /// Administrativo: contabilidad y administración de una o varias empresas, sin punto de
+  /// venta ni catálogo. Es el único vertical donde el inquilino no ES el negocio sino quien lo
+  /// administra — por eso todo cuelga de Company y no de Restaurant (ver ese modelo).
+  ADMIN_OFFICE
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Vertical Administrativo: contabilidad y administración multi-empresa.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Naturaleza de una cuenta contable. Decide de qué lado suma: un activo y un gasto crecen
+/// al debe, un pasivo, el patrimonio y los ingresos crecen al haber.
+enum AccountKind {
+  ASSET // Activo
+  LIABILITY // Pasivo
+  EQUITY // Patrimonio
+  INCOME // Ingreso
+  EXPENSE // Gasto
+}
+
+/// Una empresa administrada. Es la pieza central de este vertical: un contador o un
+/// administrador lleva varias a la vez desde la misma cuenta, y TODO lo contable cuelga de
+/// acá, no del Restaurant. Sin esto habría que crear un inquilino por empresa y obligar a
+/// cerrar sesión para cambiar de una a otra.
+model Company {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  name                 String
+  /// RIF / NIT / CUIT: el identificador fiscal, como lo llame el país.
+  taxId                String?
+  address              String?
+  phone                String?
+  email                String?
+  logoUrl              String?
+  /// Moneda en la que se llevan los libros de ESTA empresa. Dos empresas del mismo
+  /// administrador pueden llevarse en monedas distintas.
+  currency             Currency @default(USD)
+  /// Mes en que arranca el ejercicio (1 = enero). No todas cierran en diciembre.
+  fiscalYearStartMonth Int      @default(1)
+  active               Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  accounts   LedgerAccount[]
+  entries    JournalEntry[]
+  contacts   BusinessContact[]
+
+  @@index([restaurantId, active])
+  @@map("companies")
+}
+
+/// Cuenta del plan contable. `code` es el número con el que se la nombra en el balance
+/// ("1.1.01 Caja"), y el árbol se arma con `parentId` para poder totalizar por rama.
+model LedgerAccount {
+  id        String @id @default(cuid())
+  companyId String
+
+  code     String
+  name     String
+  kind     AccountKind
+  parentId String?
+  /// Solo las cuentas de detalle reciben asientos; las de agrupación totalizan a sus hijas.
+  postable Boolean     @default(true)
+  active   Boolean     @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company  Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent   LedgerAccount?  @relation("PlanDeCuentas", fields: [parentId], references: [id], onDelete: SetNull)
+  children LedgerAccount[] @relation("PlanDeCuentas")
+  lines    JournalLine[]
+
+  @@unique([companyId, code])
+  @@index([companyId, kind])
+  @@map("ledger_accounts")
+}
+
+/// Asiento contable. Agrupa las líneas de una operación; la suma del debe tiene que igualar
+/// a la del haber, y eso se valida al guardar.
+model JournalEntry {
+  id        String @id @default(cuid())
+  companyId String
+
+  /// Correlativo por empresa, para poder citar "el asiento 143".
+  number      Int
+  date        DateTime
+  description String
+  /// De dónde salió: cargado a mano, importado, o generado por otro módulo.
+  source      String    @default("MANUAL")
+  reference   String?
+  /// Un asiento anulado no se borra: se marca y se contra-asienta, porque un libro con
+  /// agujeros no es un libro.
+  voidedAt    DateTime?
+  voidReason  String?
+
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lines   JournalLine[]
+
+  @@unique([companyId, number])
+  @@index([companyId, date])
+  @@map("journal_entries")
+}
+
+/// Línea de un asiento: una cuenta y un monto, al debe o al haber.
+model JournalLine {
+  id        String @id @default(cuid())
+  entryId   String
+  accountId String
+
+  /// Exactamente uno de los dos es mayor a cero.
+  debit     Decimal @default(0) @db.Decimal(14, 2)
+  credit    Decimal @default(0) @db.Decimal(14, 2)
+  detail    String?
+  /// Contra quién es la operación, cuando aplica (cliente, proveedor, empleado).
+  contactId String?
+
+  entry   JournalEntry     @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  account LedgerAccount    @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  contact BusinessContact? @relation(fields: [contactId], references: [id], onDelete: SetNull)
+
+  @@index([entryId])
+  @@index([accountId])
+  @@map("journal_lines")
+}
+
+/// Cliente, proveedor o empleado de una empresa. Uno solo puede ser varias cosas a la vez
+/// —hay proveedores que también compran— así que son banderas y no un tipo único.
+model BusinessContact {
+  id        String @id @default(cuid())
+  companyId String
+
+  name       String
+  taxId      String?
+  email      String?
+  phone      String?
+  address    String?
+  isCustomer Boolean @default(false)
+  isSupplier Boolean @default(false)
+  isEmployee Boolean @default(false)
+  notes      String?
+  active     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lines   JournalLine[]
+
+  @@index([companyId, active])
+  @@map("business_contacts")
 }
 
 enum PaymentMethod {
@@ -525,6 +683,8 @@ model Restaurant {
   preparationIngredients PreparationIngredient[]
   deliveryCouriers       DeliveryCourier[]
   additionalCharges      AdditionalCharge[]
+  /// Empresas administradas (vertical ADMIN_OFFICE).
+  companies              Company[]
   customizations         Customization[]
   approvalRequests       ApprovalRequest[]
 

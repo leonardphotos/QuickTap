@@ -40,6 +40,8 @@ const PREFIX_BY_TYPE: Record<BusinessType, string> = {
   [BusinessType.RESTAURANT]: '/r',
   [BusinessType.SHOP]: '/tienda',
   [BusinessType.SPORTS_CLUB]: '/club',
+  // El vertical Administrativo no tiene página pública que indexar: no vende nada al público.
+  [BusinessType.ADMIN_OFFICE]: '/r',
 };
 
 /** Tipo de schema.org por vertical, para el JSON-LD de la página del negocio. */
@@ -47,12 +49,14 @@ const SCHEMA_TYPE: Record<BusinessType, string> = {
   [BusinessType.RESTAURANT]: 'Restaurant',
   [BusinessType.SHOP]: 'Store',
   [BusinessType.SPORTS_CLUB]: 'SportsActivityLocation',
+  [BusinessType.ADMIN_OFFICE]: 'Organization',
 };
 
 const DEFAULT_DESCRIPTION: Record<BusinessType, string> = {
   [BusinessType.RESTAURANT]: 'Mira el menú y pide en línea.',
   [BusinessType.SHOP]: 'Mira el catálogo y haz tu pedido en línea.',
   [BusinessType.SPORTS_CLUB]: 'Reserva tu cancha en línea.',
+  [BusinessType.ADMIN_OFFICE]: 'Administración y contabilidad.',
 };
 
 export interface PageMeta {

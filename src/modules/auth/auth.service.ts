@@ -129,7 +129,7 @@ type RestaurantRow = {
   name: string;
   description: string | null;
   logoUrl: string | null;
-  businessType: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB';
+  businessType: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB' | 'ADMIN_OFFICE';
   shopRubro: string | null;
   shopDeliveryFee: Prisma.Decimal | null;
   whatsappPhone: string | null;

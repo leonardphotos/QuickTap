@@ -64,6 +64,7 @@ import branchRoutes from '../modules/branches/branch.routes';
 import aiPhotoRoutes from '../modules/ai-photo/ai-photo.routes';
 import shopRoutes from '../modules/shop/shop.routes';
 import { approvalRoutes } from '../modules/approvals/approval.routes';
+import { officeRoutes } from '../modules/accounting-office/accounting.routes';
 import publicShopRoutes from '../modules/shop/shop-storefront.routes';
 import clubRoutes, { publicClubRoutes } from '../modules/club/club.routes';
 import clubAcademyRoutes, { publicAcademyRoutes } from '../modules/club-academy/club-academy.routes';
@@ -139,6 +140,8 @@ router.use('/branches', branchRoutes);
 router.use('/ai-photo', aiPhotoRoutes);
 router.use('/shop', shopRoutes);
 router.use('/approvals', approvalRoutes);
+// Vertical Administrativo: contabilidad multi-empresa (distinto del /accounting de restaurantes).
+router.use('/office', officeRoutes);
 // Antes de '/club': si fuera después, cada petición de academia pasaría primero
 // por el router de canchas y correría su tenantGuard sin necesidad.
 router.use('/club/academy', clubAcademyRoutes);
