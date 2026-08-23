@@ -66,12 +66,12 @@ export default function PassLoginPage() {
               />
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-brand-950/60">Cédula</span>
+              <span className="text-xs font-medium text-brand-950/60">Cédula <span className="font-light text-brand-950/40">(solo los números, sin la V)</span></span>
               <input
                 value={idNumber}
-                onChange={(e) => setIdNumber(e.target.value)}
+                onChange={(e) => setIdNumber(e.target.value.replace(/\D/g, ''))}
                 inputMode="numeric"
-                placeholder="V-12345678"
+                placeholder="12345678"
                 className="mt-1 w-full rounded-xl border border-brand-950/15 bg-white px-3 py-2.5 text-sm outline-none focus:border-brand-500"
               />
             </label>

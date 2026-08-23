@@ -272,12 +272,79 @@ body {
   }
 }
 
+/* Entrada de QuickTap Pass: el logo aparece sobre blanco y le da paso al panel.
+   El portal del cliente es oscuro, así que el blanco de la intro funciona como
+   telón: se levanta y debajo ya está el panel. */
+@keyframes pass-logo-in {
+  from {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes pass-label-in {
+  from {
+    opacity: 0;
+    letter-spacing: 0.1em;
+  }
+  to {
+    opacity: 0.45;
+    letter-spacing: 0.28em;
+  }
+}
+
+@keyframes pass-intro-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes pass-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.pass-intro-logo {
+  animation: pass-logo-in 560ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.pass-intro-label {
+  animation: pass-label-in 620ms cubic-bezier(0.22, 1, 0.36, 1) 140ms both;
+}
+
+.pass-intro--saliendo {
+  animation: pass-intro-out 460ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.pass-panel {
+  animation: pass-panel-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 /* Quien pidió menos movimiento ve el resultado, no el recorrido. */
 @media (prefers-reduced-motion: reduce) {
   .club-ball,
   .club-check,
   .club-check path,
-  .club-rise {
+  .club-rise,
+  .pass-intro-logo,
+  .pass-intro-label,
+  .pass-intro--saliendo,
+  .pass-panel {
     animation: none !important;
     opacity: 1;
     transform: none;
@@ -285,6 +352,10 @@ body {
   }
   .club-ball {
     display: none;
+  }
+  /* La etiqueta vive apagada por diseño; sin animación hay que fijarla igual. */
+  .pass-intro-label {
+    opacity: 0.45;
   }
 }
 

@@ -9,7 +9,12 @@ const rechazarSchema = z.object({ motivo: z.string().min(3, 'Escribe por qué lo
 const altaSchema = z.object({
   name: z.string().min(2, 'Escribe el nombre del cliente.'),
   phone: z.string().min(7, 'Escribe el teléfono.'),
-  idNumber: z.string().min(5, 'La cédula es obligatoria: es la clave con la que entra al portal.'),
+  idNumber: z
+    .string()
+    .refine(
+      (v) => v.replace(/\D/g, '').length >= 5,
+      'La cédula es obligatoria: su número es la clave con la que entra al portal.',
+    ),
   email: z.string().email('Correo inválido.').optional().or(z.literal('')),
 });
 

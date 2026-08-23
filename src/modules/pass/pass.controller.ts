@@ -7,7 +7,9 @@ import { passPaymentsService } from './pass-payments.service';
 
 const loginSchema = z.object({
   phone: z.string().min(7, 'Escribe tu teléfono.'),
-  idNumber: z.string().min(5, 'Escribe tu cédula.'),
+  // Se cuenta sobre los dígitos, no sobre el texto: "V-123" tiene 5 caracteres
+  // pero solo 3 números. La cédula se reconoce por el número, sin la V.
+  idNumber: z.string().refine((v) => v.replace(/\D/g, '').length >= 5, 'Escribe tu cédula, solo los números.'),
 });
 
 const reportarSchema = z.object({

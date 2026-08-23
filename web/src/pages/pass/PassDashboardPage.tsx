@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Search, TrendingUp, Wallet } from 'lucide-react';
 import { api } from '@/api/client';
@@ -6,6 +6,7 @@ import { useDocumentMeta } from '@/hooks/useDocumentMeta';
 import { PASS_LOGO_URL, PASS_NAME } from './passBrand';
 import { clearPassToken, getPassToken } from './passSession';
 import { AbonarDialog } from './AbonarDialog';
+import { PassIntro } from './PassIntro';
 
 /**
  * Panel del cliente en QuickTap Pass.
@@ -95,6 +96,10 @@ export default function PassDashboardPage() {
   const [buscando, setBuscando] = useState(false);
   const [abonando, setAbonando] = useState<Compra | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  // Telón de entrada: se muestra mientras cargan los datos y se levanta al terminar.
+  const [intro, setIntro] = useState(true);
+  const [introSaliendo, setIntroSaliendo] = useState(false);
+  const montadoEn = useRef(Date.now());
 
   useEffect(() => {
     if (!getPassToken()) {
@@ -114,6 +119,26 @@ export default function PassDashboardPage() {
       });
   }, [navigate]);
 
+  /**
+   * Mínimo que el logo se queda en pantalla. Sin esto, en una conexión rápida la
+   * respuesta llega en ~150 ms y el telón sería un parpadeo blanco, peor que no tenerlo.
+   */
+  const INTRO_MINIMO_MS = 1100;
+  const INTRO_SALIDA_MS = 460; // debe coincidir con .pass-intro--saliendo en index.css
+
+  useEffect(() => {
+    if (!data || introSaliendo) return;
+    const restante = Math.max(0, INTRO_MINIMO_MS - (Date.now() - montadoEn.current));
+    const t = setTimeout(() => setIntroSaliendo(true), restante);
+    return () => clearTimeout(t);
+  }, [data, introSaliendo]);
+
+  useEffect(() => {
+    if (!introSaliendo) return;
+    const t = setTimeout(() => setIntro(false), INTRO_SALIDA_MS);
+    return () => clearTimeout(t);
+  }, [introSaliendo]);
+
   function recargar() {
     api
       .get('/public/pass/me', { headers: { Authorization: `Bearer ${getPassToken()}` } })
@@ -126,6 +151,7 @@ export default function PassDashboardPage() {
     navigate('/pass', { replace: true });
   }
 
+  // Si falla la carga no se deja el telón puesto: el cliente tiene que ver el aviso.
   if (error) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-[#0b0f14] px-6 text-center text-white/70">
@@ -134,7 +160,11 @@ export default function PassDashboardPage() {
     );
   }
   if (!data) {
-    return <div className="flex min-h-dvh items-center justify-center bg-[#0b0f14] text-sm text-white/40">Cargando…</div>;
+    return (
+      <div className="min-h-dvh bg-white">
+        <PassIntro saliendo={false} />
+      </div>
+    );
   }
 
   const { resumen, compras } = data;
@@ -147,7 +177,9 @@ export default function PassDashboardPage() {
     : compras;
 
   return (
-    <div className="min-h-dvh bg-[#0b0f14] pb-16 text-white">
+    <div className="pass-panel min-h-dvh bg-[#0b0f14] pb-16 text-white">
+      {/* El telón sigue encima hasta que termina de levantarse; el panel ya está debajo. */}
+      {intro && <PassIntro saliendo={introSaliendo} />}
       {/* Cabecera con el degradado de marca, como el hero del mockup. */}
       <div
         className="rounded-b-[28px] px-5 pb-8 pt-6"

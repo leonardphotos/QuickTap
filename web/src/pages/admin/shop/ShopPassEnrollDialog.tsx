@@ -67,7 +67,7 @@ export function ShopPassEnrollDialog({ saldo, money, moneyBs, onClose, onListo }
   async function siguiente() {
     if (name.trim().length < 2) return setError('Escribe el nombre del cliente.');
     if (phone.replace(/\D/g, '').length < 7) return setError('Escribe el teléfono.');
-    if (idNumber.trim().length < 5) return setError('La cédula es obligatoria: es su clave para entrar al portal.');
+    if (idNumber.replace(/\D/g, '').length < 5) return setError('La cédula es obligatoria: su número es la clave para entrar al portal.');
     if (email.trim() && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) return setError('El correo no parece válido.');
     setError(null);
     setGuardando(true);
@@ -75,7 +75,7 @@ export function ShopPassEnrollDialog({ saldo, money, moneyBs, onClose, onListo }
       await api.post('/shop/pass/enroll', {
         name: name.trim(),
         phone: phone.replace(/\D/g, ''),
-        idNumber: idNumber.trim(),
+        idNumber: idNumber.replace(/\D/g, ''),
         email: email.trim() || undefined,
       });
       setPaso('plan');
@@ -90,7 +90,7 @@ export function ShopPassEnrollDialog({ saldo, money, moneyBs, onClose, onListo }
     if (cuotas < 2) return setError('Un plan de cuotas necesita al menos 2.');
     setError(null);
     onListo({
-      cliente: { name: name.trim(), phone: phone.replace(/\D/g, ''), idNumber: idNumber.trim(), email: email.trim() },
+      cliente: { name: name.trim(), phone: phone.replace(/\D/g, ''), idNumber: idNumber.replace(/\D/g, ''), email: email.trim() },
       plan: { cantidad: cuotas, frecuencia, recargoPorcentaje: pct, primeraFecha },
     });
   }
@@ -124,8 +124,8 @@ export function ShopPassEnrollDialog({ saldo, money, moneyBs, onClose, onListo }
                 <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0414-1234567" className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2" />
               </label>
               <label className="block text-sm">
-                <span className="text-brand-950/70">Cédula</span>
-                <input value={idNumber} onChange={(e) => setIdNumber(e.target.value)} placeholder="V-12345678" className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2" />
+                <span className="text-brand-950/70">Cédula <span className="text-brand-950/40">(sin la V)</span></span>
+                <input value={idNumber} onChange={(e) => setIdNumber(e.target.value.replace(/\D/g, ''))} inputMode="numeric" placeholder="12345678" className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2" />
               </label>
             </div>
             <TextureButton variant="brand" size="default" disabled={guardando} onClick={siguiente}>
