@@ -679,6 +679,24 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                   )}
                 </div>
 
+                {/* La barra de canales solo existe en el paso del menú, así que sin este atajo
+                    Express era inalcanzable: había que pasar por la pantalla de Cliente que el
+                    canal justamente evita. Salta derecho al menú y deja el pedido sin cliente. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCustomer(null);
+                    setWantsFiscalInvoice(false);
+                    setChannel('EXPRESS');
+                    setStep(2);
+                  }}
+                  className="flex w-full items-center justify-center gap-2 rounded-2xl border border-brand-500/30 bg-brand-500/[0.06] px-5 py-4 text-sm font-semibold text-brand-500 transition-colors hover:bg-brand-500/10 active:scale-[0.99]"
+                >
+                  <Zap className="h-4 w-4" />
+                  Pedido Express
+                  <span className="font-light text-brand-950/45">· sin datos del cliente</span>
+                </button>
+
                 <div className="rounded-2xl bg-white p-5 flex flex-col min-h-0">
                   <label className="flex items-center gap-2 text-sm font-semibold text-brand-950">
                     <input
