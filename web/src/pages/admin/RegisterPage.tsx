@@ -25,6 +25,7 @@ export default function RegisterPage() {
   // StartRegisterPage). Sin ellos, el registro se comporta exactamente igual que antes.
   const isShop = searchParams.get('businessType') === 'shop';
   const isClub = searchParams.get('businessType') === 'club';
+  const isOffice = searchParams.get('businessType') === 'office';
   const shopRubroId = searchParams.get('rubro');
   const shopRubro = isShop ? getShopRubro(shopRubroId) : undefined;
   // Viene de "Continuar con Google" en /admin/login sin cuenta todavía (ver LoginPage.tsx):
@@ -72,7 +73,7 @@ export default function RegisterPage() {
           slug,
           whatsappPhone: whatsappPhone || undefined,
           baseCurrency,
-          businessType: isShop ? 'SHOP' : isClub ? 'SPORTS_CLUB' : 'RESTAURANT',
+          businessType: isShop ? 'SHOP' : isClub ? 'SPORTS_CLUB' : isOffice ? 'ADMIN_OFFICE' : 'RESTAURANT',
           shopRubro: isShop ? (shopRubroId ?? undefined) : undefined,
         });
         if (result.needsRegistration) return; // no debería pasar en esta rama, pero por las dudas no navega
@@ -85,7 +86,7 @@ export default function RegisterPage() {
           ownerName,
           email,
           password,
-          businessType: isShop ? 'SHOP' : isClub ? 'SPORTS_CLUB' : 'RESTAURANT',
+          businessType: isShop ? 'SHOP' : isClub ? 'SPORTS_CLUB' : isOffice ? 'ADMIN_OFFICE' : 'RESTAURANT',
           shopRubro: isShop ? (shopRubroId ?? undefined) : undefined,
         });
       }
@@ -101,7 +102,7 @@ export default function RegisterPage() {
 
   return (
     <AuthLayout
-      title={isShop ? 'Registra tu local comercial' : isClub ? 'Registra tu cancha' : 'Registra tu local'}
+      title={isShop ? 'Registra tu local comercial' : isClub ? 'Registra tu cancha' : isOffice ? 'Registra tu administración' : 'Registra tu local'}
       footer={
         <p className="text-sm text-brand-950/60 font-light">
           ¿Ya tienes cuenta?{' '}
@@ -155,7 +156,7 @@ export default function RegisterPage() {
       )}
       <form onSubmit={onSubmit} className="space-y-4">
         <Field
-          label={isShop ? 'Nombre del negocio' : isClub ? 'Nombre de la cancha' : 'Nombre del restaurante'}
+          label={isShop ? 'Nombre del negocio' : isClub ? 'Nombre de la cancha' : isOffice ? 'Tu nombre o el de tu firma' : 'Nombre del restaurante'}
           value={restaurantName}
           onChange={setRestaurantName}
         />
@@ -163,10 +164,10 @@ export default function RegisterPage() {
           label="Nombre de usuario"
           value={slug}
           onChange={(v) => setSlug(v.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
-          placeholder={isClub ? 'mi-club' : 'mi-restaurante'}
+          placeholder={isClub ? 'mi-club' : isOffice ? 'mi-administracion' : 'mi-restaurante'}
         />
         <label className="block text-sm">
-          <span className="text-brand-950/70">WhatsApp</span>
+          <span className="text-brand-950/70">{isOffice ? 'Teléfono de contacto' : 'WhatsApp'}</span>
           <div className="mt-1">
             <WhatsappPhoneInput value={whatsappPhone} onChange={setWhatsappPhone} />
           </div>
@@ -174,20 +175,22 @@ export default function RegisterPage() {
             Elige tu país y escribe el número local; el código se agrega automáticamente.
           </span>
         </label>
-        <label className="block text-sm">
-          <span className="text-brand-950/70">¿En qué moneda colocas tus precios?</span>
-          <select
-            value={baseCurrency}
-            onChange={(e) => setBaseCurrency(e.target.value as Currency)}
-            className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-          >
-            <option value="USD">Dólares ($)</option>
-            <option value="EUR">Euros (€)</option>
-          </select>
-          <span className="text-xs text-brand-950/40 font-light">
-            La conversión a Bs para tus clientes se calcula sola con la tasa BCV.
-          </span>
-        </label>
+        {!isOffice && (
+          <label className="block text-sm">
+            <span className="text-brand-950/70">¿En qué moneda colocas tus precios?</span>
+            <select
+              value={baseCurrency}
+              onChange={(e) => setBaseCurrency(e.target.value as Currency)}
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            >
+              <option value="USD">Dólares ($)</option>
+              <option value="EUR">Euros (€)</option>
+            </select>
+            <span className="text-xs text-brand-950/40 font-light">
+              La conversión a Bs para tus clientes se calcula sola con la tasa BCV.
+            </span>
+          </label>
+        )}
         {!googleSignup && (
           <>
             <Field label="Tu nombre" value={ownerName} onChange={setOwnerName} />

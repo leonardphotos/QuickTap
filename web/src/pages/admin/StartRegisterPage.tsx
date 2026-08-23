@@ -1,9 +1,9 @@
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { LandPlot, Store, Utensils, Warehouse } from 'lucide-react';
+import { Calculator, LandPlot, Store, Utensils, Warehouse } from 'lucide-react';
 import AuthLayout from './AuthLayout';
 import { cn } from '@/lib/utils';
 
-type StartOption = 'restaurant' | 'shop' | 'club' | 'warehouse';
+type StartOption = 'restaurant' | 'shop' | 'club' | 'office' | 'warehouse';
 
 const OPTIONS: {
   id: StartOption;
@@ -15,6 +15,7 @@ const OPTIONS: {
   { id: 'restaurant', label: 'Restaurantes', description: 'Mesas, comandas, cocina y delivery.', icon: Utensils },
   { id: 'shop', label: 'Locales Comerciales', description: 'Punto de venta, inventario y variantes por producto.', icon: Store },
   { id: 'club', label: 'Canchas', description: 'Reservas por hora, calendario y control de acceso.', icon: LandPlot },
+  { id: 'office', label: 'Administración', description: 'Contabilidad y administración de una o varias empresas.', icon: Calculator },
   { id: 'warehouse', label: 'Almacenes', description: 'Próximamente.', icon: Warehouse, disabled: true },
 ];
 
@@ -22,8 +23,8 @@ const OPTIONS: {
  * Primera pantalla del registro: elegir el rubro/vertical del negocio antes de llenar
  * cualquier dato. "Restaurantes" sigue al registro de siempre (/admin/register) sin cambios;
  * "Locales Comerciales" pasa primero por el selector de 23 rubros (ShopRubroPage) y de ahí
- * cae en el mismo formulario, marcado como Shop; "Canchas" va directo al formulario marcado
- * como club (no tiene sub-rubros); "Almacenes" todavía no existe.
+ * cae en el mismo formulario, marcado como Shop; "Canchas" y "Administración" van directo al
+ * formulario marcado con su tipo (ninguno tiene sub-rubros); "Almacenes" todavía no existe.
  */
 export default function StartRegisterPage() {
   const navigate = useNavigate();
@@ -39,6 +40,11 @@ export default function StartRegisterPage() {
     if (option === 'club') {
       const params = new URLSearchParams(qs);
       params.set('businessType', 'club');
+      navigate(`/admin/register?${params.toString()}`, { state: location.state });
+    }
+    if (option === 'office') {
+      const params = new URLSearchParams(qs);
+      params.set('businessType', 'office');
       navigate(`/admin/register?${params.toString()}`, { state: location.state });
     }
   }
