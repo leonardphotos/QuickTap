@@ -287,3 +287,19 @@ body {
     display: none;
   }
 }
+
+/*
+ * Selects en celular: Android arma el menú desplegable con el font-size CSS del propio
+ * <select> (iOS en cambio usa su rueda nativa a tamaño de sistema, sin importar el CSS). La
+ * app usa 12-14px en varios formularios por densidad de layout, y a esos tamaños el menú de
+ * Android sale con letra minúscula e ilegible.
+ *
+ * Se fuerza un mínimo de 16px SOLO en pantallas angostas y SOLO en <select> — los <input> no
+ * abren un menú del sistema, así que no tienen este problema y conservan su tamaño de diseño.
+ * 16px es también el umbral que evita el zoom automático de iOS Safari al enfocar el campo.
+ */
+@media (max-width: 640px) {
+  select {
+    font-size: 16px;
+  }
+}
