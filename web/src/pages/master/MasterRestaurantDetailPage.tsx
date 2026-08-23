@@ -77,7 +77,7 @@ const PLAN_OPTION_LABELS: Record<(typeof PLAN_OPTIONS)[number], string> = {
   SHOP: 'SHOP — QuickTap Shop',
   ELITE_SHOP: 'ELITE_SHOP — Elite Shop (contabilidad + sucursales)',
 };
-const CYCLE_OPTIONS = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL'] as const;
+const CYCLE_OPTIONS = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL'] as const;
 const BRANCH_PLAN_OPTIONS = ['DELIVERY', 'PRO', 'ELITE', 'SUCURSALES', 'DELIVERY_SUCURSALES', 'ELITE_SHOP'] as const;
 // Un local solo puede tener sucursales con Elite Shop.
 const SHOP_BRANCH_PLAN_OPTIONS = ['ELITE_SHOP'] as const;

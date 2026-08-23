@@ -12,13 +12,23 @@ export type PlanId =
   | 'ELITE_SHOP'
   | 'CLUB'
   | 'OFFICE';
-export type BillingCycle = 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL';
+export type BillingCycle = 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL';
 export type SubscriptionPaymentMethod = 'PAGO_MOVIL' | 'BINANCE' | 'BANK_TRANSFER';
 
 export const BILLING_CYCLE_LABEL: Record<BillingCycle, string> = {
   MONTHLY: 'Mensual',
   QUARTERLY: '3 meses',
   SEMIANNUAL: '6 meses',
+  ANNUAL: '12 meses',
+};
+
+/** Meses que cubre cada ciclo. Los precios se guardan como mensualidad
+ * equivalente, así que el total a pagar es precio x estos meses. */
+export const CYCLE_MONTHS: Record<BillingCycle, number> = {
+  MONTHLY: 1,
+  QUARTERLY: 3,
+  SEMIANNUAL: 6,
+  ANNUAL: 12,
 };
 
 export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP' | 'ELITE_SHOP' | 'CLUB' | 'OFFICE';
@@ -33,13 +43,13 @@ export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP' | 'ELITE_SHO
  * el único de Canchas y OFFICE el único de Administración.
  */
 export const FIXED_PLAN_PRICES: Record<PurchasablePlan, Record<BillingCycle, number>> = {
-  DELIVERY: { MONTHLY: 24.99, QUARTERLY: 22.74, SEMIANNUAL: 20.49 },
-  PRO: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99 },
-  ELITE: { MONTHLY: 39.99, QUARTERLY: 35.49, SEMIANNUAL: 30.99 },
-  SHOP: { MONTHLY: 20, QUARTERLY: 18, SEMIANNUAL: 16 },
-  ELITE_SHOP: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40 },
-  CLUB: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40 },
-  OFFICE: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99 },
+  DELIVERY: { MONTHLY: 24.99, QUARTERLY: 22.74, SEMIANNUAL: 20.49, ANNUAL: 17.5 },
+  PRO: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99, ANNUAL: 20.8333 },
+  ELITE: { MONTHLY: 59.99, QUARTERLY: 45.49, SEMIANNUAL: 40.99, ANNUAL: 37.5 },
+  SHOP: { MONTHLY: 20, QUARTERLY: 18, SEMIANNUAL: 16, ANNUAL: 14.1667 },
+  ELITE_SHOP: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40, ANNUAL: 35 },
+  CLUB: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40, ANNUAL: 35 },
+  OFFICE: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99, ANNUAL: 20.8333 },
 };
 
 export const PAYMENT_METHOD_LABEL: Record<SubscriptionPaymentMethod, string> = {

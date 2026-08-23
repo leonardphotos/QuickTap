@@ -47,7 +47,7 @@ export const createBranchForRestaurantSchema = z.object({
   baseCurrency: z.enum(['USD', 'EUR']).optional().default('USD'),
   copyCatalog: z.boolean().default(false),
   plan: z.enum(['DELIVERY', 'PRO', 'ELITE', 'SUCURSALES', 'DELIVERY_SUCURSALES', 'SHOP', 'ELITE_SHOP', 'CLUB']).default('ELITE'),
-  billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL']).default('MONTHLY'),
+  billingCycle: z.enum(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL']).default('MONTHLY'),
 });
 
 export type CreateBranchForRestaurantInput = z.infer<typeof createBranchForRestaurantSchema>;

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
 import { api } from '@/api/client';
 import { formatBs } from '@/utils/format';
-import { BILLING_CYCLE_LABEL, FIXED_PLAN_PRICES, type BillingCycle, type PurchasablePlan } from '@/utils/plans';
+import { BILLING_CYCLE_LABEL, CYCLE_MONTHS, FIXED_PLAN_PRICES, type BillingCycle, type PurchasablePlan } from '@/utils/plans';
 import { TextureButton } from '@/components/ui/texture-button';
 
 export interface PlanContent {
@@ -70,8 +70,6 @@ export const PLAN_CONTENT: PlanContent[] = [
   },
 ];
 
-const CYCLE_MONTHS: Record<BillingCycle, number> = { MONTHLY: 1, QUARTERLY: 3, SEMIANNUAL: 6 };
-
 interface Props {
   rateBs: string | null;
   billingCycle: BillingCycle;
@@ -132,7 +130,7 @@ export function PlanCards({ rateBs, billingCycle, onBillingCycleChange, onChoose
     <div>
       <div className="flex items-center justify-center gap-1 mb-8">
         <div className="inline-flex gap-1 rounded-full border border-brand-950/10 bg-brand-950/[0.05] p-1.5">
-          {(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL'] as const).map((c) => {
+          {(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL'] as const).map((c) => {
             const active = billingCycle === c;
             const off = cycleOffPercent(c);
             return (
@@ -171,6 +169,8 @@ export function PlanCards({ rateBs, billingCycle, onBillingCycleChange, onChoose
           const price = d?.prices[billingCycle] ?? FIXED_PLAN_PRICES[plan.id][billingCycle];
           const monthlyPrice = d?.prices.MONTHLY ?? FIXED_PLAN_PRICES[plan.id].MONTHLY;
           const months = CYCLE_MONTHS[billingCycle];
+          // El precio mostrado es la mensualidad equivalente; el cobro es el ciclo completo.
+          const cycleTotal = Math.round(price * months * 100) / 100;
           const totalSavings = Math.max(0, (monthlyPrice - price) * months);
           const showSavings = billingCycle !== 'MONTHLY' && totalSavings > 0.01;
           const isPopular = plan.tier === 'popular';
@@ -211,12 +211,17 @@ export function PlanCards({ rateBs, billingCycle, onBillingCycleChange, onChoose
                   {effectiveRateBs && (
                     <p className="text-[11px] text-brand-950/45">{formatBs(price, effectiveRateBs)}/mes · a tasa BCV</p>
                   )}
+                  {billingCycle !== 'MONTHLY' && (
+                    <p className="text-[11px] text-brand-950/55 font-medium">
+                      Un solo pago de {currencySymbol}{cycleTotal.toFixed(2)}
+                    </p>
+                  )}
                   <span
                     className={`self-start mt-2 inline-flex items-center gap-1 text-[11px] font-bold rounded-full px-2.5 py-1 transition-opacity duration-200 ${
                       showSavings ? 'opacity-100 bg-emerald-50 text-emerald-700' : 'opacity-0 pointer-events-none'
                     }`}
                   >
-                    ◆ Ahorras {currencySymbol}{totalSavings.toFixed(0)} en el ciclo
+                    ◆ Ahorras {currencySymbol}{totalSavings.toFixed(0)} {billingCycle === 'ANNUAL' ? 'al año' : 'en el ciclo'}
                   </span>
                 </div>
 

@@ -2,10 +2,9 @@ import { useEffect, useState } from 'react';
 import { Check } from 'lucide-react';
 import { api } from '@/api/client';
 import { formatBs } from '@/utils/format';
-import { BILLING_CYCLE_LABEL, FIXED_PLAN_PRICES, type BillingCycle } from '@/utils/plans';
+import { BILLING_CYCLE_LABEL, CYCLE_MONTHS, FIXED_PLAN_PRICES, type BillingCycle } from '@/utils/plans';
 import { TextureButton } from '@/components/ui/texture-button';
 
-const CYCLE_MONTHS: Record<BillingCycle, number> = { MONTHLY: 1, QUARTERLY: 3, SEMIANNUAL: 6 };
 
 interface FetchedPlan {
   name: string;
@@ -80,6 +79,8 @@ export function SinglePlanCard({
   const price = dynamicContent?.prices[billingCycle] ?? FIXED_PLAN_PRICES[plan][billingCycle];
   const monthlyPrice = dynamicContent?.prices.MONTHLY ?? FIXED_PLAN_PRICES[plan].MONTHLY;
   const months = CYCLE_MONTHS[billingCycle];
+  // El precio mostrado es la mensualidad equivalente; el cobro real es el ciclo completo.
+  const cycleTotal = Math.round(price * months * 100) / 100;
   const totalSavings = Math.max(0, (monthlyPrice - price) * months);
   const showSavings = billingCycle !== 'MONTHLY' && totalSavings > 0.01;
 
@@ -87,10 +88,11 @@ export function SinglePlanCard({
     <div>
       <div className="flex items-center justify-center gap-1 mb-8">
         <div className="inline-flex gap-1 rounded-full border border-brand-950/10 bg-brand-950/[0.05] p-1.5">
-          {(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL'] as const).map((c) => {
+          {(['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL'] as const).map((c) => {
             const active = billingCycle === c;
-            const base = FIXED_PLAN_PRICES[plan].MONTHLY;
-            const off = c === 'MONTHLY' ? 0 : Math.round((1 - FIXED_PLAN_PRICES[plan][c] / base) * 100);
+            const base = dynamicContent?.prices.MONTHLY ?? FIXED_PLAN_PRICES[plan].MONTHLY;
+            const precioCiclo = dynamicContent?.prices[c] ?? FIXED_PLAN_PRICES[plan][c];
+            const off = c === 'MONTHLY' ? 0 : Math.round((1 - precioCiclo / base) * 100);
             return (
               <button
                 key={c}
@@ -137,13 +139,19 @@ export function SinglePlanCard({
               )}
             </div>
             {effectiveRateBs && <p className="text-[11px] text-brand-950/45">{formatBs(price, effectiveRateBs)}/mes · a tasa BCV</p>}
+            {billingCycle !== 'MONTHLY' && (
+              <p className="text-[11px] text-brand-950/55 font-medium">
+                Un solo pago de {currencySymbol}
+                {cycleTotal.toFixed(2)} por {BILLING_CYCLE_LABEL[billingCycle].toLowerCase()}
+              </p>
+            )}
             <span
               className={`self-start mt-2 inline-flex items-center gap-1 text-[11px] font-bold rounded-full px-2.5 py-1 transition-opacity duration-200 ${
                 showSavings ? 'opacity-100 bg-emerald-50 text-emerald-700' : 'opacity-0 pointer-events-none'
               }`}
             >
               ◆ Ahorras {currencySymbol}
-              {totalSavings.toFixed(0)} en el ciclo
+              {totalSavings.toFixed(0)} {billingCycle === 'ANNUAL' ? 'al año' : 'en el ciclo'}
             </span>
           </div>
 

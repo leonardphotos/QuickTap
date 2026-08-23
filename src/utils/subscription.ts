@@ -9,6 +9,19 @@ const CYCLE_DAYS: Record<BillingCycle, number> = {
   MONTHLY: 30,
   QUARTERLY: 90,
   SEMIANNUAL: 180,
+  ANNUAL: 365,
+};
+
+/**
+ * Meses que cubre cada ciclo. El precio de un plan siempre se guarda como
+ * MENSUALIDAD EQUIVALENTE (lo que sale el mes al pagar por adelantado), así
+ * que el monto a cobrar es mensualidad x estos meses.
+ */
+export const CYCLE_MONTHS: Record<BillingCycle, number> = {
+  MONTHLY: 1,
+  QUARTERLY: 3,
+  SEMIANNUAL: 6,
+  ANNUAL: 12,
 };
 
 export function trialPeriodEnd(from: Date = new Date()): Date {

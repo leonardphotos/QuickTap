@@ -55,7 +55,7 @@ export default function BillingPage() {
     const plan = planParam as ChoosablePlan;
     const cycleParam = searchParams.get('cycle');
     const cycle: BillingCycle =
-      cycleParam === 'QUARTERLY' || cycleParam === 'SEMIANNUAL' ? cycleParam : 'MONTHLY';
+      cycleParam === 'QUARTERLY' || cycleParam === 'SEMIANNUAL' || cycleParam === 'ANNUAL' ? cycleParam : 'MONTHLY';
     setBillingCycle(cycle);
     choosePlan(plan, cycle);
     // eslint-disable-next-line react-hooks/exhaustive-deps

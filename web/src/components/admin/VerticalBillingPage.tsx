@@ -79,7 +79,7 @@ export function VerticalBillingPage({ plan, defaultName, defaultSubtitle, defaul
     if (!match) return;
     const cycleParam = searchParams.get('cycle');
     const cycle: BillingCycle =
-      cycleParam === 'QUARTERLY' || cycleParam === 'SEMIANNUAL' ? cycleParam : 'MONTHLY';
+      cycleParam === 'QUARTERLY' || cycleParam === 'SEMIANNUAL' || cycleParam === 'ANNUAL' ? cycleParam : 'MONTHLY';
     setBillingCycle(cycle);
     choosePlan(cycle, match.plan);
     // eslint-disable-next-line react-hooks/exhaustive-deps

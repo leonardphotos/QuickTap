@@ -34,6 +34,7 @@ const planPricesSchema = z.object({
   MONTHLY: z.coerce.number().positive().max(100000).optional(),
   QUARTERLY: z.coerce.number().positive().max(100000).optional(),
   SEMIANNUAL: z.coerce.number().positive().max(100000).optional(),
+  ANNUAL: z.coerce.number().positive().max(100000).optional(),
 });
 
 const planContentEntrySchema = z.object({

@@ -326,6 +326,7 @@ enum BillingCycle {
   MONTHLY
   QUARTERLY // 3 meses
   SEMIANNUAL // 6 meses
+  ANNUAL // 12 meses
 }
 
 enum SubscriptionPaymentMethod {

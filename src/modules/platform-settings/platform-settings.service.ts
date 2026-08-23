@@ -58,7 +58,7 @@ export function renderTemplate(template: string, vars: Record<string, string>): 
 }
 
 export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP' | 'ELITE_SHOP' | 'CLUB' | 'OFFICE';
-export type PlanBillingCycle = 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL';
+export type PlanBillingCycle = 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL';
 
 export interface PlanContentEntry {
   name: string;
@@ -100,7 +100,7 @@ export const DEFAULT_PLAN_CONTENT: PlanContent = {
       'Hasta 6 usuarios de tu equipo',
       ...CHATBOT_FEATURES,
     ],
-    prices: { MONTHLY: 24.99, QUARTERLY: 22.74, SEMIANNUAL: 20.49 },
+    prices: { MONTHLY: 24.99, QUARTERLY: 22.74, SEMIANNUAL: 20.49, ANNUAL: 17.5 },
   },
   PRO: {
     name: 'Plan Pro',
@@ -113,7 +113,7 @@ export const DEFAULT_PLAN_CONTENT: PlanContent = {
       'Registro de gastos',
       ...CHATBOT_FEATURES,
     ],
-    prices: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99 },
+    prices: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99, ANNUAL: 20.8333 },
   },
   ELITE: {
     name: 'Plan Elite',
@@ -134,7 +134,7 @@ export const DEFAULT_PLAN_CONTENT: PlanContent = {
       'Acceso anticipado a nuevas funcionalidades',
       ...CHATBOT_FEATURES,
     ],
-    prices: { MONTHLY: 39.99, QUARTERLY: 35.49, SEMIANNUAL: 30.99 },
+    prices: { MONTHLY: 59.99, QUARTERLY: 45.49, SEMIANNUAL: 40.99, ANNUAL: 37.5 },
   },
   SHOP: {
     name: 'QuickTap Shop',
@@ -152,7 +152,7 @@ export const DEFAULT_PLAN_CONTENT: PlanContent = {
       'Alertas de stock bajo y productos próximos a vencer',
       'Roles de equipo (Dueño, Administrador, Cajero)',
     ],
-    prices: { MONTHLY: 20, QUARTERLY: 18, SEMIANNUAL: 16 },
+    prices: { MONTHLY: 20, QUARTERLY: 18, SEMIANNUAL: 16, ANNUAL: 14.1667 },
   },
   ELITE_SHOP: {
     name: 'Elite Shop',
@@ -168,7 +168,7 @@ export const DEFAULT_PLAN_CONTENT: PlanContent = {
       'Sucursales: catálogo copiado, inventario y caja por sede, y ventas consolidadas',
       'Soporte prioritario por WhatsApp',
     ],
-    prices: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40 },
+    prices: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40, ANNUAL: 35 },
   },
   OFFICE: {
     name: 'QuickTap Administración',
@@ -183,7 +183,7 @@ export const DEFAULT_PLAN_CONTENT: PlanContent = {
       'Clientes, proveedores y empleados por empresa',
       'Soporte por WhatsApp',
     ],
-    prices: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99 },
+    prices: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99, ANNUAL: 20.8333 },
   },
   CLUB: {
     name: 'QuickTap Club',
@@ -198,7 +198,7 @@ export const DEFAULT_PLAN_CONTENT: PlanContent = {
       'Caja: apertura, cierre y arqueo con historial de informes',
       'Directorio de jugadores y roles de equipo (Dueño, Administrador, Cajero, Cancha)',
     ],
-    prices: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40 },
+    prices: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40, ANNUAL: 35 },
   },
 };
 

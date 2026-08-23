@@ -40,7 +40,7 @@ interface PlatformQuote {
  * precios, así la cotización nunca ofrece un plan que no existe o con precio viejo. */
 interface PublicPlan {
   name: string;
-  prices: { MONTHLY: number; QUARTERLY: number; SEMIANNUAL: number };
+  prices: { MONTHLY: number; QUARTERLY: number; SEMIANNUAL: number; ANNUAL: number };
 }
 
 /** Meses y clave de precio de cada ciclo (los precios públicos son por mes con
@@ -49,6 +49,7 @@ const CYCLES = [
   { label: 'Mensual', priceKey: 'MONTHLY', months: 1 },
   { label: 'Trimestral', priceKey: 'QUARTERLY', months: 3 },
   { label: 'Semestral', priceKey: 'SEMIANNUAL', months: 6 },
+  { label: 'Anual', priceKey: 'ANNUAL', months: 12 },
 ] as const;
 
 /** Cargos únicos estándar, para agregarlos con un toque. */

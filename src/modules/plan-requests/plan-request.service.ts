@@ -2,7 +2,7 @@ import { BillingCycle, PlanRequestKind, PlanRequestStatus, SubscriptionPlan } fr
 import { env } from '../../config/env';
 import { prisma } from '../../config/prisma';
 import { badRequest, forbidden, notFound } from '../../utils/http-error';
-import { nextPeriodEnd } from '../../utils/subscription';
+import { nextPeriodEnd, CYCLE_MONTHS } from '../../utils/subscription';
 import { buildWhatsappUrl } from '../../utils/whatsapp';
 import { promoCodeService } from '../promo-codes/promo-code.service';
 import { platformSettingsService } from '../platform-settings/platform-settings.service';
@@ -90,14 +90,14 @@ export type PurchasablePlan = 'DELIVERY' | 'PRO' | 'ELITE' | 'SHOP' | 'ELITE_SHO
  * el único plan del vertical Locales Comerciales (ver businessType SHOP).
  */
 const FIXED_PLAN_PRICES: Record<PurchasablePlan, Record<BillingCycle, number>> = {
-  DELIVERY: { MONTHLY: 24.99, QUARTERLY: 22.74, SEMIANNUAL: 20.49 },
-  PRO: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99 },
-  ELITE: { MONTHLY: 39.99, QUARTERLY: 35.49, SEMIANNUAL: 30.99 },
-  SHOP: { MONTHLY: 20, QUARTERLY: 18, SEMIANNUAL: 16 },
-  ELITE_SHOP: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40 },
-  CLUB: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40 },
+  DELIVERY: { MONTHLY: 24.99, QUARTERLY: 22.74, SEMIANNUAL: 20.49, ANNUAL: 17.5 },
+  PRO: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99, ANNUAL: 20.8333 },
+  ELITE: { MONTHLY: 59.99, QUARTERLY: 45.49, SEMIANNUAL: 40.99, ANNUAL: 37.5 },
+  SHOP: { MONTHLY: 20, QUARTERLY: 18, SEMIANNUAL: 16, ANNUAL: 14.1667 },
+  ELITE_SHOP: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40, ANNUAL: 35 },
+  CLUB: { MONTHLY: 50, QUARTERLY: 45, SEMIANNUAL: 40, ANNUAL: 35 },
   // Mismos escalones de descuento que Pro: 10% al trimestre, 20% al semestre.
-  OFFICE: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99 },
+  OFFICE: { MONTHLY: 29.99, QUARTERLY: 26.99, SEMIANNUAL: 23.99, ANNUAL: 20.8333 },
 };
 
 /** A qué businessType le corresponde cada plan comprable — un local/club no puede pedir el plan
@@ -231,9 +231,15 @@ async function resolvePrice(
 
   const charges = restaurantId ? await listPendingCharges(restaurantId) : [];
   const chargesUsd = charges.reduce((acc, c) => acc + Number(c.amountUsd), 0);
-  const priceUsd = Math.round((monthlyUsd + chargesUsd) * 100) / 100;
 
-  return { priceUsd, monthlyUsd, charges, promo };
+  // El precio guardado es la MENSUALIDAD EQUIVALENTE del ciclo, así que el
+  // monto a pagar son todos los meses por adelantado. Los cargos adicionales
+  // (QR, NFC, etc.) se suman una sola vez, no se multiplican por el ciclo.
+  const months = CYCLE_MONTHS[billingCycle];
+  const cycleUsd = Math.round(monthlyUsd * months * 100) / 100;
+  const priceUsd = Math.round((cycleUsd + chargesUsd) * 100) / 100;
+
+  return { priceUsd, monthlyUsd, cycleUsd, months, charges, promo };
 }
 
 /** Cargos adicionales que todavía no se cobraron en ninguna mensualidad. */
@@ -334,9 +340,17 @@ export const planRequestService = {
    * total más alto que su tarifa habitual, sin explicación.
    */
   async getQuote(restaurantId: string, plan: PurchasablePlan, billingCycle: BillingCycle, promoCode?: string) {
-    const { priceUsd, monthlyUsd, charges, promo } = await resolvePrice(plan, billingCycle, promoCode, restaurantId);
+    const { priceUsd, monthlyUsd, cycleUsd, months, charges, promo } = await resolvePrice(
+      plan,
+      billingCycle,
+      promoCode,
+      restaurantId,
+    );
     return {
       monthlyUsd: monthlyUsd.toFixed(2),
+      // Meses que cubre el pago y lo que suman esos meses, sin los cargos aparte.
+      months,
+      cycleUsd: cycleUsd.toFixed(2),
       additionalCharges: charges.map((c) => ({
         id: c.id,
         description: c.description,

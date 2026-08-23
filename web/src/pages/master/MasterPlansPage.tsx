@@ -19,7 +19,7 @@ const SHOP_PLAN_ORDER: PurchasablePlan[] = ['SHOP', 'ELITE_SHOP'];
 const CLUB_PLAN_ORDER: PurchasablePlan[] = ['CLUB'];
 const OFFICE_PLAN_ORDER: PurchasablePlan[] = ['OFFICE'];
 const PLAN_ORDER: PurchasablePlan[] = [...RESTAURANT_PLAN_ORDER, ...SHOP_PLAN_ORDER, ...CLUB_PLAN_ORDER, ...OFFICE_PLAN_ORDER];
-const BILLING_CYCLES: BillingCycle[] = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL'];
+const BILLING_CYCLES: BillingCycle[] = ['MONTHLY', 'QUARTERLY', 'SEMIANNUAL', 'ANNUAL'];
 
 type SubscriptionCurrency = 'USD' | 'EUR';
 const CURRENCY_LABEL: Record<SubscriptionCurrency, string> = { USD: '$ Dólares (USD)', EUR: '€ Euros (EUR)' };

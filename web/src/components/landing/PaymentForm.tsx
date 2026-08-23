@@ -4,6 +4,7 @@ import { Bitcoin, Copy, CreditCard, Landmark, Loader2, Paperclip, Tag, Wallet, X
 import { api } from '@/api/client';
 import { formatBs } from '@/utils/format';
 import {
+  CYCLE_MONTHS,
   paymentMethodLines,
   PAYMENT_METHOD_LABEL,
   type BillingCycle,
@@ -225,9 +226,14 @@ export function PaymentForm({
   const installmentPaidUsd = installment ? installment.payments.reduce((a, p) => a + Number(p.amountUsd), 0) : 0;
   const installmentRemainingUsd = installment ? Math.max(0, Number(installment.priceUsd) - installmentPaidUsd) : 0;
 
+  // selected.priceUsd es la MENSUALIDAD EQUIVALENTE del ciclo; lo que se paga
+  // de una vez son todos los meses del ciclo (el backend recalcula igual).
   const finalPriceUsd = promo
     ? Math.round(selected.priceUsd * (1 - promo.discountPercent / 100) * 100) / 100
     : selected.priceUsd;
+  const cycleMonths = CYCLE_MONTHS[selected.billingCycle];
+  const cycleTotalUsd = Math.round(finalPriceUsd * cycleMonths * 100) / 100;
+  const cycleFullUsd = Math.round(selected.priceUsd * cycleMonths * 100) / 100;
 
   async function applyPromo() {
     if (!promoInput.trim()) return;
@@ -340,16 +346,26 @@ export function PaymentForm({
             {planName} ·{' '}
             {promo ? (
               <>
-                <span className="line-through text-brand-950/40">{currencySymbol}{selected.priceUsd.toFixed(2)}</span>{' '}
-                <span className="text-brand-500">{currencySymbol}{finalPriceUsd.toFixed(2)}/mes</span>
+                <span className="line-through text-brand-950/40">{currencySymbol}{cycleFullUsd.toFixed(2)}</span>{' '}
+                <span className="text-brand-500">{currencySymbol}{cycleTotalUsd.toFixed(2)}</span>
               </>
             ) : (
-              <>{currencySymbol}{selected.priceUsd.toFixed(2)}/mes</>
+              <>{currencySymbol}{cycleTotalUsd.toFixed(2)}</>
             )}
+            <span className="text-sm font-normal text-brand-950/50">
+              {' '}
+              {cycleMonths > 1 ? `por ${cycleMonths} meses` : '/mes'}
+            </span>
             {rateBs && (
-              <span className="text-sm font-normal text-brand-950/50"> ({formatBs(finalPriceUsd, rateBs)}/mes)</span>
+              <span className="text-sm font-normal text-brand-950/50"> ({formatBs(cycleTotalUsd, rateBs)})</span>
             )}
           </p>
+          {cycleMonths > 1 && (
+            <p className="text-xs text-brand-950/50 font-light mt-0.5">
+              Equivale a {currencySymbol}
+              {finalPriceUsd.toFixed(2)}/mes · un solo pago por adelantado
+            </p>
+          )}
         </div>
         <button onClick={onCancel} className="text-sm text-brand-950/40 hover:text-brand-950 shrink-0">
           Cambiar plan

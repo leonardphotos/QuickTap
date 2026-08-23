@@ -79,7 +79,7 @@ export interface AuthRestaurant {
   screenItemsPerPage: number;
   subscriptionStatus: 'TRIALING' | 'ACTIVE';
   subscriptionPlan: 'DELIVERY' | 'STARTER' | 'PRO' | 'PREMIUM' | 'CUSTOM' | 'SUCURSALES' | 'DELIVERY_SUCURSALES' | 'ELITE' | 'SHOP' | 'ELITE_SHOP' | 'CLUB' | 'OFFICE' | null;
-  billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | null;
+  billingCycle: 'MONTHLY' | 'QUARTERLY' | 'SEMIANNUAL' | 'ANNUAL' | null;
   /** Fin del período vigente (prueba o ciclo pagado). El bloqueo por vencimiento se calcula a partir de esto. */
   periodEnd: string;
   /** Bloqueo manual desde el Dashboard maestro, independiente del vencimiento. */
