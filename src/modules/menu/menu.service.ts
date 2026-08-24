@@ -116,6 +116,9 @@ export const menuService = {
             isPromo: true,
             isHouseSpecial: true,
             pricingMode: true,
+            packagingMode: true,
+            packagingFeeBase: true,
+            packagingItem: { select: { salePriceBase: true } },
             variants: {
               where: { isAvailable: true },
               orderBy: [{ priority: 'asc' }, { name: 'asc' }],
@@ -178,6 +181,11 @@ export const menuService = {
           isPromo: p.isPromo,
           isHouseSpecial: p.isHouseSpecial,
           pricingMode: p.pricingMode,
+          // Envase: solo lo cobra el servidor en DELIVERY/PICKUP, pero el checkout público
+          // necesita verlo para no mostrar un total menor al que después realmente se cobra.
+          packagingMode: p.packagingMode,
+          packagingFeeBase: p.packagingFeeBase?.toString() ?? null,
+          packagingItem: p.packagingItem ? { salePriceBase: p.packagingItem.salePriceBase?.toString() ?? null } : null,
           variants: p.variants.map((v) => ({
             id: v.id,
             name: v.name,

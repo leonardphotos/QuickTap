@@ -42,6 +42,14 @@ const PAYMENT_LABELS: Record<PaymentMethod, string> = {
 
 const DEFAULT_PAYMENT_OPTIONS: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD'];
 
+/** Cargo por envase de UNA unidad del producto — misma regla que computeEnvaseFee del backend:
+ * FIXED usa el precio propio, INVENTORY el del insumo vinculado, NONE no cobra. */
+function unitPackagingFee(product: Product): number {
+  if (product.packagingMode === 'FIXED') return Number(product.packagingFeeBase ?? 0);
+  if (product.packagingMode === 'INVENTORY') return Number(product.packagingItem?.salePriceBase ?? 0);
+  return 0;
+}
+
 const PAYMENT_FIELD_LABELS: Record<string, string> = {
   banco: 'Banco',
   telefono: 'Teléfono',
@@ -180,8 +188,14 @@ export default function CartDrawer({
 
   const serviceChargeBase = restaurant.serviceChargeEnabled ? subtotalBase * 0.1 : 0;
   const ivaBase = restaurant.ivaEnabled ? subtotalBase * 0.16 : 0;
-  const totalBase = subtotalBase + serviceChargeBase + ivaBase + (deliveryFeeBase ?? 0);
-  const hasCharges = restaurant.serviceChargeEnabled || restaurant.ivaEnabled || Boolean(deliveryFeeBase);
+  // Envase (envase/caja/bolsa por producto): el servidor lo cobra en Delivery y Pickup (nunca en
+  // mesa, qrToken != null), así que el checkout tiene que mostrarlo o el cliente ve menos de lo
+  // que después realmente se le cobra — ver computeEnvaseFee en order.service.ts.
+  const envaseFeeBase = qrToken
+    ? 0
+    : cart.reduce((acc, l) => acc + unitPackagingFee(l.product) * l.quantity, 0);
+  const totalBase = subtotalBase + serviceChargeBase + ivaBase + (deliveryFeeBase ?? 0) + envaseFeeBase;
+  const hasCharges = restaurant.serviceChargeEnabled || restaurant.ivaEnabled || Boolean(deliveryFeeBase) || envaseFeeBase > 0;
 
   const tipBase = tipPercent != null ? round2(subtotalBase * (tipPercent / 100)) : Number(tipCustom) || 0;
 
@@ -387,6 +401,9 @@ export default function CartDrawer({
             ...(deliveryFeeBase != null && deliveryFeeBase > 0
               ? [{ label: 'Delivery', value: publicPriceLabel(deliveryFeeBase, restaurant).primary }]
               : []),
+            ...(envaseFeeBase > 0
+              ? [{ label: 'Envase', value: publicPriceLabel(envaseFeeBase, restaurant).primary }]
+              : []),
             { label: 'Total', value: publicPriceLabel(totalBase, restaurant).primary, strong: true },
           ],
         });
@@ -580,6 +597,12 @@ export default function CartDrawer({
                       <div className="flex justify-between">
                         <span>Envío</span>
                         <span>{publicPriceLabel(deliveryFeeBase, restaurant).primary}</span>
+                      </div>
+                    )}
+                    {envaseFeeBase > 0 && (
+                      <div className="flex justify-between">
+                        <span>Envase</span>
+                        <span>{publicPriceLabel(envaseFeeBase, restaurant).primary}</span>
                       </div>
                     )}
                   </div>
