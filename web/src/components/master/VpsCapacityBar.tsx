@@ -98,8 +98,8 @@ export function VpsCapacityBar() {
         />
         {/* Marcas de referencia: 60% (vigilar) y 85% (actualizar). */}
         <div className="relative -mt-2.5 h-2.5">
-          <div className="absolute top-0 h-2.5 w-px bg-white/70" style={{ left: '60%' }} />
-          <div className="absolute top-0 h-2.5 w-px bg-white/70" style={{ left: '85%' }} />
+          <div className="absolute top-0 h-2.5 w-px bg-brand-950/70" style={{ left: '60%' }} />
+          <div className="absolute top-0 h-2.5 w-px bg-brand-950/70" style={{ left: '85%' }} />
         </div>
       </div>
 

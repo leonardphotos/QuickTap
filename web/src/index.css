@@ -438,6 +438,11 @@ body {
  * `text-white` tiene que seguir siendo blanco de verdad: es la letra encima de los botones
  * azules y de las pastillas de color, que no cambian con el tema. Como arriba se volteó
  * --color-white para las superficies, acá se le devuelve el valor literal.
+ *
+ * OJO al escribir pantallas del maestro: esto solo alcanza a `text-white` exacto. Las variantes
+ * con transparencia —`text-white/40`, `border-white/10`, `bg-white/[0.04]`— resuelven a
+ * var(--color-white), que acá ES la superficie oscura, y salen negro sobre negro. Para texto y
+ * bordes tenues usa `text-brand-950/40`, que en este tema ya es el claro.
  */
 .master-oscuro .text-white {
   color: #fff;

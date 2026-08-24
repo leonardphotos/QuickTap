@@ -98,7 +98,7 @@ export default function MasterLivePage() {
   if (!d) {
     return (
       <Marco>
-        <p className={`py-24 text-center text-sm ${error ? 'text-red-400' : 'text-white/40'}`}>{error ?? 'Cargando…'}</p>
+        <p className={`py-24 text-center text-sm ${error ? 'text-red-400' : 'text-brand-950/40'}`}>{error ?? 'Cargando…'}</p>
       </Marco>
     );
   }
@@ -125,14 +125,14 @@ export default function MasterLivePage() {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="text-[26px] font-bold tracking-tight text-white">En vivo</h1>
-          <p className="mt-0.5 text-[13px] font-light text-white/40">
+          <p className="mt-0.5 text-[13px] font-light text-brand-950/40">
             Lo que está generando la plataforma hoy, desde las {hora(d.desde)}
           </p>
         </div>
         <button
           type="button"
           onClick={() => setPausado((p) => !p)}
-          className="flex items-center gap-2 rounded-full border border-brand-950/10 bg-brand-950/[0.04] px-3.5 py-2 text-xs font-semibold text-white/70 transition-colors hover:bg-brand-950/[0.08]"
+          className="flex items-center gap-2 rounded-full border border-brand-950/10 bg-brand-950/[0.04] px-3.5 py-2 text-xs font-semibold text-brand-950/70 transition-colors hover:bg-brand-950/[0.08]"
         >
           <span
             className={`h-2 w-2 rounded-full ${pausado ? 'bg-brand-950/30' : 'animate-pulse'}`}
@@ -197,13 +197,13 @@ export default function MasterLivePage() {
                 type="button"
                 onClick={() => setFoco(f)}
                 className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold transition-colors ${
-                  activo ? 'text-white' : 'text-white/45 hover:text-white/70'
+                  activo ? 'text-white' : 'text-brand-950/45 hover:text-brand-950/70'
                 }`}
                 style={activo ? { background: `${color}1f`, boxShadow: `inset 0 0 0 1px ${color}59` } : undefined}
               >
                 {f !== 'TODOS' && <span className="h-2 w-2 rounded-full" style={{ background: color }} />}
                 {label}
-                {f !== 'TODOS' && <span className="tabular-nums text-white/45">{usdCorto(d.totales[f].usd)}</span>}
+                {f !== 'TODOS' && <span className="tabular-nums text-brand-950/45">{usdCorto(d.totales[f].usd)}</span>}
               </button>
             );
           })}
@@ -272,7 +272,7 @@ export default function MasterLivePage() {
 
           {/* Las etiquetas del eje van FUERA del SVG: con preserveAspectRatio="none" un <text>
               de adentro se estiraría junto con la gráfica. */}
-          <div className="pointer-events-none absolute inset-y-0 left-1 flex flex-col justify-between py-1 text-[10px] tabular-nums text-white/25">
+          <div className="pointer-events-none absolute inset-y-0 left-1 flex flex-col justify-between py-1 text-[10px] tabular-nums text-brand-950/25">
             <span>{usdCorto(techo)}</span>
             <span>{usdCorto(techo / 2)}</span>
             <span>$0</span>
@@ -280,9 +280,9 @@ export default function MasterLivePage() {
 
           {punto && (
             <div className="pointer-events-none absolute right-2 top-2 rounded-xl border border-brand-950/10 bg-[#0c1119]/95 px-3 py-2 backdrop-blur-sm">
-              <p className="text-[10.5px] text-white/40">{hora(punto.t)}</p>
+              <p className="text-[10.5px] text-brand-950/40">{hora(punto.t)}</p>
               {series.map((v) => (
-                <p key={v.id} className="flex items-center gap-1.5 text-[11.5px] tabular-nums text-white/80">
+                <p key={v.id} className="flex items-center gap-1.5 text-[11.5px] tabular-nums text-brand-950/80">
                   <span className="h-1.5 w-1.5 rounded-full" style={{ background: v.color }} />
                   {usd(punto.porVertical[v.id])}
                 </p>
@@ -291,7 +291,7 @@ export default function MasterLivePage() {
           )}
         </div>
 
-        <div className="mt-1.5 flex justify-between px-1 text-[10.5px] tabular-nums text-white/25">
+        <div className="mt-1.5 flex justify-between px-1 text-[10.5px] tabular-nums text-brand-950/25">
           <span>{hora(d.desde)}</span>
           <span>{hora(d.ahora)}</span>
         </div>
@@ -301,7 +301,7 @@ export default function MasterLivePage() {
         <section className="rounded-2xl border border-brand-950/[0.07] bg-[#0c1119] p-4 sm:p-5">
           <p className="mb-3 text-[15px] font-semibold text-white">Quién está generando hoy</p>
           {d.ranking.length === 0 ? (
-            <p className="py-10 text-center text-xs font-light text-white/30">Sin movimiento todavía.</p>
+            <p className="py-10 text-center text-xs font-light text-brand-950/30">Sin movimiento todavía.</p>
           ) : (
             <ul className="space-y-2.5">
               {d.ranking.map((r) => {
@@ -310,7 +310,7 @@ export default function MasterLivePage() {
                 return (
                   <li key={r.negocio}>
                     <div className="flex items-baseline justify-between gap-2 text-[12.5px]">
-                      <span className="min-w-0 truncate text-white/80">
+                      <span className="min-w-0 truncate text-brand-950/80">
                         {r.negocio}
                         {mirando > 0 && (
                           <span className="ml-1.5 text-[10.5px]" style={{ color: AZUL }}>
@@ -336,15 +336,15 @@ export default function MasterLivePage() {
         <section className="rounded-2xl border border-brand-950/[0.07] bg-[#0c1119] p-4 sm:p-5">
           <p className="mb-3 text-[15px] font-semibold text-white">Últimos movimientos</p>
           {d.ultimos.length === 0 ? (
-            <p className="py-10 text-center text-xs font-light text-white/30">Todavía no se ha generado nada hoy.</p>
+            <p className="py-10 text-center text-xs font-light text-brand-950/30">Todavía no se ha generado nada hoy.</p>
           ) : (
             <ul className="space-y-0.5">
               {d.ultimos.map((m, i) => (
                 <li key={`${m.cuando}-${i}`} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-brand-950/[0.04]">
                   <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: COLOR_DE(m.vertical) }} />
-                  <span className="w-10 shrink-0 text-[11px] tabular-nums text-white/30">{hora(m.cuando)}</span>
-                  <span className="min-w-0 flex-1 truncate text-[12.5px] text-white/80">{m.negocio}</span>
-                  <span className="hidden shrink-0 text-[11px] text-white/30 sm:inline">{m.detalle}</span>
+                  <span className="w-10 shrink-0 text-[11px] tabular-nums text-brand-950/30">{hora(m.cuando)}</span>
+                  <span className="min-w-0 flex-1 truncate text-[12.5px] text-brand-950/80">{m.negocio}</span>
+                  <span className="hidden shrink-0 text-[11px] text-brand-950/30 sm:inline">{m.detalle}</span>
                   <span className="shrink-0 text-[12.5px] font-semibold tabular-nums text-white">{usd(m.monto)}</span>
                 </li>
               ))}
@@ -393,7 +393,7 @@ function Tarjeta({
 
   return (
     <div className="overflow-hidden rounded-2xl border border-brand-950/[0.07] bg-[#0c1119] p-3.5">
-      <p className="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wide text-white/35">
+      <p className="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wide text-brand-950/35">
         {icono}
         {label}
       </p>
@@ -403,7 +403,7 @@ function Tarjeta({
       >
         {valor}
       </p>
-      <p className="mt-0.5 truncate text-[11px] font-light text-white/35">{pie}</p>
+      <p className="mt-0.5 truncate text-[11px] font-light text-brand-950/35">{pie}</p>
       {puntos && (
         <svg viewBox="0 0 100 28" preserveAspectRatio="none" className="mt-2 h-7 w-full opacity-70" aria-hidden>
           <polyline points={puntos} fill="none" stroke={AZUL} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />

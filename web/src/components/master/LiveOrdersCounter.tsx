@@ -80,8 +80,8 @@ export function LiveOrdersCounter({
     <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-500 to-brand-800 px-6 py-7 text-white shadow-[0_18px_40px_-24px_rgba(0,154,255,0.8)]">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-2">
-          <Receipt className="h-4 w-4 text-white/50" />
-          <p className="text-xs font-semibold uppercase tracking-wide text-white/50">Pedidos procesados</p>
+          <Receipt className="h-4 w-4 text-brand-950/50" />
+          <p className="text-xs font-semibold uppercase tracking-wide text-brand-950/50">Pedidos procesados</p>
         </div>
 
         <span className="flex shrink-0 items-center gap-1.5 rounded-full bg-emerald-400/15 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
@@ -105,23 +105,23 @@ export function LiveOrdersCounter({
           >
             {shown.toLocaleString('es-VE')}
           </p>
-          <p className="mt-2.5 text-xs font-light text-white/45">pedidos</p>
+          <p className="mt-2.5 text-xs font-light text-brand-950/45">pedidos</p>
         </div>
 
         {/* El separador solo cuando las dos cifras van lado a lado: al apilarse en pantalla
             angosta, una línea vertical a la izquierda del bloque queda suelta y sin sentido. */}
-        <div className="min-w-0 sm:self-stretch sm:border-l sm:border-white/10 sm:pl-10">
+        <div className="min-w-0 sm:self-stretch sm:border-l sm:border-brand-950/20 sm:pl-10">
           <p className="text-5xl font-bold leading-none tabular-nums text-white">
             ${Number(totalUsd).toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
-          <p className="mt-2.5 text-lg font-semibold leading-none tabular-nums text-white/70">
+          <p className="mt-2.5 text-lg font-semibold leading-none tabular-nums text-brand-950/70">
             {formatBsAbsolute(totalBs)}
           </p>
-          <p className="mt-2 text-xs font-light text-white/45">facturado</p>
+          <p className="mt-2 text-xs font-light text-brand-950/45">facturado</p>
         </div>
       </div>
 
-      <p className="mt-4 text-xs font-light text-white/45">
+      <p className="mt-4 text-xs font-light text-brand-950/45">
         Total desde que arrancó QuickTap, en todos los locales. No cuenta la cuenta demo. El monto en $ es el
         equivalente a la tasa de hoy.
       </p>
