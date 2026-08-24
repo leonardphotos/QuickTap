@@ -97,6 +97,21 @@ cp .env.production.example .env
 nano .env   # completa DATABASE_URL, JWT_SECRET, CORS_ORIGINS, PLATFORM_ADMIN_*
 ```
 
+**No olvides `web/.env`.** Va aparte del `.env` del backend y también está en `.gitignore`, así
+que un servidor recién montado no lo tiene. Vite hornea sus variables en el bundle al compilar:
+sin este archivo, el build sale igual, sin advertencia, y el botón de "Ingresar con Google"
+responde *acceso bloqueado* porque viaja sin Client ID. Pasó en producción el 24/08/2026.
+
+```bash
+printf 'VITE_GOOGLE_CLIENT_ID="EL-MISMO-DE-GOOGLE_CLIENT_ID"\n' > web/.env
+```
+
+Para comprobar que quedó dentro después de compilar:
+
+```bash
+grep -oh '[0-9]*-[a-z0-9]*\.apps\.googleusercontent\.com' web/dist/assets/*.js | sort -u
+```
+
 Aplica las migraciones y genera el cliente de Prisma:
 
 ```bash
