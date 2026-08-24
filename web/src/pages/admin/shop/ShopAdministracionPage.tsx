@@ -12,6 +12,7 @@ import ShopStatsPage from './ShopStatsPage';
 import ShopPurchasesPage from './ShopPurchasesPage';
 import ShopReceivablesPage from './ShopReceivablesPage';
 import ShopSalesByUnitPage from './ShopSalesByUnitPage';
+import ShopConsumptionPlansPage from './ShopConsumptionPlansPage';
 
 /**
  * Administración del local, con el mismo formato que la de restaurantes: un solo menú lateral
@@ -31,6 +32,7 @@ const ALL_TABS = [
   { id: 'compras', label: 'Compras', feature: null },
   { id: 'cotizaciones', label: 'Cotizaciones', feature: null },
   { id: 'cuentas', label: 'Cuentas por cobrar', feature: null },
+  { id: 'planes', label: 'Planes de consumo', feature: null },
   { id: 'ordenes', label: 'Órdenes de pago', feature: 'accounting' },
   { id: 'contabilidad', label: 'Contabilidad', feature: 'accounting' },
   { id: 'bancos', label: 'Cuentas bancarias', feature: 'accounting' },
@@ -79,6 +81,7 @@ export default function ShopAdministracionPage({ restaurant, session, onGoToBill
           {!bloqueada && tab === 'compras' && <ShopPurchasesPage session={session} restaurant={restaurant} />}
           {!bloqueada && tab === 'cotizaciones' && <QuoteManager />}
           {!bloqueada && tab === 'cuentas' && <ShopReceivablesPage />}
+          {!bloqueada && tab === 'planes' && <ShopConsumptionPlansPage />}
 
           {!bloqueada && tab === 'ordenes' && (
             <div className="space-y-5">

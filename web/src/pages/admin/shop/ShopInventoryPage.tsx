@@ -1,7 +1,8 @@
 import { Fragment, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { PackagePlus, ChevronDown, ClipboardList, FlaskConical, FolderPlus, Package, Pencil, Plus, ScanLine, Search, Sparkles, Trash2, TrendingUp, Truck, X } from 'lucide-react';
+import { PackagePlus, ChevronDown, ClipboardList, FlaskConical, FolderPlus, Package, Pencil, Plus, ScanLine, Search, Sparkles, Tags, Trash2, TrendingUp, Truck, X } from 'lucide-react';
 import type { AuthRestaurant } from '@/context/AuthContext';
+import { ShopPriceLabelsDialog } from './ShopPriceLabelsDialog';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -18,7 +19,7 @@ import ShopSkuScanDialog from './ShopSkuScanDialog';
 interface Props {
   session: ShopSession;
   rubro: ShopRubro;
-  restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate'>;
+  restaurant: Pick<AuthRestaurant, 'name' | 'currencySymbol' | 'exchangeRate'>;
 }
 
 const STATUS_LABEL: Record<string, string> = { ok: 'Disponible', warn: 'Stock bajo', danger: 'Agotado' };
@@ -99,6 +100,14 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   // Unidad de venta: por unidad, por kilo o por metro. Se ofrece en ferretería y en los rubros
   // que venden a granel; el resto no necesita la decisión y no se le muestra.
   const [npSaleUnit, setNpSaleUnit] = useState<'UND' | 'KG' | 'MT'>('UND');
+  // Plan de consumo: metros/kilos comprados por adelantado a tarifa rebajada (ver
+  // ShopProduct.consumptionPlanEnabled). npPlanSizes es texto separado por comas ("50, 100,
+  // 500") — se parsea a números recién al guardar, así el cajero puede escribir con espacios
+  // sin que el campo le rechace cada tecla.
+  const [labelProduct, setLabelProduct] = useState<ShopProduct | null>(null);
+  const [npPlanEnabled, setNpPlanEnabled] = useState(false);
+  const [npPlanRate, setNpPlanRate] = useState('');
+  const [npPlanSizes, setNpPlanSizes] = useState('');
   // Aumento general de precios: mueve el precio de venta de todo el catálogo de una vez.
   const [raiseOpen, setRaiseOpen] = useState(false);
   const [raisePercent, setRaisePercent] = useState('');
@@ -399,6 +408,10 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     setNpPromoPrice('');
     setNpExpiryDate('');
     setNpPhotoUrl(null);
+    setNpSaleUnit('UND');
+    setNpPlanEnabled(false);
+    setNpPlanRate('');
+    setNpPlanSizes('');
     setSaveError(null);
     setNewOpen(true);
     // El diálogo recién se monta en este mismo tick — hay que esperar al siguiente frame para
@@ -441,6 +454,13 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     setNpPromoPrice(p.promoPrice != null ? String(p.promoPrice) : '');
     setNpExpiryDate(p.expiryDate ?? '');
     setNpPhotoUrl(p.photoUrl ?? null);
+    // Se restaura la unidad de venta y el plan de consumo del producto real — antes esta
+    // pantalla no los traía de vuelta al editar, así que guardar sin tocarlos silenciosamente
+    // los reseteaba (una tela por metro podía volver a "por unidad" sin que nadie lo pidiera).
+    setNpSaleUnit((p.saleUnit as 'UND' | 'KG' | 'MT' | undefined) ?? 'UND');
+    setNpPlanEnabled(p.consumptionPlanEnabled ?? false);
+    setNpPlanRate(p.consumptionPlanRate != null ? String(p.consumptionPlanRate) : '');
+    setNpPlanSizes(p.consumptionPlanSizes?.length ? p.consumptionPlanSizes.join(', ') : '');
     setSaveError(null);
     setNewOpen(true);
   }
@@ -458,6 +478,10 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     setNpPrice(String(seed.price));
     setNpCost(String(seed.cost));
     setNpMinStock(String(seed.minStock));
+    setNpSaleUnit((seed.saleUnit as 'UND' | 'KG' | 'MT' | undefined) ?? 'UND');
+    setNpPlanEnabled(false);
+    setNpPlanRate('');
+    setNpPlanSizes('');
     setNpVariants(seed.variants.map((v) => ({ ...v })));
     setNpBasicStock('');
     setNpSoldByWeight(seed.variants.some((v) => v.soldByWeight));
@@ -584,6 +608,16 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
       isEvent: esEvento,
       eventDate: esEvento ? npEventDate : undefined,
       eventSeats: esEvento ? Number(npEventSeats) || undefined : undefined,
+      // Plan de consumo: solo tiene sentido con Kg/Mt, y con tarifa cargada.
+      consumptionPlanEnabled: npSaleUnit !== 'UND' && npPlanEnabled && Number(npPlanRate) > 0,
+      consumptionPlanRate: npSaleUnit !== 'UND' && npPlanEnabled && Number(npPlanRate) > 0 ? Number(npPlanRate) : undefined,
+      consumptionPlanSizes:
+        npSaleUnit !== 'UND' && npPlanEnabled
+          ? npPlanSizes
+              .split(',')
+              .map((n) => Number(n.trim().replace(',', '.')))
+              .filter((n) => n > 0)
+          : undefined,
     };
     if (editingProductId) updateProduct(editingProductId, input);
     else addProduct(input);
@@ -779,6 +813,14 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                               className="text-brand-950/30 hover:text-brand-500"
                             >
                               <PackagePlus className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setLabelProduct(p); }}
+                              title="Imprimir etiqueta de precio"
+                              className="text-brand-950/30 hover:text-brand-500"
+                            >
+                              <Tags className="h-3.5 w-3.5" />
                             </button>
                             <button
                               type="button"
@@ -1504,6 +1546,46 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
               </label>
             )}
 
+            {/* Plan de consumo: solo con Kg/Mt — un plan de "unidades" no tiene el sentido de
+                "metros que se van gastando" que pidió el negocio. */}
+            {usaUnidades && !esEvento && npSaleUnit !== 'UND' && (
+              <div className="rounded-xl border border-brand-950/10 p-3">
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={npPlanEnabled} onChange={(e) => setNpPlanEnabled(e.target.checked)} />
+                  <span className="font-medium text-brand-950">Ofrecer plan de consumo</span>
+                </label>
+                <p className="mt-0.5 text-[11px] font-light text-brand-950/45">
+                  El cliente paga un paquete por adelantado a una tarifa más baja y lo retira con el tiempo.
+                </p>
+                {npPlanEnabled && (
+                  <div className="mt-2.5 space-y-2.5">
+                    <label className="block text-sm">
+                      <span className="text-brand-950/70">Tarifa del plan (por {npSaleUnit === 'KG' ? 'kilo' : 'metro'})</span>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={npPlanRate}
+                        onChange={(e) => setNpPlanRate(e.target.value)}
+                        placeholder={`normal ${npPrice || '0'}`}
+                        className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                      />
+                    </label>
+                    <label className="block text-sm">
+                      <span className="text-brand-950/70">Tamaños de paquete que se ofrecen</span>
+                      <input
+                        value={npPlanSizes}
+                        onChange={(e) => setNpPlanSizes(e.target.value)}
+                        placeholder="50, 100, 500"
+                        className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                      />
+                      <span className="mt-1 block text-[11px] font-light text-brand-950/45">Separados por coma.</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Eventos: fecha y cupo. Aparecen solo en la categoría "Eventos" para no cargar el
                 formulario del resto del catálogo con campos que no aplican. */}
             {esEvento && (
@@ -2058,6 +2140,9 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
         </DialogContent>
       </Dialog>
 
+      {labelProduct && (
+        <ShopPriceLabelsDialog product={labelProduct} restaurant={restaurant} onClose={() => setLabelProduct(null)} />
+      )}
     </div>
   );
 }

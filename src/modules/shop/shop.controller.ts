@@ -11,6 +11,8 @@ import {
   createShopAdjustmentSchema,
   openShopTillSchema,
   openOrderSchema,
+  createConsumptionPlanSchema,
+  consumePlanSchema,
   closeShopTillSchema,
   addShopCategorySchema,
   addShopSubcategorySchema,
@@ -110,6 +112,33 @@ export const shopController = {
 
   productLots: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await shopService.productLots(req.restaurantId!, req.params.id) });
+  }),
+
+  // ─── Plan de consumo ─────────────────────────────────────────────────────
+
+  /** GET /shop/consumption-plans/active?productId=&phone= — para el POS: ¿este cliente tiene
+   *  saldo vigente en este producto? */
+  activePlan: asyncHandler(async (req: Request, res: Response) => {
+    const q = z.object({ productId: z.string().min(1), phone: z.string().min(4) }).parse(req.query);
+    res.json({ data: await shopService.findActivePlan(req.restaurantId!, q.productId, q.phone) });
+  }),
+
+  listPlans: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await shopService.listPlans(req.restaurantId!) });
+  }),
+
+  createConsumptionPlan: asyncHandler(async (req: Request, res: Response) => {
+    const input = createConsumptionPlanSchema.parse(req.body);
+    res.status(201).json({ data: await shopService.createConsumptionPlan(req.restaurantId!, input) });
+  }),
+
+  consumePlan: asyncHandler(async (req: Request, res: Response) => {
+    const input = consumePlanSchema.parse(req.body);
+    res.json({ data: await shopService.consumePlan(req.restaurantId!, req.params.id, input) });
+  }),
+
+  closePlan: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await shopService.closePlan(req.restaurantId!, req.params.id) });
   }),
 
   raisePrices: asyncHandler(async (req: Request, res: Response) => {

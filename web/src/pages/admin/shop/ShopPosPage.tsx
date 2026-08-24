@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
-import { Camera, CheckCircle2, ClipboardList, Loader2, MessageCircle, Minus, Plus, Printer, QrCode, ScanLine, Search, ShoppingCart, Wrench, X } from 'lucide-react';
+import { Camera, CheckCircle2, ClipboardList, FileText, Loader2, MessageCircle, Minus, Plus, Printer, QrCode, ScanLine, Search, ShoppingCart, Wallet, Wrench, X } from 'lucide-react';
 import { api } from '@/api/client';
+import { shopApi, type RawConsumptionPlan } from './shopApi';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { useAuth } from '@/context/AuthContext';
 import { ShopPassEnrollDialog } from './ShopPassEnrollDialog';
@@ -158,7 +159,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
     const max = Math.max(...precios, p.price);
     return min === max ? money(p.price) : `${money(min)} – ${money(max)}`;
   };
-  const { products, cart, till, closedTills, categories, addToCart, addAdhocLine, addPrintLine, activeStaffUserId, setActiveStaffUserId, updateCartQty, setCartQty, removeFromCart, setCartLineDiscount, clearCart, openTill, closeTill, checkout, quickSale, addProduct } = session;
+  const { products, cart, till, closedTills, categories, addToCart, addAdhocLine, addPrintLine, activeStaffUserId, setActiveStaffUserId, updateCartQty, setCartQty, removeFromCart, setCartLineDiscount, clearCart, addConsumptionPlanLine, toggleConsumePlan, openTill, closeTill, checkout, quickSale, addProduct } = session;
   const { show, toastMessage } = useToast();
   const { user } = useAuth();
 
@@ -199,6 +200,35 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
   const [search, setSearch] = useState('');
   const [custName, setCustName] = useState('');
   const [custPhone, setCustPhone] = useState('');
+
+  // --- Plan de consumo ---
+  // Planes ACTIVOS del teléfono en pantalla, por producto: se consulta apenas hay 7+ dígitos de
+  // teléfono y el carrito tiene algún producto con plan habilitado, para poder ofrecer "cobrar
+  // con cargo al plan" en esa línea sin que el cajero tenga que ir a buscarlo aparte.
+  const [plansByProduct, setPlansByProduct] = useState<Record<string, RawConsumptionPlan | null>>({});
+  const [planDialogProduct, setPlanDialogProduct] = useState<ShopProduct | null>(null);
+  const [planUnits, setPlanUnits] = useState('');
+
+  useEffect(() => {
+    const telefono = custPhone.replace(/\D/g, '');
+    const idsConPlan = [...new Set(cart.map((c) => c.productId).filter(Boolean))].filter(
+      (id) => products.find((p) => p.id === id)?.consumptionPlanEnabled,
+    );
+    if (telefono.length < 7 || idsConPlan.length === 0) {
+      setPlansByProduct({});
+      return;
+    }
+    let vivo = true;
+    Promise.all(idsConPlan.map((id) => shopApi.activePlan(id, telefono).then((plan) => [id, plan] as const).catch(() => [id, null] as const))).then(
+      (pares) => {
+        if (vivo) setPlansByProduct(Object.fromEntries(pares));
+      },
+    );
+    return () => {
+      vivo = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [custPhone, cart.map((c) => c.productId).join(',')]);
   const [discount, setDiscount] = useState(0);
   // Promoción del CRM aplicada con su código: descuenta del total y el backend registra el canje.
   const [posPromo, setPosPromo] = useState<AppliedPromo | null>(null);
@@ -279,6 +309,19 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
   const [fiadoAbono, setFiadoAbono] = useState('');
 
   const [ticketSale, setTicketSale] = useState<Sale | null>(null);
+  // Qué se imprime cuando se toca "Imprimir" en el ticket: el ticket normal (formato térmico) o
+  // la nota de entrega (documento más amplio, sin validez fiscal — ver más abajo). Los dos
+  // bloques imprimibles conviven en el DOM; esto solo decide cuál queda visible al imprimir.
+  const [printMode, setPrintMode] = useState<'ticket' | 'nota'>('ticket');
+  const [printTick, setPrintTick] = useState(0);
+  useEffect(() => {
+    if (printTick > 0) window.print();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [printTick]);
+  function imprimir(modo: 'ticket' | 'nota') {
+    setPrintMode(modo);
+    setPrintTick((t) => t + 1);
+  }
   const [successOpen, setSuccessOpen] = useState(false);
 
   const subtotal = cart.reduce((a, c) => a + lineTotal(c), 0);
@@ -600,6 +643,12 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
   function startFiado() {
     if (!till || cart.length === 0) return;
     if (customerDataMissing()) return;
+    // El plan de consumo se paga completo al activarlo (así se acordó el producto): fiar esa
+    // línea dejaría un plan activo sin haberse cobrado.
+    if (cart.some((c) => c.newPlanProductId)) {
+      show('Un plan de consumo no se puede fiar: se paga completo al activarlo.');
+      return;
+    }
     setFiadoStep('choose');
     setFiadoAbono('');
     setFiadoOpen(true);
@@ -630,6 +679,9 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
         ? { name: custName.trim() || null, phone: custPhone.trim().replace(/\D/g, '') || null }
         : null;
     const credit = saleMode.kind === 'fiado' ? { terms: saleMode.terms, amountPaidNow: saleMode.amountPaidNow } : null;
+    // checkout() vacía el carrito de inmediato (venta optimista): las líneas de plan hay que
+    // leerlas ANTES de llamarlo, o ya no están para saber qué activar/consumir.
+    const lineasDePlan = cart.filter((c) => c.newPlanProductId || c.consumePlanId);
     const sale = checkout(
       method,
       meta,
@@ -649,6 +701,31 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
     // Fiado a pago completo no cobra nada hoy (queda todo pendiente) — el sonido de caja es
     // para cuando efectivamente entra dinero: venta directa o el abono de un fiado fraccionado.
     if (credit?.terms !== 'FULL') playCashSound();
+    // Plan de consumo: se resuelve DESPUÉS del cobro y en segundo plano, mismo criterio que el
+    // resto de esta función — la venta ya quedó registrada localmente, esto no debe bloquearla.
+    // Fiado deja el pago pendiente, así que activar/consumir un plan con eso no correspondería
+    // (el paquete no está pagado todavía) — se salta.
+    if (!credit) {
+      for (const linea of lineasDePlan) {
+        if (linea.newPlanProductId && linea.newPlanUnits && customer) {
+          shopApi
+            .createConsumptionPlan({
+              productId: linea.newPlanProductId,
+              customerName: customer.name || 'Sin nombre',
+              customerPhone: customer.phone || '',
+              totalUnits: linea.newPlanUnits,
+              totalPaid: linea.price,
+            })
+            .then(() => show(`Plan de consumo activado: ${linea.newPlanUnits} para ${customer.name || customer.phone}.`))
+            .catch(() => show('La venta quedó registrada, pero no se pudo activar el plan de consumo.'));
+        }
+        if (linea.consumePlanId) {
+          shopApi
+            .consumePlan(linea.consumePlanId, linea.qty)
+            .catch(() => show('La venta quedó registrada, pero no se pudo descontar del plan de consumo.'));
+        }
+      }
+    }
     // El plan se arma DESPUÉS de que la venta existe: necesita su id para colgarse de ella.
     if (planPendiente && sale?.id) {
       api
@@ -849,12 +926,28 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                 const isWeight = bestVariant(p).soldByWeight;
                 const unitSuffix = isArea ? ' / m²' : isWeight ? ' / Kg' : '';
                 return (
+                  <div key={p.id} className="relative">
+                  {/* Botón aparte y no anidado en la tarjeta: un <button> dentro de otro <button>
+                      no es HTML válido, así que "Vender plan" vive como hermano superpuesto. */}
+                  {p.consumptionPlanEnabled && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPlanDialogProduct(p);
+                        setPlanUnits(String(p.consumptionPlanSizes?.[0] ?? ''));
+                      }}
+                      title="Vender plan de consumo"
+                      className="absolute right-2 top-2 z-10 flex items-center gap-1 rounded-full bg-brand-500 px-2 py-1 text-[10px] font-bold text-white shadow"
+                    >
+                      <Wallet className="h-3 w-3" /> Plan
+                    </button>
+                  )}
                   <button
-                    key={p.id}
                     type="button"
                     disabled={disabled}
                     onClick={() => pickOrAddToCart(p)}
-                    className={`text-left rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-3 transition-transform ${
+                    className={`text-left rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm p-3 transition-transform w-full ${
                       disabled ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5 hover:border-brand-400'
                     }`}
                   >
@@ -898,6 +991,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                       </span>
                     )}
                   </button>
+                  </div>
                 );
               })}
             </div>
@@ -966,8 +1060,12 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
             </div>
           ) : (
             <div className="flex flex-col gap-3 max-h-[340px] overflow-y-auto">
-              {cart.map((c) => (
-                <div key={c.key} className="flex items-center gap-2">
+              {cart.map((c) => {
+                const planActivo = c.productId ? plansByProduct[c.productId] : null;
+                const puedeUsarPlan = !!planActivo && !c.consumePlanId && c.qty <= planActivo.remainingUnits;
+                return (
+                <div key={c.key} className="space-y-1">
+                <div className="flex items-center gap-2">
                   <div className="min-w-0 flex-1">
                     <p className="text-[13px] font-semibold text-brand-950 truncate">{c.name}</p>
                     <p className="text-[11.5px] text-brand-950/40">
@@ -1019,7 +1117,34 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                     <X className="h-3.5 w-3.5" />
                   </button>
                 </div>
-              ))}
+                {/* Con cargo al plan: ya se cobró al activarlo, así que esta línea sale en $0 —
+                    pero sigue siendo el producto real, o sea que el stock se descuenta igual. */}
+                {c.consumePlanId && (
+                  <p className="flex items-center gap-1 pl-0.5 text-[11px] font-medium text-brand-500">
+                    <Wallet className="h-3 w-3" /> Con cargo al plan de consumo
+                    <button type="button" onClick={() => toggleConsumePlan(c.key, null)} className="ml-1 text-brand-950/40 underline">
+                      quitar
+                    </button>
+                  </p>
+                )}
+                {!c.consumePlanId && planActivo && (
+                  <button
+                    type="button"
+                    disabled={!puedeUsarPlan}
+                    onClick={() => toggleConsumePlan(c.key, planActivo.id)}
+                    className="flex items-center gap-1 pl-0.5 text-[11px] font-medium text-brand-500 disabled:cursor-not-allowed disabled:text-brand-950/30"
+                    title={
+                      puedeUsarPlan
+                        ? undefined
+                        : `El plan solo tiene ${planActivo.remainingUnits}; reduce la cantidad de esta línea a eso o menos para usarlo.`
+                    }
+                  >
+                    <Wallet className="h-3 w-3" /> {planActivo.customerName} tiene un plan con {planActivo.remainingUnits} restantes — cobrar con cargo al plan
+                  </button>
+                )}
+                </div>
+                );
+              })}
             </div>
           )}
 
@@ -1299,6 +1424,74 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                 </div>
               ))}
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ---------- Vender plan de consumo ---------- */}
+      <Dialog open={!!planDialogProduct} onOpenChange={(o) => !o && setPlanDialogProduct(null)}>
+        <DialogContent>
+          {planDialogProduct && (
+            <>
+              <DialogHeader>
+                <DialogTitle>Plan de consumo — {planDialogProduct.name}</DialogTitle>
+              </DialogHeader>
+              <p className="text-sm font-light text-brand-950/60">
+                El cliente paga el paquete completo ahora y lo retira con el tiempo. Tarifa del plan:{' '}
+                <span className="font-semibold text-brand-950">{money(planDialogProduct.consumptionPlanRate ?? 0)}</span> por{' '}
+                {planDialogProduct.saleUnit === 'MT' ? 'metro' : planDialogProduct.saleUnit === 'KG' ? 'kilo' : 'unidad'}
+                {' '}(normal {money(planDialogProduct.price)}).
+              </p>
+
+              {(planDialogProduct.consumptionPlanSizes?.length ?? 0) > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {planDialogProduct.consumptionPlanSizes!.map((tam) => (
+                    <button
+                      key={tam}
+                      type="button"
+                      onClick={() => setPlanUnits(String(tam))}
+                      className={`rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors ${
+                        Number(planUnits) === tam ? 'border-brand-500 bg-brand-500/10 text-brand-500' : 'border-brand-950/15 text-brand-950/70'
+                      }`}
+                    >
+                      {tam}{planDialogProduct.saleUnit === 'MT' ? 'mt' : planDialogProduct.saleUnit === 'KG' ? 'kg' : 'und'}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <label className="mt-3 block text-sm">
+                <span className="text-brand-950/70">O escribe otra cantidad</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={planUnits}
+                  onChange={(e) => setPlanUnits(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2"
+                />
+              </label>
+
+              <div className="mt-4 flex items-baseline justify-between rounded-xl bg-brand-950/[0.03] px-3.5 py-2.5">
+                <span className="text-sm text-brand-950/60">A cobrar ahora</span>
+                <span className="text-lg font-bold text-brand-950">
+                  {money((Number(planUnits) || 0) * (planDialogProduct.consumptionPlanRate ?? 0))}
+                </span>
+              </div>
+
+              <TextureButton
+                variant="brand"
+                size="default"
+                className="mt-4 disabled:opacity-40"
+                disabled={!(Number(planUnits) > 0)}
+                onClick={() => {
+                  addConsumptionPlanLine(planDialogProduct, Number(planUnits));
+                  setPlanDialogProduct(null);
+                }}
+              >
+                Agregar al carrito
+              </TextureButton>
+            </>
           )}
         </DialogContent>
       </Dialog>
@@ -2009,11 +2202,15 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
               <style>{`
                 @media print {
                   body * { visibility: hidden; }
-                  #shop-ticket-print, #shop-ticket-print * { visibility: visible; }
-                  #shop-ticket-print { position: absolute; top: 0; left: 0; width: 100%; }
+                  #shop-print-active, #shop-print-active * { visibility: visible; }
+                  #shop-print-active { position: absolute; top: 0; left: 0; width: 100%; }
+                  /* El documento que NO se está imprimiendo se saca del flujo por completo — solo
+                     con visibility:hidden se queda ocupando su espacio y empuja una página en
+                     blanco detrás del que sí se imprime. */
+                  [data-print-doc]:not(#shop-print-active) { display: none !important; }
                 }
               `}</style>
-              <div id="shop-ticket-print">
+              <div data-print-doc id={printMode === 'ticket' ? 'shop-print-active' : undefined}>
               <div className="text-center mb-3.5 pb-3.5 border-b border-dashed border-brand-950/15">
                 <p className="font-bold text-brand-950">{restaurant.name}</p>
                 <p className="text-xs text-brand-950/40 mt-0.5">
@@ -2051,12 +2248,67 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                 </div>
               )}
               </div>
+
+              {/* Nota de entrega: documento más amplio que el ticket térmico — para dejar
+                  constancia de lo despachado cuando el cliente lo pide, o para acompañar un
+                  envío. NO es un documento fiscal (no pasa por el SENIAT): lo dice explícito
+                  abajo para que nadie la confunda con una factura. */}
+              <div data-print-doc id={printMode === 'nota' ? 'shop-print-active' : undefined} className="hidden print:block">
+                <div className="mb-4 flex items-start justify-between border-b border-brand-950/15 pb-3">
+                  <div>
+                    <p className="text-lg font-bold text-brand-950">{restaurant.name}</p>
+                    <p className="text-xs text-brand-950/50">Nota de entrega</p>
+                  </div>
+                  <div className="text-right text-xs text-brand-950/50">
+                    <p>Ref. #{ticketSale.id.slice(-6)}</p>
+                    <p>{ticketSale.time.toLocaleDateString('es-VE')} {ticketSale.time.toLocaleTimeString('es-VE', { hour: 'numeric', minute: '2-digit' })}</p>
+                  </div>
+                </div>
+                <div className="mb-3 text-sm text-brand-950">
+                  <p><span className="text-brand-950/50">Entregado a:</span> {ticketSale.customerName || 'Consumidor final'}</p>
+                  {ticketSale.customerPhone && <p><span className="text-brand-950/50">Teléfono:</span> {ticketSale.customerPhone}</p>}
+                </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-brand-950/15 text-left text-xs text-brand-950/50">
+                      <th className="pb-1.5 font-medium">Producto</th>
+                      <th className="pb-1.5 text-right font-medium">Cant.</th>
+                      <th className="pb-1.5 text-right font-medium">P. unit.</th>
+                      <th className="pb-1.5 text-right font-medium">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ticketSale.items.map((it, i) => (
+                      <tr key={i} className="border-b border-brand-950/[0.08]">
+                        <td className="py-1.5">{it.name}{it.detail ? ` (${it.detail})` : it.v1 && it.v1 !== 'Único' ? ` (${it.v1}${it.v2 ? '·' + it.v2 : ''})` : ''}</td>
+                        <td className="py-1.5 text-right">{it.detail ? `${it.qty} m²` : it.soldByWeight ? `${it.qty} Kg` : it.qty}</td>
+                        <td className="py-1.5 text-right">{money(it.price)}</td>
+                        <td className="py-1.5 text-right">{money(it.price * it.qty)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="mt-2 flex justify-end">
+                  <p className="text-base font-bold text-brand-950">Total: {money(ticketSale.total)}</p>
+                </div>
+                <div className="mt-10 flex items-end justify-between text-xs text-brand-950/60">
+                  <div className="w-56 border-t border-brand-950/30 pt-1">Recibí conforme (firma)</div>
+                  <div className="w-40 border-t border-brand-950/30 pt-1">C.I. / RIF</div>
+                </div>
+                <p className="mt-6 text-center text-[10px] text-brand-950/35">
+                  Documento interno de entrega — sin validez como factura fiscal.
+                </p>
+              </div>
+
               <DialogFooter>
                 <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setTicketSale(null)}>
                   Cerrar
                 </TextureButton>
-                <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => window.print()}>
-                  <Printer className="h-4 w-4" /> Imprimir
+                <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => imprimir('ticket')}>
+                  <Printer className="h-4 w-4" /> Imprimir ticket
+                </TextureButton>
+                <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => imprimir('nota')}>
+                  <FileText className="h-4 w-4" /> Nota de entrega
                 </TextureButton>
                 <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => sendReceiptWhatsapp(ticketSale)}>
                   <MessageCircle className="h-4 w-4" /> Enviar por WhatsApp

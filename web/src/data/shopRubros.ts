@@ -61,6 +61,15 @@ export interface ShopProductSeed {
   rollWidths?: number[];
   /** Largo del rollo en metros (típicamente 50) — base para derivar el costo por m². */
   rollLengthM?: number;
+  // --- Plan de consumo: metros comprados por adelantado a tarifa rebajada ---
+  /** Sin declarar en las plantillas de ejemplo por rubro, igual que isEvent/saleUnit — solo se
+   * usa en productos reales (ver ShopProduct.consumptionPlanEnabled). */
+  consumptionPlanEnabled?: boolean;
+  consumptionPlanRate?: number;
+  consumptionPlanSizes?: number[];
+  isEvent?: boolean;
+  eventDate?: string;
+  eventSeats?: number;
 }
 
 export interface ShopRubro {

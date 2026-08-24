@@ -18,6 +18,8 @@ import type {
   OpenShopTillInput,
   CloseShopTillInput,
   SetShopServiceSuppliesInput,
+  CreateConsumptionPlanInput,
+  ConsumePlanInput,
 } from './shop.dto';
 
 /**
@@ -155,6 +157,9 @@ export const shopService = {
         pricingMode: input.pricingMode ?? 'UNIT',
         rollWidths: input.rollWidths ?? undefined,
         rollLengthM: input.rollLengthM,
+        consumptionPlanEnabled: input.consumptionPlanEnabled ?? false,
+        consumptionPlanRate: input.consumptionPlanRate,
+        consumptionPlanSizes: input.consumptionPlanSizes ?? undefined,
         variants: { createMany: { data: input.variants } },
       },
       include: { variants: true },
@@ -215,6 +220,89 @@ export const shopService = {
 
     if (input.category) await this.ensureCategory(restaurantId, input.category, input.subcategory);
     return product;
+  },
+
+  // ─── Plan de consumo ────────────────────────────────────────────────────
+
+  /** Planes activos (con saldo) de un producto+teléfono — lo que el POS consulta al agregar el
+   * producto al carrito, para ofrecer "descontar del plan" si el cliente tiene uno vigente. */
+  async findActivePlan(restaurantId: string, productId: string, customerPhone: string) {
+    return prisma.shopConsumptionPlan.findFirst({
+      where: { restaurantId, productId, customerPhone, closedAt: null, remainingUnits: { gt: 0 } },
+      orderBy: { createdAt: 'asc' }, // el más viejo primero: no se le vence saldo al cliente por vender del nuevo antes.
+    });
+  },
+
+  /** Todos los planes del local, para la pantalla de Administración → Planes de consumo. */
+  async listPlans(restaurantId: string) {
+    return prisma.shopConsumptionPlan.findMany({
+      where: { restaurantId },
+      include: { product: { select: { name: true } } },
+      orderBy: [{ closedAt: 'asc' }, { createdAt: 'desc' }],
+    });
+  },
+
+  /**
+   * Activa un plan nuevo: el paquete ya se cobró (viaja como línea del carrito en la venta que
+   * lo originó — ver ShopPosPage), esto solo dobla el registro para llevar el saldo.
+   */
+  async createConsumptionPlan(restaurantId: string, input: CreateConsumptionPlanInput) {
+    const product = await prisma.shopProduct.findFirst({
+      where: { id: input.productId, restaurantId },
+      select: { consumptionPlanEnabled: true, consumptionPlanRate: true, saleUnit: true },
+    });
+    if (!product) throw notFound('Producto no encontrado.');
+    if (!product.consumptionPlanEnabled || !product.consumptionPlanRate) {
+      throw badRequest('Este producto no tiene plan de consumo activado.');
+    }
+    return prisma.shopConsumptionPlan.create({
+      data: {
+        restaurantId,
+        productId: input.productId,
+        customerName: input.customerName.trim(),
+        customerPhone: input.customerPhone.replace(/\D/g, ''),
+        totalUnits: input.totalUnits,
+        remainingUnits: input.totalUnits,
+        ratePerUnit: product.consumptionPlanRate,
+        totalPaid: input.totalPaid,
+        activatedSaleId: input.activatedSaleId,
+      },
+    });
+  },
+
+  /**
+   * Descuenta unidades de un plan activo. Candado por PLAN durante la transacción: dos ventas
+   * consumiendo el mismo plan a la vez (dos cajas del mismo local) podrían leer el mismo saldo
+   * y dejarlo en negativo — mismo patrón que el candado de pagos en order.service.ts.
+   */
+  async consumePlan(restaurantId: string, planId: string, input: ConsumePlanInput) {
+    return prisma.$transaction(async (tx) => {
+      const [{ locked }] = await tx.$queryRaw<{ locked: boolean }[]>`
+        SELECT pg_try_advisory_xact_lock(hashtext(${'consumption-plan:' + planId})) AS locked
+      `;
+      if (!locked) throw badRequest('Se está descontando este mismo plan en otra caja. Espera un momento.');
+
+      const plan = await tx.shopConsumptionPlan.findFirst({ where: { id: planId, restaurantId } });
+      if (!plan) throw notFound('Plan no encontrado.');
+      if (plan.remainingUnits < input.units - 0.001) {
+        throw badRequest(`El plan solo tiene ${plan.remainingUnits} disponibles.`);
+      }
+      const remainingUnits = Math.round((plan.remainingUnits - input.units) * 1000) / 1000;
+      return tx.shopConsumptionPlan.update({
+        where: { id: planId },
+        data: { remainingUnits, closedAt: remainingUnits <= 0.001 ? new Date() : null },
+      });
+    });
+  },
+
+  /** Cierre manual — cliente que no va a volver por el resto. */
+  async closePlan(restaurantId: string, planId: string) {
+    const { count } = await prisma.shopConsumptionPlan.updateMany({
+      where: { id: planId, restaurantId, closedAt: null },
+      data: { closedAt: new Date() },
+    });
+    if (count === 0) throw notFound('Plan no encontrado o ya estaba cerrado.');
+    return { ok: true };
   },
 
   /**

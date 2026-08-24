@@ -40,6 +40,9 @@ export interface RawShopProduct {
   isEvent?: boolean | null;
   eventDate?: string | null;
   eventSeats?: number | null;
+  consumptionPlanEnabled?: boolean | null;
+  consumptionPlanRate?: number | null;
+  consumptionPlanSizes?: number[] | null;
   variants: RawShopVariant[];
 }
 
@@ -84,6 +87,21 @@ export interface RawShopSale {
   soldByUserId: string | null;
   soldByUserName: string | null;
   items: RawShopSaleItem[];
+}
+
+export interface RawConsumptionPlan {
+  id: string;
+  productId: string;
+  product: { name: string };
+  customerName: string;
+  customerPhone: string;
+  totalUnits: number;
+  remainingUnits: number;
+  ratePerUnit: number;
+  totalPaid: number;
+  activatedSaleId: string | null;
+  createdAt: string;
+  closedAt: string | null;
 }
 
 export interface RawShopPurchase {
@@ -204,6 +222,39 @@ export const shopApi = {
     await api.post(`/shop/sales/${id}/return`);
   },
 
+  // ─── Plan de consumo ────────────────────────────────────────────────────
+
+  async activePlan(productId: string, phone: string): Promise<RawConsumptionPlan | null> {
+    const { data } = await api.get('/shop/consumption-plans/active', { params: { productId, phone } });
+    return data.data;
+  },
+
+  async listPlans(): Promise<RawConsumptionPlan[]> {
+    const { data } = await api.get('/shop/consumption-plans');
+    return data.data;
+  },
+
+  async createConsumptionPlan(payload: {
+    productId: string;
+    customerName: string;
+    customerPhone: string;
+    totalUnits: number;
+    totalPaid: number;
+    activatedSaleId?: string;
+  }): Promise<RawConsumptionPlan> {
+    const { data } = await api.post('/shop/consumption-plans', payload);
+    return data.data;
+  },
+
+  async consumePlan(id: string, units: number, saleId?: string): Promise<RawConsumptionPlan> {
+    const { data } = await api.post(`/shop/consumption-plans/${id}/consume`, { units, saleId });
+    return data.data;
+  },
+
+  async closePlan(id: string): Promise<void> {
+    await api.post(`/shop/consumption-plans/${id}/close`);
+  },
+
   async recordPurchase(payload: { supplier: string; productId: string; v1: string; v2: string; qty: number; cost: number; weightKg?: number }): Promise<void> {
     await api.post('/shop/purchases', payload);
   },
@@ -272,6 +323,9 @@ export function toShopProduct(p: RawShopProduct) {
     isEvent: p.isEvent ?? false,
     eventDate: p.eventDate ?? undefined,
     eventSeats: p.eventSeats ?? undefined,
+    consumptionPlanEnabled: p.consumptionPlanEnabled ?? false,
+    consumptionPlanRate: p.consumptionPlanRate ?? undefined,
+    consumptionPlanSizes: p.consumptionPlanSizes ?? undefined,
   };
 }
 

@@ -727,6 +727,7 @@ model Restaurant {
   shopProducts         ShopProduct[]
   shopSales            ShopSale[]
   shopOpenOrders       ShopOpenOrder[]
+  shopConsumptionPlans ShopConsumptionPlan[]
   shopPurchases        ShopPurchase[]
   shopStockAdjustments ShopStockAdjustment[]
   shopCashSessions     ShopCashSession[]
@@ -3405,6 +3406,14 @@ model ShopProduct {
   // de lo que costó el rollo entero, que es como el dueño compra el material.
   rollLengthM Float?
 
+  // --- Plan de consumo (venta de metros por adelantado a tarifa rebajada) ---
+  // Solo tiene sentido en productos por Kg/Mt (saleUnit != 'UND'). `consumptionPlanRate` es el
+  // precio POR UNIDAD del plan (menor que `price`); `consumptionPlanSizes` son los tamaños de
+  // paquete que se ofrecen para vender, ej. [50, 100, 500].
+  consumptionPlanEnabled Boolean @default(false)
+  consumptionPlanRate    Float?
+  consumptionPlanSizes   Json?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -3412,6 +3421,7 @@ model ShopProduct {
   variants        ShopProductVariant[]
   // Insumos que consume este producto cuando es un servicio (ver ShopServiceSupply).
   serviceSupplies ShopServiceSupply[]  @relation("ShopServiceSupplyService")
+  consumptionPlans ShopConsumptionPlan[]
 
   @@index([restaurantId])
   @@map("shop_products")
@@ -3483,6 +3493,46 @@ model ShopOpenOrder {
 
   @@index([restaurantId, updatedAt])
   @@map("shop_open_orders")
+}
+
+// Plan de consumo: el cliente paga por adelantado un bloque de metros a una tarifa rebajada
+// (ej. 50mt a $10/mt en vez de $15) y los va retirando con el tiempo hasta agotarlo. Es lo
+// inverso de Cuentas por Cobrar: acá el saldo está a favor del cliente, no del local.
+//
+// Va atado a UN producto (el precio por metro es del producto, no genérico) y a un
+// nombre/teléfono suelto, igual que ShopSale — el rubro Local Comercial no tiene un Customer
+// con FK real, se reconoce por teléfono en todas partes.
+model ShopConsumptionPlan {
+  id           String @id @default(cuid())
+  restaurantId String
+  productId    String
+
+  customerName  String
+  customerPhone String
+
+  // Lo que compró y lo que le queda, en la unidad del producto (normalmente metros). totalUnits
+  // no cambia nunca — es el histórico de lo vendido; remainingUnits baja con cada consumo.
+  totalUnits     Float
+  remainingUnits Float
+  // Tarifa congelada al activar el plan — si el producto sube de precio después, este plan
+  // seguido cobrando (mejor dicho, descontando) a la tarifa con la que se vendió.
+  ratePerUnit    Float
+  totalPaid      Float
+
+  // Venta que pagó la activación del plan, para poder rastrear el cobro original.
+  activatedSaleId String?
+
+  createdAt DateTime  @default(now())
+  // Se marca sola cuando remainingUnits llega a 0 (ver consumePlan) — un plan cerrado a mano
+  // (cliente que ya no va a volver) también la usa, para sacarlo de la lista de activos.
+  closedAt  DateTime?
+
+  restaurant Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  product    ShopProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, customerPhone])
+  @@index([restaurantId, productId, closedAt])
+  @@map("shop_consumption_plans")
 }
 
 model ShopSale {

@@ -48,6 +48,17 @@ export interface CartLine {
   stockQty?: number;
   /** Profesional que presta ESTE servicio (barbero/estilista) — alimenta su reporte y comisión. */
   staffUserId?: string;
+
+  // --- Plan de consumo ---
+  /** Esta línea ACTIVA un plan nuevo (el cliente paga el paquete completo por adelantado): a
+   * qué producto y cuántas unidades. No toca stock — el cliente aún no se lleva nada, solo
+   * compró el derecho a retirarlo después (ver addConsumptionPlanLine). */
+  newPlanProductId?: string;
+  newPlanUnits?: number;
+  /** Esta línea CONSUME un plan ya activo: id del plan. La línea es un producto real (sí
+   * descuenta stock, el cliente se lo lleva ahora) con disc=100 — ya se cobró al activar el
+   * plan, así que no se vuelve a cobrar (ver toggleConsumePlan). */
+  consumePlanId?: string;
 }
 
 /** Precio unitario que realmente aplica a una línea del carrito: la promoción siempre gana (si
@@ -280,6 +291,9 @@ export interface NewProductInput {
   isEvent?: boolean;
   eventDate?: string;
   eventSeats?: number;
+  consumptionPlanEnabled?: boolean;
+  consumptionPlanRate?: number;
+  consumptionPlanSizes?: number[];
 }
 
 // Una cuenta nueva arranca sin nada: el dueño carga su propio catálogo desde cero (Inventario
@@ -553,6 +567,39 @@ export function useShopSession(initialCategories: string[] = []) {
         staffUserId: activeStaffUserId || undefined,
       },
     ]);
+  }
+
+  /**
+   * "Vender plan de consumo": agrega una línea que cobra el paquete completo por adelantado
+   * (ej. 50mt × $10 = $500). No es un producto real — no toca stock, porque el cliente todavía
+   * no se lleva mercancía, solo el derecho a retirarla después. Tras el pago (ver
+   * activateConsumptionPlan en ShopPosPage) esa línea se traduce en un ShopConsumptionPlan.
+   */
+  function addConsumptionPlanLine(product: ShopProduct, units: number) {
+    const rate = product.consumptionPlanRate ?? 0;
+    const unidad = product.saleUnit === 'MT' ? 'mt' : product.saleUnit === 'KG' ? 'kg' : 'und';
+    setCart((prev) => [
+      ...prev,
+      {
+        key: `plan-new-${Date.now()}`,
+        productId: '',
+        name: `Plan de consumo — ${product.name} (${units}${unidad})`,
+        price: Math.round(rate * units * 100) / 100,
+        v1: 'Plan', v2: '',
+        qty: 1, disc: 0,
+        newPlanProductId: product.id,
+        newPlanUnits: units,
+      },
+    ]);
+  }
+
+  /**
+   * Marca/quita una línea real del carrito como "con cargo a un plan ya pagado": pone (o quita)
+   * el 100% de descuento y guarda el id del plan para descontarle el saldo al cerrar la venta.
+   * La línea sigue siendo el producto real, así que el stock se sigue descontando normal.
+   */
+  function toggleConsumePlan(key: string, planId: string | null) {
+    setCart((prev) => prev.map((c) => (c.key === key ? { ...c, disc: planId ? 100 : 0, consumePlanId: planId ?? undefined } : c)));
   }
 
   function updateCartQty(key: string, delta: number) {
@@ -953,6 +1000,8 @@ export function useShopSession(initialCategories: string[] = []) {
     removeFromCart,
     setCartLineDiscount,
     clearCart,
+    addConsumptionPlanLine,
+    toggleConsumePlan,
     // Reemplaza el carrito completo: lo usa "Pedidos abiertos" para devolver a la pantalla de
     // venta un carrito guardado antes, tal como quedó.
     reemplazarCarrito: setCart,

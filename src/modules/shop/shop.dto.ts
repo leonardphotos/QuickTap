@@ -59,6 +59,10 @@ export const createShopProductSchema = z.object({
   isEvent: z.boolean().optional(),
   eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha del evento debe ser yyyy-mm-dd.').optional(),
   eventSeats: z.coerce.number().int().min(1).max(100000).optional(),
+  // --- Plan de consumo ---
+  consumptionPlanEnabled: z.boolean().optional(),
+  consumptionPlanRate: z.coerce.number().gt(0).optional(),
+  consumptionPlanSizes: z.array(z.coerce.number().gt(0).max(100000)).max(10).optional(),
 })
   .refine((v) => !v.isEvent || (v.eventDate && v.eventSeats), {
     message: 'Un evento necesita fecha y cantidad de puestos.',
@@ -210,3 +214,26 @@ export const openOrderSchema = z.object({
   items: z.array(z.record(z.string(), z.unknown())).min(1, 'El pedido no tiene productos.').max(300),
 });
 export type OpenOrderInput = z.infer<typeof openOrderSchema>;
+export type CreateConsumptionPlanInput = z.infer<typeof createConsumptionPlanSchema>;
+export type ConsumePlanInput = z.infer<typeof consumePlanSchema>;
+
+// --- Plan de consumo ---
+
+/** Activa un plan: cobra el paquete completo por adelantado (ver ShopConsumptionPlan). */
+export const createConsumptionPlanSchema = z.object({
+  productId: z.string().min(1),
+  customerName: z.string().min(1, 'Escribe el nombre del cliente.').max(120),
+  customerPhone: z.string().min(7, 'Escribe el teléfono del cliente.').max(40),
+  totalUnits: z.coerce.number().gt(0),
+  // El monto ya cobrado (paquete × tarifa del plan). Se recibe del cliente y no se recalcula acá
+  // porque la venta que lo cobró ya pasó por recordSale con sus propios redondeos; este número
+  // tiene que coincidir con lo que el cliente efectivamente pagó, no con una nueva cuenta.
+  totalPaid: z.coerce.number().gt(0),
+  activatedSaleId: z.string().min(1).optional(),
+});
+
+/** Descuenta unidades de un plan activo — el consumo en sí no cobra nada, ya se pagó al activar. */
+export const consumePlanSchema = z.object({
+  units: z.coerce.number().gt(0),
+  saleId: z.string().min(1).optional(),
+});

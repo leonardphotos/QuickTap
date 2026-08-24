@@ -29,6 +29,13 @@ router.get('/open-orders', shopController.listOpenOrders);
 router.post('/open-orders', shopController.saveOpenOrder);
 router.delete('/open-orders/:id', shopController.deleteOpenOrder);
 
+// Plan de consumo: metros comprados por adelantado, consumidos con el tiempo.
+router.get('/consumption-plans/active', shopController.activePlan);
+router.get('/consumption-plans', shopController.listPlans);
+router.post('/consumption-plans', shopController.createConsumptionPlan);
+router.post('/consumption-plans/:id/consume', shopController.consumePlan);
+router.post('/consumption-plans/:id/close', shopController.closePlan);
+
 router.post('/sales', shopController.recordSale);
 router.post('/sales/:id/return', shopController.returnSale);
 
