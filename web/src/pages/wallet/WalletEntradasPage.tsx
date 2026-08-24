@@ -59,7 +59,7 @@ export default function WalletEntradasPage() {
 
   if (entradas.length === 0) {
     return (
-      <div className="flex flex-col items-center px-8 py-16 text-center">
+      <div className="wallet-fila flex flex-col items-center px-8 py-16 text-center">
         <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/[0.06]">
           <Ticket className="h-6 w-6 text-white/35" />
         </span>
@@ -78,10 +78,11 @@ export default function WalletEntradasPage() {
         {proximas.length > 0 ? 'Próximos eventos' : 'Tus entradas'}
       </p>
       <div className="space-y-4">
-        {proximas.map((e) => (
+        {proximas.map((e, i) => (
           <TarjetaEntrada
             key={e.id}
             entrada={e}
+            indice={i}
             volteada={volteada === e.id}
             onVoltear={() => setVolteada((v) => (v === e.id ? null : e.id))}
           />
@@ -92,10 +93,11 @@ export default function WalletEntradasPage() {
         <>
           <p className="pb-3 pt-7 text-[11px] font-medium uppercase tracking-wider text-white/35">Ya pasaron</p>
           <div className="space-y-4 opacity-50">
-            {pasadas.map((e) => (
+            {pasadas.map((e, i) => (
               <TarjetaEntrada
                 key={e.id}
                 entrada={e}
+                indice={i}
                 volteada={volteada === e.id}
                 onVoltear={() => setVolteada((v) => (v === e.id ? null : e.id))}
               />
@@ -109,10 +111,12 @@ export default function WalletEntradasPage() {
 
 function TarjetaEntrada({
   entrada,
+  indice,
   volteada,
   onVoltear,
 }: {
   entrada: EntradaWallet;
+  indice: number;
   volteada: boolean;
   onVoltear: () => void;
 }) {
@@ -121,7 +125,7 @@ function TarjetaEntrada({
   return (
     // Alto fijo en las dos caras: el volteo 3D necesita que las dos midan lo mismo, si no la
     // tarjeta salta de tamaño a mitad del giro.
-    <div className="ticket-flip h-[27rem] w-full">
+    <div className="wallet-fila wallet-tap-card ticket-flip h-[27rem] w-full" style={{ '--i': indice } as React.CSSProperties}>
       <button
         type="button"
         onClick={onVoltear}

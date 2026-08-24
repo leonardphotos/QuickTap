@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronRight, Home, LogOut, MessageCircle, Search, Ticket, X } from 'lucide-react';
 import { api } from '@/api/client';
@@ -134,6 +135,36 @@ function colorDe(nombre: string): string {
 
 type Seccion = 'inicio' | 'entradas';
 
+/**
+ * Cuenta desde 0 hasta el saldo al entrar.
+ *
+ * Solo al montar y en medio segundo: es la cifra que el cliente vino a ver, así que no puede
+ * hacerse esperar. Se salta entero si el sistema pide menos movimiento — ahí el número aparece
+ * directo, que es lo que esa preferencia busca.
+ */
+function useConteo(valor: number, activo: boolean): number {
+  const [n, setN] = useState(activo ? 0 : valor);
+  useEffect(() => {
+    if (!activo) {
+      setN(valor);
+      return;
+    }
+    const DURACION = 520;
+    let raf = 0;
+    const inicio = performance.now();
+    const paso = (ahora: number) => {
+      const t = Math.min(1, (ahora - inicio) / DURACION);
+      // Mismo ease-out que el resto de la interfaz: arranca rápido y frena al final.
+      const eased = 1 - Math.pow(1 - t, 3);
+      setN(valor * eased);
+      if (t < 1) raf = requestAnimationFrame(paso);
+    };
+    raf = requestAnimationFrame(paso);
+    return () => cancelAnimationFrame(raf);
+  }, [valor, activo]);
+  return n;
+}
+
 export default function WalletDashboardPage() {
   useDocumentMeta(`${WALLET_NAME} — Mis compras`);
   const navigate = useNavigate();
@@ -145,6 +176,7 @@ export default function WalletDashboardPage() {
   const [abonando, setAbonando] = useState<Compra | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const [seccion, setSeccion] = useState<Seccion>('inicio');
+  const reducirMovimiento = useReducedMotion();
   // Telón de entrada: se muestra mientras cargan los datos y se levanta al terminar.
   const [intro, setIntro] = useState(true);
   const [introSaliendo, setIntroSaliendo] = useState(false);
@@ -266,14 +298,14 @@ export default function WalletDashboardPage() {
               <button
                 onClick={() => setBuscando((s) => !s)}
                 aria-label="Buscar"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.08]"
+                className="wallet-tap flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.08]"
               >
                 {buscando ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
               </button>
               <button
                 onClick={salir}
                 aria-label="Salir"
-                className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.08]"
+                className="wallet-tap flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.08]"
               >
                 <LogOut className="h-4 w-4" />
               </button>
@@ -285,14 +317,7 @@ export default function WalletDashboardPage() {
               <p className="mt-7 text-[13px] font-light text-white/45">Total que debes</p>
               {/* Los centavos en chico: la cifra grande se lee de un golpe y el centavo no
                   compite con ella, igual que en las apps de banco. */}
-              <p className="mt-1 flex items-baseline gap-1 font-bold tabular-nums">
-                <span className="text-[40px] leading-none">
-                  ${Math.floor(resumen.totalPendiente).toLocaleString('es-VE')}
-                </span>
-                <span className="text-[22px] leading-none text-white/45">
-                  .{(resumen.totalPendiente % 1).toFixed(2).slice(2)}
-                </span>
-              </p>
+              <SaldoAnimado monto={resumen.totalPendiente} animar={!reducirMovimiento && !intro} />
               {bs(resumen.totalPendiente, data.rateBs) && (
                 <p className="mt-1 text-[13px] font-light tabular-nums text-white/45">
                   {bs(resumen.totalPendiente, data.rateBs)}
@@ -312,26 +337,51 @@ export default function WalletDashboardPage() {
             </>
           )}
 
-          {buscando && seccion === 'inicio' && (
-            <input
-              autoFocus
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar por tienda o producto…"
-              className="mt-4 w-full rounded-xl border border-white/15 bg-white/[0.06] px-3 py-2 text-sm text-white placeholder:text-white/35 outline-none"
-            />
-          )}
+          {/* El buscador se despliega en vez de empujar el contenido de golpe. */}
+          <AnimatePresence initial={false}>
+            {buscando && seccion === 'inicio' && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ height: { duration: 0.22, ease: [0.23, 1, 0.32, 1] }, opacity: { duration: 0.15 } }}
+                className="overflow-hidden"
+              >
+                <input
+                  autoFocus
+                  value={busca}
+                  onChange={(e) => setBusca(e.target.value)}
+                  placeholder="Buscar por tienda o producto…"
+                  className="mt-4 w-full rounded-xl border border-white/15 bg-white/[0.06] px-3 py-2 text-sm text-white outline-none transition-colors placeholder:text-white/35 focus:border-[#3d9bff]"
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
 
         {/* ---------- Contenido ---------- */}
         {seccion === 'entradas' ? (
-          <div className="flex-1 pb-28">
+          // Cambiar de sección desliza el contenido en la dirección del menú (Entradas está a
+          // la derecha de Inicio), para que el movimiento coincida con dónde se tocó.
+          <motion.div
+            key="entradas"
+            initial={reducirMovimiento ? { opacity: 0 } : { opacity: 0, transform: 'translateX(24px)' }}
+            animate={{ opacity: 1, transform: 'translateX(0px)' }}
+            transition={{ duration: 0.24, ease: [0.23, 1, 0.32, 1] }}
+            className="flex-1 pb-28"
+          >
             <WalletEntradasPage />
-          </div>
+          </motion.div>
         ) : (
           // Hoja clara, como el historial de movimientos de una app de banco: separa de un
           // vistazo "lo que debo" (arriba, oscuro) de "a quién" (acá).
-          <div className="flex-1 rounded-t-[26px] bg-white px-5 pb-28 pt-5 text-brand-950">
+          <motion.div
+            key="inicio"
+            initial={reducirMovimiento ? { opacity: 0 } : { opacity: 0, transform: 'translateX(-24px)' }}
+            animate={{ opacity: 1, transform: 'translateX(0px)' }}
+            transition={{ duration: 0.24, ease: [0.23, 1, 0.32, 1] }}
+            className="flex-1 rounded-t-[26px] bg-white px-5 pb-28 pt-5 text-brand-950"
+          >
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-[15px] font-bold">Tiendas</h2>
               <span className="text-[12px] font-light text-brand-950/45">
@@ -345,14 +395,15 @@ export default function WalletDashboardPage() {
               </p>
             ) : (
               <ul className="space-y-1">
-                {tiendasVisibles.map((t) => {
+                {tiendasVisibles.map((t, i) => {
                   const abiertaAqui = abierta === t.negocio;
                   return (
-                    <li key={t.negocio}>
+                    // --i escalona la entrada: la lista aparece en cascada, no de golpe.
+                    <li key={t.negocio} className="wallet-fila" style={{ '--i': i } as React.CSSProperties}>
                       <button
                         type="button"
                         onClick={() => setAbierta(abiertaAqui ? null : t.negocio)}
-                        className="flex w-full items-center gap-3 rounded-2xl px-1.5 py-3 text-left transition-colors hover:bg-brand-950/[0.03]"
+                        className="wallet-tap flex w-full items-center gap-3 rounded-2xl px-1.5 py-3 text-left hover:bg-brand-950/[0.03]"
                       >
                         <span
                           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[13px] font-bold text-white"
@@ -381,19 +432,38 @@ export default function WalletDashboardPage() {
                         />
                       </button>
 
-                      {abiertaAqui && (
-                        <div className="mb-2 space-y-2 pl-[3.25rem] pr-1.5">
-                          {t.compras.map((c) => (
-                            <DetalleCompra key={c.id} compra={c} rateBs={data.rateBs} onAbonar={() => setAbonando(c)} />
-                          ))}
-                        </div>
-                      )}
+                      {/* Desplegar la tienda anima el alto en vez de aparecer de golpe: sin
+                          esto la lista salta y el dedo pierde la fila que acaba de tocar.
+                          AnimatePresence es lo que permite animar también el cierre. */}
+                      <AnimatePresence initial={false}>
+                        {abiertaAqui && (
+                          <motion.div
+                            key="detalle"
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{
+                              height: { duration: 0.26, ease: [0.23, 1, 0.32, 1] },
+                              // La opacidad entra más lenta y sale antes que el alto: si no, el
+                              // contenido se ve comprimido mientras la caja todavía se cierra.
+                              opacity: { duration: 0.18 },
+                            }}
+                            className="overflow-hidden"
+                          >
+                            <div className="mb-2 space-y-2 pl-[3.25rem] pr-1.5 pt-1">
+                              {t.compras.map((c) => (
+                                <DetalleCompra key={c.id} compra={c} rateBs={data.rateBs} onAbonar={() => setAbonando(c)} />
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </li>
                   );
                 })}
               </ul>
             )}
-          </div>
+          </motion.div>
         )}
 
         {/* ---------- Menú flotante ---------- */}
@@ -406,7 +476,7 @@ export default function WalletDashboardPage() {
       </div>
 
       {aviso && (
-        <div className="fixed inset-x-4 bottom-24 z-50 rounded-2xl bg-emerald-500 px-4 py-3 text-center text-[13px] font-medium text-white shadow-lg">
+        <div className="wallet-toast fixed inset-x-4 bottom-24 z-50 rounded-2xl bg-emerald-500 px-4 py-3 text-center text-[13px] font-medium text-white shadow-lg">
           {aviso}
         </div>
       )}
@@ -431,6 +501,18 @@ export default function WalletDashboardPage() {
   );
 }
 
+/** La cifra grande del saldo, contando al entrar. Los centavos van en chico: la cifra se lee
+ *  de un golpe y el centavo no compite con ella, igual que en las apps de banco. */
+function SaldoAnimado({ monto, animar }: { monto: number; animar: boolean }) {
+  const n = useConteo(monto, animar);
+  return (
+    <p className="mt-1 flex items-baseline gap-1 font-bold tabular-nums">
+      <span className="text-[40px] leading-none">${Math.floor(n).toLocaleString('es-VE')}</span>
+      <span className="text-[22px] leading-none text-white/45">.{(n % 1).toFixed(2).slice(2)}</span>
+    </p>
+  );
+}
+
 function BotonMenu({
   icono: Icono,
   label,
@@ -447,12 +529,22 @@ function BotonMenu({
       type="button"
       onClick={onClick}
       aria-current={activo}
-      className={`flex items-center gap-1.5 rounded-full px-4 py-2.5 text-[12.5px] font-semibold transition-colors ${
-        activo ? 'bg-white text-[#04070d]' : 'text-white/55 hover:text-white/80'
-      }`}
+      className="wallet-tap relative flex items-center gap-1.5 rounded-full px-4 py-2.5 text-[12.5px] font-semibold"
     >
-      <Icono className="h-4 w-4" />
-      {label}
+      {/* La pastilla blanca se DESLIZA de una sección a la otra en vez de apagarse acá y
+          encenderse allá: con layoutId, Motion interpola la misma caja entre los dos botones,
+          que es lo que hace leer el menú como una sola pieza y no como dos luces. */}
+      {activo && (
+        <motion.span
+          layoutId="wallet-menu-activo"
+          className="absolute inset-0 rounded-full bg-white"
+          transition={{ type: 'spring', duration: 0.4, bounce: 0.15 }}
+        />
+      )}
+      <span className={`relative z-10 flex items-center gap-1.5 transition-colors duration-200 ${activo ? 'text-[#04070d]' : 'text-white/55'}`}>
+        <Icono className="h-4 w-4" />
+        {label}
+      </span>
     </button>
   );
 }
@@ -524,7 +616,7 @@ function DetalleCompra({
         {compra.saldo > 0 && (
           <button
             onClick={onAbonar}
-            className="flex-1 rounded-full py-2 text-[12.5px] font-semibold text-white"
+            className="wallet-tap flex-1 rounded-full py-2 text-[12.5px] font-semibold text-white"
             style={{ background: 'linear-gradient(135deg, #009aff 0%, #056CF2 100%)' }}
           >
             Pagar
@@ -535,7 +627,7 @@ function DetalleCompra({
             href={wa}
             target="_blank"
             rel="noreferrer"
-            className={`flex items-center justify-center gap-1.5 rounded-full border border-brand-950/12 py-2 text-[12.5px] font-semibold text-brand-950/70 transition-colors hover:bg-brand-950/[0.04] ${
+            className={`wallet-tap flex items-center justify-center gap-1.5 rounded-full border border-brand-950/12 py-2 text-[12.5px] font-semibold text-brand-950/70 hover:bg-brand-950/[0.04] ${
               compra.saldo > 0 ? 'px-3.5' : 'flex-1'
             }`}
           >

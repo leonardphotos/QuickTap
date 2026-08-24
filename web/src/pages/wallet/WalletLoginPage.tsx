@@ -173,7 +173,7 @@ export default function WalletLoginPage() {
           <button
             type="submit"
             disabled={busy}
-            className="!mt-4 w-full rounded-full py-2 text-[13px] font-semibold text-white shadow-[0_8px_24px_-10px_rgba(0,154,255,0.8)] transition-opacity disabled:opacity-50"
+            className="wallet-tap !mt-4 w-full rounded-full py-2 text-[13px] font-semibold text-white shadow-[0_8px_24px_-10px_rgba(0,154,255,0.8)] disabled:opacity-50"
             style={{ background: 'linear-gradient(135deg, #009aff 0%, #056CF2 100%)' }}
           >
             {busy ? 'Entrando…' : 'Entrar'}

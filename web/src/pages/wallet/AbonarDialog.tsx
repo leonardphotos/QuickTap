@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { motion } from 'motion/react';
 import { Upload, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { getWalletToken } from './walletSession';
@@ -140,14 +141,26 @@ export function AbonarDialog({ compraId, negocio, saldo, cuotas, rateBs, onClose
   // flotante de direcciones le tapaba el final y el botón de reportar quedaba fuera de
   // alcance. El padding del contenedor la mantiene despegada de los bordes.
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-[24px] bg-[#141a22] p-5 text-white">
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.18 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+    >
+      {/* Modal: escala desde el centro porque no está anclado a ningún disparador, y arranca
+          en 0.96 y no en 0 — nada en el mundo real aparece de la nada. */}
+      <motion.div
+        initial={{ opacity: 0, transform: 'scale(0.96) translateY(8px)' }}
+        animate={{ opacity: 1, transform: 'scale(1) translateY(0px)' }}
+        transition={{ duration: 0.26, ease: [0.23, 1, 0.32, 1] }}
+        className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-[24px] bg-[#141a22] p-5 text-white"
+      >
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-lg font-bold">Abonar</h2>
             <p className="text-[11px] font-light text-white/45">{negocio}</p>
           </div>
-          <button onClick={onClose} aria-label="Cerrar" className="rounded-full bg-white/10 p-1.5">
+          <button onClick={onClose} aria-label="Cerrar" className="wallet-tap rounded-full bg-white/10 p-1.5">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -186,14 +199,14 @@ export function AbonarDialog({ compraId, negocio, saldo, cuotas, rateBs, onClose
                   <button
                     key={c.id}
                     onClick={() => setCantidad(i + 1)}
-                    className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${
+                    className={`wallet-tap flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${
                       elegida ? 'bg-[#009aff]/15 ring-1 ring-[#009aff]/50' : 'bg-white/[0.05] hover:bg-white/10'
                     }`}
                   >
                     <span className="flex min-w-0 items-center gap-2">
                       <span
-                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${
-                          elegida ? 'bg-[#009aff] text-white' : 'border border-white/25 text-transparent'
+                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold transition-all duration-200 ${
+                          elegida ? 'scale-100 bg-[#009aff] text-white' : 'scale-90 border border-white/25 text-transparent'
                         }`}
                       >
                         ✓
@@ -232,7 +245,7 @@ export function AbonarDialog({ compraId, negocio, saldo, cuotas, rateBs, onClose
               <button
                 key={k}
                 onClick={() => setMetodo(k)}
-                className={`rounded-full px-3 py-1.5 text-[11px] font-medium ${metodo === k ? 'bg-[#009aff] text-white' : 'bg-white/10 text-white/70'}`}
+                className={`wallet-tap rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${metodo === k ? 'bg-[#009aff] text-white' : 'bg-white/10 text-white/70'}`}
               >
                 {ETIQUETAS[k] ?? k}
               </button>
@@ -274,7 +287,7 @@ export function AbonarDialog({ compraId, negocio, saldo, cuotas, rateBs, onClose
         <button
           onClick={enviar}
           disabled={enviando || !metodo}
-          className="mt-4 w-full rounded-full py-3 text-sm font-semibold text-white disabled:opacity-40"
+          className="wallet-tap mt-4 w-full rounded-full py-3 text-sm font-semibold text-white disabled:opacity-40"
           style={{ background: 'linear-gradient(135deg, #009aff 0%, #056CF2 100%)' }}
         >
           {enviando ? 'Enviando…' : 'Reportar abono'}
@@ -282,7 +295,7 @@ export function AbonarDialog({ compraId, negocio, saldo, cuotas, rateBs, onClose
         <p className="mt-2 text-center text-[10px] font-light text-white/35">
           El negocio lo verifica y se suma a tu cuenta.
         </p>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

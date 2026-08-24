@@ -364,6 +364,64 @@ body {
   animation: wallet-slide-in 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* --- Wallet: entradas escalonadas y realimentación al tocar --- */
+
+/* Cada fila entra un pelo después que la anterior: en cascada se lee como una lista que
+   aparece, no como un bloque que se enciende de golpe. El retardo lo pone cada componente
+   con --i, así no hace falta una regla por posición. */
+@keyframes wallet-fila-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.wallet-fila {
+  animation: wallet-fila-in 320ms var(--ease-out-strong) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+/* Todo lo que se puede tocar responde al tacto. 0.97 y 140ms: suficiente para que se sienta
+   vivo, no tanto como para estorbar a quien lo usa muchas veces al día. */
+.wallet-tap {
+  transition: transform 140ms var(--ease-out-strong);
+}
+
+.wallet-tap:active {
+  transform: scale(0.97);
+}
+
+/* Las tarjetas de entrada son grandes: escalan menos, si no el gesto se siente exagerado.
+   El escalado va en el CONTENEDOR y no en la cara que voltea: las dos cosas animan `transform`,
+   y en el mismo elemento el apretón le pisaría el rotateY al giro. */
+.wallet-tap-card {
+  transition: transform 140ms var(--ease-out-strong);
+}
+
+.wallet-tap-card:has(:active) {
+  transform: scale(0.985);
+}
+
+/* Aviso de "abono reportado": entra desde abajo y sale más rápido de lo que entró. */
+@keyframes wallet-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.wallet-toast {
+  animation: wallet-toast-in 260ms var(--ease-out-strong) both;
+}
+
 /* Entrada de evento que se voltea para mostrar el QR (ver WalletEntradasPage).
    Va en CSS y no con una librería: es una sola propiedad animada, y así el boleto
    queda legible aunque el JS de animación no llegue a cargar. */
@@ -402,6 +460,16 @@ body {
   /* El volteo del boleto pasa a ser instantáneo: la cara correcta igual se ve. */
   .ticket-flip-inner {
     transition: none;
+  }
+  /* Se conserva la opacidad (ayuda a entender que algo apareció), se quita el movimiento. */
+  .wallet-fila,
+  .wallet-toast {
+    animation-duration: 160ms;
+    animation-delay: 0ms;
+  }
+  .wallet-tap:active,
+  .wallet-tap-card:active {
+    transform: none;
   }
   .club-ball,
   .club-check,
