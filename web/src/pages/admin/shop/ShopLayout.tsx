@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { PanelLeftOpen } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import { Truck, Wallet2, ShieldCheck, Banknote, Boxes, Building2, Calculator, FileText, Scale, HandCoins, Home, Landmark, Lock, Receipt, Settings, ShoppingBag, TrendingUp, Users, Wallet } from 'lucide-react';
+import { ShieldCheck, Boxes, Building2, Calculator, FileText, Home, Lock, Receipt, Settings, ShoppingBag, Users, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getShopRubro } from '@/data/shopRubros';
 import { TextureButton } from '@/components/ui/texture-button';
 import { DailyRatesBadge } from '@/components/DailyRatesBadge';
-import { QuoteManager } from '@/components/admin/QuoteManager';
 import { useShopSession } from './shopSession';
 import ShopDashboardPage from './ShopDashboardPage';
 import ShopPosPage from './ShopPosPage';
@@ -14,24 +13,34 @@ import ShopOrdersPage from './ShopOrdersPage';
 import ShopInventoryPage from './ShopInventoryPage';
 import { CrmHub } from '@/components/admin/crm/CrmHub';
 import ShopSettingsPage from './ShopSettingsPage';
-import ShopStatsPage from './ShopStatsPage';
-import ShopPurchasesPage from './ShopPurchasesPage';
-import ExpensesPage from '@/pages/admin/ExpensesPage';
 import ShopApprovalsPage from './ShopApprovalsPage';
-import { BankAccountsSection } from '@/components/admin/BankAccountsSection';
-import ShopReceivablesPage from './ShopReceivablesPage';
 import ShopPassPage from './ShopPassPage';
-import ShopSalesByUnitPage from './ShopSalesByUnitPage';
 import { ShopSidebar, type ShopSidebarTab } from './ShopSidebar';
 import { PLAN_LABELS } from '@/pages/admin/nav-links';
 import ShopBillingPage from './ShopBillingPage';
-import { PayablesSection } from '@/components/admin/PayablesSection';
-import { AccountingHub } from '@/components/admin/AccountingHub';
 import { PlanUpgradeNotice } from '@/components/admin/PlanUpgradeNotice';
 import { allowsBranches, daysRemaining, graceHoursRemaining, hasFeature, type FeatureFlag } from '@/utils/subscription';
 import ShopSucursalesPage from './ShopSucursalesPage';
+import ShopAdministracionPage, { type ShopAdminTab } from './ShopAdministracionPage';
 
-export type ShopScreen = 'admin' | 'venta' | 'pedidos' | 'inventario' | 'clientes' | 'ajustes' | 'cotizaciones' | 'cuentas' | 'ordenes' | 'contabilidad' | 'sucursales' | 'factura' | 'pass' | 'ventas-unidad' | 'estadisticas' | 'bancos' | 'solicitudes' | 'gastos' | 'compras';
+// 'cotizaciones' y 'cuentas' siguen acá aunque ya no sean pantallas propias: son los accesos
+// de Inicio, y irA() los traduce a Administración parada en esa pestaña. Los demás destinos
+// administrativos se sacaron del tipo a propósito — navegar a uno ahora no compila, en vez de
+// dejar la pantalla en blanco.
+export type ShopScreen =
+  | 'admin'
+  | 'administracion'
+  | 'venta'
+  | 'pedidos'
+  | 'inventario'
+  | 'clientes'
+  | 'ajustes'
+  | 'cotizaciones'
+  | 'cuentas'
+  | 'sucursales'
+  | 'factura'
+  | 'pass'
+  | 'solicitudes';
 
 // Cotizaciones, Cuentas por Cobrar y Facturación no van en el dock flotante de celular (ya tiene
 // 5 iconos, más lo dejaría apretado) — se llega a ellas desde los accesos de Inicio
@@ -39,19 +48,17 @@ export type ShopScreen = 'admin' | 'venta' | 'pedidos' | 'inventario' | 'cliente
 // `feature` marca las pantallas de Elite Shop: con el plan Shop base se ven (con candado)
 // pero abren el aviso de mejora — así el dueño sabe qué gana al subir de plan.
 const MORE_TABS: { id: ShopScreen; label: string; icon: typeof FileText; feature?: FeatureFlag | 'branches' }[] = [
-  { id: 'cotizaciones', label: 'Cotizaciones', icon: FileText },
-  { id: 'cuentas', label: 'Cuentas por Cobrar', icon: Landmark },
+  // Estadísticas, Ventas por unidad, Gastos, Compras, Cotizaciones, Cuentas por Cobrar,
+  // Órdenes de pago, Contabilidad y Cuentas bancarias ya no van sueltas acá: viven dentro de
+  // Administración, igual que en restaurantes. Antes la lista mezclaba las pantallas de
+  // operación diaria con las de cierre de mes, y quien entraba a facturar tenía delante las
+  // dos cosas. Las que quedan no son administración: Pass es el portal del comprador,
+  // Solicitudes son aprobaciones del día y Sucursales es su propio nivel (en restaurantes
+  // también vive fuera de Administración).
+  { id: 'administracion', label: 'Administración', icon: Calculator },
   { id: 'pass', label: 'QuickTap Pass', icon: Wallet },
-  { id: 'estadisticas', label: 'Estadísticas', icon: TrendingUp },
-  { id: 'gastos', label: 'Gastos', icon: Wallet2 },
-  { id: 'compras', label: 'Compras', icon: Truck },
-  { id: 'ventas-unidad', label: 'Ventas por unidad', icon: Scale },
-  { id: 'bancos', label: 'Cuentas bancarias', icon: Banknote, feature: 'accounting' },
   { id: 'solicitudes', label: 'Solicitudes', icon: ShieldCheck },
-  { id: 'ordenes', label: 'Órdenes de pago', icon: HandCoins, feature: 'accounting' },
-  { id: 'contabilidad', label: 'Contabilidad', icon: Calculator, feature: 'accounting' },
   { id: 'sucursales', label: 'Sucursales', icon: Building2, feature: 'branches' },
-
 ];
 
 function getTabs(rubroId: string | undefined): { id: ShopScreen; label: string; icon: typeof Home }[] {
@@ -88,6 +95,21 @@ export default function ShopLayout() {
   );
   const rubro = getShopRubro(restaurant?.shopRubro);
   const session = useShopSession(rubro?.categories ?? []);
+  const [adminTab, setAdminTab] = useState<ShopAdminTab>('estadisticas');
+
+  /**
+   * Cotizaciones y Cuentas por Cobrar se mudaron dentro de Administración, pero siguen siendo
+   * accesos de Inicio: en vez de dejar esos botones muertos, abren Administración ya parada en
+   * su pestaña.
+   */
+  function irA(destino: ShopScreen) {
+    if (destino === 'cotizaciones' || destino === 'cuentas') {
+      setAdminTab(destino);
+      setScreen('administracion');
+      return;
+    }
+    setScreen(destino);
+  }
   const tabs = getTabs(rubro?.id);
 
   // Menú lateral (solo pantallas anchas), espejo del panel de restaurantes. Va acá arriba, antes
@@ -130,7 +152,6 @@ export default function ShopLayout() {
 
   const canSeeMoney = user.role === 'OWNER' || user.role === 'ADMIN';
   const isEliteShop = restaurant.subscriptionPlan === 'ELITE_SHOP';
-  const canAccounting = hasFeature(restaurant, 'accounting');
   const canBranches = allowsBranches(restaurant.subscriptionPlan);
   // Una sucursal no ve la pestaña Sucursales (no puede tener las suyas); solo Dueño/Admin.
   const moreTabs = MORE_TABS.filter((t) => t.id !== 'sucursales' || (canSeeMoney && !restaurant.parentRestaurantId));
@@ -237,7 +258,7 @@ export default function ShopLayout() {
 
       <main className={`max-w-7xl mx-auto px-5 sm:px-6 py-5 pb-28 lg:pb-8 transition-[padding] duration-300 ${sidebarHidden ? "lg:pl-5" : "lg:pl-[284px]"}`}>
         {screen === 'admin' && (
-          <ShopDashboardPage session={session} restaurant={restaurant} canSeeMoney={canSeeMoney} userName={user.name} onNavigate={setScreen} />
+          <ShopDashboardPage session={session} restaurant={restaurant} canSeeMoney={canSeeMoney} userName={user.name} onNavigate={irA} />
         )}
         {screen === 'venta' && (
           <ShopPosPage session={session} restaurant={restaurant} rubro={rubro} />
@@ -250,58 +271,23 @@ export default function ShopLayout() {
             <CrmHub />
           </div>
         )}
-        {screen === 'estadisticas' && <ShopStatsPage restaurant={restaurant} />}
-        {screen === 'gastos' && (
-          <div className="max-w-5xl mx-auto px-4 py-6">
-            <ExpensesPage />
-          </div>
-        )}
-        {screen === 'compras' && <ShopPurchasesPage session={session} restaurant={restaurant} />}
         {screen === 'solicitudes' && <ShopApprovalsPage />}
-        {screen === 'bancos' && (
-          <div className="max-w-5xl mx-auto px-4 py-6">
-            <h1 className="text-2xl font-bold text-brand-950 mb-4">Cuentas bancarias</h1>
-            <BankAccountsSection symbol={restaurant.currencySymbol ?? '$'} />
-          </div>
+        {screen === 'administracion' && (
+          <ShopAdministracionPage
+            restaurant={restaurant}
+            session={session}
+            onGoToBilling={() => setScreen('factura')}
+            tab={adminTab}
+            onTabChange={setAdminTab}
+          />
         )}
         {screen === 'ajustes' && <ShopSettingsPage onBack={() => setScreen('admin')} session={session} />}
         {screen === 'factura' && <ShopBillingPage restaurant={restaurant} onDone={() => setScreen('admin')} />}
-        {screen === 'cotizaciones' && <QuoteManager />}
-        {screen === 'cuentas' && <ShopReceivablesPage />}
         {screen === 'pass' && <ShopPassPage />}
-        {screen === 'ventas-unidad' && <ShopSalesByUnitPage restaurant={restaurant} />}
-        {screen === 'ordenes' && !canAccounting && (
-          <PlanUpgradeNotice feature="Órdenes de pago" onGoToBilling={() => setScreen('factura')} />
-        )}
-        {screen === 'ordenes' && canAccounting && (
-          <div className="space-y-5">
-            <div>
-              <h1 className="text-2xl font-semibold text-brand-950">Órdenes de pago</h1>
-              <p className="text-sm text-brand-950/50 font-light mt-0.5">
-                Cuentas por pagar a proveedores: gastos a crédito, retenciones y pagos.
-              </p>
-            </div>
-            <PayablesSection />
-          </div>
-        )}
-        {screen === 'contabilidad' && !canAccounting && (
-          <PlanUpgradeNotice feature="La Contabilidad" onGoToBilling={() => setScreen('factura')} />
-        )}
         {screen === 'sucursales' && !canBranches && (
           <PlanUpgradeNotice feature="Sucursales" onGoToBilling={() => setScreen('factura')} />
         )}
         {screen === 'sucursales' && canBranches && <ShopSucursalesPage />}
-        {screen === 'contabilidad' && canAccounting && (
-          <div className="space-y-5">
-            <div>
-              <h1 className="text-2xl font-semibold text-brand-950">Contabilidad</h1>
-              <p className="text-sm text-brand-950/50 font-light mt-0.5">
-                Cuentas bancarias, proveedores y libros de compras/ventas.
-              </p>
-            </div>
-            <AccountingHub />
-          </div>
-        )}
       </main>
 
       {/* Dock flotante y redondeado: mismo patrón visual que el dock del panel de restaurante
