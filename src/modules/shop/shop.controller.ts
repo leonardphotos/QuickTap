@@ -10,6 +10,7 @@ import {
   createShopPurchaseSchema,
   createShopAdjustmentSchema,
   openShopTillSchema,
+  openOrderSchema,
   closeShopTillSchema,
   addShopCategorySchema,
   addShopSubcategorySchema,
@@ -121,6 +122,22 @@ export const shopController = {
   setProductsPublished: asyncHandler(async (req: Request, res: Response) => {
     const { productIds, isPublished } = setShopProductsPublishedSchema.parse(req.body);
     res.json({ data: await shopService.setProductsPublished(req.restaurantId!, productIds, isPublished) });
+  }),
+
+  /** GET /shop/open-orders — pedidos parados, el más reciente primero. */
+  listOpenOrders: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await shopService.listOpenOrders(req.restaurantId!) });
+  }),
+
+  /** POST /shop/open-orders — deja el carrito abierto (con `id`, actualiza el que ya existe). */
+  saveOpenOrder: asyncHandler(async (req: Request, res: Response) => {
+    const input = openOrderSchema.parse(req.body);
+    res.json({ data: await shopService.saveOpenOrder(req.restaurantId!, req.auth!.userId, input) });
+  }),
+
+  /** DELETE /shop/open-orders/:id — se llama al cobrarlo o al descartarlo. */
+  deleteOpenOrder: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await shopService.deleteOpenOrder(req.restaurantId!, req.params.id) });
   }),
 
   recordSale: asyncHandler(async (req: Request, res: Response) => {

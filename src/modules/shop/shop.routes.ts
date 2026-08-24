@@ -24,6 +24,11 @@ router.delete('/products/:id', requireRole('OWNER', 'ADMIN'), shopController.del
 router.post('/products/upload-photo', uploadShopProductPhoto, optimizeImage(900, 900), shopController.uploadProductPhoto);
 router.post('/upload-payment-proof', uploadShopPaymentProof, optimizeImage(1200, 1200), shopController.uploadPaymentProof);
 
+// Pedidos abiertos: carritos parados que se siguen cargando más tarde (no son ventas).
+router.get('/open-orders', shopController.listOpenOrders);
+router.post('/open-orders', shopController.saveOpenOrder);
+router.delete('/open-orders/:id', shopController.deleteOpenOrder);
+
 router.post('/sales', shopController.recordSale);
 router.post('/sales/:id/return', shopController.returnSale);
 

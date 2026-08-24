@@ -195,3 +195,18 @@ export type CreateShopAdjustmentInput = z.infer<typeof createShopAdjustmentSchem
 export type SetShopServiceSuppliesInput = z.infer<typeof setShopServiceSuppliesSchema>;
 export type OpenShopTillInput = z.infer<typeof openShopTillSchema>;
 export type CloseShopTillInput = z.infer<typeof closeShopTillSchema>;
+
+/**
+ * Pedido abierto. Las líneas se aceptan como JSON libre a propósito: es el carrito del POS y su
+ * forma la manda esa pantalla — validarla campo por campo acá obligaría a tocar dos archivos
+ * cada vez que el carrito gana una variante o un descuento nuevo. Solo se acota el tamaño, para
+ * que nadie use la tabla de depósito.
+ */
+export const openOrderSchema = z.object({
+  id: z.string().min(1).optional(),
+  label: z.string().min(1, 'Ponle un nombre al pedido.').max(80),
+  customerName: z.string().max(120).optional(),
+  customerPhone: z.string().max(40).optional(),
+  items: z.array(z.record(z.string(), z.unknown())).min(1, 'El pedido no tiene productos.').max(300),
+});
+export type OpenOrderInput = z.infer<typeof openOrderSchema>;

@@ -98,6 +98,8 @@ export default function ShopLayout() {
   const session = useShopSession(rubro?.categories ?? []);
   const [adminTab, setAdminTab] = useState<ShopAdminTab>('estadisticas');
   const [menuOpen, setMenuOpen] = useState(false);
+  /** Pedido abierto que se está retomando en la pantalla de Venta (ver ShopOpenOrder). */
+  const [pedidoAbierto, setPedidoAbierto] = useState<{ id: string; label: string } | null>(null);
 
   /**
    * Cotizaciones y Cuentas por Cobrar se mudaron dentro de Administración, pero siguen siendo
@@ -276,9 +278,26 @@ export default function ShopLayout() {
           <ShopDashboardPage session={session} restaurant={restaurant} canSeeMoney={canSeeMoney} userName={user.name} />
         )}
         {screen === 'venta' && (
-          <ShopPosPage session={session} restaurant={restaurant} rubro={rubro} />
+          <ShopPosPage
+            session={session}
+            restaurant={restaurant}
+            rubro={rubro}
+            pedidoAbierto={pedidoAbierto}
+            onPedidoAbiertoChange={setPedidoAbierto}
+          />
         )}
-        {screen === 'pedidos' && <ShopOrdersPage restaurant={restaurant} />}
+        {screen === 'pedidos' && (
+          <ShopOrdersPage
+            restaurant={restaurant}
+            onRetomarPedido={(p) => {
+              // El carrito guardado vuelve tal cual y la pantalla salta a Venta: retomar un
+              // pedido es seguir vendiéndolo, no revisarlo.
+              session.reemplazarCarrito(p.items as never);
+              setPedidoAbierto({ id: p.id, label: p.label });
+              setScreen('venta');
+            }}
+          />
+        )}
         {screen === 'inventario' && <ShopInventoryPage session={session} rubro={rubro} restaurant={restaurant} />}
         {screen === 'clientes' && (
           <div className="flex flex-col gap-5">

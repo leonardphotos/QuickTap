@@ -44,7 +44,36 @@ const PAYMENT_LABELS: Record<string, string> = {
  * reportes. Mientras tanto son solo una intención — si se descontara al llegar, cualquiera
  * podría vaciarle el inventario al local haciendo pedidos falsos desde internet.
  */
-export default function ShopOrdersPage({ restaurant }: { restaurant: AuthRestaurant }) {
+export interface PedidoAbierto {
+  id: string;
+  label: string;
+  customerName: string | null;
+  items: { name?: string; qty?: number; price?: number; disc?: number }[];
+  createdByUserName: string | null;
+  updatedAt: string;
+}
+
+export default function ShopOrdersPage({
+  restaurant,
+  onRetomarPedido,
+}: {
+  restaurant: AuthRestaurant;
+  /** Devuelve el pedido abierto a la pantalla de Venta para seguir cargándole productos. */
+  onRetomarPedido?: (p: PedidoAbierto) => void;
+}) {
+  const [abiertos, setAbiertos] = useState<PedidoAbierto[]>([]);
+
+  const cargarAbiertos = useCallback(() => {
+    api.get('/shop/open-orders').then((r) => setAbiertos(r.data.data)).catch(() => undefined);
+  }, []);
+  useEffect(cargarAbiertos, [cargarAbiertos]);
+
+  async function descartarAbierto(id: string) {
+    if (!window.confirm('¿Descartar este pedido abierto? Lo cargado se pierde.')) return;
+    await api.delete(`/shop/open-orders/${id}`).catch(() => undefined);
+    cargarAbiertos();
+  }
+
   const [orders, setOrders] = useState<ShopOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -114,6 +143,50 @@ export default function ShopOrdersPage({ restaurant }: { restaurant: AuthRestaur
           </FilterTab>
         </div>
       </div>
+
+      {/* Pedidos abiertos: carritos parados en el POS. Van arriba porque es lo que el cajero
+          viene a retomar cuando el cliente vuelve al mostrador. */}
+      {abiertos.length > 0 && (
+        <section className="rounded-2xl border border-brand-500/25 bg-brand-500/[0.04] p-4">
+          <div className="mb-3 flex items-baseline justify-between gap-2">
+            <h2 className="text-sm font-bold text-brand-950">Pedidos abiertos</h2>
+            <span className="text-xs font-light text-brand-950/45">{abiertos.length}</span>
+          </div>
+          <ul className="space-y-2">
+            {abiertos.map((p) => {
+              const unidades = p.items.reduce((a, it) => a + (Number(it.qty) || 0), 0);
+              const total = p.items.reduce(
+                (a, it) => a + (Number(it.price) || 0) * (Number(it.qty) || 0) * (1 - (Number(it.disc) || 0) / 100),
+                0,
+              );
+              return (
+                <li key={p.id} className="flex items-center gap-3 rounded-xl bg-white px-3.5 py-3 shadow-sm">
+                  <button
+                    type="button"
+                    onClick={() => onRetomarPedido?.(p)}
+                    className="min-w-0 flex-1 text-left"
+                  >
+                    <p className="truncate text-[14px] font-semibold text-brand-950">{p.label}</p>
+                    <p className="truncate text-[11.5px] font-light text-brand-950/50">
+                      {p.items.length} producto{p.items.length === 1 ? '' : 's'}
+                      {unidades > 0 && ` · ${unidades} und`} · {formatBase(total, restaurant.currencySymbol ?? '$')}
+                      {p.createdByUserName && ` · ${p.createdByUserName}`}
+                    </p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => descartarAbierto(p.id)}
+                    aria-label={`Descartar ${p.label}`}
+                    className="shrink-0 rounded-lg p-1.5 text-brand-950/35 hover:bg-brand-950/[0.05] hover:text-red-600"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {error && <p className="text-sm text-red-600">{error}</p>}
 

@@ -953,6 +953,9 @@ export function useShopSession(initialCategories: string[] = []) {
     removeFromCart,
     setCartLineDiscount,
     clearCart,
+    // Reemplaza el carrito completo: lo usa "Pedidos abiertos" para devolver a la pantalla de
+    // venta un carrito guardado antes, tal como quedó.
+    reemplazarCarrito: setCart,
     openTill,
     closeTill,
     checkout,

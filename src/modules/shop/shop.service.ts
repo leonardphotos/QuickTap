@@ -473,6 +473,50 @@ export const shopService = {
 
   // --- Ventas ---
 
+  // ─── Pedidos abiertos ────────────────────────────────────────────────────
+
+  /**
+   * Deja un carrito parado para seguirlo cargando después. Con `id` actualiza el que ya
+   * existe —así el mismo pedido crece en vez de multiplicarse cada vez que se vuelve a
+   * guardar— y sin `id` crea uno nuevo.
+   *
+   * No toca stock ni caja: mientras esté abierto no es una venta. La rebaja de existencias y
+   * el asiento en caja pasan cuando se cobra, por el camino normal de recordSale.
+   */
+  async saveOpenOrder(
+    restaurantId: string,
+    userId: string,
+    input: { id?: string; label: string; customerName?: string; customerPhone?: string; items: unknown[] },
+  ) {
+    if (!input.items.length) throw badRequest('El pedido no tiene productos.');
+    const usuario = await prisma.user.findUnique({ where: { id: userId }, select: { name: true } });
+    const datos = {
+      label: input.label.trim(),
+      customerName: input.customerName?.trim() || null,
+      customerPhone: input.customerPhone?.trim() || null,
+      items: input.items as Prisma.InputJsonValue,
+    };
+    if (input.id) {
+      // El where lleva restaurantId: un id ajeno no puede pisar el pedido de otro local.
+      const existe = await prisma.shopOpenOrder.findFirst({ where: { id: input.id, restaurantId }, select: { id: true } });
+      if (!existe) throw notFound('Ese pedido abierto ya no existe.');
+      return prisma.shopOpenOrder.update({ where: { id: input.id }, data: datos });
+    }
+    return prisma.shopOpenOrder.create({
+      data: { restaurantId, ...datos, createdByUserId: userId, createdByUserName: usuario?.name ?? null },
+    });
+  },
+
+  listOpenOrders(restaurantId: string) {
+    return prisma.shopOpenOrder.findMany({ where: { restaurantId }, orderBy: { updatedAt: 'desc' } });
+  },
+
+  async deleteOpenOrder(restaurantId: string, id: string) {
+    const { count } = await prisma.shopOpenOrder.deleteMany({ where: { id, restaurantId } });
+    if (count === 0) throw notFound('Ese pedido abierto ya no existe.');
+    return { ok: true };
+  },
+
   async recordSale(restaurantId: string, userId: string, input: CreateShopSaleInput) {
     // CRM: la venta con datos de contacto crea/actualiza al cliente en el directorio —
     // sin esto el CRM del Local se quedaba vacío aunque el POS capturara los datos.

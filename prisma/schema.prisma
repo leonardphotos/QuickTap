@@ -726,6 +726,7 @@ model Restaurant {
   // Product/Order (esos son del vertical restaurante) — ver web/src/pages/admin/shop/. ---
   shopProducts         ShopProduct[]
   shopSales            ShopSale[]
+  shopOpenOrders       ShopOpenOrder[]
   shopPurchases        ShopPurchase[]
   shopStockAdjustments ShopStockAdjustment[]
   shopCashSessions     ShopCashSession[]
@@ -3451,6 +3452,39 @@ model ShopProductVariant {
 
 // Venta del POS de Shop — cada línea se snapshotea completa en ShopSaleItem (independiente de
 // ediciones posteriores al producto), mismo criterio que Order/OrderItem del vertical restaurante.
+// Pedido abierto del Local: un carrito que se deja parado para seguir cargándole productos
+// más tarde (el cliente que sigue comprando, la cuenta que se arma durante el día).
+//
+// NO es una venta: no descuenta stock, no entra en caja ni en estadísticas. Cuando se cobra
+// pasa por el mismo camino que cualquier venta (recordSale) y este registro se borra.
+//
+// Las líneas se guardan como JSON y no en una tabla aparte a propósito: es el carrito tal cual
+// lo dejó el POS —con sus variantes, pesos, precios por unidad y descuentos— y lo único que se
+// necesita es poder devolverlo idéntico. Una tabla obligaría a mantener dos formas del mismo
+// carrito en sincronía para un dato que no se consulta ni se reporta.
+model ShopOpenOrder {
+  id           String @id @default(cuid())
+  restaurantId String
+
+  /// Con qué nombre se reconoce: el del cliente, "Mesa 3", "el señor de la camioneta".
+  label         String
+  customerName  String?
+  customerPhone String?
+  /// Las líneas del carrito, tal como las maneja el POS.
+  items         Json
+
+  createdByUserId   String?
+  createdByUserName String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, updatedAt])
+  @@map("shop_open_orders")
+}
+
 model ShopSale {
   id           String @id @default(cuid())
   restaurantId String

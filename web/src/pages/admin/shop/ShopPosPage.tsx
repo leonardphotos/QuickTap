@@ -36,6 +36,10 @@ interface Props {
   session: ShopSession;
   restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate' | 'name' | 'paymentMethodsConfig' | 'requireCustomerData'>;
   rubro: ShopRubro;
+  /** Pedido abierto que se retomó desde Pedidos: al guardar actualiza ESTE, y al cobrarlo se borra. */
+  pedidoAbierto?: { id: string; label: string } | null;
+  /** Se llama cuando el pedido dejó de estar abierto (se cobró, se guardó de nuevo o se vació). */
+  onPedidoAbiertoChange?: (p: { id: string; label: string } | null) => void;
 }
 
 /** Profesional que presta servicios, tal como lo devuelve GET /shop/service-providers — a
@@ -140,7 +144,7 @@ const PAYMENT_METHOD_META: { key: PaymentMethodKey; label: string }[] = [
   { key: 'CARD', label: 'Punto de Venta' },
 ];
 
-export default function ShopPosPage({ session, restaurant, rubro }: Props) {
+export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto, onPedidoAbiertoChange }: Props) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
 
   /**
@@ -154,7 +158,7 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
     const max = Math.max(...precios, p.price);
     return min === max ? money(p.price) : `${money(min)} – ${money(max)}`;
   };
-  const { products, cart, till, closedTills, categories, addToCart, addAdhocLine, addPrintLine, activeStaffUserId, setActiveStaffUserId, updateCartQty, setCartQty, removeFromCart, setCartLineDiscount, openTill, closeTill, checkout, quickSale, addProduct } = session;
+  const { products, cart, till, closedTills, categories, addToCart, addAdhocLine, addPrintLine, activeStaffUserId, setActiveStaffUserId, updateCartQty, setCartQty, removeFromCart, setCartLineDiscount, clearCart, openTill, closeTill, checkout, quickSale, addProduct } = session;
   const { show, toastMessage } = useToast();
   const { user } = useAuth();
 
@@ -334,6 +338,46 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
   function scrollToCart() {
     cartPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
+
+  const pedidoAbiertoId = pedidoAbierto?.id ?? null;
+  const [abiertoOpen, setAbiertoOpen] = useState(false);
+  const [nombreAbierto, setNombreAbierto] = useState('');
+  const [guardandoAbierto, setGuardandoAbierto] = useState(false);
+
+  /** Deja el carrito parado. Con un pedido retomado actualiza ese mismo, no crea otro. */
+  async function guardarPedidoAbierto() {
+    const nombre = nombreAbierto.trim();
+    if (!nombre) return;
+    setGuardandoAbierto(true);
+    try {
+      await api.post('/shop/open-orders', {
+        ...(pedidoAbiertoId ? { id: pedidoAbiertoId } : {}),
+        label: nombre,
+        customerName: custName.trim() || undefined,
+        customerPhone: custPhone.trim() || undefined,
+        items: cart,
+      });
+      setAbiertoOpen(false);
+      onPedidoAbiertoChange?.(null);
+      clearCart();
+    } finally {
+      setGuardandoAbierto(false);
+    }
+  }
+
+  /**
+   * El botón flotante se esconde cuando el carrito ya está a la vista: si no, se queda encima
+   * de "Cobrar" y "Dejar pedido abierto" justo cuando hacen falta, tapando los botones que
+   * vino a buscar el que bajó hasta ahí.
+   */
+  const [carritoVisible, setCarritoVisible] = useState(false);
+  useEffect(() => {
+    const nodo = cartPanelRef.current;
+    if (!nodo || typeof IntersectionObserver === 'undefined') return;
+    const obs = new IntersectionObserver(([e]) => setCarritoVisible(e.isIntersecting), { threshold: 0.12 });
+    obs.observe(nodo);
+    return () => obs.disconnect();
+  }, []);
 
   const filtered = products.filter(
     (p) =>
@@ -595,6 +639,13 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
       bankAccountId,
       posPromo ? { code: posPromo.code, discountBase: posPromoDiscount } : null,
     );
+    // El pedido abierto deja de existir en cuanto se cobra: ya es una venta. Si el borrado
+    // falla no se le corta la venta al cajero — se le queda un pedido de más en la lista, que
+    // puede descartar a mano.
+    if (pedidoAbiertoId) {
+      api.delete(`/shop/open-orders/${pedidoAbiertoId}`).catch(() => undefined);
+      onPedidoAbiertoChange?.(null);
+    }
     // Fiado a pago completo no cobra nada hoy (queda todo pendiente) — el sonido de caja es
     // para cuando efectivamente entra dinero: venta directa o el abono de un fiado fraccionado.
     if (credit?.terms !== 'FULL') playCashSound();
@@ -1066,6 +1117,20 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
               </TextureButton>
             </div>
 
+            {/* Deja el carrito parado para seguirlo cargando después. No cobra ni descuenta
+                stock: hasta que no se cobre, no es una venta. */}
+            <button
+              type="button"
+              disabled={cart.length === 0}
+              onClick={() => {
+                setNombreAbierto(pedidoAbiertoId ? nombreAbierto : '');
+                setAbiertoOpen(true);
+              }}
+              className="mt-2 w-full rounded-full border border-brand-950/15 py-2 text-[12.5px] font-semibold text-brand-950/70 transition-colors hover:bg-brand-950/[0.04] disabled:opacity-40"
+            >
+              {pedidoAbiertoId ? 'Guardar pedido abierto' : 'Dejar pedido abierto'}
+            </button>
+
             {/* Alta en el portal del cliente + plan de cuotas, en el mismo momento del cobro:
                 es cuando el cliente está delante y se acuerdan las condiciones. */}
             <button
@@ -1082,8 +1147,8 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
 
       {/* Carrito flotante: solo en celular (< lg, donde el panel de carrito queda debajo de toda
           la grilla de productos) y solo si hay algo en el carrito — toca para saltar directo ahí. */}
-      {cartItemCount > 0 && (
-        <div className="lg:hidden fixed bottom-[104px] inset-x-0 z-30 flex justify-center pointer-events-none px-4">
+      {cartItemCount > 0 && !carritoVisible && (
+        <div className="lg:hidden fixed bottom-6 inset-x-0 z-30 flex justify-center pointer-events-none px-4">
           <button
             type="button"
             onClick={scrollToCart}
@@ -1102,6 +1167,39 @@ export default function ShopPosPage({ session, restaurant, rubro }: Props) {
           </button>
         </div>
       )}
+
+      {/* ---------- Dejar pedido abierto ---------- */}
+      <Dialog open={abiertoOpen} onOpenChange={setAbiertoOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{pedidoAbiertoId ? 'Guardar pedido abierto' : 'Dejar pedido abierto'}</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm font-light text-brand-950/60">
+            El pedido queda en <span className="font-semibold text-brand-950">Pedidos → Pedidos abiertos</span> para
+            seguir cargándole productos. No se cobra ni descuenta inventario hasta que lo cobres.
+          </p>
+          <label className="mt-3 block text-sm">
+            <span className="text-brand-950/70">¿Con qué nombre lo reconoces?</span>
+            <input
+              autoFocus
+              value={nombreAbierto}
+              onChange={(e) => setNombreAbierto(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && guardarPedidoAbierto()}
+              placeholder="Juan, Mesa 3, el de la camioneta…"
+              className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2"
+            />
+          </label>
+          <TextureButton
+            variant="brand"
+            size="default"
+            className="mt-4 disabled:opacity-40"
+            disabled={!nombreAbierto.trim() || guardandoAbierto}
+            onClick={guardarPedidoAbierto}
+          >
+            {guardandoAbierto ? 'Guardando…' : 'Dejar abierto'}
+          </TextureButton>
+        </DialogContent>
+      </Dialog>
 
       {/* ---------- Abrir/cerrar caja ---------- */}
       <Dialog open={tillDialogOpen} onOpenChange={setTillDialogOpen}>
