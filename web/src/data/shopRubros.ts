@@ -511,10 +511,43 @@ const RUBRO_DEFS: ShopRubroDef[] = [
   },
 ];
 
-export const SHOP_RUBROS: ShopRubro[] = RUBRO_DEFS.map((def) => ({
-  ...def,
-  products: buildProducts(def.id, def.products),
-}));
+// Tickera: se arma aparte de RUBRO_DEFS/buildProducts porque sus productos de ejemplo son
+// eventos (fecha, hora, cupo) y ese formato no lo expresa el ProductRow del resto de rubros.
+const TICKERA_RUBRO: ShopRubro = {
+  id: 'tickera', label: 'Ticketeras y Venta de Entradas', emoji: '🎟️',
+  storeName: 'Tickera Eventos VIP · Taquilla Central',
+  dim1: 'Puesto', dim1Example: 'General', dim2: null,
+  suppliers: ['Producción de Eventos', 'Seguridad y Logística'],
+  categories: ['Conciertos', 'Teatro', 'Deportes', 'Fiestas'],
+  products: [
+    {
+      id: 'tickera-p0', name: 'Concierto Noche de Verano', category: 'Conciertos', subcategory: '',
+      sku: 'EVT-CONC-1', location: '', price: 35, cost: 0, minStock: 0,
+      variants: [{ v1: 'Entrada', v2: '', stock: 200 }],
+      isEvent: true, eventDate: '2026-12-20', eventTime: '20:00', eventSeats: 200,
+    },
+    {
+      id: 'tickera-p1', name: 'Obra: El Jardín de las Sombras', category: 'Teatro', subcategory: '',
+      sku: 'EVT-TEAT-1', location: '', price: 18, cost: 0, minStock: 0,
+      variants: [{ v1: 'Entrada', v2: '', stock: 120 }],
+      isEvent: true, eventDate: '2026-11-08', eventTime: '19:30', eventSeats: 120,
+    },
+    {
+      id: 'tickera-p2', name: 'Final de Copa Regional', category: 'Deportes', subcategory: '',
+      sku: 'EVT-DEP-1', location: '', price: 12, cost: 0, minStock: 0,
+      variants: [{ v1: 'Entrada', v2: '', stock: 500 }],
+      isEvent: true, eventDate: '2026-10-25', eventTime: '16:00', eventSeats: 500,
+    },
+  ],
+};
+
+export const SHOP_RUBROS: ShopRubro[] = [
+  ...RUBRO_DEFS.map((def) => ({
+    ...def,
+    products: buildProducts(def.id, def.products),
+  })),
+  TICKERA_RUBRO,
+];
 
 export function getShopRubro(rubroId: string | null | undefined): ShopRubro | undefined {
   return SHOP_RUBROS.find((r) => r.id === rubroId);
@@ -525,6 +558,17 @@ const SERVICE_RUBROS = ['estetica', 'belleza'];
 
 export function isServiceRubro(rubroId: string | null | undefined): boolean {
   return !!rubroId && SERVICE_RUBROS.includes(rubroId);
+}
+
+/**
+ * Rubros que venden entradas, no mercancía ni servicios: cada producto nuevo ES un evento
+ * (fecha, hora, cupo) sin que haga falta ponerlo en una categoría llamada "Tickets" — la
+ * interfaz entera de Inventario cambia de vocabulario (ver ShopInventoryPage.tsx).
+ */
+const TICKET_RUBROS = ['tickera'];
+
+export function isTicketRubro(rubroId: string | null | undefined): boolean {
+  return !!rubroId && TICKET_RUBROS.includes(rubroId);
 }
 
 /**

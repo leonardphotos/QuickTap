@@ -9,7 +9,7 @@ import { api } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { PhotoUploadField } from '@/components/admin/PhotoUploadField';
-import { getRubroFeatures, isServiceRubro, type ShopProductSeed, type ShopRubro, type ShopVariant } from '@/data/shopRubros';
+import { getRubroFeatures, isServiceRubro, isTicketRubro, type ShopProductSeed, type ShopRubro, type ShopVariant } from '@/data/shopRubros';
 import { formatStock, formatUnidad, shopMoneyFormatters, tienePreciosDistintos } from './shopFormat';
 import { productStatus, productStock, type ShopProduct, type ShopSession } from './shopSession';
 import { shopApi, fetchProductLots, type ProductLots } from './shopApi';
@@ -39,6 +39,9 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   // Salones de estética/belleza y barbería venden servicios, no mercancía: sin SKU, sin
   // stock por presentación, sin vencimiento y sin venta por m² (eso es de agencias de publicidad).
   const isServiceShop = isServiceRubro(rubro.id);
+  // Tickera: cada producto nuevo ES un evento, sin depender de que exista una categoría
+  // llamada "Tickets" — es el rubro entero el que cambia la interfaz.
+  const isTicketShop = isTicketRubro(rubro.id);
   // Qué funciones ve este rubro (venta por Kg, vencimiento, mayorista, impresión por m²) —
   // el "||" con el valor ya guardado en cada condición de abajo cubre productos viejos que
   // usan una función que el rubro hoy no muestra: se siguen pudiendo ver y editar.
@@ -95,7 +98,10 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   // La categoría "Tickets" convierte al producto en un evento. Se sigue aceptando "Eventos"
   // porque los locales que ya la crearon con ese nombre tienen productos dentro y renombrarla
   // por detrás los dejaría sin fecha ni cupo.
-  const esEvento = ['tickets', 'eventos'].includes(npCategory.trim().toLowerCase());
+  // La categoría "Tickets"/"Eventos" convierte UN producto en evento (cualquier rubro puede
+  // vender la entrada suelta de algo puntual); el rubro Tickera hace que TODO producto nuevo
+  // lo sea, sin necesidad de esa categoría.
+  const esEvento = isTicketShop || ['tickets', 'eventos'].includes(npCategory.trim().toLowerCase());
   const usaUnidades = ['ferreteria', 'carniceria', 'fruteria', 'panaderia'].includes(rubro?.id ?? '');
   const [npSubcategory, setNpSubcategory] = useState('');
   // Eventos: la categoría "Eventos" convierte el producto en una entrada con fecha y cupo.
@@ -644,24 +650,32 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="text-xl font-bold text-brand-950">
-          {rubro.id === 'agencia_publicidad' || isServiceShop ? 'Servicios' : 'Inventario'}
+          {isTicketShop ? 'Eventos' : rubro.id === 'agencia_publicidad' || isServiceShop ? 'Servicios' : 'Inventario'}
         </h1>
         <div className="flex gap-2 flex-wrap">
-          <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => openCameraScan('toolbar')}>
-            <ScanLine className="h-4 w-4" /> Escanear
-          </TextureButton>
-          <TextureButton variant="minimal" size="default" className="!w-auto" onClick={openRecountDialog}>
-            <ClipboardList className="h-4 w-4" /> Recuento físico
-          </TextureButton>
-          <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setSumarOpen(true)}>
-            <PackagePlus className="h-4 w-4" /> Sumar a inventario
-          </TextureButton>
-          <TextureButton variant="minimal" size="default" className="!w-auto" onClick={openPurchaseDialog}>
-            <Truck className="h-4 w-4" /> Registrar compra
-          </TextureButton>
-          <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setImportOpen(true)}>
-            <FileSpreadsheet className="h-4 w-4" /> Cargar Excel
-          </TextureButton>
+          {/* Escanear código de barras, recuento físico, sumar stock y registrar compra son
+              todo operaciones de MERCANCÍA. Una tickera no tiene nada físico que contar,
+              escanear o reponer: el cupo de un evento se fija al crearlo y solo baja cuando se
+              vende (ver ShopProduct.eventSeats). */}
+          {!isTicketShop && (
+            <>
+              <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => openCameraScan('toolbar')}>
+                <ScanLine className="h-4 w-4" /> Escanear
+              </TextureButton>
+              <TextureButton variant="minimal" size="default" className="!w-auto" onClick={openRecountDialog}>
+                <ClipboardList className="h-4 w-4" /> Recuento físico
+              </TextureButton>
+              <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setSumarOpen(true)}>
+                <PackagePlus className="h-4 w-4" /> Sumar a inventario
+              </TextureButton>
+              <TextureButton variant="minimal" size="default" className="!w-auto" onClick={openPurchaseDialog}>
+                <Truck className="h-4 w-4" /> Registrar compra
+              </TextureButton>
+              <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setImportOpen(true)}>
+                <FileSpreadsheet className="h-4 w-4" /> Cargar Excel
+              </TextureButton>
+            </>
+          )}
           {/* Ir a la tienda pública tal como la ve el cliente: es donde se compran las entradas
               de los eventos. Solo lo que esté publicado aparece ahí. */}
           <TextureButton
@@ -676,7 +690,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
             <TrendingUp className="h-4 w-4" /> Aumentar precios
           </TextureButton>
           <TextureButton variant="brand" size="default" className="!w-auto" onClick={() => openNewProductDialog()}>
-            <Plus className="h-4 w-4" /> {isServiceShop ? 'Nuevo servicio' : 'Nuevo producto'}
+            <Plus className="h-4 w-4" /> {isTicketShop ? 'Nuevo evento' : isServiceShop ? 'Nuevo servicio' : 'Nuevo producto'}
           </TextureButton>
         </div>
       </div>
@@ -1536,8 +1550,8 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
       <DialogHeader>
             <DialogTitle>
               {editingProductId
-                ? isServiceShop ? 'Editar servicio' : 'Editar producto'
-                : isServiceShop ? 'Nuevo servicio' : 'Nuevo producto'}
+                ? isTicketShop ? 'Editar evento' : isServiceShop ? 'Editar servicio' : 'Editar producto'
+                : isTicketShop ? 'Nuevo evento' : isServiceShop ? 'Nuevo servicio' : 'Nuevo producto'}
             </DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1901,7 +1915,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
           </div>
           )}
 
-          <div className={`border-t border-brand-950/[0.06] pt-3.5 ${npAreaRoll || isServiceShop ? 'hidden' : ''}`}>
+          <div className={`border-t border-brand-950/[0.06] pt-3.5 ${npAreaRoll || isServiceShop || esEvento ? 'hidden' : ''}`}>
             <p className="text-sm font-bold text-brand-950 mb-1">
               Stock por {variantDims.dim1}{variantDims.dim2 ? ` y ${variantDims.dim2}` : ''}
             </p>
@@ -2085,7 +2099,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
               Cancelar
             </TextureButton>
             <TextureButton variant="brand" size="default" className="!w-auto" onClick={saveNewProduct}>
-              {editingProductId ? 'Guardar cambios' : isServiceShop ? 'Guardar servicio' : 'Guardar producto'}
+              {editingProductId ? 'Guardar cambios' : isTicketShop ? 'Guardar evento' : isServiceShop ? 'Guardar servicio' : 'Guardar producto'}
             </TextureButton>
           </DialogFooter>
         </DialogContent>

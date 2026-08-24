@@ -3,7 +3,7 @@ import { PanelLeftOpen } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { Landmark, Menu, ShieldCheck, Boxes, Building2, Calculator, FileText, Home, Lock, Receipt, Settings, ShoppingBag, Ticket, Users, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { getShopRubro } from '@/data/shopRubros';
+import { getShopRubro, isTicketRubro } from '@/data/shopRubros';
 import { TextureButton } from '@/components/ui/texture-button';
 import { DailyRatesBadge } from '@/components/DailyRatesBadge';
 import { useShopSession } from './shopSession';
@@ -72,7 +72,7 @@ function getTabs(rubroId: string | undefined): { id: ShopScreen; label: string; 
     { id: 'venta', label: 'Venta', icon: Receipt },
     { id: 'admin', label: 'Inicio', icon: Home },
     { id: 'pedidos', label: 'Pedidos', icon: ShoppingBag },
-    { id: 'inventario', label: rubroId === 'agencia_publicidad' ? 'Servicios' : 'Inventario', icon: Boxes },
+    { id: 'inventario', label: isTicketRubro(rubroId) ? 'Eventos' : rubroId === 'agencia_publicidad' ? 'Servicios' : 'Inventario', icon: Boxes },
     { id: 'clientes', label: 'Clientes', icon: Users },
     { id: 'ajustes', label: 'Ajustes', icon: Settings },
   ];
