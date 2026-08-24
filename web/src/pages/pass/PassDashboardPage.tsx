@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LogOut, Search, TrendingUp, Wallet } from 'lucide-react';
+import { LogOut, MessageCircle, Search, TrendingUp, Wallet } from 'lucide-react';
 import { api } from '@/api/client';
 import { useDocumentMeta } from '@/hooks/useDocumentMeta';
-import { PASS_LOGO_URL, PASS_NAME } from './passBrand';
+import { PASS_NAME, PASS_WORDMARK_URL } from './passBrand';
 import { clearPassToken, getPassToken } from './passSession';
 import { AbonarDialog } from './AbonarDialog';
 import { PassIntro } from './PassIntro';
@@ -32,7 +32,11 @@ interface Cuota {
 interface Compra {
   id: string;
   negocio: string;
+  /** WhatsApp del negocio, para escribirle por esta compra. null si no lo tiene cargado. */
+  whatsappNegocio: string | null;
   fecha: string;
+  /** Solo las compras a crédito dejan saldo; las de contado ya se pagaron en el mostrador. */
+  esCredito: boolean;
   detalle: string[];
   total: number;
   abonado: number;
@@ -59,6 +63,24 @@ const bs = (n: number, rateBs: number | null) =>
 
 const fechaCorta = (iso: string) =>
   new Date(`${iso}T00:00:00`).toLocaleDateString('es-VE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+
+/** Fecha y hora en que se hizo la compra. `Order.time` viene como instante ISO completo, así
+ *  que se formatea directo (a diferencia de las cuotas, que son solo fecha). */
+const fechaHora = (iso: string) =>
+  new Date(iso).toLocaleString('es-VE', {
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  });
+
+/** Enlace a WhatsApp del negocio con el motivo ya escrito. Es un `wa.me`: abre el WhatsApp del
+ *  propio cliente con el mensaje redactado, no envía nada por su cuenta. */
+function whatsappDelNegocio(c: Compra): string | null {
+  const tel = (c.whatsappNegocio ?? '').replace(/\D/g, '');
+  if (!tel) return null;
+  const texto = `Hola ${c.negocio}, te escribo por mi compra del ${fechaHora(c.fecha)}`
+    + (c.detalle.length ? ` (${c.detalle.join(', ')})` : '')
+    + (c.saldo > 0 ? `. Me queda un saldo de ${money(c.saldo)}.` : '.');
+  return `https://wa.me/${tel}?text=${encodeURIComponent(texto)}`;
+}
 
 /** Aviso de la cuota que se acerca o ya venció. Es la alerta previa a la mora, del lado del cliente. */
 function AvisoCuota({ cuota, mora }: { cuota: Cuota; mora: number }) {
@@ -162,7 +184,7 @@ export default function PassDashboardPage() {
   }
   if (!data) {
     return (
-      <div className="min-h-dvh bg-white">
+      <div className="min-h-dvh bg-[#04070d]">
         <PassIntro saliendo={false} />
       </div>
     );
@@ -178,16 +200,22 @@ export default function PassDashboardPage() {
     : compras;
 
   return (
-    <div className="pass-panel min-h-dvh bg-[#0b0f14] pb-16 text-white">
-      {/* El telón sigue encima hasta que termina de levantarse; el panel ya está debajo. */}
+    <>
+      {/* El telón sigue encima hasta que termina de levantarse; el panel ya está debajo.
+          Va FUERA de .pass-panel a propósito: ese contenedor se anima con un `transform`, y un
+          transform en un ancestro hace que `position: fixed` se resuelva contra ese ancestro y
+          no contra la ventana. Como .pass-panel mide todo el alto del contenido, el telón se
+          centraba respecto a esa altura completa y el logo aparecía muy abajo. */}
       {intro && <PassIntro saliendo={introSaliendo} />}
+    <div className="pass-panel min-h-dvh bg-[#0b0f14] pb-16 text-white">
       {/* Cabecera con el degradado de marca, como el hero del mockup. */}
       <div
         className="rounded-b-[28px] px-5 pb-8 pt-6"
-        style={{ background: 'linear-gradient(135deg, #009aff 0%, #056CF2 55%, #001b43 100%)' }}
+        style={{ background: 'linear-gradient(180deg, #04070d 0%, #062247 42%, #0b5fd0 78%, #009aff 100%)' }}
       >
         <div className="flex items-center justify-between">
-          <img src={PASS_LOGO_URL} alt={PASS_NAME} className="h-7 w-auto brightness-0 invert" />
+          {/* La marca de Pass ya viene en blanco: no se invierte como el logo de QuickTap. */}
+          <img src={PASS_WORDMARK_URL} alt={PASS_NAME} className="h-8 w-auto" />
           <div className="flex items-center gap-2">
             <button
               onClick={() => setBuscando((s) => !s)}
@@ -270,7 +298,17 @@ export default function PassDashboardPage() {
             <div key={c.id} className="rounded-2xl bg-[#141a22] p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{c.negocio}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="truncate text-sm font-semibold">{c.negocio}</p>
+                    {c.saldo <= 0 && (
+                      <span className="shrink-0 rounded-full bg-emerald-400/15 px-2 py-0.5 text-[9.5px] font-semibold uppercase tracking-wide text-emerald-300">
+                        Pagada
+                      </span>
+                    )}
+                  </div>
+                  {/* Cuándo se hizo la compra: es lo primero que el cliente busca para
+                      reconocerla, sobre todo si tiene varias del mismo negocio. */}
+                  <p className="mt-0.5 text-[10.5px] font-light tabular-nums text-white/35">{fechaHora(c.fecha)}</p>
                   <p className="mt-0.5 truncate text-[11px] font-light text-white/45">{c.detalle.join(', ')}</p>
                 </div>
                 {c.cuotas.length > 0 && (
@@ -321,15 +359,32 @@ export default function PassDashboardPage() {
 
               {c.proximaCuota && <AvisoCuota cuota={c.proximaCuota} mora={c.mora} />}
 
-              {c.saldo > 0 && (
-                <button
-                  onClick={() => setAbonando(c)}
-                  className="mt-3 w-full rounded-full py-2.5 text-[13px] font-semibold text-white"
-                  style={{ background: 'linear-gradient(135deg, #009aff 0%, #056CF2 100%)' }}
-                >
-                  Abonar o pagar completo
-                </button>
-              )}
+              {/* Abonar solo si queda saldo; escribirle al negocio, siempre que tenga WhatsApp
+                  cargado — también sirve para reclamar una compra que el cliente no reconoce. */}
+              <div className="mt-3 flex gap-2">
+                {c.saldo > 0 && (
+                  <button
+                    onClick={() => setAbonando(c)}
+                    className="flex-1 rounded-full py-2.5 text-[13px] font-semibold text-white"
+                    style={{ background: 'linear-gradient(135deg, #009aff 0%, #056CF2 100%)' }}
+                  >
+                    Abonar o pagar completo
+                  </button>
+                )}
+                {whatsappDelNegocio(c) && (
+                  <a
+                    href={whatsappDelNegocio(c)!}
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`flex items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.06] py-2.5 text-[13px] font-semibold text-white/80 transition-colors hover:bg-white/10 ${
+                      c.saldo > 0 ? 'px-4' : 'flex-1'
+                    }`}
+                  >
+                    <MessageCircle className="h-4 w-4" />
+                    {c.saldo > 0 ? '' : 'Escribirle al negocio'}
+                  </a>
+                )}
+              </div>
 
               {abierto && (
                 <div className="mt-3 space-y-1.5 border-t border-white/[0.06] pt-3">
@@ -385,5 +440,6 @@ export default function PassDashboardPage() {
         />
       )}
     </div>
+    </>
   );
 }

@@ -35,6 +35,19 @@ function normalizarCedula(valor: string): string {
   return valor.replace(/[^0-9]/g, '');
 }
 
+/**
+ * Forma canónica de un teléfono venezolano para comparar dos números: los últimos 10 dígitos,
+ * que ya incluyen el código de operadora (424, 414…). Así "04244572008", "4244572008" y
+ * "+584244572008" son el mismo número.
+ *
+ * Se comparan 10 y no 7 a propósito: los últimos 7 son solo el abonado, y 0414-4572008 y
+ * 0424-4572008 son personas DISTINTAS que comparten esa cola. Buscar por 7 haría que un
+ * cliente viera las compras del otro.
+ */
+function telefonoCanonico(valor: string | null): string {
+  return soloDigitos(valor ?? '').slice(-10);
+}
+
 export const passService = {
   async login(input: { phone: string; idNumber: string }) {
     const telefono = soloDigitos(input.phone);
@@ -71,17 +84,22 @@ export const passService = {
     const yo = await prisma.customer.findUnique({ where: { id: customerId }, select: { phone: true, name: true } });
     if (!yo) throw badRequest('Cuenta no encontrada.');
     const cola = soloDigitos(yo.phone).slice(-7);
+    const miTelefono = telefonoCanonico(yo.phone);
 
-    const ventas = await prisma.shopSale.findMany({
+    // El `contains` de los últimos 7 es solo un PREFILTRO barato para que SQL no traiga toda la
+    // tabla: tolera que cada negocio guarde el número con su propio formato. La coincidencia de
+    // verdad se decide abajo comparando el número canónico completo.
+    const candidatas = await prisma.shopSale.findMany({
       where: { customerPhone: { contains: cola }, returned: false },
       orderBy: { time: 'desc' },
       include: {
-        restaurant: { select: { name: true } },
+        restaurant: { select: { name: true, whatsappPhone: true } },
         payments: true,
         items: { select: { name: true, qty: true } },
         installmentPlan: { include: { installments: { orderBy: { number: 'asc' } } } },
       },
     });
+    const ventas = candidatas.filter((v) => telefonoCanonico(v.customerPhone) === miTelefono);
 
     // Tasa para mostrar todo también en bolívares, que es como el cliente paga. Si la fuente
     // está caída se sigue mostrando en dólares y nada más: no vale la pena dejar al cliente sin
@@ -97,12 +115,22 @@ export const passService = {
     let totalAbonado = 0;
 
     const compras = ventas.map((v) => {
-      const abonado = (v.amountPaidNow ?? 0) + v.payments.reduce((a, p) => a + p.amount, 0);
+      // SOLO una venta a crédito deja saldo. Una venta de contado ya se cobró en el mostrador y
+      // no genera ningún ShopSalePayment (el método de pago va en la propia venta), así que
+      // contarla como deuda mostraba como impaga cada compra que el cliente ya había pagado.
+      // Es el mismo criterio que usa el lado del negocio en passInboxService.deudores.
+      const aCredito = v.creditTerms != null;
+
       // El recargo por financiar se le cobra al cliente igual que la mora, así que entra en lo
       // que debe. Se muestra sumado y no aparte para no llenar el portal de renglones.
-      const mora = (v.installmentPlan?.installments.reduce((a, c) => a + c.lateFeeCharged, 0) ?? 0)
-        + (v.installmentPlan?.surchargeAmount ?? 0);
+      const mora = aCredito
+        ? (v.installmentPlan?.installments.reduce((a, c) => a + c.lateFeeCharged, 0) ?? 0)
+          + (v.installmentPlan?.surchargeAmount ?? 0)
+        : 0;
       const aPagar = Math.round((v.total + mora) * 100) / 100;
+      const abonado = aCredito
+        ? Math.round(((v.amountPaidNow ?? 0) + v.payments.reduce((a, p) => a + p.amount, 0)) * 100) / 100
+        : aPagar;
       const saldo = Math.max(0, Math.round((aPagar - abonado) * 100) / 100);
 
       totalComprado += aPagar;
@@ -114,10 +142,14 @@ export const passService = {
       return {
         id: v.id,
         negocio: v.restaurant.name,
+        // El WhatsApp del negocio, para que el cliente pueda escribirle por esta compra
+        // desde el mismo portal (queda null si el negocio no lo tiene cargado).
+        whatsappNegocio: v.restaurant.whatsappPhone,
         fecha: v.time,
+        esCredito: aCredito,
         detalle: v.items.map((i) => `${i.qty}× ${i.name}`),
         total: aPagar,
-        abonado: Math.round(abonado * 100) / 100,
+        abonado,
         saldo,
         mora,
         // Cuánto lleva pagado, para la barra de progreso del portal.
