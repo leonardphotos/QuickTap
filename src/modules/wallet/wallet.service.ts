@@ -63,6 +63,30 @@ export const walletService = {
   },
 
   /**
+   * Los locales comerciales de QuickTap que tienen tienda virtual, para el carrusel del portal.
+   *
+   * No filtra por "tiene productos publicados": un local puede estar armando su catálogo y
+   * publicarlo el mismo día, y la lista se calcula en cada carga — dejarlo fuera lo escondería
+   * justo cuando más le sirve aparecer. La tienda pública ya resuelve sola el catálogo vacío.
+   *
+   * Los de demostración quedan fuera: no son negocios reales y mandarían al cliente a comprar
+   * a un local que no existe.
+   */
+  async tiendas() {
+    const locales = await prisma.restaurant.findMany({
+      where: { businessType: 'SHOP', isActive: true, isDemo: false, orderingEnabled: true },
+      select: { name: true, slug: true, logoUrl: true, shopRubro: true },
+      orderBy: { name: 'asc' },
+    });
+    return locales.map((l) => ({
+      nombre: l.name,
+      slug: l.slug,
+      logoUrl: l.logoUrl,
+      rubro: l.shopRubro,
+    }));
+  },
+
+  /**
    * Las entradas de eventos que compró el cliente, en cualquier negocio.
    *
    * Se buscan por teléfono igual que las compras (ver `resumen`): la ficha de cliente es por

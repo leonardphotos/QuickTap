@@ -133,6 +133,14 @@ function colorDe(nombre: string): string {
   return COLORES[h % COLORES.length];
 }
 
+/** Un local con tienda virtual, para el carrusel de descubrimiento. */
+interface TiendaQuickTap {
+  nombre: string;
+  slug: string;
+  logoUrl: string | null;
+  rubro: string | null;
+}
+
 type Seccion = 'inicio' | 'tiendas' | 'entradas';
 
 /**
@@ -177,6 +185,15 @@ export default function WalletDashboardPage() {
   const [aviso, setAviso] = useState<string | null>(null);
   const [seccion, setSeccion] = useState<Seccion>('inicio');
   const reducirMovimiento = useReducedMotion();
+  // Directorio de locales con tienda virtual. Se pide una sola vez, sin bloquear el resto: si
+  // falla, el carrusel simplemente no aparece.
+  const [tiendasQuickTap, setTiendasQuickTap] = useState<TiendaQuickTap[]>([]);
+  useEffect(() => {
+    api
+      .get('/public/wallet/stores')
+      .then((r) => setTiendasQuickTap(r.data.data))
+      .catch(() => undefined);
+  }, []);
   // Telón de entrada: se muestra mientras cargan los datos y se levanta al terminar.
   const [intro, setIntro] = useState(true);
   const [introSaliendo, setIntroSaliendo] = useState(false);
@@ -271,8 +288,6 @@ export default function WalletDashboardPage() {
       )
     : tiendas;
 
-  const nombre = resumen && data.cliente.nombre ? data.cliente.nombre : '';
-
   return (
     <>
       {/* El telón sigue encima hasta que termina de levantarse; el panel ya está debajo.
@@ -285,15 +300,7 @@ export default function WalletDashboardPage() {
         {/* ---------- Cabecera ---------- */}
         <div className="shrink-0 px-5 pb-5 pt-6">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <span
-                className="flex h-9 w-9 items-center justify-center rounded-full text-[12px] font-bold text-white"
-                style={{ background: colorDe(nombre || 'QT') }}
-              >
-                {iniciales(nombre || 'QuickTap')}
-              </span>
-              <img src={WALLET_WORDMARK_URL} alt={WALLET_NAME} className="h-5 w-auto" />
-            </div>
+            <img src={WALLET_WORDMARK_URL} alt={WALLET_NAME} className="h-6 w-auto" />
             <div className="flex items-center gap-2">
               {seccion === 'tiendas' && (
                 <button
@@ -527,6 +534,8 @@ export default function WalletDashboardPage() {
                 })}
               </ul>
             )}
+
+            <CarruselTiendas tiendas={tiendasQuickTap} />
           </motion.div>
         )}
 
@@ -571,9 +580,13 @@ export default function WalletDashboardPage() {
 function SaldoAnimado({ monto, animar }: { monto: number; animar: boolean }) {
   const n = useConteo(monto, animar);
   return (
-    <p className="mt-1 flex items-baseline gap-1 font-bold tabular-nums">
-      <span className="text-[40px] leading-none">${Math.floor(n).toLocaleString('es-VE')}</span>
-      <span className="text-[22px] leading-none text-white/45">.{(n % 1).toFixed(2).slice(2)}</span>
+    <p className="mt-1.5 flex items-baseline gap-1 font-bold tabular-nums">
+      {/* tracking cerrado: a este tamaño el espaciado por defecto separa demasiado los dígitos
+          y la cifra deja de leerse como un solo número. */}
+      <span className="text-[64px] leading-[0.95] tracking-[-0.03em]">
+        ${Math.floor(n).toLocaleString('es-VE')}
+      </span>
+      <span className="text-[28px] leading-none text-white/40">.{(n % 1).toFixed(2).slice(2)}</span>
     </p>
   );
 }
@@ -611,6 +624,77 @@ function BotonMenu({
         {label}
       </span>
     </button>
+  );
+}
+
+/**
+ * Carrusel de locales con tienda virtual en QuickTap.
+ *
+ * Va debajo de las tiendas a las que el cliente le debe: primero lo suyo, después a dónde más
+ * puede comprar. Se desplaza a lo ancho porque son fichas cuadradas y una lista vertical las
+ * volvería una pared de logos.
+ */
+function CarruselTiendas({ tiendas }: { tiendas: TiendaQuickTap[] }) {
+  if (tiendas.length === 0) return null;
+  return (
+    <section className="mt-7">
+      <div className="mb-2.5 flex items-baseline justify-between">
+        <h2 className="text-[15px] font-bold">Tiendas en QuickTap</h2>
+        <span className="text-[12px] font-light text-brand-950/45">{tiendas.length}</span>
+      </div>
+      {/* Los márgenes negativos dejan que las fichas lleguen al borde de la pantalla al
+          desplazarse, en vez de cortarse contra el padding de la hoja. snap para que no
+          queden fichas a medio ver. */}
+      <div className="-mx-5 flex snap-x snap-mandatory gap-3 overflow-x-auto px-5 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {tiendas.map((t, i) => (
+          <a
+            key={t.slug}
+            href={`/tienda/${t.slug}`}
+            target="_blank"
+            rel="noreferrer"
+            className="wallet-fila wallet-tap w-[5.5rem] shrink-0 snap-start"
+            style={{ '--i': i } as React.CSSProperties}
+          >
+            <IconoTienda tienda={t} />
+            <p className="mt-1.5 truncate text-center text-[11px] font-medium text-brand-950/70">{t.nombre}</p>
+          </a>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/** Emoji del rubro, para que la ficha diga de qué es la tienda de un vistazo. */
+const EMOJI_RUBRO: Record<string, string> = {
+  agencia_publicidad: '📢', cafeteria: '☕', carniceria: '🥩', estetica: '✨', decoracion: '🖼️',
+  electrodomesticos: '🔌', ferreteria: '🔧', fruteria: '🍎', informatica: '💻', joyeria: '💍',
+  libreria: '📚', marroquineria: '👜', mueblerias: '🛋️', optica: '👓', panaderia: '🥐',
+  perfumeria: '💄', belleza: '💇', supermercado: '🛒', deportivos: '🏀', petshop: '🐾',
+  ropa: '👕', telefonia: '📱', vivero: '🌿', zapateria: '👟', tickera: '🎟️',
+};
+
+/**
+ * La ficha cuadrada de una tienda: su logo si lo tiene y, si no, un cuadro de color con el
+ * emoji del rubro y sus iniciales. Casi ningún local sube logo, así que sin esto el carrusel
+ * sería una fila de cuadros grises iguales.
+ */
+function IconoTienda({ tienda }: { tienda: TiendaQuickTap }) {
+  const emoji = tienda.rubro ? EMOJI_RUBRO[tienda.rubro] : undefined;
+  if (tienda.logoUrl) {
+    return (
+      <div className="aspect-square w-full overflow-hidden rounded-2xl bg-brand-950/[0.05] ring-1 ring-brand-950/[0.06]">
+        <img src={tienda.logoUrl} alt="" className="h-full w-full object-cover" />
+      </div>
+    );
+  }
+  return (
+    <div
+      className="flex aspect-square w-full flex-col items-center justify-center gap-0.5 rounded-2xl text-white"
+      style={{ background: `linear-gradient(145deg, ${colorDe(tienda.nombre)}, ${colorDe(tienda.nombre)}cc)` }}
+    >
+      {emoji ? <span className="text-[22px] leading-none">{emoji}</span> : null}
+      <span className="text-[11px] font-bold leading-none">{iniciales(tienda.nombre)}</span>
+    </div>
   );
 }
 

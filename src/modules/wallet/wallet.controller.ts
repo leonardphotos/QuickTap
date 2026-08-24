@@ -31,6 +31,11 @@ export const walletController = {
     res.json({ data: await walletService.resumen(req.walletCustomerId!) });
   }),
 
+  /** GET /public/wallet/stores — locales con tienda virtual, para el carrusel. */
+  tiendas: asyncHandler(async (_req: Request, res: Response) => {
+    res.json({ data: await walletService.tiendas() });
+  }),
+
   /** GET /public/wallet/tickets — las entradas de eventos que compró. */
   entradas: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await walletService.entradas(req.walletCustomerId!) });

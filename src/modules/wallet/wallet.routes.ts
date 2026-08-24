@@ -18,6 +18,8 @@ router.post('/login', authRateLimit, walletController.login);
 router.get('/me', walletGuard, walletController.me);
 router.get('/reports', walletGuard, walletController.misReportes);
 router.get('/tickets', walletGuard, walletController.entradas);
+// Sin guard a propósito: es el directorio de tiendas de la plataforma, no datos de nadie.
+router.get('/stores', walletController.tiendas);
 router.get('/sales/:id/methods', walletGuard, walletController.metodos);
 router.post('/sales/:id/payments', walletGuard, walletController.reportar);
 router.post('/proof', walletGuard, uploadShopPaymentProof, optimizeImage(1200, 1200), walletController.subirComprobante);
