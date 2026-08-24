@@ -326,6 +326,9 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
   // Alta en QuickTap Pass + plan de cuotas, disparado desde el cobro. Cuando queda configurado,
   // la venta se cierra como fiada y el plan se crea contra ella apenas existe.
   const [passOpen, setPassOpen] = useState(false);
+  const [entradasEmitidas, setEntradasEmitidas] = useState<
+    { id: string; accessToken: string; seatNumber: number; eventName: string }[] | null
+  >(null);
   const [planPendiente, setPlanPendiente] = useState<
     { cantidad: number; frecuencia: string; recargoPorcentaje: number; primeraFecha: string } | null
   >(null);
@@ -750,6 +753,15 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
         }
       }
     }
+    // Entradas de eventos: si la venta llevaba alguna, se ofrecen para mandárselas al
+    // comprador ahí mismo. Las emite el servidor al registrar la venta (ver recordSale), así
+    // que solo se conocen cuando responde.
+    sale.serverTickets
+      .then((tickets) => {
+        if (tickets.length > 0) setEntradasEmitidas(tickets);
+      })
+      .catch(() => undefined);
+
     // El plan se arma DESPUÉS de que la venta existe DE VERDAD en el servidor — sale.id es
     // optimista (nunca existió ahí); serverSaleId es la promesa que resuelve con el id real en
     // cuanto recordSale() responde (ver checkout() en shopSession.ts). Antes se usaba sale.id
@@ -2032,6 +2044,78 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
         money={money}
         onAdd={(product, variant, qty) => addToCart(product, variant, qty)}
       />
+
+      {/* Entradas recién emitidas: el cajero se las manda al comprador o las abre para
+          mostrárselas. Cada una es un enlace público con su QR (ver ShopTicketPage). */}
+      {entradasEmitidas && (
+        <Dialog open onOpenChange={(o) => !o && setEntradasEmitidas(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {entradasEmitidas.length} entrada{entradasEmitidas.length === 1 ? '' : 's'} emitida
+                {entradasEmitidas.length === 1 ? '' : 's'}
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm font-light text-brand-950/60">
+              Cada entrada tiene su propio código. Mándasela al comprador o muéstrasela para que
+              la guarde en su teléfono.
+            </p>
+            <div className="mt-3 max-h-72 space-y-1.5 overflow-y-auto">
+              {entradasEmitidas.map((t) => {
+                const url = `${window.location.origin}/entrada/${t.accessToken}`;
+                return (
+                  <div key={t.id} className="flex items-center gap-2 rounded-xl border border-brand-950/[0.08] px-3 py-2">
+                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-[11px] font-bold text-brand-500">
+                      {t.seatNumber}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[13px] text-brand-950/70">{t.eventName}</span>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard?.writeText(url)}
+                      className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-500 hover:bg-brand-500/10"
+                    >
+                      Copiar
+                    </button>
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-500 hover:bg-brand-500/10"
+                    >
+                      Abrir
+                    </a>
+                  </div>
+                );
+              })}
+            </div>
+            <DialogFooter>
+              {custPhone.replace(/\D/g, '').length >= 7 && (
+                <TextureButton
+                  variant="minimal"
+                  size="default"
+                  className="!w-auto"
+                  onClick={() => {
+                    const enlaces = entradasEmitidas
+                      .map((t) => `Puesto ${t.seatNumber}: ${window.location.origin}/entrada/${t.accessToken}`)
+                      .join('\n');
+                    const texto = `Tus entradas para ${entradasEmitidas[0].eventName}:\n${enlaces}`;
+                    window.open(
+                      `https://wa.me/${custPhone.replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`,
+                      '_blank',
+                      'noopener',
+                    );
+                  }}
+                >
+                  Enviar por WhatsApp
+                </TextureButton>
+              )}
+              <TextureButton variant="brand" size="default" className="!w-auto" onClick={() => setEntradasEmitidas(null)}>
+                Listo
+              </TextureButton>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       {passOpen && (
         <ShopPassEnrollDialog

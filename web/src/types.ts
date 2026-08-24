@@ -11,7 +11,8 @@ export type UserRole =
   | 'COMANDA'
   | 'NUMERO'
   | 'CANCHA'
-  | 'COACH';
+  | 'COACH'
+  | 'VERIFICADOR';
 
 export interface ExchangeRateInfo {
   rateBs: string;

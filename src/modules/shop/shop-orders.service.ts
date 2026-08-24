@@ -46,6 +46,9 @@ async function confirm(restaurantId: string, userId: string, orderId: string, pa
     total: order.total,
     customerName: order.customerName,
     customerPhone: order.customerPhone,
+    // Deja el pedido marcado en las entradas que se emitan: confirmar es el momento en que el
+    // local da el pago por bueno, y es cuando el asistente recibe su boleto.
+    shopOrderId: order.id,
     // El pedido web puede llegar sin método elegido: en ese caso la venta queda con el
     // método que el cajero escoja al confirmar, y si tampoco viene, "Efectivo Bs" (lo que
     // realmente pasa: el cliente paga al recibir en efectivo).

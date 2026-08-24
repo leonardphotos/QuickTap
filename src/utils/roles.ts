@@ -48,6 +48,11 @@ export const CANCHA_ROLES = ['CANCHA'] as const;
 // filtrado por el coachId que sale de su userId en el token, nunca de un parámetro.
 export const COACH_ROLES = ['COACH'] as const;
 
+// Puerta de un evento (Local Comercial): escanea las entradas para marcar quién ya entró y
+// detectar duplicadas. También puede vender en el sitio, porque mucha entrada se vende en la
+// misma puerta. No ve inventario, caja ni reportes.
+export const VERIFICADOR_ROLES = ['VERIFICADOR'] as const;
+
 // Roles asignables desde la UI de Equipo (OWNER/STAFF no se asignan ahí).
 export const ASSIGNABLE_TEAM_ROLES = [
   'ADMIN',
@@ -59,6 +64,7 @@ export const ASSIGNABLE_TEAM_ROLES = [
   'NUMERO',
   'CANCHA',
   'COACH',
+  'VERIFICADOR',
 ] as const;
 
 // Roles a los que aplica la Pantalla de bloqueo (PIN de 4 dígitos). Se excluyen

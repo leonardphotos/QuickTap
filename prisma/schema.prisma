@@ -36,6 +36,7 @@ enum UserRole {
   NUMERO // Pantalla que solo muestra avisos de "listo" de Autoservicio/Pickup (mostrador)
   CANCHA // Tablet fija en una cancha (club deportivo): el jugador escanea su QR y pide desde ahí
   COACH // Profesor de la academia: solo su agenda, pasar lista y sus honorarios
+  VERIFICADOR // Puerta de un evento: escanea entradas y puede vender en el sitio
 }
 
 enum TableSessionStatus {
@@ -728,6 +729,7 @@ model Restaurant {
   shopSales            ShopSale[]
   shopOpenOrders       ShopOpenOrder[]
   shopConsumptionPlans ShopConsumptionPlan[]
+  shopTickets          ShopTicket[]
   shopPurchases        ShopPurchase[]
   shopStockAdjustments ShopStockAdjustment[]
   shopCashSessions     ShopCashSession[]
@@ -3435,6 +3437,7 @@ model ShopProduct {
   consumptionPlans ShopConsumptionPlan[]
   // Gastos imputados a este evento (local, sonido, permisos): su suma es el costo del evento.
   eventExpenses   Movement[]           @relation("ShopEventExpenses")
+  tickets         ShopTicket[]
 
   @@index([restaurantId])
   @@map("shop_products")
@@ -3909,6 +3912,54 @@ model ShopSubcategory {
 // ShopSale correspondiente y se guarda su id en `shopSaleId` — de ahí en
 // adelante el pedido es solo el historial de cómo entró.
 // ----------------------------------------------------------------------------
+// Entrada emitida para un evento (ShopProduct.isEvent).
+//
+// Se emite cuando el pago ya está verificado: una venta del POS, o un pedido de la tienda que
+// el local confirmó. Ambos caminos pasan por recordSale, así que la emisión vive ahí y no hay
+// dos lugares que puedan desincronizarse.
+//
+// Los datos del evento se CONGELAN al emitir (nombre, fecha, hora, precio): si después se
+// corrige el evento, el boleto que el asistente ya tiene en el teléfono sigue diciendo lo que
+// decía cuando lo compró.
+model ShopTicket {
+  id           String @id @default(cuid())
+  restaurantId String
+  productId    String
+
+  // De dónde salió: venta del POS y, si vino de la tienda, también el pedido.
+  shopSaleId  String?
+  shopOrderId String?
+
+  // Token opaco embebido en el QR — mismo patrón que Table.qrToken y ClubBooking.accessToken:
+  // no codifica datos del ticket, solo lo identifica.
+  accessToken String @unique
+
+  // Congelados al emitir.
+  eventName   String
+  eventDate   String?
+  eventTime   String?
+  price       Float
+  holderName  String?
+  holderPhone String?
+
+  // Correlativo dentro del evento, lo que en el boleto se lee como "Puesto 12".
+  seatNumber Int
+
+  // Lo marca el Verificador al escanear en la puerta. Null = todavía no entró.
+  checkedInAt       DateTime?
+  checkedInByUserId String?
+
+  createdAt DateTime @default(now())
+
+  restaurant Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  product    ShopProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, seatNumber])
+  @@index([restaurantId, productId])
+  @@index([shopSaleId])
+  @@map("shop_tickets")
+}
+
 model ShopOrder {
   id           String @id @default(cuid())
   restaurantId String

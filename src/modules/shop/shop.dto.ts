@@ -124,6 +124,9 @@ export const createShopSaleSchema = z.object({
   // recalcula el descuento sobre el total original y registra el canje.
   promoCode: z.string().max(40).nullish(),
   promoDiscountBase: z.coerce.number().nonnegative().max(1000000).nullish(),
+  // Pedido de la tienda que originó esta venta, cuando viene de confirmar uno. Lo pone el
+  // servidor (shop-orders.service.confirm), nunca el POS.
+  shopOrderId: z.string().max(40).nullish(),
 });
 
 // Cuentas por Cobrar: abono posterior contra una venta fiada.

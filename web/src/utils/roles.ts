@@ -26,6 +26,10 @@ export const CANCHA_ROLES: UserRole[] = ['CANCHA'];
 // Mesa, que en un club no significan nada. Solo ve su agenda, pasa lista y consulta
 // sus honorarios.
 export const COACH_ROLES: UserRole[] = ['COACH'];
+
+// Puerta de un evento (Local Comercial): escanea entradas y puede vender en el sitio.
+// Espejo manual de src/utils/roles.ts — cambiar los dos juntos.
+export const VERIFICADOR_ROLES: UserRole[] = ['VERIFICADOR'];
 export const TEAM_MANAGER_ROLES: UserRole[] = ['OWNER', 'ADMIN'];
 // Quién puede condonar/descontar saldo al cobrar (campo "Descuento %" en Pagar/Pago fraccionado).
 export const DISCOUNT_ROLES: UserRole[] = ['OWNER', 'ADMIN'];
@@ -58,6 +62,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   NUMERO: 'Numero',
   CANCHA: 'Cancha',
   COACH: 'Profesor',
+  VERIFICADOR: 'Verificador',
 };
 
 // Rutas visibles según el rol. "*" habilita todas las rutas del admin.

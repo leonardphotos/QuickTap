@@ -68,6 +68,7 @@ import shopRoutes from '../modules/shop/shop.routes';
 import { approvalRoutes } from '../modules/approvals/approval.routes';
 import { officeRoutes } from '../modules/accounting-office/accounting.routes';
 import publicShopRoutes from '../modules/shop/shop-storefront.routes';
+import { shopTicketsController } from '../modules/shop/shop-tickets.controller';
 import clubRoutes, { publicClubRoutes } from '../modules/club/club.routes';
 import clubAcademyRoutes, { publicAcademyRoutes } from '../modules/club-academy/club-academy.routes';
 import clubLinkRoutes from '../modules/club-link/club-link.routes';
@@ -184,6 +185,10 @@ router.use('/public/club', publicPlayerRoutes);
 router.use('/player', playerRoutes);
 // Tienda virtual del Local Comercial: catálogo y checkout, resueltos por slug.
 router.use('/public/shop', publicShopRoutes);
+// La entrada de un evento: pública a propósito, el asistente la abre desde su teléfono sin
+// tener cuenta. El token opaco del QR es lo único que da acceso, igual que /acceso/:token del
+// club (ver shop-tickets.service.ts).
+router.get('/public/tickets/:accessToken', shopTicketsController.publico);
 
 // --- Dashboard maestro (equipo de QuickTap, ve todos los restaurantes) ---
 router.use('/master/promo-codes', masterPromoCodeRoutes);

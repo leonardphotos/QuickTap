@@ -22,6 +22,11 @@ const INVENTORY_ELIGIBLE_ROLES: UserRole[] = ['WAITER', 'KITCHEN'];
 
 export function TeamSection() {
   const { restaurant } = useAuth();
+  // Verificador es la puerta de un evento y solo existe en Local Comercial: en un restaurante
+  // no tendría a dónde entrar (el panel de restaurantes lo mandaría a Cocina, que no le toca).
+  const rolesAsignables = ASSIGNABLE_TEAM_ROLES.filter(
+    (r) => r !== 'VERIFICADOR' || restaurant?.businessType === 'SHOP',
+  );
   const isDemo = restaurant?.isDemo ?? false;
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [form, setForm] = useState(emptyForm);
@@ -123,7 +128,7 @@ export function TeamSection() {
             onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}
             className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
           >
-            {ASSIGNABLE_TEAM_ROLES.map((r) => (
+            {rolesAsignables.map((r) => (
               <option key={r} value={r}>
                 {ROLE_LABELS[r]}
               </option>
@@ -178,7 +183,7 @@ export function TeamSection() {
                     onChange={(e) => setEditDraft({ ...editDraft, role: e.target.value as UserRole })}
                     className="w-full border border-brand-950/15 rounded-lg px-2.5 py-1.5 text-sm"
                   >
-                    {ASSIGNABLE_TEAM_ROLES.map((r) => (
+                    {rolesAsignables.map((r) => (
                       <option key={r} value={r}>
                         {ROLE_LABELS[r]}
                       </option>

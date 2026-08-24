@@ -678,7 +678,10 @@ export function useShopSession(initialCategories: string[] = []) {
     // Promoción del CRM aplicada en el POS: su descuento ya se restó del total que
     // ve el cajero; acá se resta igual y el backend valida el código y registra el canje.
     promo?: { code: string; discountBase: number } | null,
-  ): Sale & { serverSaleId: Promise<string> } {
+  ): Sale & {
+    serverSaleId: Promise<string>;
+    serverTickets: Promise<{ id: string; accessToken: string; seatNumber: number; eventName: string }[]>;
+  } {
     const saleItems: SaleItem[] = cart.map((c) => {
       const product = products.find((p) => p.id === c.productId);
       return {
@@ -762,7 +765,13 @@ export function useShopSession(initialCategories: string[] = []) {
     // el .then/.catch de quien sí lo use — cada uno se cuelga de la misma promesa por su lado.
     serverSaleId.catch(() => {});
 
-    return { ...sale, serverSaleId };
+    // Entradas emitidas por esta venta, si llevaba algún evento. El POS las usa para ofrecer
+    // enviárselas al comprador en el momento (ver ShopPosPage). Mismo criterio que serverSaleId:
+    // el servidor es quien las crea, así que solo se saben cuando responde.
+    const serverTickets = recordSalePromise.then((s) => s.tickets ?? []);
+    serverTickets.catch(() => {});
+
+    return { ...sale, serverSaleId, serverTickets };
   }
 
   /**

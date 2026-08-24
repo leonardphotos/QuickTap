@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { costoPorEvento, puestosVendidosPorEvento } from './shop-installments.service';
+import { emitirEntradas } from './shop-tickets.service';
 import { bankLedgerService } from '../bank-accounts/bank-ledger.service';
 import { customerService } from '../customers/customer.service';
 import { round2, toDecimal } from '../../utils/money';
@@ -840,6 +841,19 @@ export const shopService = {
         }
       }
 
+      // Entradas de los eventos que lleve el ticket. Va acá, dentro de la transacción de la
+      // venta, porque este es el punto por el que pasan LOS DOS caminos con el pago ya
+      // verificado: el cobro del POS y el pedido de la tienda que el local confirma (ver
+      // shop-orders.service.confirm, que llama a recordSale). Si la venta se cae, no quedan
+      // boletos de una compra que nunca existió.
+      const entradas = await emitirEntradas(tx, restaurantId, {
+        shopSaleId: sale.id,
+        shopOrderId: input.shopOrderId ?? null,
+        holderName: input.customerName ?? null,
+        holderPhone: input.customerPhone ?? null,
+        items: input.items,
+      });
+
       // Código de promoción (CRM): el POS ya restó el descuento del total; acá se valida el
       // código (lista, vigencia, canjes) y se registra el canje con el descuento RECALCULADO
       // sobre el total original — el monto que reclame el cliente no se toma tal cual.
@@ -879,7 +893,9 @@ export const shopService = {
         });
       }
 
-      return sale;
+      // Las entradas viajan con la venta para que el POS pueda ofrecer imprimirlas/enviarlas
+      // en el mismo momento del cobro, sin una segunda consulta.
+      return { ...sale, tickets: entradas };
     });
   },
 

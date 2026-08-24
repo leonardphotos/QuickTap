@@ -16,6 +16,7 @@ const VerticalPage = lazy(() => import('./pages/seo/VerticalPage'));
 const ComparativaPage = lazy(() => import('./pages/seo/ComparativaPage'));
 const MenuPage = lazy(() => import('./pages/public/MenuPage'));
 const ShopStorefrontPage = lazy(() => import('./pages/public/shop/ShopStorefrontPage'));
+const ShopTicketPage = lazy(() => import('./pages/public/ShopTicketPage'));
 const LoginPage = lazy(() => import('./pages/admin/LoginPage'));
 const ImpersonatePage = lazy(() => import('./pages/admin/ImpersonatePage'));
 const StartRegisterPage = lazy(() => import('./pages/admin/StartRegisterPage'));
@@ -125,6 +126,8 @@ export default function App() {
 
             {/* Tienda virtual del Local Comercial: catálogo y pedido, sin cuenta. */}
             <Route path="/tienda/:slug" element={<ShopStorefrontPage />} />
+            {/* La entrada de un evento: pública, el asistente la abre desde su teléfono. */}
+            <Route path="/entrada/:accessToken" element={<ShopTicketPage />} />
 
             {/* Club deportivo: reserva del jugador y su QR de acceso, sin cuenta. */}
             <Route path="/club/:slug" element={<ClubPublicPage />} />

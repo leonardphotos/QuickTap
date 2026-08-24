@@ -88,6 +88,8 @@ export interface RawShopSale {
   soldByUserId: string | null;
   soldByUserName: string | null;
   items: RawShopSaleItem[];
+  /** Entradas emitidas si la venta llevaba algún evento (ver shop-tickets.service.ts). */
+  tickets?: { id: string; accessToken: string; seatNumber: number; eventName: string }[];
 }
 
 /** Lo que el cliente ya debe en este local (QuickTap Pass), visto desde el POS. */

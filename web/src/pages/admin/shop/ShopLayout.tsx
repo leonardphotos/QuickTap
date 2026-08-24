@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { PanelLeftOpen } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import { Landmark, Menu, ShieldCheck, Boxes, Building2, Calculator, FileText, Home, Lock, Receipt, Settings, ShoppingBag, Users, Wallet } from 'lucide-react';
+import { Landmark, Menu, ShieldCheck, Boxes, Building2, Calculator, FileText, Home, Lock, Receipt, Settings, ShoppingBag, Ticket, Users, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getShopRubro } from '@/data/shopRubros';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -15,6 +15,7 @@ import { CrmHub } from '@/components/admin/crm/CrmHub';
 import ShopSettingsPage from './ShopSettingsPage';
 import ShopApprovalsPage from './ShopApprovalsPage';
 import ShopPassPage from './ShopPassPage';
+import ShopTicketsPage from './ShopTicketsPage';
 import { ShopSidebar, type ShopSidebarTab } from './ShopSidebar';
 import { PLAN_LABELS } from '@/pages/admin/nav-links';
 import ShopBillingPage from './ShopBillingPage';
@@ -41,6 +42,7 @@ export type ShopScreen =
   | 'sucursales'
   | 'factura'
   | 'pass'
+  | 'entradas'
   | 'solicitudes';
 
 // Pantallas que no son de operación diaria. En escritorio salen en la cabecera; en celular,
@@ -60,6 +62,7 @@ const MORE_TABS: { id: ShopScreen; label: string; icon: typeof FileText; feature
   // porque es lo que más se consulta desde el mostrador y no vale hacer dos toques.
   { id: 'cuentas', label: 'Cuentas por cobrar', icon: Landmark },
   { id: 'pass', label: 'QuickTap Pass', icon: Wallet },
+  { id: 'entradas', label: 'Entradas', icon: Ticket },
   { id: 'solicitudes', label: 'Solicitudes', icon: ShieldCheck },
   { id: 'sucursales', label: 'Sucursales', icon: Building2, feature: 'branches' },
 ];
@@ -89,11 +92,13 @@ export default function ShopLayout() {
   const [searchParams] = useSearchParams();
   // Entrada desde "Elegir plan" de la landing seguido de registro (?plan=SHOP&cycle=Y, o de
   // vuelta del checkout de Ramblay): arranca directo en Facturación en vez de Venta.
-  const [screen, setScreen] = useState<ShopScreen>(() =>
-    ['SHOP', 'ELITE_SHOP'].includes(searchParams.get('plan') ?? '') || searchParams.get('ramblay') === 'success'
+  const [screen, setScreen] = useState<ShopScreen>(() => {
+    // El Verificador está en la puerta de un evento: entra directo a escanear.
+    if (user?.role === 'VERIFICADOR') return 'entradas';
+    return ['SHOP', 'ELITE_SHOP'].includes(searchParams.get('plan') ?? '') || searchParams.get('ramblay') === 'success'
       ? 'factura'
-      : 'venta',
-  );
+      : 'venta';
+  });
   const rubro = getShopRubro(restaurant?.shopRubro);
   const session = useShopSession(rubro?.categories ?? []);
   const [adminTab, setAdminTab] = useState<ShopAdminTab>('estadisticas');
@@ -114,7 +119,15 @@ export default function ShopLayout() {
     }
     setScreen(destino);
   }
-  const tabs = getTabs(rubro?.id);
+  // El Verificador solo tiene dos cosas que hacer: escanear en la puerta y, si el local vende
+  // ahí mismo, cobrar la entrada. Nada de inventario, caja ni clientes.
+  const esVerificador = user?.role === 'VERIFICADOR';
+  const tabs = esVerificador
+    ? [
+        { id: 'entradas' as ShopScreen, label: 'Entradas', icon: Ticket },
+        { id: 'venta' as ShopScreen, label: 'Venta', icon: Receipt },
+      ]
+    : getTabs(rubro?.id);
 
   // Menú lateral (solo pantallas anchas), espejo del panel de restaurantes. Va acá arriba, antes
   // de los retornos tempranos de abajo: un hook después de un `return` se saltea en algunos
@@ -158,7 +171,9 @@ export default function ShopLayout() {
   const isEliteShop = restaurant.subscriptionPlan === 'ELITE_SHOP';
   const canBranches = allowsBranches(restaurant.subscriptionPlan);
   // Una sucursal no ve la pestaña Sucursales (no puede tener las suyas); solo Dueño/Admin.
-  const moreTabs = MORE_TABS.filter((t) => t.id !== 'sucursales' || (canSeeMoney && !restaurant.parentRestaurantId));
+  const moreTabs = esVerificador
+    ? []
+    : MORE_TABS.filter((t) => t.id !== 'sucursales' || (canSeeMoney && !restaurant.parentRestaurantId));
   const isLocked = (t: (typeof MORE_TABS)[number]) =>
     t.feature === 'branches' ? !canBranches : t.feature ? !hasFeature(restaurant, t.feature) : false;
   const daysLeft = daysRemaining(restaurant.periodEnd);
@@ -323,6 +338,7 @@ export default function ShopLayout() {
         {screen === 'ajustes' && <ShopSettingsPage onBack={() => setScreen('admin')} session={session} />}
         {screen === 'factura' && <ShopBillingPage restaurant={restaurant} onDone={() => setScreen('admin')} />}
         {screen === 'pass' && <ShopPassPage />}
+        {screen === 'entradas' && <ShopTicketsPage />}
         {screen === 'sucursales' && !canBranches && (
           <PlanUpgradeNotice feature="Sucursales" onGoToBilling={() => setScreen('factura')} />
         )}

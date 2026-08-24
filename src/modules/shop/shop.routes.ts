@@ -4,6 +4,7 @@ import { optimizeImage, uploadShopProductPhoto, uploadShopPaymentProof, uploadSp
 import { shopController } from './shop.controller';
 import { shopInstallmentsController } from './shop-installments.controller';
 import { shopPassController } from './shop-pass.controller';
+import { shopTicketsController } from './shop-tickets.controller';
 import { shopOrdersController } from './shop-storefront.controller';
 
 /** Base: /api/v1/shop (el tenant activo, resuelto por JWT) — QuickTap Shop (businessType = SHOP). */
@@ -57,6 +58,13 @@ router.get('/sales/:id/installments', shopInstallmentsController.plan);
 router.post('/sales/:id/installments', shopInstallmentsController.crear);
 router.patch('/installments/:cuotaId', shopInstallmentsController.editar);
 router.post('/installments/:cuotaId/payments', shopInstallmentsController.abonar);
+
+// --- Entradas de eventos: lista de asistentes y verificación en la puerta ---
+// Antes de '/tickets/:id/undo' para que "events" no se lea como un id.
+router.get('/tickets/events', shopTicketsController.eventos);
+router.get('/tickets', shopTicketsController.lista);
+router.post('/tickets/check-in', shopTicketsController.verificar);
+router.post('/tickets/:id/undo', requireRole('OWNER', 'ADMIN'), shopTicketsController.desmarcar);
 
 // --- QuickTap Pass: deudores y abonos que los clientes reportan desde su portal ---
 router.get('/pass/pending', shopPassController.pendientes);
