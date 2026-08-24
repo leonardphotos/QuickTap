@@ -16,14 +16,21 @@ export const THEME_DEFAULTS: Required<Pick<RestaurantTheme, 'primary' | 'buttonT
 };
 
 const SOCIAL_FIELDS: { key: keyof RestaurantSocialLinks; label: string; placeholder: string }[] = [
-  { key: 'instagram', label: 'Instagram', placeholder: 'https://instagram.com/tu-restaurante' },
-  { key: 'facebook', label: 'Facebook', placeholder: 'https://facebook.com/tu-restaurante' },
-  { key: 'tiktok', label: 'TikTok', placeholder: 'https://tiktok.com/@tu-restaurante' },
-  { key: 'x', label: 'X (Twitter)', placeholder: 'https://x.com/tu-restaurante' },
+  { key: 'instagram', label: 'Instagram', placeholder: 'https://instagram.com/tu-negocio' },
+  { key: 'facebook', label: 'Facebook', placeholder: 'https://facebook.com/tu-negocio' },
+  { key: 'tiktok', label: 'TikTok', placeholder: 'https://tiktok.com/@tu-negocio' },
+  { key: 'x', label: 'X (Twitter)', placeholder: 'https://x.com/tu-negocio' },
 ];
 
 export function ThemeSection() {
   const { restaurant, refresh } = useAuth();
+  // Este editor lo comparten el menú del restaurante y la tienda del local: lo único que
+  // cambia es cómo se llama lo que el cliente abre. Se adapta el texto en vez de duplicar
+  // el componente entero por una palabra.
+  const esTienda = restaurant?.businessType === 'SHOP';
+  const publico = esTienda ? 'tienda' : 'menú';
+  // "tienda" es femenino y "menú" masculino: sin esto el título salía "tu tienda público".
+  const publicoConcordado = esTienda ? 'tu tienda pública' : 'tu menú público';
   const [theme, setTheme] = useState<RestaurantTheme>(restaurant?.theme ?? {});
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -72,9 +79,9 @@ export function ThemeSection() {
   return (
     <TextureCard>
       <TextureCardHeader className="px-6">
-        <TextureCardTitle className="pl-0">Apariencia del menú público</TextureCardTitle>
+        <TextureCardTitle className="pl-0">Apariencia de {publicoConcordado}</TextureCardTitle>
         <p className="text-sm text-brand-950/60 font-light">
-          Personaliza los colores que ven tus clientes al abrir tu menú. Los cambios no afectan este panel.
+          Personaliza los colores que ven tus clientes al abrir tu {publico}. Los cambios no afectan este panel.
         </p>
       </TextureCardHeader>
       <TextureCardContent className="space-y-4">
@@ -128,7 +135,7 @@ export function ThemeSection() {
           <PhotoUploadField
             value={theme.coverImageUrl ?? null}
             onChange={setCoverImage}
-            label="Portada del menú"
+            label={`Portada de tu ${publico}`}
             uploadUrl="/restaurant/upload-cover-image"
             shape="square"
             cropAspect={2}
@@ -166,7 +173,7 @@ export function ThemeSection() {
           <div>
             <p className="text-sm font-medium text-brand-950">Redes sociales</p>
             <p className="text-xs text-brand-950/50 font-light">
-              Aparecen como iconos en el banner de tu menú público.
+              Aparecen como iconos en el banner de {publicoConcordado}.
             </p>
           </div>
           <div className="grid sm:grid-cols-2 gap-4">

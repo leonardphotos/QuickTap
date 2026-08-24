@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { PanelLeftOpen } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import { Landmark, Menu, ShieldCheck, Boxes, Building2, Calculator, FileText, Home, Lock, Receipt, Settings, ShoppingBag, Ticket, Users, Wallet } from 'lucide-react';
+import { Landmark, Menu, ShieldCheck, Boxes, Building2, Calculator, FileText, Home, Lock, Receipt, Settings, ShoppingBag, Store, Ticket, Users, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getShopRubro, isTicketRubro } from '@/data/shopRubros';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -43,6 +43,7 @@ export type ShopScreen =
   | 'factura'
   | 'pass'
   | 'entradas'
+  | 'tienda'
   | 'solicitudes';
 
 // Pantallas que no son de operación diaria. En escritorio salen en la cabecera; en celular,
@@ -73,6 +74,9 @@ function getTabs(rubroId: string | undefined): { id: ShopScreen; label: string; 
     { id: 'admin', label: 'Inicio', icon: Home },
     { id: 'pedidos', label: 'Pedidos', icon: ShoppingBag },
     { id: 'inventario', label: isTicketRubro(rubroId) ? 'Eventos' : rubroId === 'agencia_publicidad' ? 'Servicios' : 'Inventario', icon: Boxes },
+    // La Tickera vende dos cosas: entradas y mercancía. Cada una tiene su pestaña, porque
+    // administrarlas juntas mezclaría el cupo de un evento con el stock de una camiseta.
+    ...(isTicketRubro(rubroId) ? [{ id: 'tienda' as ShopScreen, label: 'Tienda', icon: Store }] : []),
     { id: 'clientes', label: 'Clientes', icon: Users },
     { id: 'ajustes', label: 'Ajustes', icon: Settings },
   ];
@@ -318,7 +322,17 @@ export default function ShopLayout() {
             }}
           />
         )}
-        {screen === 'inventario' && <ShopInventoryPage session={session} rubro={rubro} restaurant={restaurant} />}
+        {screen === 'inventario' && (
+          <ShopInventoryPage
+            session={session}
+            rubro={rubro}
+            restaurant={restaurant}
+            modo={isTicketRubro(rubro?.id) ? 'eventos' : undefined}
+          />
+        )}
+        {screen === 'tienda' && (
+          <ShopInventoryPage session={session} rubro={rubro} restaurant={restaurant} modo="tienda" />
+        )}
         {screen === 'clientes' && (
           <div className="flex flex-col gap-5">
             <h1 className="text-[20px] font-bold tracking-tight text-brand-950">Clientes</h1>

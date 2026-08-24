@@ -12,6 +12,7 @@ import { PaymentMethodsSection } from '@/components/admin/PaymentMethodsSection'
 import { ScheduleSection } from '@/components/admin/ScheduleSection';
 import { ShopTeamSection } from './ShopTeamSection';
 import { ShopStorefrontSection } from './ShopStorefrontSection';
+import { ThemeSection } from '@/components/admin/ThemeSection';
 import type { ShopSession } from './shopSession';
 import { LockScreenSettingsSection } from '@/components/admin/LockScreenSettingsSection';
 import { SalesHistoryExportSection } from '@/components/admin/SalesHistoryExportSection';
@@ -169,6 +170,12 @@ export default function ShopSettingsPage({ onBack, session }: Props) {
       >
         <FullWidth>
           <ShopStorefrontSection session={session} />
+        </FullWidth>
+        {/* Apariencia de la tienda pública: colores, portada y redes. Es el mismo editor que
+            usa el panel de restaurantes para su menú — el tema vive en Restaurant.theme y la
+            tienda ya lo lee (ver ShopStorefrontPage), solo faltaba dónde cambiarlo. */}
+        <FullWidth>
+          <ThemeSection />
         </FullWidth>
         <FullWidth>
           <PaymentMethodsSection descriptionOverride="Elige qué métodos aceptas al cobrar en Venta, y sus datos para que tus clientes sepan a dónde pagar." />

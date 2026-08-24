@@ -21,6 +21,12 @@ interface Props {
   session: ShopSession;
   rubro: ShopRubro;
   restaurant: Pick<AuthRestaurant, 'name' | 'currencySymbol' | 'exchangeRate' | 'slug'>;
+  /**
+   * Qué parte del catálogo administra esta pantalla. Solo aplica a la Tickera, que vende dos
+   * cosas distintas: entradas ('eventos') y mercancía de la tienda ('tienda'). En cualquier
+   * otro rubro no se pasa y la pantalla administra el catálogo entero.
+   */
+  modo?: 'eventos' | 'tienda';
 }
 
 const STATUS_LABEL: Record<string, string> = { ok: 'Disponible', warn: 'Stock bajo', danger: 'Agotado' };
@@ -30,7 +36,7 @@ const STATUS_CLASS: Record<string, string> = {
   danger: 'bg-red-100 text-red-700',
 };
 
-export default function ShopInventoryPage({ session, rubro, restaurant }: Props) {
+export default function ShopInventoryPage({ session, rubro, restaurant, modo }: Props) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
   const { products, sales, purchases, adjustments, registerPurchase, adjustStock, addProduct, updateProduct, deleteProduct, categories, addCategory, subcategories, serviceSupplies, setServiceSupplies } = session;
   const { user } = useAuth();
@@ -41,7 +47,9 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   const isServiceShop = isServiceRubro(rubro.id);
   // Tickera: cada producto nuevo ES un evento, sin depender de que exista una categoría
   // llamada "Tickets" — es el rubro entero el que cambia la interfaz.
-  const isTicketShop = isTicketRubro(rubro.id);
+  // En la pestaña Tienda de la Tickera se cargan artículos normales, no entradas: ahí el rubro
+  // NO fuerza el modo evento, o el local no podría vender nada que no sea un boleto.
+  const isTicketShop = isTicketRubro(rubro.id) && modo !== 'tienda';
   // Qué funciones ve este rubro (venta por Kg, vencimiento, mayorista, impresión por m²) —
   // el "||" con el valor ya guardado en cada condición de abajo cubre productos viejos que
   // usan una función que el rubro hoy no muestra: se siguen pudiendo ver y editar.
@@ -294,16 +302,25 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     setNewCatOpen(false);
   }
 
-  const totalSkus = products.reduce((a, p) => a + p.variants.length, 0);
-  const valued = products.reduce((a, p) => a + productStock(p) * p.cost, 0);
-  const low = products.filter((p) => productStatus(p) === 'warn').length;
-  const out = products.filter((p) => productStatus(p) === 'danger').length;
+  // Los totales de arriba cuentan solo lo que administra esta pestaña: mezclar el cupo de los
+  // eventos con el stock de la mercancía daría un "stock valorizado" que no significa nada.
+  const delModo = products.filter(
+    (p) => (modo === 'eventos' ? p.isEvent : modo === 'tienda' ? !p.isEvent : true),
+  );
+  const totalSkus = delModo.reduce((a, p) => a + p.variants.length, 0);
+  const valued = delModo.reduce((a, p) => a + productStock(p) * p.cost, 0);
+  const low = delModo.filter((p) => productStatus(p) === 'warn').length;
+  const out = delModo.filter((p) => productStatus(p) === 'danger').length;
 
   // Marcas ya cargadas en el catálogo, para autocompletar el campo del formulario sin tener
   // que escribirlas siempre iguales a mano (ej. no mezclar "Coca-Cola" con "coca cola").
   const brandOptions = Array.from(new Set(products.map((p) => p.brand).filter((b): b is string => !!b))).sort();
 
   const filtered = products.filter((p) => {
+    // Eventos y mercancía viven en el mismo catálogo pero se administran por separado: sin
+    // esto, la pestaña Tienda mostraría los boletos y Eventos mostraría las camisetas.
+    if (modo === 'eventos' && !p.isEvent) return false;
+    if (modo === 'tienda' && p.isEvent) return false;
     if (category && p.category !== category) return false;
     const q = search.trim().toLowerCase();
     if (!q) return true;
@@ -650,7 +667,13 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <h1 className="text-xl font-bold text-brand-950">
-          {isTicketShop ? 'Eventos' : rubro.id === 'agencia_publicidad' || isServiceShop ? 'Servicios' : 'Inventario'}
+          {modo === 'tienda'
+            ? 'Tienda'
+            : isTicketShop
+              ? 'Eventos'
+              : rubro.id === 'agencia_publicidad' || isServiceShop
+                ? 'Servicios'
+                : 'Inventario'}
         </h1>
         <div className="flex gap-2 flex-wrap">
           {/* Escanear código de barras, recuento físico, sumar stock y registrar compra son

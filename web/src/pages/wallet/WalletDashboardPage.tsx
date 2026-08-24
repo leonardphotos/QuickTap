@@ -279,6 +279,10 @@ export default function WalletDashboardPage() {
     porTienda.set(c.negocio, actual);
   }
   const tiendas = [...porTienda.values()].sort((a, b) => b.saldo - a.saldo);
+  // Historial plano, sin agrupar por tienda: acá lo que importa es CUÁNDO, no a quién.
+  const historial = [...compras].sort(
+    (a, b) => new Date(b.ultimaCompra).getTime() - new Date(a.ultimaCompra).getTime(),
+  );
   const q = busca.trim().toLowerCase();
   const tiendasVisibles = q
     ? tiendas.filter(
@@ -404,26 +408,52 @@ export default function WalletDashboardPage() {
 
             <CarruselTiendas tiendas={tiendasQuickTap} />
 
-            {/* Atajo a las tiendas: en Inicio la deuda es un número, y esto es lo que lleva a
-                ver de quién es. Hace lo mismo que el botón del menú. */}
-            <button
-              type="button"
-              onClick={() => setSeccion('tiendas')}
-              className="wallet-tap flex w-full items-center gap-3 rounded-2xl bg-[#141a22] px-4 py-3.5 text-left"
-            >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.07]">
-                <Store className="h-4 w-4 text-white/60" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold">Tiendas</span>
-                <span className="block text-[11.5px] font-light text-white/45">
-                  {tiendas.length === 0
-                    ? 'Todavía sin compras'
-                    : `${tiendas.length} ${tiendas.length === 1 ? 'tienda' : 'tiendas'} · ver a quién le debes`}
-                </span>
-              </span>
-              <ChevronRight className="h-4 w-4 shrink-0 text-white/25" />
-            </button>
+            {/* Historial: lo último que compró, de lo más reciente a lo más viejo y sin
+                importar en qué tienda. Es la otra mitad de la pregunta que trae al cliente:
+                arriba cuánto debe, acá en qué se le fue. */}
+            <section>
+              <h2 className="mb-2 text-[15px] font-bold">Historial de compras</h2>
+              {historial.length === 0 ? (
+                <p className="rounded-2xl bg-[#141a22] px-4 py-6 text-center text-[12.5px] font-light text-white/40">
+                  Todavía no tienes compras registradas.
+                </p>
+              ) : (
+                <ul className="overflow-hidden rounded-2xl bg-[#141a22]">
+                  {historial.map((c, i) => (
+                    <li key={c.id} className="wallet-fila" style={{ '--i': i } as React.CSSProperties}>
+                      {i > 0 && <div className="ml-[3.5rem] h-px bg-white/[0.06]" />}
+                      <div className="flex items-center gap-3 px-4 py-3">
+                        <span
+                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[12px] font-bold text-white"
+                          style={{ background: colorDe(c.negocio) }}
+                        >
+                          {iniciales(c.negocio)}
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-semibold">{c.negocio}</span>
+                          <span className="block truncate text-[11px] font-light text-white/40">
+                            {fechaHora(c.ultimaCompra)}
+                          </span>
+                          <span className="block truncate text-[11.5px] font-light text-white/50">
+                            {c.detalle.join(', ')}
+                          </span>
+                        </span>
+                        <span className="shrink-0 text-right">
+                          <span className="block text-sm font-bold tabular-nums">{money(c.total)}</span>
+                          {c.saldo > 0 ? (
+                            <span className="block text-[10.5px] font-medium text-amber-400">
+                              Faltan {money(c.saldo)}
+                            </span>
+                          ) : (
+                            <span className="block text-[10.5px] font-medium text-emerald-400">Pagada</span>
+                          )}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           </motion.div>
         )}
 
