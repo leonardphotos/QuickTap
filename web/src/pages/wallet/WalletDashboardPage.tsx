@@ -402,6 +402,8 @@ export default function WalletDashboardPage() {
               </div>
             </div>
 
+            <CarruselTiendas tiendas={tiendasQuickTap} />
+
             {/* Atajo a las tiendas: en Inicio la deuda es un número, y esto es lo que lleva a
                 ver de quién es. Hace lo mismo que el botón del menú. */}
             <button
@@ -534,8 +536,6 @@ export default function WalletDashboardPage() {
                 })}
               </ul>
             )}
-
-            <CarruselTiendas tiendas={tiendasQuickTap} />
           </motion.div>
         )}
 
@@ -637,10 +637,10 @@ function BotonMenu({
 function CarruselTiendas({ tiendas }: { tiendas: TiendaQuickTap[] }) {
   if (tiendas.length === 0) return null;
   return (
-    <section className="mt-7">
+    <section className="pt-1">
       <div className="mb-2.5 flex items-baseline justify-between">
-        <h2 className="text-[15px] font-bold">Tiendas en QuickTap</h2>
-        <span className="text-[12px] font-light text-brand-950/45">{tiendas.length}</span>
+        <h2 className="text-[15px] font-bold text-white">Tiendas en QuickTap</h2>
+        <span className="text-[12px] font-light text-white/40">{tiendas.length}</span>
       </div>
       {/* Los márgenes negativos dejan que las fichas lleguen al borde de la pantalla al
           desplazarse, en vez de cortarse contra el padding de la hoja. snap para que no
@@ -656,7 +656,7 @@ function CarruselTiendas({ tiendas }: { tiendas: TiendaQuickTap[] }) {
             style={{ '--i': i } as React.CSSProperties}
           >
             <IconoTienda tienda={t} />
-            <p className="mt-1.5 truncate text-center text-[11px] font-medium text-brand-950/70">{t.nombre}</p>
+            <p className="mt-1.5 truncate text-center text-[11px] font-medium text-white/65">{t.nombre}</p>
           </a>
         ))}
       </div>
@@ -682,7 +682,7 @@ function IconoTienda({ tienda }: { tienda: TiendaQuickTap }) {
   const emoji = tienda.rubro ? EMOJI_RUBRO[tienda.rubro] : undefined;
   if (tienda.logoUrl) {
     return (
-      <div className="aspect-square w-full overflow-hidden rounded-2xl bg-brand-950/[0.05] ring-1 ring-brand-950/[0.06]">
+      <div className="aspect-square w-full overflow-hidden rounded-2xl bg-white/[0.06] ring-1 ring-white/[0.08]">
         <img src={tienda.logoUrl} alt="" className="h-full w-full object-cover" />
       </div>
     );
