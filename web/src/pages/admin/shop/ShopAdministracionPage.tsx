@@ -30,7 +30,7 @@ const ALL_TABS = [
   { id: 'gastos', label: 'Gastos', feature: null },
   { id: 'compras', label: 'Compras', feature: null },
   { id: 'cotizaciones', label: 'Cotizaciones', feature: null },
-  { id: 'cuentas', label: 'Cuentas por Cobrar', feature: null },
+  { id: 'cuentas', label: 'Abrir cuenta', feature: null },
   { id: 'ordenes', label: 'Órdenes de pago', feature: 'accounting' },
   { id: 'contabilidad', label: 'Contabilidad', feature: 'accounting' },
   { id: 'bancos', label: 'Cuentas bancarias', feature: 'accounting' },

@@ -3,6 +3,7 @@ import { api } from '@/api/client';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import {
   CalendarClock,
+  Calculator,
   Landmark,
   Plus,
   ShieldAlert,
@@ -16,7 +17,6 @@ import {
   PackageX,
   Wallet,
   Clock,
-  FileText,
   Pencil,
   Trash2,
   type LucideIcon,
@@ -259,28 +259,36 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
 
       {canSeeMoney && <BreakEvenCard fetchUrl="/shop/breakeven" />}
 
-      {/* Cotizaciones y Cuentas por Cobrar no viven en el dock de navegación (ya tiene 5 iconos) —
-          se llega desde acá, el punto de partida de todos los días. */}
-      <div className="flex gap-2.5">
+      {/* El dock de celular solo llega a las 6 pantallas de operación, así que Administración
+          quedaba fuera de alcance en el teléfono — que es donde el dueño pasa el día. Estos dos
+          accesos son su puerta: uno al panel administrativo completo y otro a las cuentas
+          fiadas, que es lo que más se abre en el mostrador. */}
+      <div className="grid grid-cols-2 gap-2.5">
         <button
           type="button"
-          onClick={() => onNavigate('cotizaciones')}
-          className="flex-1 flex items-center gap-2.5 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm px-4 py-3 text-left hover:border-brand-400 transition-colors"
+          onClick={() => onNavigate('administracion')}
+          className="flex items-center gap-2.5 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm px-4 py-3.5 text-left transition-colors hover:border-brand-400"
         >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-500">
-            <FileText className="h-4 w-4" />
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-500">
+            <Calculator className="h-[18px] w-[18px]" />
           </span>
-          <span className="text-[13px] font-semibold text-brand-950">Cotizaciones</span>
+          <span className="min-w-0">
+            <span className="block text-[13px] font-semibold text-brand-950">Administración</span>
+            <span className="block text-[11px] font-light text-brand-950/45">Gastos, compras y más</span>
+          </span>
         </button>
         <button
           type="button"
           onClick={() => onNavigate('cuentas')}
-          className="flex-1 flex items-center gap-2.5 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm px-4 py-3 text-left hover:border-brand-400 transition-colors"
+          className="flex items-center gap-2.5 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm px-4 py-3.5 text-left transition-colors hover:border-brand-400"
         >
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
-            <Landmark className="h-4 w-4" />
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
+            <Landmark className="h-[18px] w-[18px]" />
           </span>
-          <span className="text-[13px] font-semibold text-brand-950">Cuentas por Cobrar</span>
+          <span className="min-w-0">
+            <span className="block text-[13px] font-semibold text-brand-950">Abrir cuenta</span>
+            <span className="block text-[11px] font-light text-brand-950/45">Clientes que deben</span>
+          </span>
         </button>
       </div>
 
