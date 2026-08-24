@@ -8,3 +8,9 @@ coverage/
 prisma/*.db
 prisma/migrations/dev.db*
 uploads/
+
+# Salida del grafo de conocimiento (graphify): 10 MB de artefactos regenerables.
+graphify-out/
+
+# Caché incremental de TypeScript: cambia en cada compilación, no aporta nada al repo.
+tsconfig.tsbuildinfo

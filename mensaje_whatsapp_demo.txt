@@ -1,0 +1,18 @@
+¡Hola! 👋 Te escribo de *QuickTap* (quicktap.club), el sistema de menú digital QR, pedidos en tiempo real y checkout por WhatsApp para restaurantes.
+
+Te invito a que pruebes gratis nuestro restaurante demo y veas cómo funciona todo en vivo, desde el menú público hasta el panel de administración:
+
+🔗 https://quicktap.club
+
+Puedes entrar al panel en */admin/login* con cualquiera de estos usuarios (todos con la misma clave: *Demo1234*):
+
+- 👑 Dueño: demo@quicktap.club
+- 🛠️ Admin: admin.demo@quicktap.club
+- 💵 Cajero: cajero.demo@quicktap.club
+- 🧑‍🍳 Mesero: mesero.demo@quicktap.club
+- 🍳 Cocina: cocina.demo@quicktap.club
+- 📺 Pantalla: pantalla.demo@quicktap.club
+- 🧾 Comanda: comanda.demo@quicktap.club
+- 🔢 Numero: numero.demo@quicktap.club
+
+Cualquier duda que tengas mientras lo pruebas, aquí estoy para ayudarte. ¡Espero que te guste! 🚀
