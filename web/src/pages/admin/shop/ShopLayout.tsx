@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { PanelLeftOpen } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import { ShieldCheck, Boxes, Building2, Calculator, FileText, Home, Lock, Receipt, Settings, ShoppingBag, Users, Wallet } from 'lucide-react';
+import { Menu, ShieldCheck, Boxes, Building2, Calculator, FileText, Home, Lock, Receipt, Settings, ShoppingBag, Users, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getShopRubro } from '@/data/shopRubros';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -22,6 +22,7 @@ import { PlanUpgradeNotice } from '@/components/admin/PlanUpgradeNotice';
 import { allowsBranches, daysRemaining, graceHoursRemaining, hasFeature, type FeatureFlag } from '@/utils/subscription';
 import ShopSucursalesPage from './ShopSucursalesPage';
 import ShopAdministracionPage, { type ShopAdminTab } from './ShopAdministracionPage';
+import { ShopNavDrawer } from './ShopNavDrawer';
 
 // 'cotizaciones' y 'cuentas' siguen acá aunque ya no sean pantallas propias: son los accesos
 // de Inicio, y irA() los traduce a Administración parada en esa pestaña. Los demás destinos
@@ -42,9 +43,8 @@ export type ShopScreen =
   | 'pass'
   | 'solicitudes';
 
-// Cotizaciones, Cuentas por Cobrar y Facturación no van en el dock flotante de celular (ya tiene
-// 5 iconos, más lo dejaría apretado) — se llega a ellas desde los accesos de Inicio
-// (ShopDashboardPage), el aviso de vencimiento de abajo y, en escritorio, estos botones extra.
+// Pantallas que no son de operación diaria. En escritorio salen en la cabecera; en celular,
+// en el menú lateral junto con las demás.
 // `feature` marca las pantallas de Elite Shop: con el plan Shop base se ven (con candado)
 // pero abren el aviso de mejora — así el dueño sabe qué gana al subir de plan.
 const MORE_TABS: { id: ShopScreen; label: string; icon: typeof FileText; feature?: FeatureFlag | 'branches' }[] = [
@@ -65,8 +65,6 @@ function getTabs(rubroId: string | undefined): { id: ShopScreen; label: string; 
   return [
     { id: 'venta', label: 'Venta', icon: Receipt },
     { id: 'admin', label: 'Inicio', icon: Home },
-    // Sí va en el dock aunque lo apriete a 6 iconos: un pedido de la tienda virtual que entra
-    // y nadie ve no sirve de nada, y el dueño está en el celular la mayor parte del día.
     { id: 'pedidos', label: 'Pedidos', icon: ShoppingBag },
     { id: 'inventario', label: rubroId === 'agencia_publicidad' ? 'Servicios' : 'Inventario', icon: Boxes },
     { id: 'clientes', label: 'Clientes', icon: Users },
@@ -79,8 +77,8 @@ function getTabs(rubroId: string | undefined): { id: ShopScreen; label: string; 
  * (AdminLayout ya interceptó el render antes de llegar acá — ver AdminLayout.tsx). Mantiene
  * el estado de la sesión (catálogo/carrito/ventas/caja) en un solo lugar vía useShopSession y
  * decide qué pantalla mostrar; las páginas son componentes "tontos" que solo leen/mutan esa
- * sesión a través de props. En celular/tablet la navegación es un dock flotante y redondeado
- * (mismo patrón que el dock del panel de restaurante, ver AdminLayout.tsx); en escritorio se
+ * sesión a través de props. En celular/tablet la navegación es un menú lateral desplegable
+ * (ShopNavDrawer) que se abre desde la cabecera; en escritorio se
  * muestra como pestañas dentro de la cabecera.
  */
 export default function ShopLayout() {
@@ -96,6 +94,7 @@ export default function ShopLayout() {
   const rubro = getShopRubro(restaurant?.shopRubro);
   const session = useShopSession(rubro?.categories ?? []);
   const [adminTab, setAdminTab] = useState<ShopAdminTab>('estadisticas');
+  const [menuOpen, setMenuOpen] = useState(false);
 
   /**
    * Cotizaciones y Cuentas por Cobrar se mudaron dentro de Administración, pero siguen siendo
@@ -220,6 +219,15 @@ export default function ShopLayout() {
       <div className={`sticky top-0 z-20 bg-white text-brand-950 pt-[env(safe-area-inset-top)] border-b border-brand-950/[0.06] transition-[padding] duration-300 ${sidebarHidden ? "lg:pl-0" : "lg:pl-[264px]"}`}>
         <div className="max-w-7xl mx-auto px-5 sm:px-6 h-14 flex items-center justify-between gap-3">
           <div className="flex items-center gap-1.5 min-w-0">
+            {/* Abre el menú lateral: en celular es la única puerta a todas las pantallas. */}
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              aria-label="Abrir menú"
+              className="-ml-1.5 mr-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-brand-950 hover:bg-brand-950/[0.05] lg:hidden"
+            >
+              <Menu className="h-[20px] w-[20px]" />
+            </button>
             <span className="text-[13px] font-bold tracking-tight truncate">{restaurant.name}</span>
             <span className="shrink-0 text-[8px] font-bold bg-brand-500/10 text-brand-500 px-1.5 py-0.5 rounded-full">
               {isEliteShop ? 'ELITE SHOP' : 'SHOP'}
@@ -235,7 +243,7 @@ export default function ShopLayout() {
             )}
           </div>
 
-          {/* Escritorio: pestañas dentro de la cabecera (no hay dock flotante en lg+). */}
+          {/* Escritorio: pestañas dentro de la cabecera (en celular manda el menú lateral). */}
           <nav className="hidden items-center gap-1 bg-brand-950/[0.05] p-1 rounded-full min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {[...tabs.map((t) => ({ ...t, locked: false })), ...moreTabs.map((t) => ({ ...t, locked: isLocked(t) }))].map((t) => (
               <button
@@ -256,7 +264,7 @@ export default function ShopLayout() {
         </div>
       </div>
 
-      <main className={`max-w-7xl mx-auto px-5 sm:px-6 py-5 pb-28 lg:pb-8 transition-[padding] duration-300 ${sidebarHidden ? "lg:pl-5" : "lg:pl-[284px]"}`}>
+      <main className={`max-w-7xl mx-auto px-5 sm:px-6 py-5 pb-8 transition-[padding] duration-300 ${sidebarHidden ? "lg:pl-5" : "lg:pl-[284px]"}`}>
         {screen === 'admin' && (
           <ShopDashboardPage session={session} restaurant={restaurant} canSeeMoney={canSeeMoney} userName={user.name} onNavigate={irA} />
         )}
@@ -290,31 +298,14 @@ export default function ShopLayout() {
         {screen === 'sucursales' && canBranches && <ShopSucursalesPage />}
       </main>
 
-      {/* Dock flotante y redondeado: mismo patrón visual que el dock del panel de restaurante
-          (ver AdminLayout.tsx) — solo en celular/tablet, en escritorio la navegación vive en
-          la cabecera. El carrito flotante de ShopPosPage se posiciona por encima de este dock. */}
-      <div className="lg:hidden fixed bottom-5 inset-x-0 z-30 flex justify-center pointer-events-none">
-        <div className="pointer-events-auto flex items-center gap-2 rounded-full bg-white/90 backdrop-blur-md border border-brand-950/[0.08] shadow-lg shadow-brand-950/10 px-3 py-3">
-          {tabs.map((t) => {
-            const Icon = t.icon;
-            const active = screen === t.id;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setScreen(t.id)}
-                aria-label={t.label}
-                title={t.label}
-                className={`flex items-center justify-center h-11 w-11 rounded-full transition-colors ${
-                  active ? 'bg-brand-950 text-white' : 'text-brand-950/60 hover:bg-brand-950/5'
-                }`}
-              >
-                <Icon className="h-5 w-5" />
-              </button>
-            );
-          })}
-        </div>
-      </div>
+      <ShopNavDrawer
+        open={menuOpen}
+        onClose={() => setMenuOpen(false)}
+        principales={tabs.map((t) => ({ ...t, locked: false }))}
+        secundarios={moreTabs.map((t) => ({ ...t, locked: isLocked(t) }))}
+        activo={screen}
+        onNavigate={irA}
+      />
     </div>
   );
 }

@@ -259,10 +259,8 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
 
       {canSeeMoney && <BreakEvenCard fetchUrl="/shop/breakeven" />}
 
-      {/* El dock de celular solo llega a las 6 pantallas de operación, así que Administración
-          quedaba fuera de alcance en el teléfono — que es donde el dueño pasa el día. Estos dos
-          accesos son su puerta: uno al panel administrativo completo y otro a las cuentas
-          fiadas, que es lo que más se abre en el mostrador. */}
+      {/* Atajos del día a día: aunque el menú lateral ya lleva a todo, estas dos son las que
+          más se abren desde el mostrador y merecen estar en el punto de partida. */}
       <div className="grid grid-cols-2 gap-2.5">
         <button
           type="button"

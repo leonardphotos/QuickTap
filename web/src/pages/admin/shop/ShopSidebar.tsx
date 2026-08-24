@@ -9,7 +9,7 @@ import type { ShopScreen } from './ShopLayout';
  * tenga que aprender dos interfaces. La diferencia de fondo: restaurantes navega por rutas y
  * acá se cambia de pantalla por estado, así que en vez de <Link> son botones.
  *
- * Solo se monta en pantallas anchas; en celular y tablet vertical sigue mandando el dock
+ * Solo se monta en pantallas anchas; en celular y tablet vertical manda el menú lateral
  * flotante de abajo, que es lo que se alcanza con el pulgar.
  */
 
