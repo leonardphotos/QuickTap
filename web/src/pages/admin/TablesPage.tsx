@@ -102,9 +102,9 @@ export default function TablesPage() {
           setOpen={setOpen}
           showSuccess={showSuccess}
           width="320px"
-          height="300px"
+          height="360px"
           openChild={
-            <form onSubmit={onSubmit} className="p-4 h-full flex flex-col gap-3">
+            <form onSubmit={onSubmit} className="p-4 h-full flex flex-col gap-3 overflow-y-auto">
               <input
                 autoFocus
                 value={number}
