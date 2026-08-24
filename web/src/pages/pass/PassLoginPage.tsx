@@ -141,37 +141,37 @@ export default function PassLoginPage() {
         </div>
 
         {/* ---------- Ingreso ---------- */}
-        <form onSubmit={onSubmit} className="mt-9 space-y-2.5">
+        <form onSubmit={onSubmit} className="mt-8 space-y-2">
           <label className="block">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-white/40">Teléfono</span>
+            <span className="text-[10px] font-medium uppercase tracking-wider text-white/40">Teléfono</span>
             <input
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               inputMode="tel"
               autoComplete="tel"
               placeholder="0414-1234567"
-              className="mt-1.5 w-full rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-3.5 text-[15px] text-white outline-none transition-colors placeholder:text-white/25 focus:border-[#3d9bff] focus:bg-white/[0.09]"
+              className="mt-1 w-full rounded-xl border border-white/12 bg-white/[0.06] px-3.5 py-2.5 text-[13.5px] text-white outline-none transition-colors placeholder:text-white/25 focus:border-[#3d9bff] focus:bg-white/[0.09]"
             />
           </label>
           <label className="block">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-white/40">
-              Cédula <span className="font-light normal-case tracking-normal text-white/30">(sin la V)</span>
-            </span>
+            <span className="text-[10px] font-medium uppercase tracking-wider text-white/40">Cédula</span>
+            {/* Solo dígitos: si el cliente escribe la "V" no entra, así que no hace falta
+                aclararlo en la etiqueta. */}
             <input
               value={idNumber}
               onChange={(e) => setIdNumber(e.target.value.replace(/\D/g, ''))}
               inputMode="numeric"
               placeholder="12345678"
-              className="mt-1.5 w-full rounded-2xl border border-white/12 bg-white/[0.06] px-4 py-3.5 text-[15px] text-white outline-none transition-colors placeholder:text-white/25 focus:border-[#3d9bff] focus:bg-white/[0.09]"
+              className="mt-1 w-full rounded-xl border border-white/12 bg-white/[0.06] px-3.5 py-2.5 text-[13.5px] text-white outline-none transition-colors placeholder:text-white/25 focus:border-[#3d9bff] focus:bg-white/[0.09]"
             />
           </label>
 
-          {error && <p className="pt-0.5 text-center text-[12px] text-red-300">{error}</p>}
+          {error && <p className="pt-0.5 text-center text-[11.5px] text-red-300">{error}</p>}
 
           <button
             type="submit"
             disabled={busy}
-            className="!mt-5 w-full rounded-full py-3.5 text-[15px] font-semibold text-white shadow-[0_10px_30px_-10px_rgba(0,154,255,0.8)] transition-opacity disabled:opacity-50"
+            className="!mt-4 w-full rounded-full py-2.5 text-[13.5px] font-semibold text-white shadow-[0_8px_24px_-10px_rgba(0,154,255,0.8)] transition-opacity disabled:opacity-50"
             style={{ background: 'linear-gradient(135deg, #009aff 0%, #056CF2 100%)' }}
           >
             {busy ? 'Entrando…' : 'Entrar'}
