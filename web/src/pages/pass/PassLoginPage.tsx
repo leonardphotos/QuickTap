@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/api/client';
 import { useDocumentMeta } from '@/hooks/useDocumentMeta';
-import { PASS_LOGO_URL, PASS_NAME } from './passBrand';
+import { PASS_NAME, PASS_WORDMARK_URL } from './passBrand';
 import { setPassToken } from './passSession';
 
 /**
@@ -22,7 +22,7 @@ const SLIDES = [
   {
     titulo: 'Tus compras,',
     resalte: 'en un solo lugar.',
-    texto: 'Todo lo que llevas a crédito en los negocios donde compras, junto y al día.',
+    texto: 'Todo lo que llevas a crédito, junto y al día.',
   },
   {
     titulo: 'Mira cuánto',
@@ -32,7 +32,7 @@ const SLIDES = [
   {
     titulo: 'Reporta tu abono',
     resalte: 'desde aquí.',
-    texto: 'Paga, sube el comprobante y el negocio lo verifica. Tu cuenta se actualiza sola.',
+    texto: 'Paga, sube el comprobante y el negocio lo verifica.',
   },
 ];
 
@@ -96,18 +96,20 @@ export default function PassLoginPage() {
         style={{ background: 'linear-gradient(180deg, rgba(4,7,13,0) 28%, rgba(4,7,13,0.80) 52%, #04070d 74%)' }}
       />
 
-      <div className="relative mx-auto flex min-h-dvh w-full max-w-md flex-col justify-end px-6 pb-10 pt-16">
-        {/* ---------- Carrusel: qué es Pass ---------- */}
-        <div>
-          {/* El logo ya es la palabra "quicktap", así que al lado va solo "Pass": repetir el
-              nombre completo dejaba un "quicktap QuickTap Pass" en la misma línea. */}
-          <div className="flex items-baseline gap-2">
-            <img src={PASS_LOGO_URL} alt={PASS_NAME} className="h-[22px] w-auto translate-y-[3px] brightness-0 invert" />
-            <span className="text-[17px] font-light tracking-tight text-white/75">Pass</span>
-          </div>
+      <div className="relative mx-auto flex min-h-dvh w-full max-w-md flex-col px-6 pb-10 pt-9">
+        {/* La marca propia de Pass ya viene en blanco con las ondas azules: no lleva texto al
+            lado ni hace falta invertirla como al logo de QuickTap. Va arriba a la izquierda,
+            separada del bloque de abajo. */}
+        {/* self-start: como hijo directo de un flex column, sin esto `align-items: stretch` lo
+            estira a todo el ancho y `w-auto` no alcanza para evitarlo. */}
+        <img src={PASS_WORDMARK_URL} alt={PASS_NAME} className="h-12 w-auto self-start" />
 
-          {/* min-h fija: sin esto el bloque cambia de alto entre textos y el formulario salta. */}
-          <div className="mt-5 min-h-[168px]" aria-live="polite">
+        {/* mt-auto: el carrusel y el formulario quedan pegados abajo, con el logo arriba. */}
+        <div className="mt-auto">
+          {/* ---------- Carrusel: qué es Pass ---------- */}
+          {/* min-h al alto real del texto más largo: fija el bloque para que el formulario no
+              salte entre diapositivas, sin dejar hueco muerto debajo del párrafo. */}
+          <div className="min-h-[124px]" aria-live="polite">
             {/* key por diapositiva: React remonta el bloque y la animación vuelve a correr. */}
             <div key={slide} className="pass-slide">
               <h1 className="text-[30px] font-bold leading-[1.14] tracking-tight">
@@ -121,7 +123,7 @@ export default function PassLoginPage() {
             </div>
           </div>
 
-          <div className="mt-1 flex items-center gap-1.5">
+          <div className="mt-3 flex items-center gap-1.5">
             {SLIDES.map((s, i) => (
               <button
                 key={s.resalte}
@@ -150,7 +152,7 @@ export default function PassLoginPage() {
               inputMode="tel"
               autoComplete="tel"
               placeholder="0414-1234567"
-              className="mt-1 w-full rounded-xl border border-white/12 bg-white/[0.06] px-3.5 py-2.5 text-[13.5px] text-white outline-none transition-colors placeholder:text-white/25 focus:border-[#3d9bff] focus:bg-white/[0.09]"
+              className="mt-1 w-full rounded-xl border border-white/12 bg-white/[0.06] px-3 py-2 text-[13px] text-white outline-none transition-colors placeholder:text-white/25 focus:border-[#3d9bff] focus:bg-white/[0.09]"
             />
           </label>
           <label className="block">
@@ -162,7 +164,7 @@ export default function PassLoginPage() {
               onChange={(e) => setIdNumber(e.target.value.replace(/\D/g, ''))}
               inputMode="numeric"
               placeholder="12345678"
-              className="mt-1 w-full rounded-xl border border-white/12 bg-white/[0.06] px-3.5 py-2.5 text-[13.5px] text-white outline-none transition-colors placeholder:text-white/25 focus:border-[#3d9bff] focus:bg-white/[0.09]"
+              className="mt-1 w-full rounded-xl border border-white/12 bg-white/[0.06] px-3 py-2 text-[13px] text-white outline-none transition-colors placeholder:text-white/25 focus:border-[#3d9bff] focus:bg-white/[0.09]"
             />
           </label>
 
@@ -171,14 +173,14 @@ export default function PassLoginPage() {
           <button
             type="submit"
             disabled={busy}
-            className="!mt-4 w-full rounded-full py-2.5 text-[13.5px] font-semibold text-white shadow-[0_8px_24px_-10px_rgba(0,154,255,0.8)] transition-opacity disabled:opacity-50"
+            className="!mt-4 w-full rounded-full py-2 text-[13px] font-semibold text-white shadow-[0_8px_24px_-10px_rgba(0,154,255,0.8)] transition-opacity disabled:opacity-50"
             style={{ background: 'linear-gradient(135deg, #009aff 0%, #056CF2 100%)' }}
           >
             {busy ? 'Entrando…' : 'Entrar'}
           </button>
         </form>
 
-        <p className="mt-5 text-center text-[11px] font-light leading-snug text-white/35">
+        <p className="mt-4 text-center text-[9px] font-light leading-snug text-white/30">
           Usa el mismo teléfono con el que compraste. Si no reconoce tus datos, pídele al negocio
           que verifique tu cédula en su ficha de cliente.
         </p>
