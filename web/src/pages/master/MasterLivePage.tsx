@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Activity, Eye } from 'lucide-react';
-import { api } from '@/api/client';
+import { masterApi } from '@/api/client';
 
 type Vertical = 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB' | 'ADMIN_OFFICE';
 
@@ -61,13 +61,13 @@ export default function MasterLivePage() {
     let vivo = true;
     async function cargar() {
       try {
-        const res = await api.get('/master/live');
+        const res = await masterApi.get('/master/live');
         if (!vivo) return;
         previo.current = res.data.data;
         setData(res.data.data);
         setError(null);
       } catch {
-        if (vivo) setError('No se pudo actualizar. Reintentando…');
+        if (vivo) setError('No se pudieron cargar las estadísticas en vivo. Reintentando…');
       }
     }
     cargar();
@@ -81,7 +81,9 @@ export default function MasterLivePage() {
 
   const d = data ?? previo.current;
   if (!d) {
-    return <p className="p-8 text-sm text-brand-950/50">Cargando…</p>;
+    return (
+      <p className={`p-8 text-sm ${error ? 'text-red-600' : 'text-brand-950/50'}`}>{error ?? 'Cargando…'}</p>
+    );
   }
 
   const visibles = VERTICALES.filter((v) => !ocultos.includes(v.id));
