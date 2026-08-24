@@ -3,7 +3,7 @@ import { badRequest, notFound } from '../../utils/http-error';
 import { colaParaBuscar, telefonoCanonico } from '../../utils/phone';
 
 /**
- * Abonos que el cliente reporta desde QuickTap Pass y que el local verifica.
+ * Abonos que el cliente reporta desde QuickTap Wallet y que el local verifica.
  *
  * Un abono reportado NO mueve el saldo: mientras está PENDING no existe para las cuentas del
  * negocio. Solo al aprobarlo se crea el pago real. Quien dice haber pagado no puede darse por
@@ -24,7 +24,7 @@ async function saldoDeVenta(shopSaleId: string) {
   return { venta, saldo };
 }
 
-export const passPaymentsService = {
+export const walletPaymentsService = {
   /** Métodos que acepta el negocio de esa compra, para que el cliente elija cómo pagó. */
   async metodosDe(shopSaleId: string, customerId: string) {
     const venta = await prisma.shopSale.findUnique({
@@ -46,7 +46,7 @@ export const passPaymentsService = {
 
   /**
    * El cliente solo puede tocar SUS compras. Se comprueba por teléfono y no por id de venta a
-   * secas: sin esto, cualquiera con una sesión de Pass podría reportar abonos contra la compra
+   * secas: sin esto, cualquiera con una sesión de Wallet podría reportar abonos contra la compra
    * de otro y ensuciarle la cuenta al negocio.
    */
   async asegurarDuenio(shopSaleId: string, customerId: string) {
@@ -100,8 +100,8 @@ export const passPaymentsService = {
   },
 };
 
-/** Lado del local: la ventana "QuickTap Pass" de su panel. */
-export const passInboxService = {
+/** Lado del local: la ventana "QuickTap Wallet" de su panel. */
+export const walletInboxService = {
   /** Abonos reportados esperando verificación. */
   async pendientes(restaurantId: string) {
     const filas = await prisma.shopPassPayment.findMany({
@@ -126,7 +126,7 @@ export const passInboxService = {
    * La cuenta fiada abierta de UN cliente en este negocio, buscada por teléfono.
    *
    * La usa el POS mientras el cajero escribe los datos: si el cliente ya tiene cuenta, en vez
-   * de ofrecer darlo de alta en Pass se le ofrece sumar la compra a lo que ya debe. Devuelve
+   * de ofrecer darlo de alta en Wallet se le ofrece sumar la compra a lo que ya debe. Devuelve
    * null cuando no debe nada, que es el caso normal.
    */
   async cuentaDe(restaurantId: string, phone: string) {

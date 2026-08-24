@@ -153,7 +153,7 @@ async function bootstrap() {
     }
   }, 2 * 60 * 1000);
 
-  // QuickTap Pass / cuotas de locales comerciales: aplica la mora a las cuotas que ya
+  // QuickTap Wallet / cuotas de locales comerciales: aplica la mora a las cuotas que ya
   // vencieron y siguen sin pagar (ver shop-installments.service.ts -> aplicarMoraVencidas).
   // Existía la función pero nada la llamaba — ninguna cuota vencida terminaba con mora
   // aplicada por más días que pasaran. Una pasada al arrancar + cada 6h, mismo criterio que

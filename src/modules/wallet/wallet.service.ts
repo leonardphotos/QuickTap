@@ -7,23 +7,23 @@ import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import { telefonoCanonico } from '../../utils/phone';
 
 /**
- * QuickTap Pass: el portal donde un cliente ve sus compras y lo que debe.
+ * QuickTap Wallet: el portal donde un cliente ve sus compras y lo que debe.
  *
  * Tercer ámbito de autenticación del sistema, aparte del panel del negocio y del dashboard
- * maestro. El token lleva `scope: 'pass'` justo para que no pueda usarse contra los otros dos:
+ * maestro. El token lleva `scope: 'wallet'` justo para que no pueda usarse contra los otros dos:
  * los tres se firman con el mismo secreto, así que la separación tiene que estar en el
  * contenido, no en la llave.
  *
  * Entra con teléfono + cédula, por decisión del producto. Los dos datos son fáciles de
- * conseguir, así que un token de Pass solo abre lectura de sus propias compras: no puede pagar,
+ * conseguir, así que un token de Wallet solo abre lectura de sus propias compras: no puede pagar,
  * ni modificar nada, ni ver datos del negocio.
  */
 
-const PASS_TOKEN_DAYS = 30;
+const WALLET_TOKEN_DAYS = 30;
 
-export interface PassPayload {
+export interface WalletPayload {
   customerId: string;
-  scope: 'pass';
+  scope: 'wallet' | 'pass';
 }
 
 /** Deja el teléfono en solo dígitos para comparar: el cliente lo escribe de mil formas. */
@@ -37,7 +37,7 @@ function normalizarCedula(valor: string): string {
 }
 
 
-export const passService = {
+export const walletService = {
   async login(input: { phone: string; idNumber: string }) {
     const telefono = soloDigitos(input.phone);
     const cedula = normalizarCedula(input.idNumber);
@@ -57,9 +57,53 @@ export const passService = {
     // teléfonos están registrados probando cédulas al azar.
     if (!cliente) throw badRequest('No encontramos una cuenta con esos datos.');
 
-    const payload: PassPayload = { customerId: cliente.id, scope: 'pass' };
-    const token = jwt.sign(payload, env.jwtSecret, { expiresIn: `${PASS_TOKEN_DAYS}d` });
+    const payload: WalletPayload = { customerId: cliente.id, scope: 'wallet' };
+    const token = jwt.sign(payload, env.jwtSecret, { expiresIn: `${WALLET_TOKEN_DAYS}d` });
     return { token, customer: { id: cliente.id, name: cliente.name } };
+  },
+
+  /**
+   * Las entradas de eventos que compró el cliente, en cualquier negocio.
+   *
+   * Se buscan por teléfono igual que las compras (ver `resumen`): la ficha de cliente es por
+   * restaurante, así que buscar por id mostraría solo las de un local. Solo aparecen las que ya
+   * existen — un boleto se emite recién cuando el pago quedó verificado, así que si está acá es
+   * porque el local ya lo aprobó.
+   */
+  async entradas(customerId: string) {
+    const yo = await prisma.customer.findUnique({ where: { id: customerId }, select: { phone: true } });
+    if (!yo) throw badRequest('Cuenta no encontrada.');
+    const miTelefono = telefonoCanonico(yo.phone);
+
+    const candidatas = await prisma.shopTicket.findMany({
+      where: { holderPhone: { contains: soloDigitos(yo.phone).slice(-7) } },
+      orderBy: [{ eventDate: 'asc' }, { seatNumber: 'asc' }],
+      include: {
+        restaurant: { select: { name: true } },
+        // El arte se lee en vivo del evento, no congelado — ver shop-tickets.service.ts.
+        product: { select: { photoUrl: true } },
+      },
+    });
+    const mias = candidatas.filter((t) => telefonoCanonico(t.holderPhone) === miTelefono);
+
+    const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' });
+    return mias.map((t) => ({
+      id: t.id,
+      accessToken: t.accessToken,
+      negocio: t.restaurant.name,
+      evento: t.eventName,
+      fecha: t.eventDate,
+      hora: t.eventTime,
+      puesto: t.seatNumber,
+      precio: t.price,
+      titular: t.holderName,
+      imagen: t.product?.photoUrl ?? null,
+      usada: t.checkedInAt != null,
+      usadaEl: t.checkedInAt,
+      // Un evento cuya fecha ya pasó se muestra aparte: el cliente entra a Wallet a buscar la
+      // entrada de esta noche, no la del mes pasado.
+      pasado: !!t.eventDate && t.eventDate < hoy,
+    }));
   },
 
   /**
@@ -109,7 +153,7 @@ export const passService = {
       // SOLO una venta a crédito deja saldo. Una venta de contado ya se cobró en el mostrador y
       // no genera ningún ShopSalePayment (el método de pago va en la propia venta), así que
       // contarla como deuda mostraba como impaga cada compra que el cliente ya había pagado.
-      // Es el mismo criterio que usa el lado del negocio en passInboxService.deudores.
+      // Es el mismo criterio que usa el lado del negocio en walletInboxService.deudores.
       const aCredito = v.creditTerms != null;
 
       // El recargo por financiar se le cobra al cliente igual que la mora, así que entra en lo

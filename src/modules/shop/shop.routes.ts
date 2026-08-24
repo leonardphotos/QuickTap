@@ -3,7 +3,7 @@ import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
 import { optimizeImage, uploadShopProductPhoto, uploadShopPaymentProof, uploadSpreadsheet } from '../../middlewares/upload.middleware';
 import { shopController } from './shop.controller';
 import { shopInstallmentsController } from './shop-installments.controller';
-import { shopPassController } from './shop-pass.controller';
+import { shopWalletController } from './shop-wallet.controller';
 import { shopTicketsController } from './shop-tickets.controller';
 import { shopOrdersController } from './shop-storefront.controller';
 
@@ -66,15 +66,15 @@ router.get('/tickets', shopTicketsController.lista);
 router.post('/tickets/check-in', shopTicketsController.verificar);
 router.post('/tickets/:id/undo', requireRole('OWNER', 'ADMIN'), shopTicketsController.desmarcar);
 
-// --- QuickTap Pass: deudores y abonos que los clientes reportan desde su portal ---
-router.get('/pass/pending', shopPassController.pendientes);
-router.get('/pass/debtors', shopPassController.deudores);
+// --- QuickTap Wallet: deudores y abonos que los clientes reportan desde su portal ---
+router.get('/pass/pending', shopWalletController.pendientes);
+router.get('/pass/debtors', shopWalletController.deudores);
 // Antes de '/pass/:id': si no, Express tomaria "account" como el id de un abono.
-router.get('/pass/account', shopPassController.cuenta);
-router.post('/pass/enroll', shopPassController.alta);
+router.get('/pass/account', shopWalletController.cuenta);
+router.post('/pass/enroll', shopWalletController.alta);
 // Verificar un abono mueve dinero en las cuentas del local: solo dueño/admin/cajero.
-router.post('/pass/:id/approve', requireRole('OWNER', 'ADMIN', 'CASHIER'), shopPassController.aprobar);
-router.post('/pass/:id/reject', requireRole('OWNER', 'ADMIN', 'CASHIER'), shopPassController.rechazar);
+router.post('/pass/:id/approve', requireRole('OWNER', 'ADMIN', 'CASHIER'), shopWalletController.aprobar);
+router.post('/pass/:id/reject', requireRole('OWNER', 'ADMIN', 'CASHIER'), shopWalletController.rechazar);
 router.patch('/sales/:id/due-date', shopController.setSaleDueDate);
 
 router.put('/products/:id/supplies', shopController.setServiceSupplies);

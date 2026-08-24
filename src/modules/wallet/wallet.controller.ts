@@ -2,8 +2,8 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest } from '../../utils/http-error';
-import { passService } from './pass.service';
-import { passPaymentsService } from './pass-payments.service';
+import { walletService } from './wallet.service';
+import { walletPaymentsService } from './wallet-payments.service';
 
 const loginSchema = z.object({
   phone: z.string().min(7, 'Escribe tu teléfono.'),
@@ -19,37 +19,42 @@ const reportarSchema = z.object({
   proofImageUrl: z.string().optional(),
 });
 
-export const passController = {
-  /** POST /public/pass/login — teléfono + cédula. */
+export const walletController = {
+  /** POST /public/wallet/login — teléfono + cédula. */
   login: asyncHandler(async (req: Request, res: Response) => {
     const input = loginSchema.parse(req.body);
-    res.json({ data: await passService.login(input) });
+    res.json({ data: await walletService.login(input) });
   }),
 
-  /** GET /public/pass/me — compras, saldos y cuotas del cliente autenticado. */
+  /** GET /public/wallet/me — compras, saldos y cuotas del cliente autenticado. */
   me: asyncHandler(async (req: Request, res: Response) => {
-    res.json({ data: await passService.resumen(req.passCustomerId!) });
+    res.json({ data: await walletService.resumen(req.walletCustomerId!) });
   }),
 
-  /** GET /public/pass/sales/:id/methods — cómo puede pagarle a ese negocio. */
+  /** GET /public/wallet/tickets — las entradas de eventos que compró. */
+  entradas: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await walletService.entradas(req.walletCustomerId!) });
+  }),
+
+  /** GET /public/wallet/sales/:id/methods — cómo puede pagarle a ese negocio. */
   metodos: asyncHandler(async (req: Request, res: Response) => {
-    res.json({ data: await passPaymentsService.metodosDe(req.params.id, req.passCustomerId!) });
+    res.json({ data: await walletPaymentsService.metodosDe(req.params.id, req.walletCustomerId!) });
   }),
 
-  /** POST /public/pass/sales/:id/payments — reporta un abono; queda por verificar. */
+  /** POST /public/wallet/sales/:id/payments — reporta un abono; queda por verificar. */
   reportar: asyncHandler(async (req: Request, res: Response) => {
     const input = reportarSchema.parse(req.body);
-    res.status(201).json({ data: await passPaymentsService.reportar(req.passCustomerId!, req.params.id, input) });
+    res.status(201).json({ data: await walletPaymentsService.reportar(req.walletCustomerId!, req.params.id, input) });
   }),
 
-  /** POST /public/pass/proof — sube el comprobante y devuelve su URL. */
+  /** POST /public/wallet/proof — sube el comprobante y devuelve su URL. */
   subirComprobante: asyncHandler(async (req: Request, res: Response) => {
     if (!req.file) throw badRequest('Adjunta la imagen del comprobante.');
     res.status(201).json({ data: { url: `/uploads/shop-payment-proofs/${req.file.filename}` } });
   }),
 
-  /** GET /public/pass/reports — el estado de lo que el cliente ya reportó. */
+  /** GET /public/wallet/reports — el estado de lo que el cliente ya reportó. */
   misReportes: asyncHandler(async (req: Request, res: Response) => {
-    res.json({ data: await passPaymentsService.misReportes(req.passCustomerId!) });
+    res.json({ data: await walletPaymentsService.misReportes(req.walletCustomerId!) });
   }),
 };

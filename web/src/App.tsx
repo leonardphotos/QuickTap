@@ -5,10 +5,10 @@ import { isInstalledApp } from './utils/native-platform';
 import { MasterAuthProvider } from './context/MasterAuthContext';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
-// QuickTap Pass: portal del cliente final. Árbol propio y perezoso, igual que el panel y el
+// QuickTap Wallet: portal del cliente final. Árbol propio y perezoso, igual que el panel y el
 // dashboard maestro — quien entra a ver sus compras no debe descargar nada de los otros dos.
-const PassLoginPage = lazy(() => import('./pages/pass/PassLoginPage'));
-const PassDashboardPage = lazy(() => import('./pages/pass/PassDashboardPage'));
+const WalletLoginPage = lazy(() => import('./pages/wallet/WalletLoginPage'));
+const WalletDashboardPage = lazy(() => import('./pages/wallet/WalletDashboardPage'));
 const PlansPage = lazy(() => import('./pages/PlansPage'));
 const LegalPage = lazy(() => import('./pages/LegalPage'));
 const ServicePage = lazy(() => import('./pages/seo/ServicePage'));
@@ -104,9 +104,13 @@ export default function App() {
             <Route path="/planes" element={<PlanesRedirect />} />
             <Route path="/legal" element={<LegalPage />} />
 
-            {/* QuickTap Pass (quicktap.club/pass) */}
-            <Route path="/pass" element={<PassLoginPage />} />
-            <Route path="/pass/mis-compras" element={<PassDashboardPage />} />
+            {/* QuickTap Wallet (quicktap.club/wallet) */}
+            <Route path="/wallet" element={<WalletLoginPage />} />
+            <Route path="/wallet/mis-compras" element={<WalletDashboardPage />} />
+            {/* El portal se llamó QuickTap Pass y su enlace circuló impreso y por WhatsApp:
+                /pass sigue entrando, redirigido, en vez de dar 404. */}
+            <Route path="/pass" element={<Navigate to="/wallet" replace />} />
+            <Route path="/pass/mis-compras" element={<Navigate to="/wallet/mis-compras" replace />} />
 
             {/* Páginas SEO por cluster de intención — contenido en web/src/data/seoPages.ts,
                 meta del lado del servidor en src/modules/seo/static-pages.ts (backend). */}

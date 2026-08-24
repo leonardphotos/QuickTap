@@ -4,7 +4,7 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 /**
- * Alta de un cliente en QuickTap Pass desde el cobro, con su plan de cuotas.
+ * Alta de un cliente en QuickTap Wallet desde el cobro, con su plan de cuotas.
  *
  * Dos pasos a propósito: primero quién es (la cédula es obligatoria porque es su clave para
  * entrar al portal), y recién después cómo va a pagar. Pedir todo junto en una sola pantalla
@@ -32,7 +32,7 @@ interface Props {
   }) => void;
 }
 
-export function ShopPassEnrollDialog({ saldo, money, moneyBs, onClose, onListo }: Props) {
+export function ShopWalletEnrollDialog({ saldo, money, moneyBs, onClose, onListo }: Props) {
   const [paso, setPaso] = useState<'cliente' | 'plan'>('cliente');
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState(false);
@@ -72,7 +72,7 @@ export function ShopPassEnrollDialog({ saldo, money, moneyBs, onClose, onListo }
     setError(null);
     setGuardando(true);
     try {
-      await api.post('/shop/pass/enroll', {
+      await api.post('/shop/wallet/enroll', {
         name: name.trim(),
         phone: phone.replace(/\D/g, ''),
         idNumber: idNumber.trim(),
@@ -99,7 +99,7 @@ export function ShopPassEnrollDialog({ saldo, money, moneyBs, onClose, onListo }
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>{paso === 'cliente' ? 'Agregar cliente a QuickTap Pass' : 'Plan de cuotas'}</DialogTitle>
+          <DialogTitle>{paso === 'cliente' ? 'Agregar cliente a QuickTap Wallet' : 'Plan de cuotas'}</DialogTitle>
         </DialogHeader>
 
         {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
@@ -107,7 +107,7 @@ export function ShopPassEnrollDialog({ saldo, money, moneyBs, onClose, onListo }
         {paso === 'cliente' ? (
           <div className="space-y-3">
             <p className="text-[11px] font-light text-brand-950/50">
-              Con estos datos el cliente entra a quicktap.club/pass a ver lo que debe y a reportar
+              Con estos datos el cliente entra a quicktap.club/wallet a ver lo que debe y a reportar
               sus abonos. Su clave es la cédula.
             </p>
             <label className="block text-sm">

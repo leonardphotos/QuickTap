@@ -3,7 +3,7 @@ import { Check, ExternalLink, X } from 'lucide-react';
 import { api } from '@/api/client';
 
 /**
- * Ventana "QuickTap Pass" del panel del local.
+ * Ventana "QuickTap Wallet" del panel del local.
  *
  * Dos cosas en una pantalla: los abonos que los clientes reportaron y esperan verificación
  * —arriba, porque es lo que hay que atender— y debajo la lista de todos los deudores.
@@ -44,15 +44,15 @@ const METODOS: Record<string, string> = {
   binance: 'Binance',
 };
 
-export default function ShopPassPage() {
+export default function ShopWalletPage() {
   const [pendientes, setPendientes] = useState<Pendiente[] | null>(null);
   const [deudores, setDeudores] = useState<Deudor[] | null>(null);
   const [ocupado, setOcupado] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function cargar() {
-    api.get('/shop/pass/pending').then((r) => setPendientes(r.data.data)).catch(() => setPendientes([]));
-    api.get('/shop/pass/debtors').then((r) => setDeudores(r.data.data)).catch(() => setDeudores([]));
+    api.get('/shop/wallet/pending').then((r) => setPendientes(r.data.data)).catch(() => setPendientes([]));
+    api.get('/shop/wallet/debtors').then((r) => setDeudores(r.data.data)).catch(() => setDeudores([]));
   }
   useEffect(cargar, []);
 
@@ -60,7 +60,7 @@ export default function ShopPassPage() {
     setOcupado(id);
     setError(null);
     try {
-      await api.post(`/shop/pass/${id}/approve`);
+      await api.post(`/shop/wallet/${id}/approve`);
       cargar();
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo verificar el abono.');
@@ -75,7 +75,7 @@ export default function ShopPassPage() {
     setOcupado(id);
     setError(null);
     try {
-      await api.post(`/shop/pass/${id}/reject`, { motivo: motivo.trim() });
+      await api.post(`/shop/wallet/${id}/reject`, { motivo: motivo.trim() });
       cargar();
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo rechazar el abono.');
@@ -87,7 +87,7 @@ export default function ShopPassPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-bold text-brand-950">QuickTap Pass</h1>
+        <h1 className="text-xl font-bold text-brand-950">QuickTap Wallet</h1>
         <p className="text-sm font-light text-brand-950/50">
           Abonos que tus clientes reportaron desde su portal, y el estado de sus deudas.
         </p>

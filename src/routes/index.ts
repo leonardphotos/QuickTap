@@ -60,7 +60,7 @@ import supplierRoutes from '../modules/suppliers/supplier.routes';
 import quoteRoutes from '../modules/quotes/quote.routes';
 import modifierCategoryRoutes from '../modules/modifier-categories/modifier-category.routes';
 import { publicReservationRoutes, tenantReservationRoutes } from '../modules/reservations/reservation.routes';
-import passRoutes from '../modules/pass/pass.routes';
+import walletRoutes from '../modules/wallet/wallet.routes';
 import { publicRamblayRoutes } from '../modules/ramblay/ramblay.routes';
 import branchRoutes from '../modules/branches/branch.routes';
 import aiPhotoRoutes from '../modules/ai-photo/ai-photo.routes';
@@ -170,8 +170,8 @@ router.use('/public/promo-codes', publicPromoCodeRoutes);
 router.use('/public/payment-methods', publicPlatformSettingsRoutes);
 router.use('/public/plans', publicPlanContentRoutes);
 router.use('/public/reservations', publicReservationRoutes);
-// QuickTap Pass: portal del cliente final (quicktap.club/pass) — ver modules/pass.
-router.use('/public/pass', passRoutes);
+// QuickTap Wallet: portal del cliente final (quicktap.club/wallet) — ver modules/pass.
+router.use('/public/wallet', walletRoutes);
 // Latido de presencia de las páginas públicas: alimenta el contador de "personas en la
 // página" del Dashboard maestro. Anónimo y sin sesión (ver presenciaController).
 router.post('/public/presence', presenciaController.latido);

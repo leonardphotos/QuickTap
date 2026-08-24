@@ -756,7 +756,7 @@ export function useShopSession(initialCategories: string[] = []) {
     // El `sale.id` de arriba es optimista (`s${Date.now()}`) y nunca existió en el servidor —
     // sirve para pintar la UI ya mismo, no para referenciar la venta desde otra llamada. Quien
     // necesite colgarle algo a la venta DESPUÉS de que exista de verdad (ver ShopPosPage: el
-    // plan de cuotas de QuickTap Pass, que se crea contra /shop/sales/:id/installments) tiene
+    // plan de cuotas de QuickTap Wallet, que se crea contra /shop/sales/:id/installments) tiene
     // que esperar este id real. Sin él, esa llamada siempre pegaba contra un id inventado y
     // fallaba en silencio — el "no se pudo crear el plan de cuotas" salía SIEMPRE, no solo
     // quien fallara de verdad.

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Upload, X } from 'lucide-react';
 import { api } from '@/api/client';
-import { getPassToken } from './passSession';
+import { getWalletToken } from './walletSession';
 
 /**
  * Reportar un abono desde el portal del cliente.
@@ -68,7 +68,7 @@ export function AbonarDialog({ compraId, negocio, saldo, cuotas, rateBs, onClose
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const auth = useMemo(() => ({ Authorization: `Bearer ${getPassToken()}` }), []);
+  const auth = useMemo(() => ({ Authorization: `Bearer ${getWalletToken()}` }), []);
   const porPagar = cuotas.filter((c) => c.saldo > 0);
 
   // El monto sale de las cuotas elegidas; sin plan de cuotas, del saldo completo. Se topa al
@@ -81,7 +81,7 @@ export function AbonarDialog({ compraId, negocio, saldo, cuotas, rateBs, onClose
 
   useEffect(() => {
     api
-      .get(`/public/pass/sales/${compraId}/methods`, { headers: auth })
+      .get(`/public/wallet/sales/${compraId}/methods`, { headers: auth })
       .then((res) => {
         const cfg = res.data.data ?? {};
         // Solo los métodos que el negocio realmente cargó — mostrar uno vacío sería mandar al
@@ -101,7 +101,7 @@ export function AbonarDialog({ compraId, negocio, saldo, cuotas, rateBs, onClose
     try {
       const fd = new FormData();
       fd.append('photo', file);
-      const res = await api.post('/public/pass/proof', fd, { headers: auth });
+      const res = await api.post('/public/wallet/proof', fd, { headers: auth });
       setComprobante(res.data.data.url);
     } catch {
       setError('No pudimos subir el comprobante. Intenta con otra foto.');
@@ -116,13 +116,13 @@ export function AbonarDialog({ compraId, negocio, saldo, cuotas, rateBs, onClose
     setError(null);
     try {
       await api.post(
-        `/public/pass/sales/${compraId}/payments`,
+        `/public/wallet/sales/${compraId}/payments`,
         {
           amount: monto,
           method: metodo,
           // La cuota más vieja de las elegidas, solo como referencia de contra qué se reportó:
           // al aprobarlo, el negocio reparte el monto entre las cuotas pendientes en orden
-          // (ver passInboxService.aprobar), así que cubre todas las que alcance.
+          // (ver walletInboxService.aprobar), así que cubre todas las que alcance.
           installmentId: porPagar[0]?.id,
           proofImageUrl: comprobante ?? undefined,
         },

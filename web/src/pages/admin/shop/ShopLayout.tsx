@@ -14,7 +14,7 @@ import ShopInventoryPage from './ShopInventoryPage';
 import { CrmHub } from '@/components/admin/crm/CrmHub';
 import ShopSettingsPage from './ShopSettingsPage';
 import ShopApprovalsPage from './ShopApprovalsPage';
-import ShopPassPage from './ShopPassPage';
+import ShopWalletPage from './ShopWalletPage';
 import ShopTicketsPage from './ShopTicketsPage';
 import { ShopSidebar, type ShopSidebarTab } from './ShopSidebar';
 import { PLAN_LABELS } from '@/pages/admin/nav-links';
@@ -54,14 +54,14 @@ const MORE_TABS: { id: ShopScreen; label: string; icon: typeof FileText; feature
   // Órdenes de pago, Contabilidad y Cuentas bancarias ya no van sueltas acá: viven dentro de
   // Administración, igual que en restaurantes. Antes la lista mezclaba las pantallas de
   // operación diaria con las de cierre de mes, y quien entraba a facturar tenía delante las
-  // dos cosas. Las que quedan no son administración: Pass es el portal del comprador,
+  // dos cosas. Las que quedan no son administración: Wallet es el portal del comprador,
   // Solicitudes son aprobaciones del día y Sucursales es su propio nivel (en restaurantes
   // también vive fuera de Administración).
   { id: 'administracion', label: 'Administración', icon: Calculator },
   // Acceso directo: abre Administración parada en su pestaña (ver irA). Se lista aparte
   // porque es lo que más se consulta desde el mostrador y no vale hacer dos toques.
   { id: 'cuentas', label: 'Cuentas por cobrar', icon: Landmark },
-  { id: 'pass', label: 'QuickTap Pass', icon: Wallet },
+  { id: 'pass', label: 'QuickTap Wallet', icon: Wallet },
   { id: 'entradas', label: 'Entradas', icon: Ticket },
   { id: 'solicitudes', label: 'Solicitudes', icon: ShieldCheck },
   { id: 'sucursales', label: 'Sucursales', icon: Building2, feature: 'branches' },
@@ -337,7 +337,7 @@ export default function ShopLayout() {
         )}
         {screen === 'ajustes' && <ShopSettingsPage onBack={() => setScreen('admin')} session={session} />}
         {screen === 'factura' && <ShopBillingPage restaurant={restaurant} onDone={() => setScreen('admin')} />}
-        {screen === 'pass' && <ShopPassPage />}
+        {screen === 'pass' && <ShopWalletPage />}
         {screen === 'entradas' && <ShopTicketsPage />}
         {screen === 'sucursales' && !canBranches && (
           <PlanUpgradeNotice feature="Sucursales" onGoToBilling={() => setScreen('factura')} />

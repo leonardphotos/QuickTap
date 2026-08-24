@@ -2,10 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
 import { Camera, CheckCircle2, ClipboardList, Download, FileText, Loader2, MessageCircle, Minus, Plus, Printer, QrCode, ScanLine, Search, ShoppingCart, Wallet, Wrench, X } from 'lucide-react';
 import { api } from '@/api/client';
-import { shopApi, type CuentaPass, type RawConsumptionPlan, type RawShopTicket } from './shopApi';
+import { shopApi, type CuentaWallet, type RawConsumptionPlan, type RawShopTicket } from './shopApi';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { useAuth } from '@/context/AuthContext';
-import { ShopPassEnrollDialog } from './ShopPassEnrollDialog';
+import { ShopWalletEnrollDialog } from './ShopWalletEnrollDialog';
 import type { PaymentMethodKey, PaymentMethodsConfig } from '@/types';
 import {
   METHODS_ALLOWING_PROOF,
@@ -234,19 +234,19 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
   // Lo que este cliente ya debe en el local, para ofrecer sumarle la compra a esa cuenta en vez
   // de abrirle otra. Se consulta con un respiro de 400 ms: si no, cada tecla del teléfono
   // dispararía una llamada.
-  const [cuentaPass, setCuentaPass] = useState<CuentaPass | null>(null);
+  const [cuentaWallet, setCuentaWallet] = useState<CuentaWallet | null>(null);
   useEffect(() => {
     const telefono = custPhone.replace(/\D/g, '');
     if (telefono.length < 7) {
-      setCuentaPass(null);
+      setCuentaWallet(null);
       return;
     }
     let vivo = true;
     const t = setTimeout(() => {
       shopApi
-        .passAccount(telefono)
-        .then((c) => vivo && setCuentaPass(c))
-        .catch(() => vivo && setCuentaPass(null));
+        .walletAccount(telefono)
+        .then((c) => vivo && setCuentaWallet(c))
+        .catch(() => vivo && setCuentaWallet(null));
     }, 400);
     return () => {
       vivo = false;
@@ -324,9 +324,9 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
   const lockedToSelfProvider = Boolean(user && providers.length === 1 && providers[0].id === user.id);
 
   const [fiadoOpen, setFiadoOpen] = useState(false);
-  // Alta en QuickTap Pass + plan de cuotas, disparado desde el cobro. Cuando queda configurado,
+  // Alta en QuickTap Wallet + plan de cuotas, disparado desde el cobro. Cuando queda configurado,
   // la venta se cierra como fiada y el plan se crea contra ella apenas existe.
-  const [passOpen, setPassOpen] = useState(false);
+  const [walletOpen, setWalletOpen] = useState(false);
   const [entradasEmitidas, setEntradasEmitidas] = useState<RawShopTicket[] | null>(null);
   const { rig: entradasRig, descargar: descargarEntrada, descargando: descargandoEntrada } = useTicketDownload(restaurant);
   const [planPendiente, setPlanPendiente] = useState<
@@ -766,11 +766,11 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
     // optimista (nunca existió ahí); serverSaleId es la promesa que resuelve con el id real en
     // cuanto recordSale() responde (ver checkout() en shopSession.ts). Antes se usaba sale.id
     // directo acá, así que esta llamada siempre pegaba contra un id inventado y el plan de
-    // cuotas de QuickTap Pass nunca llegaba a crearse, aunque la venta sí quedara registrada.
+    // cuotas de QuickTap Wallet nunca llegaba a crearse, aunque la venta sí quedara registrada.
     if (planPendiente) {
       sale.serverSaleId
         .then((realId) => api.post(`/shop/sales/${realId}/installments`, planPendiente))
-        .then(() => show('Cliente agregado a QuickTap Pass con su plan de cuotas.'))
+        .then(() => show('Cliente agregado a QuickTap Wallet con su plan de cuotas.'))
         .catch(() => show('La venta quedó registrada, pero no se pudo crear el plan de cuotas.'));
       setPlanPendiente(null);
     }
@@ -1300,7 +1300,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                 de alta y pasa a ofrecer sumarle esta compra a lo que ya debe: es lo que el
                 cajero necesita en ese momento, y evita abrirle una segunda cuenta al mismo
                 cliente. La fusión la hace el servidor al registrar la venta (ver recordSale). */}
-            {cuentaPass && cuentaPass.admiteMas ? (
+            {cuentaWallet && cuentaWallet.admiteMas ? (
               <button
                 type="button"
                 disabled={cart.length === 0 || !till}
@@ -1310,18 +1310,18 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                 }}
                 className="mt-2 w-full rounded-full border border-amber-400/40 bg-amber-400/[0.09] py-2 text-[12.5px] font-semibold text-amber-600 transition-colors hover:bg-amber-400/20 disabled:opacity-40"
               >
-                Sumar a su cuenta · debe {money(cuentaPass.saldo)}
-                {cuentaPass.cuotasVencidas > 0 && (
+                Sumar a su cuenta · debe {money(cuentaWallet.saldo)}
+                {cuentaWallet.cuotasVencidas > 0 && (
                   <span className="ml-1 font-bold text-red-600">
-                    ({cuentaPass.cuotasVencidas} vencida{cuentaPass.cuotasVencidas === 1 ? '' : 's'})
+                    ({cuentaWallet.cuotasVencidas} vencida{cuentaWallet.cuotasVencidas === 1 ? '' : 's'})
                   </span>
                 )}
               </button>
-            ) : cuentaPass ? (
+            ) : cuentaWallet ? (
               // Debe, pero su cuenta tiene plan de cuotas: no se le puede sumar sin romper el
               // calendario ya pactado. Se avisa y no se ofrece el atajo.
               <p className="mt-2 rounded-xl border border-amber-400/30 bg-amber-400/[0.07] px-3 py-2 text-[11.5px] font-medium leading-snug text-amber-700">
-                {cuentaPass.nombre} debe {money(cuentaPass.saldo)} en un plan de cuotas. Esta compra
+                {cuentaWallet.nombre} debe {money(cuentaWallet.saldo)} en un plan de cuotas. Esta compra
                 va aparte: no se le puede sumar sin alterar sus cuotas.
               </p>
             ) : (
@@ -1330,10 +1330,10 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
               <button
                 type="button"
                 disabled={cart.length === 0 || !till}
-                onClick={() => setPassOpen(true)}
+                onClick={() => setWalletOpen(true)}
                 className="mt-2 w-full rounded-full border border-brand-500/30 bg-brand-500/[0.07] py-2 text-[12.5px] font-semibold text-brand-500 transition-colors hover:bg-brand-500/15 disabled:opacity-40"
               >
-                Agregar cliente a QuickTap Pass
+                Agregar cliente a QuickTap Wallet
               </button>
             )}
           </div>
@@ -2126,19 +2126,19 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
       )}
       {entradasRig}
 
-      {passOpen && (
-        <ShopPassEnrollDialog
+      {walletOpen && (
+        <ShopWalletEnrollDialog
           saldo={total}
           money={money}
           moneyBs={moneyBs}
-          onClose={() => setPassOpen(false)}
+          onClose={() => setWalletOpen(false)}
           onListo={({ cliente, plan }) => {
             // Los datos del cliente rellenan el cobro; el plan queda esperando a que la venta
             // exista para colgarse de ella.
             setCustName(cliente.name);
             setCustPhone(cliente.phone);
             setPlanPendiente(plan);
-            setPassOpen(false);
+            setWalletOpen(false);
             setSaleMode({ kind: 'fiado', terms: 'FULL', amountPaidNow: 0 });
             setPaymethodOpen(true);
           }}

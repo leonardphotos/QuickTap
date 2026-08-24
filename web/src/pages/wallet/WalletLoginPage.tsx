@@ -3,11 +3,11 @@ import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '@/api/client';
 import { useDocumentMeta } from '@/hooks/useDocumentMeta';
-import { PASS_NAME, PASS_WORDMARK_URL } from './passBrand';
-import { setPassToken } from './passSession';
+import { WALLET_NAME, WALLET_WORDMARK_URL } from './walletBrand';
+import { setWalletToken } from './walletSession';
 
 /**
- * Entrada a QuickTap Pass (quicktap.club/pass).
+ * Entrada a QuickTap Wallet (quicktap.club/wallet).
  *
  * Puerta aparte de las de negocio y plataforma: quien entra acá no tiene usuario en ningún
  * panel, es un comprador que quiere ver lo que debe. Se identifica con su teléfono y su cédula.
@@ -38,8 +38,8 @@ const SLIDES = [
 
 const SLIDE_MS = 5000;
 
-export default function PassLoginPage() {
-  useDocumentMeta(`${PASS_NAME} — Consulta tus compras`, 'Consulta tus compras, abonos y cuotas pendientes.');
+export default function WalletLoginPage() {
+  useDocumentMeta(`${WALLET_NAME} — Consulta tus compras`, 'Consulta tus compras, abonos y cuotas pendientes.');
   const navigate = useNavigate();
   const [phone, setPhone] = useState('');
   const [idNumber, setIdNumber] = useState('');
@@ -64,9 +64,9 @@ export default function PassLoginPage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await api.post('/public/pass/login', { phone, idNumber });
-      setPassToken(res.data.data.token);
-      navigate('/pass/mis-compras');
+      const res = await api.post('/public/wallet/login', { phone, idNumber });
+      setWalletToken(res.data.data.token);
+      navigate('/wallet/mis-compras');
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No pudimos entrar. Intenta de nuevo.');
     } finally {
@@ -97,21 +97,21 @@ export default function PassLoginPage() {
       />
 
       <div className="relative mx-auto flex min-h-dvh w-full max-w-md flex-col px-6 pb-10 pt-9">
-        {/* La marca propia de Pass ya viene en blanco con las ondas azules: no lleva texto al
+        {/* La marca propia de Wallet ya viene en blanco con las ondas azules: no lleva texto al
             lado ni hace falta invertirla como al logo de QuickTap. Va arriba a la izquierda,
             separada del bloque de abajo. */}
         {/* self-start: como hijo directo de un flex column, sin esto `align-items: stretch` lo
             estira a todo el ancho y `w-auto` no alcanza para evitarlo. */}
-        <img src={PASS_WORDMARK_URL} alt={PASS_NAME} className="h-12 w-auto self-start" />
+        <img src={WALLET_WORDMARK_URL} alt={WALLET_NAME} className="h-12 w-auto self-start" />
 
         {/* mt-auto: el carrusel y el formulario quedan pegados abajo, con el logo arriba. */}
         <div className="mt-auto">
-          {/* ---------- Carrusel: qué es Pass ---------- */}
+          {/* ---------- Carrusel: qué es Wallet ---------- */}
           {/* min-h al alto real del texto más largo: fija el bloque para que el formulario no
               salte entre diapositivas, sin dejar hueco muerto debajo del párrafo. */}
           <div className="min-h-[124px]" aria-live="polite">
             {/* key por diapositiva: React remonta el bloque y la animación vuelve a correr. */}
-            <div key={slide} className="pass-slide">
+            <div key={slide} className="wallet-slide">
               <h1 className="text-[30px] font-bold leading-[1.14] tracking-tight">
                 {actual.titulo}
                 <br />

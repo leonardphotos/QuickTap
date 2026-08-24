@@ -1556,14 +1556,31 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
           </DialogHeader>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="sm:col-span-2">
+              {/* En un evento esta imagen NO es una foto de catálogo: es el arte del boleto
+                  digital, lo que el comprador ve a pantalla completa en su Wallet (ver
+                  WalletEntradasPage). Por eso cambia de nombre y de forma — vertical, como el
+                  boleto. */}
               <PhotoUploadField
                 value={npPhotoUrl}
                 onChange={setNpPhotoUrl}
-                label={editingProductId ? 'Foto del producto' : 'Foto del producto (obligatoria)'}
+                label={
+                  esEvento
+                    ? 'Imagen del boleto digital'
+                    : editingProductId
+                      ? 'Foto del producto'
+                      : 'Foto del producto (obligatoria)'
+                }
                 uploadUrl="/shop/products/upload-photo"
                 shape="square"
                 aiEnabled
               />
+              {esEvento && (
+                <p className="mt-1 text-[11px] font-light text-brand-950/45">
+                  Es el arte que el comprador ve en su entrada, a pantalla completa. Se ve mejor
+                  vertical. Si no cargas ninguna, la entrada usa un fondo con el degradado de
+                  QuickTap.
+                </p>
+              )}
             </div>
             <label className="block text-sm sm:col-span-2">
               <span className="text-brand-950/70">Nombre</span>

@@ -118,13 +118,20 @@ export const shopTicketsService = {
   async porToken(accessToken: string) {
     const t = await prisma.shopTicket.findUnique({
       where: { accessToken },
-      include: { restaurant: { select: { name: true, logoUrl: true, whatsappPhone: true } } },
+      include: {
+        restaurant: { select: { name: true, logoUrl: true, whatsappPhone: true } },
+        // El arte del boleto se lee EN VIVO del evento, no se congela como el resto: si el
+        // local sube una imagen mejor (o corrige una mal cortada), las entradas ya entregadas
+        // se actualizan solas. Nombre, fecha y precio sí quedan congelados — esos son el trato.
+        product: { select: { photoUrl: true } },
+      },
     });
     if (!t) throw notFound('Esta entrada no existe.');
     return {
       accessToken: t.accessToken,
       negocio: t.restaurant.name,
       logoUrl: t.restaurant.logoUrl,
+      imagen: t.product?.photoUrl ?? null,
       evento: t.eventName,
       fecha: t.eventDate,
       hora: t.eventTime,

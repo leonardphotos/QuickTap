@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../../middlewares/error.middleware';
-import { passInboxService } from '../pass/pass-payments.service';
+import { walletInboxService } from '../wallet/wallet-payments.service';
 import { prisma } from '../../config/prisma';
 
 const rechazarSchema = z.object({ motivo: z.string().min(3, 'Escribe por qué lo rechazas.') });
@@ -13,36 +13,36 @@ const altaSchema = z.object({
   email: z.string().email('Correo inválido.').optional().or(z.literal('')),
 });
 
-/** Ventana "QuickTap Pass" del panel del local. */
-export const shopPassController = {
-  /** GET /shop/pass/pending — abonos reportados esperando verificación. */
+/** Ventana "QuickTap Wallet" del panel del local. */
+export const shopWalletController = {
+  /** GET /shop/wallet/pending — abonos reportados esperando verificación. */
   pendientes: asyncHandler(async (req: Request, res: Response) => {
-    res.json({ data: await passInboxService.pendientes(req.restaurantId!) });
+    res.json({ data: await walletInboxService.pendientes(req.restaurantId!) });
   }),
 
   /**
-   * GET /shop/pass/account?phone= — la cuenta abierta de ESE cliente, o null.
+   * GET /shop/wallet/account?phone= — la cuenta abierta de ESE cliente, o null.
    *
    * Aparte de /debtors (que trae la lista entera) porque el POS la consulta mientras el cajero
    * escribe el teléfono: traer todos los deudores en cada tecleo sería absurdo.
    */
   cuenta: asyncHandler(async (req: Request, res: Response) => {
     const phone = typeof req.query.phone === 'string' ? req.query.phone : '';
-    res.json({ data: await passInboxService.cuentaDe(req.restaurantId!, phone) });
+    res.json({ data: await walletInboxService.cuentaDe(req.restaurantId!, phone) });
   }),
 
-  /** GET /shop/pass/debtors — todos los clientes con deuda, de mayor a menor. */
+  /** GET /shop/wallet/debtors — todos los clientes con deuda, de mayor a menor. */
   deudores: asyncHandler(async (req: Request, res: Response) => {
-    res.json({ data: await passInboxService.deudores(req.restaurantId!) });
+    res.json({ data: await walletInboxService.deudores(req.restaurantId!) });
   }),
 
-  /** POST /shop/pass/:id/approve — el abono se vuelve real y suma al cliente. */
+  /** POST /shop/wallet/:id/approve — el abono se vuelve real y suma al cliente. */
   aprobar: asyncHandler(async (req: Request, res: Response) => {
-    res.json({ data: await passInboxService.aprobar(req.restaurantId!, req.params.id, req.auth?.userId) });
+    res.json({ data: await walletInboxService.aprobar(req.restaurantId!, req.params.id, req.auth?.userId) });
   }),
 
   /**
-   * POST /shop/pass/enroll — da de alta al cliente en QuickTap Pass.
+   * POST /shop/wallet/enroll — da de alta al cliente en QuickTap Wallet.
    *
    * La cédula es obligatoria porque es la clave con la que entra al portal; sin ella quedaría
    * registrado pero sin poder consultar nada.
@@ -64,9 +64,9 @@ export const shopPassController = {
     res.status(201).json({ data: { id: cliente.id, name: cliente.name, phone: cliente.phone } });
   }),
 
-  /** POST /shop/pass/:id/reject — no se crea ningún pago; el cliente ve el motivo. */
+  /** POST /shop/wallet/:id/reject — no se crea ningún pago; el cliente ve el motivo. */
   rechazar: asyncHandler(async (req: Request, res: Response) => {
     const { motivo } = rechazarSchema.parse(req.body);
-    res.json({ data: await passInboxService.rechazar(req.restaurantId!, req.params.id, motivo, req.auth?.userId) });
+    res.json({ data: await walletInboxService.rechazar(req.restaurantId!, req.params.id, motivo, req.auth?.userId) });
   }),
 };

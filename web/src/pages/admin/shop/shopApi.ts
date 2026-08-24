@@ -104,8 +104,8 @@ export interface RawShopTicket {
   holderName: string | null;
 }
 
-/** Lo que el cliente ya debe en este local (QuickTap Pass), visto desde el POS. */
-export interface CuentaPass {
+/** Lo que el cliente ya debe en este local (QuickTap Wallet), visto desde el POS. */
+export interface CuentaWallet {
   nombre: string;
   telefono: string;
   saldo: number;
@@ -256,11 +256,11 @@ export const shopApi = {
     await api.post(`/shop/sales/${id}/return`);
   },
 
-  // ─── QuickTap Pass ──────────────────────────────────────────────────────
+  // ─── QuickTap Wallet ──────────────────────────────────────────────────────
 
   /** La cuenta fiada abierta de ese teléfono en este local, o null si no debe nada. */
-  async passAccount(phone: string): Promise<CuentaPass | null> {
-    const { data } = await api.get('/shop/pass/account', { params: { phone } });
+  async walletAccount(phone: string): Promise<CuentaWallet | null> {
+    const { data } = await api.get('/shop/wallet/account', { params: { phone } });
     return data.data;
   },
 
