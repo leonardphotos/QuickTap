@@ -15,6 +15,7 @@ import { masterWhatsappBotService } from './modules/master-whatsapp/master-whats
 import { subscriptionReminderService } from './modules/master-whatsapp/subscription-reminder.service';
 import { clubDebtBotService } from './modules/club/club-debt-bot.service';
 import { subscriptionPaymentVerificationService } from './modules/master-whatsapp/subscription-payment-verification.service';
+import { shopInstallmentsService } from './modules/shop/shop-installments.service';
 import { emitToKitchen, SocketEvents } from './sockets';
 
 async function bootstrap() {
@@ -152,6 +153,17 @@ async function bootstrap() {
     }
   }, 2 * 60 * 1000);
 
+  // QuickTap Pass / cuotas de locales comerciales: aplica la mora a las cuotas que ya
+  // vencieron y siguen sin pagar (ver shop-installments.service.ts -> aplicarMoraVencidas).
+  // Existía la función pero nada la llamaba — ninguna cuota vencida terminaba con mora
+  // aplicada por más días que pasaran. Una pasada al arrancar + cada 6h, mismo criterio que
+  // el resto de los barridos de esta lista.
+  shopInstallmentsService.aplicarMoraVencidas().catch(() => undefined);
+  const installmentLateFeeInterval = setInterval(
+    () => shopInstallmentsService.aplicarMoraVencidas().catch(() => undefined),
+    6 * 60 * 60 * 1000,
+  );
+
   // Solo localhost: Nginx (misma máquina) es el único que debe llegar a este
   // puerto — así queda fuera de alcance directo de internet aunque el
   // firewall se desconfigure alguna vez.
@@ -175,6 +187,7 @@ async function bootstrap() {
     if (clubDebtReminderKickoff) clearTimeout(clubDebtReminderKickoff);
     if (clubDebtReminderInterval) clearInterval(clubDebtReminderInterval);
     clearInterval(subscriptionVerificationSweepInterval);
+    clearInterval(installmentLateFeeInterval);
     masterServerStatusService.stopSampling();
     server.close();
     await prisma.$disconnect();

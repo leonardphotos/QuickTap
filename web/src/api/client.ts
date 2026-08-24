@@ -61,7 +61,11 @@ export function clearRememberedEmail(): void {
 api.interceptors.request.use((config) => {
   config.baseURL = `${apiOrigin()}/api/v1`;
   const token = getToken();
-  if (token) {
+  // Si la llamada ya trae su propio Authorization (ej. QuickTap Pass, que guarda su token
+  // aparte del de negocio — ver passSession.ts) no se pisa: en el mismo navegador puede haber
+  // a la vez una sesión de negocio y una de Pass, y esto rompía Pass por completo cada vez que
+  // coincidían, mandando el JWT del negocio en vez del de Pass.
+  if (token && !config.headers.Authorization) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
