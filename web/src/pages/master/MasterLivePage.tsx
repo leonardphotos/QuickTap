@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
-import { Activity, Eye } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Activity, Eye, TrendingUp } from 'lucide-react';
 import { masterApi } from '@/api/client';
 
 type Vertical = 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB' | 'ADMIN_OFFICE';
@@ -20,16 +20,19 @@ interface Snapshot {
 }
 
 /**
- * Un color por vertical, sostenido en toda la pantalla: la línea de la gráfica, el punto de la
- * leyenda y la pastilla del ticker son el mismo color. Sin eso hay que leer cada etiqueta para
- * saber de quién se está hablando.
+ * Un color por vertical, sostenido en toda la pantalla: la línea, el punto de la pestaña y la
+ * barra del ranking son el mismo, así no hay que leer la etiqueta para saber de quién se habla.
+ * Toda la escala vive en el azul de QuickTap y sus vecinos — sobre negro se distinguen entre sí
+ * sin que ninguno grite más que el otro.
  */
+const AZUL = '#009aff';
 const VERTICALES: { id: Vertical; label: string; color: string }[] = [
-  { id: 'RESTAURANT', label: 'Restaurantes', color: '#38bdf8' },
-  { id: 'SHOP', label: 'Locales', color: '#34d399' },
-  { id: 'SPORTS_CLUB', label: 'Canchas', color: '#fbbf24' },
-  { id: 'ADMIN_OFFICE', label: 'Administración', color: '#c084fc' },
+  { id: 'RESTAURANT', label: 'Restaurantes', color: AZUL },
+  { id: 'SHOP', label: 'Locales', color: '#22d3ee' },
+  { id: 'SPORTS_CLUB', label: 'Canchas', color: '#5b8cff' },
+  { id: 'ADMIN_OFFICE', label: 'Administración', color: '#a78bfa' },
 ];
+const COLOR_DE = (v: Vertical) => VERTICALES.find((x) => x.id === v)!.color;
 
 const REFRESCO_MS = 8000;
 
@@ -38,23 +41,29 @@ const usdCorto = (n: number) =>
   n >= 1000 ? `$${(n / 1000).toFixed(1)}k` : `$${n.toLocaleString('es-VE', { maximumFractionDigits: 0 })}`;
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' });
 
+type Foco = 'TODOS' | Vertical;
+
 /**
  * Estadísticas en vivo de toda la plataforma.
  *
- * Una sola gráfica con los cuatro verticales sobre el mismo eje: la pregunta que se responde
- * acá es "cómo va la plataforma hoy y quién está empujando", y eso no se ve en cuatro tarjetas
- * separadas. Las líneas son acumuladas —lo que lleva generado el día— así que suben y nunca
- * bajan, como la curva de una sesión de mercado.
+ * Panel oscuro dentro del maestro, que es claro: no es decoración, es lo que hace legible una
+ * gráfica de cuatro series finas de color — sobre blanco se lavan. Por eso el fondo se sale de
+ * los márgenes del layout y ocupa la pantalla completa.
  *
- * La gráfica es un SVG a mano: son cuatro polilíneas sobre una grilla, no hace falta traer una
- * librería de gráficos al bundle del maestro para eso.
+ * Las líneas son ACUMULADAS del día: suben y nunca bajan, como la curva de una sesión de
+ * mercado. Un histograma por cubo daría cuatro sierras que suben y bajan según pase o no un
+ * pedido, y de ahí no se lee cómo va el día.
+ *
+ * El gráfico es SVG a mano: son polilíneas sobre una grilla, no amerita sumarle una librería de
+ * gráficos al bundle del maestro.
  */
 export default function MasterLivePage() {
   const [data, setData] = useState<Snapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [ocultos, setOcultos] = useState<Vertical[]>([]);
+  const [foco, setFoco] = useState<Foco>('TODOS');
   const [pausado, setPausado] = useState(false);
-  // Se guarda entre refrescos para que el "$0,00" del primer render no borre la gráfica.
+  const [cursor, setCursor] = useState<number | null>(null);
+  // Se conserva entre refrescos para que un fallo suelto no borre la gráfica de la pantalla.
   const previo = useRef<Snapshot | null>(null);
 
   useEffect(() => {
@@ -80,201 +89,326 @@ export default function MasterLivePage() {
   }, [pausado]);
 
   const d = data ?? previo.current;
+
+  const series = useMemo(
+    () => (foco === 'TODOS' ? VERTICALES : VERTICALES.filter((v) => v.id === foco)),
+    [foco],
+  );
+
   if (!d) {
     return (
-      <p className={`p-8 text-sm ${error ? 'text-red-600' : 'text-brand-950/50'}`}>{error ?? 'Cargando…'}</p>
+      <Marco>
+        <p className={`py-24 text-center text-sm ${error ? 'text-red-400' : 'text-white/40'}`}>{error ?? 'Cargando…'}</p>
+      </Marco>
     );
   }
 
-  const visibles = VERTICALES.filter((v) => !ocultos.includes(v.id));
   const serie = d.serie;
-  // El techo del eje sale del total, no de la línea más alta: así las cuatro se leen a la
-  // misma escala y se ve cuál pesa de verdad en la suma.
-  const techo = Math.max(1, ...serie.map((p) => Math.max(...visibles.map((v) => p.porVertical[v.id]))));
+  const valorEn = (p: (typeof serie)[number]) =>
+    foco === 'TODOS' ? Math.max(...VERTICALES.map((v) => p.porVertical[v.id])) : p.porVertical[foco];
+  const techo = Math.max(1, ...serie.map(valorEn));
 
   const W = 1000;
-  const H = 280;
-  const PAD_X = 8;
-  const puntosDe = (v: Vertical) =>
-    serie
-      .map((p, i) => {
-        const x = PAD_X + (i / Math.max(1, serie.length - 1)) * (W - PAD_X * 2);
-        const y = H - (p.porVertical[v] / techo) * (H - 16) - 8;
-        return `${x.toFixed(1)},${y.toFixed(1)}`;
-      })
-      .join(' ');
+  const H = 300;
+  const PAD = 10;
+  const xDe = (i: number) => PAD + (i / Math.max(1, serie.length - 1)) * (W - PAD * 2);
+  const yDe = (valor: number) => H - (valor / techo) * (H - 24) - 12;
+  const lineaDe = (v: Vertical) => serie.map((p, i) => `${xDe(i).toFixed(1)},${yDe(p.porVertical[v]).toFixed(1)}`).join(' ');
+  const areaDe = (v: Vertical) =>
+    `${PAD},${H} ${lineaDe(v)} ${xDe(serie.length - 1).toFixed(1)},${H}`;
+
+  const punto = cursor != null ? serie[Math.min(Math.max(cursor, 0), serie.length - 1)] : null;
+  const totalMostrado = foco === 'TODOS' ? d.totalDia.usd : d.totales[foco].usd;
 
   return (
-    <div className="space-y-4">
+    <Marco>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-brand-950">En vivo</h1>
-          <p className="mt-0.5 text-sm font-light text-brand-950/50">
-            Lo que está generando la plataforma hoy, desde las {hora(d.desde)}. Se actualiza solo.
+          <h1 className="text-[26px] font-bold tracking-tight text-white">En vivo</h1>
+          <p className="mt-0.5 text-[13px] font-light text-white/40">
+            Lo que está generando la plataforma hoy, desde las {hora(d.desde)}
           </p>
         </div>
         <button
           type="button"
           onClick={() => setPausado((p) => !p)}
-          className="flex items-center gap-2 rounded-full border border-brand-950/15 px-3.5 py-2 text-xs font-semibold text-brand-950/70 transition-colors hover:bg-brand-950/[0.04]"
+          className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold text-white/70 transition-colors hover:bg-white/[0.08]"
         >
-          <span className={`h-2 w-2 rounded-full ${pausado ? 'bg-brand-950/25' : 'animate-pulse bg-emerald-400'}`} />
+          <span
+            className={`h-2 w-2 rounded-full ${pausado ? 'bg-white/30' : 'animate-pulse'}`}
+            style={pausado ? undefined : { background: AZUL }}
+          />
           {pausado ? 'Reanudar' : 'En vivo'}
         </button>
       </div>
 
-      {error && <p className="text-xs text-amber-600">{error}</p>}
+      {error && <p className="mt-3 text-xs text-amber-400">{error}</p>}
 
-      {/* ---------- Cifras de cabecera ---------- */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Cifra
-          icono={<Eye className="h-4 w-4" />}
+      <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Tarjeta
           label="En la página ahora"
           valor={String(d.visitantes.total)}
-          sub={d.visitantes.porNegocio[0]?.negocio ?? 'Nadie navegando'}
-          acento="text-emerald-600"
+          pie={d.visitantes.porNegocio[0]?.negocio ?? 'Nadie navegando'}
+          icono={<Eye className="h-3.5 w-3.5" />}
+          chispa={d.visitantes.porNegocio.map((n) => n.visitantes)}
         />
-        <Cifra
-          icono={<Activity className="h-4 w-4" />}
-          label="Operaciones de hoy"
+        <Tarjeta
+          label="Operaciones hoy"
           valor={String(d.totalDia.operaciones)}
-          sub="Pedidos, ventas y reservas"
+          pie="Pedidos, ventas y reservas"
+          icono={<Activity className="h-3.5 w-3.5" />}
+          chispa={serie.map((p) => p.total)}
         />
-        <Cifra label="Generado hoy" valor={usd(d.totalDia.usd)} sub="Suma de los cuatro verticales" />
-        <Cifra
+        <Tarjeta
+          label="Generado hoy"
+          valor={usdCorto(d.totalDia.usd)}
+          pie={usd(d.totalDia.usd)}
+          icono={<TrendingUp className="h-3.5 w-3.5" />}
+          chispa={serie.map((p) => p.total)}
+          destacado
+        />
+        <Tarjeta
           label="Va ganando"
           valor={d.ranking[0]?.negocio ?? '—'}
-          sub={d.ranking[0] ? `${usd(d.ranking[0].usd)} · ${d.ranking[0].operaciones} ops` : 'Sin movimiento todavía'}
+          pie={d.ranking[0] ? `${usd(d.ranking[0].usd)} · ${d.ranking[0].operaciones} ops` : 'Sin movimiento todavía'}
+          chispa={[...d.ranking].reverse().map((r) => r.usd)}
+          compacto
         />
       </div>
 
-      {/* ---------- La gráfica ---------- */}
-      <div className="rounded-2xl border border-brand-950/[0.08] bg-white p-4 shadow-sm">
-        <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-          {VERTICALES.map((v) => {
-            const activo = !ocultos.includes(v.id);
+      <section className="mt-3 rounded-2xl border border-white/[0.07] bg-[#0c1119] p-4 sm:p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[15px] font-semibold text-white">Generado hoy</p>
+          <p className="text-[22px] font-bold tabular-nums" style={{ color: foco === 'TODOS' ? '#fff' : COLOR_DE(foco) }}>
+            {usd(totalMostrado)}
+          </p>
+        </div>
+
+        {/* Pestañas: "Todos" superpone las cuatro líneas; una sola la dibuja con relleno, que es
+            donde se le ve bien la forma a la curva. */}
+        <div className="-mx-1 mt-3 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {(['TODOS', ...VERTICALES.map((v) => v.id)] as Foco[]).map((f) => {
+            const activo = foco === f;
+            const label = f === 'TODOS' ? 'Todos' : VERTICALES.find((v) => v.id === f)!.label;
+            const color = f === 'TODOS' ? AZUL : COLOR_DE(f);
             return (
               <button
-                key={v.id}
+                key={f}
                 type="button"
-                onClick={() => setOcultos((o) => (o.includes(v.id) ? o.filter((x) => x !== v.id) : [...o, v.id]))}
-                className={`flex items-center gap-2 text-xs font-semibold transition-opacity ${activo ? '' : 'opacity-35'}`}
+                onClick={() => setFoco(f)}
+                className={`flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold transition-colors ${
+                  activo ? 'text-white' : 'text-white/45 hover:text-white/70'
+                }`}
+                style={activo ? { background: `${color}1f`, boxShadow: `inset 0 0 0 1px ${color}59` } : undefined}
               >
-                <span className="h-2.5 w-2.5 rounded-full" style={{ background: v.color }} />
-                <span className="text-brand-950/60">{v.label}</span>
-                <span className="tabular-nums text-brand-950">{usdCorto(d.totales[v.id].usd)}</span>
+                {f !== 'TODOS' && <span className="h-2 w-2 rounded-full" style={{ background: color }} />}
+                {label}
+                {f !== 'TODOS' && <span className="tabular-nums text-white/45">{usdCorto(d.totales[f].usd)}</span>}
               </button>
             );
           })}
         </div>
 
-        <div className="overflow-hidden rounded-xl bg-[#080d15]">
-          <svg viewBox={`0 0 ${W} ${H}`} className="h-[260px] w-full" preserveAspectRatio="none" role="img" aria-label="Generado hoy por vertical">
-            {[0.25, 0.5, 0.75].map((f) => (
-              <line key={f} x1="0" x2={W} y1={H * f} y2={H * f} stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+        <div className="relative mt-3">
+          <svg
+            viewBox={`0 0 ${W} ${H}`}
+            className="h-[240px] w-full touch-none sm:h-[300px]"
+            preserveAspectRatio="none"
+            role="img"
+            aria-label="Generado hoy por vertical"
+            onPointerMove={(e) => {
+              const caja = e.currentTarget.getBoundingClientRect();
+              const rel = (e.clientX - caja.left) / caja.width;
+              setCursor(Math.round(rel * (serie.length - 1)));
+            }}
+            onPointerLeave={() => setCursor(null)}
+          >
+            <defs>
+              {VERTICALES.map((v) => (
+                <linearGradient key={v.id} id={`relleno-${v.id}`} x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={v.color} stopOpacity="0.32" />
+                  <stop offset="100%" stopColor={v.color} stopOpacity="0" />
+                </linearGradient>
+              ))}
+            </defs>
+
+            {[0.2, 0.4, 0.6, 0.8].map((f) => (
+              <line key={f} x1="0" x2={W} y1={H * f} y2={H * f} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />
             ))}
-            {visibles.map((v) => (
+
+            {foco !== 'TODOS' && <polygon points={areaDe(foco)} fill={`url(#relleno-${foco})`} />}
+
+            {series.map((v) => (
               <polyline
                 key={v.id}
-                points={puntosDe(v.id)}
+                points={lineaDe(v.id)}
                 fill="none"
                 stroke={v.color}
-                strokeWidth="2"
+                strokeWidth={foco === 'TODOS' ? 2 : 2.5}
                 strokeLinejoin="round"
                 strokeLinecap="round"
                 vectorEffect="non-scaling-stroke"
               />
             ))}
-          </svg>
-        </div>
-        <div className="mt-1.5 flex justify-between text-[10.5px] tabular-nums text-brand-950/35">
-          <span>{hora(d.desde)}</span>
-          <span>techo {usdCorto(techo)}</span>
-          <span>{hora(d.ahora)}</span>
-        </div>
-      </div>
 
-      <div className="grid gap-3 lg:grid-cols-2">
-        {/* ---------- Ticker ---------- */}
-        <div className="rounded-2xl border border-brand-950/[0.08] bg-white p-4 shadow-sm">
-          <p className="mb-2.5 text-sm font-semibold text-brand-950">Últimos movimientos</p>
-          {d.ultimos.length === 0 ? (
-            <p className="py-6 text-center text-xs font-light text-brand-950/40">Todavía no se ha generado nada hoy.</p>
-          ) : (
-            <ul className="space-y-1">
-              {d.ultimos.map((m, i) => {
-                const v = VERTICALES.find((x) => x.id === m.vertical)!;
-                return (
-                  <li key={`${m.cuando}-${i}`} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-brand-950/[0.03]">
-                    <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: v.color }} />
-                    <span className="w-10 shrink-0 text-[11px] tabular-nums text-brand-950/40">{hora(m.cuando)}</span>
-                    <span className="min-w-0 flex-1 truncate text-[12.5px] text-brand-950/80">{m.negocio}</span>
-                    <span className="shrink-0 text-[11px] text-brand-950/40">{m.detalle}</span>
-                    <span className="shrink-0 text-[12.5px] font-semibold tabular-nums text-brand-950">{usd(m.monto)}</span>
-                  </li>
-                );
-              })}
-            </ul>
+            {punto && cursor != null && (
+              <>
+                <line
+                  x1={xDe(cursor)}
+                  x2={xDe(cursor)}
+                  y1="0"
+                  y2={H}
+                  stroke="rgba(255,255,255,0.25)"
+                  strokeWidth="1"
+                  strokeDasharray="4 4"
+                  vectorEffect="non-scaling-stroke"
+                />
+                {series.map((v) => (
+                  <circle key={v.id} cx={xDe(cursor)} cy={yDe(punto.porVertical[v.id])} r="4" fill={v.color} />
+                ))}
+              </>
+            )}
+          </svg>
+
+          {/* Las etiquetas del eje van FUERA del SVG: con preserveAspectRatio="none" un <text>
+              de adentro se estiraría junto con la gráfica. */}
+          <div className="pointer-events-none absolute inset-y-0 left-1 flex flex-col justify-between py-1 text-[10px] tabular-nums text-white/25">
+            <span>{usdCorto(techo)}</span>
+            <span>{usdCorto(techo / 2)}</span>
+            <span>$0</span>
+          </div>
+
+          {punto && (
+            <div className="pointer-events-none absolute right-2 top-2 rounded-xl border border-white/10 bg-[#0c1119]/95 px-3 py-2 backdrop-blur-sm">
+              <p className="text-[10.5px] text-white/40">{hora(punto.t)}</p>
+              {series.map((v) => (
+                <p key={v.id} className="flex items-center gap-1.5 text-[11.5px] tabular-nums text-white/80">
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: v.color }} />
+                  {usd(punto.porVertical[v.id])}
+                </p>
+              ))}
+            </div>
           )}
         </div>
 
-        {/* ---------- Ranking del día ---------- */}
-        <div className="rounded-2xl border border-brand-950/[0.08] bg-white p-4 shadow-sm">
-          <p className="mb-2.5 text-sm font-semibold text-brand-950">Quién está generando hoy</p>
+        <div className="mt-1.5 flex justify-between px-1 text-[10.5px] tabular-nums text-white/25">
+          <span>{hora(d.desde)}</span>
+          <span>{hora(d.ahora)}</span>
+        </div>
+      </section>
+
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        <section className="rounded-2xl border border-white/[0.07] bg-[#0c1119] p-4 sm:p-5">
+          <p className="mb-3 text-[15px] font-semibold text-white">Quién está generando hoy</p>
           {d.ranking.length === 0 ? (
-            <p className="py-6 text-center text-xs font-light text-brand-950/40">Sin movimiento todavía.</p>
+            <p className="py-10 text-center text-xs font-light text-white/30">Sin movimiento todavía.</p>
           ) : (
-            <ul className="space-y-2">
+            <ul className="space-y-2.5">
               {d.ranking.map((r) => {
-                const v = VERTICALES.find((x) => x.id === r.vertical)!;
                 const pct = (r.usd / Math.max(1, d.ranking[0].usd)) * 100;
                 const mirando = d.visitantes.porNegocio.find((n) => n.negocio === r.negocio)?.visitantes ?? 0;
                 return (
                   <li key={r.negocio}>
                     <div className="flex items-baseline justify-between gap-2 text-[12.5px]">
-                      <span className="min-w-0 truncate text-brand-950/80">
+                      <span className="min-w-0 truncate text-white/80">
                         {r.negocio}
                         {mirando > 0 && (
-                          <span className="ml-1.5 text-[10.5px] text-emerald-600">· {mirando} mirando</span>
+                          <span className="ml-1.5 text-[10.5px]" style={{ color: AZUL }}>
+                            · {mirando} mirando
+                          </span>
                         )}
                       </span>
-                      <span className="shrink-0 font-semibold tabular-nums text-brand-950">{usd(r.usd)}</span>
+                      <span className="shrink-0 font-semibold tabular-nums text-white">{usd(r.usd)}</span>
                     </div>
-                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-brand-950/[0.07]">
-                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: v.color }} />
+                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+                      <div
+                        className="h-full rounded-full transition-[width] duration-500"
+                        style={{ width: `${pct}%`, background: COLOR_DE(r.vertical) }}
+                      />
                     </div>
                   </li>
                 );
               })}
             </ul>
           )}
-        </div>
+        </section>
+
+        <section className="rounded-2xl border border-white/[0.07] bg-[#0c1119] p-4 sm:p-5">
+          <p className="mb-3 text-[15px] font-semibold text-white">Últimos movimientos</p>
+          {d.ultimos.length === 0 ? (
+            <p className="py-10 text-center text-xs font-light text-white/30">Todavía no se ha generado nada hoy.</p>
+          ) : (
+            <ul className="space-y-0.5">
+              {d.ultimos.map((m, i) => (
+                <li key={`${m.cuando}-${i}`} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-white/[0.04]">
+                  <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: COLOR_DE(m.vertical) }} />
+                  <span className="w-10 shrink-0 text-[11px] tabular-nums text-white/30">{hora(m.cuando)}</span>
+                  <span className="min-w-0 flex-1 truncate text-[12.5px] text-white/80">{m.negocio}</span>
+                  <span className="hidden shrink-0 text-[11px] text-white/30 sm:inline">{m.detalle}</span>
+                  <span className="shrink-0 text-[12.5px] font-semibold tabular-nums text-white">{usd(m.monto)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
+    </Marco>
+  );
+}
+
+/**
+ * Saca el panel de los márgenes del maestro para que el negro llegue a los bordes. Sin esto
+ * queda una tarjeta oscura flotando sobre el gris del layout, que es justo lo que no se pidió.
+ */
+function Marco({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="-mx-6 -my-10 min-h-[calc(100vh-56px)] bg-[#05070b] px-4 py-6 sm:px-6">
+      <div className="mx-auto max-w-6xl">{children}</div>
     </div>
   );
 }
 
-function Cifra({
-  icono,
+/** Tarjeta de cifra con su chispa: la línea de atrás da la forma sin ocupar espacio propio. */
+function Tarjeta({
   label,
   valor,
-  sub,
-  acento,
+  pie,
+  icono,
+  chispa,
+  destacado,
+  compacto,
 }: {
-  icono?: React.ReactNode;
   label: string;
   valor: string;
-  sub: string;
-  acento?: string;
+  pie: string;
+  icono?: React.ReactNode;
+  chispa: number[];
+  destacado?: boolean;
+  compacto?: boolean;
 }) {
+  const datos = chispa.filter((n) => Number.isFinite(n));
+  const max = Math.max(1, ...datos);
+  const puntos =
+    datos.length > 1 ? datos.map((n, i) => `${(i / (datos.length - 1)) * 100},${28 - (n / max) * 24}`).join(' ') : null;
+
   return (
-    <div className="rounded-2xl border border-brand-950/[0.08] bg-white p-4 shadow-sm">
-      <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-brand-950/45">
+    <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#0c1119] p-3.5">
+      <p className="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wide text-white/35">
         {icono}
         {label}
       </p>
-      <p className={`mt-1.5 truncate text-2xl font-bold tabular-nums ${acento ?? 'text-brand-950'}`}>{valor}</p>
-      <p className="mt-0.5 truncate text-[11.5px] font-light text-brand-950/45">{sub}</p>
+      <p
+        className={`mt-1.5 truncate font-bold tabular-nums ${compacto ? 'text-[17px]' : 'text-[24px]'}`}
+        style={{ color: destacado ? AZUL : '#fff' }}
+      >
+        {valor}
+      </p>
+      <p className="mt-0.5 truncate text-[11px] font-light text-white/35">{pie}</p>
+      {puntos && (
+        <svg viewBox="0 0 100 28" preserveAspectRatio="none" className="mt-2 h-7 w-full opacity-70" aria-hidden>
+          <polyline points={puntos} fill="none" stroke={AZUL} strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+        </svg>
+      )}
     </div>
   );
 }
