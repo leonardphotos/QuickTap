@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronRight, Home, LogOut, MessageCircle, Search, Ticket, X } from 'lucide-react';
+import { ChevronRight, Home, LogOut, MessageCircle, Search, Store, Ticket, TrendingUp, Wallet, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { useDocumentMeta } from '@/hooks/useDocumentMeta';
 import { WALLET_NAME, WALLET_WORDMARK_URL } from './walletBrand';
@@ -133,7 +133,7 @@ function colorDe(nombre: string): string {
   return COLORES[h % COLORES.length];
 }
 
-type Seccion = 'inicio' | 'entradas';
+type Seccion = 'inicio' | 'tiendas' | 'entradas';
 
 /**
  * Cuenta desde 0 hasta el saldo al entrar.
@@ -295,13 +295,15 @@ export default function WalletDashboardPage() {
               <img src={WALLET_WORDMARK_URL} alt={WALLET_NAME} className="h-5 w-auto" />
             </div>
             <div className="flex items-center gap-2">
-              <button
-                onClick={() => setBuscando((s) => !s)}
-                aria-label="Buscar"
-                className="wallet-tap flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.08]"
-              >
-                {buscando ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
-              </button>
+              {seccion === 'tiendas' && (
+                <button
+                  onClick={() => setBuscando((s) => !s)}
+                  aria-label="Buscar"
+                  className="wallet-tap flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.08]"
+                >
+                  {buscando ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+                </button>
+              )}
               <button
                 onClick={salir}
                 aria-label="Salir"
@@ -330,16 +332,13 @@ export default function WalletDashboardPage() {
                     ? 'Estás al día'
                     : `${resumen.comprasActivas} cuenta${resumen.comprasActivas === 1 ? '' : 's'} por pagar`}
                 </span>
-                <span className="rounded-full bg-emerald-400/10 px-3.5 py-1.5 text-[12px] font-light text-emerald-300">
-                  Abonado {money(resumen.totalAbonado)}
-                </span>
               </div>
             </>
           )}
 
           {/* El buscador se despliega en vez de empujar el contenido de golpe. */}
           <AnimatePresence initial={false}>
-            {buscando && seccion === 'inicio' && (
+            {buscando && seccion === 'tiendas' && (
               <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: 'auto', opacity: 1 }}
@@ -360,9 +359,68 @@ export default function WalletDashboardPage() {
         </div>
 
         {/* ---------- Contenido ---------- */}
-        {seccion === 'entradas' ? (
-          // Cambiar de sección desliza el contenido en la dirección del menú (Entradas está a
-          // la derecha de Inicio), para que el movimiento coincida con dónde se tocó.
+        {seccion === 'inicio' && (
+          // Inicio queda en oscuro y sin la hoja: solo el saldo y el resumen. Las tiendas
+          // viven en su propia sección, que sube desde abajo.
+          <motion.div
+            key="inicio"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.24, ease: [0.23, 1, 0.32, 1] }}
+            className="flex-1 space-y-3 px-5 pb-28"
+          >
+            <div className="rounded-2xl bg-[#141a22] px-4 py-3">
+              <div className="flex items-center justify-between py-1.5">
+                <span className="flex items-center gap-2 text-sm font-light text-white/70">
+                  <Wallet className="h-4 w-4 text-white/40" /> Total comprado
+                </span>
+                <span className="text-right text-sm font-semibold tabular-nums">
+                  {bs(resumen.totalComprado, data.rateBs) || money(resumen.totalComprado)}
+                  {data.rateBs && (
+                    <span className="block text-[11px] font-light text-white/40">{money(resumen.totalComprado)}</span>
+                  )}
+                </span>
+              </div>
+              <div className="h-px bg-white/[0.06]" />
+              <div className="flex items-center justify-between py-1.5">
+                <span className="flex items-center gap-2 text-sm font-light text-white/70">
+                  <TrendingUp className="h-4 w-4 text-emerald-400/70" /> Total abonado
+                </span>
+                <span className="text-right text-sm font-semibold tabular-nums text-emerald-400">
+                  {bs(resumen.totalAbonado, data.rateBs) || money(resumen.totalAbonado)}
+                  {data.rateBs && (
+                    <span className="block text-[11px] font-light text-white/40">{money(resumen.totalAbonado)}</span>
+                  )}
+                </span>
+              </div>
+            </div>
+
+            {/* Atajo a las tiendas: en Inicio la deuda es un número, y esto es lo que lleva a
+                ver de quién es. Hace lo mismo que el botón del menú. */}
+            <button
+              type="button"
+              onClick={() => setSeccion('tiendas')}
+              className="wallet-tap flex w-full items-center gap-3 rounded-2xl bg-[#141a22] px-4 py-3.5 text-left"
+            >
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.07]">
+                <Store className="h-4 w-4 text-white/60" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-sm font-semibold">Tiendas</span>
+                <span className="block text-[11.5px] font-light text-white/45">
+                  {tiendas.length === 0
+                    ? 'Todavía sin compras'
+                    : `${tiendas.length} ${tiendas.length === 1 ? 'tienda' : 'tiendas'} · ver a quién le debes`}
+                </span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-white/25" />
+            </button>
+          </motion.div>
+        )}
+
+        {seccion === 'entradas' && (
+          // Entradas está a la derecha en el menú: entra desde ese lado, para que el
+          // movimiento coincida con dónde se tocó.
           <motion.div
             key="entradas"
             initial={reducirMovimiento ? { opacity: 0 } : { opacity: 0, transform: 'translateX(24px)' }}
@@ -372,16 +430,22 @@ export default function WalletDashboardPage() {
           >
             <WalletEntradasPage />
           </motion.div>
-        ) : (
-          // Hoja clara, como el historial de movimientos de una app de banco: separa de un
-          // vistazo "lo que debo" (arriba, oscuro) de "a quién" (acá).
+        )}
+
+        {seccion === 'tiendas' && (
+          // La hoja SUBE desde abajo, como el cajón de una app: el gesto explica de dónde
+          // salió y a dónde vuelve al cerrarla. La curva es la de iOS para cajones —más
+          // decidida al arrancar que el ease-out normal— y el alto queda debajo del saldo,
+          // que sigue a la vista.
           <motion.div
-            key="inicio"
-            initial={reducirMovimiento ? { opacity: 0 } : { opacity: 0, transform: 'translateX(-24px)' }}
-            animate={{ opacity: 1, transform: 'translateX(0px)' }}
-            transition={{ duration: 0.24, ease: [0.23, 1, 0.32, 1] }}
-            className="flex-1 rounded-t-[26px] bg-white px-5 pb-28 pt-5 text-brand-950"
+            key="tiendas"
+            initial={reducirMovimiento ? { opacity: 0 } : { transform: 'translateY(100%)' }}
+            animate={{ opacity: 1, transform: 'translateY(0%)' }}
+            transition={{ duration: 0.42, ease: [0.32, 0.72, 0, 1] }}
+            className="flex-1 rounded-t-[26px] bg-white px-5 pb-28 pt-4 text-brand-950 shadow-[0_-16px_40px_-12px_rgba(0,0,0,0.6)]"
           >
+            {/* Tirador: la señal universal de "esto es una hoja que se puede bajar". */}
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-brand-950/15" />
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-[15px] font-bold">Tiendas</h2>
               <span className="text-[12px] font-light text-brand-950/45">
@@ -470,6 +534,7 @@ export default function WalletDashboardPage() {
         <nav className="fixed inset-x-0 bottom-5 z-30 flex justify-center px-5">
           <div className="flex items-center gap-1 rounded-full bg-[#12181f] p-1.5 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.8)] ring-1 ring-white/[0.08]">
             <BotonMenu icono={Home} label="Inicio" activo={seccion === 'inicio'} onClick={() => setSeccion('inicio')} />
+            <BotonMenu icono={Store} label="Tiendas" activo={seccion === 'tiendas'} onClick={() => setSeccion('tiendas')} />
             <BotonMenu icono={Ticket} label="Entradas" activo={seccion === 'entradas'} onClick={() => setSeccion('entradas')} />
           </div>
         </nav>
