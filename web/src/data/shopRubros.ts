@@ -69,6 +69,7 @@ export interface ShopProductSeed {
   consumptionPlanSizes?: number[];
   isEvent?: boolean;
   eventDate?: string;
+  eventTime?: string;
   eventSeats?: number;
 }
 

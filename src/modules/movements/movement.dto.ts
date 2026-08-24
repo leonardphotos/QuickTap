@@ -47,6 +47,9 @@ export const createMovementSchema = z
     paymentMethod: z.enum(PAYMENT_METHODS).optional(),
     // A cuál cuenta bancaria entró/salió el dinero, cuando el método tiene varias.
     bankAccountId: z.string().max(60).nullish(),
+    // Evento (Local Comercial) al que se le imputa este gasto: su costo es la suma de los
+    // gastos asignados, no un número escrito a mano.
+    shopEventProductId: z.string().max(40).nullish(),
     category: z.enum(EXPENSE_CATEGORIES).optional(),
     supplierId: z.string().optional(),
     // Si viene, además de registrar el gasto suma `inventoryQuantity` al insumo.
@@ -106,6 +109,7 @@ export const updateMovementSchema = z.object({
   incomeCategory: z.enum(INCOME_CATEGORIES).nullable().optional(),
   paymentMethod: z.enum(PAYMENT_METHODS).nullable().optional(),
   category: z.enum(EXPENSE_CATEGORIES).nullable().optional(),
+  shopEventProductId: z.string().max(40).nullable().optional(),
   supplierId: z.string().nullable().optional(),
   // Reabastecimiento: cambiar insumo o cantidad revierte el anterior y aplica el nuevo.
   inventoryItemId: z.string().nullable().optional(),

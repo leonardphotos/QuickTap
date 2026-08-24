@@ -1917,6 +1917,11 @@ model Movement {
   isRecurring          Boolean              @default(false)
   // Quién hizo el gasto, cuando no fue quien lo registra (ej. el chofer que cargó gasolina).
   spentByName          String?
+  // Evento (ShopProduct.isEvent) al que se le imputa este gasto: local, sonido, permisos,
+  // publicidad. El costo de un evento no se escribe a mano — es la suma de los gastos que se
+  // le asignan acá, así que se actualiza solo a medida que aparecen. SetNull: borrar el evento
+  // no puede borrar el gasto, que igual salió de la caja.
+  shopEventProductId   String?
 
   restaurant    Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   createdByUser User?          @relation(fields: [createdByUserId], references: [id], onDelete: SetNull)
@@ -1925,10 +1930,12 @@ model Movement {
   // SetNull y no Cascade: anular una orden de pago no puede borrar el gasto — la deuda
   // sigue existiendo, solo deja de estar dentro de esa orden.
   paymentOrder  PaymentOrder?  @relation(fields: [paymentOrderId], references: [id], onDelete: SetNull)
+  shopEvent     ShopProduct?   @relation("ShopEventExpenses", fields: [shopEventProductId], references: [id], onDelete: SetNull)
 
   @@index([restaurantId, createdAt])
   @@index([restaurantId, isCredit, creditPaidAt])
   @@index([paymentOrderId])
+  @@index([shopEventProductId])
   @@map("movements")
 }
 
@@ -3381,13 +3388,17 @@ model ShopProduct {
   /// genérico: cualquier rubro que venda a granel puede usarlo.
   saleUnit String @default("UND")
 
-  // --- Eventos (categoría "Eventos" de locales comerciales) ---
+  // --- Eventos (categoría "Tickets" de locales comerciales) ---
   // Un evento es un producto como cualquier otro —se vende y se cobra igual— pero además tiene
-  // fecha y un cupo limitado de puestos. Se marca con una bandera propia y no por el nombre de
-  // la categoría: el local puede renombrar "Eventos" y el comportamiento no debe depender de eso.
+  // fecha, hora y un cupo limitado de puestos. Se marca con una bandera propia y no por el
+  // nombre de la categoría: el local puede renombrarla y el comportamiento no debe depender
+  // de eso.
   isEvent    Boolean @default(false)
   // Día del evento, ISO yyyy-mm-dd (mismo criterio que expiryDate: es una fecha de calendario).
   eventDate  String?
+  // Hora de inicio "HH:mm", 24h. Texto y no DateTime por lo mismo que eventDate: es la hora
+  // local del local, sin huso horario que la corra.
+  eventTime  String?
   // Puestos totales a la venta. Los ocupados se cuentan sobre las ventas, no se guardan acá,
   // para que una devolución libere el puesto sola.
   eventSeats Int?
@@ -3422,6 +3433,8 @@ model ShopProduct {
   // Insumos que consume este producto cuando es un servicio (ver ShopServiceSupply).
   serviceSupplies ShopServiceSupply[]  @relation("ShopServiceSupplyService")
   consumptionPlans ShopConsumptionPlan[]
+  // Gastos imputados a este evento (local, sonido, permisos): su suma es el costo del evento.
+  eventExpenses   Movement[]           @relation("ShopEventExpenses")
 
   @@index([restaurantId])
   @@map("shop_products")

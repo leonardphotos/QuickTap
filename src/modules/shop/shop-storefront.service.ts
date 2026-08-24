@@ -78,6 +78,10 @@ async function getStorefrontBySlug(slug: string) {
       price: true,
       promoPrice: true,
       photoUrl: true,
+      isEvent: true,
+      eventDate: true,
+      eventTime: true,
+      eventSeats: true,
       variants: { select: { id: true, v1: true, v2: true, stock: true, soldByWeight: true } },
       // Solo para saber si es un servicio; no se expone la receta.
       _count: { select: { serviceSupplies: true } },
@@ -107,6 +111,12 @@ async function getStorefrontBySlug(slug: string) {
       isService,
       variants,
       available: variants.some((v) => v.available),
+      // Evento: el cliente necesita ver cuándo es antes de comprar la entrada. El cupo restante
+      // sale del stock de la variante "Entrada", que es donde vive (ver ShopProduct.isEvent).
+      isEvent: p.isEvent,
+      eventDate: p.eventDate,
+      eventTime: p.eventTime,
+      seatsLeft: p.isEvent ? Math.max(0, p.variants.reduce((a, v) => a + v.stock, 0)) : null,
     };
   });
 

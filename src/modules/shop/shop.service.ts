@@ -1,7 +1,7 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
-import { puestosVendidosPorEvento } from './shop-installments.service';
+import { costoPorEvento, puestosVendidosPorEvento } from './shop-installments.service';
 import { bankLedgerService } from '../bank-accounts/bank-ledger.service';
 import { customerService } from '../customers/customer.service';
 import { round2, toDecimal } from '../../utils/money';
@@ -141,9 +141,14 @@ export const shopService = {
 
     // Puestos ya vendidos de cada evento, para que el panel muestre el cupo restante sin tener
     // que recorrer las ventas del lado del navegador.
-    const eventSeatsSold = await puestosVendidosPorEvento(restaurantId);
+    const [eventSeatsSold, eventCost] = await Promise.all([
+      puestosVendidosPorEvento(restaurantId),
+      // El costo de un evento no vive en el producto: es la suma de los gastos que se le
+      // imputaron, así que se calcula acá y el panel muestra el margen real.
+      costoPorEvento(restaurantId),
+    ]);
 
-    return { products, sales, purchases, adjustments, categories: categories.map((c) => c.name), subcategories: subcategoriesByCategory, till, closedTills, serviceSupplies, eventSeatsSold };
+    return { products, sales, purchases, adjustments, categories: categories.map((c) => c.name), subcategories: subcategoriesByCategory, till, closedTills, serviceSupplies, eventSeatsSold, eventCost };
   },
 
   /**
@@ -182,6 +187,7 @@ export const shopService = {
         saleUnit: input.saleUnit ?? 'UND',
         isEvent: input.isEvent ?? false,
         eventDate: input.eventDate ?? null,
+        eventTime: input.eventTime ?? null,
         eventSeats: input.eventSeats ?? null,
         price: input.price,
         cost: input.cost,

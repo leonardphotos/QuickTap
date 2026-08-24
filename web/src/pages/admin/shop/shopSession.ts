@@ -290,6 +290,7 @@ export interface NewProductInput {
   saleUnit?: 'UND' | 'KG' | 'MT';
   isEvent?: boolean;
   eventDate?: string;
+  eventTime?: string;
   eventSeats?: number;
   consumptionPlanEnabled?: boolean;
   consumptionPlanRate?: number;
@@ -307,6 +308,10 @@ export function useShopSession(initialCategories: string[] = []) {
   const [products, setProducts] = useState<ShopProduct[]>([]);
   // Recetas de insumos por servicio (ver ShopServiceSupply): qué gasta cada corte del inventario.
   const [serviceSupplies, setServiceSupplies] = useState<ServiceSupply[]>([]);
+  // Eventos: puestos ya vendidos y costo acumulado (suma de los gastos imputados), calculados
+  // en el servidor. Van aparte del producto porque no se guardan en él — ver ShopProduct.isEvent.
+  const [eventSeatsSold, setEventSeatsSold] = useState<Record<string, number>>({});
+  const [eventCost, setEventCost] = useState<Record<string, number>>({});
   // Equipo que presta servicios, con su comisión: se usa para acreditar la venta y para poder
   // calcular la comisión en el acto (el backend la congela igual, esto solo evita que el panel
   // muestre 0 hasta el próximo refresh).
@@ -374,6 +379,8 @@ export function useShopSession(initialCategories: string[] = []) {
         if (cancelled) return;
         setProducts(state.products.map(toShopProduct));
         setServiceSupplies(state.serviceSupplies ?? []);
+        setEventSeatsSold(state.eventSeatsSold ?? {});
+        setEventCost(state.eventCost ?? {});
         setSales(
           state.sales.map((s) => ({
             id: s.id,
@@ -1002,6 +1009,8 @@ export function useShopSession(initialCategories: string[] = []) {
     addAdhocLine,
     addPrintLine,
     serviceSupplies,
+    eventSeatsSold,
+    eventCost,
     setServiceSupplies,
     quickSale,
     providers,

@@ -58,14 +58,15 @@ export const createShopProductSchema = z.object({
   saleUnit: z.enum(['UND', 'KG', 'MT']).optional(),
   isEvent: z.boolean().optional(),
   eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha del evento debe ser yyyy-mm-dd.').optional(),
+  eventTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'La hora del evento debe ser HH:mm.').optional(),
   eventSeats: z.coerce.number().int().min(1).max(100000).optional(),
   // --- Plan de consumo ---
   consumptionPlanEnabled: z.boolean().optional(),
   consumptionPlanRate: z.coerce.number().gt(0).optional(),
   consumptionPlanSizes: z.array(z.coerce.number().gt(0).max(100000)).max(10).optional(),
 })
-  .refine((v) => !v.isEvent || (v.eventDate && v.eventSeats), {
-    message: 'Un evento necesita fecha y cantidad de puestos.',
+  .refine((v) => !v.isEvent || (v.eventDate && v.eventTime && v.eventSeats), {
+    message: 'Un evento necesita fecha, hora y cantidad de puestos.',
     path: ['eventDate'],
   });
 

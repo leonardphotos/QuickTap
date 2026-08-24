@@ -77,6 +77,8 @@ export interface EditableExpense {
   description: string;
   category?: string | null;
   supplier?: { id: string; name: string } | null;
+  /** Evento al que está imputado el gasto (Local Comercial). */
+  shopEventProductId?: string | null;
   paymentMethod?: string | null;
   expenseDate?: string | null;
   referenceNumber?: string | null;
@@ -160,6 +162,11 @@ export function ExpenseForm({
   mode?: 'expense' | 'purchase';
 }) {
   const { restaurant } = useAuth();
+  // Eventos del local (categoría Tickets): un gasto se le puede imputar a uno, y el costo del
+  // evento es la suma de los que se le asignen. Solo aplica en Local Comercial.
+  const esLocal = restaurant?.businessType === 'SHOP';
+  const [eventos, setEventos] = useState<{ id: string; name: string; eventDate: string | null }[]>([]);
+  const [eventoId, setEventoId] = useState<string>(expense?.shopEventProductId ?? '');
   const isEdit = !!expense;
   // El reabastecimiento descuenta contra InventoryItem (insumos de restaurante). Un local
   // comercial y un club manejan su stock en ShopProduct, así que ahí ese bloque no aplica:
@@ -216,6 +223,29 @@ export function ExpenseForm({
   const isFieldTrip = category !== '' && FIELD_TRIP_CATEGORIES.has(category);
 
   // Sugerencia automática del IVA: total ÷ 1.16 × 0.16, mientras el usuario no lo haya editado.
+  // Eventos del local, para poder imputarle el gasto a uno. Se piden una sola vez al abrir.
+  useEffect(() => {
+    if (!esLocal) return;
+    let vivo = true;
+    api
+      .get('/shop/state')
+      .then((r) => {
+        if (!vivo) return;
+        const productos = (r.data.data.products ?? []) as {
+          id: string; name: string; isEvent?: boolean | null; eventDate?: string | null;
+        }[];
+        setEventos(
+          productos
+            .filter((p) => p.isEvent)
+            .map((p) => ({ id: p.id, name: p.name, eventDate: p.eventDate ?? null })),
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      vivo = false;
+    };
+  }, [esLocal]);
+
   useEffect(() => {
     if (!ivaRequired || ivaTouched) return;
     const total = Number(amount);
@@ -284,6 +314,7 @@ export function ExpenseForm({
         description: description.trim(),
         category: category || (isEdit ? null : undefined),
         supplierId: supplier?.id ?? (isEdit ? null : undefined),
+        ...(esLocal ? { shopEventProductId: eventoId || (isEdit ? null : undefined) } : {}),
         // Si el bloque de reabastecimiento no se muestra (Gastos, local, club) se manda
         // `undefined` para que el backend conserve el que ya tenía: editar la descripción de
         // una compra no puede deshacer el ingreso de stock.
@@ -569,6 +600,30 @@ export function ExpenseForm({
           className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5 resize-none"
         />
       </div>
+
+      {/* Imputar el gasto a un evento: es lo que le da costo real al evento (local, sonido,
+          permisos). Solo se ofrece si el local tiene eventos cargados. */}
+      {esLocal && eventos.length > 0 && (
+        <label className="block text-sm">
+          <span className="text-brand-950/70">Gasto de un evento</span>
+          <select
+            value={eventoId}
+            onChange={(e) => setEventoId(e.target.value)}
+            className="mt-1 w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+          >
+            <option value="">No es de un evento</option>
+            {eventos.map((ev) => (
+              <option key={ev.id} value={ev.id}>
+                {ev.name}
+                {ev.eventDate ? ` · ${ev.eventDate.split('-').reverse().join('/')}` : ''}
+              </option>
+            ))}
+          </select>
+          <span className="mt-1 block text-[11px] font-light text-brand-950/45">
+            El costo del evento es la suma de los gastos que le asignes.
+          </span>
+        </label>
+      )}
 
       <div className="flex items-center justify-between rounded-lg border border-brand-950/10 px-2.5 py-2">
         <span className="text-sm text-brand-950/70">

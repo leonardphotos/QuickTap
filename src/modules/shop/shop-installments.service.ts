@@ -295,3 +295,26 @@ export async function puestosVendidosPorEvento(restaurantId: string): Promise<Re
   for (const e of eventos) salida[e.id] = porNombre.get(e.name) ?? 0;
   return salida;
 }
+
+/**
+ * Costo de cada evento: la suma de los gastos que se le imputaron (local, sonido, permisos,
+ * publicidad — ver Movement.shopEventProductId).
+ *
+ * No se guarda en el evento a propósito. Un evento se arma con gastos que van apareciendo
+ * durante semanas, así que un campo escrito a mano quedaría viejo el mismo día; sumarlos en
+ * vivo hace que el margen sea siempre el real.
+ */
+export async function costoPorEvento(restaurantId: string): Promise<Record<string, number>> {
+  const gastos = await prisma.movement.groupBy({
+    by: ['shopEventProductId'],
+    where: { restaurantId, type: 'EXPENSE', shopEventProductId: { not: null } },
+    _sum: { amountBase: true },
+  });
+
+  const salida: Record<string, number> = {};
+  for (const g of gastos) {
+    if (!g.shopEventProductId) continue;
+    salida[g.shopEventProductId] = Number(g._sum.amountBase ?? 0);
+  }
+  return salida;
+}

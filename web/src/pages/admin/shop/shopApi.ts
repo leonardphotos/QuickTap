@@ -39,6 +39,7 @@ export interface RawShopProduct {
   saleUnit?: string | null;
   isEvent?: boolean | null;
   eventDate?: string | null;
+  eventTime?: string | null;
   eventSeats?: number | null;
   consumptionPlanEnabled?: boolean | null;
   consumptionPlanRate?: number | null;
@@ -166,6 +167,10 @@ export interface ShopState {
   till: RawShopTill | null;
   closedTills: RawShopTill[];
   serviceSupplies: RawShopServiceSupply[];
+  /** Puestos ya vendidos de cada evento, por id de producto. Se cuentan sobre las ventas. */
+  eventSeatsSold?: Record<string, number>;
+  /** Costo de cada evento: la suma de los gastos que se le imputaron. */
+  eventCost?: Record<string, number>;
 }
 
 export const shopApi = {
@@ -345,6 +350,7 @@ export function toShopProduct(p: RawShopProduct) {
     saleUnit: (p.saleUnit === 'KG' || p.saleUnit === 'MT' ? p.saleUnit : 'UND') as 'UND' | 'KG' | 'MT',
     isEvent: p.isEvent ?? false,
     eventDate: p.eventDate ?? undefined,
+    eventTime: p.eventTime ?? undefined,
     eventSeats: p.eventSeats ?? undefined,
     consumptionPlanEnabled: p.consumptionPlanEnabled ?? false,
     consumptionPlanRate: p.consumptionPlanRate ?? undefined,

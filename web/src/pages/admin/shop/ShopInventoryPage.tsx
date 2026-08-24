@@ -1,6 +1,6 @@
 import { Fragment, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { PackagePlus, ChevronDown, ClipboardList, FileSpreadsheet, FlaskConical, FolderPlus, Package, Pencil, Plus, ScanLine, Search, Sparkles, Tags, Trash2, TrendingUp, Truck, X } from 'lucide-react';
+import { PackagePlus, ChevronDown, ClipboardList, FileSpreadsheet, FlaskConical, FolderPlus, Package, Pencil, Plus, ScanLine, Search, Sparkles, Store, Tags, Trash2, TrendingUp, Truck, X } from 'lucide-react';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { ShopPriceLabelsDialog } from './ShopPriceLabelsDialog';
 import { ShopImportProductsDialog } from './ShopImportProductsDialog';
@@ -20,7 +20,7 @@ import ShopSkuScanDialog from './ShopSkuScanDialog';
 interface Props {
   session: ShopSession;
   rubro: ShopRubro;
-  restaurant: Pick<AuthRestaurant, 'name' | 'currencySymbol' | 'exchangeRate'>;
+  restaurant: Pick<AuthRestaurant, 'name' | 'currencySymbol' | 'exchangeRate' | 'slug'>;
 }
 
 const STATUS_LABEL: Record<string, string> = { ok: 'Disponible', warn: 'Stock bajo', danger: 'Agotado' };
@@ -92,7 +92,10 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   // Variantes correctas para la categoría elegida en el formulario (ver variantDims.ts): una
   // joyería que también vende carteras no las mide en "Material", las mide en Talla/Color.
   const variantDims = resolveVariantDims(rubro, npCategory);
-  const esEvento = npCategory.trim().toLowerCase() === 'eventos';
+  // La categoría "Tickets" convierte al producto en un evento. Se sigue aceptando "Eventos"
+  // porque los locales que ya la crearon con ese nombre tienen productos dentro y renombrarla
+  // por detrás los dejaría sin fecha ni cupo.
+  const esEvento = ['tickets', 'eventos'].includes(npCategory.trim().toLowerCase());
   const usaUnidades = ['ferreteria', 'carniceria', 'fruteria', 'panaderia'].includes(rubro?.id ?? '');
   const [npSubcategory, setNpSubcategory] = useState('');
   // Eventos: la categoría "Eventos" convierte el producto en una entrada con fecha y cupo.
@@ -116,6 +119,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   const [raiseBusy, setRaiseBusy] = useState(false);
   const [raiseError, setRaiseError] = useState<string | null>(null);
   const [npEventDate, setNpEventDate] = useState('');
+  const [npEventTime, setNpEventTime] = useState('');
   const [npEventSeats, setNpEventSeats] = useState('');
   const [npBrand, setNpBrand] = useState('');
   const [npSku, setNpSku] = useState('');
@@ -392,6 +396,9 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     setNpPrice('');
     setNpCost('');
     setNpMinStock('');
+    setNpEventDate('');
+    setNpEventTime('');
+    setNpEventSeats('');
     setNpVariants([]);
     setNpV1('');
     setNpV2('');
@@ -444,6 +451,11 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
       setNpBasicStock('');
     }
     setNpSoldByWeight(p.variants.some((v) => v.soldByWeight));
+    // Fecha/hora/cupo del evento: sin esto, abrir un evento y guardarlo los mandaba vacíos y
+    // el producto perdía cuándo era y cuántos puestos tenía.
+    setNpEventDate(p.eventDate ?? '');
+    setNpEventTime(p.eventTime ?? '');
+    setNpEventSeats(p.eventSeats != null ? String(p.eventSeats) : '');
     setNpAreaRoll(p.pricingMode === 'AREA_ROLL');
     setNpRollWidths(p.rollWidths ? formatRollWidths(p.rollWidths) : '');
     setNpRollLength(p.rollLengthM != null ? String(p.rollLengthM) : '50');
@@ -558,6 +570,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
     // no se le pide stock ni variantes como al resto del catálogo. Un servicio (estética/barbería)
     // tampoco: no hay nada que contar.
     if (esEvento && !npEventDate) return setSaveError('Ponle fecha al evento.');
+    if (esEvento && !npEventTime) return setSaveError('Ponle hora de inicio al evento.');
     if (esEvento && (!npEventSeats || Number(npEventSeats) < 1)) {
       return setSaveError('Indica cuántos puestos tiene el evento.');
     }
@@ -592,7 +605,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
       category: npCategory,
       subcategory: npSubcategory.trim(),
       brand: npBrand.trim(),
-      sku: esEvento || isServiceShop ? '' : npSku.trim(),
+      sku: isServiceShop ? '' : npSku.trim(),
       location: npLocation.trim(),
       price,
       cost: Number(npCost) || 0,
@@ -609,6 +622,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
       saleUnit: usaUnidades ? npSaleUnit : undefined,
       isEvent: esEvento,
       eventDate: esEvento ? npEventDate : undefined,
+      eventTime: esEvento ? npEventTime : undefined,
       eventSeats: esEvento ? Number(npEventSeats) || undefined : undefined,
       // Plan de consumo: solo tiene sentido con Kg/Mt, y con tarifa cargada.
       consumptionPlanEnabled: npSaleUnit !== 'UND' && npPlanEnabled && Number(npPlanRate) > 0,
@@ -647,6 +661,16 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
           </TextureButton>
           <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setImportOpen(true)}>
             <FileSpreadsheet className="h-4 w-4" /> Cargar Excel
+          </TextureButton>
+          {/* Ir a la tienda pública tal como la ve el cliente: es donde se compran las entradas
+              de los eventos. Solo lo que esté publicado aparece ahí. */}
+          <TextureButton
+            variant="minimal"
+            size="default"
+            className="!w-auto"
+            onClick={() => window.open(`${window.location.origin}/tienda/${restaurant.slug}`, '_blank', 'noopener')}
+          >
+            <Store className="h-4 w-4" /> Abrir tienda
           </TextureButton>
           <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => { setRaisePercent(''); setRaiseError(null); setRaiseOpen(true); }}>
             <TrendingUp className="h-4 w-4" /> Aumentar precios
@@ -778,6 +802,35 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
                             </span>
                             <span className="font-medium text-brand-950">{p.name}</span>
                           </div>
+                          {/* Evento: cuándo es, cuánto cupo queda y cuánto lleva costando. El
+                              cupo y el costo NO viven en el producto (se cuentan sobre ventas y
+                              gastos), así que solo se pueden mostrar acá. */}
+                          {p.isEvent && (() => {
+                            const vendidos = session.eventSeatsSold[p.id] ?? 0;
+                            const cupo = p.eventSeats ?? 0;
+                            const quedan = Math.max(0, cupo - vendidos);
+                            const costo = session.eventCost[p.id] ?? 0;
+                            const ingreso = vendidos * p.price;
+                            return (
+                              <div className="mt-1 ml-[52px] flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px]">
+                                <span className="text-brand-950/50">
+                                  {p.eventDate?.split('-').reverse().join('/')}
+                                  {p.eventTime && ` · ${p.eventTime}`}
+                                </span>
+                                <span className={quedan === 0 ? 'font-semibold text-red-600' : 'text-brand-950/60'}>
+                                  {quedan === 0 ? 'Agotado' : `Quedan ${quedan} de ${cupo}`}
+                                </span>
+                                {costo > 0 && (
+                                  <span className="text-brand-950/50">
+                                    Costo {money(costo)} · {ingreso >= costo ? 'gana ' : 'pierde '}
+                                    <span className={ingreso >= costo ? 'font-semibold text-emerald-600' : 'font-semibold text-red-600'}>
+                                      {money(Math.abs(ingreso - costo))}
+                                    </span>
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
                         <td className="py-3 pr-3 text-brand-950/60">{p.sku}</td>
                         <td className="py-3 pr-3">
@@ -1591,19 +1644,30 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
               </div>
             )}
 
-            {/* Eventos: fecha y cupo. Aparecen solo en la categoría "Eventos" para no cargar el
-                formulario del resto del catálogo con campos que no aplican. */}
+            {/* Eventos: fecha, hora y cupo. Aparecen solo en la categoría "Tickets" para no
+                cargar el formulario del resto del catálogo con campos que no aplican. */}
             {esEvento && (
               <>
-                <label className="block text-sm">
-                  <span className="text-brand-950/70">Fecha del evento</span>
-                  <input
-                    type="date"
-                    value={npEventDate}
-                    onChange={(e) => setNpEventDate(e.target.value)}
-                    className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-                  />
-                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="block text-sm">
+                    <span className="text-brand-950/70">Fecha del evento</span>
+                    <input
+                      type="date"
+                      value={npEventDate}
+                      onChange={(e) => setNpEventDate(e.target.value)}
+                      className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                    />
+                  </label>
+                  <label className="block text-sm">
+                    <span className="text-brand-950/70">Hora de inicio</span>
+                    <input
+                      type="time"
+                      value={npEventTime}
+                      onChange={(e) => setNpEventTime(e.target.value)}
+                      className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                    />
+                  </label>
+                </div>
                 <label className="block text-sm">
                   <span className="text-brand-950/70">Puestos disponibles</span>
                   <input

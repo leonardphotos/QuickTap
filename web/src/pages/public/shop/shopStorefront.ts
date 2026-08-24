@@ -27,6 +27,11 @@ export interface StorefrontProduct {
   isService: boolean;
   variants: StorefrontVariant[];
   available: boolean;
+  /** Entrada a un evento: lleva fecha, hora y cupo restante. */
+  isEvent?: boolean;
+  eventDate?: string | null;
+  eventTime?: string | null;
+  seatsLeft?: number | null;
 }
 
 export interface StorefrontShop {

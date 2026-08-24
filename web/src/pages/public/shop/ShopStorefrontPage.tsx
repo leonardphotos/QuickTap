@@ -327,10 +327,24 @@ function ShopProductCard({
       </div>
 
       <p className="font-semibold text-sm text-brand-950 truncate">{product.name}</p>
-      {(product.brand || product.subcategory) && (
-        <p className="text-xs text-brand-950/50 font-light line-clamp-1 mt-0.5">
-          {product.brand || product.subcategory}
+      {/* Entrada a un evento: cuándo es y cuánto cupo queda. Es lo que decide la compra, así
+          que va antes que la marca/subcategoría. */}
+      {product.isEvent ? (
+        <p className="mt-0.5 text-xs font-light text-brand-950/60">
+          {product.eventDate?.split('-').reverse().join('/')}
+          {product.eventTime && ` · ${product.eventTime}`}
+          {product.seatsLeft != null && product.seatsLeft > 0 && (
+            <span className={product.seatsLeft <= 10 ? 'ml-1 font-semibold text-amber-600' : 'ml-1'}>
+              · {product.seatsLeft} {product.seatsLeft === 1 ? 'puesto' : 'puestos'}
+            </span>
+          )}
         </p>
+      ) : (
+        (product.brand || product.subcategory) && (
+          <p className="text-xs text-brand-950/50 font-light line-clamp-1 mt-0.5">
+            {product.brand || product.subcategory}
+          </p>
+        )
       )}
     </button>
   );
