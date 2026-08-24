@@ -3,7 +3,6 @@ import { api } from '@/api/client';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import {
   CalendarClock,
-  Calculator,
   Landmark,
   Plus,
   ShieldAlert,
@@ -21,7 +20,6 @@ import {
   Trash2,
   type LucideIcon,
 } from 'lucide-react';
-import type { ShopScreen } from './ShopLayout';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { CATEGORY_LABELS, ExpenseFormDialog, type ExpenseCategory } from '@/components/admin/ExpenseFormDialog';
@@ -62,7 +60,6 @@ interface Props {
   restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate'>;
   canSeeMoney: boolean;
   userName: string;
-  onNavigate: (screen: ShopScreen) => void;
 }
 
 function marginClass(pct: number): string {
@@ -137,7 +134,7 @@ function groupIncomeByMethod(sales: Sale[]): { method: string; count: number; to
     .sort((a, b) => b.total - a.total);
 }
 
-export default function ShopDashboardPage({ session, restaurant, canSeeMoney, userName, onNavigate }: Props) {
+export default function ShopDashboardPage({ session, restaurant, canSeeMoney, userName }: Props) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
   const { products, sales, purchases, returnSale, providers } = session;
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
@@ -259,36 +256,6 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
 
       {canSeeMoney && <BreakEvenCard fetchUrl="/shop/breakeven" />}
 
-      {/* Atajos del día a día: aunque el menú lateral ya lleva a todo, estas dos son las que
-          más se abren desde el mostrador y merecen estar en el punto de partida. */}
-      <div className="grid grid-cols-2 gap-2.5">
-        <button
-          type="button"
-          onClick={() => onNavigate('administracion')}
-          className="flex items-center gap-2.5 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm px-4 py-3.5 text-left transition-colors hover:border-brand-400"
-        >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-500">
-            <Calculator className="h-[18px] w-[18px]" />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-[13px] font-semibold text-brand-950">Administración</span>
-            <span className="block text-[11px] font-light text-brand-950/45">Gastos, compras y más</span>
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => onNavigate('cuentas')}
-          className="flex items-center gap-2.5 rounded-2xl border border-brand-950/[0.06] bg-white shadow-sm px-4 py-3.5 text-left transition-colors hover:border-brand-400"
-        >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600">
-            <Landmark className="h-[18px] w-[18px]" />
-          </span>
-          <span className="min-w-0">
-            <span className="block text-[13px] font-semibold text-brand-950">Abrir cuenta</span>
-            <span className="block text-[11px] font-light text-brand-950/45">Clientes que deben</span>
-          </span>
-        </button>
-      </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
         <Metric label="Ventas de hoy" value={money(ventasHoy)} sub={moneyBs(ventasHoy)} icon={DollarSign} color="brand" />

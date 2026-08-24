@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { PanelLeftOpen } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
-import { Menu, ShieldCheck, Boxes, Building2, Calculator, FileText, Home, Lock, Receipt, Settings, ShoppingBag, Users, Wallet } from 'lucide-react';
+import { Landmark, Menu, ShieldCheck, Boxes, Building2, Calculator, FileText, Home, Lock, Receipt, Settings, ShoppingBag, Users, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getShopRubro } from '@/data/shopRubros';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -56,6 +56,9 @@ const MORE_TABS: { id: ShopScreen; label: string; icon: typeof FileText; feature
   // Solicitudes son aprobaciones del día y Sucursales es su propio nivel (en restaurantes
   // también vive fuera de Administración).
   { id: 'administracion', label: 'Administración', icon: Calculator },
+  // Acceso directo: abre Administración parada en su pestaña (ver irA). Se lista aparte
+  // porque es lo que más se consulta desde el mostrador y no vale hacer dos toques.
+  { id: 'cuentas', label: 'Cuentas por cobrar', icon: Landmark },
   { id: 'pass', label: 'QuickTap Pass', icon: Wallet },
   { id: 'solicitudes', label: 'Solicitudes', icon: ShieldCheck },
   { id: 'sucursales', label: 'Sucursales', icon: Building2, feature: 'branches' },
@@ -171,12 +174,16 @@ export default function ShopLayout() {
   // Cocina no vende; el resto de los roles del local sí.
   const puedeVender = user.role !== 'KITCHEN';
 
+  // 'cuentas' no es una pantalla propia sino una pestaña de Administración: para que el menú
+  // resalte la fila correcta hay que traducirlo acá, si no siempre se vería activa Administración.
+  const screenActivo: ShopScreen = screen === 'administracion' && adminTab === 'cuentas' ? 'cuentas' : screen;
+
   return (
     <div className="min-h-screen bg-[#fafafa]">
       <ShopSidebar
         tabs={sidebarTabs}
-        screen={screen}
-        onSelect={setScreen}
+        screen={screenActivo}
+        onSelect={irA}
         businessName={restaurant.name}
         logoUrl={restaurant.logoUrl}
         planLabel={planLabel}
@@ -249,9 +256,9 @@ export default function ShopLayout() {
               <button
                 key={t.id}
                 type="button"
-                onClick={() => setScreen(t.id)}
+                onClick={() => irA(t.id)}
                 className={`text-[13px] font-semibold px-3.5 py-2 rounded-full transition-colors whitespace-nowrap ${
-                  screen === t.id ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
+                  screenActivo === t.id ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
                 }`}
               >
                 <span className={t.locked ? 'opacity-60' : ''}>{t.label}</span>
@@ -266,7 +273,7 @@ export default function ShopLayout() {
 
       <main className={`max-w-7xl mx-auto px-5 sm:px-6 py-5 pb-8 transition-[padding] duration-300 ${sidebarHidden ? "lg:pl-5" : "lg:pl-[284px]"}`}>
         {screen === 'admin' && (
-          <ShopDashboardPage session={session} restaurant={restaurant} canSeeMoney={canSeeMoney} userName={user.name} onNavigate={irA} />
+          <ShopDashboardPage session={session} restaurant={restaurant} canSeeMoney={canSeeMoney} userName={user.name} />
         )}
         {screen === 'venta' && (
           <ShopPosPage session={session} restaurant={restaurant} rubro={rubro} />
@@ -303,7 +310,7 @@ export default function ShopLayout() {
         onClose={() => setMenuOpen(false)}
         principales={tabs.map((t) => ({ ...t, locked: false }))}
         secundarios={moreTabs.map((t) => ({ ...t, locked: isLocked(t) }))}
-        activo={screen}
+        activo={screenActivo}
         onNavigate={irA}
       />
     </div>

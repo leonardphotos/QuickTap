@@ -120,7 +120,7 @@ export default function ShopReceivablesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-semibold text-brand-950">Abrir cuenta</h1>
+          <h1 className="text-2xl font-semibold text-brand-950">Cuentas por cobrar</h1>
           <p className="text-sm text-brand-950/60 font-light">Clientes con cuenta abierta: ventas fiadas con saldo pendiente. Abona y avísale al cliente cuando se acerque la fecha.</p>
         </div>
         <TextureButton variant="minimal" size="sm" className="!w-auto" onClick={() => setShowHistory((v) => !v)}>
