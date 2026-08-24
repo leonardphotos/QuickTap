@@ -20,6 +20,8 @@ export interface StorefrontProduct {
   category: string;
   subcategory: string;
   brand: string | null;
+  /** Recinto/lugar del evento en el rubro Tickera (campo "Ubicación" del inventario). */
+  location: string | null;
   photoUrl: string | null;
   price: number;
   /** Precio tachado cuando hay precio promocional vigente. */

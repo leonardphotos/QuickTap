@@ -123,9 +123,16 @@ function TarjetaEntrada({
   const [imagenRota, setImagenRota] = useState(false);
 
   return (
-    // Alto fijo en las dos caras: el volteo 3D necesita que las dos midan lo mismo, si no la
-    // tarjeta salta de tamaño a mitad del giro.
-    <div className="wallet-fila wallet-tap-card ticket-flip h-[27rem] w-full" style={{ '--i': indice } as React.CSSProperties}>
+    // Proporción 4:5 vertical, la del arte del boleto. Las dos caras miden lo mismo porque el
+    // volteo 3D lo exige: con altos distintos la tarjeta salta de tamaño a mitad del giro.
+    //
+    // El tope de ancho es por el escritorio: con la proporción atada al ancho y el panel a
+    // pantalla completa, una ventana de 1200px daría una tarjeta de metro y medio de alto.
+    // En celular no llega a aplicar (la tarjeta mide ~340px), así que solo actúa donde hace falta.
+    <div
+      className="wallet-fila wallet-tap-card ticket-flip mx-auto aspect-[4/5] w-full max-w-[25rem]"
+      style={{ '--i': indice } as React.CSSProperties}
+    >
       <button
         type="button"
         onClick={onVoltear}

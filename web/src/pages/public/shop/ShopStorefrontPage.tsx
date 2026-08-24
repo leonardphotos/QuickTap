@@ -6,6 +6,7 @@ import { api } from '@/api/client';
 import { publicPriceLabel } from '@/utils/format';
 import { ShopCartDrawer } from './ShopCartDrawer';
 import { ShopProductSheet } from './ShopProductSheet';
+import { TickeraStorefront } from './tickera/TickeraStorefront';
 import {
   cartSubtotal,
   sameLine,
@@ -109,6 +110,13 @@ export default function ShopStorefrontPage() {
         <p className="text-brand-950/40 font-light">Cargando…</p>
       </div>
     );
+  }
+
+  // Tickera: catálogo de eventos, diseño y navegación completamente distintos al resto de
+  // Locales Comerciales (ver TickeraStorefront.tsx) — se delega entero, sin el banner/grilla
+  // de acá abajo.
+  if (shop.shopRubro === 'tickera') {
+    return <TickeraStorefront shop={shop} categories={data.categories} />;
   }
 
   const cartCount = cart.reduce((acc, l) => acc + (l.variant.soldByWeight ? 1 : l.qty), 0);
