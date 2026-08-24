@@ -229,16 +229,29 @@ export function ProductFormDialog({
 
   async function associateCategory(categoryId: string) {
     if (!product || !categoryId) return;
-    await api.post(`/modifier-categories/${categoryId}/products`, { productId: product.id });
-    const cat = libraryCategories.find((c) => c.id === categoryId);
-    if (cat) setLinkedCategories((m) => [...m, cat]);
-    setShowCategoryPicker(false);
+    try {
+      setError(null);
+      await api.post(`/modifier-categories/${categoryId}/products`, { productId: product.id });
+      const cat = libraryCategories.find((c) => c.id === categoryId);
+      if (cat) setLinkedCategories((m) => [...m, cat]);
+      setShowCategoryPicker(false);
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo asociar la categoría.');
+    }
   }
 
   async function dissociateCategory(categoryId: string) {
     if (!product) return;
-    await api.delete(`/modifier-categories/${categoryId}/products/${product.id}`);
-    setLinkedCategories((m) => m.filter((c) => c.id !== categoryId));
+    try {
+      setError(null);
+      await api.delete(`/modifier-categories/${categoryId}/products/${product.id}`);
+      setLinkedCategories((m) => m.filter((c) => c.id !== categoryId));
+    } catch (err: any) {
+      // Antes esta llamada no tenía try/catch: un fallo (permiso, red, sesión vencida) se
+      // tragaba entero y el botón de quitar la categoría "no hacía nada" — sin error, sin
+      // que la categoría desapareciera, sin ninguna pista de qué pasó.
+      setError(err.response?.data?.error ?? 'No se pudo quitar la categoría de este producto.');
+    }
   }
 
   const availableToLink = libraryCategories.filter((c) => !linkedCategories.some((l) => l.id === c.id));
@@ -510,6 +523,7 @@ export function ProductFormDialog({
                 </button>
               )}
             </div>
+            {error && <p className="rounded-lg bg-red-50 px-2.5 py-1.5 text-xs text-red-600">{error}</p>}
             {!product ? (
               <p className="text-xs text-brand-950/50">Guarda el producto primero para agregar modificadores.</p>
             ) : (

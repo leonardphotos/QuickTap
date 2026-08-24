@@ -17,6 +17,18 @@ import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { formatBaseQuantity, subUnitsFor, UNIT_LABELS } from '@/utils/inventoryUnits';
 
+/**
+ * Mensaje legible de un error de API. Antes casi ninguna mutación de este diálogo lo usaba: el
+ * botón de quitar/eliminar/asociar/reordenar no tenía try/catch, así que un fallo (permiso,
+ * red, validación del backend) se tragaba entero — el botón "no hacía nada" y no quedaba
+ * ningún rastro visible de qué pasó. Se centraliza acá para no repetir el mismo cast en cada
+ * función.
+ */
+function apiErrorMessage(err: unknown): string {
+  const e = err as { response?: { data?: { error?: string } } };
+  return e.response?.data?.error ?? 'No se pudo completar la acción. Intenta de nuevo.';
+}
+
 /** Insumo tal como lo necesita el selector de vínculo de un modificador. */
 interface InsumoOption {
   id: string;
@@ -76,6 +88,7 @@ export function ModifierCategoriesDialog({ open, onOpenChange }: Props) {
   // etc.) quedaba completamente silencioso: el botón no hacía nada visible.
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [duplicateError, setDuplicateError] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   function load() {
     api.get('/modifier-categories').then((res) => setCategories(res.data.data));
@@ -91,11 +104,16 @@ export function ModifierCategoriesDialog({ open, onOpenChange }: Props) {
 
   async function createCategory() {
     if (!newName.trim()) return;
-    const res = await api.post('/modifier-categories', { name: newName.trim() });
-    setNewName('');
-    setCreating(false);
-    load();
-    setOpenCategoryId(res.data.data.id);
+    try {
+      setCreateError(null);
+      const res = await api.post('/modifier-categories', { name: newName.trim() });
+      setNewName('');
+      setCreating(false);
+      load();
+      setOpenCategoryId(res.data.data.id);
+    } catch (err) {
+      setCreateError(apiErrorMessage(err));
+    }
   }
 
   /** "Duplicar lista": copia la categoría completa (modificadores, vínculos a inventario, precios
@@ -157,18 +175,21 @@ export function ModifierCategoriesDialog({ open, onOpenChange }: Props) {
               </div>
 
               {creating && (
-                <div className="flex items-center gap-2 rounded-xl border border-brand-950/10 p-2">
-                  <input
-                    autoFocus
-                    value={newName}
-                    onChange={(e) => setNewName(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && createCategory()}
-                    placeholder="Ej: ¿Cómo la prefieres?"
-                    className="flex-1 text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
-                  />
-                  <TextureButton variant="brand" size="sm" className="!w-auto" onClick={createCategory}>
-                    Crear
-                  </TextureButton>
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2 rounded-xl border border-brand-950/10 p-2">
+                    <input
+                      autoFocus
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && createCategory()}
+                      placeholder="Ej: ¿Cómo la prefieres?"
+                      className="flex-1 text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                    />
+                    <TextureButton variant="brand" size="sm" className="!w-auto" onClick={createCategory}>
+                      Crear
+                    </TextureButton>
+                  </div>
+                  {createError && <p className="text-xs text-red-600">{createError}</p>}
                 </div>
               )}
 
@@ -275,6 +296,8 @@ function CategoryEditor({
   const [addMode, setAddMode] = useState<'escribir' | 'toppings'>('escribir');
   const [newModifierName, setNewModifierName] = useState('');
   const [selectedToppingId, setSelectedToppingId] = useState('');
+  // Error de la última acción (quitar, asociar, reordenar…) — se limpia al reintentar cualquier otra.
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => setName(category.name), [category.id, category.name]);
   useEffect(() => setMaxSelectionsInput(category.maxSelections?.toString() ?? ''), [category.id, category.maxSelections]);
@@ -310,35 +333,60 @@ function CategoryEditor({
 
   async function saveName() {
     if (name.trim() && name !== category.name) {
-      await api.patch(`/modifier-categories/${category.id}`, { name: name.trim() });
-      onChanged();
+      try {
+        setActionError(null);
+        await api.patch(`/modifier-categories/${category.id}`, { name: name.trim() });
+        onChanged();
+      } catch (err) {
+        setActionError(apiErrorMessage(err));
+      }
     }
   }
 
   async function setRequired(isRequired: boolean) {
-    await api.patch(`/modifier-categories/${category.id}`, { isRequired });
-    onChanged();
+    try {
+      setActionError(null);
+      await api.patch(`/modifier-categories/${category.id}`, { isRequired });
+      onChanged();
+    } catch (err) {
+      setActionError(apiErrorMessage(err));
+    }
   }
 
   async function setAllowMultiple(allowMultiple: boolean) {
-    await api.patch(`/modifier-categories/${category.id}`, { allowMultiple });
-    onChanged();
+    try {
+      setActionError(null);
+      await api.patch(`/modifier-categories/${category.id}`, { allowMultiple });
+      onChanged();
+    } catch (err) {
+      setActionError(apiErrorMessage(err));
+    }
   }
 
   /** Límite de selecciones totales de la categoría (permite repetir la misma opción, ej. "Ketchup x4"). */
   async function saveMaxSelections() {
     const n = maxSelections.trim() === '' ? null : Number(maxSelections);
     if (n === (category.maxSelections ?? null)) return;
-    await api.patch(`/modifier-categories/${category.id}`, { maxSelections: n });
-    onChanged();
+    try {
+      setActionError(null);
+      await api.patch(`/modifier-categories/${category.id}`, { maxSelections: n });
+      onChanged();
+    } catch (err) {
+      setActionError(apiErrorMessage(err));
+    }
   }
 
   /** Mínimo de selecciones totales de la categoría (ej. "elige al menos 2"). */
   async function saveMinSelections() {
     const n = minSelections.trim() === '' ? null : Number(minSelections);
     if (n === (category.minSelections ?? null)) return;
-    await api.patch(`/modifier-categories/${category.id}`, { minSelections: n });
-    onChanged();
+    try {
+      setActionError(null);
+      await api.patch(`/modifier-categories/${category.id}`, { minSelections: n });
+      onChanged();
+    } catch (err) {
+      setActionError(apiErrorMessage(err));
+    }
   }
 
   /** Casilla "Ilimitado": al marcarla, quita el tope (maxSelections = null) de inmediato.
@@ -349,8 +397,13 @@ function CategoryEditor({
     if (checked) {
       setMaxSelectionsInput('');
       if (category.maxSelections != null) {
-        await api.patch(`/modifier-categories/${category.id}`, { maxSelections: null });
-        onChanged();
+        try {
+          setActionError(null);
+          await api.patch(`/modifier-categories/${category.id}`, { maxSelections: null });
+          onChanged();
+        } catch (err) {
+          setActionError(apiErrorMessage(err));
+        }
       }
     }
   }
@@ -359,9 +412,14 @@ function CategoryEditor({
    * inventario) se completa después en la fila. */
   async function addModifierByName() {
     const trimmed = newModifierName.trim();
-    await api.post(`/modifier-categories/${category.id}/modifiers`, { name: trimmed || 'Nuevo modificador' });
-    setNewModifierName('');
-    onChanged();
+    try {
+      setActionError(null);
+      await api.post(`/modifier-categories/${category.id}/modifiers`, { name: trimmed || 'Nuevo modificador' });
+      setNewModifierName('');
+      onChanged();
+    } catch (err) {
+      setActionError(apiErrorMessage(err));
+    }
   }
 
   /** Tab "Desde Toppings": crea el modificador con el nombre del topping y ya vinculado a su
@@ -374,53 +432,72 @@ function CategoryEditor({
       ? toppings.find((t) => t.id === inventoryItemId)
       : toppingPreparations.find((t) => t.id === preparationId);
     if (!topping) return;
-    await api.post(`/modifier-categories/${category.id}/modifiers`, {
-      name: topping.name,
-      inventoryItemId: inventoryItemId ?? undefined,
-      preparationId: preparationId ?? undefined,
-      inventoryQuantity: 1,
-    });
-    setSelectedToppingId('');
-    onChanged();
+    try {
+      setActionError(null);
+      await api.post(`/modifier-categories/${category.id}/modifiers`, {
+        name: topping.name,
+        inventoryItemId: inventoryItemId ?? undefined,
+        preparationId: preparationId ?? undefined,
+        inventoryQuantity: 1,
+      });
+      setSelectedToppingId('');
+      onChanged();
+    } catch (err) {
+      setActionError(apiErrorMessage(err));
+    }
   }
 
   async function removeCategory() {
     if (!window.confirm(`¿Eliminar la categoría "${category.name}"? Se quita de todos los productos que la usan.`)) return;
-    await api.delete(`/modifier-categories/${category.id}`);
-    onDeleted();
+    try {
+      setActionError(null);
+      await api.delete(`/modifier-categories/${category.id}`);
+      onDeleted();
+    } catch (err) {
+      setActionError(apiErrorMessage(err));
+    }
   }
 
   /** Carga la lista de productos y cuáles ya tienen esta categoría asociada, la primera vez
    * que se abre el desplegable "Asociar / Desasociar". */
   async function loadProductLinkData() {
     if (allProducts !== null) return;
-    const [productsRes, linkedRes] = await Promise.all([
-      api.get('/products'),
-      api.get(`/modifier-categories/${category.id}/products`),
-    ]);
-    setAllProducts(
-      productsRes.data.data.map(
-        (p: { id: string; name: string; pricingMode: string; variants?: { id: string; name: string }[] }) => ({
-          id: p.id,
-          name: p.name,
-          pricingMode: p.pricingMode,
-          variants: p.variants ?? [],
-        }),
-      ),
-    );
-    setLinkedProducts(linkedRes.data.data);
+    try {
+      const [productsRes, linkedRes] = await Promise.all([
+        api.get('/products'),
+        api.get(`/modifier-categories/${category.id}/products`),
+      ]);
+      setAllProducts(
+        productsRes.data.data.map(
+          (p: { id: string; name: string; pricingMode: string; variants?: { id: string; name: string }[] }) => ({
+            id: p.id,
+            name: p.name,
+            pricingMode: p.pricingMode,
+            variants: p.variants ?? [],
+          }),
+        ),
+      );
+      setLinkedProducts(linkedRes.data.data);
+    } catch (err) {
+      setActionError(apiErrorMessage(err));
+    }
   }
 
   async function toggleProductLink(productId: string, checked: boolean) {
-    if (checked) {
-      await api.post(`/modifier-categories/${category.id}/products`, { productId });
-      const product = allProducts?.find((p) => p.id === productId);
-      setLinkedProducts((prev) => [...(prev ?? []), { productId, name: product?.name ?? '' }]);
-    } else {
-      await api.delete(`/modifier-categories/${category.id}/products/${productId}`);
-      setLinkedProducts((prev) => (prev ?? []).filter((p) => p.productId !== productId));
+    try {
+      setActionError(null);
+      if (checked) {
+        await api.post(`/modifier-categories/${category.id}/products`, { productId });
+        const product = allProducts?.find((p) => p.id === productId);
+        setLinkedProducts((prev) => [...(prev ?? []), { productId, name: product?.name ?? '' }]);
+      } else {
+        await api.delete(`/modifier-categories/${category.id}/products/${productId}`);
+        setLinkedProducts((prev) => (prev ?? []).filter((p) => p.productId !== productId));
+      }
+      onChanged();
+    } catch (err) {
+      setActionError(apiErrorMessage(err));
     }
-    onChanged();
   }
 
   /** Reordena dos modificadores adyacentes (botones ↑/↓ de cada fila) y persiste el nuevo orden. */
@@ -429,8 +506,13 @@ function CategoryEditor({
     if (target < 0 || target >= category.modifiers.length) return;
     const modifierIds = category.modifiers.map((m) => m.id);
     [modifierIds[index], modifierIds[target]] = [modifierIds[target], modifierIds[index]];
-    await api.patch(`/modifier-categories/${category.id}/modifiers/reorder`, { modifierIds });
-    onChanged();
+    try {
+      setActionError(null);
+      await api.patch(`/modifier-categories/${category.id}/modifiers/reorder`, { modifierIds });
+      onChanged();
+    } catch (err) {
+      setActionError(apiErrorMessage(err));
+    }
   }
 
   const toppings = insumos.filter((i) => i.isTopping);
@@ -468,6 +550,9 @@ function CategoryEditor({
 
       <div className="space-y-4 max-h-[70vh] overflow-y-auto pt-2">
         {duplicateError && <p className="text-xs text-red-600">{duplicateError}</p>}
+        {actionError && (
+          <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">{actionError}</p>
+        )}
         <OutlinedField label="Categoría" hint={`${name.length}/150`}>
           <input
             value={name}
@@ -732,6 +817,9 @@ function ModifierRow({
   const insumoSubUnits = subUnitsFor(linkedInsumo?.unit ?? linkedPreparation?.unit ?? modifier.inventoryItemUnit ?? modifier.preparationUnit);
   const [subUnit, setSubUnit] = useState(insumoSubUnits[0]?.value ?? '');
   const [insumoQty, setInsumoQty] = useState('');
+  // Error de la última acción de ESTE modificador puntual — cada fila lleva el suyo, no uno
+  // compartido con las demás filas de la categoría.
+  const [modError, setModError] = useState<string | null>(null);
 
   useEffect(() => {
     setName(modifier.name);
@@ -763,14 +851,19 @@ function ModifierRow({
   /** Precio por variante: vacío = borra el override (vuelve a usar el precio general de arriba). */
   async function saveVariantPrice(variantId: string, raw: string) {
     const trimmed = raw.trim();
-    if (trimmed === '') {
-      await api.delete(`/modifier-categories/modifiers/${modifier.id}/variant-prices/${variantId}`);
-    } else {
-      await api.put(`/modifier-categories/modifiers/${modifier.id}/variant-prices/${variantId}`, {
-        priceBase: Number(trimmed) || 0,
-      });
+    try {
+      setModError(null);
+      if (trimmed === '') {
+        await api.delete(`/modifier-categories/modifiers/${modifier.id}/variant-prices/${variantId}`);
+      } else {
+        await api.put(`/modifier-categories/modifiers/${modifier.id}/variant-prices/${variantId}`, {
+          priceBase: Number(trimmed) || 0,
+        });
+      }
+      onChanged();
+    } catch (err) {
+      setModError(apiErrorMessage(err));
     }
-    onChanged();
   }
 
   /** Guarda el vínculo convirtiendo la cantidad a la unidad base del insumo/preparación. */
@@ -791,8 +884,13 @@ function ModifierRow({
   }
 
   async function save(patch: Record<string, unknown>) {
-    await api.patch(`/modifier-categories/modifiers/${modifier.id}`, patch);
-    onChanged();
+    try {
+      setModError(null);
+      await api.patch(`/modifier-categories/modifiers/${modifier.id}`, patch);
+      onChanged();
+    } catch (err) {
+      setModError(apiErrorMessage(err));
+    }
   }
 
   async function saveMaxQuantity() {
@@ -809,26 +907,40 @@ function ModifierRow({
 
   async function remove() {
     if (!window.confirm(`¿Eliminar "${modifier.name}"?`)) return;
-    await api.delete(`/modifier-categories/modifiers/${modifier.id}`);
-    onChanged();
+    try {
+      setModError(null);
+      await api.delete(`/modifier-categories/modifiers/${modifier.id}`);
+      onChanged();
+    } catch (err) {
+      setModError(apiErrorMessage(err));
+    }
   }
 
   /** Crea una copia de este modificador en la misma categoría, con el mismo precio/costo/SKU/etc. */
   async function duplicate() {
-    await api.post(`/modifier-categories/${categoryId}/modifiers`, {
-      name: `${modifier.name} (copia)`,
-      priceBase: Number(modifier.priceBase) || 0,
-      costBase: modifier.costBase ? Number(modifier.costBase) : undefined,
-      discountBase: modifier.discountBase ? Number(modifier.discountBase) : undefined,
-      isAvailable: modifier.isAvailable,
-      maxQuantity: modifier.maxQuantity,
-      sku: modifier.sku,
-    });
-    onChanged();
+    try {
+      setModError(null);
+      await api.post(`/modifier-categories/${categoryId}/modifiers`, {
+        name: `${modifier.name} (copia)`,
+        priceBase: Number(modifier.priceBase) || 0,
+        costBase: modifier.costBase ? Number(modifier.costBase) : undefined,
+        discountBase: modifier.discountBase ? Number(modifier.discountBase) : undefined,
+        isAvailable: modifier.isAvailable,
+        maxQuantity: modifier.maxQuantity,
+        // El SKU se copia TAL CUAL del original — si el negocio lo usa como código único
+        // (por ejemplo para su lector de código de barras), la copia queda con el mismo
+        // código que el original hasta que lo corrija a mano.
+        sku: modifier.sku,
+      });
+      onChanged();
+    } catch (err) {
+      setModError(apiErrorMessage(err));
+    }
   }
 
   return (
     <div className="rounded-xl border border-brand-950/10 p-2.5 space-y-2">
+      {modError && <p className="rounded-lg bg-red-50 px-2.5 py-1.5 text-xs text-red-600">{modError}</p>}
       <div className="flex items-start gap-1.5">
         <div className="flex flex-col gap-0.5 pt-1.5 shrink-0">
           <button
