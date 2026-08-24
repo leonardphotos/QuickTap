@@ -189,20 +189,32 @@ export const passInboxService = {
         },
       });
 
-      if (reporte.installmentId) {
-        const cuota = await tx.shopInstallment.findUnique({ where: { id: reporte.installmentId } });
-        if (cuota) {
-          const pendiente = Math.max(0, cuota.amount + cuota.lateFeeCharged - cuota.paidAmount);
-          const aplicado = Math.min(reporte.amount, pendiente);
-          const nuevoPagado = Math.round((cuota.paidAmount + aplicado) * 100) / 100;
-          await tx.shopInstallment.update({
-            where: { id: cuota.id },
-            data: {
-              paidAmount: nuevoPagado,
-              paidAt: nuevoPagado + 0.001 >= cuota.amount + cuota.lateFeeCharged ? new Date() : null,
-            },
-          });
-        }
+      // El abono se reparte entre las cuotas pendientes, de la más vieja a la más nueva. El
+      // cliente elige CUÁNTAS cuotas paga (no cuáles sueltas), así que el dinero baja en orden
+      // y nunca queda una cuota vieja sin tocar mientras se salda una posterior.
+      //
+      // Antes solo se aplicaba a la cuota que viniera en el reporte: un abono que alcanzaba
+      // para tres cuotas marcaba pagada una sola y las otras dos seguían figurando vencidas,
+      // aunque el dinero ya estaba cobrado.
+      const plan = await tx.shopInstallmentPlan.findUnique({
+        where: { shopSaleId: reporte.shopSaleId },
+        include: { installments: { orderBy: { number: 'asc' } } },
+      });
+      let restante = reporte.amount;
+      for (const cuota of plan?.installments ?? []) {
+        if (restante <= 0.001) break;
+        const pendiente = Math.round((cuota.amount + cuota.lateFeeCharged - cuota.paidAmount) * 100) / 100;
+        if (pendiente <= 0) continue;
+        const aplicado = Math.min(restante, pendiente);
+        restante = Math.round((restante - aplicado) * 100) / 100;
+        const nuevoPagado = Math.round((cuota.paidAmount + aplicado) * 100) / 100;
+        await tx.shopInstallment.update({
+          where: { id: cuota.id },
+          data: {
+            paidAmount: nuevoPagado,
+            paidAt: nuevoPagado + 0.001 >= cuota.amount + cuota.lateFeeCharged ? new Date() : null,
+          },
+        });
       }
 
       // Si con esto quedó saldada la venta, sale de cuentas por cobrar.

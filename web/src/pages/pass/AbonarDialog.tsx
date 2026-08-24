@@ -60,8 +60,9 @@ const bs = (n: number, rateBs: number | null) =>
 export function AbonarDialog({ compraId, negocio, saldo, cuotas, rateBs, onClose, onListo }: Props) {
   const [metodos, setMetodos] = useState<Record<string, Record<string, string>> | null>(null);
   const [metodo, setMetodo] = useState<string | null>(null);
-  const [monto, setMonto] = useState(saldo);
-  const [cuotaId, setCuotaId] = useState<string | null>(null);
+  // Cuántas cuotas cubre este pago, contadas desde la más vieja pendiente. Sin plan de cuotas
+  // no se usa: ahí se salda la cuenta completa.
+  const [cantidad, setCantidad] = useState(1);
   const [comprobante, setComprobante] = useState<string | null>(null);
   const [subiendo, setSubiendo] = useState(false);
   const [enviando, setEnviando] = useState(false);
@@ -69,6 +70,14 @@ export function AbonarDialog({ compraId, negocio, saldo, cuotas, rateBs, onClose
 
   const auth = useMemo(() => ({ Authorization: `Bearer ${getPassToken()}` }), []);
   const porPagar = cuotas.filter((c) => c.saldo > 0);
+
+  // El monto sale de las cuotas elegidas; sin plan de cuotas, del saldo completo. Se topa al
+  // saldo real para que el redondeo de las cuotas nunca reporte más de lo que se debe (el
+  // servidor rechaza un abono mayor al saldo).
+  const monto =
+    porPagar.length > 0
+      ? Math.min(saldo, Math.round(porPagar.slice(0, cantidad).reduce((a, c) => a + c.saldo, 0) * 100) / 100)
+      : saldo;
 
   useEffect(() => {
     api
@@ -108,7 +117,15 @@ export function AbonarDialog({ compraId, negocio, saldo, cuotas, rateBs, onClose
     try {
       await api.post(
         `/public/pass/sales/${compraId}/payments`,
-        { amount: monto, method: metodo, installmentId: cuotaId ?? undefined, proofImageUrl: comprobante ?? undefined },
+        {
+          amount: monto,
+          method: metodo,
+          // La cuota más vieja de las elegidas, solo como referencia de contra qué se reportó:
+          // al aprobarlo, el negocio reparte el monto entre las cuotas pendientes en orden
+          // (ver passInboxService.aprobar), así que cubre todas las que alcance.
+          installmentId: porPagar[0]?.id,
+          proofImageUrl: comprobante ?? undefined,
+        },
         { headers: auth },
       );
       onListo();
@@ -135,51 +152,70 @@ export function AbonarDialog({ compraId, negocio, saldo, cuotas, rateBs, onClose
           </button>
         </div>
 
-        {/* Cuánto */}
+        {/* Cuánto: se elige por cuotas, no con un monto libre. Las cuotas las fijó el negocio,
+            así que el cliente decide CUÁNTAS cubre —siempre desde la más vieja— y el monto sale
+            de esa suma. Tocar una cuota selecciona esa y todas las anteriores: pagar la #3
+            dejando la #1 sin pagar no es algo que el negocio acepte. */}
         <div className="mt-5 rounded-2xl bg-[#0e141b] p-4">
-          <p className="text-[11px] font-light text-white/45">Vas a abonar</p>
+          <p className="text-[11px] font-light text-white/45">Vas a pagar</p>
           <p className="mt-1 text-3xl font-bold tabular-nums">{bs(monto, rateBs) || money(monto)}</p>
           {rateBs && <p className="text-sm font-light tabular-nums text-white/50">{money(monto)}</p>}
-          <input
-            type="range"
-            min={1}
-            max={Math.max(1, Math.round(saldo))}
-            step={1}
-            value={Math.round(monto)}
-            onChange={(e) => setMonto(Number(e.target.value))}
-            className="mt-3 w-full accent-[#009aff]"
-          />
-          <div className="flex items-center justify-between text-[10px] font-light text-white/40">
-            <span>{money(1)}</span>
-            <button onClick={() => setMonto(saldo)} className="text-[11px] font-semibold text-[#4db5ff]">
-              Pagar completo
-            </button>
-            <span>{money(saldo)}</span>
-          </div>
+          {porPagar.length > 0 && (
+            <p className="mt-1 text-[11px] font-light text-white/40">
+              {cantidad} de {porPagar.length} cuota{porPagar.length === 1 ? '' : 's'} pendiente
+              {porPagar.length === 1 ? '' : 's'}
+            </p>
+          )}
         </div>
 
-        {/* Contra qué cuota */}
-        {porPagar.length > 0 && (
+        {porPagar.length > 0 ? (
           <div className="mt-4">
-            <p className="mb-1.5 text-[11px] font-light text-white/45">¿A qué cuota lo aplicamos?</p>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="mb-1.5 flex items-baseline justify-between">
+              <p className="text-[11px] font-light text-white/45">¿Cuántas cuotas vas a pagar?</p>
               <button
-                onClick={() => setCuotaId(null)}
-                className={`rounded-full px-3 py-1.5 text-[11px] font-medium ${cuotaId === null ? 'bg-[#009aff] text-white' : 'bg-white/10 text-white/70'}`}
+                onClick={() => setCantidad(cantidad === porPagar.length ? 1 : porPagar.length)}
+                className="text-[11px] font-semibold text-[#4db5ff]"
               >
-                Al saldo general
+                {cantidad === porPagar.length ? 'Solo una' : 'Todas'}
               </button>
-              {porPagar.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => setCuotaId(c.id)}
-                  className={`rounded-full px-3 py-1.5 text-[11px] font-medium ${cuotaId === c.id ? 'bg-[#009aff] text-white' : 'bg-white/10 text-white/70'}`}
-                >
-                  Cuota #{c.number}
-                </button>
-              ))}
+            </div>
+            <div className="space-y-1.5">
+              {porPagar.map((c, i) => {
+                const elegida = i < cantidad;
+                return (
+                  <button
+                    key={c.id}
+                    onClick={() => setCantidad(i + 1)}
+                    className={`flex w-full items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-left transition-colors ${
+                      elegida ? 'bg-[#009aff]/15 ring-1 ring-[#009aff]/50' : 'bg-white/[0.05] hover:bg-white/10'
+                    }`}
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      <span
+                        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${
+                          elegida ? 'bg-[#009aff] text-white' : 'border border-white/25 text-transparent'
+                        }`}
+                      >
+                        ✓
+                      </span>
+                      <span className="truncate text-[12px] font-medium text-white/85">
+                        Cuota #{c.number}
+                        {c.estado === 'VENCIDA' && <span className="ml-1.5 text-[10px] text-red-300">vencida</span>}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-[12px] font-semibold tabular-nums text-white/70">
+                      {money(c.saldo)}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
+        ) : (
+          // Cuenta fiada sin plan de cuotas: no hay nada que elegir, se salda completa.
+          <p className="mt-3 rounded-xl bg-white/[0.05] px-3 py-2.5 text-[11px] font-light leading-snug text-white/50">
+            Esta cuenta no tiene cuotas: se paga completa, {money(saldo)}.
+          </p>
         )}
 
         {/* Cómo pagó, con los datos del negocio */}
