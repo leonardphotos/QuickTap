@@ -64,3 +64,25 @@ export function distanceToPolygonKm(point: LatLng, polygon: LatLng[]): number {
   }
   return min;
 }
+
+/** Centroide (promedio simple de vértices) de un polígono — suficiente para zonas de
+ * delivery, que son pequeñas y no necesitan el centroide "real" ponderado por área. */
+export function polygonCentroid(polygon: LatLng[]): LatLng {
+  const lat = polygon.reduce((acc, p) => acc + p.lat, 0) / polygon.length;
+  const lng = polygon.reduce((acc, p) => acc + p.lng, 0) / polygon.length;
+  return { lat, lng };
+}
+
+/** Cuadrado de `halfSideKm` de medio lado alrededor de un punto, en el mismo formato que
+ * las zonas dibujadas a mano — usado para registrar automáticamente una zona nueva a partir
+ * de un punto sin cobertura. */
+export function squarePolygonAround(center: LatLng, halfSideKm: number): LatLng[] {
+  const dLat = halfSideKm / 111.32;
+  const dLng = halfSideKm / (111.32 * Math.cos((center.lat * Math.PI) / 180));
+  return [
+    { lat: center.lat - dLat, lng: center.lng - dLng },
+    { lat: center.lat - dLat, lng: center.lng + dLng },
+    { lat: center.lat + dLat, lng: center.lng + dLng },
+    { lat: center.lat + dLat, lng: center.lng - dLng },
+  ];
+}

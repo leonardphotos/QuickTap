@@ -27,7 +27,7 @@ import { assertRestaurantOpen } from '../../utils/business-hours';
 import { effectiveProductPrice } from '../../utils/promo-price';
 import { whatsappBotService } from '../whatsapp-bot/whatsapp-bot.service';
 import { orderPaymentVerificationService } from './order-payment-verification.service';
-import { distanceToPolygonKm, haversineDistanceKm, isPointInPolygon, LatLng } from '../../utils/geo';
+import { distanceToPolygonKm, haversineDistanceKm, isPointInPolygon, LatLng, polygonCentroid, squarePolygonAround } from '../../utils/geo';
 import { tableSessionService } from '../table-sessions/table-session.service';
 import { fiscalInvoicingService } from '../fiscal-invoicing/fiscal-invoicing.service';
 import { writeFiscalAudit } from '../fiscal-invoicing/fiscal-invoicing.audit';
@@ -239,9 +239,59 @@ function calculateCharges(
 }
 
 /**
+ * A partir de las zonas ya registradas (precio + distancia de su centroide al origen),
+ * ajusta una tarifa lineal precio = intercepto + tarifaPorKm * distancia por mínimos
+ * cuadrados. Con una sola zona usa la razón precio/distancia (recta por el origen). Sirve
+ * para cotizar zonas que todavía no se dibujaron — ver el comentario en computeDeliveryFee.
+ */
+function estimateZoneRatePerKm(
+  zones: { price: Prisma.Decimal; polygon: unknown }[],
+  origin: LatLng,
+): { intercept: number; ratePerKm: number } | null {
+  const points = zones
+    .map((z) => {
+      const polygon = z.polygon as unknown as LatLng[];
+      if (!Array.isArray(polygon) || polygon.length < 3) return null;
+      const distanceKm = haversineDistanceKm(origin, polygonCentroid(polygon));
+      return { distanceKm, price: Number(z.price) };
+    })
+    .filter((p): p is { distanceKm: number; price: number } => p !== null && p.distanceKm > 0.05);
+  if (points.length === 0) return null;
+
+  if (points.length === 1) {
+    return { intercept: 0, ratePerKm: points[0].price / points[0].distanceKm };
+  }
+
+  const n = points.length;
+  const sumX = points.reduce((acc, p) => acc + p.distanceKm, 0);
+  const sumY = points.reduce((acc, p) => acc + p.price, 0);
+  const sumXY = points.reduce((acc, p) => acc + p.distanceKm * p.price, 0);
+  const sumXX = points.reduce((acc, p) => acc + p.distanceKm * p.distanceKm, 0);
+  const denominator = n * sumXX - sumX * sumX;
+
+  // Zonas casi a la misma distancia del origen (denominador ~0) o pendiente negativa
+  // (más lejos no debería salir más barato) — se usa el promedio de precio/distancia
+  // de cada zona en vez de la regresión, más robusto con pocos datos ruidosos.
+  const slope = denominator === 0 ? NaN : (n * sumXY - sumX * sumY) / denominator;
+  if (!Number.isFinite(slope) || slope < 0) {
+    const avgRate = points.reduce((acc, p) => acc + p.price / p.distanceKm, 0) / n;
+    return { intercept: 0, ratePerKm: avgRate };
+  }
+
+  const intercept = Math.max(0, (sumY - slope * sumX) / n);
+  return { intercept, ratePerKm: slope };
+}
+
+/**
  * Calcula el costo de envío según el modo configurado por el restaurante.
  * Sin ubicación del cliente, sin origen configurado, o sin zona que la
  * contenga, el envío queda en 0 (no bloquea el checkout).
+ *
+ * `persistFallbackZone`: cuando el cliente cae fuera de toda zona dibujada, además de
+ * cotizar por km (ver estimateZoneRatePerKm) se registra una zona nueva alrededor de ese
+ * punto con el precio calculado, para que la próxima vez ya esté cubierta sin recalcular.
+ * Se desactiva en cotizaciones en vivo (el cliente todavía puede estar moviendo el pin) y
+ * solo se activa al confirmar/editar un pedido real.
  */
 async function computeDeliveryFee(
   restaurant: {
@@ -253,6 +303,7 @@ async function computeDeliveryFee(
     deliveryPricePerKm: Prisma.Decimal;
   },
   customer: LatLng | null,
+  persistFallbackZone = false,
 ): Promise<Prisma.Decimal> {
   if (!customer || restaurant.deliveryPricingMode === 'DISABLED') return toDecimal(0);
 
@@ -275,7 +326,7 @@ async function computeDeliveryFee(
   // imprecisión del GPS/dibujo, o zona sin cubrir del todo). En vez de dejarlo
   // sin cobrar, usamos el precio de la zona dibujada más cercana — pero solo si
   // está dentro de NEARBY_ZONE_MAX_KM de esa zona. Más lejos (fuera del área que
-  // el restaurante efectivamente cubrió con zonas) el envío queda sin definir (0).
+  // el restaurante efectivamente cubrió con zonas) se cotiza por km (abajo).
   const NEARBY_ZONE_MAX_KM = 10;
   let nearest: { price: Prisma.Decimal; distanceKm: number } | null = null;
   for (const zone of zones) {
@@ -287,7 +338,31 @@ async function computeDeliveryFee(
   if (nearest && nearest.distanceKm <= NEARBY_ZONE_MAX_KM) {
     return round2(toDecimal(nearest.price));
   }
-  return toDecimal(0);
+
+  // Zona virgen (sin ninguna zona registrada cerca): en vez de dejar el envío en 0, se
+  // estima con la tarifa por km que salió de las zonas que sí tienen precio.
+  if (restaurant.deliveryOriginLat == null || restaurant.deliveryOriginLng == null) return toDecimal(0);
+  const origin = { lat: restaurant.deliveryOriginLat, lng: restaurant.deliveryOriginLng };
+  const rate = estimateZoneRatePerKm(zones, origin);
+  if (!rate) return toDecimal(0);
+
+  const distanceFromOriginKm = haversineDistanceKm(origin, customer);
+  const estimatedPrice = round2(toDecimal(rate.intercept).add(toDecimal(rate.ratePerKm).mul(distanceFromOriginKm)));
+
+  if (persistFallbackZone) {
+    // Radio generoso (3km de lado) para que los próximos pedidos del mismo sector caigan
+    // dentro de esta misma zona en vez de generar una nueva cada vez.
+    await prisma.deliveryZone.create({
+      data: {
+        restaurantId: restaurant.id,
+        name: `Zona automática (${distanceFromOriginKm.toFixed(1)} km)`,
+        price: estimatedPrice,
+        polygon: squarePolygonAround(customer, 1.5) as unknown as Prisma.InputJsonValue,
+      },
+    });
+  }
+
+  return estimatedPrice;
 }
 
 /**
@@ -1130,7 +1205,7 @@ export const orderService = {
     const deliveryFeeIsManual = input.channel === 'DELIVERY' && input.deliveryFeeBase != null;
     const deliveryFeeBase = deliveryFeeIsManual
       ? round2(toDecimal(input.deliveryFeeBase!))
-      : await computeDeliveryFee({ id: restaurantId, ...restaurant }, customerPoint);
+      : await computeDeliveryFee({ id: restaurantId, ...restaurant }, customerPoint, true);
     const envaseFeeBase = await computeEnvaseFee(restaurantId, input.channel, input.items);
     const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(deliveryFeeBase).add(envaseFeeBase));
     const totalBs = baseToBs(totalBase, rate.rateBs);
@@ -1387,7 +1462,7 @@ export const orderService = {
       input.mode === 'DELIVERY' && input.customer.lat != null && input.customer.lng != null
         ? { lat: input.customer.lat, lng: input.customer.lng }
         : null;
-    const deliveryFeeBase = await computeDeliveryFee(restaurant, customerPoint);
+    const deliveryFeeBase = await computeDeliveryFee(restaurant, customerPoint, true);
     const envaseFeeBase = await computeEnvaseFee(restaurantId, input.mode, input.items);
     const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(deliveryFeeBase).add(envaseFeeBase));
     const totalBs = baseToBs(totalBase, rate.rateBs);
@@ -1783,7 +1858,7 @@ export const orderService = {
       const lat = input.customerLat ?? existing.customerLat;
       const lng = input.customerLng ?? existing.customerLng;
       const customerPoint = lat != null && lng != null ? { lat, lng } : null;
-      const deliveryFeeBase = await computeDeliveryFee(restaurant!, customerPoint);
+      const deliveryFeeBase = await computeDeliveryFee(restaurant!, customerPoint, true);
       const totalBase = round2(
         existing.subtotalBase
           .add(existing.serviceChargeBase)
@@ -1857,7 +1932,7 @@ export const orderService = {
         select: { id: true, deliveryPricingMode: true, deliveryOriginLat: true, deliveryOriginLng: true, deliveryBaseFee: true, deliveryPricePerKm: true },
       });
       const customerPoint = input.customerLat != null && input.customerLng != null ? { lat: input.customerLat, lng: input.customerLng } : null;
-      deliveryFeeBase = await computeDeliveryFee(restaurant!, customerPoint);
+      deliveryFeeBase = await computeDeliveryFee(restaurant!, customerPoint, true);
       customerAddress = input.customerAddress!;
       customerLat = input.customerLat ?? null;
       customerLng = input.customerLng ?? null;
