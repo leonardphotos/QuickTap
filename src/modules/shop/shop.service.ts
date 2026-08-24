@@ -30,6 +30,52 @@ import type {
  */
 
 /**
+ * Forma canónica de un teléfono para comparar dos números: los últimos 10 dígitos, que ya
+ * incluyen el código de operadora. Así "04244572008" y "+584244572008" son el mismo número.
+ * Mismo criterio que pass.service.ts — no se comparan 7 porque esa cola es solo el abonado y
+ * dos operadoras distintas la comparten.
+ */
+function telefonoCanonico(valor: string | null | undefined): string {
+  return (valor ?? '').replace(/\D/g, '').slice(-10);
+}
+
+/**
+ * La cuenta fiada que este cliente ya tiene abierta en este negocio, si la hay.
+ *
+ * Devuelve null (y entonces se abre una venta nueva) cuando la compra no es fiada, cuando no
+ * hay teléfono con que identificar al cliente, o cuando la única cuenta abierta tiene plan de
+ * cuotas — ese calendario ya está pactado sobre un total fijo y no puede crecer por detrás.
+ */
+async function buscarCuentaAbierta(
+  tx: Prisma.TransactionClient,
+  restaurantId: string,
+  input: { creditTerms?: string | null; customerPhone?: string | null },
+) {
+  // Solo 'FULL' se fusiona: ver el comentario del bloque que llama a esta función.
+  if (input.creditTerms !== 'FULL') return null;
+  const telefono = telefonoCanonico(input.customerPhone);
+  if (telefono.length < 7) return null;
+
+  // Prisma no puede normalizar dígitos dentro del WHERE, así que se acota por los últimos 7
+  // (prefiltro barato, tolerante al formato con que cada quien guardó el número) y la
+  // coincidencia real se decide comparando el número canónico completo.
+  const candidatas = await tx.shopSale.findMany({
+    where: {
+      restaurantId,
+      returned: false,
+      creditTerms: 'FULL',
+      settledAt: null,
+      customerPhone: { contains: telefono.slice(-7) },
+      installmentPlan: { is: null },
+    },
+    orderBy: { time: 'asc' },
+    include: { items: { select: { id: true } } },
+  });
+  // La más antigua: es la cuenta que el cliente viene arrastrando.
+  return candidatas.find((v) => telefonoCanonico(v.customerPhone) === telefono) ?? null;
+}
+
+/**
  * Aplica (o revierte) el consumo de insumos de los servicios de un ticket.
  *
  * `sign` = -1 al vender (descuenta) y +1 al devolver (repone), para que ambos caminos usen
@@ -640,43 +686,78 @@ export const shopService = {
       return Math.round((it.price * it.qty * (pct / 100) + Number.EPSILON) * 100) / 100;
     };
 
+    const lineasNuevas = input.items.map((it) => ({
+      productId: it.productId,
+      v1: it.v1,
+      v2: it.v2,
+      name: it.name,
+      category: it.category ?? null,
+      qty: it.qty,
+      price: it.price,
+      cost: it.cost,
+      soldByWeight: it.soldByWeight,
+      detail: it.detail ?? null,
+      stockQty: it.stockQty ?? null,
+      staffUserId: it.staffUserId ?? null,
+      commissionPercent: commissionByUser.get(it.staffUserId ?? '') ?? null,
+      commissionBase: commissionFor(it),
+    }));
+
     return prisma.$transaction(async (tx) => {
-      const sale = await tx.shopSale.create({
-        data: {
-          restaurantId,
-          total: input.total,
-          customerName: input.customerName ?? null,
-          customerPhone: input.customerPhone ?? null,
-          paymentMethod: input.paymentMethod ?? null,
-          paymentMeta: input.paymentMeta ?? undefined,
-          creditTerms: input.creditTerms ?? null,
-          amountPaidNow: input.amountPaidNow ?? null,
-          dueDate: input.creditTerms ? (input.dueDate ?? null) : null,
-          soldByUserId: userId,
-          soldByUserName: soldBy?.name ?? null,
-          items: {
-            createMany: {
-              data: input.items.map((it) => ({
-                productId: it.productId,
-                v1: it.v1,
-                v2: it.v2,
-                name: it.name,
-                category: it.category ?? null,
-                qty: it.qty,
-                price: it.price,
-                cost: it.cost,
-                soldByWeight: it.soldByWeight,
-                detail: it.detail ?? null,
-                stockQty: it.stockQty ?? null,
-                staffUserId: it.staffUserId ?? null,
-                commissionPercent: commissionByUser.get(it.staffUserId ?? '') ?? null,
-                commissionBase: commissionFor(it),
-              })),
+      // ------------------------------------------------------------------
+      // Cuenta única por cliente: si ya le fiamos a este cliente en ESTE negocio y esa cuenta
+      // sigue con saldo, la compra nueva se suma a esa misma cuenta en vez de abrir otra. Así
+      // el cliente (y el negocio) ven un solo saldo por local y no una lista de tickets sueltos.
+      //
+      // Solo se fusiona entre ventas 'FULL'. Una cuenta con plan de cuotas queda fuera a
+      // propósito: sus cuotas ya se calcularon sobre un total pactado, y hacerlo crecer por
+      // detrás rompería el calendario que el cliente ya tiene acordado.
+      // ------------------------------------------------------------------
+      const cuenta = await buscarCuentaAbierta(tx, restaurantId, input);
+
+      const sale = cuenta
+        ? await tx.shopSale.update({
+            where: { id: cuenta.id },
+            data: {
+              total: Math.round((cuenta.total + input.total) * 100) / 100,
+              amountPaidNow:
+                input.amountPaidNow != null || cuenta.amountPaidNow != null
+                  ? Math.round(((cuenta.amountPaidNow ?? 0) + (input.amountPaidNow ?? 0)) * 100) / 100
+                  : null,
+              // La fecha de pago la vuelve a acordar el cajero con el cliente al fiarle de
+              // nuevo; si esta vez no se pactó ninguna, se respeta la que ya tenía la cuenta.
+              dueDate: input.dueDate ?? cuenta.dueDate,
+              // El nombre se refresca por si la primera vez se cargó incompleto.
+              customerName: input.customerName ?? cuenta.customerName,
+              items: { createMany: { data: lineasNuevas } },
             },
-          },
-        },
-        include: { items: true },
-      });
+            include: { items: true },
+          })
+        : await tx.shopSale.create({
+            data: {
+              restaurantId,
+              total: input.total,
+              customerName: input.customerName ?? null,
+              customerPhone: input.customerPhone ?? null,
+              paymentMethod: input.paymentMethod ?? null,
+              paymentMeta: input.paymentMeta ?? undefined,
+              creditTerms: input.creditTerms ?? null,
+              amountPaidNow: input.amountPaidNow ?? null,
+              dueDate: input.creditTerms ? (input.dueDate ?? null) : null,
+              soldByUserId: userId,
+              soldByUserName: soldBy?.name ?? null,
+              items: { createMany: { data: lineasNuevas } },
+            },
+            include: { items: true },
+          });
+
+      // Al sumar a una cuenta que ya existía, `sale.items` trae TODAS las líneas históricas.
+      // El descuento de stock y la descarga de lotes de más abajo tienen que tocar solo lo que
+      // se acaba de vender, así que se recorta a las líneas de esta compra.
+      if (cuenta) {
+        const idsPrevios = new Set(cuenta.items.map((i) => i.id));
+        sale.items = sale.items.filter((i) => !idsPrevios.has(i.id));
+      }
 
       // Descuenta stock de cada variante vendida (best-effort por productId+v1+v2 — si el
       // producto ya no existe o el id era temporal del frontend, la venta queda igual registrada).

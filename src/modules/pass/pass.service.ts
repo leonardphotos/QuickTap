@@ -95,7 +95,9 @@ export const passService = {
       include: {
         restaurant: { select: { name: true, whatsappPhone: true } },
         payments: true,
-        items: { select: { name: true, qty: true } },
+        // addedAt y no el `time` de la venta: una cuenta fiada acumula las compras de varios
+        // días (ver recordSale), así que cada línea sabe cuándo se llevó.
+        items: { select: { name: true, qty: true, addedAt: true }, orderBy: { addedAt: 'desc' } },
         installmentPlan: { include: { installments: { orderBy: { number: 'asc' } } } },
       },
     });
@@ -145,9 +147,15 @@ export const passService = {
         // El WhatsApp del negocio, para que el cliente pueda escribirle por esta compra
         // desde el mismo portal (queda null si el negocio no lo tiene cargado).
         whatsappNegocio: v.restaurant.whatsappPhone,
+        // `fecha` es cuándo se abrió la cuenta; `ultimaCompra`, lo último que se llevó. En una
+        // cuenta fiada que fue creciendo no son lo mismo, y lo que el cliente reconoce es lo
+        // último.
         fecha: v.time,
+        ultimaCompra: v.items.reduce<Date>((max, i) => (i.addedAt > max ? i.addedAt : max), v.time),
         esCredito: aCredito,
         detalle: v.items.map((i) => `${i.qty}× ${i.name}`),
+        // Cada línea con su fecha, para poder desglosar una cuenta que junta varios días.
+        lineas: v.items.map((i) => ({ texto: `${i.qty}× ${i.name}`, fecha: i.addedAt })),
         total: aPagar,
         abonado,
         saldo,

@@ -3601,6 +3601,12 @@ model ShopSaleItem {
   id     String @id @default(cuid())
   saleId String
 
+  // Cuándo se agregó ESTA línea. Existe porque una venta fiada es una cuenta que crece: cuando
+  // el cliente vuelve a comprar al mismo negocio, la compra se suma a la cuenta abierta en vez
+  // de abrir otra (ver recordSale). Sin esto, ShopSale.time solo diría cuándo se abrió la
+  // cuenta y el cliente no podría reconocer qué se llevó cada día.
+  addedAt DateTime @default(now())
+
   // Informativo, sin relación FK — el resto de los campos ya snapshotea todo lo necesario
   // para mostrar/devolver la venta aunque el producto original cambie o se borre.
   productId         String?

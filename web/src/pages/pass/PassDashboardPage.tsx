@@ -34,9 +34,14 @@ interface Compra {
   negocio: string;
   /** WhatsApp del negocio, para escribirle por esta compra. null si no lo tiene cargado. */
   whatsappNegocio: string | null;
+  /** Cuándo se abrió la cuenta. */
   fecha: string;
+  /** Lo último que se llevó. En una cuenta fiada que fue creciendo no es igual a `fecha`. */
+  ultimaCompra: string;
   /** Solo las compras a crédito dejan saldo; las de contado ya se pagaron en el mostrador. */
   esCredito: boolean;
+  /** Cada línea con su fecha, para desglosar una cuenta que junta compras de varios días. */
+  lineas: { texto: string; fecha: string }[];
   detalle: string[];
   total: number;
   abonado: number;
@@ -76,7 +81,7 @@ const fechaHora = (iso: string) =>
 function whatsappDelNegocio(c: Compra): string | null {
   const tel = (c.whatsappNegocio ?? '').replace(/\D/g, '');
   if (!tel) return null;
-  const texto = `Hola ${c.negocio}, te escribo por mi compra del ${fechaHora(c.fecha)}`
+  const texto = `Hola ${c.negocio}, te escribo por mi compra del ${fechaHora(c.ultimaCompra)}`
     + (c.detalle.length ? ` (${c.detalle.join(', ')})` : '')
     + (c.saldo > 0 ? `. Me queda un saldo de ${money(c.saldo)}.` : '.');
   return `https://wa.me/${tel}?text=${encodeURIComponent(texto)}`;
@@ -308,10 +313,10 @@ export default function PassDashboardPage() {
                   </div>
                   {/* Cuándo se hizo la compra: es lo primero que el cliente busca para
                       reconocerla, sobre todo si tiene varias del mismo negocio. */}
-                  <p className="mt-0.5 text-[10.5px] font-light tabular-nums text-white/35">{fechaHora(c.fecha)}</p>
+                  <p className="mt-0.5 text-[10.5px] font-light tabular-nums text-white/35">{fechaHora(c.ultimaCompra)}</p>
                   <p className="mt-0.5 truncate text-[11px] font-light text-white/45">{c.detalle.join(', ')}</p>
                 </div>
-                {c.cuotas.length > 0 && (
+                {(c.cuotas.length > 0 || c.lineas.length > 0) && (
                   <button
                     onClick={() => setAbierta(abierto ? null : c.id)}
                     className="shrink-0 text-[11px] font-medium text-[#4db5ff]"
@@ -368,7 +373,7 @@ export default function PassDashboardPage() {
                     className="flex-1 rounded-full py-2.5 text-[13px] font-semibold text-white"
                     style={{ background: 'linear-gradient(135deg, #009aff 0%, #056CF2 100%)' }}
                   >
-                    Abonar o pagar completo
+                    Pagar
                   </button>
                 )}
                 {whatsappDelNegocio(c) && (
@@ -388,6 +393,18 @@ export default function PassDashboardPage() {
 
               {abierto && (
                 <div className="mt-3 space-y-1.5 border-t border-white/[0.06] pt-3">
+                  {/* Qué se llevó y cuándo: una cuenta fiada junta las compras de varios días,
+                      así que cada línea va con su fecha. */}
+                  {c.lineas.length > 0 && (
+                    <div className="mb-3 space-y-1">
+                      {c.lineas.map((l, i) => (
+                        <div key={i} className="flex items-baseline justify-between gap-3 text-[11px]">
+                          <span className="min-w-0 truncate font-light text-white/60">{l.texto}</span>
+                          <span className="shrink-0 tabular-nums text-white/35">{fechaHora(l.fecha)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {c.cuotas.map((q) => (
                     <div key={q.id} className="flex items-center justify-between text-[11px]">
                       <span className="font-light text-white/50">
