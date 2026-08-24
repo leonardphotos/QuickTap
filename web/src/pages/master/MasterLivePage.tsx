@@ -132,10 +132,10 @@ export default function MasterLivePage() {
         <button
           type="button"
           onClick={() => setPausado((p) => !p)}
-          className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-2 text-xs font-semibold text-white/70 transition-colors hover:bg-white/[0.08]"
+          className="flex items-center gap-2 rounded-full border border-brand-950/10 bg-brand-950/[0.04] px-3.5 py-2 text-xs font-semibold text-white/70 transition-colors hover:bg-brand-950/[0.08]"
         >
           <span
-            className={`h-2 w-2 rounded-full ${pausado ? 'bg-white/30' : 'animate-pulse'}`}
+            className={`h-2 w-2 rounded-full ${pausado ? 'bg-brand-950/30' : 'animate-pulse'}`}
             style={pausado ? undefined : { background: AZUL }}
           />
           {pausado ? 'Reanudar' : 'En vivo'}
@@ -176,7 +176,7 @@ export default function MasterLivePage() {
         />
       </div>
 
-      <section className="mt-3 rounded-2xl border border-white/[0.07] bg-[#0c1119] p-4 sm:p-5">
+      <section className="mt-3 rounded-2xl border border-brand-950/[0.07] bg-[#0c1119] p-4 sm:p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-[15px] font-semibold text-white">Generado hoy</p>
           <p className="text-[22px] font-bold tabular-nums" style={{ color: foco === 'TODOS' ? '#fff' : COLOR_DE(foco) }}>
@@ -279,7 +279,7 @@ export default function MasterLivePage() {
           </div>
 
           {punto && (
-            <div className="pointer-events-none absolute right-2 top-2 rounded-xl border border-white/10 bg-[#0c1119]/95 px-3 py-2 backdrop-blur-sm">
+            <div className="pointer-events-none absolute right-2 top-2 rounded-xl border border-brand-950/10 bg-[#0c1119]/95 px-3 py-2 backdrop-blur-sm">
               <p className="text-[10.5px] text-white/40">{hora(punto.t)}</p>
               {series.map((v) => (
                 <p key={v.id} className="flex items-center gap-1.5 text-[11.5px] tabular-nums text-white/80">
@@ -298,7 +298,7 @@ export default function MasterLivePage() {
       </section>
 
       <div className="mt-3 grid gap-3 lg:grid-cols-2">
-        <section className="rounded-2xl border border-white/[0.07] bg-[#0c1119] p-4 sm:p-5">
+        <section className="rounded-2xl border border-brand-950/[0.07] bg-[#0c1119] p-4 sm:p-5">
           <p className="mb-3 text-[15px] font-semibold text-white">Quién está generando hoy</p>
           {d.ranking.length === 0 ? (
             <p className="py-10 text-center text-xs font-light text-white/30">Sin movimiento todavía.</p>
@@ -320,7 +320,7 @@ export default function MasterLivePage() {
                       </span>
                       <span className="shrink-0 font-semibold tabular-nums text-white">{usd(r.usd)}</span>
                     </div>
-                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+                    <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-brand-950/[0.06]">
                       <div
                         className="h-full rounded-full transition-[width] duration-500"
                         style={{ width: `${pct}%`, background: COLOR_DE(r.vertical) }}
@@ -333,14 +333,14 @@ export default function MasterLivePage() {
           )}
         </section>
 
-        <section className="rounded-2xl border border-white/[0.07] bg-[#0c1119] p-4 sm:p-5">
+        <section className="rounded-2xl border border-brand-950/[0.07] bg-[#0c1119] p-4 sm:p-5">
           <p className="mb-3 text-[15px] font-semibold text-white">Últimos movimientos</p>
           {d.ultimos.length === 0 ? (
             <p className="py-10 text-center text-xs font-light text-white/30">Todavía no se ha generado nada hoy.</p>
           ) : (
             <ul className="space-y-0.5">
               {d.ultimos.map((m, i) => (
-                <li key={`${m.cuando}-${i}`} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-white/[0.04]">
+                <li key={`${m.cuando}-${i}`} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-brand-950/[0.04]">
                   <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: COLOR_DE(m.vertical) }} />
                   <span className="w-10 shrink-0 text-[11px] tabular-nums text-white/30">{hora(m.cuando)}</span>
                   <span className="min-w-0 flex-1 truncate text-[12.5px] text-white/80">{m.negocio}</span>
@@ -392,7 +392,7 @@ function Tarjeta({
     datos.length > 1 ? datos.map((n, i) => `${(i / (datos.length - 1)) * 100},${28 - (n / max) * 24}`).join(' ') : null;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#0c1119] p-3.5">
+    <div className="overflow-hidden rounded-2xl border border-brand-950/[0.07] bg-[#0c1119] p-3.5">
       <p className="flex items-center gap-1.5 text-[10.5px] font-medium uppercase tracking-wide text-white/35">
         {icono}
         {label}

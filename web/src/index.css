@@ -384,3 +384,66 @@ body {
     font-size: 15px;
   }
 }
+
+/**
+ * Tema oscuro del Dashboard maestro.
+ *
+ * Se aplica volteando las VARIABLES, no reescribiendo las clases de cada pantalla: en Tailwind
+ * v4 `bg-white` es `var(--color-white)` y `text-brand-950` es `var(--color-brand-950)`, así que
+ * redefinirlas acá vuelve oscuras las catorce pantallas del maestro sin tocarles una línea. Ese
+ * es justamente el punto: repintarlas a mano dejaría un rastro de literales imposible de
+ * mantener parejo, y la primera pantalla nueva volvería a salir blanca.
+ *
+ * La clase vive en <html> y no en el contenedor del maestro porque los diálogos se montan en un
+ * portal, fuera de ese árbol: sin esto, cada diálogo se abriría blanco sobre el panel oscuro.
+ *
+ * `bg-brand-950 text-white` (la pastilla activa del menú) queda invertido a propósito: sobre
+ * fondo oscuro, la pastilla clara con texto oscuro es la que se lee como seleccionada.
+ */
+.master-oscuro {
+  /* Superficies */
+  --color-white: #0c1119;
+  --color-background: #05070b;
+  --color-card: #0c1119;
+  --color-popover: #0c1119;
+  --color-secondary: #141b26;
+  --color-muted: #141b26;
+  --color-accent: #10233a;
+
+  /* Texto: brand-950 es el color de letra en toda la app, así que acá se aclara. */
+  --color-brand-950: #e6edf6;
+  --color-foreground: #e6edf6;
+  --color-card-foreground: #e6edf6;
+  --color-popover-foreground: #e6edf6;
+  --color-secondary-foreground: #e6edf6;
+  --color-accent-foreground: #cfe4ff;
+  --color-muted-foreground: #97a3b8;
+
+  /* Bordes y campos */
+  --color-border: #1e2735;
+  --color-input: #1e2735;
+
+  color-scheme: dark;
+}
+
+/**
+ * El logo es un PNG de letras oscuras, pensado para fondo claro: sobre el negro del maestro
+ * desaparece. Se invierte a blanco en vez de mantener dos archivos.
+ */
+.master-oscuro img[alt='QuickTap'] {
+  filter: brightness(0) invert(1);
+}
+
+/**
+ * `text-white` tiene que seguir siendo blanco de verdad: es la letra encima de los botones
+ * azules y de las pastillas de color, que no cambian con el tema. Como arriba se volteó
+ * --color-white para las superficies, acá se le devuelve el valor literal.
+ */
+.master-oscuro .text-white {
+  color: #fff;
+}
+
+.master-oscuro body {
+  background: var(--color-background);
+  color: var(--color-brand-950);
+}

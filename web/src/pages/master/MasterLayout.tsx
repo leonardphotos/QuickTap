@@ -1,6 +1,7 @@
 import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { ChevronDown, LogOut, Settings, ShieldCheck } from 'lucide-react';
 import { useMasterAuth } from '../../context/MasterAuthContext';
+import { useMasterTheme } from './useMasterTheme';
 import { MoneyVisibilityProvider } from '@/context/MoneyVisibilityContext';
 import { MoneyVisibilityToggle } from '@/components/master/MoneyVisibilityToggle';
 import { DailyRatesBadge } from '@/components/DailyRatesBadge';
@@ -17,6 +18,8 @@ export default function MasterLayout() {
   const { admin, loading, logout } = useMasterAuth();
   const { pathname } = useLocation();
 
+  useMasterTheme();
+
   if (loading) return <div className="p-10 text-center text-brand-950/50 font-light">Cargando…</div>;
   if (!admin) return <Navigate to="/master/login" replace />;
 
@@ -24,8 +27,8 @@ export default function MasterLayout() {
 
   return (
     <MoneyVisibilityProvider>
-      <div className="min-h-screen bg-[#fafafa]">
-        <header className="sticky top-0 z-20 bg-white/80 backdrop-blur-md border-b border-brand-950/[0.06]">
+      <div className="min-h-screen bg-background">
+        <header className="sticky top-0 z-20 border-b border-brand-950/[0.08] bg-white/85 backdrop-blur-md">
           <div className="max-w-7xl mx-auto px-6 py-3.5 flex items-center gap-4">
             <Link to="/master/summary" className="flex items-center gap-2 min-w-0 shrink-0">
               <ShieldCheck className="h-5 w-5 text-brand-500 shrink-0" />
@@ -40,7 +43,7 @@ export default function MasterLayout() {
                   key={l.to}
                   to={l.to}
                   className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                    pathname === l.to ? 'bg-brand-950 text-white' : 'text-brand-950/60 hover:bg-brand-950/[0.06]'
+                    pathname === l.to ? 'bg-brand-500 text-white shadow-[0_6px_18px_-8px_rgba(0,154,255,0.7)]' : 'text-brand-950/55 hover:bg-brand-950/[0.06]'
                   }`}
                 >
                   <l.icon className="h-3.5 w-3.5 shrink-0" /> {l.label}
@@ -50,7 +53,7 @@ export default function MasterLayout() {
               <DropdownMenu>
                 <DropdownMenuTrigger
                   className={`flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium transition-colors outline-none ${
-                    configActive ? 'bg-brand-950 text-white' : 'text-brand-950/60 hover:bg-brand-950/[0.06]'
+                    configActive ? 'bg-brand-500 text-white shadow-[0_6px_18px_-8px_rgba(0,154,255,0.7)]' : 'text-brand-950/55 hover:bg-brand-950/[0.06]'
                   }`}
                 >
                   <Settings className="h-3.5 w-3.5 shrink-0" /> Configuración
@@ -90,7 +93,7 @@ export default function MasterLayout() {
                 key={l.to}
                 to={l.to}
                 className={`shrink-0 flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                  pathname === l.to ? 'bg-brand-950 text-white' : 'text-brand-950/60 bg-brand-950/[0.06]'
+                  pathname === l.to ? 'bg-brand-500 text-white' : 'text-brand-950/55 bg-brand-950/[0.06]'
                 }`}
               >
                 <l.icon className="h-3.5 w-3.5 shrink-0" /> {l.label}

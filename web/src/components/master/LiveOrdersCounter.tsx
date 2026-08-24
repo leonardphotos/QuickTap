@@ -77,7 +77,7 @@ export function LiveOrdersCounter({
   }, [target]);
 
   return (
-    <div className="relative overflow-hidden rounded-2xl bg-brand-950 px-6 py-7 text-white shadow-sm">
+    <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-500 to-brand-800 px-6 py-7 text-white shadow-[0_18px_40px_-24px_rgba(0,154,255,0.8)]">
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-2">
           <Receipt className="h-4 w-4 text-white/50" />

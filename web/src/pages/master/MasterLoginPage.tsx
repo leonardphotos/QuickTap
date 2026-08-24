@@ -5,8 +5,10 @@ import { useMasterAuth } from '../../context/MasterAuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import AuthLayout from '../admin/AuthLayout';
 import { Field } from '../admin/LoginPage';
+import { useMasterTheme } from './useMasterTheme';
 
 export default function MasterLoginPage() {
+  useMasterTheme();
   const { login } = useMasterAuth();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
