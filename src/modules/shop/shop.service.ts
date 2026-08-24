@@ -5,6 +5,7 @@ import { puestosVendidosPorEvento } from './shop-installments.service';
 import { bankLedgerService } from '../bank-accounts/bank-ledger.service';
 import { customerService } from '../customers/customer.service';
 import { round2, toDecimal } from '../../utils/money';
+import { telefonoCanonico } from '../../utils/phone';
 import { promotionDiscountOf, recordPromotionRedemption, resolvePromotionForRedeem } from '../promotions/promotion.service';
 import { movementService } from '../movements/movement.service';
 import { resolveDateFilter, type ReportRange } from '../../utils/date-range';
@@ -28,16 +29,6 @@ import type {
  * mutación del hook de frontend dispara una llamada aquí; el frontend mantiene su propio
  * estado local optimista y reconcilia con lo que devuelve el servidor (ver shopSession.ts).
  */
-
-/**
- * Forma canónica de un teléfono para comparar dos números: los últimos 10 dígitos, que ya
- * incluyen el código de operadora. Así "04244572008" y "+584244572008" son el mismo número.
- * Mismo criterio que pass.service.ts — no se comparan 7 porque esa cola es solo el abonado y
- * dos operadoras distintas la comparten.
- */
-function telefonoCanonico(valor: string | null | undefined): string {
-  return (valor ?? '').replace(/\D/g, '').slice(-10);
-}
 
 /**
  * La cuenta fiada que este cliente ya tiene abierta en este negocio, si la hay.

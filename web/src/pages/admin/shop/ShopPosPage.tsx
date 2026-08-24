@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
 import { Camera, CheckCircle2, ClipboardList, FileText, Loader2, MessageCircle, Minus, Plus, Printer, QrCode, ScanLine, Search, ShoppingCart, Wallet, Wrench, X } from 'lucide-react';
 import { api } from '@/api/client';
-import { shopApi, type RawConsumptionPlan } from './shopApi';
+import { shopApi, type CuentaPass, type RawConsumptionPlan } from './shopApi';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { useAuth } from '@/context/AuthContext';
 import { ShopPassEnrollDialog } from './ShopPassEnrollDialog';
@@ -229,6 +229,30 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [custPhone, cart.map((c) => c.productId).join(',')]);
+
+  // Lo que este cliente ya debe en el local, para ofrecer sumarle la compra a esa cuenta en vez
+  // de abrirle otra. Se consulta con un respiro de 400 ms: si no, cada tecla del teléfono
+  // dispararía una llamada.
+  const [cuentaPass, setCuentaPass] = useState<CuentaPass | null>(null);
+  useEffect(() => {
+    const telefono = custPhone.replace(/\D/g, '');
+    if (telefono.length < 7) {
+      setCuentaPass(null);
+      return;
+    }
+    let vivo = true;
+    const t = setTimeout(() => {
+      shopApi
+        .passAccount(telefono)
+        .then((c) => vivo && setCuentaPass(c))
+        .catch(() => vivo && setCuentaPass(null));
+    }, 400);
+    return () => {
+      vivo = false;
+      clearTimeout(t);
+    };
+  }, [custPhone]);
+
   const [discount, setDiscount] = useState(0);
   // Promoción del CRM aplicada con su código: descuenta del total y el backend registra el canje.
   const [posPromo, setPosPromo] = useState<AppliedPromo | null>(null);
@@ -1260,16 +1284,46 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
               {pedidoAbiertoId ? 'Guardar pedido abierto' : 'Dejar pedido abierto'}
             </button>
 
-            {/* Alta en el portal del cliente + plan de cuotas, en el mismo momento del cobro:
-                es cuando el cliente está delante y se acuerdan las condiciones. */}
-            <button
-              type="button"
-              disabled={cart.length === 0 || !till}
-              onClick={() => setPassOpen(true)}
-              className="mt-2 w-full rounded-full border border-brand-500/30 bg-brand-500/[0.07] py-2 text-[12.5px] font-semibold text-brand-500 transition-colors hover:bg-brand-500/15 disabled:opacity-40"
-            >
-              Agregar cliente a QuickTap Pass
-            </button>
+            {/* Si el cliente ya tiene cuenta abierta en el local, el botón deja de ofrecer darlo
+                de alta y pasa a ofrecer sumarle esta compra a lo que ya debe: es lo que el
+                cajero necesita en ese momento, y evita abrirle una segunda cuenta al mismo
+                cliente. La fusión la hace el servidor al registrar la venta (ver recordSale). */}
+            {cuentaPass && cuentaPass.admiteMas ? (
+              <button
+                type="button"
+                disabled={cart.length === 0 || !till}
+                onClick={() => {
+                  setSaleMode({ kind: 'fiado', terms: 'FULL', amountPaidNow: 0 });
+                  setPaymethodOpen(true);
+                }}
+                className="mt-2 w-full rounded-full border border-amber-400/40 bg-amber-400/[0.09] py-2 text-[12.5px] font-semibold text-amber-600 transition-colors hover:bg-amber-400/20 disabled:opacity-40"
+              >
+                Sumar a su cuenta · debe {money(cuentaPass.saldo)}
+                {cuentaPass.cuotasVencidas > 0 && (
+                  <span className="ml-1 font-bold text-red-600">
+                    ({cuentaPass.cuotasVencidas} vencida{cuentaPass.cuotasVencidas === 1 ? '' : 's'})
+                  </span>
+                )}
+              </button>
+            ) : cuentaPass ? (
+              // Debe, pero su cuenta tiene plan de cuotas: no se le puede sumar sin romper el
+              // calendario ya pactado. Se avisa y no se ofrece el atajo.
+              <p className="mt-2 rounded-xl border border-amber-400/30 bg-amber-400/[0.07] px-3 py-2 text-[11.5px] font-medium leading-snug text-amber-700">
+                {cuentaPass.nombre} debe {money(cuentaPass.saldo)} en un plan de cuotas. Esta compra
+                va aparte: no se le puede sumar sin alterar sus cuotas.
+              </p>
+            ) : (
+              /* Alta en el portal del cliente + plan de cuotas, en el mismo momento del cobro:
+                 es cuando el cliente está delante y se acuerdan las condiciones. */
+              <button
+                type="button"
+                disabled={cart.length === 0 || !till}
+                onClick={() => setPassOpen(true)}
+                className="mt-2 w-full rounded-full border border-brand-500/30 bg-brand-500/[0.07] py-2 text-[12.5px] font-semibold text-brand-500 transition-colors hover:bg-brand-500/15 disabled:opacity-40"
+              >
+                Agregar cliente a QuickTap Pass
+              </button>
+            )}
           </div>
         </div>
       </div>

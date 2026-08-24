@@ -20,6 +20,17 @@ export const shopPassController = {
     res.json({ data: await passInboxService.pendientes(req.restaurantId!) });
   }),
 
+  /**
+   * GET /shop/pass/account?phone= — la cuenta abierta de ESE cliente, o null.
+   *
+   * Aparte de /debtors (que trae la lista entera) porque el POS la consulta mientras el cajero
+   * escribe el teléfono: traer todos los deudores en cada tecleo sería absurdo.
+   */
+  cuenta: asyncHandler(async (req: Request, res: Response) => {
+    const phone = typeof req.query.phone === 'string' ? req.query.phone : '';
+    res.json({ data: await passInboxService.cuentaDe(req.restaurantId!, phone) });
+  }),
+
   /** GET /shop/pass/debtors — todos los clientes con deuda, de mayor a menor. */
   deudores: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await passInboxService.deudores(req.restaurantId!) });

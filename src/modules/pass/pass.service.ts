@@ -4,6 +4,7 @@ import { env } from '../../config/env';
 import { badRequest } from '../../utils/http-error';
 import { resumirCuota } from '../shop/shop-installments.service';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
+import { telefonoCanonico } from '../../utils/phone';
 
 /**
  * QuickTap Pass: el portal donde un cliente ve sus compras y lo que debe.
@@ -35,18 +36,6 @@ function normalizarCedula(valor: string): string {
   return valor.replace(/[^0-9]/g, '');
 }
 
-/**
- * Forma canónica de un teléfono venezolano para comparar dos números: los últimos 10 dígitos,
- * que ya incluyen el código de operadora (424, 414…). Así "04244572008", "4244572008" y
- * "+584244572008" son el mismo número.
- *
- * Se comparan 10 y no 7 a propósito: los últimos 7 son solo el abonado, y 0414-4572008 y
- * 0424-4572008 son personas DISTINTAS que comparten esa cola. Buscar por 7 haría que un
- * cliente viera las compras del otro.
- */
-function telefonoCanonico(valor: string | null): string {
-  return soloDigitos(valor ?? '').slice(-10);
-}
 
 export const passService = {
   async login(input: { phone: string; idNumber: string }) {

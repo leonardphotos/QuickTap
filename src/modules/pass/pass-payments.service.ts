@@ -1,5 +1,6 @@
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
+import { colaParaBuscar, telefonoCanonico } from '../../utils/phone';
 
 /**
  * Abonos que el cliente reporta desde QuickTap Pass y que el local verifica.
@@ -119,6 +120,60 @@ export const passInboxService = {
       ventaId: f.shopSale.id,
       installmentId: f.installmentId,
     }));
+  },
+
+  /**
+   * La cuenta fiada abierta de UN cliente en este negocio, buscada por teléfono.
+   *
+   * La usa el POS mientras el cajero escribe los datos: si el cliente ya tiene cuenta, en vez
+   * de ofrecer darlo de alta en Pass se le ofrece sumar la compra a lo que ya debe. Devuelve
+   * null cuando no debe nada, que es el caso normal.
+   */
+  async cuentaDe(restaurantId: string, phone: string) {
+    const telefono = telefonoCanonico(phone);
+    if (telefono.length < 7) return null;
+
+    const candidatas = await prisma.shopSale.findMany({
+      where: {
+        restaurantId,
+        returned: false,
+        creditTerms: { not: null },
+        settledAt: null,
+        customerPhone: { contains: colaParaBuscar(phone) },
+      },
+      include: { payments: true, installmentPlan: { include: { installments: true } } },
+      orderBy: { time: 'asc' },
+    });
+    const suyas = candidatas.filter((v) => telefonoCanonico(v.customerPhone) === telefono);
+    if (suyas.length === 0) return null;
+
+    const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' });
+    let saldo = 0;
+    let vencidas = 0;
+    // Una cuenta con plan de cuotas no puede crecer por detrás (rompería el calendario ya
+    // pactado), así que el POS necesita saberlo para no ofrecer sumarle la compra.
+    let admiteMas = false;
+
+    for (const v of suyas) {
+      const mora = (v.installmentPlan?.installments.reduce((a, c) => a + c.lateFeeCharged, 0) ?? 0)
+        + (v.installmentPlan?.surchargeAmount ?? 0);
+      const abonado = (v.amountPaidNow ?? 0) + v.payments.reduce((a, p) => a + p.amount, 0);
+      saldo += v.total + mora - abonado;
+      vencidas += v.installmentPlan?.installments.filter((c) => c.dueDate < hoy && !c.paidAt).length ?? 0;
+      if (v.creditTerms === 'FULL' && !v.installmentPlan) admiteMas = true;
+    }
+
+    saldo = Math.max(0, Math.round(saldo * 100) / 100);
+    if (saldo <= 0) return null;
+
+    return {
+      nombre: suyas[0].customerName ?? 'Sin nombre',
+      telefono: suyas[0].customerPhone ?? '',
+      saldo,
+      compras: suyas.length,
+      cuotasVencidas: vencidas,
+      admiteMas,
+    };
   },
 
   /**

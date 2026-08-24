@@ -89,6 +89,21 @@ export interface RawShopSale {
   items: RawShopSaleItem[];
 }
 
+/** Lo que el cliente ya debe en este local (QuickTap Pass), visto desde el POS. */
+export interface CuentaPass {
+  nombre: string;
+  telefono: string;
+  saldo: number;
+  /** Cuántas cuentas fiadas abiertas tiene. */
+  compras: number;
+  cuotasVencidas: number;
+  /**
+   * Si se le puede sumar la compra de ahora. Falso cuando su cuenta tiene un plan de cuotas:
+   * ese calendario ya está pactado sobre un total fijo y no puede crecer por detrás.
+   */
+  admiteMas: boolean;
+}
+
 export interface RawConsumptionPlan {
   id: string;
   productId: string;
@@ -220,6 +235,14 @@ export const shopApi = {
 
   async returnSale(id: string): Promise<void> {
     await api.post(`/shop/sales/${id}/return`);
+  },
+
+  // ─── QuickTap Pass ──────────────────────────────────────────────────────
+
+  /** La cuenta fiada abierta de ese teléfono en este local, o null si no debe nada. */
+  async passAccount(phone: string): Promise<CuentaPass | null> {
+    const { data } = await api.get('/shop/pass/account', { params: { phone } });
+    return data.data;
   },
 
   // ─── Plan de consumo ────────────────────────────────────────────────────
