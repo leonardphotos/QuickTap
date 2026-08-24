@@ -16,6 +16,12 @@ import {
 
 type Tab = 'eventos' | 'tienda' | 'perfil';
 
+/** El resplandor por defecto de TextureButton (variant="brand") es azul fijo — no sigue el
+ * rojo de esta tickera — y su tamaño está pensado para un botón de ancho completo. Acá se
+ * reemplaza por uno del mismo color que el botón (var(--color-brand-500), el que sea que el
+ * local haya elegido) y más ajustado a estos botones angostos. */
+const BRAND_GLOW = 'shadow-[0_4px_10px_-6px_color-mix(in_srgb,var(--color-brand-500)_60%,transparent)]';
+
 const MONTHS_SHORT = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
 
 function parseEventDate(dateStr: string | null | undefined): Date | null {
@@ -190,7 +196,7 @@ export function TickeraStorefront({
 
             {shop.whatsappPhone && (
               <div className="mt-6 w-full max-w-xs">
-                <TextureButton variant="brand" size="default" onClick={openWhatsapp}>
+                <TextureButton variant="brand" size="default" className={BRAND_GLOW} onClick={openWhatsapp}>
                   <span className="flex items-center justify-center gap-2">
                     <MessageCircle className="h-4 w-4" /> Escribir por WhatsApp
                   </span>
@@ -399,7 +405,13 @@ function EventCard({
                   <p className="text-2xl font-black text-white">{price.primary}</p>
                   {price.secondary && <p className="text-[11px] font-medium text-white/40">{price.secondary}</p>}
                 </div>
-                <TextureButton variant="brand" size="default" disabled={soldOut} className="!w-auto px-6 disabled:opacity-40" onClick={onBuy}>
+                <TextureButton
+                  variant="brand"
+                  size="default"
+                  disabled={soldOut}
+                  className={`!w-auto px-6 disabled:opacity-40 ${BRAND_GLOW}`}
+                  onClick={onBuy}
+                >
                   {soldOut ? 'Agotado' : 'Comprar'}
                 </TextureButton>
               </div>

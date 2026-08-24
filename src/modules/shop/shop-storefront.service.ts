@@ -75,6 +75,7 @@ async function getStorefrontBySlug(slug: string) {
       category: true,
       subcategory: true,
       brand: true,
+      location: true,
       price: true,
       promoPrice: true,
       photoUrl: true,
@@ -105,6 +106,9 @@ async function getStorefrontBySlug(slug: string) {
       category: p.category,
       subcategory: p.subcategory,
       brand: p.brand || null,
+      // Reutilizado como recinto/lugar del evento en el rubro Tickera — el campo es genérico
+      // ("Ubicación") y cada rubro le da su propio sentido, ver ShopInventoryPage.tsx.
+      location: p.location || null,
       photoUrl: p.photoUrl,
       price,
       originalPrice: price < p.price ? p.price : null,

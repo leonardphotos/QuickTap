@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, Copy, Minus, Plus, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, Copy, Minus, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/api/client';
 import { publicPriceLabel } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -59,6 +59,10 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart }: Props) {
   const deliveryFee = mode === 'DELIVERY' ? shop.deliveryFee : 0;
   const total = subtotal + deliveryFee;
   const canOrder = shop.isOpen && shop.orderingEnabled;
+  // Entradas a un evento: nada que retirar ni despachar, así que no tiene sentido preguntar
+  // cómo se recibe — se queda en PICKUP (sin dirección, sin cargo de envío) sin mostrar la
+  // elección.
+  const allTickets = cart.length > 0 && cart.every((l) => l.product.isEvent);
 
   const enabledMethods = Object.entries(shop.paymentMethodsConfig ?? {})
     .filter(([, cfg]) => cfg?.enabled)
@@ -248,12 +252,14 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart }: Props) {
   // --- Datos del cliente ---
   return (
     <ShopSheet onClose={onClose}>
-      <h2 className="mb-4 text-lg font-semibold text-brand-950">¿Cómo lo recibes?</h2>
+      <h2 className="mb-4 text-lg font-semibold text-brand-950">{allTickets ? 'Tus datos' : '¿Cómo lo recibes?'}</h2>
 
-      <div className="grid grid-cols-2 gap-2">
-        <ModeTile active={mode === 'PICKUP'} onClick={() => setMode('PICKUP')} emoji="🏬" label="Retiro en tienda" />
-        <ModeTile active={mode === 'DELIVERY'} onClick={() => setMode('DELIVERY')} emoji="🛵" label="Delivery" />
-      </div>
+      {!allTickets && (
+        <div className="grid grid-cols-2 gap-2">
+          <ModeTile active={mode === 'PICKUP'} onClick={() => setMode('PICKUP')} emoji="🏬" label="Retiro en tienda" />
+          <ModeTile active={mode === 'DELIVERY'} onClick={() => setMode('DELIVERY')} emoji="🛵" label="Delivery" />
+        </div>
+      )}
 
       <div className="mt-4 space-y-3">
         <Field label="Tu nombre *">
@@ -282,14 +288,21 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart }: Props) {
 
         {enabledMethods.length > 0 && (
           <Field label="¿Cómo prefieres pagar?">
-            <select value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} className={INPUT}>
-              <option value="">Lo coordino con la tienda</option>
-              {enabledMethods.map((m) => (
-                <option key={m} value={m}>
-                  {PAYMENT_LABELS[m]}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value)}
+                className={`${INPUT} appearance-none pr-8`}
+              >
+                <option value="">Lo coordino con la tienda</option>
+                {enabledMethods.map((m) => (
+                  <option key={m} value={m}>
+                    {PAYMENT_LABELS[m]}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-950/40" />
+            </div>
           </Field>
         )}
 
