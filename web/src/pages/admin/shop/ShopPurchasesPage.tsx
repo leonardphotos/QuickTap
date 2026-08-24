@@ -68,7 +68,7 @@ export default function ShopPurchasesPage({
   }, [filtradas]);
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-5">
+    <div className="mx-auto max-w-5xl space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <h1 className="text-2xl font-bold text-brand-950">Compras a proveedores</h1>
         <div className="flex rounded-lg border border-brand-950/15 overflow-hidden">

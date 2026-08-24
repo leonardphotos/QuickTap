@@ -226,7 +226,7 @@ export default function ShopLayout() {
       )}
 
       <div className={`sticky top-0 z-20 bg-white text-brand-950 pt-[env(safe-area-inset-top)] border-b border-brand-950/[0.06] transition-[padding] duration-300 ${sidebarHidden ? "lg:pl-0" : "lg:pl-[264px]"}`}>
-        <div className="max-w-7xl mx-auto px-5 sm:px-6 h-14 flex items-center justify-between gap-3">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
           <div className="flex items-center gap-1.5 min-w-0">
             {/* Abre el menú lateral: en celular es la única puerta a todas las pantallas. */}
             <button
@@ -273,7 +273,12 @@ export default function ShopLayout() {
         </div>
       </div>
 
-      <main className={`max-w-7xl mx-auto px-5 sm:px-6 py-5 pb-8 transition-[padding] duration-300 ${sidebarHidden ? "lg:pl-5" : "lg:pl-[284px]"}`}>
+      {/* El margen del menú va en el contenedor de AFUERA y el ancho máximo en el de adentro —
+          el mismo orden que usa la cabecera. Al revés, el padding se aplicaba DENTRO del
+          contenedor centrado: empujaba el contenido a la derecha y dejaba una banda muerta
+          entre el menú y la primera tarjeta, más otro tanto sobrando del lado derecho. */}
+      <div className={`transition-[padding] duration-300 ${sidebarHidden ? 'lg:pl-0' : 'lg:pl-[264px]'}`}>
+        <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
         {screen === 'admin' && (
           <ShopDashboardPage session={session} restaurant={restaurant} canSeeMoney={canSeeMoney} userName={user.name} />
         )}
@@ -322,7 +327,8 @@ export default function ShopLayout() {
           <PlanUpgradeNotice feature="Sucursales" onGoToBilling={() => setScreen('factura')} />
         )}
         {screen === 'sucursales' && canBranches && <ShopSucursalesPage />}
-      </main>
+        </main>
+      </div>
 
       <ShopNavDrawer
         open={menuOpen}

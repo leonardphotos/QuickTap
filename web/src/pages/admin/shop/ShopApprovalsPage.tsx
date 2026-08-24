@@ -79,7 +79,7 @@ export default function ShopApprovalsPage() {
   const resueltas = items.filter((i) => i.status !== 'PENDIENTE');
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6 space-y-5">
+    <div className="mx-auto max-w-3xl space-y-5">
       <div>
         <h1 className="text-2xl font-bold text-brand-950">Solicitudes</h1>
         <p className="text-sm text-brand-950/60 font-light mt-1">

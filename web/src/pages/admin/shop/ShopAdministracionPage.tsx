@@ -60,7 +60,7 @@ export default function ShopAdministracionPage({ restaurant, session, onGoToBill
   }));
 
   return (
-    <div className="px-4 py-6 space-y-6">
+    <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Administración</h1>
         <p className="mt-1 text-sm font-light text-brand-950/60">
