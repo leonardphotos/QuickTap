@@ -447,3 +447,74 @@ body {
   background: var(--color-background);
   color: var(--color-brand-950);
 }
+
+/**
+ * Las pastillas de estado (aprobado, vencido, pendiente…) son `bg-emerald-100 text-emerald-700`
+ * y compañía. Con el fondo del panel en negro, una pastilla verde claro con letra verde oscura
+ * queda como un parche de otro sitio, y cualquier `text-*-700` suelto —los avisos de error, por
+ * ejemplo— se pierde contra el negro.
+ *
+ * Se voltea la escala completa: el tinte claro pasa a un velo del mismo tono sobre el negro, y
+ * el texto oscuro al tono claro de esa familia. La pastilla sigue siendo verde, ámbar o roja —
+ * cambia de qué lado del contraste está.
+ */
+.master-oscuro {
+  --color-emerald-50: rgba(52,211,153, 0.1);
+  --color-emerald-100: rgba(52,211,153, 0.16);
+  --color-emerald-500: #6ee7b7;
+  --color-emerald-600: #6ee7b7;
+  --color-emerald-700: #6ee7b7;
+  --color-emerald-800: #6ee7b7;
+  --color-amber-50: rgba(251,191,36, 0.1);
+  --color-amber-100: rgba(251,191,36, 0.16);
+  --color-amber-500: #fcd34d;
+  --color-amber-600: #fcd34d;
+  --color-amber-700: #fcd34d;
+  --color-amber-800: #fcd34d;
+  --color-red-50: rgba(248,113,113, 0.1);
+  --color-red-100: rgba(248,113,113, 0.16);
+  --color-red-500: #fca5a5;
+  --color-red-600: #fca5a5;
+  --color-red-700: #fca5a5;
+  --color-red-800: #fca5a5;
+  --color-violet-50: rgba(167,139,250, 0.1);
+  --color-violet-100: rgba(167,139,250, 0.16);
+  --color-violet-500: #c4b5fd;
+  --color-violet-600: #c4b5fd;
+  --color-violet-700: #c4b5fd;
+  --color-violet-800: #c4b5fd;
+  --color-teal-50: rgba(45,212,191, 0.1);
+  --color-teal-100: rgba(45,212,191, 0.16);
+  --color-teal-500: #5eead4;
+  --color-teal-600: #5eead4;
+  --color-teal-700: #5eead4;
+  --color-teal-800: #5eead4;
+  --color-sky-50: rgba(56,189,248, 0.1);
+  --color-sky-100: rgba(56,189,248, 0.16);
+  --color-sky-500: #7dd3fc;
+  --color-sky-600: #7dd3fc;
+  --color-sky-700: #7dd3fc;
+  --color-sky-800: #7dd3fc;
+  --color-rose-50: rgba(251,113,133, 0.1);
+  --color-rose-100: rgba(251,113,133, 0.16);
+  --color-rose-500: #fda4af;
+  --color-rose-600: #fda4af;
+  --color-rose-700: #fda4af;
+  --color-rose-800: #fda4af;
+  --color-orange-50: rgba(251,146,60, 0.1);
+  --color-orange-100: rgba(251,146,60, 0.16);
+  --color-orange-500: #fdba74;
+  --color-orange-600: #fdba74;
+  --color-orange-700: #fdba74;
+  --color-orange-800: #fdba74;
+  --color-blue-50: rgba(96,165,250, 0.1);
+  --color-blue-100: rgba(96,165,250, 0.16);
+  --color-blue-500: #93c5fd;
+  --color-blue-600: #93c5fd;
+  --color-blue-700: #93c5fd;
+  --color-blue-800: #93c5fd;
+
+  /* Los azules profundos de la marca son letra oscura; sobre negro no se ven. */
+  --color-brand-900: #b9d9ff;
+  --color-brand-800: #a5cfff;
+}
