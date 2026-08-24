@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'motion/react';
-import { CreditCard, Lock, LogOut, X, type LucideIcon } from 'lucide-react';
+import { Lock, LogOut, X, type LucideIcon } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import type { ShopScreen } from './ShopLayout';
 
@@ -101,14 +101,6 @@ export function ShopNavDrawer({ open, onClose, principales, secundarios, activo,
             </div>
 
             <div className="space-y-1 border-t border-brand-950/10 pt-3">
-              <button
-                type="button"
-                onClick={() => ir('factura')}
-                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors hover:bg-brand-950/[0.05]"
-              >
-                <CreditCard className="h-5 w-5 shrink-0 text-brand-500" />
-                <span className="text-sm font-medium text-brand-950">Facturación</span>
-              </button>
               <button
                 type="button"
                 onClick={() => {
