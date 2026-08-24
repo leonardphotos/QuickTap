@@ -22,6 +22,8 @@ import {
 } from '../modules/plan-requests/plan-request.routes';
 import { tenantQrNfcRequestRoutes, masterQrNfcRequestRoutes } from '../modules/qr-nfc-requests/qr-nfc-request.routes';
 import masterSummaryRoutes from '../modules/master/master-summary.routes';
+import masterLiveRoutes from '../modules/master/master-live.routes';
+import { presenciaController } from '../modules/master/master-live.controller';
 import masterQuotesRoutes from '../modules/master/master-quotes.routes';
 import masterServerStatusRoutes from '../modules/master/master-server-status.routes';
 import platformAuthRoutes from '../modules/platform-auth/platform-auth.routes';
@@ -169,6 +171,9 @@ router.use('/public/plans', publicPlanContentRoutes);
 router.use('/public/reservations', publicReservationRoutes);
 // QuickTap Pass: portal del cliente final (quicktap.club/pass) — ver modules/pass.
 router.use('/public/pass', passRoutes);
+// Latido de presencia de las páginas públicas: alimenta el contador de "personas en la
+// página" del Dashboard maestro. Anónimo y sin sesión (ver presenciaController).
+router.post('/public/presence', presenciaController.latido);
 router.use('/public/ramblay', publicRamblayRoutes);
 // Página del jugador del club: disponibilidad y reserva, resueltas por slug.
 router.use('/public/club', publicClubRoutes);
@@ -188,6 +193,8 @@ router.use('/master/message-templates', masterMessageTemplatesRoutes);
 router.use('/master/plan-requests', masterPlanRequestRoutes);
 router.use('/master/qr-nfc-requests', masterQrNfcRequestRoutes);
 router.use('/master/summary', masterSummaryRoutes);
+// Estadísticas en vivo de toda la plataforma (pedidos, visitantes y plata por vertical).
+router.use('/master/live', masterLiveRoutes);
 router.use('/master/quotes', masterQuotesRoutes);
 router.use('/master/server-status', masterServerStatusRoutes);
 router.use('/master/restaurants', masterRestaurantsRoutes);

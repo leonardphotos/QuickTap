@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'react-router-dom';
+import { usePresencia } from '@/hooks/usePresencia';
 import { Search, ShoppingCart } from 'lucide-react';
 import { api } from '@/api/client';
 import { publicPriceLabel } from '@/utils/format';
@@ -24,6 +25,7 @@ import {
  */
 export default function ShopStorefrontPage() {
   const { slug } = useParams<{ slug: string }>();
+  usePresencia(slug);
   const [data, setData] = useState<Storefront | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');

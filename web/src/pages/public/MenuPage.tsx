@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentType } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
+import { usePresencia } from '@/hooks/usePresencia';
 import { io } from 'socket.io-client';
 import { apiOrigin } from '@/utils/apiOrigin';
 import { BellRing, CalendarDays, Clock, Receipt, Search, Share2, ShoppingCart } from 'lucide-react';
@@ -26,6 +27,7 @@ import { TextureButton } from '@/components/ui/texture-button';
 /** Página pública: se accede desde el QR (con ?mesa=token) o desde el link general (delivery/pickup). */
 export default function MenuPage() {
   const { slug } = useParams<{ slug: string }>();
+  usePresencia(slug);
   const [searchParams] = useSearchParams();
   const qrToken = searchParams.get('mesa');
 

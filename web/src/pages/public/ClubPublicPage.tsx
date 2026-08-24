@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { usePresencia } from '@/hooks/usePresencia';
 import { ArrowLeft, CalendarDays, ChevronRight, Clock, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import ClubBookingSuccess from './ClubBookingSuccess';
@@ -37,6 +38,7 @@ const DAYS_AHEAD = 14;
 
 export default function ClubPublicPage() {
   const { slug = '' } = useParams();
+  usePresencia(slug);
   const navigate = useNavigate();
 
   const [club, setClub] = useState<PublicClub | null>(null);
