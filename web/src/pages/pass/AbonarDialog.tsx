@@ -119,10 +119,10 @@ export function AbonarDialog({ compraId, negocio, saldo, cuotas, rateBs, onClose
     }
   }
 
+  // Centrada, no pegada abajo: como panel inferior, en el navegador del celular la barra
+  // flotante de direcciones le tapaba el final y el botón de reportar quedaba fuera de
+  // alcance. El padding del contenedor la mantiene despegada de los bordes.
   return (
-    {/* Centrada, no pegada abajo: como panel inferior, en el navegador del celular la barra
-        flotante de direcciones le tapaba el final y el botón de reportar quedaba fuera de
-        alcance. El padding del contenedor la mantiene despegada de los bordes. */}
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
       <div className="max-h-[85dvh] w-full max-w-md overflow-y-auto rounded-[24px] bg-[#141a22] p-5 text-white">
         <div className="flex items-start justify-between gap-3">
