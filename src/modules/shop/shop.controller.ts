@@ -22,6 +22,7 @@ import {
   breakEvenQuerySchema,
 } from './shop.dto';
 import { shopService } from './shop.service';
+import { shopImportService } from './shop-import.service';
 import { approvalService } from '../approvals/approval.service';
 
 /**
@@ -139,6 +140,21 @@ export const shopController = {
 
   closePlan: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await shopService.closePlan(req.restaurantId!, req.params.id) });
+  }),
+
+  /** GET /shop/products/import-template — plantilla de carga masiva de productos. */
+  downloadImportTemplate: asyncHandler(async (_req: Request, res: Response) => {
+    const workbook = shopImportService.buildTemplate();
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="plantilla-productos.xlsx"');
+    await workbook.xlsx.write(res);
+    res.end();
+  }),
+
+  /** POST /shop/products/import — carga masiva desde un Excel, propio o exportado de otro sistema. */
+  importExcel: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw badRequest('No se recibió ningún archivo.');
+    res.json({ data: await shopImportService.importFromExcel(req.restaurantId!, req.file.buffer) });
   }),
 
   raisePrices: asyncHandler(async (req: Request, res: Response) => {

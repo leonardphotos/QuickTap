@@ -1,8 +1,9 @@
 import { Fragment, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { PackagePlus, ChevronDown, ClipboardList, FlaskConical, FolderPlus, Package, Pencil, Plus, ScanLine, Search, Sparkles, Tags, Trash2, TrendingUp, Truck, X } from 'lucide-react';
+import { PackagePlus, ChevronDown, ClipboardList, FileSpreadsheet, FlaskConical, FolderPlus, Package, Pencil, Plus, ScanLine, Search, Sparkles, Tags, Trash2, TrendingUp, Truck, X } from 'lucide-react';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { ShopPriceLabelsDialog } from './ShopPriceLabelsDialog';
+import { ShopImportProductsDialog } from './ShopImportProductsDialog';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -105,6 +106,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
   // 500") — se parsea a números recién al guardar, así el cajero puede escribir con espacios
   // sin que el campo le rechace cada tecla.
   const [labelProduct, setLabelProduct] = useState<ShopProduct | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const [npPlanEnabled, setNpPlanEnabled] = useState(false);
   const [npPlanRate, setNpPlanRate] = useState('');
   const [npPlanSizes, setNpPlanSizes] = useState('');
@@ -642,6 +644,9 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
           </TextureButton>
           <TextureButton variant="minimal" size="default" className="!w-auto" onClick={openPurchaseDialog}>
             <Truck className="h-4 w-4" /> Registrar compra
+          </TextureButton>
+          <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setImportOpen(true)}>
+            <FileSpreadsheet className="h-4 w-4" /> Cargar Excel
           </TextureButton>
           <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => { setRaisePercent(''); setRaiseError(null); setRaiseOpen(true); }}>
             <TrendingUp className="h-4 w-4" /> Aumentar precios
@@ -2140,6 +2145,9 @@ export default function ShopInventoryPage({ session, rubro, restaurant }: Props)
         </DialogContent>
       </Dialog>
 
+      {importOpen && (
+        <ShopImportProductsDialog onClose={() => setImportOpen(false)} onImported={() => session.reload()} />
+      )}
       {labelProduct && (
         <ShopPriceLabelsDialog product={labelProduct} restaurant={restaurant} onClose={() => setLabelProduct(null)} />
       )}

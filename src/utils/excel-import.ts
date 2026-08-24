@@ -34,8 +34,9 @@ export function normalizeHeader(value: unknown): string {
 export function resolveColumns<K extends string>(
   sheet: ExcelJS.Worksheet,
   spec: Record<K, string[]>,
+  headerRowNumber = 1,
 ): { columns: Partial<Record<K, number>>; headers: string[] } {
-  const headerRow = sheet.getRow(1);
+  const headerRow = sheet.getRow(headerRowNumber);
   const columnCount = Math.max(sheet.columnCount || 0, headerRow.cellCount || 0);
 
   const headers: string[] = [];
@@ -178,4 +179,28 @@ export function styleTemplateHeader(sheet: ExcelJS.Worksheet): void {
   sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
   sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0A1428' } };
   sheet.views = [{ state: 'frozen', ySplit: 1 }];
+}
+
+/**
+ * En qué fila vive el encabezado real. La plantilla de QuickTap lo pone en la fila 1, pero un
+ * archivo EXPORTADO DE OTRO SISTEMA suele traer unas filas de más arriba antes de la tabla
+ * (nombre del negocio, teléfono, totales, fecha de generación...) — leer la fila 1 como
+ * encabezado ahí encontraría columnas vacías y la importación fallaría entera sin explicar por
+ * qué. Se prueba cada fila de las primeras `maxScan` como si fuera el encabezado y se elige la
+ * que reconoce más columnas del spec; si ninguna reconoce al menos 2, se asume un archivo plano
+ * y se cae a la fila 1 de siempre.
+ */
+export function detectHeaderRow<K extends string>(sheet: ExcelJS.Worksheet, spec: Record<K, string[]>, maxScan = 20): number {
+  let mejorFila = 1;
+  let mejorConteo = 0;
+  const tope = Math.min(maxScan, sheet.rowCount || maxScan);
+  for (let r = 1; r <= tope; r++) {
+    const { columns } = resolveColumns(sheet, spec, r);
+    const conteo = Object.keys(columns).length;
+    if (conteo > mejorConteo) {
+      mejorConteo = conteo;
+      mejorFila = r;
+    }
+  }
+  return mejorConteo >= 2 ? mejorFila : 1;
 }

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
-import { optimizeImage, uploadShopProductPhoto, uploadShopPaymentProof } from '../../middlewares/upload.middleware';
+import { optimizeImage, uploadShopProductPhoto, uploadShopPaymentProof, uploadSpreadsheet } from '../../middlewares/upload.middleware';
 import { shopController } from './shop.controller';
 import { shopInstallmentsController } from './shop-installments.controller';
 import { shopPassController } from './shop-pass.controller';
@@ -14,6 +14,10 @@ router.get('/state', shopController.getState);
 router.get('/service-providers', shopController.listServiceProviders);
 
 router.post('/products', shopController.createProduct);
+// Carga masiva de productos por Excel: plantilla descargable + subida (propia o exportada de
+// otro sistema — ver shop-import.service.ts).
+router.get('/products/import-template', shopController.downloadImportTemplate);
+router.post('/products/import', requireRole('OWNER', 'ADMIN'), uploadSpreadsheet, shopController.importExcel);
 // Antes de '/products/:id': si no, Express tomaría "published" como un id de producto.
 router.patch('/products/published', requireRole('OWNER', 'ADMIN'), shopController.setProductsPublished);
 // Mover TODOS los precios del catálogo es una decisión de dueño/admin, no de caja.
