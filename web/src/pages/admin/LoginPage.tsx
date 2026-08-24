@@ -65,29 +65,34 @@ export default function LoginPage() {
   return (
     <AuthLayout
       footer={
-        <p className="text-sm text-brand-950/60 font-light">
-          ¿No tienes cuenta?{' '}
-          <Link to="/empezar" className="text-brand-500 font-medium">
-            Regístrate
-          </Link>
-        </p>
+        <div className="space-y-4">
+          <p className="text-sm text-brand-950/60 font-light">
+            ¿No tienes cuenta?{' '}
+            <Link to="/empezar" className="text-brand-500 font-medium">
+              Regístrate
+            </Link>
+          </p>
+
+          {/* Google va al final, después del registro: el correo y la contraseña son la vía
+              normal de quien ya tiene cuenta, y arriba le robaban el primer lugar. */}
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-brand-950/10" />
+              <span className="text-xs text-brand-950/40">o entra con</span>
+              <div className="h-px flex-1 bg-brand-950/10" />
+            </div>
+            <div className="mt-3 flex justify-center">
+              <GoogleLogin
+                onSuccess={(cred) => cred.credential && onGoogleSuccess(cred.credential)}
+                onError={() => setError('No se pudo iniciar sesión con Google.')}
+                text="signin_with"
+              />
+            </div>
+            {googleLoading && <p className="mt-1 text-xs text-brand-950/50">Ingresando…</p>}
+          </div>
+        </div>
       }
     >
-      <div className="mb-4">
-        <div className="flex justify-center">
-          <GoogleLogin
-            onSuccess={(cred) => cred.credential && onGoogleSuccess(cred.credential)}
-            onError={() => setError('No se pudo iniciar sesión con Google.')}
-            text="signin_with"
-          />
-        </div>
-        {googleLoading && <p className="text-xs text-brand-950/50 mt-1">Ingresando…</p>}
-      </div>
-      <div className="flex items-center gap-3 my-4">
-        <div className="h-px flex-1 bg-brand-950/10" />
-        <span className="text-xs text-brand-950/40">o con tu correo</span>
-        <div className="h-px flex-1 bg-brand-950/10" />
-      </div>
       <form onSubmit={onSubmit} className="space-y-4">
         <Field label="Email" type="email" value={email} onChange={setEmail} name="email" autoComplete="username" />
         <Field
