@@ -726,10 +726,14 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
         }
       }
     }
-    // El plan se arma DESPUÉS de que la venta existe: necesita su id para colgarse de ella.
-    if (planPendiente && sale?.id) {
-      api
-        .post(`/shop/sales/${sale.id}/installments`, planPendiente)
+    // El plan se arma DESPUÉS de que la venta existe DE VERDAD en el servidor — sale.id es
+    // optimista (nunca existió ahí); serverSaleId es la promesa que resuelve con el id real en
+    // cuanto recordSale() responde (ver checkout() en shopSession.ts). Antes se usaba sale.id
+    // directo acá, así que esta llamada siempre pegaba contra un id inventado y el plan de
+    // cuotas de QuickTap Pass nunca llegaba a crearse, aunque la venta sí quedara registrada.
+    if (planPendiente) {
+      sale.serverSaleId
+        .then((realId) => api.post(`/shop/sales/${realId}/installments`, planPendiente))
         .then(() => show('Cliente agregado a QuickTap Pass con su plan de cuotas.'))
         .catch(() => show('La venta quedó registrada, pero no se pudo crear el plan de cuotas.'));
       setPlanPendiente(null);

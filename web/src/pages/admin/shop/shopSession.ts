@@ -671,7 +671,7 @@ export function useShopSession(initialCategories: string[] = []) {
     // Promoción del CRM aplicada en el POS: su descuento ya se restó del total que
     // ve el cajero; acá se resta igual y el backend valida el código y registra el canje.
     promo?: { code: string; discountBase: number } | null,
-  ): Sale {
+  ): Sale & { serverSaleId: Promise<string> } {
     const saleItems: SaleItem[] = cart.map((c) => {
       const product = products.find((p) => p.id === c.productId);
       return {
@@ -727,23 +727,35 @@ export function useShopSession(initialCategories: string[] = []) {
     setSales((prev) => [sale, ...prev]);
     setCart([]);
 
-    shopApi
-      .recordSale({
-        items: saleItems.map((it) => ({ ...it, productId: it.productId || undefined })),
-        total,
-        customerName: sale.customerName,
-        customerPhone: sale.customerPhone,
-        paymentMethod: sale.paymentMethod,
-        paymentMeta: sale.paymentMeta,
-        creditTerms: sale.creditTerms,
-        amountPaidNow: sale.amountPaidNow,
-        bankAccountId: bankAccountId ?? undefined,
-        promoCode: promo?.code,
-        promoDiscountBase: promoDiscount || undefined,
-      })
-      .catch((err) => console.error('No se pudo guardar la venta en el servidor', err));
+    const recordSalePromise = shopApi.recordSale({
+      items: saleItems.map((it) => ({ ...it, productId: it.productId || undefined })),
+      total,
+      customerName: sale.customerName,
+      customerPhone: sale.customerPhone,
+      paymentMethod: sale.paymentMethod,
+      paymentMeta: sale.paymentMeta,
+      creditTerms: sale.creditTerms,
+      amountPaidNow: sale.amountPaidNow,
+      bankAccountId: bankAccountId ?? undefined,
+      promoCode: promo?.code,
+      promoDiscountBase: promoDiscount || undefined,
+    });
+    recordSalePromise.catch((err) => console.error('No se pudo guardar la venta en el servidor', err));
 
-    return sale;
+    // El `sale.id` de arriba es optimista (`s${Date.now()}`) y nunca existió en el servidor —
+    // sirve para pintar la UI ya mismo, no para referenciar la venta desde otra llamada. Quien
+    // necesite colgarle algo a la venta DESPUÉS de que exista de verdad (ver ShopPosPage: el
+    // plan de cuotas de QuickTap Pass, que se crea contra /shop/sales/:id/installments) tiene
+    // que esperar este id real. Sin él, esa llamada siempre pegaba contra un id inventado y
+    // fallaba en silencio — el "no se pudo crear el plan de cuotas" salía SIEMPRE, no solo
+    // quien fallara de verdad.
+    const serverSaleId = recordSalePromise.then((s) => s.id);
+    // Le pone un catch mudo aparte: si nadie más consume este id (una venta sin nada pendiente
+    // que colgarle), que no quede como "unhandled rejection" en la consola. No interfiere con
+    // el .then/.catch de quien sí lo use — cada uno se cuelga de la misma promesa por su lado.
+    serverSaleId.catch(() => {});
+
+    return { ...sale, serverSaleId };
   }
 
   /**
