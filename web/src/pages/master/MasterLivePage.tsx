@@ -81,7 +81,7 @@ export default function MasterLivePage() {
 
   const d = data ?? previo.current;
   if (!d) {
-    return <p className="p-8 text-sm text-white/40">Cargando…</p>;
+    return <p className="p-8 text-sm text-brand-950/50">Cargando…</p>;
   }
 
   const visibles = VERTICALES.filter((v) => !ocultos.includes(v.id));
@@ -106,22 +106,22 @@ export default function MasterLivePage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-white">En vivo</h1>
-          <p className="mt-0.5 text-sm font-light text-white/45">
+          <h1 className="text-2xl font-semibold tracking-tight text-brand-950">En vivo</h1>
+          <p className="mt-0.5 text-sm font-light text-brand-950/50">
             Lo que está generando la plataforma hoy, desde las {hora(d.desde)}. Se actualiza solo.
           </p>
         </div>
         <button
           type="button"
           onClick={() => setPausado((p) => !p)}
-          className="flex items-center gap-2 rounded-full border border-white/15 px-3.5 py-2 text-xs font-semibold text-white/70 transition-colors hover:bg-white/[0.06]"
+          className="flex items-center gap-2 rounded-full border border-brand-950/15 px-3.5 py-2 text-xs font-semibold text-brand-950/70 transition-colors hover:bg-brand-950/[0.04]"
         >
-          <span className={`h-2 w-2 rounded-full ${pausado ? 'bg-white/30' : 'animate-pulse bg-emerald-400'}`} />
+          <span className={`h-2 w-2 rounded-full ${pausado ? 'bg-brand-950/25' : 'animate-pulse bg-emerald-400'}`} />
           {pausado ? 'Reanudar' : 'En vivo'}
         </button>
       </div>
 
-      {error && <p className="text-xs text-amber-300">{error}</p>}
+      {error && <p className="text-xs text-amber-600">{error}</p>}
 
       {/* ---------- Cifras de cabecera ---------- */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -130,7 +130,7 @@ export default function MasterLivePage() {
           label="En la página ahora"
           valor={String(d.visitantes.total)}
           sub={d.visitantes.porNegocio[0]?.negocio ?? 'Nadie navegando'}
-          acento="text-emerald-400"
+          acento="text-emerald-600"
         />
         <Cifra
           icono={<Activity className="h-4 w-4" />}
@@ -147,7 +147,7 @@ export default function MasterLivePage() {
       </div>
 
       {/* ---------- La gráfica ---------- */}
-      <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
+      <div className="rounded-2xl border border-brand-950/[0.08] bg-white p-4 shadow-sm">
         <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-2">
           {VERTICALES.map((v) => {
             const activo = !ocultos.includes(v.id);
@@ -159,8 +159,8 @@ export default function MasterLivePage() {
                 className={`flex items-center gap-2 text-xs font-semibold transition-opacity ${activo ? '' : 'opacity-35'}`}
               >
                 <span className="h-2.5 w-2.5 rounded-full" style={{ background: v.color }} />
-                <span className="text-white/70">{v.label}</span>
-                <span className="tabular-nums text-white">{usdCorto(d.totales[v.id].usd)}</span>
+                <span className="text-brand-950/60">{v.label}</span>
+                <span className="tabular-nums text-brand-950">{usdCorto(d.totales[v.id].usd)}</span>
               </button>
             );
           })}
@@ -185,7 +185,7 @@ export default function MasterLivePage() {
             ))}
           </svg>
         </div>
-        <div className="mt-1.5 flex justify-between text-[10.5px] tabular-nums text-white/30">
+        <div className="mt-1.5 flex justify-between text-[10.5px] tabular-nums text-brand-950/35">
           <span>{hora(d.desde)}</span>
           <span>techo {usdCorto(techo)}</span>
           <span>{hora(d.ahora)}</span>
@@ -194,21 +194,21 @@ export default function MasterLivePage() {
 
       <div className="grid gap-3 lg:grid-cols-2">
         {/* ---------- Ticker ---------- */}
-        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
-          <p className="mb-2.5 text-sm font-semibold text-white">Últimos movimientos</p>
+        <div className="rounded-2xl border border-brand-950/[0.08] bg-white p-4 shadow-sm">
+          <p className="mb-2.5 text-sm font-semibold text-brand-950">Últimos movimientos</p>
           {d.ultimos.length === 0 ? (
-            <p className="py-6 text-center text-xs font-light text-white/35">Todavía no se ha generado nada hoy.</p>
+            <p className="py-6 text-center text-xs font-light text-brand-950/40">Todavía no se ha generado nada hoy.</p>
           ) : (
             <ul className="space-y-1">
               {d.ultimos.map((m, i) => {
                 const v = VERTICALES.find((x) => x.id === m.vertical)!;
                 return (
-                  <li key={`${m.cuando}-${i}`} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-white/[0.04]">
+                  <li key={`${m.cuando}-${i}`} className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 hover:bg-brand-950/[0.03]">
                     <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: v.color }} />
-                    <span className="w-10 shrink-0 text-[11px] tabular-nums text-white/35">{hora(m.cuando)}</span>
-                    <span className="min-w-0 flex-1 truncate text-[12.5px] text-white/80">{m.negocio}</span>
-                    <span className="shrink-0 text-[11px] text-white/35">{m.detalle}</span>
-                    <span className="shrink-0 text-[12.5px] font-semibold tabular-nums text-white">{usd(m.monto)}</span>
+                    <span className="w-10 shrink-0 text-[11px] tabular-nums text-brand-950/40">{hora(m.cuando)}</span>
+                    <span className="min-w-0 flex-1 truncate text-[12.5px] text-brand-950/80">{m.negocio}</span>
+                    <span className="shrink-0 text-[11px] text-brand-950/40">{m.detalle}</span>
+                    <span className="shrink-0 text-[12.5px] font-semibold tabular-nums text-brand-950">{usd(m.monto)}</span>
                   </li>
                 );
               })}
@@ -217,10 +217,10 @@ export default function MasterLivePage() {
         </div>
 
         {/* ---------- Ranking del día ---------- */}
-        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
-          <p className="mb-2.5 text-sm font-semibold text-white">Quién está generando hoy</p>
+        <div className="rounded-2xl border border-brand-950/[0.08] bg-white p-4 shadow-sm">
+          <p className="mb-2.5 text-sm font-semibold text-brand-950">Quién está generando hoy</p>
           {d.ranking.length === 0 ? (
-            <p className="py-6 text-center text-xs font-light text-white/35">Sin movimiento todavía.</p>
+            <p className="py-6 text-center text-xs font-light text-brand-950/40">Sin movimiento todavía.</p>
           ) : (
             <ul className="space-y-2">
               {d.ranking.map((r) => {
@@ -230,15 +230,15 @@ export default function MasterLivePage() {
                 return (
                   <li key={r.negocio}>
                     <div className="flex items-baseline justify-between gap-2 text-[12.5px]">
-                      <span className="min-w-0 truncate text-white/80">
+                      <span className="min-w-0 truncate text-brand-950/80">
                         {r.negocio}
                         {mirando > 0 && (
-                          <span className="ml-1.5 text-[10.5px] text-emerald-400">· {mirando} mirando</span>
+                          <span className="ml-1.5 text-[10.5px] text-emerald-600">· {mirando} mirando</span>
                         )}
                       </span>
-                      <span className="shrink-0 font-semibold tabular-nums text-white">{usd(r.usd)}</span>
+                      <span className="shrink-0 font-semibold tabular-nums text-brand-950">{usd(r.usd)}</span>
                     </div>
-                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
+                    <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-brand-950/[0.07]">
                       <div className="h-full rounded-full" style={{ width: `${pct}%`, background: v.color }} />
                     </div>
                   </li>
@@ -266,13 +266,13 @@ function Cifra({
   acento?: string;
 }) {
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4">
-      <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-white/40">
+    <div className="rounded-2xl border border-brand-950/[0.08] bg-white p-4 shadow-sm">
+      <p className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-brand-950/45">
         {icono}
         {label}
       </p>
-      <p className={`mt-1.5 truncate text-2xl font-bold tabular-nums ${acento ?? 'text-white'}`}>{valor}</p>
-      <p className="mt-0.5 truncate text-[11.5px] font-light text-white/40">{sub}</p>
+      <p className={`mt-1.5 truncate text-2xl font-bold tabular-nums ${acento ?? 'text-brand-950'}`}>{valor}</p>
+      <p className="mt-0.5 truncate text-[11.5px] font-light text-brand-950/45">{sub}</p>
     </div>
   );
 }
