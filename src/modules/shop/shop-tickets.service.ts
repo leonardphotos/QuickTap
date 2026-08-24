@@ -45,7 +45,16 @@ export async function emitirEntradas(
   if (eventos.length === 0) return [];
   const porId = new Map(eventos.map((e) => [e.id, e]));
 
-  const emitidos: { id: string; accessToken: string; seatNumber: number; eventName: string }[] = [];
+  const emitidos: {
+    id: string;
+    accessToken: string;
+    seatNumber: number;
+    eventName: string;
+    eventDate: string | null;
+    eventTime: string | null;
+    price: number;
+    holderName: string | null;
+  }[] = [];
 
   for (const item of params.items) {
     const evento = item.productId ? porId.get(item.productId) : null;
@@ -83,7 +92,18 @@ export async function emitirEntradas(
           holderPhone: params.holderPhone ?? null,
           seatNumber: siguiente,
         },
-        select: { id: true, accessToken: true, seatNumber: true, eventName: true },
+        // Los mismos campos que quedaron congelados: la imagen descargable del boleto (ver
+        // TicketDownloadRig en el frontend) los necesita completos, no solo el token.
+        select: {
+          id: true,
+          accessToken: true,
+          seatNumber: true,
+          eventName: true,
+          eventDate: true,
+          eventTime: true,
+          price: true,
+          holderName: true,
+        },
       });
       emitidos.push(creado);
       siguiente += 1;

@@ -67,7 +67,7 @@ async function confirm(restaurantId: string, userId: string, orderId: string, pa
     })),
   });
 
-  return prisma.shopOrder.update({
+  const actualizado = await prisma.shopOrder.update({
     where: { id: order.id },
     data: {
       status: 'CONFIRMED',
@@ -77,6 +77,10 @@ async function confirm(restaurantId: string, userId: string, orderId: string, pa
     },
     include: ORDER_INCLUDE,
   });
+
+  // Entradas que la venta emitió, si el pedido llevaba algún evento — es lo que el panel usa
+  // para ofrecer la imagen descargable justo al confirmar (ver ShopOrdersPage).
+  return { ...actualizado, tickets: sale.tickets };
 }
 
 /** Cancela un pedido que todavía no se confirmó. Uno ya confirmado se deshace devolviendo su

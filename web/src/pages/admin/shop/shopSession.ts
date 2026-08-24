@@ -3,6 +3,7 @@ import type { ShopProductSeed, ShopVariant } from '@/data/shopRubros';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { shopApi, toShopProduct } from './shopApi';
+import type { RawShopTicket } from './shopApi';
 import { rollWidthLabel } from './printPricing';
 
 /**
@@ -680,7 +681,7 @@ export function useShopSession(initialCategories: string[] = []) {
     promo?: { code: string; discountBase: number } | null,
   ): Sale & {
     serverSaleId: Promise<string>;
-    serverTickets: Promise<{ id: string; accessToken: string; seatNumber: number; eventName: string }[]>;
+    serverTickets: Promise<RawShopTicket[]>;
   } {
     const saleItems: SaleItem[] = cart.map((c) => {
       const product = products.find((p) => p.id === c.productId);

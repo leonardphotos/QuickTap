@@ -89,7 +89,19 @@ export interface RawShopSale {
   soldByUserName: string | null;
   items: RawShopSaleItem[];
   /** Entradas emitidas si la venta llevaba algún evento (ver shop-tickets.service.ts). */
-  tickets?: { id: string; accessToken: string; seatNumber: number; eventName: string }[];
+  tickets?: RawShopTicket[];
+}
+
+/** Una entrada de evento ya emitida, con lo que hace falta para armar su imagen descargable. */
+export interface RawShopTicket {
+  id: string;
+  accessToken: string;
+  seatNumber: number;
+  eventName: string;
+  eventDate: string | null;
+  eventTime: string | null;
+  price: number;
+  holderName: string | null;
 }
 
 /** Lo que el cliente ya debe en este local (QuickTap Pass), visto desde el POS. */

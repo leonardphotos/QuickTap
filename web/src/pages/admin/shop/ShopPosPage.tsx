@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
-import { Camera, CheckCircle2, ClipboardList, FileText, Loader2, MessageCircle, Minus, Plus, Printer, QrCode, ScanLine, Search, ShoppingCart, Wallet, Wrench, X } from 'lucide-react';
+import { Camera, CheckCircle2, ClipboardList, Download, FileText, Loader2, MessageCircle, Minus, Plus, Printer, QrCode, ScanLine, Search, ShoppingCart, Wallet, Wrench, X } from 'lucide-react';
 import { api } from '@/api/client';
-import { shopApi, type CuentaPass, type RawConsumptionPlan } from './shopApi';
+import { shopApi, type CuentaPass, type RawConsumptionPlan, type RawShopTicket } from './shopApi';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { useAuth } from '@/context/AuthContext';
 import { ShopPassEnrollDialog } from './ShopPassEnrollDialog';
@@ -31,11 +31,12 @@ import { tienePreciosDistintos } from './shopFormat';
 import { effectivePrice, lineTotal, productStatus, productStock, type PaymentMeta, type Sale, type ShopProduct, type ShopSession } from './shopSession';
 import ShopBarcodeScanDialog from './ShopBarcodeScanDialog';
 import { playCashSound } from './shopSounds';
+import { useTicketDownload } from './TicketDownloadRig';
 import { describePrint, formatRollWidths, quotePrint, rollWidthLabel } from './printPricing';
 
 interface Props {
   session: ShopSession;
-  restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate' | 'name' | 'paymentMethodsConfig' | 'requireCustomerData'>;
+  restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate' | 'name' | 'logoUrl' | 'paymentMethodsConfig' | 'requireCustomerData'>;
   rubro: ShopRubro;
   /** Pedido abierto que se retomó desde Pedidos: al guardar actualiza ESTE, y al cobrarlo se borra. */
   pedidoAbierto?: { id: string; label: string } | null;
@@ -326,9 +327,8 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
   // Alta en QuickTap Pass + plan de cuotas, disparado desde el cobro. Cuando queda configurado,
   // la venta se cierra como fiada y el plan se crea contra ella apenas existe.
   const [passOpen, setPassOpen] = useState(false);
-  const [entradasEmitidas, setEntradasEmitidas] = useState<
-    { id: string; accessToken: string; seatNumber: number; eventName: string }[] | null
-  >(null);
+  const [entradasEmitidas, setEntradasEmitidas] = useState<RawShopTicket[] | null>(null);
+  const { rig: entradasRig, descargar: descargarEntrada, descargando: descargandoEntrada } = useTicketDownload(restaurant);
   const [planPendiente, setPlanPendiente] = useState<
     { cantidad: number; frecuencia: string; recargoPorcentaje: number; primeraFecha: string } | null
   >(null);
@@ -2071,6 +2071,14 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                     <span className="min-w-0 flex-1 truncate text-[13px] text-brand-950/70">{t.eventName}</span>
                     <button
                       type="button"
+                      onClick={() => descargarEntrada(t)}
+                      disabled={descargandoEntrada}
+                      className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-500 hover:bg-brand-500/10 disabled:opacity-50"
+                    >
+                      <Download className="h-3.5 w-3.5" /> Descargar
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => navigator.clipboard?.writeText(url)}
                       className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-500 hover:bg-brand-500/10"
                     >
@@ -2116,6 +2124,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
           </DialogContent>
         </Dialog>
       )}
+      {entradasRig}
 
       {passOpen && (
         <ShopPassEnrollDialog

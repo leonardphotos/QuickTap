@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { apiOrigin } from '@/utils/apiOrigin';
-import { Bike, Check, MessageCircle, Store, X } from 'lucide-react';
+import { Bike, Check, Download, MessageCircle, Store, X } from 'lucide-react';
 import { api, getToken } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { formatBase, formatBs } from '@/utils/format';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { useTicketDownload } from './TicketDownloadRig';
+import type { RawShopTicket } from './shopApi';
 
 export interface ShopOrder {
   id: string;
@@ -24,6 +27,9 @@ export interface ShopOrder {
   shopSaleId: string | null;
   createdAt: string;
   items: { id: string; name: string; v1: string; v2: string; qty: number; price: number }[];
+  /** Entradas que la venta emitió al confirmar, si el pedido llevaba algún evento. Solo viene
+   *  poblado en la respuesta de POST .../confirm — la lista normal no lo trae. */
+  tickets?: RawShopTicket[];
 }
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -79,6 +85,10 @@ export default function ShopOrdersPage({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'PENDING' | 'ALL'>('PENDING');
+  // Entradas recién emitidas al confirmar un pedido, para ofrecer la imagen descargable ahí
+  // mismo — es el momento en que el pago ya quedó verificado.
+  const [entradasEmitidas, setEntradasEmitidas] = useState<{ order: ShopOrder; tickets: RawShopTicket[] } | null>(null);
+  const { rig, descargar, descargando } = useTicketDownload(restaurant);
 
   const load = useCallback(() => {
     api
@@ -112,6 +122,9 @@ export default function ShopOrdersPage({
       const res = await api.post(`/shop/orders/${order.id}/${action}`, {});
       const updated: ShopOrder = res.data.data;
       setOrders((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+      if (action === 'confirm' && updated.tickets && updated.tickets.length > 0) {
+        setEntradasEmitidas({ order: updated, tickets: updated.tickets });
+      }
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No se pudo actualizar el pedido.');
     } finally {
@@ -212,6 +225,70 @@ export default function ShopOrdersPage({
           ))}
         </ul>
       )}
+
+      {/* Entradas recién emitidas: aparece justo al confirmar un pedido con eventos. El pago ya
+          está verificado (es lo que "confirmar" significa acá), así que este es el momento de
+          descargar la imagen y mandársela al comprador. */}
+      {entradasEmitidas && (
+        <Dialog open onOpenChange={(o) => !o && setEntradasEmitidas(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {entradasEmitidas.tickets.length} entrada{entradasEmitidas.tickets.length === 1 ? '' : 's'} lista
+                {entradasEmitidas.tickets.length === 1 ? '' : 's'}
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm font-light text-brand-950/60">
+              Pago confirmado. Descarga la imagen de cada entrada para mandársela a{' '}
+              {entradasEmitidas.order.customerName || 'el comprador'}.
+            </p>
+            <div className="mt-3 max-h-72 space-y-1.5 overflow-y-auto">
+              {entradasEmitidas.tickets.map((t) => (
+                <div key={t.id} className="flex items-center gap-2 rounded-xl border border-brand-950/[0.08] px-3 py-2">
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-[11px] font-bold text-brand-500">
+                    {t.seatNumber}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-[13px] text-brand-950/70">{t.eventName}</span>
+                  <button
+                    type="button"
+                    onClick={() => descargar(t)}
+                    disabled={descargando}
+                    className="flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-semibold text-brand-500 hover:bg-brand-500/10 disabled:opacity-50"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Descargar
+                  </button>
+                </div>
+              ))}
+            </div>
+            <DialogFooter>
+              {entradasEmitidas.order.customerPhone.replace(/\D/g, '').length >= 7 && (
+                <TextureButton
+                  variant="minimal"
+                  size="default"
+                  className="!w-auto"
+                  onClick={() => {
+                    const enlaces = entradasEmitidas.tickets
+                      .map((t) => `Puesto ${t.seatNumber}: ${window.location.origin}/entrada/${t.accessToken}`)
+                      .join('\n');
+                    const texto = `Tus entradas para ${entradasEmitidas.tickets[0].eventName}:\n${enlaces}`;
+                    window.open(
+                      `https://wa.me/${entradasEmitidas.order.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`,
+                      '_blank',
+                      'noopener',
+                    );
+                  }}
+                >
+                  <MessageCircle className="h-4 w-4" /> Enviar enlace por WhatsApp
+                </TextureButton>
+              )}
+              <TextureButton variant="brand" size="default" className="!w-auto" onClick={() => setEntradasEmitidas(null)}>
+                Listo
+              </TextureButton>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
+      {rig}
     </div>
   );
 }
