@@ -26,6 +26,7 @@ router.post('/login-password', authRateLimit, walletController.loginConClave);
 router.get('/me', walletGuard, walletController.me);
 router.get('/reports', walletGuard, walletController.misReportes);
 router.get('/tickets', walletGuard, walletController.entradas);
+router.get('/history', walletGuard, walletController.historial);
 // Sin guard a propósito: es el directorio de tiendas de la plataforma, no datos de nadie.
 router.get('/stores', walletController.tiendas);
 router.get('/sales/:id/methods', walletGuard, walletController.metodos);

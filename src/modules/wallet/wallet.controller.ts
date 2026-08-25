@@ -72,6 +72,11 @@ export const walletController = {
     res.json({ data: await walletService.tiendas() });
   }),
 
+  /** GET /public/wallet/history — todo lo comprado en cualquier vertical, con enlace al negocio. */
+  historial: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await walletService.historial(req.walletCustomerId!) });
+  }),
+
   /** GET /public/wallet/tickets — las entradas de eventos que compró. */
   entradas: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await walletService.entradas(req.walletCustomerId!) });

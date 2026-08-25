@@ -144,6 +144,23 @@ interface TiendaQuickTap {
 
 type Seccion = 'inicio' | 'tiendas' | 'entradas';
 
+interface CompraHistorial {
+  id: string;
+  tipo: 'TIENDA' | 'RESTAURANTE' | 'CLUB';
+  negocio: string;
+  logoUrl: string | null;
+  url: string;
+  fecha: string;
+  detalle: string[];
+  total: number;
+}
+
+const EMOJI_VERTICAL: Record<CompraHistorial['tipo'], string> = {
+  TIENDA: '🛍️',
+  RESTAURANTE: '🍽️',
+  CLUB: '🎾',
+};
+
 // Carrusel "Tiendas en QuickTap" del Inicio, apagado por ahora (2026-08-24): con una sola
 // tienda real publicada parece de relleno. Volver a encenderlo es voltear esta bandera.
 const MOSTRAR_TIENDAS_QUICKTAP = false;
@@ -190,6 +207,16 @@ export default function WalletDashboardPage() {
   const [aviso, setAviso] = useState<string | null>(null);
   const [seccion, setSeccion] = useState<Seccion>('inicio');
   const reducirMovimiento = useReducedMotion();
+  // Historial unificado: compras en tiendas, restaurantes y canchas de QuickTap, cada fila
+  // con el enlace a la página pública del negocio. Se pide aparte del resumen: si falla, el
+  // resto del portal sigue — la deuda importa más que el historial.
+  const [historialTodo, setHistorialTodo] = useState<CompraHistorial[] | null>(null);
+  useEffect(() => {
+    api
+      .get('/public/wallet/history')
+      .then((r) => setHistorialTodo(r.data.data))
+      .catch(() => setHistorialTodo([]));
+  }, []);
   // Directorio de locales con tienda virtual. Se pide una sola vez, sin bloquear el resto: si
   // falla, el carrusel simplemente no aparece.
   const [tiendasQuickTap, setTiendasQuickTap] = useState<TiendaQuickTap[]>([]);
@@ -284,10 +311,6 @@ export default function WalletDashboardPage() {
     porTienda.set(c.negocio, actual);
   }
   const tiendas = [...porTienda.values()].sort((a, b) => b.saldo - a.saldo);
-  // Historial plano, sin agrupar por tienda: acá lo que importa es CUÁNDO, no a quién.
-  const historial = [...compras].sort(
-    (a, b) => new Date(b.ultimaCompra).getTime() - new Date(a.ultimaCompra).getTime(),
-  );
   const q = busca.trim().toLowerCase();
   const tiendasVisibles = q
     ? tiendas.filter(
@@ -418,26 +441,39 @@ export default function WalletDashboardPage() {
                 arriba cuánto debe, acá en qué se le fue. */}
             <section>
               <h2 className="mb-2 text-[15px] font-bold">Historial de compras</h2>
-              {historial.length === 0 ? (
+              {historialTodo === null ? (
+                <p className="rounded-2xl bg-[#141a22] px-4 py-6 text-center text-[12.5px] font-light text-white/40">
+                  Cargando…
+                </p>
+              ) : historialTodo.length === 0 ? (
                 <p className="rounded-2xl bg-[#141a22] px-4 py-6 text-center text-[12.5px] font-light text-white/40">
                   Todavía no tienes compras registradas.
                 </p>
               ) : (
                 <ul className="overflow-hidden rounded-2xl bg-[#141a22]">
-                  {historial.map((c, i) => (
+                  {historialTodo.map((c, i) => (
                     <li key={c.id} className="wallet-fila" style={{ '--i': i } as React.CSSProperties}>
                       {i > 0 && <div className="ml-[3.5rem] h-px bg-white/[0.06]" />}
-                      <div className="flex items-center gap-3 px-4 py-3">
-                        <span
-                          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[12px] font-bold text-white"
-                          style={{ background: colorDe(c.negocio) }}
-                        >
-                          {iniciales(c.negocio)}
-                        </span>
+                      {/* Toda la fila lleva a la página pública del negocio (tienda, menú o
+                          club según el vertical): el historial también es el camino de vuelta
+                          a comprar de nuevo. */}
+                      <a href={c.url} className="wallet-tap flex items-center gap-3 px-4 py-3">
+                        {c.logoUrl ? (
+                          <img src={c.logoUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
+                        ) : (
+                          <span
+                            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[12px] font-bold text-white"
+                            style={{ background: colorDe(c.negocio) }}
+                          >
+                            {iniciales(c.negocio)}
+                          </span>
+                        )}
                         <span className="min-w-0 flex-1">
-                          <span className="block truncate text-sm font-semibold">{c.negocio}</span>
+                          <span className="block truncate text-sm font-semibold">
+                            {EMOJI_VERTICAL[c.tipo]} {c.negocio}
+                          </span>
                           <span className="block truncate text-[11px] font-light text-white/40">
-                            {fechaHora(c.ultimaCompra)}
+                            {fechaHora(c.fecha)}
                           </span>
                           <span className="block truncate text-[11.5px] font-light text-white/50">
                             {c.detalle.join(', ')}
@@ -445,15 +481,9 @@ export default function WalletDashboardPage() {
                         </span>
                         <span className="shrink-0 text-right">
                           <span className="block text-sm font-bold tabular-nums">{money(c.total)}</span>
-                          {c.saldo > 0 ? (
-                            <span className="block text-[10.5px] font-medium text-amber-400">
-                              Faltan {money(c.saldo)}
-                            </span>
-                          ) : (
-                            <span className="block text-[10.5px] font-medium text-emerald-400">Pagada</span>
-                          )}
+                          <span className="mt-0.5 block text-[10.5px] font-medium text-white/35">Ver negocio ›</span>
                         </span>
-                      </div>
+                      </a>
                     </li>
                   ))}
                 </ul>

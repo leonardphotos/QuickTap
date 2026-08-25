@@ -71,6 +71,91 @@ export const walletService = {
   },
 
   /**
+   * Historial unificado: todo lo que el cliente compró con sus datos en CUALQUIER vertical de
+   * QuickTap — tiendas (ShopSale), restaurantes (Order) y canchas (ClubBooking). Cada fila
+   * trae el enlace a la página pública del negocio, que es distinto por vertical: la tienda
+   * virtual, el menú o la página del club.
+   *
+   * Se cruza por teléfono canónico, igual que el resto del portal: la ficha de cliente es por
+   * negocio, y un restaurante y un club guardan a la misma persona en fichas distintas.
+   */
+  async historial(customerId: string) {
+    const yo = await prisma.customer.findUnique({ where: { id: customerId }, select: { phone: true } });
+    if (!yo) throw badRequest('Cuenta no encontrada.');
+    const cola = soloDigitos(yo.phone).slice(-7);
+    const miTelefono = telefonoCanonico(yo.phone);
+    const negocio = { select: { name: true, slug: true, logoUrl: true } };
+
+    const [ventas, comandas, reservas] = await Promise.all([
+      prisma.shopSale.findMany({
+        where: { customerPhone: { contains: cola }, returned: false },
+        orderBy: { time: 'desc' },
+        take: 60,
+        include: { restaurant: negocio, items: { select: { name: true, qty: true } } },
+      }),
+      // Solo comandas que llegaron a servirse: una cancelada no es una compra, y una todavía
+      // en cocina aparecería en el historial antes de existir como consumo real.
+      prisma.order.findMany({
+        where: { customerPhone: { contains: cola }, status: 'SERVED' },
+        orderBy: { createdAt: 'desc' },
+        take: 60,
+        include: { restaurant: negocio, items: { select: { productName: true, quantity: true } } },
+      }),
+      // Y reservas que se pagaron o se jugaron: las pendientes de pago y los no-show no son
+      // compras hechas.
+      prisma.clubBooking.findMany({
+        where: { playerPhone: { contains: cola }, status: { in: ['CONFIRMED', 'COMPLETED'] } },
+        orderBy: { createdAt: 'desc' },
+        take: 60,
+        include: { restaurant: negocio, block: { select: { startsAt: true, court: { select: { name: true } } } } },
+      }),
+    ]);
+
+    const filas = [
+      ...ventas
+        .filter((v) => telefonoCanonico(v.customerPhone) === miTelefono)
+        .map((v) => ({
+          id: `venta:${v.id}`,
+          tipo: 'TIENDA' as const,
+          negocio: v.restaurant.name,
+          logoUrl: v.restaurant.logoUrl,
+          url: `/tienda/${v.restaurant.slug}`,
+          fecha: v.time.toISOString(),
+          detalle: v.items.map((i) => (i.qty > 1 ? `${i.qty}× ${i.name}` : i.name)).slice(0, 4),
+          total: v.total,
+        })),
+      ...comandas
+        .filter((o) => telefonoCanonico(o.customerPhone) === miTelefono)
+        .map((o) => ({
+          id: `comanda:${o.id}`,
+          tipo: 'RESTAURANTE' as const,
+          negocio: o.restaurant.name,
+          logoUrl: o.restaurant.logoUrl,
+          url: `/r/${o.restaurant.slug}`,
+          fecha: o.createdAt.toISOString(),
+          detalle: o.items.map((i) => (i.quantity > 1 ? `${i.quantity}× ${i.productName}` : i.productName)).slice(0, 4),
+          total: Number(o.totalBase),
+        })),
+      ...reservas
+        .filter((b) => telefonoCanonico(b.playerPhone) === miTelefono)
+        .map((b) => ({
+          id: `reserva:${b.id}`,
+          tipo: 'CLUB' as const,
+          negocio: b.restaurant.name,
+          logoUrl: b.restaurant.logoUrl,
+          url: `/club/${b.restaurant.slug}`,
+          fecha: b.block.startsAt.toISOString(),
+          detalle: [b.block.court.name],
+          total: Number(b.totalBase),
+        })),
+    ];
+
+    // Un solo hilo cronológico, lo más nuevo arriba: la pregunta del historial es "¿qué he
+    // comprado últimamente?", no "¿en qué vertical?".
+    return filas.sort((a, b) => Date.parse(b.fecha) - Date.parse(a.fecha)).slice(0, 60);
+  },
+
+  /**
    * Los locales comerciales de QuickTap que tienen tienda virtual, para el carrusel del portal.
    *
    * No filtra por "tiene productos publicados": un local puede estar armando su catálogo y
