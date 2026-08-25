@@ -293,6 +293,19 @@ async function checkout(slug: string, input: ShopCheckoutInput) {
     throw badRequest('Hace falta tu cédula: es la clave con la que entras a tu QuickTap Wallet a ver la entrada.');
   }
 
+  // Con un método de pago a distancia elegido, el comprobante es obligatorio: el flujo del
+  // checkout es ver los datos → transferir → adjuntar, y un pedido "pagado" sin captura deja
+  // al local persiguiendo al cliente por WhatsApp para verificar. Efectivo, punto de venta o
+  // "lo coordino con la tienda" no tienen captura posible y quedan fuera de la regla.
+  const METODOS_A_DISTANCIA = ['MOBILE_PAYMENT', 'TRANSFER', 'ZELLE', 'BINANCE', 'PAYPAL'];
+  if (
+    input.customer.paymentMethod &&
+    METODOS_A_DISTANCIA.includes(input.customer.paymentMethod) &&
+    !input.customer.proofImageUrl?.startsWith('/uploads/shop-payment-proofs/')
+  ) {
+    throw badRequest('Adjunta el comprobante de tu pago para enviar el pedido.');
+  }
+
   const subtotal = round2(lines.reduce((acc, l) => acc + l.price * l.qty, 0));
   // Tarifa plana que fija el local en Ajustes. No hay zonas ni cálculo por distancia acá: un
   // local comercial despacha con su propio motorizado, no con el mapa de reparto del restaurante.

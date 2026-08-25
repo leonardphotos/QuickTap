@@ -103,6 +103,11 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
     return { primary: l.secondary, secondary: l.primary };
   }
 
+  // Con un método a distancia elegido, el comprobante deja de ser opcional: la compra ya se
+  // transfirió (o va a transferirse ahora mismo con los datos de arriba) y el local necesita
+  // la captura para confirmar. La misma regla se hace cumplir en el servidor.
+  const pideComprobante = ['MOBILE_PAYMENT', 'TRANSFER', 'ZELLE', 'BINANCE', 'PAYPAL'].includes(paymentMethod);
+
   const enabledMethods = Object.entries(shop.paymentMethodsConfig ?? {})
     .filter(([, cfg]) => cfg?.enabled)
     .map(([key]) => key)
@@ -157,6 +162,7 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
       return setFormError('Escribe tu cédula: es tu clave para entrar al Wallet.');
     }
     if (mode === 'DELIVERY' && !address.trim()) return setFormError('Escribe la dirección de entrega.');
+    if (pideComprobante && !proofUrl) return setFormError('Adjunta el comprobante de tu pago.');
 
     setSubmitting(true);
     try {
@@ -475,7 +481,7 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
           </div>
         )}
 
-        <Field label="Comprobante de pago">
+        <Field label={pideComprobante ? 'Comprobante de pago *' : 'Comprobante de pago'}>
           <label
             className={`flex cursor-pointer items-center gap-3 rounded-lg border border-dashed px-3 py-3 transition-colors ${
               proofUrl ? 'border-emerald-500/50 bg-emerald-50/60' : 'border-brand-950/20 hover:border-brand-500/50'
