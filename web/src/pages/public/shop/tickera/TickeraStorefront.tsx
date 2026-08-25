@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+
 import { Calendar, MapPin, MessageCircle, Store, Ticket, User, Users } from 'lucide-react';
 import { publicPriceLabel } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -72,7 +72,6 @@ export function TickeraStorefront({
   categories: { name: string; products: StorefrontProduct[] }[];
 }) {
   const [tab, setTab] = useState<Tab>('eventos');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [openProduct, setOpenProduct] = useState<StorefrontProduct | null>(null);
   const [infoEvento, setInfoEvento] = useState<StorefrontProduct | null>(null);
@@ -144,14 +143,7 @@ export function TickeraStorefront({
               <EmptyState icon={Ticket} text="Todavía no hay eventos publicados. Vuelve pronto." />
             ) : (
               events.map((event) => (
-                <EventCard
-                  key={event.id}
-                  product={event}
-                  shop={shop}
-                  expanded={expandedId === event.id}
-                  onToggle={() => setExpandedId((cur) => (cur === event.id ? null : event.id))}
-                  onInfo={() => setInfoEvento(event)}
-                />
+                <EventCard key={event.id} product={event} shop={shop} onInfo={() => setInfoEvento(event)} />
               ))
             )}
           </div>
@@ -327,23 +319,18 @@ function Detail({ icon: Icon, text }: { icon: typeof MapPin; text: string }) {
 }
 
 /**
- * Tarjeta de evento a sangre completa. Colapsada solo muestra la foto con el nombre/recinto
- * superpuestos (estilo "descubrimiento", no el catálogo de grilla clásico). Al tocarla, se
- * levanta un poco (animación de `y`) y debajo se despliega la descripción + precio + botón de
- * compra — sin abrir ninguna hoja todavía, para no interrumpir el scroll de quien solo está
- * mirando qué hay disponible.
+ * Tarjeta de evento a sangre completa: la foto con el nombre/recinto superpuestos y, debajo,
+ * SIEMPRE la fecha, el cupo, el precio y el botón — nada colapsado. La versión anterior
+ * escondía todo eso hasta tocar la foto, y nadie sabía que había que tocarla: la tarjeta
+ * parecía un afiche sin precio ni forma de comprar.
  */
 function EventCard({
   product,
   shop,
-  expanded,
-  onToggle,
   onInfo,
 }: {
   product: StorefrontProduct;
   shop: StorefrontShop;
-  expanded: boolean;
-  onToggle: () => void;
   onInfo: () => void;
 }) {
   const price = publicPriceLabel(product.price, shop);
@@ -354,14 +341,9 @@ function EventCard({
   const lowSeats = !soldOut && product.seatsLeft != null && product.seatsLeft > 0 && product.seatsLeft <= 15;
 
   return (
-    <motion.div
-      animate={{ y: expanded ? -6 : 0 }}
-      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
-      className={`overflow-hidden rounded-[28px] bg-white/[0.03] ring-1 transition-shadow ${
-        expanded ? 'shadow-[0_24px_50px_-14px_rgba(0,0,0,0.7)] ring-white/15' : 'shadow-[0_10px_28px_-14px_rgba(0,0,0,0.6)] ring-white/5'
-      }`}
-    >
-      <button type="button" onClick={onToggle} className="relative block w-full">
+    <div className="overflow-hidden rounded-[28px] bg-white/[0.03] shadow-[0_24px_50px_-14px_rgba(0,0,0,0.7)] ring-1 ring-white/15">
+      {/* La foto también abre el detalle: es lo primero que la gente toca. */}
+      <button type="button" onClick={onInfo} className="relative block w-full">
         <div className="relative aspect-[3/4] w-full">
           {product.photoUrl ? (
             <img src={product.photoUrl} alt={product.name} loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
@@ -406,15 +388,8 @@ function EventCard({
         </div>
       </button>
 
-      <AnimatePresence initial={false}>
-        {expanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-          >
-            <div className="space-y-2.5 px-4 pb-4 pt-4">
+      <div>
+        <div className="space-y-2.5 px-4 pb-4 pt-4">
               {longDate && <Detail icon={Calendar} text={longDate} />}
               {product.seatsLeft != null && (
                 <Detail
@@ -444,11 +419,9 @@ function EventCard({
                   {soldOut ? 'Agotado' : 'Más información'}
                 </TextureButton>
               </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+        </div>
+      </div>
+    </div>
   );
 }
 
