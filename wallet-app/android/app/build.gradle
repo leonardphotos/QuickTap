@@ -1,0 +1,77 @@
+apply plugin: 'com.android.application'
+
+// Firma de release: la MISMA llave de la app del panel (~/QuickTap-keys). Una llave puede
+// firmar varias apps; lo que no puede es perderse — sin ella nadie actualiza ninguna de las
+// dos. Sin el archivo, el proyecto compila igual y assembleRelease sale sin firmar.
+def keystorePropsFile = file(System.getenv("QUICKTAP_KEYSTORE_PROPS")
+    ?: "${System.properties['user.home']}/QuickTap-keys/keystore.properties")
+def keystoreProps = new Properties()
+if (keystorePropsFile.exists()) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+}
+
+android {
+    namespace = "club.quicktap.wallet"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "club.quicktap.wallet"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode 1
+        versionName "1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    signingConfigs {
+        release {
+            if (keystoreProps['QUICKTAP_KEYSTORE']) {
+                storeFile file(keystoreProps['QUICKTAP_KEYSTORE'])
+                storePassword keystoreProps['QUICKTAP_STORE_PASSWORD']
+                keyAlias keystoreProps['QUICKTAP_KEY_ALIAS']
+                keyPassword keystoreProps['QUICKTAP_KEY_PASSWORD']
+            }
+        }
+    }
+    buildTypes {
+        release {
+            if (keystoreProps['QUICKTAP_KEYSTORE']) {
+                signingConfig signingConfigs.release
+            }
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

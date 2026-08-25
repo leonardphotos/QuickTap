@@ -72,6 +72,12 @@ export const walletController = {
     res.json({ data: await walletService.tiendas() });
   }),
 
+  /** POST /public/wallet/push-tokens — registra este teléfono para los recordatorios. */
+  registrarAparato: asyncHandler(async (req: Request, res: Response) => {
+    const input = z.object({ token: z.string().min(10).max(4096), platform: z.string().min(1).max(20) }).parse(req.body);
+    res.json({ data: await walletService.registrarAparato(req.walletCustomerId!, input) });
+  }),
+
   /** GET /public/wallet/history — todo lo comprado en cualquier vertical, con enlace al negocio. */
   historial: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await walletService.historial(req.walletCustomerId!) });

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">QuickTap Wallet</string>
+    <string name="title_activity_main">QuickTap Wallet</string>
+    <string name="package_name">club.quicktap.wallet</string>
+    <string name="custom_url_scheme">club.quicktap.wallet</string>
+</resources>

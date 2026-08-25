@@ -14,3 +14,9 @@ graphify-out/
 
 # Caché incremental de TypeScript: cambia en cada compilación, no aporta nada al repo.
 tsconfig.tsbuildinfo
+
+# App Android del Wallet: dependencias y artefactos de build (la config de Firebase no se versiona)
+wallet-app/node_modules/
+wallet-app/android/app/build/
+wallet-app/android/.gradle/
+wallet-app/android/app/google-services.json

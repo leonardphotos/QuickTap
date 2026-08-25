@@ -3862,6 +3862,9 @@ model ShopInstallment {
   paidAt         DateTime?
   /// Mora ya aplicada a esta cuota. 0 = todavía no venció o se pagó a tiempo.
   lateFeeCharged Float     @default(0)
+  // Cuándo se mandó el recordatorio de vencimiento al Wallet (3 días antes). Sella que YA se
+  // avisó: el barrido corre varias veces al día y sin esto repetiría el push.
+  reminderSentAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -3966,6 +3969,20 @@ model WalletAccount {
   updatedAt  DateTime @updatedAt
 
   @@map("wallet_accounts")
+}
+
+// Teléfonos (Android) registrados para recibir push del Wallet — separado de DeviceToken, que
+// es del STAFF de un negocio (cuelga de restaurantId+userId). Acá el dueño del aparato es un
+// cliente final, identificado por su teléfono canónico, igual que WalletAccount.
+model WalletDeviceToken {
+  id        String   @id @default(cuid())
+  phone     String
+  token     String   @unique
+  platform  String
+  createdAt DateTime @default(now())
+
+  @@index([phone])
+  @@map("wallet_device_tokens")
 }
 
 model ShopTicket {

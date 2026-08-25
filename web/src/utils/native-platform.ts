@@ -29,3 +29,23 @@ export function isAndroidApp(): boolean {
 export function isInstalledApp(): boolean {
   return isAndroidApp() || isElectron;
 }
+
+/**
+ * Qué carcasa instalada es esta: la del panel o la del Wallet. La del Wallet abre el sitio
+ * con ?app=wallet en la URL inicial (ver wallet-app/capacitor.config.ts); acá se recuerda,
+ * porque la SPA navega y el query se pierde — y App.tsx necesita saber a qué pantalla mandar
+ * el arranque en frío ('/').
+ */
+const SABOR_KEY = 'qt_app_flavor';
+
+export function appFlavor(): 'panel' | 'wallet' {
+  try {
+    if (new URLSearchParams(window.location.search).get('app') === 'wallet') {
+      localStorage.setItem(SABOR_KEY, 'wallet');
+      return 'wallet';
+    }
+    return localStorage.getItem(SABOR_KEY) === 'wallet' ? 'wallet' : 'panel';
+  } catch {
+    return 'panel';
+  }
+}

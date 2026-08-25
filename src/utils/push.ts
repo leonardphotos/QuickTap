@@ -61,6 +61,30 @@ const notifiedLowStock = new Map<string, Set<string>>();
  * Avisa por push de los insumos que ACABAN de quedar por debajo de su mínimo (o en cero).
  * Se llama después de cualquier movimiento de stock; decide solo si hay algo nuevo que contar.
  */
+/**
+ * Push a TODOS los aparatos del Wallet de un cliente final, buscado por teléfono canónico.
+ * Misma filosofía que sendPushToRestaurant: jamás tira error ni bloquea — sin Firebase o sin
+ * aparatos registrados, simplemente no pasa nada.
+ */
+export async function sendPushToWalletPhone(phone: string, payload: { title: string; body: string }): Promise<void> {
+  const messaging = getMessaging();
+  if (!messaging) return;
+  const cola = phone.replace(/\D/g, '').slice(-10);
+  if (!cola) return;
+  const tokens = await prisma.walletDeviceToken.findMany({ where: { phone: cola }, select: { token: true } });
+  if (tokens.length === 0) return;
+  const list = tokens.map((t) => t.token);
+  try {
+    const res = await messaging.sendEachForMulticast({ tokens: list, notification: payload, android: { priority: 'high' } });
+    const dead = res.responses
+      .map((r, i) => (!r.success && isDeadToken(r.error?.code) ? list[i] : null))
+      .filter((t): t is string => t !== null);
+    if (dead.length > 0) await prisma.walletDeviceToken.deleteMany({ where: { token: { in: dead } } });
+  } catch {
+    // El recordatorio es un extra: si FCM falla, el portal sigue mostrando la cuota igual.
+  }
+}
+
 export async function pushLowStockCrossings(restaurantId: string): Promise<void> {
   if (!getMessaging()) return;
 

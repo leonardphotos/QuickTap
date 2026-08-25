@@ -7,6 +7,7 @@ import { api } from '@/api/client';
 import { useDocumentMeta } from '@/hooks/useDocumentMeta';
 import { WALLET_NAME, WALLET_WORDMARK_URL } from './walletBrand';
 import { clearWalletToken, getWalletToken } from './walletSession';
+import { useWalletPush } from './useWalletPush';
 import { AbonarDialog } from './AbonarDialog';
 import { WalletIntro } from './WalletIntro';
 import WalletEntradasPage from './WalletEntradasPage';
@@ -207,6 +208,7 @@ export default function WalletDashboardPage() {
   const [aviso, setAviso] = useState<string | null>(null);
   const [seccion, setSeccion] = useState<Seccion>('inicio');
   const reducirMovimiento = useReducedMotion();
+  useWalletPush();
   // Historial unificado: compras en tiendas, restaurantes y canchas de QuickTap, cada fila
   // con el enlace a la página pública del negocio. Se pide aparte del resumen: si falla, el
   // resto del portal sigue — la deuda importa más que el historial.
@@ -332,7 +334,10 @@ export default function WalletDashboardPage() {
         {/* ---------- Cabecera ---------- */}
         <div className="shrink-0 px-5 pb-5 pt-6">
           <div className="flex items-center justify-between">
-            <img src={WALLET_WORDMARK_URL} alt={WALLET_NAME} className="h-6 w-auto" />
+            <span className="flex flex-col items-start">
+              <img src={WALLET_WORDMARK_URL} alt={WALLET_NAME} className="h-6 w-auto" />
+              <span className="mt-0.5 text-[9px] font-light tracking-wide text-white/35">by QuickTap</span>
+            </span>
             <div className="flex items-center gap-2">
               {seccion === 'tiendas' && (
                 <button
@@ -569,6 +574,48 @@ export default function WalletDashboardPage() {
                           className={`h-4 w-4 shrink-0 text-brand-950/25 transition-transform ${abiertaAqui ? 'rotate-90' : ''}`}
                         />
                       </button>
+
+                      {/* Lo esencial de la cuenta SIN desplegar la fila: cuánto va pagado, la
+                          cuota que viene (monto y fecha) y el botón para pagarla. Antes había
+                          que abrir la tienda y buscar la compra — tres toques para lo que el
+                          cliente vino a hacer. */}
+                      {(() => {
+                        const c = t.compras
+                          .filter((x) => x.saldo > 0 && x.proximaCuota)
+                          .sort((a, b) => (a.proximaCuota!.dueDate < b.proximaCuota!.dueDate ? -1 : 1))[0];
+                        if (!c) return null;
+                        return (
+                          <div className="mb-1 ml-[3.25rem] mr-1.5 rounded-2xl bg-brand-950/[0.04] px-3.5 py-3">
+                            <div className="h-1.5 overflow-hidden rounded-full bg-brand-950/10">
+                              <div
+                                className="h-full rounded-full bg-emerald-500 transition-[width] duration-500"
+                                style={{ width: `${Math.min(100, Math.round(c.progreso * 100))}%` }}
+                              />
+                            </div>
+                            <div className="mt-2 flex items-center justify-between gap-2">
+                              <span className="min-w-0">
+                                <span className="block text-[13px] font-bold tabular-nums text-brand-950">
+                                  {money(c.proximaCuota!.saldo)}
+                                </span>
+                                <span className="block text-[11px] font-light text-brand-950/50">
+                                  Cuota {c.proximaCuota!.number} · vence{' '}
+                                  {new Date(`${c.proximaCuota!.dueDate}T00:00:00`).toLocaleDateString('es-VE', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                  })}
+                                </span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setAbonando(c)}
+                                className="wallet-tap shrink-0 rounded-full bg-brand-950 px-4 py-1.5 text-[12.5px] font-semibold text-white"
+                              >
+                                Pagar
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })()}
 
                       {/* Desplegar la tienda anima el alto en vez de aparecer de golpe: sin
                           esto la lista salta y el dedo pierde la fila que acaba de tocar.

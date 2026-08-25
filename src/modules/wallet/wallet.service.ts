@@ -70,6 +70,55 @@ export const walletService = {
     return { token, customer: { id: cliente.id, name: cliente.name } };
   },
 
+  /** Registra el teléfono del cliente para los push del Wallet (recordatorios de cuotas). */
+  async registrarAparato(customerId: string, input: { token: string; platform: string }) {
+    const yo = await prisma.customer.findUnique({ where: { id: customerId }, select: { phone: true } });
+    if (!yo) throw badRequest('Cuenta no encontrada.');
+    await prisma.walletDeviceToken.upsert({
+      where: { token: input.token },
+      // El token puede cambiar de dueño (sesión nueva en el mismo teléfono): se re-ata al
+      // último que entró, que es quien tiene el aparato en la mano.
+      update: { phone: telefonoCanonico(yo.phone), platform: input.platform },
+      create: { phone: telefonoCanonico(yo.phone), token: input.token, platform: input.platform },
+    });
+    return { ok: true };
+  },
+
+  /**
+   * Recordatorio de cuotas: aviso push 3 días antes del vencimiento.
+   *
+   * Corre en un barrido periódico (ver server.ts). Busca cuotas impagas que vencen dentro de
+   * los próximos 3 días y aún no fueron avisadas; el sello reminderSentAt se estampa SOLO si
+   * el cliente tenía aparatos registrados — si instala la app mañana, el barrido siguiente
+   * todavía lo alcanza.
+   */
+  async recordatoriosDeCuotas() {
+    const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' });
+    const tope = new Date(Date.parse(`${hoy}T00:00:00Z`) + 3 * 86400000).toISOString().slice(0, 10);
+    const cuotas = await prisma.shopInstallment.findMany({
+      where: { paidAt: null, reminderSentAt: null, dueDate: { gte: hoy, lte: tope } },
+      include: { plan: { include: { shopSale: { select: { customerPhone: true, restaurant: { select: { name: true } } } } } } },
+      take: 200,
+    });
+
+    for (const c of cuotas) {
+      const venta = c.plan.shopSale;
+      if (!venta?.customerPhone) continue;
+      const telefono = telefonoCanonico(venta.customerPhone);
+      const aparatos = await prisma.walletDeviceToken.count({ where: { phone: telefono } });
+      if (aparatos === 0) continue;
+      const saldo = Math.max(0, Math.round((c.amount + c.lateFeeCharged - c.paidAmount) * 100) / 100);
+      if (saldo <= 0) continue;
+      const fecha = new Date(`${c.dueDate}T00:00:00`).toLocaleDateString('es-VE', { day: '2-digit', month: 'long' });
+      const { sendPushToWalletPhone } = await import('../../utils/push');
+      await sendPushToWalletPhone(telefono, {
+        title: `Tu cuota en ${venta.restaurant.name}`,
+        body: `Vence el ${fecha}: $${saldo.toFixed(2)}. Ábrela en tu QuickTap Wallet para pagarla.`,
+      });
+      await prisma.shopInstallment.update({ where: { id: c.id }, data: { reminderSentAt: new Date() } });
+    }
+  },
+
   /**
    * Historial unificado: todo lo que el cliente compró con sus datos en CUALQUIER vertical de
    * QuickTap — tiendas (ShopSale), restaurantes (Order) y canchas (ClubBooking). Cada fila

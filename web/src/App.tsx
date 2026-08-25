@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
-import { isInstalledApp } from './utils/native-platform';
+import { appFlavor, isInstalledApp } from './utils/native-platform';
 import { MasterAuthProvider } from './context/MasterAuthContext';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
@@ -96,7 +96,16 @@ export default function App() {
               que a su vez rebota a /admin si la sesión sigue viva, así que no obliga a escribir
               la clave en cada arranque. En el navegador no cambia nada.
             */}
-            <Route path="/" element={isInstalledApp() ? <Navigate to="/admin/login" replace /> : <LandingPage />} />
+            <Route
+              path="/"
+              element={
+                isInstalledApp() ? (
+                  <Navigate to={appFlavor() === 'wallet' ? '/wallet' : '/admin/login'} replace />
+                ) : (
+                  <LandingPage />
+                )
+              }
+            />
             {/* La página de soluciones se fusionó con la Landing (ahora vive debajo del hero). */}
             <Route path="/soluciones" element={<Navigate to="/" replace />} />
             {/* /precios es el slug SEO canónico (cluster de precio); /planes queda como redirección. */}

@@ -15,6 +15,7 @@ import { masterWhatsappBotService } from './modules/master-whatsapp/master-whats
 import { subscriptionReminderService } from './modules/master-whatsapp/subscription-reminder.service';
 import { clubDebtBotService } from './modules/club/club-debt-bot.service';
 import { subscriptionPaymentVerificationService } from './modules/master-whatsapp/subscription-payment-verification.service';
+import { walletService } from './modules/wallet/wallet.service';
 import { shopInstallmentsService } from './modules/shop/shop-installments.service';
 import { emitToKitchen, SocketEvents } from './sockets';
 
@@ -164,6 +165,14 @@ async function bootstrap() {
     6 * 60 * 60 * 1000,
   );
 
+  // Recordatorio de cuotas al Wallet: push 3 días antes del vencimiento. Mismo ritmo que la
+  // mora; el servicio sella cada cuota avisada, así que repetir el barrido no repite el aviso.
+  walletService.recordatoriosDeCuotas().catch(() => undefined);
+  const walletReminderInterval = setInterval(
+    () => walletService.recordatoriosDeCuotas().catch(() => undefined),
+    6 * 60 * 60 * 1000,
+  );
+
   // Solo localhost: Nginx (misma máquina) es el único que debe llegar a este
   // puerto — así queda fuera de alcance directo de internet aunque el
   // firewall se desconfigure alguna vez.
@@ -188,6 +197,7 @@ async function bootstrap() {
     if (clubDebtReminderInterval) clearInterval(clubDebtReminderInterval);
     clearInterval(subscriptionVerificationSweepInterval);
     clearInterval(installmentLateFeeInterval);
+    clearInterval(walletReminderInterval);
     masterServerStatusService.stopSampling();
     server.close();
     await prisma.$disconnect();
