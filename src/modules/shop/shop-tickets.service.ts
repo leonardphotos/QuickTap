@@ -237,6 +237,38 @@ export const shopTicketsService = {
   },
 
   /** Deshacer una verificación hecha por error. */
+  /**
+   * Elimina una entrada y devuelve su puesto al cupo del evento.
+   *
+   * La VENTA no se toca: sigue cobrada y sigue en los libros. Eso es a propósito — borrar acá
+   * plata que ya entró dejaría la caja sin cuadrar y sin rastro de por qué. Si la persona
+   * canceló de verdad, el camino es devolver la venta desde el historial, que repone el cupo
+   * y el dinero juntos. Consecuencia a tener presente: el local queda con un cupo más a la
+   * venta del que cobró, que es exactamente lo que se pide al querer revender ese puesto.
+   *
+   * El puesto en sí no se reutiliza: la numeración va por el último emitido, así que queda un
+   * hueco en la lista. Mejor así — dos personas con "Puesto 7" en la mano es peor que un 7
+   * que no existe.
+   */
+  async eliminar(restaurantId: string, id: string) {
+    const t = await prisma.shopTicket.findFirst({ where: { id, restaurantId }, select: { id: true, productId: true } });
+    if (!t) throw notFound('Entrada no encontrada.');
+
+    return prisma.$transaction(async (tx) => {
+      await tx.shopTicket.delete({ where: { id: t.id } });
+      // Un evento tiene una sola variante ("Entrada"), que es donde vive su cupo. Si no
+      // apareciera, se borra igual: quedarse con la entrada por no poder sumar un cupo sería
+      // peor que el cupo desactualizado.
+      const variante = await tx.shopProductVariant.findFirst({
+        where: { productId: t.productId },
+        orderBy: { id: 'asc' },
+        select: { id: true },
+      });
+      if (variante) await tx.shopProductVariant.update({ where: { id: variante.id }, data: { stock: { increment: 1 } } });
+      return { ok: true, cupoDevuelto: !!variante };
+    });
+  },
+
   async desmarcar(restaurantId: string, id: string) {
     const t = await prisma.shopTicket.findFirst({ where: { id, restaurantId } });
     if (!t) throw notFound('Entrada no encontrada.');

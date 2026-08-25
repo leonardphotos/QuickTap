@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, RotateCcw, ScanLine, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, RotateCcw, ScanLine, Trash2, XCircle } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { useBarcodeCamera } from '@/hooks/useBarcodeCamera';
@@ -51,6 +51,7 @@ export default function ShopTicketsPage() {
   const [escaneando, setEscaneando] = useState(false);
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [busca, setBusca] = useState('');
+  const [borrando, setBorrando] = useState<string | null>(null);
   // El lector dispara el mismo código muchas veces por segundo mientras el QR esté encuadrado:
   // sin esto, un solo escaneo mandaría decenas de peticiones y la primera marcaría la entrada
   // y las siguientes la reportarían como repetida.
@@ -115,6 +116,31 @@ export default function ShopTicketsPage() {
     await api.post(`/shop/tickets/${id}/undo`).catch(() => undefined);
     cargarLista();
     cargarEventos();
+  }
+
+  /**
+   * Saca al asistente de la lista. Se avisa lo que NO hace: la venta queda cobrada, así que
+   * quien borra por una cancelación real tiene que devolver la venta aparte.
+   */
+  async function eliminar(id: string, nombre: string | null, puesto: number) {
+    const quien = nombre?.trim() ? `${nombre.trim()} (puesto ${puesto})` : `el puesto ${puesto}`;
+    if (
+      !window.confirm(
+        `¿Eliminar a ${quien}?\n\nSu entrada deja de servir en la puerta y el cupo vuelve a estar a la venta. La venta sigue cobrada: si la persona canceló, devuélvela desde el historial.`,
+      )
+    ) {
+      return;
+    }
+    setBorrando(id);
+    try {
+      await api.delete(`/shop/tickets/${id}`);
+      cargarLista();
+      cargarEventos();
+    } catch {
+      window.alert('No se pudo eliminar la entrada. Intenta de nuevo.');
+    } finally {
+      setBorrando(null);
+    }
   }
 
   const evento = eventos?.find((e) => e.id === eventoId) ?? null;
@@ -266,15 +292,30 @@ export default function ShopTicketsPage() {
                       {t.usada && t.usadaEl && ` · entró ${new Date(t.usadaEl).toLocaleTimeString('es-VE', { hour: '2-digit', minute: '2-digit' })}`}
                     </p>
                   </div>
-                  {t.usada && user?.role !== 'VERIFICADOR' && (
-                    <button
-                      type="button"
-                      onClick={() => deshacer(t.id)}
-                      title="Marcar como no usada"
-                      className="shrink-0 rounded-lg p-1.5 text-brand-950/35 transition-colors hover:bg-brand-950/[0.06] hover:text-brand-950/70"
-                    >
-                      <RotateCcw className="h-4 w-4" />
-                    </button>
+                  {/* El Verificador está en la puerta: solo marca entradas, no las deshace ni
+                      las borra — borrar devuelve un cupo a la venta. */}
+                  {user?.role !== 'VERIFICADOR' && (
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      {t.usada && (
+                        <button
+                          type="button"
+                          onClick={() => deshacer(t.id)}
+                          title="Marcar como no usada"
+                          className="rounded-lg p-1.5 text-brand-950/35 transition-colors hover:bg-brand-950/[0.06] hover:text-brand-950/70"
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        disabled={borrando === t.id}
+                        onClick={() => eliminar(t.id, t.titular, t.puesto)}
+                        title="Eliminar asistente"
+                        className="rounded-lg p-1.5 text-brand-950/35 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   )}
                 </div>
               ))}

@@ -65,6 +65,9 @@ router.get('/tickets/events', shopTicketsController.eventos);
 router.get('/tickets', shopTicketsController.lista);
 router.post('/tickets/check-in', shopTicketsController.verificar);
 router.post('/tickets/:id/undo', requireRole('OWNER', 'ADMIN'), shopTicketsController.desmarcar);
+// Borrar a un asistente devuelve un cupo a la venta: nunca el Verificador, que está en la
+// puerta y solo debe marcar entradas.
+router.delete('/tickets/:id', requireRole('OWNER', 'ADMIN'), shopTicketsController.eliminar);
 
 // --- QuickTap Wallet: deudores y abonos que los clientes reportan desde su portal ---
 router.get('/pass/pending', shopWalletController.pendientes);

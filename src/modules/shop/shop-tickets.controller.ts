@@ -35,6 +35,11 @@ export const shopTicketsController = {
     res.json({ data: await shopTicketsService.verificar(req.restaurantId!, accessToken, req.auth?.userId) });
   }),
 
+  /** DELETE /shop/tickets/:id — saca al asistente de la lista y devuelve su cupo. */
+  eliminar: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await shopTicketsService.eliminar(req.restaurantId!, req.params.id) });
+  }),
+
   /** POST /shop/tickets/:id/undo — deshacer una verificación hecha por error. */
   desmarcar: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await shopTicketsService.desmarcar(req.restaurantId!, req.params.id) });
