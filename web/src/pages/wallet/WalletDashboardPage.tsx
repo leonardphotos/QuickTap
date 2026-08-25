@@ -1,3 +1,4 @@
+import { waPhone } from '@/utils/waPhone';
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
@@ -81,7 +82,7 @@ const fechaHora = (iso: string) =>
 /** Enlace a WhatsApp del negocio con el motivo ya escrito. Es un `wa.me`: abre el WhatsApp del
  *  propio cliente con el mensaje redactado, no envía nada por su cuenta. */
 function whatsappDelNegocio(c: Compra): string | null {
-  const tel = (c.whatsappNegocio ?? '').replace(/\D/g, '');
+  const tel = waPhone(c.whatsappNegocio ?? '');
   if (!tel) return null;
   const texto = `Hola ${c.negocio}, te escribo por mi compra del ${fechaHora(c.ultimaCompra)}`
     + (c.detalle.length ? ` (${c.detalle.join(', ')})` : '')
@@ -142,6 +143,10 @@ interface TiendaQuickTap {
 }
 
 type Seccion = 'inicio' | 'tiendas' | 'entradas';
+
+// Carrusel "Tiendas en QuickTap" del Inicio, apagado por ahora (2026-08-24): con una sola
+// tienda real publicada parece de relleno. Volver a encenderlo es voltear esta bandera.
+const MOSTRAR_TIENDAS_QUICKTAP = false;
 
 /**
  * Cuenta desde 0 hasta el saldo al entrar.
@@ -406,7 +411,7 @@ export default function WalletDashboardPage() {
               </div>
             </div>
 
-            <CarruselTiendas tiendas={tiendasQuickTap} />
+            {MOSTRAR_TIENDAS_QUICKTAP && <CarruselTiendas tiendas={tiendasQuickTap} />}
 
             {/* Historial: lo último que compró, de lo más reciente a lo más viejo y sin
                 importar en qué tienda. Es la otra mitad de la pregunta que trae al cliente:

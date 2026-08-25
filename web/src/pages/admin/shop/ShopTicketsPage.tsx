@@ -136,8 +136,10 @@ export default function ShopTicketsPage() {
       await api.delete(`/shop/tickets/${id}`);
       cargarLista();
       cargarEventos();
-    } catch {
-      window.alert('No se pudo eliminar la entrada. Intenta de nuevo.');
+    } catch (e: any) {
+      // El mensaje del servidor a la cara: el "no se pudo" genérico escondió un 403 de rol
+      // y costó diagnosticarlo desde el otro lado de la pantalla.
+      window.alert(e?.response?.data?.error ?? 'No se pudo eliminar la entrada. Intenta de nuevo.');
     } finally {
       setBorrando(null);
     }

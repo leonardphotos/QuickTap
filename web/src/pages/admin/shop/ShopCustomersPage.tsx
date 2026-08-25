@@ -1,3 +1,4 @@
+import { waPhone } from '@/utils/waPhone';
 import { useState } from 'react';
 import { MessageCircle, Search, Star } from 'lucide-react';
 import type { AuthRestaurant } from '@/context/AuthContext';
@@ -134,7 +135,7 @@ export default function ShopCustomersPage({ session, restaurant }: Props) {
                     <td className="py-2.5">
                       {c.phone ? (
                         <a
-                          href={`https://wa.me/${c.phone}`}
+                          href={`https://wa.me/${waPhone(c.phone)}`}
                           target="_blank"
                           rel="noreferrer"
                           className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-emerald-600 hover:text-emerald-700"

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest } from '../../utils/http-error';
 import { walletService } from './wallet.service';
+import { walletAuthService } from './wallet-auth.service';
 import { walletPaymentsService } from './wallet-payments.service';
 
 const loginSchema = z.object({
@@ -19,11 +20,46 @@ const reportarSchema = z.object({
   proofImageUrl: z.string().optional(),
 });
 
+const estadoSchema = z.object({ phone: z.string().min(7) });
+const codigoSchema = z.object({ phone: z.string().min(7), code: z.string().min(4).max(8) });
+const claveNuevaSchema = z.object({ setupToken: z.string().min(10), password: z.string().min(1).max(200) });
+const loginClaveSchema = z.object({ phone: z.string().min(7), password: z.string().min(1).max(200) });
+
 export const walletController = {
-  /** POST /public/wallet/login — teléfono + cédula. */
+  /** POST /public/wallet/login — teléfono + cédula (solo cuentas que aún no crearon su clave). */
   login: asyncHandler(async (req: Request, res: Response) => {
     const input = loginSchema.parse(req.body);
     res.json({ data: await walletService.login(input) });
+  }),
+
+  /** POST /public/wallet/status — si este teléfono ya tiene clave (la pantalla cambia la casilla). */
+  estado: asyncHandler(async (req: Request, res: Response) => {
+    const input = estadoSchema.parse(req.body);
+    res.json({ data: await walletAuthService.estado(input.phone) });
+  }),
+
+  /** POST /public/wallet/send-code — teléfono + cédula → SMS de 4 dígitos. */
+  enviarCodigo: asyncHandler(async (req: Request, res: Response) => {
+    const input = loginSchema.parse(req.body);
+    res.json({ data: await walletAuthService.enviarCodigo(input) });
+  }),
+
+  /** POST /public/wallet/verify-code — código → permiso corto para crear la clave. */
+  verificarCodigo: asyncHandler(async (req: Request, res: Response) => {
+    const input = codigoSchema.parse(req.body);
+    res.json({ data: await walletAuthService.verificarCodigo(input) });
+  }),
+
+  /** POST /public/wallet/set-password — crea la clave y entra. */
+  crearClave: asyncHandler(async (req: Request, res: Response) => {
+    const input = claveNuevaSchema.parse(req.body);
+    res.json({ data: await walletAuthService.crearClave(input) });
+  }),
+
+  /** POST /public/wallet/login-password — teléfono + clave. */
+  loginConClave: asyncHandler(async (req: Request, res: Response) => {
+    const input = loginClaveSchema.parse(req.body);
+    res.json({ data: await walletAuthService.loginConClave(input) });
   }),
 
   /** GET /public/wallet/me — compras, saldos y cuotas del cliente autenticado. */

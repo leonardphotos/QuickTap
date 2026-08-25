@@ -226,9 +226,18 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
                 </TextureButton>
               </a>
             )}
-            <button onClick={onClose} className="w-full py-2 text-sm font-medium text-brand-950/50">
-              Seguir viendo
-            </button>
+            {/* El siguiente paso natural del comprador: su pedido (entrada, cuotas, QR) vive
+                en el Wallet, así que se le lleva directo en vez de dejarlo "seguir viendo".
+                El wordmark es blanco: solo funciona sobre este fondo oscuro. */}
+            <a href="/wallet" target="_blank" rel="noreferrer" className="block">
+              <button
+                type="button"
+                className="wallet-tap flex w-full items-center justify-center gap-2.5 rounded-full bg-brand-950 py-2.5"
+              >
+                <span className="text-sm font-semibold text-white">Ir a</span>
+                <img src="/logo/wallet.png" alt="QuickTap Wallet" className="h-4 w-auto" />
+              </button>
+            </a>
           </div>
         </div>
       </ShopSheet>

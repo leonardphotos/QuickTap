@@ -1,3 +1,4 @@
+import { waPhone } from '@/utils/waPhone';
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
 import { Camera, CheckCircle2, ClipboardList, Download, FileText, Loader2, MessageCircle, Minus, Plus, Printer, QrCode, ScanLine, Search, ShoppingCart, Wallet, Wrench, X } from 'lucide-react';
@@ -59,14 +60,7 @@ interface ServiceProvider {
  * el $ como monto principal para estos, y Bs para el resto (Pago Móvil, Transferencia, etc.). */
 const USD_PAYMENT_LABELS = new Set(['Efectivo $', 'Zelle', 'Binance', 'PayPal']);
 
-/** Normaliza un teléfono venezolano a formato internacional para wa.me: acepta que el cajero lo
- * haya escrito con o sin el código de país, con o sin el 0 inicial típico (04xx-xxx-xxxx). */
-function waPhone(phone: string): string {
-  const digits = phone.replace(/\D/g, '');
-  if (!digits) return '';
-  if (digits.startsWith('58')) return digits;
-  return `58${digits.replace(/^0+/, '')}`;
-}
+
 
 /** Texto del recibo para el enlace de WhatsApp: ítems, total en el monto principal según el
  * método de pago (USD_PAYMENT_LABELS) y el equivalente en la otra moneda como referencia. */
@@ -2108,7 +2102,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                       .join('\n');
                     const texto = `Tus entradas para ${entradasEmitidas[0].eventName}:\n${enlaces}`;
                     window.open(
-                      `https://wa.me/${custPhone.replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`,
+                      `https://wa.me/${waPhone(custPhone)}?text=${encodeURIComponent(texto)}`,
                       '_blank',
                       'noopener',
                     );

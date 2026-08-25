@@ -15,6 +15,14 @@ import { walletGuard } from './wallet.middleware';
 const router = Router();
 
 router.post('/login', authRateLimit, walletController.login);
+// El ingreso nuevo: clave propia, creada tras verificar el teléfono con un código por SMS.
+// Todas bajo el mismo límite de credenciales — status incluido, que aunque solo diga "tiene
+// clave o no", enumerado a gran escala también cuenta una historia.
+router.post('/status', authRateLimit, walletController.estado);
+router.post('/send-code', authRateLimit, walletController.enviarCodigo);
+router.post('/verify-code', authRateLimit, walletController.verificarCodigo);
+router.post('/set-password', authRateLimit, walletController.crearClave);
+router.post('/login-password', authRateLimit, walletController.loginConClave);
 router.get('/me', walletGuard, walletController.me);
 router.get('/reports', walletGuard, walletController.misReportes);
 router.get('/tickets', walletGuard, walletController.entradas);

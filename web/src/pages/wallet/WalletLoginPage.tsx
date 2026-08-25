@@ -38,11 +38,43 @@ const SLIDES = [
 
 const SLIDE_MS = 5000;
 
+/** El último teléfono con el que se entró: se recuerda para que la próxima vez la pantalla ya
+ * sepa a quién le habla (y si tiene clave, pedirla directo). El navegador no puede leer el
+ * número de la SIM — "detectar automáticamente" es esto: recordarlo del ingreso anterior. */
+const TEL_RECORDADO = 'quicktap_wallet_tel';
+
+const INPUT_DARK =
+  'mt-1 w-full rounded-xl border border-white/12 bg-white/[0.06] px-3 py-2 text-[13px] text-white outline-none transition-colors placeholder:text-white/25 focus:border-[#3d9bff] focus:bg-white/[0.09]';
+
+/**
+ * Qué tan buena es la clave, para el medidor. Es orientación de pantalla: el piso real (8
+ * caracteres, letras y números) lo hace cumplir el servidor.
+ */
+function nivelClave(clave: string): { nivel: 0 | 1 | 2 | 3; texto: string; color: string } {
+  if (!clave) return { nivel: 0, texto: '', color: '' };
+  let puntos = 0;
+  if (clave.length >= 8) puntos++;
+  if (/[a-záéíóúñ]/i.test(clave) && /\d/.test(clave)) puntos++;
+  if (clave.length >= 12 || /[^a-z0-9áéíóúñ]/i.test(clave)) puntos++;
+  if (puntos <= 1) return { nivel: 1, texto: 'Débil', color: '#f87171' };
+  if (puntos === 2) return { nivel: 2, texto: 'Aceptable', color: '#fbbf24' };
+  return { nivel: 3, texto: 'Segura', color: '#34d399' };
+}
+
+type Paso = 'datos' | 'codigo' | 'clave';
+
 export default function WalletLoginPage() {
   useDocumentMeta(`${WALLET_NAME} — Consulta tus compras`, 'Consulta tus compras, abonos y cuotas pendientes.');
   const navigate = useNavigate();
-  const [phone, setPhone] = useState('');
+  const [phone, setPhone] = useState(() => localStorage.getItem(TEL_RECORDADO) ?? '');
   const [idNumber, setIdNumber] = useState('');
+  const [password, setPassword] = useState('');
+  // null = todavía no se sabe (la casilla queda en cédula mientras tanto).
+  const [tieneClave, setTieneClave] = useState<boolean | null>(null);
+  const [paso, setPaso] = useState<Paso>('datos');
+  const [codigo, setCodigo] = useState('');
+  const [setupToken, setSetupToken] = useState('');
+  const [claveNueva, setClaveNueva] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [slide, setSlide] = useState(0);
@@ -59,14 +91,50 @@ export default function WalletLoginPage() {
     return () => clearInterval(t);
   }, [autoRota]);
 
+  // Con el teléfono completo se le pregunta al servidor si esa cuenta ya tiene clave: si la
+  // tiene, la casilla de cédula muta a clave (con su animación). Espera 400ms quieto para no
+  // preguntar en cada tecla, y también corre al montar si había un teléfono recordado.
+  useEffect(() => {
+    const digitos = phone.replace(/\D/g, '');
+    if (digitos.length < 10) {
+      setTieneClave(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      api
+        .post('/public/wallet/status', { phone })
+        .then((r) => setTieneClave(!!r.data.data.tieneClave))
+        .catch(() => setTieneClave(null));
+    }, 400);
+    return () => clearTimeout(t);
+  }, [phone]);
+
+  function entrar(token: string) {
+    setWalletToken(token);
+    localStorage.setItem(TEL_RECORDADO, phone);
+    navigate('/wallet/mis-compras');
+  }
+
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      const res = await api.post('/public/wallet/login', { phone, idNumber });
-      setWalletToken(res.data.data.token);
-      navigate('/wallet/mis-compras');
+      if (paso === 'datos' && tieneClave) {
+        const res = await api.post('/public/wallet/login-password', { phone, password });
+        entrar(res.data.data.token);
+      } else if (paso === 'datos') {
+        await api.post('/public/wallet/send-code', { phone, idNumber });
+        setCodigo('');
+        setPaso('codigo');
+      } else if (paso === 'codigo') {
+        const res = await api.post('/public/wallet/verify-code', { phone, code: codigo });
+        setSetupToken(res.data.data.setupToken);
+        setPaso('clave');
+      } else {
+        const res = await api.post('/public/wallet/set-password', { setupToken, password: claveNueva });
+        entrar(res.data.data.token);
+      }
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No pudimos entrar. Intenta de nuevo.');
     } finally {
@@ -143,30 +211,117 @@ export default function WalletLoginPage() {
         </div>
 
         {/* ---------- Ingreso ---------- */}
+        {/* key por paso: React remonta el bloque y wallet-slide vuelve a correr — la misma
+            animación de entrada que usa el carrusel, para que cada paso llegue igual. */}
         <form onSubmit={onSubmit} className="mt-8 space-y-2">
-          <label className="block">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-white/40">Teléfono</span>
-            <input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              inputMode="tel"
-              autoComplete="tel"
-              placeholder="0414-1234567"
-              className="mt-1 w-full rounded-xl border border-white/12 bg-white/[0.06] px-3 py-2 text-[13px] text-white outline-none transition-colors placeholder:text-white/25 focus:border-[#3d9bff] focus:bg-white/[0.09]"
-            />
-          </label>
-          <label className="block">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-white/40">Cédula</span>
-            {/* Solo dígitos: si el cliente escribe la "V" no entra, así que no hace falta
-                aclararlo en la etiqueta. */}
-            <input
-              value={idNumber}
-              onChange={(e) => setIdNumber(e.target.value.replace(/\D/g, ''))}
-              inputMode="numeric"
-              placeholder="12345678"
-              className="mt-1 w-full rounded-xl border border-white/12 bg-white/[0.06] px-3 py-2 text-[13px] text-white outline-none transition-colors placeholder:text-white/25 focus:border-[#3d9bff] focus:bg-white/[0.09]"
-            />
-          </label>
+          {paso === 'datos' && (
+            <div key="datos" className="wallet-slide space-y-2">
+              <label className="block">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-white/40">Teléfono</span>
+                <input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  inputMode="tel"
+                  autoComplete="tel"
+                  placeholder="0414-1234567"
+                  className={INPUT_DARK}
+                />
+              </label>
+              {/* La segunda casilla muta según lo que el servidor sepa del teléfono: cédula la
+                  primera vez, clave cuando ya la creó. key por modo: el cambio entra animado. */}
+              {tieneClave ? (
+                <label key="clave" className="wallet-slide block">
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-white/40">Clave</span>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete="current-password"
+                    placeholder="Tu clave del Wallet"
+                    className={INPUT_DARK}
+                  />
+                </label>
+              ) : (
+                <label key="cedula" className="wallet-slide block">
+                  <span className="text-[10px] font-medium uppercase tracking-wider text-white/40">Cédula</span>
+                  {/* Solo dígitos: si el cliente escribe la "V" no entra, así que no hace falta
+                      aclararlo en la etiqueta. */}
+                  <input
+                    value={idNumber}
+                    onChange={(e) => setIdNumber(e.target.value.replace(/\D/g, ''))}
+                    inputMode="numeric"
+                    placeholder="12345678"
+                    className={INPUT_DARK}
+                  />
+                </label>
+              )}
+            </div>
+          )}
+
+          {paso === 'codigo' && (
+            <div key="codigo" className="wallet-slide space-y-2">
+              <p className="text-[12.5px] font-light leading-relaxed text-white/55">
+                Te enviamos un código de 4 dígitos por SMS al {phone}.
+              </p>
+              <label className="block">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-white/40">Código</span>
+                <input
+                  value={codigo}
+                  onChange={(e) => setCodigo(e.target.value.replace(/\D/g, '').slice(0, 4))}
+                  inputMode="numeric"
+                  autoFocus
+                  placeholder="••••"
+                  className={`${INPUT_DARK} text-center text-[22px] font-bold tracking-[0.6em]`}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={() => setPaso('datos')}
+                className="w-full py-1 text-center text-[11px] font-medium text-white/40"
+              >
+                Cambiar el teléfono o pedir otro código
+              </button>
+            </div>
+          )}
+
+          {paso === 'clave' && (
+            <div key="clave-nueva" className="wallet-slide space-y-2">
+              <p className="text-[12.5px] font-light leading-relaxed text-white/55">
+                Teléfono verificado. Crea la clave con la que vas a entrar de ahora en adelante.
+              </p>
+              <label className="block">
+                <span className="text-[10px] font-medium uppercase tracking-wider text-white/40">Tu clave</span>
+                <input
+                  type="password"
+                  value={claveNueva}
+                  onChange={(e) => setClaveNueva(e.target.value)}
+                  autoComplete="new-password"
+                  autoFocus
+                  placeholder="Mínimo 8 caracteres, letras y números"
+                  className={INPUT_DARK}
+                />
+              </label>
+              {/* Medidor: tres tramos que se van pintando del color del nivel. */}
+              {claveNueva && (
+                <div>
+                  <div className="flex gap-1.5">
+                    {[1, 2, 3].map((n) => (
+                      <span
+                        key={n}
+                        className="h-1 flex-1 rounded-full transition-colors duration-300"
+                        style={{
+                          background: nivelClave(claveNueva).nivel >= n ? nivelClave(claveNueva).color : 'rgba(255,255,255,0.12)',
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <p className="mt-1 text-right text-[10px] font-medium" style={{ color: nivelClave(claveNueva).color }}>
+                    {nivelClave(claveNueva).texto}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {error && <p className="pt-0.5 text-center text-[11.5px] text-red-300">{error}</p>}
 
@@ -176,13 +331,22 @@ export default function WalletLoginPage() {
             className="wallet-tap !mt-4 w-full rounded-full py-2 text-[13px] font-semibold text-white shadow-[0_8px_24px_-10px_rgba(0,154,255,0.8)] disabled:opacity-50"
             style={{ background: 'linear-gradient(135deg, #009aff 0%, #056CF2 100%)' }}
           >
-            {busy ? 'Entrando…' : 'Entrar'}
+            {busy
+              ? 'Un momento…'
+              : paso === 'codigo'
+                ? 'Verificar código'
+                : paso === 'clave'
+                  ? 'Crear clave y entrar'
+                  : tieneClave
+                    ? 'Entrar'
+                    : 'Continuar'}
           </button>
         </form>
 
         <p className="mt-4 text-center text-[9px] font-light leading-snug text-white/30">
-          Usa el mismo teléfono con el que compraste. Si no reconoce tus datos, pídele al negocio
-          que verifique tu cédula en su ficha de cliente.
+          {paso === 'datos' && !tieneClave
+            ? 'La primera vez verificamos tu teléfono con un código por SMS y creas tu clave.'
+            : 'Usa el mismo teléfono con el que compraste. Si no reconoce tus datos, pídele al negocio que verifique tu cédula en su ficha de cliente.'}
         </p>
       </div>
     </div>

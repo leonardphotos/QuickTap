@@ -78,6 +78,14 @@ export const env = {
   // la subida de fotos normal (los botones de IA son un extra, no un requisito).
   aiPhotoServiceUrl: process.env.AI_PHOTO_SERVICE_URL ?? 'http://127.0.0.1:8100',
 
+  // --- SMS transaccionales (enviatusms.com) ---
+  // Hoy solo los usa el código de verificación del Wallet. Sin API key configurada, el código
+  // se imprime en la consola del servidor en vez de enviarse — mismo criterio que el correo
+  // (mail.resendApiKey): poder probar el flujo completo en desarrollo sin credenciales.
+  sms: {
+    enviatusmsApiKey: process.env.ENVIATUSMS_API_KEY,
+  },
+
   // --- Pasarela de pago Ramblay (C2P / Binance Pay) ---
   // Sin API key configurada, ramblayClient.createPayment() falla con un error
   // claro en vez de tumbar el arranque del servidor (igual que mail.resendApiKey).

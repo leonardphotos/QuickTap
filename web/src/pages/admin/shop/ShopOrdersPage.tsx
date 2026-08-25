@@ -1,3 +1,4 @@
+import { waPhone } from '@/utils/waPhone';
 import { useCallback, useEffect, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { apiOrigin } from '@/utils/apiOrigin';
@@ -284,7 +285,7 @@ export default function ShopOrdersPage({
                       .join('\n');
                     const texto = `Tus entradas para ${entradasEmitidas.tickets[0].eventName}:\n${enlaces}`;
                     window.open(
-                      `https://wa.me/${entradasEmitidas.order.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(texto)}`,
+                      `https://wa.me/${waPhone(entradasEmitidas.order.customerPhone)}?text=${encodeURIComponent(texto)}`,
                       '_blank',
                       'noopener',
                     );
@@ -318,7 +319,7 @@ function OrderCard({
 }) {
   const symbol = restaurant.currencySymbol ?? '$';
   const rate = restaurant.exchangeRate?.rateBs;
-  const waLink = `https://wa.me/${order.customerPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
+  const waLink = `https://wa.me/${waPhone(order.customerPhone)}?text=${encodeURIComponent(
     `Hola ${order.customerName}, te escribimos por tu pedido #${order.orderNumber}.`,
   )}`;
 

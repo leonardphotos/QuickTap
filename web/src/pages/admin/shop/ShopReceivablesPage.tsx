@@ -1,3 +1,4 @@
+import { waPhone } from '@/utils/waPhone';
 import { useEffect, useState } from 'react';
 import { AlertTriangle, Landmark, Send } from 'lucide-react';
 import { api } from '@/api/client';
@@ -52,7 +53,7 @@ function reminderMessage(businessName: string, balance: number, money: (n: numbe
 }
 
 function whatsappUrl(phone: string, text: string): string {
-  return `https://wa.me/${phone.replace(/\D/g, '')}?text=${encodeURIComponent(text)}`;
+  return `https://wa.me/${waPhone(phone)}?text=${encodeURIComponent(text)}`;
 }
 
 /**

@@ -87,11 +87,9 @@ export const crmApi = {
   markSent: (id: string, customerId: string) => api.post(`/promotions/${id}/targets/${customerId}/sent`),
 };
 
-/** Teléfono → formato wa.me: solo dígitos, con 58 en vez del 0 inicial venezolano. */
-export function waPhoneOf(phone: string): string {
-  const digits = phone.replace(/\D/g, '');
-  return digits.startsWith('0') ? `58${digits.slice(1)}` : digits;
-}
+/** Teléfono → formato wa.me. Delegado en la util compartida; se re-exporta con el nombre que
+ * las pantallas del CRM ya importan. */
+export { waPhone as waPhoneOf } from '@/utils/waPhone';
 
 /** El mensaje personalizado de la campaña para UN cliente. */
 export function buildPromoMessage(

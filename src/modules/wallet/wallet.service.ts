@@ -57,6 +57,14 @@ export const walletService = {
     // teléfonos están registrados probando cédulas al azar.
     if (!cliente) throw badRequest('No encontramos una cuenta con esos datos.');
 
+    // Con clave creada, la cédula deja de abrir: si no, la clave sería decorativa — la cédula
+    // es un dato semipúblico y cualquiera que la sepa entraría igual que antes.
+    const cuenta = await prisma.walletAccount.findUnique({
+      where: { phone: telefonoCanonico(cliente.phone) },
+      select: { passwordHash: true },
+    });
+    if (cuenta?.passwordHash) throw badRequest('Esta cuenta ya tiene clave: entra con tu teléfono y tu clave.');
+
     const payload: WalletPayload = { customerId: cliente.id, scope: 'wallet' };
     const token = jwt.sign(payload, env.jwtSecret, { expiresIn: `${WALLET_TOKEN_DAYS}d` });
     return { token, customer: { id: cliente.id, name: cliente.name } };

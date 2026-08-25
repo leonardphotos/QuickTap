@@ -64,10 +64,11 @@ router.post('/installments/:cuotaId/payments', shopInstallmentsController.abonar
 router.get('/tickets/events', shopTicketsController.eventos);
 router.get('/tickets', shopTicketsController.lista);
 router.post('/tickets/check-in', shopTicketsController.verificar);
-router.post('/tickets/:id/undo', requireRole('OWNER', 'ADMIN'), shopTicketsController.desmarcar);
-// Borrar a un asistente devuelve un cupo a la venta: nunca el Verificador, que está en la
-// puerta y solo debe marcar entradas.
-router.delete('/tickets/:id', requireRole('OWNER', 'ADMIN'), shopTicketsController.eliminar);
+// CASHIER incluido: la taquilla se opera desde la caja (el mismo rol que aprueba y rechaza
+// pagos, ver /pass más abajo). Restringirlo a OWNER/ADMIN dejaba el botón a la vista y el
+// servidor respondiendo 403. El Verificador sigue afuera: en la puerta solo se marca.
+router.post('/tickets/:id/undo', requireRole('OWNER', 'ADMIN', 'CASHIER'), shopTicketsController.desmarcar);
+router.delete('/tickets/:id', requireRole('OWNER', 'ADMIN', 'CASHIER'), shopTicketsController.eliminar);
 
 // --- QuickTap Wallet: deudores y abonos que los clientes reportan desde su portal ---
 router.get('/pass/pending', shopWalletController.pendientes);

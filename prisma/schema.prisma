@@ -3939,6 +3939,30 @@ model ShopSubcategory {
 // Los datos del evento se CONGELAN al emitir (nombre, fecha, hora, precio): si después se
 // corrige el evento, el boleto que el asistente ya tiene en el teléfono sigue diciendo lo que
 // decía cuando lo compró.
+// Cuenta de acceso a QuickTap Wallet. Es POR TELÉFONO (canónico, últimos 10 dígitos), no por
+// Customer: la ficha de cliente vive por restaurante y una misma persona tiene varias, pero su
+// identidad en el Wallet es una sola. La clave se crea la primera vez, después de verificar el
+// teléfono con un código por SMS — la cédula sola dejó de bastar: es un dato semipúblico.
+model WalletAccount {
+  id    String @id @default(cuid())
+  phone String @unique
+
+  passwordHash String?
+
+  // Código SMS vigente, guardado como hash (igual que una clave: si se filtra la base no se
+  // filtran códigos vivos). attempts frena la fuerza bruta de 4 dígitos; sentAt el re-envío.
+  smsCodeHash      String?
+  smsCodeExpiresAt DateTime?
+  smsAttempts      Int       @default(0)
+  smsSentAt        DateTime?
+
+  verifiedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("wallet_accounts")
+}
+
 model ShopTicket {
   id           String @id @default(cuid())
   restaurantId String
