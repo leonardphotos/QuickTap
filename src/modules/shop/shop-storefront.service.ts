@@ -303,6 +303,7 @@ async function checkout(slug: string, input: ShopCheckoutInput) {
     const orderNumber = await nextShopOrderNumber(tx, storefront.id);
     return tx.shopOrder.create({
       data: {
+        financed: input.financed ?? false,
         restaurantId: storefront.id,
         orderNumber,
         mode: input.mode,

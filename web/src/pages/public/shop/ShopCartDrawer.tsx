@@ -33,6 +33,11 @@ interface Props {
   cart: CartLine[];
   onClose: () => void;
   onChangeCart: (cart: CartLine[]) => void;
+  /**
+   * El comprador eligió financiar (entradas de eventos). Viaja al pedido; el precio y las
+   * cuotas los recalcula el servidor contra el evento, esto solo dice QUÉ eligió.
+   */
+  financiado?: boolean;
 }
 
 /**
@@ -42,7 +47,7 @@ interface Props {
  * WhatsApp — o lo cierra el chatbot solo, mandándole los datos de pago al cliente. Por eso el
  * método de pago que se elige es informativo, no una pasarela.
  */
-export function ShopCartDrawer({ shop, cart, onClose, onChangeCart }: Props) {
+export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }: Props) {
   const [step, setStep] = useState<'cart' | 'checkout'>('cart');
   const [mode, setMode] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
   const [name, setName] = useState('');
@@ -99,6 +104,7 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart }: Props) {
     try {
       const res = await api.post(`/public/shop/${shop.slug}/checkout`, {
         mode,
+        ...(financiado ? { financed: true } : {}),
         items: cart.map((l) => ({
           productId: l.product.id,
           v1: l.variant.v1,

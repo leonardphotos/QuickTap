@@ -30,6 +30,10 @@ export interface EntradaWallet {
   usada: boolean;
   usadaEl: string | null;
   pasado: boolean;
+  /** Cuánto lleva pagada la compra de esta entrada. Manda cuánto del código se destapa. */
+  pagadoPct: number;
+  saldado: boolean;
+  saldoPendiente: number;
 }
 
 const money = (n: number) => `$${n.toLocaleString('es-VE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -202,7 +206,7 @@ function TarjetaEntrada({
                 </p>
               )}
             </>
-          ) : (
+          ) : entrada.saldado ? (
             <>
               {/* Fondo blanco fijo: sobre el panel oscuro muchos lectores no enganchan el QR. */}
               <div className="rounded-2xl bg-white p-3">
@@ -212,6 +216,8 @@ function TarjetaEntrada({
                 Muestra este código en la entrada. Sirve una sola vez.
               </p>
             </>
+          ) : (
+            <QrEnProgreso pct={entrada.pagadoPct} falta={entrada.saldoPendiente} />
           )}
 
           <div className="mt-5 w-full space-y-2 border-t border-white/[0.08] pt-4">
@@ -224,6 +230,68 @@ function TarjetaEntrada({
         </div>
       </button>
     </div>
+  );
+}
+
+/**
+ * El código todavía por destapar de una entrada financiada.
+ *
+ * El patrón es DECORATIVO, no el código real: un QR de verdad tolera mucha suciedad —corrige
+ * errores por diseño—, así que uno auténtico destapado al 70% se escanea igual y el comprador
+ * entraría sin haber terminado de pagar. Acá el código real solo se dibuja al 100% (ver arriba);
+ * esto es una maqueta que avanza con lo pagado, con la misma forma para que se entienda de qué
+ * se trata.
+ *
+ * Los cuadros salen de una semilla fija y no al azar: si cambiaran en cada render, el "código"
+ * parecería otro cada vez que el cliente abre la entrada.
+ */
+function QrEnProgreso({ pct, falta }: { pct: number; falta: number }) {
+  const CELDAS = 21; // un QR real de versión 1 es 21x21: la maqueta usa la misma retícula
+  const total = CELDAS * CELDAS;
+  const visibles = Math.round((total * pct) / 100);
+
+  return (
+    <>
+      <div className="relative rounded-2xl bg-white p-3">
+        <div
+          className="grid gap-[2px]"
+          style={{ width: 158, height: 158, gridTemplateColumns: `repeat(${CELDAS}, 1fr)` }}
+          aria-hidden
+        >
+          {Array.from({ length: total }, (_, i) => {
+            // Patrón estable: el mismo índice da siempre el mismo cuadro.
+            const lleno = (i * 2654435761) % 100 < 48;
+            const destapado = i < visibles;
+            return (
+              <span
+                key={i}
+                className="rounded-[1px] transition-colors duration-500"
+                style={{
+                  background: !destapado ? '#eef0f4' : lleno ? '#001b43' : 'transparent',
+                }}
+              />
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="mt-3 w-full">
+        <div className="flex items-baseline justify-between text-[11px]">
+          <span className="font-semibold text-white">{pct}% pagado</span>
+          <span className="font-light text-white/45">Faltan {money(falta)}</span>
+        </div>
+        <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-white/[0.08]">
+          <div
+            className="h-full rounded-full transition-[width] duration-700"
+            style={{ width: `${pct}%`, background: 'linear-gradient(90deg, #009aff 0%, #4db5ff 100%)' }}
+          />
+        </div>
+        <p className="mt-2 text-center text-[11px] font-light leading-snug text-white/40">
+          Tu código se completa a medida que pagas tus cuotas. Al llegar al 100% queda listo
+          para entrar.
+        </p>
+      </div>
+    </>
   );
 }
 

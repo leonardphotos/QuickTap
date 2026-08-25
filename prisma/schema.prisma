@@ -4012,6 +4012,10 @@ model ShopOrder {
   // Venta generada al confirmar. Sin relación FK: si la venta se borra o se devuelve, el
   // pedido histórico no se toca (mismo criterio que ShopSaleItem.productId).
   shopSaleId String?
+  // El comprador eligió financiar esta compra (solo aplica a entradas de eventos con
+  // financiamiento habilitado). Al confirmar el pedido, la venta se arma a crédito con el
+  // plan de cuotas del evento en vez de cobrarse completa. Ver shop-orders.service.confirm.
+  financed Boolean @default(false)
 
   createdAt   DateTime  @default(now())
   confirmedAt DateTime?

@@ -34,6 +34,12 @@ export interface StorefrontProduct {
   eventDate?: string | null;
   eventTime?: string | null;
   seatsLeft?: number | null;
+  /** Contenido de la pantalla "Más información" del evento. */
+  eventDescription?: string | null;
+  eventImages?: string[];
+  eventTerms?: string | null;
+  /** Financiamiento que ofrece el local para esta entrada. null = solo pago completo. */
+  financing?: { downPercent: number; installments: number; frequency: string } | null;
 }
 
 export interface StorefrontShop {

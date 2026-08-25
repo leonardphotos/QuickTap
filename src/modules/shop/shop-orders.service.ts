@@ -1,6 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { shopService } from './shop.service';
+import { shopInstallmentsService } from './shop-installments.service';
 
 /**
  * Pedidos de la tienda virtual, lado PANEL (requiere JWT del local).
@@ -39,6 +40,26 @@ async function confirm(restaurantId: string, userId: string, orderId: string, pa
   if (order.status === 'CONFIRMED') throw badRequest('Este pedido ya fue confirmado.');
   if (order.status === 'CANCELLED') throw badRequest('Este pedido fue cancelado.');
 
+  // Financiado: la venta se arma a crédito y la inicial es lo único cobrado hoy. El plan de
+  // cuotas se copia del EVENTO (la plantilla que cargó el local), nunca de lo que mande el
+  // cliente — el precio y el reparto los decide el servidor.
+  const evento = order.financed
+    ? await prisma.shopProduct.findFirst({
+        where: {
+          id: { in: order.items.map((i) => i.productId).filter((v): v is string => !!v) },
+          restaurantId,
+          isEvent: true,
+          eventFinancingEnabled: true,
+        },
+        select: { eventDownPercent: true, eventInstallments: true, eventFrequency: true },
+      })
+    : null;
+  // Si el pedido dice "financiado" pero el evento ya no lo permite (lo apagaron mientras el
+  // cliente compraba), se cobra completo: es más seguro que inventarle un plan que el local
+  // ya no ofrece.
+  const financia = !!evento && !!evento.eventInstallments;
+  const inicial = financia ? Math.round(order.total * ((evento!.eventDownPercent ?? 0) / 100) * 100) / 100 : null;
+
   const sale = await shopService.recordSale(restaurantId, userId, {
     // El envío va dentro del total de la venta: es plata que entra al local, aunque no sea una
     // línea de producto. Por eso el total de la venta puede no coincidir con la suma de sus
@@ -49,6 +70,7 @@ async function confirm(restaurantId: string, userId: string, orderId: string, pa
     // Deja el pedido marcado en las entradas que se emitan: confirmar es el momento en que el
     // local da el pago por bueno, y es cuando el asistente recibe su boleto.
     shopOrderId: order.id,
+    ...(financia ? { creditTerms: 'INSTALLMENT' as const, amountPaidNow: inicial } : {}),
     // El pedido web puede llegar sin método elegido: en ese caso la venta queda con el
     // método que el cajero escoja al confirmar, y si tampoco viene, "Efectivo Bs" (lo que
     // realmente pasa: el cliente paga al recibir en efectivo).
@@ -66,6 +88,20 @@ async function confirm(restaurantId: string, userId: string, orderId: string, pa
       soldByWeight: it.soldByWeight,
     })),
   });
+
+  // El calendario se crea DESPUÉS de la venta, que es contra lo que se cuelga. Si el evento
+  // no traía frecuencia se usa mensual, la misma opción por defecto del formulario.
+  if (financia) {
+    const hoy = new Date();
+    const primera = new Date(hoy.getTime() + 30 * 86400000).toISOString().slice(0, 10);
+    await shopInstallmentsService
+      .crearPlan(restaurantId, sale.id, {
+        cantidad: evento!.eventInstallments!,
+        primeraFecha: primera,
+        frecuencia: evento!.eventFrequency ?? 'MENSUAL',
+      })
+      .catch(() => undefined);
+  }
 
   const actualizado = await prisma.shopOrder.update({
     where: { id: order.id },

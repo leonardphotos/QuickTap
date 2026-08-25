@@ -4,6 +4,7 @@ import { Calendar, MapPin, MessageCircle, Store, Ticket, User, Users } from 'luc
 import { publicPriceLabel } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { ShopProductSheet } from '../ShopProductSheet';
+import { EventoDetalle } from './EventoDetalle';
 import { ShopCartDrawer } from '../ShopCartDrawer';
 import {
   cartSubtotal,
@@ -74,6 +75,9 @@ export function TickeraStorefront({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [openProduct, setOpenProduct] = useState<StorefrontProduct | null>(null);
+  const [infoEvento, setInfoEvento] = useState<StorefrontProduct | null>(null);
+  // Elección de pago del detalle del evento; viaja con el pedido al confirmar el carrito.
+  const [financiar, setFinanciar] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
 
   const allProducts = useMemo(() => categories.flatMap((c) => c.products), [categories]);
@@ -147,6 +151,7 @@ export function TickeraStorefront({
                   expanded={expandedId === event.id}
                   onToggle={() => setExpandedId((cur) => (cur === event.id ? null : event.id))}
                   onBuy={() => setOpenProduct(event)}
+                  onInfo={() => setInfoEvento(event)}
                 />
               ))
             )}
@@ -240,7 +245,27 @@ export function TickeraStorefront({
       </nav>
 
       {openProduct && <ShopProductSheet product={openProduct} shop={shop} onClose={() => setOpenProduct(null)} onAdd={addToCart} />}
-      {cartOpen && <ShopCartDrawer shop={shop} cart={cart} onClose={() => setCartOpen(false)} onChangeCart={setCart} />}
+
+      {/* Detalle del evento a pantalla completa: info, cláusulas, precio y forma de pago. Al
+          terminar deja la entrada en el carrito y abre el checkout, que es el camino normal de
+          la tienda — el cobro lo cierra el local al confirmar el pedido. */}
+      {infoEvento && (
+        <EventoDetalle
+          evento={infoEvento}
+          shop={shop}
+          onCerrar={() => setInfoEvento(null)}
+          onComprar={(financiado) => {
+            const variante = infoEvento.variants.find((v) => v.available) ?? infoEvento.variants[0];
+            if (variante) addToCart(infoEvento, variante, 1);
+            setFinanciar(financiado);
+            setInfoEvento(null);
+            setCartOpen(true);
+          }}
+        />
+      )}
+      {cartOpen && (
+        <ShopCartDrawer shop={shop} cart={cart} financiado={financiar} onClose={() => setCartOpen(false)} onChangeCart={setCart} />
+      )}
     </div>
   );
 }
@@ -315,12 +340,14 @@ function EventCard({
   expanded,
   onToggle,
   onBuy,
+  onInfo,
 }: {
   product: StorefrontProduct;
   shop: StorefrontShop;
   expanded: boolean;
   onToggle: () => void;
   onBuy: () => void;
+  onInfo: () => void;
 }) {
   const price = publicPriceLabel(product.price, shop);
   const original = product.originalPrice ? publicPriceLabel(product.originalPrice, shop) : null;
@@ -405,15 +432,26 @@ function EventCard({
                   <p className="text-2xl font-black text-white">{price.primary}</p>
                   {price.secondary && <p className="text-[11px] font-medium text-white/40">{price.secondary}</p>}
                 </div>
-                <TextureButton
-                  variant="brand"
-                  size="default"
-                  disabled={soldOut}
-                  className={`!w-auto px-6 disabled:opacity-40 ${BRAND_GLOW}`}
-                  onClick={onBuy}
-                >
-                  {soldOut ? 'Agotado' : 'Comprar'}
-                </TextureButton>
+                <div className="flex items-center gap-2">
+                  {/* Antes de comprar, poder leer de qué se trata: el detalle completo del
+                      evento, sus fotos y sus condiciones. */}
+                  <button
+                    type="button"
+                    onClick={onInfo}
+                    className="rounded-full border border-white/15 px-4 py-2 text-[12.5px] font-semibold text-white/75 transition-colors hover:bg-white/10"
+                  >
+                    Más información
+                  </button>
+                  <TextureButton
+                    variant="brand"
+                    size="default"
+                    disabled={soldOut}
+                    className={`!w-auto px-6 disabled:opacity-40 ${BRAND_GLOW}`}
+                    onClick={onBuy}
+                  >
+                    {soldOut ? 'Agotado' : 'Comprar'}
+                  </TextureButton>
+                </div>
               </div>
             </div>
           </motion.div>

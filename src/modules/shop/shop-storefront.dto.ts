@@ -15,6 +15,10 @@ const cartItemSchema = z.object({
 });
 
 export const shopCheckoutSchema = z.object({
+  // El comprador eligió financiar (entradas de eventos con financiamiento habilitado). Se
+  // valida contra el evento al confirmar, nunca se toma tal cual: el precio y las cuotas los
+  // pone el servidor.
+  financed: z.boolean().optional(),
   mode: z.enum(['PICKUP', 'DELIVERY']).default('PICKUP'),
   items: z.array(cartItemSchema).min(1, 'El carrito está vacío.').max(100),
   customer: z.object({

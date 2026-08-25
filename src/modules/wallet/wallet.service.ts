@@ -110,8 +110,35 @@ export const walletService = {
     });
     const mias = candidatas.filter((t) => telefonoCanonico(t.holderPhone) === miTelefono);
 
+    // Cuánto lleva pagado la venta de cada entrada. Una entrada financiada no muestra su QR
+    // hasta estar saldada, así que hay que saber en qué va — se calcula igual que el saldo del
+    // resto del portal: lo pactado contra lo abonado, nunca un porcentaje guardado.
+    const ventaIds = [...new Set(mias.map((t) => t.shopSaleId).filter((v): v is string => !!v))];
+    const ventas = ventaIds.length
+      ? await prisma.shopSale.findMany({
+          where: { id: { in: ventaIds } },
+          include: { payments: true, installmentPlan: { include: { installments: true } } },
+        })
+      : [];
+    const progresoPorVenta = new Map<string, { pagado: number; total: number }>();
+    for (const v of ventas) {
+      const mora = (v.installmentPlan?.installments.reduce((a, c) => a + c.lateFeeCharged, 0) ?? 0)
+        + (v.installmentPlan?.surchargeAmount ?? 0);
+      const total = Math.round((v.total + mora) * 100) / 100;
+      const pagado = v.creditTerms
+        ? Math.round(((v.amountPaidNow ?? 0) + v.payments.reduce((a, p) => a + p.amount, 0)) * 100) / 100
+        // Una venta de contado ya se cobró entera en el mostrador: está al 100%.
+        : total;
+      progresoPorVenta.set(v.id, { pagado, total });
+    }
+
     const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' });
-    return mias.map((t) => ({
+    return mias.map((t) => {
+      // Sin venta detrás (entrada cargada a mano) se considera saldada: si no, quedaría
+      // bloqueada para siempre sin forma de pagarla.
+      const prog = t.shopSaleId ? progresoPorVenta.get(t.shopSaleId) : undefined;
+      const pagadoPct = !prog || prog.total <= 0 ? 100 : Math.min(100, Math.round((prog.pagado / prog.total) * 100));
+      return {
       id: t.id,
       accessToken: t.accessToken,
       negocio: t.restaurant.name,
@@ -127,7 +154,12 @@ export const walletService = {
       // Un evento cuya fecha ya pasó se muestra aparte: el cliente entra a Wallet a buscar la
       // entrada de esta noche, no la del mes pasado.
       pasado: !!t.eventDate && t.eventDate < hoy,
-    }));
+      // Cuánto lleva pagado, y por lo tanto cuánto del código se le destapa.
+      pagadoPct,
+      saldado: pagadoPct >= 100,
+      saldoPendiente: prog ? Math.max(0, Math.round((prog.total - prog.pagado) * 100) / 100) : 0,
+      };
+    });
   },
 
   /**
