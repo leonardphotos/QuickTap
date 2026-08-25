@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, Calendar, Check, ChevronLeft, ChevronRight, Clock, MapPin, Smartphone, Ticket, Wallet } from 'lucide-react';
 import { publicPriceLabel } from '@/utils/format';
@@ -42,6 +42,17 @@ export function EventoDetalle({
   const [acepta, setAcepta] = useState(false);
   const [financiado, setFinanciado] = useState(false);
   const [imagen, setImagen] = useState(0);
+  const pistaRef = useRef<HTMLDivElement>(null);
+
+  /** Flechas y puntos: desplazan la pista y el onScroll actualiza `imagen` solo. Se recorta al
+   * rango en vez de dar la vuelta — deslizando no existe "del último al primero", y que las
+   * flechas hagan otra cosa que el dedo desorienta. */
+  function irAImagen(i: number) {
+    const el = pistaRef.current;
+    if (!el) return;
+    const destino = Math.max(0, Math.min(galeria.length - 1, i));
+    el.scrollTo({ left: destino * el.clientWidth, behavior: 'smooth' });
+  }
 
   const precio = publicPriceLabel(evento.price, shop);
   const fin = evento.financing;
@@ -80,16 +91,33 @@ export function EventoDetalle({
               transition={{ duration: 0.24, ease: [0.23, 1, 0.32, 1] }}
               className="px-4"
             >
-              {/* Carrusel de la galería */}
+              {/* Carrusel de la galería. Antes cambiaba la imagen con setImagen y solo
+                  funcionaban las flechas: en el teléfono el gesto natural es deslizar, y no
+                  había nada que deslizar. Ahora es una pista horizontal real con scroll-snap
+                  del navegador — el arrastre trae su propia inercia y frenado nativos, cosa
+                  que un onTouchMove hecho a mano nunca iguala. Las flechas y los puntos
+                  siguen ahí (desktop no desliza) y solo llaman a scrollTo; `imagen` pasa de
+                  mandar a solo escuchar el scroll, para pintar los puntos. */}
               {galeria.length > 0 && (
                 <div className="relative overflow-hidden rounded-3xl bg-white/[0.04]">
-                  <img src={galeria[imagen]} alt="" className="aspect-[4/5] w-full object-cover" />
+                  <div
+                    ref={pistaRef}
+                    onScroll={(e) => {
+                      const el = e.currentTarget;
+                      setImagen(Math.round(el.scrollLeft / el.clientWidth));
+                    }}
+                    className="flex snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  >
+                    {galeria.map((src, i) => (
+                      <img key={i} src={src} alt="" className="aspect-[4/5] w-full shrink-0 snap-center object-cover" />
+                    ))}
+                  </div>
                   {galeria.length > 1 && (
                     <>
                       <button
                         type="button"
                         aria-label="Anterior"
-                        onClick={() => setImagen((i) => (i - 1 + galeria.length) % galeria.length)}
+                        onClick={() => irAImagen(imagen - 1)}
                         className="absolute left-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 backdrop-blur transition-colors hover:bg-black/70"
                       >
                         <ChevronLeft className="h-4 w-4" />
@@ -97,7 +125,7 @@ export function EventoDetalle({
                       <button
                         type="button"
                         aria-label="Siguiente"
-                        onClick={() => setImagen((i) => (i + 1) % galeria.length)}
+                        onClick={() => irAImagen(imagen + 1)}
                         className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 backdrop-blur transition-colors hover:bg-black/70"
                       >
                         <ChevronRight className="h-4 w-4" />
@@ -108,7 +136,7 @@ export function EventoDetalle({
                             key={i}
                             type="button"
                             aria-label={`Ver ${i + 1}`}
-                            onClick={() => setImagen(i)}
+                            onClick={() => irAImagen(i)}
                             className={`h-1.5 rounded-full transition-all duration-300 ${i === imagen ? 'w-6 bg-white' : 'w-1.5 bg-white/40'}`}
                           />
                         ))}
