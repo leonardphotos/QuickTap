@@ -39,7 +39,7 @@ export interface StorefrontProduct {
   eventImages?: string[];
   eventTerms?: string | null;
   /** Financiamiento que ofrece el local para esta entrada. null = solo pago completo. */
-  financing?: { downPercent: number; installments: number; frequency: string } | null;
+  financing?: { downPercent: number; installments: number; frequency: string; deadline?: string | null } | null;
 }
 
 export interface StorefrontShop {

@@ -197,6 +197,7 @@ export const shopService = {
         eventDownPercent: input.eventDownPercent ?? null,
         eventInstallments: input.eventInstallments ?? null,
         eventFrequency: input.eventFrequency ?? null,
+        eventFinancingDeadline: input.eventFinancingDeadline ?? null,
         // El DTO aceptaba isPublished pero acá se ignoraba, así que TODO producto nacía sin
         // publicar pasara lo que pasara. Un evento se crea para venderse: si nace oculto, el
         // local lo carga, abre su taquilla y no encuentra nada, sin ninguna pista de por qué.

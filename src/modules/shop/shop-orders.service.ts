@@ -1,7 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { shopService } from './shop.service';
-import { shopInstallmentsService } from './shop-installments.service';
+import { shopInstallmentsService, cuotasQueCaben, DIAS_POR_FRECUENCIA } from './shop-installments.service';
 
 /**
  * Pedidos de la tienda virtual, lado PANEL (requiere JWT del local).
@@ -14,7 +14,12 @@ import { shopInstallmentsService } from './shop-installments.service';
 
 const ORDER_INCLUDE = { items: true } as const;
 
-type PedidoConItems = { total: number; financed: boolean; items: { productId: string | null }[] };
+type PedidoConItems = {
+  total: number;
+  financed: boolean;
+  installmentsChosen: number | null;
+  items: { productId: string | null }[];
+};
 
 /**
  * El plan de financiamiento que le toca a un pedido, o null si se cobra completo.
@@ -32,14 +37,25 @@ async function planDelPedido(restaurantId: string, order: PedidoConItems) {
       isEvent: true,
       eventFinancingEnabled: true,
     },
-    select: { eventDownPercent: true, eventInstallments: true, eventFrequency: true },
+    select: { eventDownPercent: true, eventInstallments: true, eventFrequency: true, eventFinancingDeadline: true },
   });
   // Si el evento ya no permite financiar (lo apagaron mientras el cliente compraba), se cobra
   // completo: es más seguro que inventarle un plan que el local ya no ofrece.
   if (!evento?.eventInstallments) return null;
+  // El límite de fecha manda: pasado, se cobra completo (misma política que cuando apagan el
+  // financiamiento con la compra en curso), y antes de él solo caben las cuotas que llegan a
+  // pagarse a tiempo con esa frecuencia.
+  let techo = evento.eventInstallments;
+  if (evento.eventFinancingDeadline) {
+    techo = Math.min(techo, cuotasQueCaben(evento.eventFinancingDeadline, evento.eventFrequency ?? 'MENSUAL'));
+    if (techo < 2) return null;
+  }
+  // El comprador elige en cuántas cuotas, el evento pone el techo: elegir de más no alarga el
+  // plazo que el local está dispuesto a esperar, y menos de 2 no es financiar.
+  const cuotas = Math.min(Math.max(order.installmentsChosen ?? techo, 2), techo);
   const inicial = Math.round(order.total * ((evento.eventDownPercent ?? 0) / 100) * 100) / 100;
-  const porCuota = Math.round(((order.total - inicial) / evento.eventInstallments) * 100) / 100;
-  return { inicial, cuotas: evento.eventInstallments, porCuota, frecuencia: evento.eventFrequency ?? 'MENSUAL' };
+  const porCuota = Math.round(((order.total - inicial) / cuotas) * 100) / 100;
+  return { inicial, cuotas, porCuota, frecuencia: evento.eventFrequency ?? 'MENSUAL' };
 }
 
 async function list(restaurantId: string, opts: { status?: string; limit?: number } = {}) {
@@ -109,8 +125,13 @@ async function confirm(restaurantId: string, userId: string, orderId: string, pa
   // El calendario se crea DESPUÉS de la venta, que es contra lo que se cuelga. Si el evento
   // no traía frecuencia se usa mensual, la misma opción por defecto del formulario.
   if (plan) {
+    // La primera cuota vence a una FRECUENCIA de hoy, no a 30 días fijos: con cuotas
+    // quincenales y tope de fecha, arrancar a los 30 días corría el plan fuera del límite
+    // que el cálculo de arriba acaba de respetar.
     const hoy = new Date();
-    const primera = new Date(hoy.getTime() + 30 * 86400000).toISOString().slice(0, 10);
+    const primera = new Date(hoy.getTime() + (DIAS_POR_FRECUENCIA[plan.frecuencia] ?? 30) * 86400000)
+      .toISOString()
+      .slice(0, 10);
     await shopInstallmentsService
       .crearPlan(restaurantId, sale.id, { cantidad: plan.cuotas, primeraFecha: primera, frecuencia: plan.frecuencia })
       .catch(() => undefined);

@@ -45,6 +45,8 @@ interface Props {
    * cuotas los recalcula el servidor contra el evento, esto solo dice QUÉ eligió.
    */
   financiado?: boolean;
+  /** En cuántas cuotas eligió pagar (el evento pone el techo; el servidor recorta igual). */
+  cuotasElegidas?: number;
 }
 
 /**
@@ -54,7 +56,7 @@ interface Props {
  * WhatsApp — o lo cierra el chatbot solo, mandándole los datos de pago al cliente. Por eso el
  * método de pago que se elige es informativo, no una pasarela.
  */
-export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }: Props) {
+export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado, cuotasElegidas }: Props) {
   const [step, setStep] = useState<'cart' | 'metodo' | 'checkout'>('cart');
   const [mode, setMode] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
   const [name, setName] = useState('');
@@ -86,7 +88,18 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
   // Financiado: hoy solo se cobra la inicial. El total completo no es lo que esta persona va a
   // pagar ahora, así que enseñárselo la manda a transferir de más. Se calcula sobre el total
   // del carrito, que es exactamente lo que el servidor usa al confirmar el pedido.
-  const plan = financiado ? cart.find((l) => l.product.financing)?.product.financing ?? null : null;
+  const planBase = financiado ? cart.find((l) => l.product.financing)?.product.financing ?? null : null;
+  // La elección del comprador manda dentro del techo del evento — la misma regla que aplica
+  // el servidor al confirmar, para que el desglose de acá sea el que después se cobra.
+  const plan = planBase
+    ? {
+        ...planBase,
+        installments:
+          cuotasElegidas && cuotasElegidas >= 2 && cuotasElegidas <= planBase.installments
+            ? cuotasElegidas
+            : planBase.installments,
+      }
+    : null;
   const inicial = plan ? Math.round(total * (plan.downPercent / 100) * 100) / 100 : 0;
   const porCuota = plan ? Math.round(((total - inicial) / plan.installments) * 100) / 100 : 0;
   const aPagarAhora = plan ? inicial : total;
@@ -169,6 +182,7 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
       const res = await api.post(`/public/shop/${shop.slug}/checkout`, {
         mode,
         ...(financiado ? { financed: true } : {}),
+        ...(plan ? { installments: plan.installments } : {}),
         items: cart.map((l) => ({
           productId: l.product.id,
           v1: l.variant.v1,

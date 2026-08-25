@@ -142,6 +142,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
   const [npDownPercent, setNpDownPercent] = useState('30');
   const [npInstallments, setNpInstallments] = useState('4');
   const [npFrequency, setNpFrequency] = useState('MENSUAL');
+  const [npFinDeadline, setNpFinDeadline] = useState('');
   const [npBrand, setNpBrand] = useState('');
   const [npSku, setNpSku] = useState('');
   const [npLocation, setNpLocation] = useState('');
@@ -500,6 +501,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
     setNpDownPercent(p.eventDownPercent != null ? String(p.eventDownPercent) : '30');
     setNpInstallments(p.eventInstallments != null ? String(p.eventInstallments) : '4');
     setNpFrequency(p.eventFrequency ?? 'MENSUAL');
+    setNpFinDeadline(p.eventFinancingDeadline ?? '');
     setNpAreaRoll(p.pricingMode === 'AREA_ROLL');
     setNpRollWidths(p.rollWidths ? formatRollWidths(p.rollWidths) : '');
     setNpRollLength(p.rollLengthM != null ? String(p.rollLengthM) : '50');
@@ -680,6 +682,7 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
       eventDownPercent: esEvento && npFinancing ? Number(npDownPercent) || 0 : undefined,
       eventInstallments: esEvento && npFinancing ? Number(npInstallments) || undefined : undefined,
       eventFrequency: esEvento && npFinancing ? npFrequency : undefined,
+      eventFinancingDeadline: esEvento && npFinancing ? npFinDeadline || null : undefined,
       // Plan de consumo: solo tiene sentido con Kg/Mt, y con tarifa cargada.
       consumptionPlanEnabled: npSaleUnit !== 'UND' && npPlanEnabled && Number(npPlanRate) > 0,
       consumptionPlanRate: npSaleUnit !== 'UND' && npPlanEnabled && Number(npPlanRate) > 0 ? Number(npPlanRate) : undefined,
@@ -1875,6 +1878,19 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                           </select>
                         </label>
                       </div>
+                      <label className="mt-2 block text-sm">
+                        <span className="text-brand-950/70">Aceptar financiamiento hasta</span>
+                        <input
+                          type="date"
+                          value={npFinDeadline}
+                          onChange={(e) => setNpFinDeadline(e.target.value)}
+                          className="mt-1 w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                        />
+                        <span className="mt-1 block text-[11px] font-light text-brand-950/50">
+                          Pasada la fecha solo se vende de contado, y antes de ella se ofrecen únicamente las
+                          cuotas que alcanzan a pagarse hasta ese día. Vacío = sin límite.
+                        </span>
+                      </label>
                       {/* La cuenta hecha, con el precio que se está cargando: el local ve lo
                           mismo que le va a aparecer al comprador. */}
                       {(() => {

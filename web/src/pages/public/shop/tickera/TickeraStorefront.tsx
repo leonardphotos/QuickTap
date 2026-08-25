@@ -77,6 +77,7 @@ export function TickeraStorefront({
   const [infoEvento, setInfoEvento] = useState<StorefrontProduct | null>(null);
   // Elección de pago del detalle del evento; viaja con el pedido al confirmar el carrito.
   const [financiar, setFinanciar] = useState(false);
+  const [cuotasFin, setCuotasFin] = useState(0);
   const [cartOpen, setCartOpen] = useState(false);
 
   const allProducts = useMemo(() => categories.flatMap((c) => c.products), [categories]);
@@ -245,17 +246,25 @@ export function TickeraStorefront({
           evento={infoEvento}
           shop={shop}
           onCerrar={() => setInfoEvento(null)}
-          onComprar={(financiado) => {
+          onComprar={(financiado, cuotas) => {
             const variante = infoEvento.variants.find((v) => v.available) ?? infoEvento.variants[0];
             if (variante) addToCart(infoEvento, variante, 1);
             setFinanciar(financiado);
+            setCuotasFin(cuotas);
             setInfoEvento(null);
             setCartOpen(true);
           }}
         />
       )}
       {cartOpen && (
-        <ShopCartDrawer shop={shop} cart={cart} financiado={financiar} onClose={() => setCartOpen(false)} onChangeCart={setCart} />
+        <ShopCartDrawer
+          shop={shop}
+          cart={cart}
+          financiado={financiar}
+          cuotasElegidas={cuotasFin}
+          onClose={() => setCartOpen(false)}
+          onChangeCart={setCart}
+        />
       )}
     </div>
   );

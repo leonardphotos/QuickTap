@@ -19,6 +19,9 @@ export const shopCheckoutSchema = z.object({
   // valida contra el evento al confirmar, nunca se toma tal cual: el precio y las cuotas los
   // pone el servidor.
   financed: z.boolean().optional(),
+  // En cuántas cuotas quiere pagar (solo con financed). Preferencia del comprador: al
+  // confirmar se recorta al máximo del evento, así que un número inventado no compra nada.
+  installments: z.coerce.number().int().min(2).max(48).optional(),
   mode: z.enum(['PICKUP', 'DELIVERY']).default('PICKUP'),
   items: z.array(cartItemSchema).min(1, 'El carrito está vacío.').max(100),
   customer: z.object({

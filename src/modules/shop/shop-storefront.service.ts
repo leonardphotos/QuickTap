@@ -5,6 +5,7 @@ import { isLockedAsync } from '../../utils/subscription';
 import { getRestaurantOpenStatus } from '../../utils/business-hours';
 import { customerService } from '../customers/customer.service';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
+import { cuotasQueCaben } from './shop-installments.service';
 import type { ShopCheckoutInput } from './shop-storefront.dto';
 
 /**
@@ -91,6 +92,7 @@ async function getStorefrontBySlug(slug: string) {
       eventDownPercent: true,
       eventInstallments: true,
       eventFrequency: true,
+      eventFinancingDeadline: true,
       variants: { select: { id: true, v1: true, v2: true, stock: true, soldByWeight: true } },
       // Solo para saber si es un servicio; no se expone la receta.
       _count: { select: { serviceSupplies: true } },
@@ -134,14 +136,7 @@ async function getStorefrontBySlug(slug: string) {
       eventDescription: p.isEvent ? p.eventDescription : null,
       eventImages: p.isEvent ? ((p.eventImages as string[] | null) ?? []) : [],
       eventTerms: p.isEvent ? p.eventTerms : null,
-      financing:
-        p.isEvent && p.eventFinancingEnabled && p.eventInstallments
-          ? {
-              downPercent: p.eventDownPercent ?? 0,
-              installments: p.eventInstallments,
-              frequency: p.eventFrequency ?? 'MENSUAL',
-            }
-          : null,
+      financing: financiamientoVigente(p),
     };
   });
 
@@ -329,6 +324,7 @@ async function checkout(slug: string, input: ShopCheckoutInput) {
     return tx.shopOrder.create({
       data: {
         financed: input.financed ?? false,
+        installmentsChosen: input.financed ? input.installments ?? null : null,
         restaurantId: storefront.id,
         orderNumber,
         mode: input.mode,
@@ -369,6 +365,36 @@ async function checkout(slug: string, input: ShopCheckoutInput) {
   }
 
   return order;
+}
+
+/**
+ * La oferta de financiamiento de un evento HOY, o null si ya no aplica.
+ *
+ * El límite recorta en dos sentidos: pasada la fecha solo se vende de contado, y antes de
+ * ella el máximo de cuotas es el que CABE hasta el límite con esa frecuencia — ofrecer 6
+ * mensuales a 40 días del tope sería vender un plan imposible de pagar a tiempo. Si caben
+ * menos de 2, financiar dejó de tener sentido y tampoco se ofrece.
+ */
+function financiamientoVigente(p: {
+  isEvent: boolean;
+  eventFinancingEnabled: boolean;
+  eventInstallments: number | null;
+  eventDownPercent: number | null;
+  eventFrequency: string | null;
+  eventFinancingDeadline: string | null;
+}) {
+  if (!p.isEvent || !p.eventFinancingEnabled || !p.eventInstallments) return null;
+  let cuotasMax = p.eventInstallments;
+  if (p.eventFinancingDeadline) {
+    cuotasMax = Math.min(cuotasMax, cuotasQueCaben(p.eventFinancingDeadline, p.eventFrequency ?? 'MENSUAL'));
+    if (cuotasMax < 2) return null;
+  }
+  return {
+    downPercent: p.eventDownPercent ?? 0,
+    installments: cuotasMax,
+    frequency: p.eventFrequency ?? 'MENSUAL',
+    deadline: p.eventFinancingDeadline,
+  };
 }
 
 function round2(n: number): number {

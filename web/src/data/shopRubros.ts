@@ -80,6 +80,7 @@ export interface ShopProductSeed {
   eventDownPercent?: number;
   eventInstallments?: number;
   eventFrequency?: string;
+  eventFinancingDeadline?: string | null;
 }
 
 export interface ShopRubro {

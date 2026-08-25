@@ -48,6 +48,7 @@ export interface RawShopProduct {
   eventDownPercent?: number | null;
   eventInstallments?: number | null;
   eventFrequency?: string | null;
+  eventFinancingDeadline?: string | null;
   consumptionPlanEnabled?: boolean | null;
   consumptionPlanRate?: number | null;
   consumptionPlanSizes?: number[] | null;

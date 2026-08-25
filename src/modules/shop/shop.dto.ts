@@ -69,6 +69,8 @@ const shopProductFields = z.object({
   eventDownPercent: z.coerce.number().min(0).max(99).optional(),
   eventInstallments: z.coerce.number().int().min(2).max(60).optional(),
   eventFrequency: z.enum(['SEMANAL', 'QUINCENAL', 'MENSUAL']).optional(),
+  // Hasta cuándo se acepta financiar (inclusive). Vacío = sin límite.
+  eventFinancingDeadline: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   // --- Plan de consumo ---
   consumptionPlanEnabled: z.boolean().optional(),
   consumptionPlanRate: z.coerce.number().gt(0).optional(),

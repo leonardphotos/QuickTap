@@ -68,8 +68,21 @@ export function resumirCuota(
   };
 }
 
+/**
+ * Cuántas cuotas caben desde hoy hasta la fecha límite, con esa frecuencia. La cuota n vence a
+ * los n×días de la compra, así que caben floor(días_hasta_el_límite / días_por_cuota). Lo usan
+ * la taquilla (qué ofrecer) y la confirmación del pedido (qué cobrar) — la misma cuenta en los
+ * dos lados, para que lo ofrecido sea siempre pagable a tiempo.
+ */
+export function cuotasQueCaben(deadline: string, frecuencia: string): number {
+  const dias = DIAS_POR_FRECUENCIA[frecuencia] ?? 30;
+  const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' });
+  const margen = Math.floor((Date.parse(`${deadline}T00:00:00Z`) - Date.parse(`${hoy}T00:00:00Z`)) / 86400000);
+  return Math.max(0, Math.floor(margen / dias));
+}
+
 /** Días que separan una cuota de la siguiente, por frecuencia. */
-const DIAS_POR_FRECUENCIA: Record<string, number> = {
+export const DIAS_POR_FRECUENCIA: Record<string, number> = {
   SEMANAL: 7,
   QUINCENAL: 15,
   MENSUAL: 30,

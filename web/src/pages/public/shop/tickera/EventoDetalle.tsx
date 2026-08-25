@@ -35,12 +35,14 @@ export function EventoDetalle({
   evento: StorefrontProduct;
   shop: StorefrontShop;
   onCerrar: () => void;
-  /** Arma el pedido. `financiado` decide si la venta se cobra completa o a cuotas. */
-  onComprar: (financiado: boolean) => void;
+  /** Arma el pedido. `financiado` decide si la venta se cobra completa o a cuotas;
+   * `cuotas` es en cuántas eligió pagar (el evento pone el techo). */
+  onComprar: (financiado: boolean, cuotas: number) => void;
 }) {
   const [paso, setPaso] = useState<Paso>('info');
   const [acepta, setAcepta] = useState(false);
   const [financiado, setFinanciado] = useState(false);
+  const [cuotas, setCuotas] = useState(0); // 0 = todavía no eligió: arranca en el máximo
   const [imagen, setImagen] = useState(0);
   const pistaRef = useRef<HTMLDivElement>(null);
 
@@ -56,8 +58,11 @@ export function EventoDetalle({
 
   const precio = publicPriceLabel(evento.price, shop);
   const fin = evento.financing;
+  // El número del evento es el TECHO; el comprador elige cuántas dentro de él. Arranca en el
+  // máximo porque es la cuota más pequeña — la opción que más ayuda a decidirse.
+  const cuotasElegidas = fin ? (cuotas >= 2 && cuotas <= fin.installments ? cuotas : fin.installments) : 0;
   const inicial = fin ? Math.round(evento.price * (fin.downPercent / 100) * 100) / 100 : 0;
-  const porCuota = fin ? Math.round(((evento.price - inicial) / fin.installments) * 100) / 100 : 0;
+  const porCuota = fin ? Math.round(((evento.price - inicial) / cuotasElegidas) * 100) / 100 : 0;
   const galeria = evento.eventImages?.length ? evento.eventImages : evento.photoUrl ? [evento.photoUrl] : [];
   const agotado = evento.seatsLeft === 0;
 
@@ -260,10 +265,31 @@ export function EventoDetalle({
                         className="overflow-hidden"
                       >
                         <div className="mt-3 rounded-2xl bg-white/[0.04] p-4">
+                          {fin.installments > 2 && (
+                            <div className="mb-3">
+                              <p className="text-[12px] font-medium text-white/60">¿En cuántas cuotas?</p>
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {Array.from({ length: fin.installments - 1 }, (_, i) => i + 2).map((n) => (
+                                  <button
+                                    key={n}
+                                    type="button"
+                                    onClick={() => setCuotas(n)}
+                                    className={`wallet-tap min-w-11 rounded-full px-3 py-1.5 text-[13px] font-bold transition-colors ${
+                                      cuotasElegidas === n
+                                        ? 'bg-[var(--color-brand-500)] text-white'
+                                        : 'bg-white/[0.07] text-white/60 hover:bg-white/[0.12]'
+                                    }`}
+                                  >
+                                    {n}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           <p className="text-[12px] font-medium text-white/60">Tu plan de pago</p>
                           <div className="mt-2 space-y-1.5">
                             <LineaCuota etiqueta="Inicial (hoy)" valor={publicPriceLabel(inicial, shop).primary} destacada />
-                            {Array.from({ length: fin.installments }, (_, i) => (
+                            {Array.from({ length: cuotasElegidas }, (_, i) => (
                               <LineaCuota
                                 key={i}
                                 etiqueta={`Cuota ${i + 1} · ${FRECUENCIA[fin.frequency] ?? 'cada mes'}`}
@@ -274,6 +300,8 @@ export function EventoDetalle({
                           <p className="mt-3 border-t border-white/[0.08] pt-2 text-[11px] font-light text-white/40">
                             Tu entrada se activa al pagar la inicial, y su código se completa a
                             medida que pagas las cuotas.
+                            {fin.deadline &&
+                              ` Todo el plan se paga antes del ${new Date(`${fin.deadline}T00:00:00`).toLocaleDateString('es-VE', { day: '2-digit', month: 'long' })}.`}
                           </p>
                         </div>
                       </motion.div>
@@ -322,7 +350,7 @@ export function EventoDetalle({
                 {' '}{shop.name}. Tu entrada aparece en el Wallet en cuanto lo confirmen.
               </p>
 
-              <TextureButton variant="brand" size="default" className="mt-5" onClick={() => onComprar(financiado)}>
+              <TextureButton variant="brand" size="default" className="mt-5" onClick={() => onComprar(financiado, cuotasElegidas)}>
                 Continuar al pago
               </TextureButton>
             </motion.div>

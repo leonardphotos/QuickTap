@@ -3422,6 +3422,11 @@ model ShopProduct {
   eventInstallments     Int?
   // SEMANAL | QUINCENAL | MENSUAL — mismas frecuencias que shop-installments.service.
   eventFrequency        String?
+  // Hasta cuándo se acepta financiar (YYYY-MM-DD, inclusive) y fecha tope para terminar de
+  // pagar: pasada la fecha solo se vende de contado, y antes de ella las cuotas que se
+  // ofrecen son las que CABEN — de nada sirve un plan cuya última cuota vence después del
+  // evento. Null = sin límite.
+  eventFinancingDeadline String?
 
   // --- Impresión de gran formato (rubro Agencia de Publicidad) ---
   // 'UNIT' (por defecto) = se vende por unidad, como cualquier producto.
@@ -4047,6 +4052,10 @@ model ShopOrder {
   // financiamiento habilitado). Al confirmar el pedido, la venta se arma a crédito con el
   // plan de cuotas del evento en vez de cobrarse completa. Ver shop-orders.service.confirm.
   financed Boolean @default(false)
+  // En cuántas cuotas quiere pagar. Es una PREFERENCIA, no una orden: al confirmar se recorta
+  // al máximo que el evento permite (eventInstallments) — el tope lo decide el local, el
+  // reparto dentro del tope lo decide el comprador.
+  installmentsChosen Int?
 
   createdAt   DateTime  @default(now())
   confirmedAt DateTime?
