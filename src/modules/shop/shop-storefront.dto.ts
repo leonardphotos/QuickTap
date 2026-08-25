@@ -34,6 +34,10 @@ export const shopCheckoutSchema = z.object({
     paymentMethod: z
       .enum(['CASH', 'CASH_USD', 'MOBILE_PAYMENT', 'ZELLE', 'BINANCE', 'PAYPAL', 'TRANSFER', 'CARD'])
       .optional(),
+    // Captura del pago que subió el comprador. Llega como la ruta que devolvió /:slug/proof,
+    // no como un archivo ni como una URL cualquiera: el servicio verifica que apunte a la
+    // carpeta de comprobantes antes de guardarla.
+    proofImageUrl: z.string().max(300).optional(),
     note: z.string().max(300).optional(),
   }),
 });

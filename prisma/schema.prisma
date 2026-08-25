@@ -4004,6 +4004,9 @@ model ShopOrder {
 
   // Método de pago que eligió el cliente (MOBILE_PAYMENT, ZELLE, CASH…), congelado.
   paymentMethod String?
+  // Captura de la transferencia/Pago Móvil que adjuntó el comprador al hacer el pedido, para
+  // que el local verifique antes de confirmar. Ruta bajo /uploads/shop-payment-proofs.
+  paymentProofUrl String?
 
   // Importes congelados al momento del pedido: si mañana suben los precios o cambia la
   // tasa, lo que el cliente aceptó pagar no se mueve (mismo criterio que Order).

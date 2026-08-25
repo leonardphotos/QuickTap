@@ -326,6 +326,11 @@ async function checkout(slug: string, input: ShopCheckoutInput) {
         customerAddress: input.mode === 'DELIVERY' ? address : null,
         note: input.customer.note?.trim() || null,
         paymentMethod: input.customer.paymentMethod ?? null,
+        // Solo se acepta una ruta de nuestra propia carpeta de comprobantes: si no, cualquiera
+        // podría dejar apuntando el pedido a una imagen de otro servidor.
+        paymentProofUrl: input.customer.proofImageUrl?.startsWith('/uploads/shop-payment-proofs/')
+          ? input.customer.proofImageUrl
+          : null,
         subtotal,
         deliveryFee,
         total,

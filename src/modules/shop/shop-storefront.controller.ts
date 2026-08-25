@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
+import { badRequest } from '../../utils/http-error';
 import { emitToKitchen, SocketEvents } from '../../sockets';
 import { shopCheckoutSchema } from './shop-storefront.dto';
 import { shopStorefrontService } from './shop-storefront.service';
@@ -13,6 +14,19 @@ export const shopStorefrontController = {
     // catálogo se quede viejo cuando el local cambia un precio.
     res.set('Cache-Control', 'public, max-age=30');
     res.json({ data });
+  }),
+
+  /**
+   * POST /public/shop/:slug/proof — sube la captura del pago y devuelve su ruta, que después
+   * viaja en el checkout. Se sube antes del pedido y no dentro de él para no mezclar multipart
+   * con el JSON del carrito, igual que hace el portal del Wallet.
+   *
+   * Es un endpoint abierto, así que primero se comprueba que el slug sea una tienda de verdad:
+   * sin eso sería un depósito de archivos gratis para cualquiera que conozca la URL.
+   */
+  subirComprobante: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw badRequest('No llegó ninguna imagen.');
+    res.status(201).json({ data: { url: `/uploads/shop-payment-proofs/${req.file.filename}` } });
   }),
 
   checkout: asyncHandler(async (req: Request, res: Response) => {

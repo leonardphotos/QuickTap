@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, ChevronDown, Copy, Minus, Plus, Trash2 } from 'lucide-react';
+import { Check, ChevronDown, Copy, Minus, Paperclip, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/api/client';
 import { publicPriceLabel } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
@@ -15,6 +15,12 @@ const PAYMENT_LABELS: Record<string, string> = {
   BINANCE: 'Binance',
   PAYPAL: 'PayPal',
   TRANSFER: 'Transferencia',
+};
+
+const FRECUENCIA: Record<string, string> = {
+  SEMANAL: 'cada semana',
+  QUINCENAL: 'cada 15 días',
+  MENSUAL: 'cada mes',
 };
 
 const PAYMENT_FIELD_LABELS: Record<string, string> = {
@@ -54,8 +60,10 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
   const [phone, setPhone] = useState('');
   const [idNumber, setIdNumber] = useState('');
   const [address, setAddress] = useState('');
-  const [note, setNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
+  const [proofUrl, setProofUrl] = useState<string | null>(null);
+  const [proofPreview, setProofPreview] = useState<string | null>(null);
+  const [subiendoProof, setSubiendoProof] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [placed, setPlaced] = useState<{ orderNumber: number; total: number } | null>(null);
@@ -74,6 +82,13 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
   // comprador entra a ver su entrada y sus cuotas; sin ella el boleto se emite y no lo
   // alcanza nadie. En una tienda que vende de contado no se pide: sería un campo de más.
   const pideCedula = cart.some((l) => l.product.isEvent) || !!financiado;
+  // Financiado: hoy solo se cobra la inicial. El total completo no es lo que esta persona va a
+  // pagar ahora, así que enseñárselo la manda a transferir de más. Se calcula sobre el total
+  // del carrito, que es exactamente lo que el servidor usa al confirmar el pedido.
+  const plan = financiado ? cart.find((l) => l.product.financing)?.product.financing ?? null : null;
+  const inicial = plan ? Math.round(total * (plan.downPercent / 100) * 100) / 100 : 0;
+  const porCuota = plan ? Math.round(((total - inicial) / plan.installments) * 100) / 100 : 0;
+  const aPagarAhora = plan ? inicial : total;
 
   const enabledMethods = Object.entries(shop.paymentMethodsConfig ?? {})
     .filter(([, cfg]) => cfg?.enabled)
@@ -97,6 +112,27 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
     } catch {
       // Sin portapapeles (http o permiso negado) el cliente puede copiar a mano: no vale la
       // pena interrumpirlo con un error por algo que no le impide pagar.
+    }
+  }
+
+  /**
+   * Sube la captura y guarda la ruta que devuelve el servidor. La vista previa sale del
+   * archivo local, no de la respuesta: se ve al instante y no espera a la red.
+   */
+  async function subirComprobante(file?: File) {
+    if (!file) return;
+    setFormError(null);
+    setSubiendoProof(true);
+    try {
+      const form = new FormData();
+      form.append('photo', file);
+      const res = await api.post(`/public/shop/${shop.slug}/proof`, form);
+      setProofUrl(res.data.data.url);
+      setProofPreview(URL.createObjectURL(file));
+    } catch (err: any) {
+      setFormError(err.response?.data?.error ?? 'No pudimos subir el comprobante. Intenta con otra imagen.');
+    } finally {
+      setSubiendoProof(false);
     }
   }
 
@@ -126,11 +162,11 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
           ...(pideCedula ? { idNumber: idNumber.trim() } : {}),
           ...(mode === 'DELIVERY' ? { address: address.trim() } : {}),
           ...(paymentMethod ? { paymentMethod } : {}),
-          ...(note.trim() ? { note: note.trim() } : {}),
+          ...(proofUrl ? { proofImageUrl: proofUrl } : {}),
         },
       });
       const order = res.data.data;
-      setPlaced({ orderNumber: order.orderNumber, total: order.total });
+      setPlaced({ orderNumber: order.orderNumber, total: aPagarAhora });
       onChangeCart([]);
     } catch (err: any) {
       setFormError(err.response?.data?.error ?? 'No pudimos enviar tu pedido. Intenta de nuevo.');
@@ -155,9 +191,14 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
           </div>
           <h2 className="text-lg font-semibold text-brand-950">¡Pedido enviado!</h2>
           <p className="mt-1 text-sm font-light text-brand-950/60">
-            Es el pedido <span className="font-semibold text-brand-950">#{placed.orderNumber}</span> por {totalLabel.primary}
+            Es el pedido <span className="font-semibold text-brand-950">#{placed.orderNumber}</span>
+            {plan ? ', con una inicial de ' : ' por '}
+            {totalLabel.primary}
             {totalLabel.secondary ? ` (${totalLabel.secondary})` : ''}.
           </p>
+          {proofUrl && (
+            <p className="mt-2 text-sm font-light text-brand-950/60">Ya recibimos tu comprobante.</p>
+          )}
           <p className="mt-3 text-sm font-light text-brand-950/60">
             {shop.whatsappBotConnected
               ? 'En un momento te escribimos por WhatsApp con los datos para pagar.'
@@ -362,26 +403,58 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
           </div>
         )}
 
-        <Field label="Nota (opcional)">
-          <textarea
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            rows={2}
-            className={INPUT}
-            placeholder="Algo que la tienda deba saber"
-          />
+        <Field label="Comprobante de pago">
+          <label
+            className={`flex cursor-pointer items-center gap-3 rounded-lg border border-dashed px-3 py-3 transition-colors ${
+              proofUrl ? 'border-emerald-500/50 bg-emerald-50/60' : 'border-brand-950/20 hover:border-brand-500/50'
+            }`}
+          >
+            <input type="file" accept="image/*" className="sr-only" onChange={(e) => subirComprobante(e.target.files?.[0])} />
+            {proofPreview ? (
+              <img src={proofPreview} alt="" className="h-11 w-11 shrink-0 rounded-lg object-cover" />
+            ) : (
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-brand-950/[0.06]">
+                <Paperclip className="h-4 w-4 text-brand-950/50" />
+              </span>
+            )}
+            <span className="min-w-0 text-[13px] leading-tight">
+              <span className="block font-medium text-brand-950">
+                {subiendoProof ? 'Subiendo…' : proofUrl ? 'Comprobante adjunto' : 'Adjuntar captura del pago'}
+              </span>
+              <span className="block font-light text-brand-950/50">
+                {proofUrl ? 'Toca para cambiarla' : 'La tienda la revisa antes de confirmar'}
+              </span>
+            </span>
+          </label>
         </Field>
       </div>
 
       <div className="mt-4 space-y-1 border-t border-brand-950/10 pt-3 text-sm">
-        <Row label="Subtotal" value={publicPriceLabel(subtotal, shop).primary} />
-        {deliveryFee > 0 && <Row label="Envío" value={publicPriceLabel(deliveryFee, shop).primary} />}
+        {plan ? (
+          <>
+            <Row label={`Precio (${plan.installments} cuotas)`} value={publicPriceLabel(total, shop).primary} />
+            {Array.from({ length: plan.installments }, (_, i) => (
+              <Row
+                key={i}
+                label={`Cuota ${i + 1} · ${FRECUENCIA[plan.frequency] ?? 'cada mes'}`}
+                value={publicPriceLabel(porCuota, shop).primary}
+              />
+            ))}
+          </>
+        ) : (
+          <>
+            <Row label="Subtotal" value={publicPriceLabel(subtotal, shop).primary} />
+            {deliveryFee > 0 && <Row label="Envío" value={publicPriceLabel(deliveryFee, shop).primary} />}
+          </>
+        )}
         <div className="flex items-baseline justify-between pt-1">
-          <span className="font-semibold text-brand-950">Total</span>
+          <span className="font-semibold text-brand-950">{plan ? 'Inicial a pagar hoy' : 'Total'}</span>
           <div className="text-right">
-            <span className="block font-bold text-brand-950">{publicPriceLabel(total, shop).primary}</span>
-            {publicPriceLabel(total, shop).secondary && (
-              <span className="block text-xs font-light text-brand-950/50">{publicPriceLabel(total, shop).secondary}</span>
+            <span className="block font-bold text-brand-950">{publicPriceLabel(aPagarAhora, shop).primary}</span>
+            {publicPriceLabel(aPagarAhora, shop).secondary && (
+              <span className="block text-xs font-light text-brand-950/50">
+                {publicPriceLabel(aPagarAhora, shop).secondary}
+              </span>
             )}
           </div>
         </div>

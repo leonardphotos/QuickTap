@@ -18,6 +18,7 @@ export interface ShopOrder {
   customerName: string;
   customerPhone: string;
   customerIdNumber?: string | null;
+  paymentProofUrl?: string | null;
   customerAddress: string | null;
   note: string | null;
   paymentMethod: string | null;
@@ -365,6 +366,21 @@ function OrderCard({
           <p>
             <span className="text-brand-950/40">Pago:</span> {PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod}
           </p>
+        )}
+        {order.paymentProofUrl && (
+          <a
+            href={`${apiOrigin()}${order.paymentProofUrl}`}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-1.5 flex items-center gap-2 text-brand-600 hover:underline"
+          >
+            <img
+              src={`${apiOrigin()}${order.paymentProofUrl}`}
+              alt=""
+              className="h-10 w-10 rounded-lg border border-brand-950/10 object-cover"
+            />
+            Ver comprobante de pago
+          </a>
         )}
         {order.note && (
           <p>
