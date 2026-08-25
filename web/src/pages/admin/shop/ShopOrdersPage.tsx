@@ -19,6 +19,10 @@ export interface ShopOrder {
   customerPhone: string;
   customerIdNumber?: string | null;
   paymentProofUrl?: string | null;
+  financed?: boolean;
+  /** Plan de financiamiento ya resuelto por el servidor (ver shop-orders.service.planDelPedido).
+   *  Null cuando el pedido se cobra completo. */
+  plan?: { inicial: number; cuotas: number; porCuota: number; frecuencia: string } | null;
   customerAddress: string | null;
   note: string | null;
   paymentMethod: string | null;
@@ -33,6 +37,12 @@ export interface ShopOrder {
    *  poblado en la respuesta de POST .../confirm — la lista normal no lo trae. */
   tickets?: RawShopTicket[];
 }
+
+const FRECUENCIA: Record<string, string> = {
+  SEMANAL: 'cada semana',
+  QUINCENAL: 'cada 15 días',
+  MENSUAL: 'cada mes',
+};
 
 const PAYMENT_LABELS: Record<string, string> = {
   MOBILE_PAYMENT: 'Pago Móvil',
@@ -328,9 +338,22 @@ function OrderCard({
             {new Date(order.createdAt).toLocaleString('es-VE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
           </p>
         </div>
+        {/* Financiado: lo grande es la inicial, que es lo que este cliente debía transferir hoy.
+            Poner el precio completo acá hace que se le reclame plata que no debía todavía. */}
         <div className="text-right">
-          <p className="text-sm font-bold text-brand-950">{formatBase(order.total, symbol)}</p>
-          {rate && <p className="text-xs font-light text-brand-950/50">{formatBs(order.total, rate)}</p>}
+          <p className="text-sm font-bold text-brand-950">
+            {formatBase(order.plan ? order.plan.inicial : order.total, symbol)}
+          </p>
+          {rate && (
+            <p className="text-xs font-light text-brand-950/50">
+              {formatBs(order.plan ? order.plan.inicial : order.total, rate)}
+            </p>
+          )}
+          {order.plan && (
+            <p className="mt-0.5 text-[11px] font-medium leading-tight text-amber-700">
+              inicial · de {formatBase(order.total, symbol)}
+            </p>
+          )}
         </div>
       </div>
 
@@ -365,6 +388,13 @@ function OrderCard({
         {order.paymentMethod && (
           <p>
             <span className="text-brand-950/40">Pago:</span> {PAYMENT_LABELS[order.paymentMethod] ?? order.paymentMethod}
+          </p>
+        )}
+        {order.plan && (
+          <p>
+            <span className="text-brand-950/40">Financiado:</span> inicial de{' '}
+            {formatBase(order.plan.inicial, symbol)} y {order.plan.cuotas} cuotas de{' '}
+            {formatBase(order.plan.porCuota, symbol)} ({FRECUENCIA[order.plan.frecuencia] ?? 'cada mes'})
           </p>
         )}
         {order.paymentProofUrl && (

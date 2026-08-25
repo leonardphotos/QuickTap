@@ -150,7 +150,6 @@ export function TickeraStorefront({
                   shop={shop}
                   expanded={expandedId === event.id}
                   onToggle={() => setExpandedId((cur) => (cur === event.id ? null : event.id))}
-                  onBuy={() => setOpenProduct(event)}
                   onInfo={() => setInfoEvento(event)}
                 />
               ))
@@ -339,14 +338,12 @@ function EventCard({
   shop,
   expanded,
   onToggle,
-  onBuy,
   onInfo,
 }: {
   product: StorefrontProduct;
   shop: StorefrontShop;
   expanded: boolean;
   onToggle: () => void;
-  onBuy: () => void;
   onInfo: () => void;
 }) {
   const price = publicPriceLabel(product.price, shop);
@@ -432,26 +429,20 @@ function EventCard({
                   <p className="text-2xl font-black text-white">{price.primary}</p>
                   {price.secondary && <p className="text-[11px] font-medium text-white/40">{price.secondary}</p>}
                 </div>
-                <div className="flex items-center gap-2">
-                  {/* Antes de comprar, poder leer de qué se trata: el detalle completo del
-                      evento, sus fotos y sus condiciones. */}
-                  <button
-                    type="button"
-                    onClick={onInfo}
-                    className="rounded-full border border-white/15 px-4 py-2 text-[12.5px] font-semibold text-white/75 transition-colors hover:bg-white/10"
-                  >
-                    Más información
-                  </button>
-                  <TextureButton
-                    variant="brand"
-                    size="default"
-                    disabled={soldOut}
-                    className={`!w-auto px-6 disabled:opacity-40 ${BRAND_GLOW}`}
-                    onClick={onBuy}
-                  >
-                    {soldOut ? 'Agotado' : 'Comprar'}
-                  </TextureButton>
-                </div>
+                {/* Única puerta de entrada a la compra. Antes había un "Comprar" al lado que
+                    metía la entrada al carrito de una: quien lo usaba se saltaba las cláusulas
+                    y la elección de financiamiento, y terminaba pagando el precio completo
+                    aunque quisiera financiar. Comprar sin haber leído de qué se trata tampoco
+                    tiene sentido en un evento. */}
+                <TextureButton
+                  variant="brand"
+                  size="default"
+                  disabled={soldOut}
+                  className={`!w-auto px-6 disabled:opacity-40 ${BRAND_GLOW}`}
+                  onClick={onInfo}
+                >
+                  {soldOut ? 'Agotado' : 'Más información'}
+                </TextureButton>
               </div>
             </div>
           </motion.div>

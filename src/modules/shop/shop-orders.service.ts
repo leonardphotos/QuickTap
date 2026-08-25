@@ -14,13 +14,45 @@ import { shopInstallmentsService } from './shop-installments.service';
 
 const ORDER_INCLUDE = { items: true } as const;
 
+type PedidoConItems = { total: number; financed: boolean; items: { productId: string | null }[] };
+
+/**
+ * El plan de financiamiento que le toca a un pedido, o null si se cobra completo.
+ *
+ * Vive acá y no dentro de `confirm` porque el panel necesita EL MISMO número: si el local ve
+ * el precio completo y el comprador pagó la inicial, le va a reclamar plata que no debía. La
+ * plantilla se lee del EVENTO, nunca de lo que mandó el cliente.
+ */
+async function planDelPedido(restaurantId: string, order: PedidoConItems) {
+  if (!order.financed) return null;
+  const evento = await prisma.shopProduct.findFirst({
+    where: {
+      id: { in: order.items.map((i) => i.productId).filter((v): v is string => !!v) },
+      restaurantId,
+      isEvent: true,
+      eventFinancingEnabled: true,
+    },
+    select: { eventDownPercent: true, eventInstallments: true, eventFrequency: true },
+  });
+  // Si el evento ya no permite financiar (lo apagaron mientras el cliente compraba), se cobra
+  // completo: es más seguro que inventarle un plan que el local ya no ofrece.
+  if (!evento?.eventInstallments) return null;
+  const inicial = Math.round(order.total * ((evento.eventDownPercent ?? 0) / 100) * 100) / 100;
+  const porCuota = Math.round(((order.total - inicial) / evento.eventInstallments) * 100) / 100;
+  return { inicial, cuotas: evento.eventInstallments, porCuota, frecuencia: evento.eventFrequency ?? 'MENSUAL' };
+}
+
 async function list(restaurantId: string, opts: { status?: string; limit?: number } = {}) {
-  return prisma.shopOrder.findMany({
+  const pedidos = await prisma.shopOrder.findMany({
     where: { restaurantId, ...(opts.status ? { status: opts.status } : {}) },
     orderBy: { createdAt: 'desc' },
     take: opts.limit ?? 100,
     include: ORDER_INCLUDE,
   });
+  // El plan viaja resuelto al panel para que el local cobre la inicial y no el total.
+  return Promise.all(
+    pedidos.map(async (p) => ({ ...p, plan: p.financed ? await planDelPedido(restaurantId, p) : null })),
+  );
 }
 
 /**
@@ -40,25 +72,9 @@ async function confirm(restaurantId: string, userId: string, orderId: string, pa
   if (order.status === 'CONFIRMED') throw badRequest('Este pedido ya fue confirmado.');
   if (order.status === 'CANCELLED') throw badRequest('Este pedido fue cancelado.');
 
-  // Financiado: la venta se arma a crédito y la inicial es lo único cobrado hoy. El plan de
-  // cuotas se copia del EVENTO (la plantilla que cargó el local), nunca de lo que mande el
-  // cliente — el precio y el reparto los decide el servidor.
-  const evento = order.financed
-    ? await prisma.shopProduct.findFirst({
-        where: {
-          id: { in: order.items.map((i) => i.productId).filter((v): v is string => !!v) },
-          restaurantId,
-          isEvent: true,
-          eventFinancingEnabled: true,
-        },
-        select: { eventDownPercent: true, eventInstallments: true, eventFrequency: true },
-      })
-    : null;
-  // Si el pedido dice "financiado" pero el evento ya no lo permite (lo apagaron mientras el
-  // cliente compraba), se cobra completo: es más seguro que inventarle un plan que el local
-  // ya no ofrece.
-  const financia = !!evento && !!evento.eventInstallments;
-  const inicial = financia ? Math.round(order.total * ((evento!.eventDownPercent ?? 0) / 100) * 100) / 100 : null;
+  // Financiado: la venta se arma a crédito y la inicial es lo único cobrado hoy. Es el mismo
+  // cálculo que el panel ya le mostró al local, para que no haya dos números en juego.
+  const plan = await planDelPedido(restaurantId, order);
 
   const sale = await shopService.recordSale(restaurantId, userId, {
     // El envío va dentro del total de la venta: es plata que entra al local, aunque no sea una
@@ -71,7 +87,7 @@ async function confirm(restaurantId: string, userId: string, orderId: string, pa
     // Deja el pedido marcado en las entradas que se emitan: confirmar es el momento en que el
     // local da el pago por bueno, y es cuando el asistente recibe su boleto.
     shopOrderId: order.id,
-    ...(financia ? { creditTerms: 'INSTALLMENT' as const, amountPaidNow: inicial } : {}),
+    ...(plan ? { creditTerms: 'INSTALLMENT' as const, amountPaidNow: plan.inicial } : {}),
     // El pedido web puede llegar sin método elegido: en ese caso la venta queda con el
     // método que el cajero escoja al confirmar, y si tampoco viene, "Efectivo Bs" (lo que
     // realmente pasa: el cliente paga al recibir en efectivo).
@@ -92,15 +108,11 @@ async function confirm(restaurantId: string, userId: string, orderId: string, pa
 
   // El calendario se crea DESPUÉS de la venta, que es contra lo que se cuelga. Si el evento
   // no traía frecuencia se usa mensual, la misma opción por defecto del formulario.
-  if (financia) {
+  if (plan) {
     const hoy = new Date();
     const primera = new Date(hoy.getTime() + 30 * 86400000).toISOString().slice(0, 10);
     await shopInstallmentsService
-      .crearPlan(restaurantId, sale.id, {
-        cantidad: evento!.eventInstallments!,
-        primeraFecha: primera,
-        frecuencia: evento!.eventFrequency ?? 'MENSUAL',
-      })
+      .crearPlan(restaurantId, sale.id, { cantidad: plan.cuotas, primeraFecha: primera, frecuencia: plan.frecuencia })
       .catch(() => undefined);
   }
 
@@ -137,4 +149,4 @@ async function cancel(restaurantId: string, orderId: string) {
   });
 }
 
-export const shopOrdersService = { list, confirm, cancel };
+export const shopOrdersService = { list, confirm, cancel, planDelPedido };
