@@ -1,3 +1,4 @@
+import { frecuenciaLabel } from '@/utils/frecuencia';
 import { useState, useRef } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { ArrowLeft, Calendar, Check, ChevronLeft, ChevronRight, Clock, MapPin, Smartphone, Ticket, Wallet } from 'lucide-react';
@@ -19,12 +20,6 @@ import type { StorefrontProduct, StorefrontShop } from '../shopStorefront';
  */
 
 type Paso = 'info' | 'clausulas' | 'pago' | 'tutorial';
-
-const FRECUENCIA: Record<string, string> = {
-  SEMANAL: 'cada semana',
-  QUINCENAL: 'cada 15 días',
-  MENSUAL: 'cada mes',
-};
 
 export function EventoDetalle({
   evento,
@@ -292,7 +287,7 @@ export function EventoDetalle({
                             {Array.from({ length: cuotasElegidas }, (_, i) => (
                               <LineaCuota
                                 key={i}
-                                etiqueta={`Cuota ${i + 1} · ${FRECUENCIA[fin.frequency] ?? 'cada mes'}`}
+                                etiqueta={`Cuota ${i + 1} · ${frecuenciaLabel(fin.frequency)}`}
                                 valor={publicPriceLabel(porCuota, shop).primary}
                               />
                             ))}

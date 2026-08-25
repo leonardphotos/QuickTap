@@ -1,7 +1,7 @@
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { shopService } from './shop.service';
-import { shopInstallmentsService, cuotasQueCaben, DIAS_POR_FRECUENCIA } from './shop-installments.service';
+import { shopInstallmentsService, cuotasQueCaben, diasDeFrecuencia } from './shop-installments.service';
 
 /**
  * Pedidos de la tienda virtual, lado PANEL (requiere JWT del local).
@@ -129,7 +129,7 @@ async function confirm(restaurantId: string, userId: string, orderId: string, pa
     // quincenales y tope de fecha, arrancar a los 30 días corría el plan fuera del límite
     // que el cálculo de arriba acaba de respetar.
     const hoy = new Date();
-    const primera = new Date(hoy.getTime() + (DIAS_POR_FRECUENCIA[plan.frecuencia] ?? 30) * 86400000)
+    const primera = new Date(hoy.getTime() + diasDeFrecuencia(plan.frecuencia) * 86400000)
       .toISOString()
       .slice(0, 10);
     await shopInstallmentsService

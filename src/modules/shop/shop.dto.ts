@@ -68,7 +68,9 @@ const shopProductFields = z.object({
   // Inicial en % del precio. Se admite 0 (financiar todo) pero no 100 — eso es pago completo.
   eventDownPercent: z.coerce.number().min(0).max(99).optional(),
   eventInstallments: z.coerce.number().int().min(2).max(60).optional(),
-  eventFrequency: z.enum(['SEMANAL', 'QUINCENAL', 'MENSUAL']).optional(),
+  // Con nombre o personalizada: "CADA_10" = cada 10 días (1 a 365... el regex corta en 3
+  // cifras y el resolver le pone piso de 1 día).
+  eventFrequency: z.string().regex(/^(SEMANAL|QUINCENAL|MENSUAL|CADA_\d{1,3})$/).optional(),
   // Hasta cuándo se acepta financiar (inclusive). Vacío = sin límite.
   eventFinancingDeadline: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   // --- Plan de consumo ---

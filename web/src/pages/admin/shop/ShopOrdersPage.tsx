@@ -1,3 +1,4 @@
+import { frecuenciaLabel } from '@/utils/frecuencia';
 import { waPhone } from '@/utils/waPhone';
 import { useCallback, useEffect, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
@@ -38,12 +39,6 @@ export interface ShopOrder {
    *  poblado en la respuesta de POST .../confirm — la lista normal no lo trae. */
   tickets?: RawShopTicket[];
 }
-
-const FRECUENCIA: Record<string, string> = {
-  SEMANAL: 'cada semana',
-  QUINCENAL: 'cada 15 días',
-  MENSUAL: 'cada mes',
-};
 
 const PAYMENT_LABELS: Record<string, string> = {
   MOBILE_PAYMENT: 'Pago Móvil',
@@ -395,7 +390,7 @@ function OrderCard({
           <p>
             <span className="text-brand-950/40">Financiado:</span> inicial de{' '}
             {formatBase(order.plan.inicial, symbol)} y {order.plan.cuotas} cuotas de{' '}
-            {formatBase(order.plan.porCuota, symbol)} ({FRECUENCIA[order.plan.frecuencia] ?? 'cada mes'})
+            {formatBase(order.plan.porCuota, symbol)} ({frecuenciaLabel(order.plan.frecuencia)})
           </p>
         )}
         {order.paymentProofUrl && (

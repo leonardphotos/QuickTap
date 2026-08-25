@@ -75,13 +75,13 @@ export function resumirCuota(
  * dos lados, para que lo ofrecido sea siempre pagable a tiempo.
  */
 export function cuotasQueCaben(deadline: string, frecuencia: string): number {
-  const dias = DIAS_POR_FRECUENCIA[frecuencia] ?? 30;
+  const dias = diasDeFrecuencia(frecuencia);
   const hoy = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Caracas' });
   const margen = Math.floor((Date.parse(`${deadline}T00:00:00Z`) - Date.parse(`${hoy}T00:00:00Z`)) / 86400000);
   return Math.max(0, Math.floor(margen / dias));
 }
 
-/** Días que separan una cuota de la siguiente, por frecuencia. */
+/** Días que separan una cuota de la siguiente, por frecuencia con nombre. */
 export const DIAS_POR_FRECUENCIA: Record<string, number> = {
   SEMANAL: 7,
   QUINCENAL: 15,
@@ -89,6 +89,18 @@ export const DIAS_POR_FRECUENCIA: Record<string, number> = {
   TRIMESTRAL: 90,
   SEMESTRAL: 180,
 };
+
+/**
+ * Días entre cuotas para CUALQUIER frecuencia, incluida la personalizada "CADA_n" (cada n
+ * días, elegido por el local en el evento). Todo lo que antes indexaba DIAS_POR_FRECUENCIA
+ * directo pasa por acá: una frecuencia desconocida cae a mensual en vez de a NaN.
+ */
+export function diasDeFrecuencia(frecuencia: string | null | undefined): number {
+  if (!frecuencia) return 30;
+  const custom = /^CADA_(\d{1,3})$/.exec(frecuencia);
+  if (custom) return Math.max(1, Number(custom[1]));
+  return DIAS_POR_FRECUENCIA[frecuencia] ?? 30;
+}
 
 export const shopInstallmentsService = {
   /**
@@ -131,8 +143,9 @@ export const shopInstallmentsService = {
 
     const base = Math.floor((conRecargo / input.cantidad) * 100) / 100;
     const sobrante = Math.round((conRecargo - base * input.cantidad) * 100) / 100;
-    const frecuencia = input.frecuencia && DIAS_POR_FRECUENCIA[input.frecuencia] ? input.frecuencia : 'MENSUAL';
-    const paso = DIAS_POR_FRECUENCIA[frecuencia];
+    const esConocida = !!input.frecuencia && (input.frecuencia in DIAS_POR_FRECUENCIA || /^CADA_\d{1,3}$/.test(input.frecuencia));
+    const frecuencia = esConocida ? input.frecuencia! : 'MENSUAL';
+    const paso = diasDeFrecuencia(frecuencia);
 
     return prisma.$transaction(async (tx) => {
       const plan = await tx.shopInstallmentPlan.create({

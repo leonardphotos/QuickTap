@@ -142,6 +142,8 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
   const [npDownPercent, setNpDownPercent] = useState('30');
   const [npInstallments, setNpInstallments] = useState('4');
   const [npFrequency, setNpFrequency] = useState('MENSUAL');
+  // Días de la frecuencia personalizada ("CADA_n"). Solo aplica con npFrequency === 'CUSTOM'.
+  const [npFreqDays, setNpFreqDays] = useState('10');
   const [npFinDeadline, setNpFinDeadline] = useState('');
   const [npBrand, setNpBrand] = useState('');
   const [npSku, setNpSku] = useState('');
@@ -500,7 +502,12 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
     setNpFinancing(!!p.eventFinancingEnabled);
     setNpDownPercent(p.eventDownPercent != null ? String(p.eventDownPercent) : '30');
     setNpInstallments(p.eventInstallments != null ? String(p.eventInstallments) : '4');
-    setNpFrequency(p.eventFrequency ?? 'MENSUAL');
+    {
+      // Una frecuencia CADA_n se abre como "Personalizado" con sus días cargados.
+      const custom = /^CADA_(\d{1,3})$/.exec(p.eventFrequency ?? '');
+      setNpFrequency(custom ? 'CUSTOM' : (p.eventFrequency ?? 'MENSUAL'));
+      setNpFreqDays(custom ? custom[1] : '10');
+    }
     setNpFinDeadline(p.eventFinancingDeadline ?? '');
     setNpAreaRoll(p.pricingMode === 'AREA_ROLL');
     setNpRollWidths(p.rollWidths ? formatRollWidths(p.rollWidths) : '');
@@ -681,7 +688,12 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
       eventFinancingEnabled: esEvento ? npFinancing : undefined,
       eventDownPercent: esEvento && npFinancing ? Number(npDownPercent) || 0 : undefined,
       eventInstallments: esEvento && npFinancing ? Number(npInstallments) || undefined : undefined,
-      eventFrequency: esEvento && npFinancing ? npFrequency : undefined,
+      eventFrequency:
+        esEvento && npFinancing
+          ? npFrequency === 'CUSTOM'
+            ? `CADA_${Math.max(1, Math.min(365, Number(npFreqDays) || 10))}`
+            : npFrequency
+          : undefined,
       eventFinancingDeadline: esEvento && npFinancing ? npFinDeadline || null : undefined,
       // Plan de consumo: solo tiene sentido con Kg/Mt, y con tarifa cargada.
       consumptionPlanEnabled: npSaleUnit !== 'UND' && npPlanEnabled && Number(npPlanRate) > 0,
@@ -1875,9 +1887,24 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                             <option value="SEMANAL">Semana</option>
                             <option value="QUINCENAL">15 días</option>
                             <option value="MENSUAL">Mes</option>
+                            <option value="CUSTOM">Personalizado…</option>
                           </select>
                         </label>
                       </div>
+                      {npFrequency === 'CUSTOM' && (
+                        <label className="mt-2 block text-sm">
+                          <span className="text-brand-950/70">Cada cuántos días</span>
+                          <div className="mt-1 flex items-center gap-2">
+                            <span className="text-sm text-brand-950/60">Cada</span>
+                            <input
+                              type="number" min={1} max={365} value={npFreqDays}
+                              onChange={(e) => setNpFreqDays(e.target.value)}
+                              className="w-24 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                            />
+                            <span className="text-sm text-brand-950/60">días</span>
+                          </div>
+                        </label>
+                      )}
                       <label className="mt-2 block text-sm">
                         <span className="text-brand-950/70">Aceptar financiamiento hasta</span>
                         <input

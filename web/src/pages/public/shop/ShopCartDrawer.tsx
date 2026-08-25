@@ -1,3 +1,4 @@
+import { frecuenciaLabel } from '@/utils/frecuencia';
 import { useState } from 'react';
 import { Check, Copy, Minus, Paperclip, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/api/client';
@@ -16,12 +17,6 @@ const PAYMENT_LABELS: Record<string, string> = {
   BINANCE: 'Binance',
   PAYPAL: 'PayPal',
   TRANSFER: 'Transferencia',
-};
-
-const FRECUENCIA: Record<string, string> = {
-  SEMANAL: 'cada semana',
-  QUINCENAL: 'cada 15 días',
-  MENSUAL: 'cada mes',
 };
 
 const PAYMENT_FIELD_LABELS: Record<string, string> = {
@@ -532,7 +527,7 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado, 
             {Array.from({ length: plan.installments }, (_, i) => (
               <Row
                 key={i}
-                label={`Cuota ${i + 1} · ${FRECUENCIA[plan.frequency] ?? 'cada mes'}`}
+                label={`Cuota ${i + 1} · ${frecuenciaLabel(plan.frequency)}`}
                 value={montoLabel(porCuota).primary}
               />
             ))}
