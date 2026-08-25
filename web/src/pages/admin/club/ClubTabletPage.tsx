@@ -1008,12 +1008,9 @@ const PAY_FIELD_LABELS: [keyof TabletPayMethod, string][] = [
   ['cuenta', 'Cuenta'],
 ];
 
-/**
- * Métodos que mueven dólares: su monto se dice en $, no en Bs. Parte de la regla
- * compartida del panel (USD_FIRST_METHODS) y le suma los que son dólares por
- * definición — decir "transfiere Bs" para Efectivo $ o PayPal sería falso.
- */
-const USD_METHODS = new Set<string>([...USD_FIRST_METHODS, 'CASH_USD', 'PAYPAL']);
+/** Métodos que mueven dólares: su monto se dice en $, no en Bs. La lista completa vive en
+ *  utils/payments.ts — acá ya solo se envuelve en un Set para consultarla por clave suelta. */
+const USD_METHODS = new Set<string>(USD_FIRST_METHODS);
 
 const PAY_METHOD_LABELS: Record<string, string> = {
   MOBILE_PAYMENT: 'Pago Móvil',

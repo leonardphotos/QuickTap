@@ -24,11 +24,15 @@ export const METHODS_ALLOWING_PROOF: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE
 export const METHODS_WITH_QR: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'BINANCE'];
 
 /**
- * Métodos que se cobran en dólares, no en bolívares: Zelle y Binance mueven USD,
- * así que el monto grande va en $ y el equivalente en Bs queda de referencia abajo.
- * Pago Móvil es al revés (se paga en Bs), y así se sigue mostrando.
+ * Métodos que mueven dólares: el monto grande va en $ y el equivalente en Bs queda de
+ * referencia abajo. Pago Móvil, Transferencia, Punto de Venta y Efectivo Bs son al revés
+ * (se pagan en bolívares), y así se siguen mostrando.
+ *
+ * PayPal y Efectivo $ faltaban acá aunque siempre fueron dólares — ClubTabletPage llevaba su
+ * propia copia de la lista para sumarlos, que es justo lo que esta constante existe para
+ * evitar. Están donde corresponde y la copia se borró.
  */
-export const USD_FIRST_METHODS: PaymentMethod[] = ['ZELLE', 'BINANCE'];
+export const USD_FIRST_METHODS: PaymentMethod[] = ['ZELLE', 'BINANCE', 'PAYPAL', 'CASH_USD'];
 
 export function referenceLabel(method: PaymentMethod): string {
   return method === 'CARD' ? 'Número de ticket' : 'Número de referencia';

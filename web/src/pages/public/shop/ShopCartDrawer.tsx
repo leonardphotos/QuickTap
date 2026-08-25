@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Check, ChevronDown, Copy, Minus, Paperclip, Plus, Trash2 } from 'lucide-react';
+import { Check, Copy, Minus, Paperclip, Plus, Trash2 } from 'lucide-react';
 import { api } from '@/api/client';
 import { publicPriceLabel } from '@/utils/format';
 import { TextureButton } from '@/components/ui/texture-button';
 import { ShopSheet } from './ShopSheet';
+import { USD_FIRST_METHODS } from '@/utils/payments';
 import { cartSubtotal, formatQty, stepFor, type CartLine, type StorefrontShop } from './shopStorefront';
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -54,7 +55,7 @@ interface Props {
  * método de pago que se elige es informativo, no una pasarela.
  */
 export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }: Props) {
-  const [step, setStep] = useState<'cart' | 'checkout'>('cart');
+  const [step, setStep] = useState<'cart' | 'metodo' | 'checkout'>('cart');
   const [mode, setMode] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -89,6 +90,18 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
   const inicial = plan ? Math.round(total * (plan.downPercent / 100) * 100) / 100 : 0;
   const porCuota = plan ? Math.round(((total - inicial) / plan.installments) * 100) / 100 : 0;
   const aPagarAhora = plan ? inicial : total;
+
+  /**
+   * El monto en la moneda del método elegido. Pago Móvil y Transferencia se pagan en
+   * bolívares, así que manda el Bs; Zelle, Binance, PayPal y Efectivo $ mueven dólares, así
+   * que manda el $. Hacer la cuenta de cabeza en el banco es cómo se transfiere de menos.
+   * Sin tasa cargada solo existe la moneda base y no hay nada que voltear.
+   */
+  function montoLabel(amount: number) {
+    const l = publicPriceLabel(amount, shop);
+    if (!l.secondary || !USD_FIRST_METHODS.includes(paymentMethod as never)) return l;
+    return { primary: l.secondary, secondary: l.primary };
+  }
 
   const enabledMethods = Object.entries(shop.paymentMethodsConfig ?? {})
     .filter(([, cfg]) => cfg?.enabled)
@@ -177,7 +190,7 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
 
   // --- Pedido enviado ---
   if (placed) {
-    const totalLabel = publicPriceLabel(placed.total, shop);
+    const totalLabel = montoLabel(placed.total);
     const waLink = shop.whatsappPhone
       ? `https://wa.me/${shop.whatsappPhone.replace(/\D/g, '')}?text=${encodeURIComponent(
           `Hola, acabo de hacer el pedido #${placed.orderNumber} en ${shop.name}.`,
@@ -297,10 +310,77 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
             size="default"
             disabled={!canOrder}
             className="disabled:opacity-50"
-            onClick={() => setStep('checkout')}
+            onClick={() => setStep('metodo')}
           >
             {canOrder ? 'Continuar' : 'La tienda no recibe pedidos ahora'}
           </TextureButton>
+        </div>
+      </ShopSheet>
+    );
+  }
+
+  // --- Cómo va a pagar ---
+  // Vive entre el carrito y los datos porque decide en qué moneda se le habla de acá en
+  // adelante: el monto, los datos de la cuenta y el comprobante que se le pide.
+  if (step === 'metodo') {
+    return (
+      <ShopSheet onClose={onClose}>
+        <h2 className="text-lg font-semibold text-brand-950">¿Cómo vas a pagar?</h2>
+        <p className="mt-1 text-[13px] font-light text-brand-950/50">
+          {plan ? 'Hoy pagas solo la inicial de tu plan.' : 'Elige el método y te mostramos los datos de la cuenta.'}
+        </p>
+
+        <div className="mt-4 space-y-2">
+          {enabledMethods.map((m) => {
+            const activo = paymentMethod === m;
+            const monto = publicPriceLabel(aPagarAhora, shop);
+            const enDivisa = USD_FIRST_METHODS.includes(m as never);
+            const grande = enDivisa && monto.secondary ? monto.secondary : monto.primary;
+            const chico = enDivisa && monto.secondary ? monto.primary : monto.secondary;
+            return (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setPaymentMethod(m)}
+                className={`wallet-tap flex w-full items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition-colors ${
+                  activo ? 'border-brand-500 bg-brand-500/[0.07]' : 'border-brand-950/10 hover:border-brand-950/25'
+                }`}
+              >
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-brand-950">{PAYMENT_LABELS[m]}</span>
+                  <span className="block text-[11.5px] font-light text-brand-950/50">
+                    {enDivisa ? 'Se paga en divisa' : 'Se paga en bolívares'}
+                  </span>
+                </span>
+                <span className="shrink-0 text-right">
+                  <span className="block text-sm font-bold tabular-nums text-brand-950">{grande}</span>
+                  {chico && <span className="block text-[11px] font-light tabular-nums text-brand-950/45">{chico}</span>}
+                </span>
+              </button>
+            );
+          })}
+
+          <button
+            type="button"
+            onClick={() => setPaymentMethod('')}
+            className={`wallet-tap w-full rounded-2xl border px-4 py-3 text-left transition-colors ${
+              paymentMethod === '' ? 'border-brand-500 bg-brand-500/[0.07]' : 'border-brand-950/10 hover:border-brand-950/25'
+            }`}
+          >
+            <span className="block text-sm font-semibold text-brand-950">Lo coordino con la tienda</span>
+            <span className="block text-[11.5px] font-light text-brand-950/50">
+              Te escriben por WhatsApp para acordar el pago.
+            </span>
+          </button>
+        </div>
+
+        <div className="mt-5 space-y-2">
+          <TextureButton variant="brand" size="default" onClick={() => setStep('checkout')}>
+            Continuar
+          </TextureButton>
+          <button onClick={() => setStep('cart')} className="w-full py-2 text-sm font-medium text-brand-950/50">
+            Volver al pedido
+          </button>
         </div>
       </ShopSheet>
     );
@@ -357,31 +437,14 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
           </Field>
         )}
 
-        {enabledMethods.length > 0 && (
-          <Field label="¿Cómo prefieres pagar?">
-            <div className="relative">
-              <select
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-                className={`${INPUT} appearance-none pr-8`}
-              >
-                <option value="">Lo coordino con la tienda</option>
-                {enabledMethods.map((m) => (
-                  <option key={m} value={m}>
-                    {PAYMENT_LABELS[m]}
-                  </option>
-                ))}
-              </select>
-              <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-950/40" />
-            </div>
-          </Field>
-        )}
-
         {methodConfig && (
           <div className="rounded-2xl border border-brand-950/10 bg-brand-950/[0.02] px-4 py-3">
-            <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-brand-950/50">
-              Datos para pagar
-            </p>
+            <div className="mb-2 flex items-baseline justify-between gap-2 border-b border-brand-950/[0.07] pb-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-950/50">
+                {PAYMENT_LABELS[paymentMethod]} · {plan ? 'inicial' : 'a pagar'}
+              </p>
+              <p className="shrink-0 text-sm font-bold tabular-nums text-brand-950">{montoLabel(aPagarAhora).primary}</p>
+            </div>
             {Object.keys(PAYMENT_FIELD_LABELS).map((field) => {
               const value = methodConfig[field];
               if (!value || typeof value !== 'string') return null;
@@ -429,31 +492,33 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
         </Field>
       </div>
 
+      {/* Todo este bloque habla en la moneda del método elegido: es la cifra que la persona va
+          a copiar en su banco o en su billetera. */}
       <div className="mt-4 space-y-1 border-t border-brand-950/10 pt-3 text-sm">
         {plan ? (
           <>
-            <Row label={`Precio (${plan.installments} cuotas)`} value={publicPriceLabel(total, shop).primary} />
+            <Row label={`Precio (${plan.installments} cuotas)`} value={montoLabel(total).primary} />
             {Array.from({ length: plan.installments }, (_, i) => (
               <Row
                 key={i}
                 label={`Cuota ${i + 1} · ${FRECUENCIA[plan.frequency] ?? 'cada mes'}`}
-                value={publicPriceLabel(porCuota, shop).primary}
+                value={montoLabel(porCuota).primary}
               />
             ))}
           </>
         ) : (
           <>
-            <Row label="Subtotal" value={publicPriceLabel(subtotal, shop).primary} />
-            {deliveryFee > 0 && <Row label="Envío" value={publicPriceLabel(deliveryFee, shop).primary} />}
+            <Row label="Subtotal" value={montoLabel(subtotal).primary} />
+            {deliveryFee > 0 && <Row label="Envío" value={montoLabel(deliveryFee).primary} />}
           </>
         )}
         <div className="flex items-baseline justify-between pt-1">
           <span className="font-semibold text-brand-950">{plan ? 'Inicial a pagar hoy' : 'Total'}</span>
           <div className="text-right">
-            <span className="block font-bold text-brand-950">{publicPriceLabel(aPagarAhora, shop).primary}</span>
-            {publicPriceLabel(aPagarAhora, shop).secondary && (
+            <span className="block font-bold text-brand-950">{montoLabel(aPagarAhora).primary}</span>
+            {montoLabel(aPagarAhora).secondary && (
               <span className="block text-xs font-light text-brand-950/50">
-                {publicPriceLabel(aPagarAhora, shop).secondary}
+                {montoLabel(aPagarAhora).secondary}
               </span>
             )}
           </div>
@@ -472,8 +537,8 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
         >
           {submitting ? 'Enviando…' : 'Enviar pedido'}
         </TextureButton>
-        <button onClick={() => setStep('cart')} className="w-full py-2 text-sm font-medium text-brand-950/50">
-          Volver al carrito
+        <button onClick={() => setStep('metodo')} className="w-full py-2 text-sm font-medium text-brand-950/50">
+          Volver
         </button>
       </div>
     </ShopSheet>
