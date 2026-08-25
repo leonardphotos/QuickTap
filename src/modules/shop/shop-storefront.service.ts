@@ -83,6 +83,13 @@ async function getStorefrontBySlug(slug: string) {
       eventDate: true,
       eventTime: true,
       eventSeats: true,
+      eventDescription: true,
+      eventImages: true,
+      eventTerms: true,
+      eventFinancingEnabled: true,
+      eventDownPercent: true,
+      eventInstallments: true,
+      eventFrequency: true,
       variants: { select: { id: true, v1: true, v2: true, stock: true, soldByWeight: true } },
       // Solo para saber si es un servicio; no se expone la receta.
       _count: { select: { serviceSupplies: true } },
@@ -121,6 +128,19 @@ async function getStorefrontBySlug(slug: string) {
       eventDate: p.eventDate,
       eventTime: p.eventTime,
       seatsLeft: p.isEvent ? Math.max(0, p.variants.reduce((a, v) => a + v.stock, 0)) : null,
+      // Lo que alimenta la pantalla "Más información" y el cobro financiado. Solo viaja en
+      // eventos: en el resto del catálogo son campos vacíos que no aportan nada al payload.
+      eventDescription: p.isEvent ? p.eventDescription : null,
+      eventImages: p.isEvent ? ((p.eventImages as string[] | null) ?? []) : [],
+      eventTerms: p.isEvent ? p.eventTerms : null,
+      financing:
+        p.isEvent && p.eventFinancingEnabled && p.eventInstallments
+          ? {
+              downPercent: p.eventDownPercent ?? 0,
+              installments: p.eventInstallments,
+              frequency: p.eventFrequency ?? 'MENSUAL',
+            }
+          : null,
     };
   });
 

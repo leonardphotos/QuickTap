@@ -21,7 +21,7 @@ const variantSchema = z.object({
   cost: z.coerce.number().min(0).nullable().optional(),
 });
 
-export const createShopProductSchema = z.object({
+const shopProductFields = z.object({
   name: z.string().min(1).max(120),
   category: z.string().min(1).max(60),
   subcategory: z.string().max(60).optional().default(''),
@@ -60,18 +60,34 @@ export const createShopProductSchema = z.object({
   eventDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha del evento debe ser yyyy-mm-dd.').optional(),
   eventTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'La hora del evento debe ser HH:mm.').optional(),
   eventSeats: z.coerce.number().int().min(1).max(100000).optional(),
+  eventDescription: z.string().max(4000).optional(),
+  // Tope de 5: es lo que muestra el carrusel de la taquilla.
+  eventImages: z.array(z.string().max(300)).max(5).optional(),
+  eventTerms: z.string().max(6000).optional(),
+  eventFinancingEnabled: z.boolean().optional(),
+  // Inicial en % del precio. Se admite 0 (financiar todo) pero no 100 — eso es pago completo.
+  eventDownPercent: z.coerce.number().min(0).max(99).optional(),
+  eventInstallments: z.coerce.number().int().min(2).max(60).optional(),
+  eventFrequency: z.enum(['SEMANAL', 'QUINCENAL', 'MENSUAL']).optional(),
   // --- Plan de consumo ---
   consumptionPlanEnabled: z.boolean().optional(),
   consumptionPlanRate: z.coerce.number().gt(0).optional(),
   consumptionPlanSizes: z.array(z.coerce.number().gt(0).max(100000)).max(10).optional(),
-})
+});
+
+export const createShopProductSchema = shopProductFields
   .refine((v) => !v.isEvent || (v.eventDate && v.eventTime && v.eventSeats), {
     message: 'Un evento necesita fecha, hora y cantidad de puestos.',
     path: ['eventDate'],
+  })
+  .refine((v) => !v.eventFinancingEnabled || (v.eventInstallments != null && v.eventDownPercent != null), {
+    message: 'Un evento financiado necesita inicial y cantidad de cuotas.',
+    path: ['eventInstallments'],
   });
 
-// El schema base sin el refine, porque .partial() no existe sobre un schema con refine.
-export const updateShopProductSchema = createShopProductSchema.innerType().partial();
+// Se parte del OBJETO base y no de createShopProductSchema: .partial() no existe sobre un
+// schema con refine, y con dos encima .innerType() ya no alcanza para desenvolverlo.
+export const updateShopProductSchema = shopProductFields.partial();
 
 /** Publicar/despublicar varios productos de una — el dueño de una tienda con cientos de
  * artículos no va a entrar uno por uno para encender su vitrina. */

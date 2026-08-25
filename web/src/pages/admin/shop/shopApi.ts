@@ -41,6 +41,13 @@ export interface RawShopProduct {
   eventDate?: string | null;
   eventTime?: string | null;
   eventSeats?: number | null;
+  eventDescription?: string | null;
+  eventImages?: string[] | null;
+  eventTerms?: string | null;
+  eventFinancingEnabled?: boolean | null;
+  eventDownPercent?: number | null;
+  eventInstallments?: number | null;
+  eventFrequency?: string | null;
   consumptionPlanEnabled?: boolean | null;
   consumptionPlanRate?: number | null;
   consumptionPlanSizes?: number[] | null;
@@ -366,6 +373,13 @@ export function toShopProduct(p: RawShopProduct) {
     eventDate: p.eventDate ?? undefined,
     eventTime: p.eventTime ?? undefined,
     eventSeats: p.eventSeats ?? undefined,
+    eventDescription: p.eventDescription ?? undefined,
+    eventImages: p.eventImages ?? undefined,
+    eventTerms: p.eventTerms ?? undefined,
+    eventFinancingEnabled: p.eventFinancingEnabled ?? undefined,
+    eventDownPercent: p.eventDownPercent ?? undefined,
+    eventInstallments: p.eventInstallments ?? undefined,
+    eventFrequency: p.eventFrequency ?? undefined,
     consumptionPlanEnabled: p.consumptionPlanEnabled ?? false,
     consumptionPlanRate: p.consumptionPlanRate ?? undefined,
     consumptionPlanSizes: p.consumptionPlanSizes ?? undefined,

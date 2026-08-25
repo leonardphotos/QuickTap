@@ -3404,6 +3404,24 @@ model ShopProduct {
   // Puestos totales a la venta. Los ocupados se cuentan sobre las ventas, no se guardan acá,
   // para que una devolución libere el puesto sola.
   eventSeats Int?
+  // Texto largo del evento, para la pantalla "Más información" de la taquilla.
+  eventDescription String?
+  // Hasta 5 imágenes del carrusel de esa pantalla (rutas de /uploads, como photoUrl). La
+  // portada del boleto sigue siendo photoUrl: son cosas distintas y se cargan aparte.
+  eventImages Json?
+  // Cláusulas que el comprador tiene que aceptar antes de ver el precio y pagar.
+  eventTerms String?
+  // --- Financiamiento del evento ---
+  // Se define al crear el evento y se copia al plan de cuotas de cada venta. Vive acá y no en
+  // ShopInstallmentPlan porque eso es el plan YA pactado de una venta concreta: esto es la
+  // plantilla que el local ofrece.
+  eventFinancingEnabled Boolean @default(false)
+  // Inicial como PORCENTAJE del precio, no como monto: así sirve igual para una entrada de
+  // $250 que de $80, sin que el local recalcule nada al cambiar el precio.
+  eventDownPercent      Float?
+  eventInstallments     Int?
+  // SEMANAL | QUINCENAL | MENSUAL — mismas frecuencias que shop-installments.service.
+  eventFrequency        String?
 
   // --- Impresión de gran formato (rubro Agencia de Publicidad) ---
   // 'UNIT' (por defecto) = se vende por unidad, como cualquier producto.

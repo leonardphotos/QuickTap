@@ -71,6 +71,15 @@ export interface ShopProductSeed {
   eventDate?: string;
   eventTime?: string;
   eventSeats?: number;
+  eventDescription?: string;
+  /** Hasta 5 imágenes del carrusel de "Más información". La portada del boleto es photoUrl. */
+  eventImages?: string[];
+  eventTerms?: string;
+  eventFinancingEnabled?: boolean;
+  /** Inicial como % del precio, no como monto (ver ShopProduct.eventDownPercent). */
+  eventDownPercent?: number;
+  eventInstallments?: number;
+  eventFrequency?: string;
 }
 
 export interface ShopRubro {

@@ -135,6 +135,13 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
   const [npEventDate, setNpEventDate] = useState('');
   const [npEventTime, setNpEventTime] = useState('');
   const [npEventSeats, setNpEventSeats] = useState('');
+  const [npEventDescription, setNpEventDescription] = useState('');
+  const [npEventImages, setNpEventImages] = useState<string[]>([]);
+  const [npEventTerms, setNpEventTerms] = useState('');
+  const [npFinancing, setNpFinancing] = useState(false);
+  const [npDownPercent, setNpDownPercent] = useState('30');
+  const [npInstallments, setNpInstallments] = useState('4');
+  const [npFrequency, setNpFrequency] = useState('MENSUAL');
   const [npBrand, setNpBrand] = useState('');
   const [npSku, setNpSku] = useState('');
   const [npLocation, setNpLocation] = useState('');
@@ -422,6 +429,13 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
     setNpEventDate('');
     setNpEventTime('');
     setNpEventSeats('');
+    setNpEventDescription('');
+    setNpEventImages([]);
+    setNpEventTerms('');
+    setNpFinancing(false);
+    setNpDownPercent('30');
+    setNpInstallments('4');
+    setNpFrequency('MENSUAL');
     setNpVariants([]);
     setNpV1('');
     setNpV2('');
@@ -479,6 +493,13 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
     setNpEventDate(p.eventDate ?? '');
     setNpEventTime(p.eventTime ?? '');
     setNpEventSeats(p.eventSeats != null ? String(p.eventSeats) : '');
+    setNpEventDescription(p.eventDescription ?? '');
+    setNpEventImages(p.eventImages ?? []);
+    setNpEventTerms(p.eventTerms ?? '');
+    setNpFinancing(!!p.eventFinancingEnabled);
+    setNpDownPercent(p.eventDownPercent != null ? String(p.eventDownPercent) : '30');
+    setNpInstallments(p.eventInstallments != null ? String(p.eventInstallments) : '4');
+    setNpFrequency(p.eventFrequency ?? 'MENSUAL');
     setNpAreaRoll(p.pricingMode === 'AREA_ROLL');
     setNpRollWidths(p.rollWidths ? formatRollWidths(p.rollWidths) : '');
     setNpRollLength(p.rollLengthM != null ? String(p.rollLengthM) : '50');
@@ -594,6 +615,9 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
     // tampoco: no hay nada que contar.
     if (esEvento && !npEventDate) return setSaveError('Ponle fecha al evento.');
     if (esEvento && !npEventTime) return setSaveError('Ponle hora de inicio al evento.');
+    if (esEvento && npFinancing && (Number(npInstallments) || 0) < 2) {
+      return setSaveError('Un financiamiento necesita al menos 2 cuotas.');
+    }
     if (esEvento && (!npEventSeats || Number(npEventSeats) < 1)) {
       return setSaveError('Indica cuántos puestos tiene el evento.');
     }
@@ -649,6 +673,13 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
       eventDate: esEvento ? npEventDate : undefined,
       eventTime: esEvento ? npEventTime : undefined,
       eventSeats: esEvento ? Number(npEventSeats) || undefined : undefined,
+      eventDescription: esEvento ? npEventDescription.trim() || undefined : undefined,
+      eventImages: esEvento ? npEventImages : undefined,
+      eventTerms: esEvento ? npEventTerms.trim() || undefined : undefined,
+      eventFinancingEnabled: esEvento ? npFinancing : undefined,
+      eventDownPercent: esEvento && npFinancing ? Number(npDownPercent) || 0 : undefined,
+      eventInstallments: esEvento && npFinancing ? Number(npInstallments) || undefined : undefined,
+      eventFrequency: esEvento && npFinancing ? npFrequency : undefined,
       // Plan de consumo: solo tiene sentido con Kg/Mt, y con tarifa cargada.
       consumptionPlanEnabled: npSaleUnit !== 'UND' && npPlanEnabled && Number(npPlanRate) > 0,
       consumptionPlanRate: npSaleUnit !== 'UND' && npPlanEnabled && Number(npPlanRate) > 0 ? Number(npPlanRate) : undefined,
@@ -1750,6 +1781,116 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                     El cupo hace de stock: cada entrada vendida descuenta un puesto.
                   </span>
                 </label>
+
+                {/* Lo que ve el comprador al tocar "Más información" en la taquilla. */}
+                <label className="block text-sm sm:col-span-2">
+                  <span className="text-brand-950/70">Descripción del evento</span>
+                  <textarea
+                    value={npEventDescription}
+                    onChange={(e) => setNpEventDescription(e.target.value)}
+                    rows={4}
+                    placeholder="De qué se trata, qué incluye, cómo llegar, qué llevar…"
+                    className="mt-1 w-full resize-none rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+                  />
+                </label>
+
+                <div className="sm:col-span-2">
+                  <span className="text-sm text-brand-950/70">Galería del evento</span>
+                  <span className="mt-0.5 block text-[11px] font-light text-brand-950/45">
+                    Hasta 5 imágenes, en el carrusel de "Más información". Van aparte de la
+                    imagen del boleto.
+                  </span>
+                  <div className="mt-2 grid grid-cols-5 gap-2">
+                    {[0, 1, 2, 3, 4].map((i) => (
+                      <PhotoUploadField
+                        key={i}
+                        value={npEventImages[i] ?? null}
+                        onChange={(url) =>
+                          setNpEventImages((prev) => {
+                            const next = [...prev];
+                            // Se compacta al quitar una: sin esto quedarían huecos y la
+                            // siguiente foto entraría en la posición equivocada.
+                            if (url) next[i] = url;
+                            else next.splice(i, 1);
+                            return next.filter(Boolean).slice(0, 5);
+                          })
+                        }
+                        label=""
+                        uploadUrl="/shop/products/upload-photo"
+                        shape="square"
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <label className="block text-sm sm:col-span-2">
+                  <span className="text-brand-950/70">Cláusulas / términos</span>
+                  <textarea
+                    value={npEventTerms}
+                    onChange={(e) => setNpEventTerms(e.target.value)}
+                    rows={4}
+                    placeholder="Condiciones de la entrada: reembolsos, edad mínima, qué pasa si se suspende…"
+                    className="mt-1 w-full resize-none rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+                  />
+                  <span className="mt-1 block text-[11px] font-light text-brand-950/45">
+                    El comprador tiene que aceptarlas antes de ver el precio y pagar.
+                  </span>
+                </label>
+
+                {/* Financiamiento: la plantilla que se copia al plan de cuotas de cada venta. */}
+                <div className="rounded-xl border border-brand-950/[0.08] p-3 sm:col-span-2">
+                  <label className="flex cursor-pointer items-center gap-2 text-sm">
+                    <input type="checkbox" checked={npFinancing} onChange={(e) => setNpFinancing(e.target.checked)} />
+                    <span className="font-medium text-brand-950">Permitir pago financiado</span>
+                  </label>
+                  {npFinancing && (
+                    <>
+                      <div className="mt-3 grid grid-cols-3 gap-2">
+                        <label className="block text-sm">
+                          <span className="text-brand-950/70">Inicial (%)</span>
+                          <input
+                            type="number" min={0} max={99} value={npDownPercent}
+                            onChange={(e) => setNpDownPercent(e.target.value)}
+                            className="mt-1 w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                          />
+                        </label>
+                        <label className="block text-sm">
+                          <span className="text-brand-950/70">Cuotas</span>
+                          <input
+                            type="number" min={2} max={60} value={npInstallments}
+                            onChange={(e) => setNpInstallments(e.target.value)}
+                            className="mt-1 w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                          />
+                        </label>
+                        <label className="block text-sm">
+                          <span className="text-brand-950/70">Cada</span>
+                          <select
+                            value={npFrequency}
+                            onChange={(e) => setNpFrequency(e.target.value)}
+                            className="mt-1 w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                          >
+                            <option value="SEMANAL">Semana</option>
+                            <option value="QUINCENAL">15 días</option>
+                            <option value="MENSUAL">Mes</option>
+                          </select>
+                        </label>
+                      </div>
+                      {/* La cuenta hecha, con el precio que se está cargando: el local ve lo
+                          mismo que le va a aparecer al comprador. */}
+                      {(() => {
+                        const precio = Number(npPrice) || 0;
+                        const inicial = Math.round(precio * ((Number(npDownPercent) || 0) / 100) * 100) / 100;
+                        const n = Math.max(1, Number(npInstallments) || 1);
+                        const cuota = Math.round(((precio - inicial) / n) * 100) / 100;
+                        return precio > 0 ? (
+                          <p className="mt-2 text-[11.5px] font-light text-brand-950/55">
+                            Inicial de {money(inicial)} y {n} cuota{n === 1 ? '' : 's'} de {money(cuota)}.
+                          </p>
+                        ) : null;
+                      })()}
+                    </>
+                  )}
+                </div>
               </>
             )}
             <label className="block text-sm">
