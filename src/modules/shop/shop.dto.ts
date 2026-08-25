@@ -121,6 +121,9 @@ export const createShopSaleSchema = z.object({
   total: z.coerce.number(),
   customerName: z.string().nullable().optional(),
   customerPhone: z.string().nullable().optional(),
+  // Cédula del comprador. No se guarda en la venta: viaja hasta la ficha del cliente, que es
+  // donde el Wallet la busca para dejarlo entrar (teléfono + cédula).
+  customerIdNumber: z.string().max(30).nullable().optional(),
   // Obligatorio: toda venta dice con qué se cobró (etiqueta del método configurado en el
   // local). Las ventas fiadas también lo llevan — es el método con el que se abonó/abonará.
   paymentMethod: z.string().min(1, 'Escoge un método de pago.'),

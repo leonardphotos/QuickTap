@@ -52,6 +52,7 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
   const [mode, setMode] = useState<'PICKUP' | 'DELIVERY'>('PICKUP');
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [idNumber, setIdNumber] = useState('');
   const [address, setAddress] = useState('');
   const [note, setNote] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
@@ -68,6 +69,11 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
   // cómo se recibe — se queda en PICKUP (sin dirección, sin cargo de envío) sin mostrar la
   // elección.
   const allTickets = cart.length > 0 && cart.every((l) => l.product.isEvent);
+  // La cédula se pide solo cuando la compra va a existir en el QuickTap Wallet — una entrada
+  // de evento o una compra financiada. Es, junto al teléfono, la clave con la que el
+  // comprador entra a ver su entrada y sus cuotas; sin ella el boleto se emite y no lo
+  // alcanza nadie. En una tienda que vende de contado no se pide: sería un campo de más.
+  const pideCedula = cart.some((l) => l.product.isEvent) || !!financiado;
 
   const enabledMethods = Object.entries(shop.paymentMethodsConfig ?? {})
     .filter(([, cfg]) => cfg?.enabled)
@@ -98,6 +104,9 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
     setFormError(null);
     if (!name.trim()) return setFormError('Escribe tu nombre.');
     if (phone.trim().length < 7) return setFormError('Escribe un teléfono válido.');
+    if (pideCedula && idNumber.replace(/\D/g, '').length < 5) {
+      return setFormError('Escribe tu cédula: es tu clave para entrar al Wallet.');
+    }
     if (mode === 'DELIVERY' && !address.trim()) return setFormError('Escribe la dirección de entrega.');
 
     setSubmitting(true);
@@ -114,6 +123,7 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
         customer: {
           name: name.trim(),
           phone: phone.trim(),
+          ...(pideCedula ? { idNumber: idNumber.trim() } : {}),
           ...(mode === 'DELIVERY' ? { address: address.trim() } : {}),
           ...(paymentMethod ? { paymentMethod } : {}),
           ...(note.trim() ? { note: note.trim() } : {}),
@@ -280,6 +290,20 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
             placeholder="04141234567"
           />
         </Field>
+        {pideCedula && (
+          <Field label="Cédula *">
+            <input
+              value={idNumber}
+              onChange={(e) => setIdNumber(e.target.value)}
+              className={INPUT}
+              placeholder="12345678"
+              inputMode="numeric"
+            />
+            <p className="mt-1 text-[11px] leading-tight text-brand-950/50">
+              Con tu cédula y tu teléfono entras a tu QuickTap Wallet a ver la entrada.
+            </p>
+          </Field>
+        )}
         {mode === 'DELIVERY' && (
           <Field label="Dirección de entrega *">
             <textarea

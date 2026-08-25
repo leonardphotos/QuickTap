@@ -3993,6 +3993,10 @@ model ShopOrder {
 
   customerName    String
   customerPhone   String
+  // Cédula del comprador. Obligatoria solo cuando la compra va a existir en el Wallet
+  // (entradas de un evento o compra financiada): es, junto al teléfono, la clave con la que
+  // el comprador entra al portal a ver su entrada y sus cuotas. Ver shop-storefront.service.
+  customerIdNumber String?
   // Solo en DELIVERY. Incluye el enlace de mapa cuando el cliente compartió su ubicación,
   // mismo criterio que Order.customerAddress del vertical restaurante.
   customerAddress String?

@@ -17,6 +17,7 @@ export interface ShopOrder {
   status: 'PENDING' | 'CONFIRMED' | 'CANCELLED';
   customerName: string;
   customerPhone: string;
+  customerIdNumber?: string | null;
   customerAddress: string | null;
   note: string | null;
   paymentMethod: string | null;
@@ -353,6 +354,7 @@ function OrderCard({
       <div className="mt-3 space-y-0.5 border-t border-brand-950/[0.06] pt-3 text-xs text-brand-950/60">
         <p>
           <span className="text-brand-950/40">Cliente:</span> {order.customerName} · {order.customerPhone}
+          {order.customerIdNumber ? ` · C.I. ${order.customerIdNumber}` : ''}
         </p>
         {order.customerAddress && (
           <p>

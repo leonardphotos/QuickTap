@@ -3,6 +3,7 @@ import { badRequest, HttpError, notFound } from '../../utils/http-error';
 import { CURRENCY_SYMBOLS } from '../../utils/money';
 import { isLockedAsync } from '../../utils/subscription';
 import { getRestaurantOpenStatus } from '../../utils/business-hours';
+import { customerService } from '../customers/customer.service';
 import { exchangeRateService } from '../exchange-rate/exchange-rate.service';
 import type { ShopCheckoutInput } from './shop-storefront.dto';
 
@@ -248,6 +249,7 @@ async function checkout(slug: string, input: ShopCheckoutInput) {
       price: true,
       promoPrice: true,
       cost: true,
+      isEvent: true,
       variants: { select: { v1: true, v2: true, stock: true, soldByWeight: true } },
       _count: { select: { serviceSupplies: true } },
     },
@@ -281,6 +283,16 @@ async function checkout(slug: string, input: ShopCheckoutInput) {
     };
   });
 
+  // La cédula se exige solo cuando la compra va a existir en el Wallet: una entrada de evento
+  // o una compra financiada. Sin ella el comprador no puede entrar al portal (se entra con
+  // teléfono + cédula), así que su boleto y sus cuotas quedarían emitidos pero inalcanzables.
+  // Una compra de contado en una tienda normal no la pide: sería fricción sin nada detrás.
+  const llevaEntradas = lines.some((l) => byId.get(l.productId)?.isEvent);
+  const cedula = input.customer.idNumber?.trim() || null;
+  if ((llevaEntradas || input.financed) && (!cedula || cedula.replace(/\D/g, '').length < 5)) {
+    throw badRequest('Hace falta tu cédula: es la clave con la que entras a tu QuickTap Wallet a ver la entrada.');
+  }
+
   const subtotal = round2(lines.reduce((acc, l) => acc + l.price * l.qty, 0));
   // Tarifa plana que fija el local en Ajustes. No hay zonas ni cálculo por distancia acá: un
   // local comercial despacha con su propio motorizado, no con el mapa de reparto del restaurante.
@@ -310,6 +322,7 @@ async function checkout(slug: string, input: ShopCheckoutInput) {
         status: 'PENDING',
         customerName: input.customer.name.trim(),
         customerPhone: input.customer.phone.trim(),
+        customerIdNumber: cedula,
         customerAddress: input.mode === 'DELIVERY' ? address : null,
         note: input.customer.note?.trim() || null,
         paymentMethod: input.customer.paymentMethod ?? null,
@@ -323,6 +336,19 @@ async function checkout(slug: string, input: ShopCheckoutInput) {
       include: { items: true },
     });
   });
+
+  // El comprador queda registrado ya, no al confirmar: el tutorial le dice que entre a su
+  // Wallet apenas paga, y el portal lo busca por teléfono + cédula. Si esperáramos a que el
+  // local apruebe, entraría a una puerta que todavía no existe.
+  if (cedula) {
+    await customerService
+      .upsertFromOrder(storefront.id, {
+        name: input.customer.name.trim(),
+        phone: input.customer.phone.trim(),
+        idNumber: cedula,
+      })
+      .catch(() => undefined);
+  }
 
   return order;
 }

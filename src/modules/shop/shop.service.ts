@@ -667,6 +667,7 @@ export const shopService = {
     await customerService.upsertFromOrder(restaurantId, {
       name: input.customerName,
       phone: input.customerPhone,
+      idNumber: input.customerIdNumber,
     });
     // Comisión de cada profesional que aparece en el ticket, congelada al momento de vender:
     // si mañana le cambian el %, lo ya liquidado no se mueve.

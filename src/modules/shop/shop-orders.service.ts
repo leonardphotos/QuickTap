@@ -67,6 +67,7 @@ async function confirm(restaurantId: string, userId: string, orderId: string, pa
     total: order.total,
     customerName: order.customerName,
     customerPhone: order.customerPhone,
+    customerIdNumber: order.customerIdNumber,
     // Deja el pedido marcado en las entradas que se emitan: confirmar es el momento en que el
     // local da el pago por bueno, y es cuando el asistente recibe su boleto.
     shopOrderId: order.id,

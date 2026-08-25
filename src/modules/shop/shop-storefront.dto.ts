@@ -24,6 +24,9 @@ export const shopCheckoutSchema = z.object({
   customer: z.object({
     name: z.string().min(1, 'Escribe tu nombre.').max(120),
     phone: z.string().min(7, 'Escribe un teléfono válido.').max(30),
+    // Obligatoria solo cuando la compra va a existir en el Wallet — eso lo decide el
+    // servicio, que es quien sabe si el carrito lleva entradas o si la compra es financiada.
+    idNumber: z.string().max(30).optional(),
     address: z.string().max(300).optional(),
     locationUrl: z.string().url().max(300).optional(),
     // Solo informativo: es lo que el cliente dice que va a usar. El cobro se cierra por
