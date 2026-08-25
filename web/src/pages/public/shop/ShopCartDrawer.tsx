@@ -238,10 +238,12 @@ export function ShopCartDrawer({ shop, cart, onClose, onChangeCart, financiado }
             <a href="/wallet" target="_blank" rel="noreferrer" className="block">
               <button
                 type="button"
-                className="wallet-tap flex w-full items-center justify-center gap-2.5 rounded-full bg-brand-950 py-2.5"
+                className="wallet-tap flex w-full items-center justify-center gap-1.5 rounded-full bg-brand-950 py-2.5"
               >
                 <span className="text-sm font-semibold text-white">Ir a</span>
-                <img src="/logo/wallet.png" alt="QuickTap Wallet" className="h-4 w-auto" />
+                {/* El arte del wordmark carga el peso visual abajo (las ondas suben), así que
+                    centrado "de verdad" se ve hundido junto al texto: se sube un pelo a ojo. */}
+                <img src="/logo/wallet.png" alt="QuickTap Wallet" className="h-4 w-auto -translate-y-[1.5px]" />
               </button>
             </a>
           </div>
