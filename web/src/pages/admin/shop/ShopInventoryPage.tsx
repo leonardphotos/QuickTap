@@ -1,6 +1,6 @@
 import { Fragment, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
-import { PackagePlus, ChevronDown, ClipboardList, FileSpreadsheet, FlaskConical, FolderPlus, Package, Pencil, Plus, ScanLine, Search, Sparkles, Store, Tags, Trash2, TrendingUp, Truck, X } from 'lucide-react';
+import { PackagePlus, ChevronDown, ClipboardList, Eye, EyeOff, FileSpreadsheet, FlaskConical, FolderPlus, Package, Pencil, Plus, ScanLine, Search, Sparkles, Store, Tags, Trash2, TrendingUp, Truck, X } from 'lucide-react';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { ShopPriceLabelsDialog } from './ShopPriceLabelsDialog';
 import { ShopImportProductsDialog } from './ShopImportProductsDialog';
@@ -38,7 +38,7 @@ const STATUS_CLASS: Record<string, string> = {
 
 export default function ShopInventoryPage({ session, rubro, restaurant, modo }: Props) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
-  const { products, sales, purchases, adjustments, registerPurchase, adjustStock, addProduct, updateProduct, deleteProduct, categories, addCategory, subcategories, serviceSupplies, setServiceSupplies } = session;
+  const { products, sales, purchases, adjustments, registerPurchase, adjustStock, addProduct, updateProduct, deleteProduct, categories, addCategory, subcategories, serviceSupplies, setServiceSupplies, setProductsPublished } = session;
   const { user } = useAuth();
   // Depurar el catálogo es de administración: el cajero cobra, no borra productos.
   const canDeleteProducts = user?.role === 'OWNER' || user?.role === 'ADMIN';
@@ -644,6 +644,8 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
       rollLengthM: npAreaRoll ? Number(npRollLength.replace(',', '.')) || 50 : undefined,
       saleUnit: usaUnidades ? npSaleUnit : undefined,
       isEvent: esEvento,
+      // Un evento se crea para venderse: nace visible en la taquilla.
+      isPublished: esEvento ? true : undefined,
       eventDate: esEvento ? npEventDate : undefined,
       eventTime: esEvento ? npEventTime : undefined,
       eventSeats: esEvento ? Number(npEventSeats) || undefined : undefined,
@@ -901,6 +903,17 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
                         <td className="py-3">
                           <div className="flex items-center gap-2">
                             <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${STATUS_CLASS[status]}`}>{STATUS_LABEL[status]}</span>
+                            {/* Publicar/ocultar de la tienda pública, uno por uno. Antes esto
+                                solo existía como un interruptor global en Ajustes, así que
+                                bajar un evento agotado obligaba a esconder el catálogo entero. */}
+                            <button
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setProductsPublished([p.id], !p.isPublished); }}
+                              title={p.isPublished ? 'Visible en tu tienda — toca para ocultarlo' : 'Oculto — toca para publicarlo'}
+                              className={p.isPublished ? 'text-emerald-500 hover:text-emerald-600' : 'text-brand-950/25 hover:text-brand-500'}
+                            >
+                              {p.isPublished ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                            </button>
                             <button
                               type="button"
                               onClick={(e) => { e.stopPropagation(); openLotDialog(p); }}
