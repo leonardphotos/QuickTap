@@ -335,8 +335,8 @@ export default function WalletDashboardPage() {
         <div className="shrink-0 px-5 pb-5 pt-6">
           <div className="flex items-center justify-between">
             <span className="flex flex-col items-start">
-              <img src={WALLET_WORDMARK_URL} alt={WALLET_NAME} className="h-6 w-auto" />
-              <span className="mt-0.5 text-[9px] font-light tracking-wide text-white/35">by QuickTap</span>
+              <img src={WALLET_WORDMARK_URL} alt={WALLET_NAME} className="h-8 w-auto" />
+              <span className="mt-0.5 text-[7.5px] font-light tracking-wide text-white/35">by QuickTap</span>
             </span>
             <div className="flex items-center gap-2">
               {seccion === 'tiendas' && (

@@ -865,6 +865,42 @@ export default function LandingPage() {
           )}
         </AnimatePresence>
 
+        {/* Banner de Wallet: entre el hero y las funciones, en la línea gráfica del propio
+            Wallet (negro con el resplandor azul) — un corte deliberado con el resto de la
+            landing, para que se lea como un producto aparte y no una sección más. */}
+        <section className="relative overflow-hidden bg-[#04070d] px-6 py-14 sm:py-16">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                'radial-gradient(90% 130% at 85% 0%, rgba(170,212,255,0.35) 0%, rgba(58,136,245,0.25) 22%, rgba(20,74,185,0.14) 42%, rgba(4,7,13,0) 68%)',
+            }}
+          />
+          <Reveal className="relative z-10 mx-auto flex max-w-4xl flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <span className="flex flex-col items-start">
+                <img src="/logo/wallet.png" alt="QuickTap Wallet" className="h-8 w-auto" />
+                <span className="mt-1 text-[8px] font-light tracking-wide text-white/40">by QuickTap</span>
+              </span>
+              <h2 className="mt-4 text-2xl font-bold text-white sm:text-3xl">
+                Lo que debes, tus cuotas y tus entradas — <span className="text-[#3d9bff]">en tu bolsillo.</span>
+              </h2>
+              <p className="mt-2 max-w-md text-sm font-light text-white/55">
+                El portal del cliente: saldo al día, abonos con comprobante, entradas con QR y
+                recordatorios antes de cada cuota.
+              </p>
+            </div>
+            <Link
+              to="/wallet/conoce"
+              className="inline-flex shrink-0 items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-white shadow-[0_8px_24px_-10px_rgba(0,154,255,0.8)] transition-transform duration-200 active:scale-[0.97]"
+              style={{ background: 'linear-gradient(135deg, #009aff 0%, #056CF2 100%)' }}
+            >
+              Conoce Wallet <ArrowUpRight className="h-4 w-4" />
+            </Link>
+          </Reveal>
+        </section>
+
         {/* Hero secundario: presentación general (antes en /soluciones) */}
         <section id="funciones" className="relative bg-white min-h-screen flex items-center px-4 pt-24 pb-12">
           <Reveal className="relative z-10 max-w-3xl mx-auto text-center">
