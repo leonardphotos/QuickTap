@@ -11,7 +11,10 @@ const buttonVariantsOuter = cva(
       variant: {
         primary: 'w-full shadow-[0_16px_32px_-8px_rgba(0,0,0,0.35)]',
         accent: 'w-full shadow-[0_16px_32px_-8px_rgba(99,102,241,0.4)]',
-        brand: 'w-full shadow-[0_16px_32px_-8px_rgba(0,154,255,0.4)]',
+        // El resplandor sale del MISMO token que pinta el botón: en el panel es el azul de
+        // siempre, y en una tienda con tema propio (la tickera roja, por ejemplo) brilla del
+        // color de su botón. Fijarlo en azul hacía brillar azul un botón rojo.
+        brand: 'w-full shadow-[0_16px_32px_-8px_color-mix(in_srgb,var(--color-brand-500)_40%,transparent)]',
         destructive: 'w-full shadow-[0_16px_32px_-8px_rgba(239,68,68,0.4)]',
         success: 'w-full shadow-[0_16px_32px_-8px_rgba(16,185,129,0.4)]',
         secondary: 'w-full border border-brand-950/10 shadow-[0_16px_32px_-8px_rgba(0,0,0,0.12)]',
