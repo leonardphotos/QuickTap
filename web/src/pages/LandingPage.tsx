@@ -916,11 +916,11 @@ export default function LandingPage() {
           {/* Como la referencia: el teléfono arranca justo después del texto (no pegado al
               borde derecho — queda aire oscuro después de él), con su tope asomando arriba y
               el resto sangrando por debajo del banner. */}
-          <div className="pointer-events-none absolute left-[38%] top-16 z-10 hidden lg:block">
+          <div className="pointer-events-none absolute left-[37%] -top-6 z-10 hidden lg:block">
             <img
               src="/images/wallet-mockup.png"
               alt="QuickTap Wallet en un teléfono, con el saldo y el historial de compras"
-              className="w-[1000px] max-w-none drop-shadow-[0_50px_100px_rgba(0,0,0,0.55)]"
+              className="w-[1150px] max-w-none drop-shadow-[0_50px_100px_rgba(0,0,0,0.55)]"
             />
           </div>
         </section>

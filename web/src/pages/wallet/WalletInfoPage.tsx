@@ -124,9 +124,9 @@ export default function WalletInfoPage() {
               el overflow-hidden del contenedor raíz recorta lo que sobre. */}
           <div className="relative hidden h-[460px] w-[430px] lg:block">
             <img
-              src="/images/wallet-mockup.png"
+              src="/images/wallet-conoce.png"
               alt="QuickTap Wallet en un teléfono, con el saldo y el historial de compras"
-              className="absolute -right-56 top-1/2 w-[880px] max-w-none -translate-y-1/2 drop-shadow-[0_40px_80px_rgba(0,0,0,0.5)]"
+              className="absolute -right-40 top-1/2 w-[680px] max-w-none -translate-y-1/2 drop-shadow-[0_40px_80px_rgba(0,0,0,0.5)]"
             />
           </div>
         </div>
