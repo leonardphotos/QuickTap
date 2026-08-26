@@ -38,6 +38,9 @@ interface Tutorial {
   pasos: string[];
   ejemplo: string;
   nota?: string;
+  /** Captura real del panel (restaurante demo), en /public/tutoriales. Se toma del demo a
+   *  propósito: datos de mentira, cero información de un negocio real. */
+  imagen?: string;
 }
 
 const CATEGORIAS = ['Primeros pasos', 'Tu carta', 'Inventario y costos', 'Ventas y caja', 'Administración'] as const;
@@ -45,6 +48,7 @@ const CATEGORIAS = ['Primeros pasos', 'Tu carta', 'Inventario y costos', 'Ventas
 const TUTORIALES: Tutorial[] = [
   {
     id: 'configuracion',
+    imagen: '/tutoriales/ajustes.png',
     categoria: 'Primeros pasos',
     icono: Settings,
     titulo: 'Configura tu restaurante',
@@ -60,6 +64,7 @@ const TUTORIALES: Tutorial[] = [
   },
   {
     id: 'mesas-qr',
+    imagen: '/tutoriales/mesas-qr.png',
     categoria: 'Primeros pasos',
     icono: QrCode,
     titulo: 'Crea tus mesas y sus QR',
@@ -75,6 +80,7 @@ const TUTORIALES: Tutorial[] = [
   },
   {
     id: 'producto',
+    imagen: '/tutoriales/producto-nuevo.png',
     categoria: 'Tu carta',
     icono: UtensilsCrossed,
     titulo: 'Carga tu primer producto',
@@ -105,6 +111,7 @@ const TUTORIALES: Tutorial[] = [
   },
   {
     id: 'estrellas',
+    imagen: '/tutoriales/productos.png',
     categoria: 'Tu carta',
     icono: Star,
     titulo: 'Destaca tus estrellas y promos',
@@ -119,6 +126,7 @@ const TUTORIALES: Tutorial[] = [
   },
   {
     id: 'insumos',
+    imagen: '/tutoriales/inventario.png',
     categoria: 'Inventario y costos',
     icono: Boxes,
     titulo: 'Carga tus insumos',
@@ -179,6 +187,7 @@ const TUTORIALES: Tutorial[] = [
   },
   {
     id: 'estructura-costo',
+    imagen: '/tutoriales/administracion.png',
     categoria: 'Inventario y costos',
     icono: PieChart,
     titulo: 'Calcula tu estructura de costo',
@@ -195,6 +204,7 @@ const TUTORIALES: Tutorial[] = [
   },
   {
     id: 'cobrar',
+    imagen: '/tutoriales/comandas.png',
     categoria: 'Ventas y caja',
     icono: CreditCard,
     titulo: 'Cobra una comanda',
@@ -240,6 +250,7 @@ const TUTORIALES: Tutorial[] = [
   },
   {
     id: 'administracion',
+    imagen: '/tutoriales/administracion.png',
     categoria: 'Administración',
     icono: PieChart,
     titulo: 'Lee tu Resumen y Estadísticas',
@@ -355,6 +366,14 @@ export default function TutorialsPage() {
               >
                 <div className="min-h-0 overflow-hidden">
                   <div className="border-t border-brand-950/[0.06] px-5 pb-5 pt-4">
+                    {t.imagen && (
+                      <img
+                        src={t.imagen}
+                        alt={`Pantalla de ${t.titulo} en el panel de QuickTap`}
+                        loading="lazy"
+                        className="mb-4 w-full rounded-xl border border-brand-950/10 shadow-sm"
+                      />
+                    )}
                     <ol className="space-y-2.5">
                       {t.pasos.map((p, i) => (
                         <li key={i} className="flex gap-3">
