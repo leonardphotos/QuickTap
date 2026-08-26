@@ -39,6 +39,8 @@ import masterRestaurantsRoutes from '../modules/master/master-restaurants.routes
 import masterAdminsRoutes from '../modules/master/master-admins.routes';
 import masterOlaclickImportRoutes from '../modules/master/master-olaclick-import.routes';
 import masterWhatsappRoutes from '../modules/master-whatsapp/master-whatsapp.routes';
+import whatsappLinkRoutes from '../modules/whatsapp-link/whatsapp-link.routes';
+import { masterWhatsappLinkRouter, waWebhookRouter } from '../modules/whatsapp-link/whatsapp-link.master-routes';
 import masterAnnouncementRoutes from '../modules/platform-announcements/platform-announcement.routes';
 import inventoryRoutes from '../modules/inventory/inventory.routes';
 import movementRoutes from '../modules/movements/movement.routes';
@@ -208,6 +210,10 @@ router.use('/master/admins', masterAdminsRoutes);
 // Migración interna OlaClick → QuickTap (ver src/modules/master/master-olaclick-import.*).
 router.use('/master/olaclick-import', masterOlaclickImportRoutes);
 router.use('/master/whatsapp', masterWhatsappRoutes);
+// WhatsApp vinculado (Evolution): la instancia de cada negocio y la de la plataforma.
+router.use('/whatsapp-link', whatsappLinkRoutes);
+router.use('/master/whatsapp-link', masterWhatsappLinkRouter);
+router.use('/public/wa-webhook', waWebhookRouter);
 router.use('/master/announcements', masterAnnouncementRoutes);
 
 export default router;

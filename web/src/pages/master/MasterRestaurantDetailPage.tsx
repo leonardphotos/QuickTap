@@ -369,6 +369,25 @@ export default function MasterRestaurantDetailPage() {
    * la conexión pero nunca acusa recibo de los mensajes (ver el diagnóstico del 20/08). Cobrar
    * no puede quedar detenido esperando la migración a la API oficial.
    */
+  /** Envía el cobro por el WhatsApp VINCULADO de la plataforma (Evolution). Cae con mensaje
+   * claro si la instancia no está vinculada o está pausada — el botón de copiar sigue al lado
+   * como siempre, así cobrar nunca depende de que esto funcione. */
+  async function sendBillingReminder() {
+    setSendingBilling(true);
+    setBillingMessage(null);
+    try {
+      const res = await masterApi.post(`/master/restaurants/${id}/subscription-reminder`);
+      const { sent, phone, reason } = res.data.data as { sent: boolean; phone: string; reason?: string };
+      if (sent) setBillingMessage(`Cobro enviado por WhatsApp a +${phone}.`);
+      else if (reason === 'NOT_ON_WHATSAPP') setBillingMessage(`Ese número no está en WhatsApp (+${phone}).`);
+      else setBillingMessage('No salió: vincula el WhatsApp de la plataforma (tarjeta de abajo) o usa "Copiar mensaje".');
+    } catch (e: any) {
+      setBillingMessage(e.response?.data?.error ?? 'No se pudo enviar.');
+    } finally {
+      setSendingBilling(false);
+    }
+  }
+
   async function copyBillingReminder() {
     setSendingBilling(true);
     setBillingMessage(null);
@@ -802,6 +821,15 @@ export default function MasterRestaurantDetailPage() {
               onClick={copyBillingReminder}
             >
               {sendingBilling ? 'Armando…' : 'Copiar mensaje'}
+            </TextureButton>
+            <TextureButton
+              variant="brand"
+              size="default"
+              disabled={sendingBilling || billingPhoneDirty || (!detail.billingPhone && !detail.whatsappPhone)}
+              className="!w-auto disabled:opacity-50"
+              onClick={sendBillingReminder}
+            >
+              Enviar por WhatsApp
             </TextureButton>
           </div>
           {billingPhoneDirty && (

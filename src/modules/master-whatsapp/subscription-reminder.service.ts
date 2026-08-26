@@ -1,4 +1,5 @@
 import { BillingCycle, SubscriptionPlan } from '@prisma/client';
+import { whatsappLinkService } from '../whatsapp-link/whatsapp-link.service';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { formatVenezuelanWhatsappPhone } from '../../utils/whatsapp';
@@ -175,7 +176,14 @@ async function sendReminderFor(
     pagoMovil: pagoMovil ?? null,
   });
 
-  const sent = await masterWhatsappBotService.sendMessage(phone, message);
+  // Primero la instancia de Evolution de la PLATAFORMA (número vinculado desde el master,
+  // con techo de envíos y auto-pausa si WhatsApp deja de confirmar entregas — el detector
+  // que faltaba en agosto); si no está vinculada, el bot viejo (hoy apagado por
+  // CHATBOTS_ENABLED) como siempre. El barrido automático sigue apagado a propósito: el
+  // número nuevo se calienta primero con los envíos manuales del botón "Enviar cobro".
+  const sent =
+    (await whatsappLinkService.enviar(null, phone, message)) ||
+    (await masterWhatsappBotService.sendMessage(phone, message));
 
   // La verificación se abre aunque el envío falle (bot desconectado): dejar la fila lista evita
   // que un comprobante que igual llegue por otra vía se pierda.

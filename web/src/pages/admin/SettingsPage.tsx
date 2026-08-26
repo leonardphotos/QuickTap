@@ -29,6 +29,7 @@ import { ClubLinkSection } from '@/components/admin/ClubLinkSection';
 import { WhatsappMessageSection } from '@/components/admin/WhatsappMessageSection';
 import { CHATBOTS_ENABLED } from '@/config/features';
 import { WhatsappBotSection } from '@/components/admin/WhatsappBotSection';
+import { WhatsappLinkSection } from '@/components/admin/WhatsappLinkSection';
 import { CheckoutSettingsSection } from '@/components/admin/CheckoutSettingsSection';
 import { ScheduleSection } from '@/components/admin/ScheduleSection';
 import { FullscreenImageSection } from '@/components/admin/FullscreenImageSection';
@@ -197,6 +198,10 @@ export default function SettingsPage() {
       <SettingsCategory id="whatsapp" title="WhatsApp" icon={<MessageCircle className="h-4 w-4" />} open={openCategory === 'whatsapp'} onToggle={toggleCategory}>
         <WhatsappMessageSection />
         {CHATBOTS_ENABLED && <WhatsappBotSection />}
+        {/* WhatsApp vinculado por Evolution (independiente de los chatbots viejos): cada
+            negocio con plan Elite conecta SU número. El backend responde 403 en planes
+            menores y la tarjeta se esconde sola si Evolution no está configurada. */}
+        <WhatsappLinkSection />
       </SettingsCategory>
 
       <SettingsCategory id="pagos" title="Pagos y moneda" icon={<Wallet className="h-4 w-4" />} open={openCategory === 'pagos'} onToggle={toggleCategory}>

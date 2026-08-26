@@ -785,6 +785,7 @@ model Restaurant {
   clubLoyaltyEntries     ClubLoyaltyEntry[]
   clubPlayInvites        ClubPlayInvite[]
   deviceTokens           DeviceToken[]
+  waInstance             WaInstance?
 
   @@index([parentRestaurantId])
   @@map("restaurants")
@@ -3974,6 +3975,42 @@ model WalletAccount {
 // Teléfonos (Android) registrados para recibir push del Wallet — separado de DeviceToken, que
 // es del STAFF de un negocio (cuelga de restaurantId+userId). Acá el dueño del aparato es un
 // cliente final, identificado por su teléfono canónico, igual que WalletAccount.
+// Instancia de WhatsApp vinculada vía Evolution API (self-hosted, ver src/utils/evolution.ts).
+// Una por negocio — CADA LOCAL VINCULA SU PROPIO NÚMERO, que es la diferencia de fondo con el
+// intento de 2026-08 (un solo número de plataforma mandando cobranzas, y baneado por eso).
+// restaurantId null = la instancia de la PLATAFORMA (cobranzas del master).
+model WaInstance {
+  id           String  @id @default(cuid())
+  restaurantId String? @unique
+
+  // Nombre de la instancia en Evolution (opaco, generado acá). Es la llave con la que se le
+  // habla a Evolution; no se expone al cliente.
+  instanceName String @unique
+
+  // CONNECTED | CONNECTING | DISCONNECTED — espejo del connectionState de Evolution,
+  // refrescado por webhook. Se guarda para no preguntarle a Evolution en cada envío.
+  status String @default("DISCONNECTED")
+  // Número que quedó vinculado (informativo, para mostrar en Ajustes).
+  phone  String?
+
+  // Freno de mano. `paused` manual (el equipo lo apaga); `autoPaused` lo pone el detector de
+  // entregas: si varios envíos seguidos quedan sin ACK, el número probablemente está
+  // restringido y seguir enviando solo empeora el caso — que fue EXACTAMENTE el modo de
+  // fallo de agosto: sendMessage resolvía y nada llegaba.
+  paused      Boolean @default(false)
+  autoPaused  Boolean @default(false)
+  pendingAcks Int     @default(0)
+  lastAckAt   DateTime?
+  lastSentAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@map("wa_instances")
+}
+
 model WalletDeviceToken {
   id        String   @id @default(cuid())
   phone     String

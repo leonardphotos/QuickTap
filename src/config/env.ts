@@ -86,6 +86,17 @@ export const env = {
     enviatusmsApiKey: process.env.ENVIATUSMS_API_KEY,
   },
 
+  // --- Evolution API (WhatsApp por negocio, self-hosted en este mismo VPS) ---
+  // Sin URL/key configuradas, todo el módulo whatsapp-link responde "no disponible" con un
+  // error claro en vez de tumbar nada — mismo criterio que mail y Ramblay.
+  evolution: {
+    baseUrl: process.env.EVOLUTION_BASE_URL, // ej. http://127.0.0.1:8085
+    apiKey: process.env.EVOLUTION_API_KEY,
+    // Secreto que Evolution incluye en la URL del webhook hacia nosotros: es lo único que
+    // distingue un evento real de un POST inventado contra un endpoint público.
+    webhookSecret: process.env.EVOLUTION_WEBHOOK_SECRET,
+  },
+
   // --- Pasarela de pago Ramblay (C2P / Binance Pay) ---
   // Sin API key configurada, ramblayClient.createPayment() falla con un error
   // claro en vez de tumbar el arranque del servidor (igual que mail.resendApiKey).

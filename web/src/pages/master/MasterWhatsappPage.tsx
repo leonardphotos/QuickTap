@@ -3,6 +3,7 @@ import { MessageCircle } from 'lucide-react';
 import { masterApi } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 import { AnnouncementsSection } from '@/components/master/AnnouncementsSection';
+import { WhatsappLinkSection } from '@/components/admin/WhatsappLinkSection';
 
 type BotStatus = 'idle' | 'connecting' | 'qr' | 'connected' | 'disconnected';
 
@@ -190,6 +191,11 @@ export default function MasterWhatsappPage() {
           del vencimiento, con los datos de pago y el comprobante que sube el dueño.
         </p>
       </div>
+
+      {/* La vía NUEVA de cobranza: la instancia de Evolution de la plataforma. El botón
+          "Enviar por WhatsApp" de cada restaurante sale por acá; con el número sin vincular
+          o auto-pausado, ese botón lo dice y el cobro sigue saliendo con "Copiar mensaje". */}
+      <WhatsappLinkSection base="/master/whatsapp-link" titulo="WhatsApp de cobranzas (vinculado)" cliente={masterApi} />
 
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-4">
         {error && <p className="text-sm text-red-600">{error}</p>}
