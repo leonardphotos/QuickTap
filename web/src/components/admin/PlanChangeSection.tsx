@@ -20,6 +20,9 @@ interface Superior {
   beneficios: string[];
   mensualUsd: number;
   pagoHoyUsd: number | null;
+  /** La diferencia completa, cuando pagoHoyUsd es una oferta — se muestra tachada. */
+  pagoNormalUsd: number | null;
+  esOferta: boolean;
 }
 
 interface Inferior {
@@ -185,7 +188,19 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
           {datos.superiores.map((sPlan) => {
             const abiertoAqui = abierto === sPlan.plan;
             return (
-              <div key={sPlan.plan} className="rounded-xl border border-brand-950/10 p-4">
+              <div
+                key={sPlan.plan}
+                className={
+                  sPlan.esOferta
+                    ? 'relative rounded-xl border-2 border-brand-500 bg-gradient-to-br from-brand-500/[0.07] to-transparent p-4 shadow-[0_12px_32px_-16px_rgba(0,154,255,0.5)]'
+                    : 'rounded-xl border border-brand-950/10 p-4'
+                }
+              >
+                {sPlan.esOferta && (
+                  <span className="absolute -top-2.5 left-4 rounded-full bg-brand-500 px-3 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                    ✦ Oferta para tu cuenta
+                  </span>
+                )}
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <p className="text-[14px] font-bold text-brand-950">{sPlan.nombre}</p>
@@ -200,18 +215,30 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
                 {!abiertoAqui && (
                   <div className="mt-3">
                     {sPlan.pagoHoyUsd != null ? (
-                      <TextureButton
-                        variant="brand"
-                        size="default"
-                        className="!w-auto px-5"
-                        onClick={() => {
-                          setAbierto(sPlan.plan);
-                          setListo(false);
-                          setError(null);
-                        }}
-                      >
-                        Cambiar a este plan — paga solo ${sPlan.pagoHoyUsd.toFixed(2)}
-                      </TextureButton>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <TextureButton
+                          variant="brand"
+                          size="default"
+                          className="!w-auto px-5"
+                          onClick={() => {
+                            setAbierto(sPlan.plan);
+                            setListo(false);
+                            setError(null);
+                          }}
+                        >
+                          {sPlan.esOferta
+                            ? `Pásate a ${sPlan.nombre} por $${sPlan.pagoHoyUsd.toFixed(2)}`
+                            : `Cambiar a este plan — paga solo $${sPlan.pagoHoyUsd.toFixed(2)}`}
+                        </TextureButton>
+                        {sPlan.esOferta && sPlan.pagoNormalUsd != null && (
+                          <span className="text-[12.5px] font-medium text-brand-950/45">
+                            <span className="line-through">${sPlan.pagoNormalUsd.toFixed(2)}</span>{' '}
+                            <span className="font-bold text-brand-600">
+                              ahorras ${(sPlan.pagoNormalUsd - sPlan.pagoHoyUsd).toFixed(2)}
+                            </span>
+                          </span>
+                        )}
+                      </div>
                     ) : (
                       // Sin suscripción activa no hay nada que prorratear: la mejora con
                       // descuento es para quien YA pagó un período — el resto renueva normal.
@@ -247,9 +274,15 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
                         <div className="mt-4 rounded-xl bg-brand-500/[0.06] px-4 py-3">
                           <p className="text-[13px] font-semibold text-brand-950">
                             Hoy pagas ${sPlan.pagoHoyUsd?.toFixed(2)}
+                            {sPlan.esOferta && sPlan.pagoNormalUsd != null && (
+                              <span className="ml-1.5 text-[12px] font-medium text-brand-950/40 line-through">
+                                ${sPlan.pagoNormalUsd.toFixed(2)}
+                              </span>
+                            )}
                             <span className="font-light text-brand-950/55">
-                              {' '}— la diferencia entre los dos planes. Tu fecha de vencimiento no cambia, y la próxima
-                              renovación ya va con la tarifa del plan nuevo.
+                              {sPlan.esOferta
+                                ? ` — y estrenas todo ${sPlan.nombre} hasta tu vencimiento actual. Tu fecha no cambia; desde la próxima renovación pagas la mensualidad normal de ${sPlan.nombre} ($${sPlan.mensualUsd.toFixed(2)}/mes).`
+                                : ' — la diferencia entre los dos planes. Tu fecha de vencimiento no cambia, y la próxima renovación ya va con la tarifa del plan nuevo.'}
                             </span>
                           </p>
                         </div>

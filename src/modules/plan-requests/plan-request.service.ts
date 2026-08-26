@@ -112,6 +112,16 @@ const BUSINESS_TYPE_FOR_PLAN: Record<PurchasablePlan, 'RESTAURANT' | 'SHOP' | 'S
   OFFICE: 'ADMIN_OFFICE',
 };
 
+/**
+ * Ofertas de mejora: pares de planes con un precio de cambio promocional que reemplaza a la
+ * diferencia completa. La intención es comercial y explícita — que nadie se quede en el plan
+ * menor por el costo del salto: pruebas todo el plan mayor hasta tu vencimiento por casi
+ * nada, y la RENOVACIÓN ya se cobra a tarifa completa del plan nuevo (eso no cambia acá).
+ */
+const OFERTAS_DE_MEJORA: { desde: SubscriptionPlan; hacia: SubscriptionPlan; precioUsd: number }[] = [
+  { desde: 'PRO', hacia: 'ELITE', precioUsd: 4.99 },
+];
+
 export interface CustomAddons {
   administration?: boolean;
   inventoryBasic?: boolean;
@@ -648,13 +658,18 @@ export const planRequestService = {
           activo && actualMensual != null
             ? Math.round((mensual - actualMensual) * CYCLE_MONTHS[cycle] * 100) / 100
             : null;
+        // ¿Este salto tiene oferta? El precio promocional reemplaza a la diferencia; la
+        // diferencia completa viaja aparte para que la pantalla la muestre tachada.
+        const oferta = OFERTAS_DE_MEJORA.find((of) => of.desde === r.subscriptionPlan && of.hacia === p);
         return {
           plan: p,
           nombre: content[p]?.name ?? p,
           subtitulo: content[p]?.subtitle ?? '',
           beneficios: content[p]?.features ?? [],
           mensualUsd: mensual,
-          pagoHoyUsd: diferencia,
+          pagoHoyUsd: diferencia != null && oferta ? oferta.precioUsd : diferencia,
+          pagoNormalUsd: oferta && diferencia != null ? diferencia : null,
+          esOferta: !!oferta && diferencia != null,
         };
       })
       .sort((a, b) => a.mensualUsd - b.mensualUsd);
