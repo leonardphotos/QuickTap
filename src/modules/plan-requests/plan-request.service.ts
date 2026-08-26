@@ -163,6 +163,9 @@ async function applyActivation(
       // La ventana de acceso completo heredado (Shop pagado antes de Elite Shop) termina
       // con la primera activación/renovación: desde acá manda solo el plan elegido.
       legacyFullAccessUntil: null,
+      // Cualquier activación resuelve la baja programada: o se acaba de aplicar (renovó en el
+      // plan menor) o el cliente eligió otra cosa explícitamente — en ambos casos ya no aplica.
+      pendingDowngradePlan: null,
       ...customFlags,
     },
   });
@@ -603,6 +606,7 @@ export const planRequestService = {
         subscriptionStatus: true,
         businessType: true,
         customMonthlyPriceUsd: true,
+        pendingDowngradePlan: true,
       },
     });
     if (!r) throw notFound('Restaurante no encontrado.');
@@ -636,12 +640,13 @@ export const planRequestService = {
       .filter((p) => actualMensual == null || mensualDe(p) > actualMensual)
       .map((p) => {
         const mensual = mensualDe(p);
-        // La diferencia de mensualidades, prorrateada por los días que le quedan al período
-        // pagado. Se paga solo eso: el vencimiento no se mueve, y la próxima renovación ya
-        // se cobra completa con el plan nuevo.
-        const prorrateo =
-          activo && actualMensual != null && diasRestantes > 0
-            ? Math.round(((mensual - actualMensual) * diasRestantes / 30) * 100) / 100
+        // La DIFERENCIA COMPLETA entre los dos planes para su ciclo (PRO $29.99 → ELITE
+        // $59.99 mensual = $30 hoy), decidido así por el producto: mejora ya, paga la
+        // diferencia, y el vencimiento no se mueve. La próxima renovación va con la tarifa
+        // completa del plan nuevo.
+        const diferencia =
+          activo && actualMensual != null
+            ? Math.round((mensual - actualMensual) * CYCLE_MONTHS[cycle] * 100) / 100
             : null;
         return {
           plan: p,
@@ -649,11 +654,24 @@ export const planRequestService = {
           subtitulo: content[p]?.subtitle ?? '',
           beneficios: content[p]?.features ?? [],
           mensualUsd: mensual,
-          prorrateoUsd: prorrateo,
-          diasRestantes: prorrateo != null ? diasRestantes : null,
+          pagoHoyUsd: diferencia,
         };
       })
       .sort((a, b) => a.mensualUsd - b.mensualUsd);
+
+    // Planes INFERIORES: bajar no cobra ni devuelve nada — el plan actual sigue hasta el
+    // vencimiento y la próxima renovación se cobra con el plan menor (pendingDowngradePlan).
+    const inferiores = delVertical
+      .filter((p) => p !== r.subscriptionPlan)
+      .filter((p) => actualMensual != null && mensualDe(p) < actualMensual)
+      .map((p) => ({
+        plan: p,
+        nombre: content[p]?.name ?? p,
+        subtitulo: content[p]?.subtitle ?? '',
+        beneficios: content[p]?.features ?? [],
+        mensualUsd: mensualDe(p),
+      }))
+      .sort((a, b) => b.mensualUsd - a.mensualUsd);
 
     const actualContenido = r.subscriptionPlan && esComprable(r.subscriptionPlan) ? content[r.subscriptionPlan] : null;
     return {
@@ -667,6 +685,10 @@ export const planRequestService = {
       subtitulo: actualContenido?.subtitle ?? '',
       beneficios: actualContenido?.features ?? [],
       superiores,
+      inferiores,
+      bajaPendiente: r.pendingDowngradePlan
+        ? { plan: r.pendingDowngradePlan, nombre: esComprable(r.pendingDowngradePlan) ? content[r.pendingDowngradePlan]?.name ?? r.pendingDowngradePlan : r.pendingDowngradePlan }
+        : null,
     };
   },
 
@@ -687,8 +709,8 @@ export const planRequestService = {
     const overview = await this.myPlanOverview(restaurantId);
     const objetivo = overview.superiores.find((sPlan) => sPlan.plan === input.plan);
     if (!objetivo) throw badRequest('Ese plan no es una mejora disponible para tu cuenta.');
-    if (!overview.activo || objetivo.prorrateoUsd == null || objetivo.prorrateoUsd <= 0) {
-      throw badRequest('La mejora prorrateada aplica solo con una suscripción activa. Renueva desde Facturación.');
+    if (!overview.activo || objetivo.pagoHoyUsd == null || objetivo.pagoHoyUsd <= 0) {
+      throw badRequest('La mejora con diferencia aplica solo con una suscripción activa. Renueva desde Facturación.');
     }
 
     const restaurant = await prisma.restaurant.findUniqueOrThrow({
@@ -703,7 +725,7 @@ export const planRequestService = {
         restaurantId,
         plan: input.plan as SubscriptionPlan,
         billingCycle: overview.billingCycle,
-        priceUsd: objetivo.prorrateoUsd,
+        priceUsd: objetivo.pagoHoyUsd,
         paymentMethod: input.paymentMethod as never,
         paymentReference: input.paymentReference,
         proofImageUrl,
@@ -715,12 +737,32 @@ export const planRequestService = {
     });
   },
 
+  /**
+   * Programa la BAJA de plan. No cobra ni devuelve nada: el plan actual (ya pagado) sigue
+   * intacto hasta su vencimiento, y la próxima renovación se cobra y activa con el plan
+   * menor. Autoservicio a propósito — no hay dinero que verificar, no pasa por el master.
+   */
+  async scheduleDowngrade(restaurantId: string, plan: string) {
+    const overview = await this.myPlanOverview(restaurantId);
+    const objetivo = overview.inferiores.find((i) => i.plan === plan);
+    if (!objetivo) throw badRequest('Ese plan no es una baja disponible para tu cuenta.');
+    await prisma.restaurant.update({ where: { id: restaurantId }, data: { pendingDowngradePlan: plan as SubscriptionPlan } });
+    return { ok: true, plan };
+  },
+
+  async cancelDowngrade(restaurantId: string) {
+    await prisma.restaurant.update({ where: { id: restaurantId }, data: { pendingDowngradePlan: null } });
+    return { ok: true };
+  },
+
   async renewCurrentPlan(restaurantId: string) {
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
-      select: { subscriptionPlan: true, billingCycle: true },
+      select: { subscriptionPlan: true, billingCycle: true, pendingDowngradePlan: true },
     });
     if (!restaurant?.subscriptionPlan) throw badRequest('Este restaurante todavía no tiene un plan activo para renovar.');
-    return applyActivation(restaurantId, restaurant.subscriptionPlan, restaurant.billingCycle ?? 'MONTHLY');
+    // Con una baja programada, "renovar el plan actual" renueva EN el plan menor: eso es lo
+    // que el cliente dejó dicho al programarla.
+    return applyActivation(restaurantId, restaurant.pendingDowngradePlan ?? restaurant.subscriptionPlan, restaurant.billingCycle ?? 'MONTHLY');
   },
 };

@@ -19,8 +19,15 @@ interface Superior {
   subtitulo: string;
   beneficios: string[];
   mensualUsd: number;
-  prorrateoUsd: number | null;
-  diasRestantes: number | null;
+  pagoHoyUsd: number | null;
+}
+
+interface Inferior {
+  plan: string;
+  nombre: string;
+  subtitulo: string;
+  beneficios: string[];
+  mensualUsd: number;
 }
 
 interface MiPlan {
@@ -34,6 +41,8 @@ interface MiPlan {
   subtitulo: string;
   beneficios: string[];
   superiores: Superior[];
+  inferiores: Inferior[];
+  bajaPendiente: { plan: string; nombre: string } | null;
 }
 
 interface DatosPago {
@@ -65,7 +74,12 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [listo, setListo] = useState(false);
+  const [bajando, setBajando] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  function recargar() {
+    api.get('/plan-requests/my-plan').then((r) => setDatos(r.data.data)).catch(() => undefined);
+  }
 
   useEffect(() => {
     api.get('/plan-requests/my-plan').then((r) => setDatos(r.data.data)).catch(() => undefined);
@@ -73,6 +87,35 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
   }, []);
 
   if (!datos) return null;
+
+  /**
+   * Baja de plan: sin cobro y sin devolución — el plan actual (ya pagado) sigue hasta su
+   * vencimiento y la próxima renovación se cobra con el plan menor. Confirmación explícita
+   * porque es la parte fácil de malentender.
+   */
+  async function bajarA(plan: string, nombre: string, mensual: number) {
+    if (
+      !window.confirm(
+        `¿Bajar a ${nombre}?\n\nNo hay devolución: tu plan actual sigue activo hasta su vencimiento. Desde la próxima renovación pagas $${mensual.toFixed(2)}/mes y tu cuenta pasa a ${nombre}.`,
+      )
+    ) {
+      return;
+    }
+    setBajando(plan);
+    try {
+      await api.post('/plan-requests/downgrade', { plan });
+      recargar();
+    } catch (e: any) {
+      window.alert(e.response?.data?.error ?? 'No se pudo programar el cambio.');
+    } finally {
+      setBajando(null);
+    }
+  }
+
+  async function cancelarBaja() {
+    await api.delete('/plan-requests/downgrade').catch(() => undefined);
+    recargar();
+  }
 
   async function pedirMejora(plan: string) {
     setError(null);
@@ -156,7 +199,7 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
 
                 {!abiertoAqui && (
                   <div className="mt-3">
-                    {sPlan.prorrateoUsd != null ? (
+                    {sPlan.pagoHoyUsd != null ? (
                       <TextureButton
                         variant="brand"
                         size="default"
@@ -167,7 +210,7 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
                           setError(null);
                         }}
                       >
-                        Cambiar a este plan — paga solo ${sPlan.prorrateoUsd.toFixed(2)}
+                        Cambiar a este plan — paga solo ${sPlan.pagoHoyUsd.toFixed(2)}
                       </TextureButton>
                     ) : (
                       // Sin suscripción activa no hay nada que prorratear: la mejora con
@@ -203,10 +246,10 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
                       <>
                         <div className="mt-4 rounded-xl bg-brand-500/[0.06] px-4 py-3">
                           <p className="text-[13px] font-semibold text-brand-950">
-                            Hoy pagas ${sPlan.prorrateoUsd?.toFixed(2)}
+                            Hoy pagas ${sPlan.pagoHoyUsd?.toFixed(2)}
                             <span className="font-light text-brand-950/55">
-                              {' '}— la diferencia por tus {sPlan.diasRestantes} días restantes. Tu vencimiento no cambia, y
-                              la próxima renovación ya va con la tarifa del plan nuevo.
+                              {' '}— la diferencia entre los dos planes. Tu fecha de vencimiento no cambia, y la próxima
+                              renovación ya va con la tarifa del plan nuevo.
                             </span>
                           </p>
                         </div>
@@ -273,7 +316,7 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
                             className="!w-auto px-6 disabled:opacity-50"
                             onClick={() => pedirMejora(sPlan.plan)}
                           >
-                            {enviando ? 'Enviando…' : `Confirmar cambio — $${sPlan.prorrateoUsd?.toFixed(2)}`}
+                            {enviando ? 'Enviando…' : `Confirmar cambio — $${sPlan.pagoHoyUsd?.toFixed(2)}`}
                           </TextureButton>
                           <button onClick={() => setAbierto(null)} className="text-[12.5px] font-medium text-brand-950/50">
                             Cancelar
@@ -286,6 +329,51 @@ export function PlanChangeSection({ onGoToBilling }: { onGoToBilling?: () => voi
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ---------- Baja programada ---------- */}
+      {datos.bajaPendiente && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-[13px] text-amber-800">
+            <span className="font-semibold">Baja programada a {datos.bajaPendiente.nombre}.</span> Tu plan actual sigue
+            hasta el {vence}; desde la próxima renovación pagas la tarifa del plan nuevo.
+          </p>
+          <button onClick={cancelarBaja} className="text-[12.5px] font-semibold text-amber-800 underline underline-offset-2">
+            Cancelar la baja
+          </button>
+        </div>
+      )}
+
+      {/* ---------- Bajar de plan ---------- */}
+      {!datos.bajaPendiente && datos.inferiores.length > 0 && (
+        <div className="mt-4 space-y-2.5">
+          <p className="text-[12px] font-semibold uppercase tracking-wide text-brand-950/45">Baja de plan</p>
+          {datos.inferiores.map((inf) => (
+            <div key={inf.plan} className="rounded-xl border border-brand-950/10 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-[14px] font-bold text-brand-950">{inf.nombre}</p>
+                  <p className="text-[11.5px] font-light text-brand-950/50">{inf.subtitulo}</p>
+                </div>
+                <p className="text-right">
+                  <span className="text-[15px] font-bold tabular-nums text-brand-950">${inf.mensualUsd.toFixed(2)}</span>
+                  <span className="text-[11px] font-light text-brand-950/50">/mes</span>
+                </p>
+              </div>
+              <p className="mt-2 text-[11.5px] font-light text-brand-950/55">
+                Sin devolución: tu plan actual sigue hasta el vencimiento y la próxima renovación se cobra con esta tarifa.
+              </p>
+              <button
+                type="button"
+                disabled={bajando === inf.plan}
+                onClick={() => bajarA(inf.plan, inf.nombre, inf.mensualUsd)}
+                className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-brand-950/15 px-4 py-2 text-[12.5px] font-semibold text-brand-950/70 hover:bg-brand-950/[0.04] disabled:opacity-50"
+              >
+                {bajando === inf.plan ? 'Programando…' : 'Bajar a este plan'}
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </section>

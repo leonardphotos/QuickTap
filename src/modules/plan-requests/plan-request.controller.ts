@@ -117,6 +117,17 @@ export const planRequestController = {
     res.status(201).json({ data: request });
   }),
 
+  /** POST /api/v1/plan-requests/downgrade — programa la baja (aplica en la próxima renovación). */
+  scheduleDowngrade: asyncHandler(async (req: Request, res: Response) => {
+    const input = z.object({ plan: z.string().min(2).max(30) }).parse(req.body);
+    res.json({ data: await planRequestService.scheduleDowngrade(req.restaurantId!, input.plan) });
+  }),
+
+  /** DELETE /api/v1/plan-requests/downgrade — cancela la baja programada. */
+  cancelDowngrade: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await planRequestService.cancelDowngrade(req.restaurantId!) });
+  }),
+
   /** POST /api/v1/plan-requests/installment — inicia un "pago fraccionado" (sin método/referencia todavía). */
   createInstallment: asyncHandler(async (req: Request, res: Response) => {
     const input = createInstallmentPlanRequestSchema.parse(req.body);

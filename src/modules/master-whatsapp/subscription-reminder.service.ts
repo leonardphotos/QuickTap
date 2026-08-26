@@ -19,13 +19,17 @@ async function resolveMonthlyPrice(restaurant: {
   subscriptionPlan: SubscriptionPlan | null;
   billingCycle: BillingCycle | null;
   customMonthlyPriceUsd: unknown;
+  pendingDowngradePlan?: SubscriptionPlan | null;
 }): Promise<number | null> {
   if (restaurant.customMonthlyPriceUsd != null && Number(restaurant.customMonthlyPriceUsd) > 0) {
     return Number(restaurant.customMonthlyPriceUsd);
   }
-  if (restaurant.subscriptionPlan && PURCHASABLE_PLANS.includes(restaurant.subscriptionPlan)) {
+  // Con una baja programada, lo que toca cobrar en la renovación es el plan MENOR: eso es lo
+  // que el cliente dejó dicho — "al siguiente mes cancela el monto respectivo a su plan".
+  const planACobrar = restaurant.pendingDowngradePlan ?? restaurant.subscriptionPlan;
+  if (planACobrar && PURCHASABLE_PLANS.includes(planACobrar)) {
     const price = await platformSettingsService.getPlanPrice(
-      restaurant.subscriptionPlan as PurchasablePlan,
+      planACobrar as PurchasablePlan,
       restaurant.billingCycle ?? 'MONTHLY',
     );
     return Number.isFinite(price) && price > 0 ? price : null;
@@ -105,6 +109,7 @@ const REMINDER_SELECT = {
   subscriptionPlan: true,
   billingCycle: true,
   customMonthlyPriceUsd: true,
+  pendingDowngradePlan: true,
 } as const;
 
 type ReminderRestaurant = {

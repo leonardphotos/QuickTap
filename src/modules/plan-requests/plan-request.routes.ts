@@ -20,6 +20,8 @@ tenantPlanRequestRoutes.use(tenantGuard);
 tenantPlanRequestRoutes.get('/quote', planRequestController.getQuote);
 tenantPlanRequestRoutes.get('/my-plan', planRequestController.myPlan);
 tenantPlanRequestRoutes.post('/upgrade', uploadPlanPaymentProof, optimizeImage(1200, 1200), planRequestController.createUpgrade);
+tenantPlanRequestRoutes.post('/downgrade', planRequestController.scheduleDowngrade);
+tenantPlanRequestRoutes.delete('/downgrade', planRequestController.cancelDowngrade);
 tenantPlanRequestRoutes.get('/installment/pending', planRequestController.getPendingInstallment);
 tenantPlanRequestRoutes.post('/installment', planRequestController.createInstallment);
 tenantPlanRequestRoutes.post('/', uploadPlanPaymentProof, optimizeImage(1200, 1200), planRequestController.createRenewal);

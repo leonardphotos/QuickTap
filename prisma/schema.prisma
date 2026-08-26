@@ -651,6 +651,9 @@ model Restaurant {
   // (= su periodEnd de entonces). Al renovar/activar cualquier plan se limpia
   // (ver applyActivation) y desde ahí manda solo hasFeature() por plan.
   legacyFullAccessUntil DateTime?
+  // Baja de plan programada: el plan actual sigue hasta el vencimiento (sin devolución) y la
+  // PRÓXIMA renovación se cobra y activa con este plan. Se limpia en cada activación.
+  pendingDowngradePlan SubscriptionPlan?
   // Bloqueo manual desde el Dashboard maestro, independiente del vencimiento
   // del plan. Si es true, la cuenta queda bloqueada sin importar periodEnd.
   suspended             Boolean   @default(false)
