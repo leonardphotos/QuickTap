@@ -11,7 +11,7 @@ type ProofStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAYMENT_NOT_RECEIVED';
 
 interface PlanRequestRow {
   id: string;
-  kind: 'SIGNUP' | 'RENEWAL';
+  kind: 'SIGNUP' | 'RENEWAL' | 'UPGRADE';
   status: ProofStatus;
   restaurantId: string | null;
   plan: string;
@@ -47,6 +47,9 @@ interface RestaurantOption {
 const TABS = [
   { kind: 'SIGNUP' as const, label: 'Comprobantes de pago por inscripción' },
   { kind: 'RENEWAL' as const, label: 'Comprobantes de pago por mensualidad' },
+  // Mejora de plan a mitad de período: paga la diferencia prorrateada y al aprobarse el plan
+  // cambia SIN mover el vencimiento (ver plan-request.service).
+  { kind: 'UPGRADE' as const, label: 'Comprobantes por mejora de plan' },
 ];
 
 const STATUS_TABS: { value: ProofStatus; label: string }[] = [
@@ -58,7 +61,7 @@ const STATUS_TABS: { value: ProofStatus; label: string }[] = [
 
 export default function MasterProofsPage() {
   const { copy, toastMessage } = useCopyToast();
-  const [kind, setKind] = useState<'SIGNUP' | 'RENEWAL'>('SIGNUP');
+  const [kind, setKind] = useState<'SIGNUP' | 'RENEWAL' | 'UPGRADE'>('SIGNUP');
   const [status, setStatus] = useState<ProofStatus>('PENDING');
   const [requests, setRequests] = useState<PlanRequestRow[] | null>(null);
   const [restaurants, setRestaurants] = useState<RestaurantOption[] | null>(null);
@@ -73,7 +76,7 @@ export default function MasterProofsPage() {
   // cuál esté abierta ahora — así nunca pasa que una solicitud "no llegue" simplemente porque
   // quedó en la otra pestaña (ej: un restaurante ya autenticado pidiendo Sucursales crea una
   // solicitud "por mensualidad", no "por inscripción").
-  const [pendingCounts, setPendingCounts] = useState<Record<'SIGNUP' | 'RENEWAL', number>>({ SIGNUP: 0, RENEWAL: 0 });
+  const [pendingCounts, setPendingCounts] = useState<Record<'SIGNUP' | 'RENEWAL' | 'UPGRADE', number>>({ SIGNUP: 0, RENEWAL: 0, UPGRADE: 0 });
 
   function load() {
     masterApi.get('/master/plan-requests', { params: { kind, status } }).then((res) => setRequests(res.data.data));
@@ -83,8 +86,9 @@ export default function MasterProofsPage() {
     Promise.all([
       masterApi.get('/master/plan-requests', { params: { kind: 'SIGNUP', status: 'PENDING' } }),
       masterApi.get('/master/plan-requests', { params: { kind: 'RENEWAL', status: 'PENDING' } }),
-    ]).then(([signup, renewal]) => {
-      setPendingCounts({ SIGNUP: signup.data.data.length, RENEWAL: renewal.data.data.length });
+      masterApi.get('/master/plan-requests', { params: { kind: 'UPGRADE', status: 'PENDING' } }),
+    ]).then(([signup, renewal, upgrade]) => {
+      setPendingCounts({ SIGNUP: signup.data.data.length, RENEWAL: renewal.data.data.length, UPGRADE: upgrade.data.data.length });
     });
   }
 

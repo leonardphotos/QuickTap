@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { Request, Response } from 'express';
+import { z } from 'zod';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest } from '../../utils/http-error';
 import { UPLOADS_DIR } from '../../middlewares/upload.middleware';
@@ -96,6 +97,26 @@ export const planRequestController = {
     res.status(201).json({ data: request });
   }),
 
+  /** GET /api/v1/plan-requests/my-plan — el plan actual y las mejoras con su prorrateo (Ajustes). */
+  myPlan: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await planRequestService.myPlanOverview(req.restaurantId!) });
+  }),
+
+  /** POST /api/v1/plan-requests/upgrade — mejora de plan pagando la diferencia prorrateada. */
+  createUpgrade: asyncHandler(async (req: Request, res: Response) => {
+    const input = z
+      .object({
+        plan: z.string().min(2).max(30),
+        paymentMethod: z.enum(['PAGO_MOVIL', 'BINANCE', 'BANK_TRANSFER']),
+        paymentReference: z.string().min(2).max(80),
+      })
+      .parse(parseBody(req));
+    const proofImageUrl = req.file ? `/uploads/plan-payment-proofs/${req.file.filename}` : undefined;
+    const request = await planRequestService.createUpgrade(req.restaurantId!, input, proofImageUrl);
+    if (proofImageUrl) void notifyVerifierOfProof(request, proofImageUrl);
+    res.status(201).json({ data: request });
+  }),
+
   /** POST /api/v1/plan-requests/installment — inicia un "pago fraccionado" (sin método/referencia todavía). */
   createInstallment: asyncHandler(async (req: Request, res: Response) => {
     const input = createInstallmentPlanRequestSchema.parse(req.body);
@@ -147,7 +168,7 @@ export const planRequestController = {
 
   /** GET /api/v1/master/plan-requests?kind=SIGNUP|RENEWAL&status=PENDING|APPROVED|REJECTED|PAYMENT_NOT_RECEIVED */
   listByKind: asyncHandler(async (req: Request, res: Response) => {
-    const kind = req.query.kind === 'RENEWAL' ? 'RENEWAL' : 'SIGNUP';
+    const kind = req.query.kind === 'RENEWAL' ? 'RENEWAL' : req.query.kind === 'UPGRADE' ? 'UPGRADE' : 'SIGNUP';
     const validStatuses = ['PENDING', 'APPROVED', 'REJECTED', 'PAYMENT_NOT_RECEIVED'] as const;
     const status = validStatuses.includes(req.query.status as any) ? (req.query.status as (typeof validStatuses)[number]) : undefined;
     res.json({ data: await planRequestService.listByKind(kind, status) });

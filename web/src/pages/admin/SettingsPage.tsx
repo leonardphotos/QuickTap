@@ -11,6 +11,7 @@ import {
   Database,
   Printer,
   MonitorPlay,
+  Crown,
 } from 'lucide-react';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
@@ -30,6 +31,7 @@ import { WhatsappMessageSection } from '@/components/admin/WhatsappMessageSectio
 import { CHATBOTS_ENABLED } from '@/config/features';
 import { WhatsappBotSection } from '@/components/admin/WhatsappBotSection';
 import { WhatsappLinkSection } from '@/components/admin/WhatsappLinkSection';
+import { PlanChangeSection } from '@/components/admin/PlanChangeSection';
 import { CheckoutSettingsSection } from '@/components/admin/CheckoutSettingsSection';
 import { ScheduleSection } from '@/components/admin/ScheduleSection';
 import { FullscreenImageSection } from '@/components/admin/FullscreenImageSection';
@@ -136,6 +138,7 @@ export default function SettingsPage() {
 
   const CATEGORIES = [
     { id: 'negocio', title: 'Negocio', icon: <Building2 className="h-4 w-4" /> },
+    { id: 'plan', title: 'Mi plan', icon: <Crown className="h-4 w-4" /> },
     { id: 'whatsapp', title: 'WhatsApp', icon: <MessageCircle className="h-4 w-4" /> },
     { id: 'pagos', title: 'Pagos y moneda', icon: <Wallet className="h-4 w-4" /> },
     { id: 'delivery', title: 'Delivery', icon: <Bike className="h-4 w-4" /> },
@@ -193,6 +196,10 @@ export default function SettingsPage() {
         <DesktopShortcutSection />
         <ScheduleSection />
         {isManager && <FullWidth><ClubLinkSection /></FullWidth>}
+      </SettingsCategory>
+
+      <SettingsCategory id="plan" title="Mi plan" icon={<Crown className="h-4 w-4" />} open={openCategory === 'plan'} onToggle={toggleCategory}>
+        <FullWidth><PlanChangeSection onGoToBilling={() => { window.location.href = '/admin/billing'; }} /></FullWidth>
       </SettingsCategory>
 
       <SettingsCategory id="whatsapp" title="WhatsApp" icon={<MessageCircle className="h-4 w-4" />} open={openCategory === 'whatsapp'} onToggle={toggleCategory}>

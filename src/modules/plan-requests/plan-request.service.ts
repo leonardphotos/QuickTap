@@ -130,6 +130,9 @@ async function applyActivation(
   plan: SubscriptionPlan,
   billingCycle: BillingCycle,
   addons?: CustomAddons,
+  // Mejora a mitad de período (kind UPGRADE): el cliente ya pagó su período con el plan
+  // anterior y ahora paga solo la diferencia prorrateada — el vencimiento NO se mueve.
+  opts?: { keepPeriodEnd?: boolean },
 ) {
   const restaurant = await prisma.restaurant.findUnique({
     where: { id: restaurantId },
@@ -153,7 +156,7 @@ async function applyActivation(
       subscriptionStatus: 'ACTIVE',
       subscriptionPlan: plan,
       billingCycle,
-      periodEnd: nextPeriodEnd(billingCycle, restaurant.periodEnd),
+      ...(opts?.keepPeriodEnd ? {} : { periodEnd: nextPeriodEnd(billingCycle, restaurant.periodEnd) }),
       // Primera activación o cambio de plan (no una renovación del mismo
       // plan): marca que falta mostrar la pantalla de bienvenida una vez.
       ...(restaurant.subscriptionPlan !== plan ? { pendingWelcomePlan: plan } : {}),
@@ -484,12 +487,18 @@ export const planRequestService = {
       throw badRequest('Indica a qué restaurante pertenece esta solicitud antes de activarla.');
     }
 
-    const restaurant = await applyActivation(restaurantId, request.plan, request.billingCycle, {
-      administration: request.customAdministration,
-      inventoryBasic: request.customInventoryBasic,
-      inventoryRecipe: request.customInventoryRecipe,
-      accountsPayable: request.customAccountsPayable,
-    });
+    const restaurant = await applyActivation(
+      restaurantId,
+      request.plan,
+      request.billingCycle,
+      {
+        administration: request.customAdministration,
+        inventoryBasic: request.customInventoryBasic,
+        inventoryRecipe: request.customInventoryRecipe,
+        accountsPayable: request.customAccountsPayable,
+      },
+      { keepPeriodEnd: request.kind === 'UPGRADE' },
+    );
 
     await prisma.planRequest.update({
       where: { id },
@@ -575,6 +584,137 @@ export const planRequestService = {
    * approve()/activateRestaurant(), que reciben el plan elegido por el equipo QuickTap o el
    * cliente, acá nadie eligió nada, es solo "seguir pagando lo mismo que ya tenía".
    */
+  /**
+   * "Mi plan" para la sección de Ajustes: el plan actual (precio, vencimiento, beneficios) y
+   * los planes SUPERIORES del mismo vertical con su prorrateo — cuánto pagaría HOY por pasarse,
+   * cubriendo solo los días que le quedan al período ya pagado.
+   *
+   * Superior = mensualidad mayor a la actual dentro de los planes comprables de su vertical.
+   * El prorrateo existe solo con la suscripción vigente (periodEnd en el futuro): la regla del
+   * producto es que la mejora con descuento aplica al que YA tiene un plan activo.
+   */
+  async myPlanOverview(restaurantId: string) {
+    const r = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: {
+        subscriptionPlan: true,
+        billingCycle: true,
+        periodEnd: true,
+        subscriptionStatus: true,
+        businessType: true,
+        customMonthlyPriceUsd: true,
+      },
+    });
+    if (!r) throw notFound('Restaurante no encontrado.');
+    const cycle: BillingCycle = r.billingCycle ?? 'MONTHLY';
+    const content = await platformSettingsService.getPlanContent();
+
+    const mensualDe = (plan: PurchasablePlan): number => {
+      const editado = content[plan]?.prices?.[cycle];
+      return Number.isFinite(editado) && editado > 0 ? editado : FIXED_PLAN_PRICES[plan][cycle];
+    };
+
+    // Precio ACTUAL: el acordado con este negocio si existe; si no, la tarifa del plan. Un
+    // plan legado sin tarifa pública (SUCURSALES…) queda en null y la pantalla no inventa uno.
+    const esComprable = (p: string): p is PurchasablePlan => p in FIXED_PLAN_PRICES;
+    const actualMensual =
+      r.customMonthlyPriceUsd != null && Number(r.customMonthlyPriceUsd) > 0
+        ? Number(r.customMonthlyPriceUsd)
+        : r.subscriptionPlan && esComprable(r.subscriptionPlan)
+          ? mensualDe(r.subscriptionPlan)
+          : null;
+
+    const ahora = Date.now();
+    const activo = r.subscriptionStatus === 'ACTIVE' && r.periodEnd.getTime() > ahora;
+    const diasRestantes = Math.max(0, Math.ceil((r.periodEnd.getTime() - ahora) / 86400000));
+
+    const delVertical = (Object.keys(FIXED_PLAN_PRICES) as PurchasablePlan[]).filter(
+      (p) => BUSINESS_TYPE_FOR_PLAN[p] === r.businessType,
+    );
+    const superiores = delVertical
+      .filter((p) => p !== r.subscriptionPlan)
+      .filter((p) => actualMensual == null || mensualDe(p) > actualMensual)
+      .map((p) => {
+        const mensual = mensualDe(p);
+        // La diferencia de mensualidades, prorrateada por los días que le quedan al período
+        // pagado. Se paga solo eso: el vencimiento no se mueve, y la próxima renovación ya
+        // se cobra completa con el plan nuevo.
+        const prorrateo =
+          activo && actualMensual != null && diasRestantes > 0
+            ? Math.round(((mensual - actualMensual) * diasRestantes / 30) * 100) / 100
+            : null;
+        return {
+          plan: p,
+          nombre: content[p]?.name ?? p,
+          subtitulo: content[p]?.subtitle ?? '',
+          beneficios: content[p]?.features ?? [],
+          mensualUsd: mensual,
+          prorrateoUsd: prorrateo,
+          diasRestantes: prorrateo != null ? diasRestantes : null,
+        };
+      })
+      .sort((a, b) => a.mensualUsd - b.mensualUsd);
+
+    const actualContenido = r.subscriptionPlan && esComprable(r.subscriptionPlan) ? content[r.subscriptionPlan] : null;
+    return {
+      plan: r.subscriptionPlan,
+      billingCycle: cycle,
+      periodEnd: r.periodEnd,
+      activo,
+      diasRestantes,
+      mensualUsd: actualMensual,
+      nombre: actualContenido?.name ?? r.subscriptionPlan,
+      subtitulo: actualContenido?.subtitle ?? '',
+      beneficios: actualContenido?.features ?? [],
+      superiores,
+    };
+  },
+
+  /**
+   * Pide la mejora de plan pagando la diferencia prorrateada. El monto se RECALCULA acá — el
+   * que muestre la pantalla es informativo — y la solicitud entra a la misma bandeja del
+   * master que las renovaciones: nada se activa hasta que el equipo verifique el pago.
+   */
+  async createUpgrade(
+    restaurantId: string,
+    input: { plan: string; paymentMethod: string; paymentReference: string },
+    proofImageUrl?: string,
+  ) {
+    const { manualPaymentEnabled } = await platformSettingsService.getPaymentTogglesOrDefault();
+    if (!manualPaymentEnabled) {
+      throw badRequest('El pago manual está deshabilitado por ahora. Contáctanos para mejorar tu plan.');
+    }
+    const overview = await this.myPlanOverview(restaurantId);
+    const objetivo = overview.superiores.find((sPlan) => sPlan.plan === input.plan);
+    if (!objetivo) throw badRequest('Ese plan no es una mejora disponible para tu cuenta.');
+    if (!overview.activo || objetivo.prorrateoUsd == null || objetivo.prorrateoUsd <= 0) {
+      throw badRequest('La mejora prorrateada aplica solo con una suscripción activa. Renueva desde Facturación.');
+    }
+
+    const restaurant = await prisma.restaurant.findUniqueOrThrow({
+      where: { id: restaurantId },
+      select: { name: true, whatsappPhone: true, users: { where: { role: 'OWNER' }, take: 1, select: { name: true, email: true } } },
+    });
+    const dueno = restaurant.users[0];
+
+    return prisma.planRequest.create({
+      data: {
+        kind: 'UPGRADE',
+        restaurantId,
+        plan: input.plan as SubscriptionPlan,
+        billingCycle: overview.billingCycle,
+        priceUsd: objetivo.prorrateoUsd,
+        paymentMethod: input.paymentMethod as never,
+        paymentReference: input.paymentReference,
+        proofImageUrl,
+        contactName: dueno?.name ?? restaurant.name,
+        contactEmail: dueno?.email ?? '',
+        contactPhone: restaurant.whatsappPhone,
+        restaurantName: restaurant.name,
+      },
+    });
+  },
+
   async renewCurrentPlan(restaurantId: string) {
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },

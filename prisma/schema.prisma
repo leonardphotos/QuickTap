@@ -355,6 +355,9 @@ enum RestaurantSubscriptionStatus {
 enum PlanRequestKind {
   SIGNUP
   RENEWAL
+  // Mejora de plan a mitad de período: paga solo la diferencia prorrateada por los días que
+  // le quedan, y al aprobarse el plan cambia SIN mover periodEnd (ver applyActivation).
+  UPGRADE
 }
 
 enum PlanRequestStatus {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Building2, ChevronDown, LogOut, ShieldCheck, Wallet, Store, MessageCircle } from 'lucide-react';
+import { ArrowLeft, Building2, ChevronDown, LogOut, ShieldCheck, Wallet, Store, MessageCircle, Crown } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/api/client';
 import type { Currency } from '@/types';
@@ -14,6 +14,7 @@ import { ShopTeamSection } from './ShopTeamSection';
 import { ShopStorefrontSection } from './ShopStorefrontSection';
 import { ThemeSection } from '@/components/admin/ThemeSection';
 import { WhatsappLinkSection } from '@/components/admin/WhatsappLinkSection';
+import { PlanChangeSection } from '@/components/admin/PlanChangeSection';
 import type { ShopSession } from './shopSession';
 import { LockScreenSettingsSection } from '@/components/admin/LockScreenSettingsSection';
 import { SalesHistoryExportSection } from '@/components/admin/SalesHistoryExportSection';
@@ -94,6 +95,7 @@ export default function ShopSettingsPage({ onBack, session, onGoToBilling }: Pro
 
   const CATEGORIES = [
     { id: 'negocio', title: 'Negocio', icon: <Building2 className="h-4 w-4" /> },
+    { id: 'plan', title: 'Mi plan', icon: <Crown className="h-4 w-4" /> },
     { id: 'tienda', title: 'Tienda virtual', icon: <Store className="h-4 w-4" /> },
     { id: 'pagos', title: 'Pagos', icon: <Wallet className="h-4 w-4" /> },
     { id: 'whatsapp', title: 'WhatsApp', icon: <MessageCircle className="h-4 w-4" /> },
@@ -162,6 +164,18 @@ export default function ShopSettingsPage({ onBack, session, onGoToBilling }: Pro
         <CurrencySection />
         <FullWidth>
           <ScheduleSection />
+        </FullWidth>
+      </SettingsCategory>
+
+      <SettingsCategory
+        id="plan"
+        title="Mi plan"
+        icon={<Crown className="h-4 w-4" />}
+        open={openCategory === 'plan'}
+        onToggle={toggleCategory}
+      >
+        <FullWidth>
+          <PlanChangeSection onGoToBilling={onGoToBilling} />
         </FullWidth>
       </SettingsCategory>
 

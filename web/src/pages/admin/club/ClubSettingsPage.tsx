@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { Building2, ChevronDown, CircleDot, LogOut, MessageCircle, Palette, ShieldCheck, Tablet, Wallet } from 'lucide-react';
+import { Building2, ChevronDown, CircleDot, Crown, LogOut, MessageCircle, Palette, ShieldCheck, Tablet, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard, TextureCardContent } from '@/components/ui/texture-card';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { FullWidth, SettingsCategory, scrollToSettingsCategory } from '@/components/admin/SettingsCategory';
 import { RestaurantInfoSection } from '@/components/admin/RestaurantInfoSection';
+import { PlanChangeSection } from '@/components/admin/PlanChangeSection';
+import { WhatsappLinkSection } from '@/components/admin/WhatsappLinkSection';
 import { PaymentMethodsSection } from '@/components/admin/PaymentMethodsSection';
 import { LockScreenSettingsSection } from '@/components/admin/LockScreenSettingsSection';
 import { CHATBOTS_ENABLED } from '@/config/features';
@@ -28,6 +30,7 @@ export default function ClubSettingsPage() {
 
   const CATEGORIES = [
     { id: 'negocio', title: 'Negocio', icon: <Building2 className="h-4 w-4" /> },
+    { id: 'plan', title: 'Mi plan', icon: <Crown className="h-4 w-4" /> },
     { id: 'whatsapp', title: 'WhatsApp', icon: <MessageCircle className="h-4 w-4" /> },
     ...(isManager ? [{ id: 'canchas', title: 'Canchas y horarios', icon: <CircleDot className="h-4 w-4" /> }] : []),
     { id: 'apariencia', title: 'Apariencia del enlace público', icon: <Palette className="h-4 w-4" /> },
@@ -114,6 +117,18 @@ export default function ClubSettingsPage() {
       </SettingsCategory>
 
       <SettingsCategory
+        id="plan"
+        title="Mi plan"
+        icon={<Crown className="h-4 w-4" />}
+        open={openCategory === 'plan'}
+        onToggle={toggleCategory}
+      >
+        <FullWidth>
+          <PlanChangeSection />
+        </FullWidth>
+      </SettingsCategory>
+
+      <SettingsCategory
         id="whatsapp"
         title="WhatsApp"
         icon={<MessageCircle className="h-4 w-4" />}
@@ -122,6 +137,10 @@ export default function ClubSettingsPage() {
       >
         <FullWidth>
           {CHATBOTS_ENABLED && <WhatsappBotSection variant="club" />}
+        </FullWidth>
+        {/* WhatsApp vinculado (Evolution): faltaba en canchas — el plan CLUB lo incluye. */}
+        <FullWidth>
+          <WhatsappLinkSection />
         </FullWidth>
       </SettingsCategory>
 
