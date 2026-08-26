@@ -215,7 +215,7 @@ export default function WalletDashboardPage() {
   const [historialTodo, setHistorialTodo] = useState<CompraHistorial[] | null>(null);
   useEffect(() => {
     api
-      .get('/public/wallet/history')
+      .get('/public/wallet/history', { headers: { Authorization: `Bearer ${getWalletToken()}` } })
       .then((r) => setHistorialTodo(r.data.data))
       .catch(() => setHistorialTodo([]));
   }, []);
