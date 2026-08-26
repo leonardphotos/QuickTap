@@ -53,7 +53,7 @@ function loadFabPosition() {
  */
 export default function WaiterLayout() {
   const { user, restaurant, logout } = useAuth();
-  const [tab, setTab] = useState<WaiterTab>('mesas');
+  const [tab, setTab] = useState<WaiterTab>('comandas');
   const [existingOrders, setExistingOrders] = useState<LiveOrder[]>([]);
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<LiveOrder | null>(null);
@@ -108,9 +108,9 @@ export default function WaiterLayout() {
     user.canAccessInventory && (hasFeature(restaurant, 'inventoryBasic') || hasFeature(restaurant, 'inventoryRecipe'));
 
   const tabs: { id: WaiterTab; label: string; icon: typeof Grid2x2 }[] = [
-    { id: 'mesas', label: 'Mesas', icon: Grid2x2 },
-    { id: 'cocina', label: 'Cocina', icon: ChefHat },
     { id: 'comandas', label: 'Comandas', icon: Receipt },
+    { id: 'cocina', label: 'Cocina', icon: ChefHat },
+    { id: 'mesas', label: 'Mesas', icon: Grid2x2 },
     ...(canSeeInventory ? [{ id: 'inventario' as const, label: 'Inventario', icon: Boxes }] : []),
   ];
 

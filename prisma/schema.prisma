@@ -791,6 +791,7 @@ model Restaurant {
   clubLoyaltyEntries     ClubLoyaltyEntry[]
   clubPlayInvites        ClubPlayInvite[]
   deviceTokens           DeviceToken[]
+  orderDeletionLogs      OrderDeletionLog[]
   waInstance             WaInstance?
 
   @@index([parentRestaurantId])
@@ -5610,4 +5611,28 @@ model DeviceToken {
 
   @@index([restaurantId])
   @@map("device_tokens")
+}
+
+/// Registro inborrable de comandas eliminadas: quién la borró, cuándo y qué tenía.
+/// No existe NINGÚN endpoint para borrar filas de esta tabla a propósito — el
+/// registro es permanente; solo Dueño/Admin pueden consultarlo.
+model OrderDeletionLog {
+  id            String   @id @default(cuid())
+  restaurantId  String
+  orderNumber   Int
+  channel       String
+  status        String
+  tableName     String?
+  customerName  String?
+  totalBase     Decimal  @db.Decimal(12, 2)
+  /// Snapshot de los renglones al momento del borrado: [{ name, quantity, unitPrice, variantName, modifiers }]
+  items         Json
+  deletedByName String
+  deletedByRole String
+  deletedAt     DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, deletedAt])
+  @@map("order_deletion_logs")
 }

@@ -23,6 +23,9 @@ router.get('/delivery', orderController.deliveryQueue);
 router.get('/live', orderController.liveOrders);
 // Canales disponibles: no se ofrece Mesa si no hay mesas, ni Delivery si nunca se usó.
 router.get('/channels', orderController.availableChannels);
+// Registro permanente de comandas eliminadas: SOLO Dueño/Admin lo ven, y no
+// existe ruta para borrarlo — a propósito.
+router.get('/deletion-log', requireRole('OWNER', 'ADMIN'), orderController.deletionLog);
 router.get('/summary/today', adminOnly, orderController.todaySummary);
 router.get('/history', adminOnly, requireFeature('administration'), orderController.history);
 // Respaldo completo de cobros en Excel (botón "Descargar historial de ventas" en Ajustes).

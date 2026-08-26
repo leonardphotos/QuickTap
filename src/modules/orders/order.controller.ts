@@ -256,8 +256,13 @@ export const orderController = {
    * Si quien elimina es Mesero, exige el código de 6 dígitos creado en Ajustes. */
   remove: asyncHandler(async (req: Request, res: Response) => {
     const { pin } = deleteOrderSchema.parse(req.body ?? {});
-    const result = await orderService.deleteOrderHard(req.restaurantId!, req.params.id, req.auth!.role, pin);
+    const result = await orderService.deleteOrderHard(req.restaurantId!, req.params.id, req.auth!.role, pin, req.auth!.userId);
     res.json({ data: result });
+  }),
+
+  /** GET /api/v1/orders/deletion-log — registro permanente de comandas eliminadas (Dueño/Admin). */
+  deletionLog: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await orderService.listDeletionLog(req.restaurantId!) });
   }),
 
   /** POST /api/v1/orders/:id/dispatch-courier — "Delivery": arma el WhatsApp para el repartidor. */

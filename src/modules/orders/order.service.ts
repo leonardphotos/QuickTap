@@ -2325,7 +2325,7 @@ export const orderService = {
    * Un Mesero necesita el código de 6 dígitos que Dueño/Admin crean en Ajustes — el resto
    * de los roles (Dueño/Admin/Cajero) puede eliminar directo, sin código.
    */
-  async deleteOrderHard(restaurantId: string, orderId: string, role: string, pin?: string) {
+  async deleteOrderHard(restaurantId: string, orderId: string, role: string, pin?: string, userId?: string) {
     // Solo Dueño/Admin/Caja borran directo y el Mesero con el código. El resto (Cocina,
     // Pantalla, Comanda, Número, Cancha, Coach) no tenía ningún control: la ruta no exige rol,
     // así que cualquiera de esas sesiones podía borrar comandas sin código y sin dejar rastro.
@@ -2347,9 +2347,14 @@ export const orderService = {
     }
     const existing = await prisma.order.findFirst({
       where: { id: orderId, restaurantId },
-      include: { items: { include: { modifiers: true } } },
+      include: { items: { include: { modifiers: true } }, table: { select: { number: true } } },
     });
     if (!existing) throw notFound('Comanda no encontrada.');
+
+    // Quién borró, con nombre: el rol solo no identifica a la persona.
+    const deleter = userId
+      ? await prisma.user.findFirst({ where: { id: userId, restaurantId }, select: { name: true, email: true } })
+      : null;
 
     // Inalterabilidad fiscal: un pedido con documento fiscal emitido NO se puede
     // eliminar. La corrección va por Nota de Crédito, nunca por borrado — y el
@@ -2380,10 +2385,43 @@ export const orderService = {
     await prisma.$transaction(async (tx) => {
       await bankLedgerService.reverseBySourceRef(tx, restaurantId, orderId);
       await tx.promotionRedemption.deleteMany({ where: { restaurantId, sourceRef: orderId } });
+      // El rastro queda ANTES de borrar, en la misma transacción: o se borra con
+      // registro, o no se borra. Esta tabla no tiene endpoint de borrado — el
+      // registro es permanente y solo Dueño/Admin pueden consultarlo.
+      await tx.orderDeletionLog.create({
+        data: {
+          restaurantId,
+          orderNumber: existing.orderNumber,
+          channel: existing.channel,
+          status: existing.status,
+          tableName: existing.table?.number ?? null,
+          customerName: existing.customerName,
+          totalBase: existing.totalBase,
+          items: existing.items.map((it) => ({
+            name: it.productName,
+            quantity: it.quantity,
+            unitPrice: Number(it.unitPrice),
+            variantName: it.variantName,
+            modifiers: it.modifiers.map((m) => ({ name: m.name, quantity: m.quantity })),
+          })),
+          deletedByName: deleter?.name || deleter?.email || 'Desconocido',
+          deletedByRole: role,
+        },
+      });
       await tx.order.delete({ where: { id: orderId } });
     });
     emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: 'DELETED' });
     return { deleted: true };
+  },
+
+  /** Registro de comandas eliminadas — solo Dueño/Admin (ver rutas). No hay forma de borrarlo. */
+  async listDeletionLog(restaurantId: string) {
+    const rows = await prisma.orderDeletionLog.findMany({
+      where: { restaurantId },
+      orderBy: { deletedAt: 'desc' },
+      take: 300,
+    });
+    return rows.map((r) => ({ ...r, totalBase: Number(r.totalBase) }));
   },
 
   /**

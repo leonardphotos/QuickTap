@@ -157,5 +157,7 @@ export function defaultPathFor(role?: UserRole | null): string {
   if (isScreenRole(role)) return SCREEN_PATH;
   if (isKioskRole(role)) return KIOSK_PATH;
   if (isNumeroRole(role)) return NUMERO_PATH;
+  // Mesero/Cajero arrancan en Comandas (su pantalla de trabajo); Cocina en su cola.
+  if (role === 'WAITER' || role === 'CASHIER') return '/admin/comandas';
   return '/admin/kitchen';
 }

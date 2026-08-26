@@ -77,7 +77,6 @@ const CHANNEL_LABELS: Record<Channel, string> = {
  * nombre y teléfono a quien compra un café en el mostrador solo agrega un toque de más por
  * venta. Barra sí la conserva, porque ahí a veces se abre una cuenta a nombre de alguien.
  */
-const CHANNELS_SIN_CLIENTE: Channel[] = ['EXPRESS'];
 
 const STEP_LABELS: Record<Step, string> = { 1: 'Cliente', 2: 'Menú', 3: 'Pago' };
 
@@ -225,10 +224,11 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
     if (primero) setChannel(primero);
   }, [canales, channel, opcionesCanal]);
 
-  // Express no tiene pantalla de Cliente: si se elige estando en ella, se pasa derecho al menú.
-  useEffect(() => {
-    if (CHANNELS_SIN_CLIENTE.includes(channel) && step === 1) setStep(2);
-  }, [channel, step]);
+  // OJO: no saltar automáticamente al menú cuando el canal quede en Express. Antes había un
+  // efecto que lo hacía, y en un restaurante sin canal Mesa el fallback de arriba dejaba el
+  // canal en Express y el diálogo abría directo en el menú vacío ("Sin productos aún"),
+  // saltándose la pantalla de Cliente / Pedido Express. El salto a Express es solo explícito:
+  // el botón "Pedido Express" del paso Cliente ya hace su propio setStep(2).
 
   useEffect(() => {
     api.get('/products').then((res) => setProducts(res.data.data));
@@ -566,18 +566,16 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
     </>
   );
 
-  // Express no tiene pantalla de Cliente, así que desde el menú no hay a dónde volver: el
-  // "Atrás" cierra. Sin esto el botón quedaba muerto — mandaba al paso 1 y el efecto de
-  // arriba devolvía al 2 en el mismo tick.
-  const sinPasoCliente = CHANNELS_SIN_CLIENTE.includes(channel);
+  // Desde el menú siempre se puede volver a la pantalla de Cliente — incluso en Express,
+  // por si el cajero se equivocó de botón (ya no existe el efecto que rebotaba al menú).
   function atras() {
-    if (step > 1 && !(step === 2 && sinPasoCliente)) setStep((step - 1) as Step);
+    if (step > 1) setStep((step - 1) as Step);
     else onClose();
   }
 
   const actionButtons = (
     <div className="flex gap-2 pt-2">
-      {step > 1 && !(step === 2 && sinPasoCliente) && (
+      {step > 1 && (
         <TextureButton variant="secondary" size="default" className="!w-auto" onClick={atras}>
           Atrás
         </TextureButton>

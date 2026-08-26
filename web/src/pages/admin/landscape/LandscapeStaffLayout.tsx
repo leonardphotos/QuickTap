@@ -35,7 +35,7 @@ const TAB_META: Record<LandscapeTab, { title: string; subtitle: string }> = {
  */
 export default function LandscapeStaffLayout() {
   const { user, restaurant, logout } = useAuth();
-  const [tab, setTab] = useState<LandscapeTab>('mesas');
+  const [tab, setTab] = useState<LandscapeTab>('comandas');
   const [existingOrders, setExistingOrders] = useState<LiveOrder[]>([]);
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<LiveOrder | null>(null);
@@ -55,8 +55,8 @@ export default function LandscapeStaffLayout() {
   const NAV_ITEMS: { id: 'crear' | LandscapeTab; label: string; icon: typeof Grid2x2 }[] = [
     { id: 'crear', label: 'Crear pedido', icon: Plus },
     { id: 'comandas', label: 'Comandas', icon: Receipt },
-    { id: 'mesas', label: 'Mesas', icon: Grid2x2 },
     { id: 'cocina', label: 'Cocina', icon: ChefHat },
+    { id: 'mesas', label: 'Mesas', icon: Grid2x2 },
   ];
 
   const meta = TAB_META[tab];

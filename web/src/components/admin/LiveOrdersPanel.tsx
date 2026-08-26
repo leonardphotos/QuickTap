@@ -10,6 +10,7 @@ import {
   Clock,
   CreditCard,
   Download,
+  History,
   MessageCircle,
   Plus,
   Printer,
@@ -37,6 +38,20 @@ import { Toast } from '@/components/ui/toast';
 import { abbreviateTableBadge, CURRENCY_SYMBOLS, formatBase, formatBsAbsolute, formatModifierLabel } from '@/utils/format';
 import { settledOf } from '@/utils/orderBalance';
 import { useIsLandscapeTablet } from '@/hooks/useIsLandscapeTablet';
+
+interface DeletionLogEntry {
+  id: string;
+  orderNumber: number;
+  channel: string;
+  status: string;
+  tableName: string | null;
+  customerName: string | null;
+  totalBase: number;
+  items: { name: string; quantity: number; variantName?: string | null; modifiers?: { name: string; quantity: number }[] }[];
+  deletedByName: string;
+  deletedByRole: string;
+  deletedAt: string;
+}
 
 interface LiveOrderItem {
   id: string;
@@ -311,6 +326,9 @@ export function LiveOrdersPanel({
   const [comandaMenuFor, setComandaMenuFor] = useState<string | null>(null);
   const [printingId, setPrintingId] = useState<string | null>(null);
   const [sendingWhatsappId, setSendingWhatsappId] = useState<string | null>(null);
+  // Registro permanente de comandas eliminadas — solo Dueño/Admin (el backend además lo exige).
+  const [deletionLogOpen, setDeletionLogOpen] = useState(false);
+  const [deletionLog, setDeletionLog] = useState<DeletionLogEntry[] | null>(null);
   // Mesero: eliminar una comanda exige el código de 6 dígitos creado en Ajustes (ver deleteOrderHard en el backend).
   const [pinPromptFor, setPinPromptFor] = useState<string | null>(null);
   const [pinInput, setPinInput] = useState('');
@@ -568,16 +586,30 @@ export function LiveOrdersPanel({
             </span>
           )}
         </div>
-        {!hideCreateButton && (
-          <TextureButton
-            variant="success"
-            size="default"
-            className="!w-auto flex items-center gap-1.5 shrink-0"
-            onClick={() => setCreateOrderOpen(true)}
-          >
-            <Plus className="h-4 w-4" strokeWidth={2.5} /> Crear pedido
-          </TextureButton>
-        )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {(user?.role === 'OWNER' || user?.role === 'ADMIN') && (
+            <button
+              onClick={() => {
+                setDeletionLogOpen(true);
+                api.get('/orders/deletion-log').then((res) => setDeletionLog(res.data.data));
+              }}
+              className="flex items-center gap-1 text-xs font-medium text-brand-950/50 hover:text-brand-950 border border-brand-950/15 rounded-full px-3 py-2"
+              title="Registro de comandas eliminadas"
+            >
+              <History className="h-3.5 w-3.5" /> Eliminadas
+            </button>
+          )}
+          {!hideCreateButton && (
+            <TextureButton
+              variant="success"
+              size="default"
+              className="!w-auto flex items-center gap-1.5 shrink-0"
+              onClick={() => setCreateOrderOpen(true)}
+            >
+              <Plus className="h-4 w-4" strokeWidth={2.5} /> Crear pedido
+            </TextureButton>
+          )}
+        </div>
       </div>
 
       <div className="flex gap-1.5 mb-3 overflow-x-auto -mx-0.5 px-0.5 pb-0.5">
@@ -893,6 +925,46 @@ export function LiveOrdersPanel({
                 {busyId === pinPromptFor ? 'Eliminando…' : 'Eliminar comanda'}
               </TextureButton>
             </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {deletionLogOpen && (
+        <Dialog open onOpenChange={(open) => !open && setDeletionLogOpen(false)}>
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Comandas eliminadas</DialogTitle>
+            </DialogHeader>
+            <p className="text-xs text-brand-950/50 font-light -mt-1 mb-2">
+              Registro permanente: cada comanda borrada queda aquí con quién la borró. No se puede eliminar.
+            </p>
+            {!deletionLog ? (
+              <p className="text-sm text-brand-950/50">Cargando…</p>
+            ) : deletionLog.length === 0 ? (
+              <p className="text-sm text-brand-950/50">Ninguna comanda ha sido eliminada.</p>
+            ) : (
+              <div className="space-y-2.5">
+                {deletionLog.map((r) => (
+                  <div key={r.id} className="rounded-xl border border-brand-950/10 p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-brand-950">
+                        #{r.orderNumber}
+                        {r.tableName ? ` · Mesa ${r.tableName}` : ''}
+                        {r.customerName ? ` · ${r.customerName}` : ''}
+                      </span>
+                      <span className="text-sm font-bold text-brand-950">{formatBase(r.totalBase, symbol)}</span>
+                    </div>
+                    <p className="text-xs text-brand-950/60 mt-0.5">
+                      {r.items.map((it) => `${it.quantity}x ${it.name}${it.variantName ? ` (${it.variantName})` : ''}`).join(', ')}
+                    </p>
+                    <p className="text-xs text-red-600/80 mt-1.5">
+                      Eliminada por <span className="font-semibold">{r.deletedByName}</span> ({r.deletedByRole}) ·{' '}
+                      {new Date(r.deletedAt).toLocaleString('es-VE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </DialogContent>
         </Dialog>
       )}
@@ -1457,7 +1529,7 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
         className={
           isPos
             ? 'max-w-none w-screen h-screen max-h-screen rounded-none border-0 p-5 gap-3 translate-x-0 translate-y-0 left-0 top-0 grid-rows-[auto_minmax(0,1fr)]'
-            : 'inset-x-0 left-0 bottom-0 top-auto max-w-none translate-x-0 translate-y-0 rounded-b-none rounded-t-[28px] max-h-[92vh] pb-[max(1.5rem,env(safe-area-inset-bottom))] data-[state=open]:animate-sheet-in data-[state=closed]:animate-sheet-out sm:inset-auto sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[24px] sm:max-h-[85vh] sm:pb-6 sm:data-[state=open]:animate-scale-in sm:data-[state=closed]:animate-scale-out'
+            : 'inset-x-0 left-0 bottom-0 top-auto w-full max-w-none translate-x-0 translate-y-0 rounded-b-none rounded-t-[28px] max-h-[92vh] pb-[max(1.5rem,env(safe-area-inset-bottom))] data-[state=open]:animate-sheet-in data-[state=closed]:animate-sheet-out sm:inset-auto sm:left-1/2 sm:top-1/2 sm:bottom-auto sm:max-w-lg sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-[24px] sm:max-h-[85vh] sm:pb-6 sm:data-[state=open]:animate-scale-in sm:data-[state=closed]:animate-scale-out'
         }
       >
         <PosCol isPos={isPos} className="shrink-0 space-y-2">
