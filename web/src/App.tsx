@@ -11,6 +11,7 @@ const WalletLoginPage = lazy(() => import('./pages/wallet/WalletLoginPage'));
 const WalletDashboardPage = lazy(() => import('./pages/wallet/WalletDashboardPage'));
 const WalletInfoPage = lazy(() => import('./pages/wallet/WalletInfoPage'));
 const PlansPage = lazy(() => import('./pages/PlansPage'));
+const TutorialsPage = lazy(() => import('./pages/TutorialsPage'));
 const LegalPage = lazy(() => import('./pages/LegalPage'));
 const ServicePage = lazy(() => import('./pages/seo/ServicePage'));
 const VerticalPage = lazy(() => import('./pages/seo/VerticalPage'));
@@ -117,6 +118,7 @@ export default function App() {
             {/* QuickTap Wallet (quicktap.club/wallet) */}
             <Route path="/wallet" element={<WalletLoginPage />} />
             <Route path="/wallet/conoce" element={<WalletInfoPage />} />
+            <Route path="/tutoriales" element={<TutorialsPage />} />
             <Route path="/wallet/mis-compras" element={<WalletDashboardPage />} />
             {/* El portal se llamó QuickTap Pass y su enlace circuló impreso y por WhatsApp:
                 /pass sigue entrando, redirigido, en vez de dar 404. */}

@@ -728,6 +728,7 @@ export default function LandingPage() {
                   { label: 'Funciones', href: '#funciones' },
                   { label: 'Precios', to: '/precios' },
                   { label: 'Comparativa', to: '/comparativa' },
+                  { label: 'Tutoriales', to: '/tutoriales' },
                   { label: 'Iniciar sesión', to: '/admin/login' },
                 ].map((l) =>
                   l.to ? (
@@ -850,6 +851,9 @@ export default function LandingPage() {
                 </Link>
                 <Link to="/comparativa" className="rounded-lg px-3 py-2.5 text-[15px] font-medium text-brand-950 hover:bg-brand-950/5">
                   Comparativa
+                </Link>
+                <Link to="/tutoriales" className="rounded-lg px-3 py-2.5 text-[15px] font-medium text-brand-950 hover:bg-brand-950/5">
+                  Tutoriales
                 </Link>
                 <Link to="/admin/login" className="rounded-lg px-3 py-2.5 text-[15px] font-medium text-brand-950 hover:bg-brand-950/5">
                   Iniciar sesión
