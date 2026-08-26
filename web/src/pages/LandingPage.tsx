@@ -913,11 +913,14 @@ export default function LandingPage() {
               sección lo recorta por arriba, abajo y a la derecha, como una foto que se sale de
               cuadro. Centrado verticalmente y bien grande; solo en escritorio, porque en el
               teléfono ya estás viendo un teléfono. */}
-          <div className="pointer-events-none absolute inset-y-0 -right-16 z-10 hidden items-center lg:flex xl:-right-6">
+          {/* Como la referencia: el teléfono arranca justo después del texto (no pegado al
+              borde derecho — queda aire oscuro después de él), con su tope asomando arriba y
+              el resto sangrando por debajo del banner. */}
+          <div className="pointer-events-none absolute left-[40%] top-14 z-10 hidden lg:block">
             <img
               src="/images/wallet-mockup.png"
               alt="QuickTap Wallet en un teléfono, con el saldo y el historial de compras"
-              className="w-[880px] max-w-none rotate-[2deg] drop-shadow-[0_50px_100px_rgba(0,0,0,0.55)]"
+              className="w-[740px] max-w-none drop-shadow-[0_50px_100px_rgba(0,0,0,0.55)]"
             />
           </div>
         </section>
