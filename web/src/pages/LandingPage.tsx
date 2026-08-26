@@ -881,7 +881,7 @@ export default function LandingPage() {
                 'radial-gradient(90% 130% at 85% 0%, rgba(170,212,255,0.35) 0%, rgba(58,136,245,0.25) 22%, rgba(20,74,185,0.14) 42%, rgba(4,7,13,0) 68%)',
             }}
           />
-          <Reveal className="relative z-10 mx-auto grid max-w-5xl items-center gap-10 lg:grid-cols-[1fr_auto]">
+          <Reveal className="relative z-10 mx-auto max-w-5xl">
             <div className="max-w-xl">
               <span className="flex flex-col items-start">
                 <img src="/logo/wallet.png" alt="QuickTap Wallet" className="h-9 w-auto" />
@@ -907,16 +907,19 @@ export default function LandingPage() {
                 </Link>
               </div>
             </div>
-            {/* El teléfono se asoma inclinado por el borde inferior — la sección lo recorta.
-                Solo en escritorio: en el teléfono ya estás viendo un teléfono. */}
-            <div className="hidden lg:block">
-              <img
-                src="/images/wallet-mockup.png"
-                alt="QuickTap Wallet en un teléfono, con el saldo y el historial de compras"
-                className="w-[420px] max-w-none drop-shadow-[0_40px_80px_rgba(0,0,0,0.5)]"
-              />
-            </div>
           </Reveal>
+          {/* El teléfono, a toda la altura del banner y posicionado fuera del flujo (absolute
+              respecto a la sección) para que no le sume alto — solo el overflow-hidden de la
+              sección lo recorta por arriba, abajo y a la derecha, como una foto que se sale de
+              cuadro. Centrado verticalmente y bien grande; solo en escritorio, porque en el
+              teléfono ya estás viendo un teléfono. */}
+          <div className="pointer-events-none absolute inset-y-0 -right-16 z-10 hidden items-center lg:flex xl:-right-6">
+            <img
+              src="/images/wallet-mockup.png"
+              alt="QuickTap Wallet en un teléfono, con el saldo y el historial de compras"
+              className="w-[880px] max-w-none rotate-[2deg] drop-shadow-[0_50px_100px_rgba(0,0,0,0.55)]"
+            />
+          </div>
         </section>
 
         {/* Hero secundario: presentación general (antes en /soluciones) */}
