@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid';
 import { Prisma } from '@prisma/client';
-import { whatsappLinkService } from '../whatsapp-link/whatsapp-link.service';
+import { whatsappLinkService, frase } from '../whatsapp-link/whatsapp-link.service';
 import { prisma } from '../../config/prisma';
 import { badRequest, conflict, forbidden, notFound } from '../../utils/http-error';
 import { clubPlayerService } from '../club-players/club-player.service';
@@ -674,9 +674,17 @@ export const clubService = {
         await whatsappLinkService.enviar(
           restaurantId,
           b.playerPhone,
-          `✅ *${b.restaurant.name}*
+          frase(
+            `✅ *${b.restaurant.name}*
 
 ${b.playerName ? b.playerName + ', tu' : 'Tu'} pago fue verificado. Reserva de ${b.block.court.name} — ${fecha}. ¡Nos vemos en la cancha!`,
+            `🎾 *${b.restaurant.name}*
+
+¡Pago verificado! Te esperamos en ${b.block.court.name} — ${fecha}.`,
+            `✅ *${b.restaurant.name}*
+
+Tu reserva de ${b.block.court.name} quedó confirmada para el ${fecha}. ¡Buen juego!`,
+          ),
         );
       })().catch(() => undefined);
     }

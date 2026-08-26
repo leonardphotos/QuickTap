@@ -165,13 +165,21 @@ async function confirm(restaurantId: string, userId: string, orderId: string, pa
 
 📅 Tu plan de cuotas quedó activo — síguelo en quicktap.club/wallet`
         : '';
-    const { whatsappLinkService } = await import('../whatsapp-link/whatsapp-link.service');
+    const { whatsappLinkService, frase } = await import('../whatsapp-link/whatsapp-link.service');
     await whatsappLinkService.enviar(
       restaurantId,
       order.customerPhone,
-      `✅ *${negocio.name}*
+      frase(
+        `✅ *${negocio.name}*
 
 ${order.customerName}, confirmamos tu pedido #${order.orderNumber}.${lineaEntradas}`,
+        `✅ *${negocio.name}*
+
+¡Gracias por tu compra, ${order.customerName}! Tu pedido #${order.orderNumber} quedó confirmado.${lineaEntradas}`,
+        `✅ *${negocio.name}*
+
+${order.customerName}, tu pago quedó verificado y el pedido #${order.orderNumber} confirmado.${lineaEntradas}`,
+      ),
     );
   })().catch(() => undefined);
 

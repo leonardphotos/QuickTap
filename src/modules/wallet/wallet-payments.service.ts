@@ -300,14 +300,24 @@ export const walletInboxService = {
           select: { customerName: true, customerPhone: true, settledAt: true, restaurant: { select: { name: true } } },
         });
         if (!venta?.customerPhone) return;
-        const { whatsappLinkService } = await import('../whatsapp-link/whatsapp-link.service');
+        const { whatsappLinkService, frase } = await import('../whatsapp-link/whatsapp-link.service');
+        const cierre = venta.settledAt
+          ? ' ¡Tu cuenta quedó saldada! 🎉'
+          : ' Puedes ver tu saldo actualizado en tu QuickTap Wallet.';
         await whatsappLinkService.enviar(
           restaurantId,
           venta.customerPhone,
-          `✅ *${venta.restaurant.name}*
+          frase(
+            `✅ *${venta.restaurant.name}*
 
-Verificamos tu abono de $${reporte.amount.toFixed(2)}.` +
-            (venta.settledAt ? ' ¡Tu cuenta quedó saldada! 🎉' : ' Puedes ver tu saldo actualizado en tu QuickTap Wallet.'),
+Verificamos tu abono de $${reporte.amount.toFixed(2)}.${cierre}`,
+            `✅ *${venta.restaurant.name}*
+
+Tu abono de $${reporte.amount.toFixed(2)} quedó registrado.${cierre}`,
+            `✅ *${venta.restaurant.name}*
+
+¡Recibido! Ya verificamos tu pago de $${reporte.amount.toFixed(2)}.${cierre}`,
+          ),
         );
       })().catch(() => undefined);
       return resultado;

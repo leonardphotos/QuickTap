@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { OrderChannel, PaymentMethod, Prisma } from '@prisma/client';
-import { whatsappLinkService } from '../whatsapp-link/whatsapp-link.service';
+import { whatsappLinkService, frase } from '../whatsapp-link/whatsapp-link.service';
 import { prisma } from '../../config/prisma';
 import { primaryTableIdOf } from '../../utils/table-merge';
 import { badRequest, conflict, forbidden, notFound } from '../../utils/http-error';
@@ -1564,7 +1564,11 @@ export const orderService = {
         .sendMessage(
           restaurant.id,
           customerWhatsapp,
-          `✅ *${restaurant.name}*\n\nRecibimos tu pedido #${order.orderNumber}. ¡Ya lo estamos preparando!`,
+          frase(
+            `✅ *${restaurant.name}*\n\nRecibimos tu pedido #${order.orderNumber}. ¡Ya lo estamos preparando!`,
+            `✅ *${restaurant.name}*\n\n¡Listo! Tu pedido #${order.orderNumber} entró a cocina.`,
+            `✅ *${restaurant.name}*\n\nTu pedido #${order.orderNumber} quedó registrado y ya está en preparación.`,
+          ),
         )
         .catch(() => undefined);
     }
@@ -2044,7 +2048,11 @@ export const orderService = {
             .sendMessage(
               restaurantId,
               formatVenezuelanWhatsappPhone(order.customerPhone),
-              `✅ *${restaurant.name}*\n\n¡Tu pedido #${order.orderNumber} ya está listo para retirar!`,
+              frase(
+                `✅ *${restaurant.name}*\n\n¡Tu pedido #${order.orderNumber} ya está listo para retirar!`,
+                `🛍️ *${restaurant.name}*\n\nTu pedido #${order.orderNumber} te está esperando. ¡Pasa a buscarlo cuando quieras!`,
+                `✅ *${restaurant.name}*\n\nYa puedes pasar por tu pedido #${order.orderNumber}.`,
+              ),
             )
             .catch(() => undefined);
         }
@@ -2668,7 +2676,11 @@ export const orderService = {
         .sendMessage(
           restaurantId,
           formatVenezuelanWhatsappPhone(order.customerPhone),
-          `🛵 *${restaurant.name}*\n\n¡Tu pedido #${order.orderNumber} va en camino!`,
+          frase(
+            `🛵 *${restaurant.name}*\n\n¡Tu pedido #${order.orderNumber} va en camino!`,
+            `🛵 *${restaurant.name}*\n\nTu pedido #${order.orderNumber} acaba de salir. ¡Llega pronto!`,
+            `🛵 *${restaurant.name}*\n\n¡Salió tu pedido #${order.orderNumber}! Ya va hacia ti.`,
+          ),
         )
         .catch(() => undefined);
     }
