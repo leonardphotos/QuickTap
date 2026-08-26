@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { masterApi } from '@/api/client';
 import { formatBase, formatBsAbsolute } from '@/utils/format';
 import { ServerHealthCard } from '@/components/master/ServerHealthCard';
+import { SmsBalanceCard } from '@/components/master/SmsBalanceCard';
 import { VpsCapacityBar } from '@/components/master/VpsCapacityBar';
 import { QuickTapRevenueDialog } from '@/components/master/QuickTapRevenueDialog';
 import { MaskedAmount } from '@/components/master/MaskedAmount';
@@ -106,6 +107,12 @@ export default function MasterSummaryPage() {
       <section>
         <h2 className="text-sm font-semibold text-brand-950/70 mb-3">Salud del servidor</h2>
         <ServerHealthCard />
+      </section>
+
+      {/* 3b. Saldo de SMS (enviatusms): prepago, y sin saldo el código del Wallet no llega. */}
+      <section>
+        <h2 className="text-sm font-semibold text-brand-950/70 mb-3">Saldo de SMS</h2>
+        <SmsBalanceCard />
       </section>
 
       {/* 4. Pendientes por atender. */}

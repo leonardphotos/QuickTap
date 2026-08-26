@@ -140,4 +140,34 @@ export const masterSummaryService = {
       ordersAllTimeBs: allTimeTotals.bs,
     };
   },
+
+  /**
+   * Saldo de enviatusms — la cuenta prepago que manda los códigos SMS del Wallet.
+   *
+   * Se consulta en vivo (sin caché): el master lo mira un par de veces al día y la consulta
+   * cuesta lo mismo que servirla cacheada mal. Sin API key configurada o con el proveedor
+   * caído devuelve disponible:false — el visor lo dice, no revienta el Resumen.
+   */
+  async smsBalance() {
+    const { env } = await import('../../config/env');
+    if (!env.sms.enviatusmsApiKey) return { disponible: false as const };
+    try {
+      const res = await fetch(`https://www.enviatusms.com/api/balance?api_key=${env.sms.enviatusmsApiKey}`, {
+        signal: AbortSignal.timeout(8000),
+      });
+      const data = (await res.json()) as { status?: string; balance?: string; sms?: Record<string, number> };
+      if (data.status !== 'ok') return { disponible: false as const };
+      const porOperadora = data.sms ?? {};
+      return {
+        disponible: true as const,
+        balanceUsd: Number(data.balance ?? 0),
+        // El estimado que se muestra grande: el PEOR caso entre operadoras — prometer el
+        // mejor invita a quedarse corto justo con la operadora más cara.
+        smsRestantes: Math.min(...Object.values(porOperadora), Infinity),
+        porOperadora,
+      };
+    } catch {
+      return { disponible: false as const };
+    }
+  },
 };

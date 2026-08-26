@@ -8,5 +8,6 @@ router.use(platformAuthGuard);
 
 router.get('/', masterSummaryController.get);
 router.get('/live', masterSummaryController.live);
+router.get('/sms-balance', masterSummaryController.smsBalance);
 
 export default router;
