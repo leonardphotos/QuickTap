@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion, useScroll, useTransform } from 'motion/react';
 import { ArrowUpRight, Banknote, BarChart3, Bell, Bot, Boxes, Building2, CalendarDays, Check, ChefHat, ChevronDown, ChevronRight, Coffee, CreditCard, Crown, Download, Grid2x2, Hash, Menu, MessageCircle, Monitor, Palette, Printer, QrCode, ScanLine, ShieldCheck, ShoppingBag, Smartphone, SplitSquareHorizontal, Tablet, Tag, Trophy, UserCog, Users, UtensilsCrossed, Wallet, Wallet as WalletIcon, X } from 'lucide-react';
 import { IntroLoader } from '@/components/landing/IntroLoader';
+import { WalletPhoneMock } from '@/components/landing/WalletPhoneMock';
 import { GradientWave } from '@/components/ui/gradient-wave';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -881,27 +882,37 @@ export default function LandingPage() {
                 'radial-gradient(90% 130% at 85% 0%, rgba(170,212,255,0.35) 0%, rgba(58,136,245,0.25) 22%, rgba(20,74,185,0.14) 42%, rgba(4,7,13,0) 68%)',
             }}
           />
-          <Reveal className="relative z-10 mx-auto flex max-w-4xl flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between">
-            <div>
+          <Reveal className="relative z-10 mx-auto grid max-w-5xl items-center gap-10 lg:grid-cols-[1fr_auto]">
+            <div className="max-w-xl">
               <span className="flex flex-col items-start">
-                <img src="/logo/wallet.png" alt="QuickTap Wallet" className="h-8 w-auto" />
+                <img src="/logo/wallet.png" alt="QuickTap Wallet" className="h-9 w-auto" />
                 <span className="mt-1 text-[8px] font-light tracking-wide text-white/40">by QuickTap</span>
               </span>
-              <h2 className="mt-4 text-2xl font-bold text-white sm:text-3xl">
+              <h2 className="mt-5 text-3xl font-bold leading-tight text-white sm:text-4xl">
                 Lo que debes, tus cuotas y tus entradas — <span className="text-[#3d9bff]">en tu bolsillo.</span>
               </h2>
-              <p className="mt-2 max-w-md text-sm font-light text-white/55">
-                El portal del cliente: saldo al día, abonos con comprobante, entradas con QR y
-                recordatorios antes de cada cuota.
+              <p className="mt-3 max-w-md text-[15px] font-light leading-relaxed text-white/55">
+                El portal del cliente de los negocios QuickTap: saldo al día, abonos con
+                comprobante, entradas con QR y recordatorios antes de cada cuota.
               </p>
+              <div className="mt-7 flex flex-wrap items-center gap-4">
+                <Link
+                  to="/wallet/conoce"
+                  className="inline-flex items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-white shadow-[0_8px_24px_-10px_rgba(0,154,255,0.8)] transition-transform duration-200 active:scale-[0.97]"
+                  style={{ background: 'linear-gradient(135deg, #009aff 0%, #056CF2 100%)' }}
+                >
+                  Conoce Wallet <ArrowUpRight className="h-4 w-4" />
+                </Link>
+                <Link to="/wallet" className="text-sm font-medium text-white/60 underline-offset-4 hover:text-white hover:underline">
+                  Entrar a mi Wallet
+                </Link>
+              </div>
             </div>
-            <Link
-              to="/wallet/conoce"
-              className="inline-flex shrink-0 items-center gap-2 rounded-full px-6 py-3 text-sm font-semibold text-white shadow-[0_8px_24px_-10px_rgba(0,154,255,0.8)] transition-transform duration-200 active:scale-[0.97]"
-              style={{ background: 'linear-gradient(135deg, #009aff 0%, #056CF2 100%)' }}
-            >
-              Conoce Wallet <ArrowUpRight className="h-4 w-4" />
-            </Link>
+            {/* El teléfono se asoma inclinado por el borde inferior — la sección lo recorta.
+                Solo en escritorio: en el teléfono ya estás viendo un teléfono. */}
+            <div className="hidden lg:block">
+              <WalletPhoneMock className="-mb-40 rotate-[4deg]" />
+            </div>
           </Reveal>
         </section>
 
