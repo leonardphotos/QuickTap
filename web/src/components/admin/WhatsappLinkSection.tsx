@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { MessageCircle, PauseCircle, Unlink } from 'lucide-react';
+import { Lock, MessageCircle, PauseCircle, Unlink } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { api as apiTenant } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 
@@ -10,6 +11,9 @@ interface Estado {
   phone?: string | null;
   paused?: boolean;
   autoPaused?: boolean;
+  /** false = el plan actual no incluye el beneficio: la tarjeta se pinta bloqueada. El master
+   *  no manda este campo (undefined) y se trata como permitido. */
+  planPermitido?: boolean;
 }
 
 /**
@@ -24,10 +28,14 @@ export function WhatsappLinkSection({
   titulo = 'WhatsApp del negocio',
   // El master usa su propio cliente (masterApi): mismo componente, otra puerta.
   cliente,
+  // El panel de locales no navega por rutas: su facturación es una pantalla interna, así que
+  // el botón del candado recibe el salto en vez de asumir /admin/billing.
+  onMejorarPlan,
 }: {
   base?: string;
   titulo?: string;
   cliente?: typeof apiTenant;
+  onMejorarPlan?: () => void;
 }) {
   const api = cliente ?? apiTenant;
   const [estado, setEstado] = useState<Estado | null>(null);
@@ -96,10 +104,53 @@ export function WhatsappLinkSection({
     }
   }
 
-  // Sin estado aún (cargando), sin Evolution configurada, o plan sin el beneficio (el
-  // backend responde 403 y el catch deja estado en null): la tarjeta no existe. Un cartel
-  // de "mejora tu plan" acá sería ruido — este beneficio se vende en la página de planes.
+  // Sin estado aún (cargando) o sin Evolution configurada en el servidor, la tarjeta no existe.
   if (!estado || !estado.disponible) return null;
+
+  // Plan sin el beneficio: la tarjeta SE VE, bloqueada. Que exista y no se pueda tocar vende
+  // el plan de arriba mejor que un beneficio invisible — el candado es el argumento.
+  if (estado.planPermitido === false) {
+    return (
+      <section className="relative overflow-hidden rounded-2xl border border-brand-950/[0.08] bg-white p-5">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-950/[0.06]">
+            <Lock className="h-4 w-4 text-brand-950/40" />
+          </span>
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-brand-950">
+              {titulo}
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700">
+                Plan Elite
+              </span>
+            </h2>
+            <p className="text-[11.5px] font-light text-brand-950/50">
+              Vincula tu número y tus clientes reciben la confirmación de cada pedido, su
+              entrada y el aviso de sus cuotas — directo de tu WhatsApp, sin que nadie los
+              escriba a mano.
+            </p>
+          </div>
+        </div>
+        <div className="mt-4">
+          {onMejorarPlan ? (
+            <button
+              type="button"
+              onClick={onMejorarPlan}
+              className="inline-flex items-center gap-1.5 rounded-full bg-brand-950 px-5 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-brand-800"
+            >
+              Mejorar mi plan
+            </button>
+          ) : (
+            <Link
+              to="/admin/billing"
+              className="inline-flex items-center gap-1.5 rounded-full bg-brand-950 px-5 py-2 text-[12.5px] font-semibold text-white transition-colors hover:bg-brand-800"
+            >
+              Mejorar mi plan
+            </Link>
+          )}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section className="rounded-2xl border border-brand-950/[0.08] bg-white p-5">

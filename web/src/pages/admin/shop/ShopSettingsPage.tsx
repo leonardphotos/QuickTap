@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Building2, ChevronDown, LogOut, ShieldCheck, Wallet } from 'lucide-react';
+import { ArrowLeft, Building2, ChevronDown, LogOut, ShieldCheck, Wallet, Store, MessageCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/api/client';
 import type { Currency } from '@/types';
@@ -13,6 +13,7 @@ import { ScheduleSection } from '@/components/admin/ScheduleSection';
 import { ShopTeamSection } from './ShopTeamSection';
 import { ShopStorefrontSection } from './ShopStorefrontSection';
 import { ThemeSection } from '@/components/admin/ThemeSection';
+import { WhatsappLinkSection } from '@/components/admin/WhatsappLinkSection';
 import type { ShopSession } from './shopSession';
 import { LockScreenSettingsSection } from '@/components/admin/LockScreenSettingsSection';
 import { SalesHistoryExportSection } from '@/components/admin/SalesHistoryExportSection';
@@ -20,6 +21,7 @@ import { SalesHistoryExportSection } from '@/components/admin/SalesHistoryExport
 interface Props {
   onBack: () => void;
   session: ShopSession;
+  onGoToBilling?: () => void;
 }
 
 /** Moneda base: no vive en un componente propio en el panel de restaurante (es un card suelto
@@ -86,13 +88,15 @@ function CurrencySection() {
  * delivery, Modo Cartelera). "Cerrar sesión" vive acá en vez de en la barra
  * superior.
  */
-export default function ShopSettingsPage({ onBack, session }: Props) {
+export default function ShopSettingsPage({ onBack, session, onGoToBilling }: Props) {
   const { user, logout } = useAuth();
   const canManageTeam = user?.role === 'OWNER' || user?.role === 'ADMIN';
 
   const CATEGORIES = [
     { id: 'negocio', title: 'Negocio', icon: <Building2 className="h-4 w-4" /> },
+    { id: 'tienda', title: 'Tienda virtual', icon: <Store className="h-4 w-4" /> },
     { id: 'pagos', title: 'Pagos', icon: <Wallet className="h-4 w-4" /> },
+    { id: 'whatsapp', title: 'WhatsApp', icon: <MessageCircle className="h-4 w-4" /> },
     canManageTeam
       ? { id: 'equipo', title: 'Equipo y seguridad', icon: <ShieldCheck className="h-4 w-4" /> }
       : { id: 'seguridad', title: 'Seguridad', icon: <ShieldCheck className="h-4 w-4" /> },
@@ -161,6 +165,26 @@ export default function ShopSettingsPage({ onBack, session }: Props) {
         </FullWidth>
       </SettingsCategory>
 
+      {/* La tienda virtual y su apariencia vivían dentro de "Pagos" — no son pagos, y ahí
+          nadie las encontraba. Categoría propia. */}
+      <SettingsCategory
+        id="tienda"
+        title="Tienda virtual"
+        icon={<Store className="h-4 w-4" />}
+        open={openCategory === 'tienda'}
+        onToggle={toggleCategory}
+      >
+        <FullWidth>
+          <ShopStorefrontSection session={session} />
+        </FullWidth>
+        {/* Apariencia de la tienda pública: colores, portada y redes. Es el mismo editor que
+            usa el panel de restaurantes para su menú — el tema vive en Restaurant.theme y la
+            tienda ya lo lee (ver ShopStorefrontPage). */}
+        <FullWidth>
+          <ThemeSection />
+        </FullWidth>
+      </SettingsCategory>
+
       <SettingsCategory
         id="pagos"
         title="Pagos"
@@ -169,16 +193,21 @@ export default function ShopSettingsPage({ onBack, session }: Props) {
         onToggle={toggleCategory}
       >
         <FullWidth>
-          <ShopStorefrontSection session={session} />
-        </FullWidth>
-        {/* Apariencia de la tienda pública: colores, portada y redes. Es el mismo editor que
-            usa el panel de restaurantes para su menú — el tema vive en Restaurant.theme y la
-            tienda ya lo lee (ver ShopStorefrontPage), solo faltaba dónde cambiarlo. */}
-        <FullWidth>
-          <ThemeSection />
-        </FullWidth>
-        <FullWidth>
           <PaymentMethodsSection descriptionOverride="Elige qué métodos aceptas al cobrar en Venta, y sus datos para que tus clientes sepan a dónde pagar." />
+        </FullWidth>
+      </SettingsCategory>
+
+      {/* WhatsApp vinculado: en TODOS los planes — bloqueado con su candado en los que no lo
+          incluyen, que es la mejor vitrina del plan de arriba. */}
+      <SettingsCategory
+        id="whatsapp"
+        title="WhatsApp"
+        icon={<MessageCircle className="h-4 w-4" />}
+        open={openCategory === 'whatsapp'}
+        onToggle={toggleCategory}
+      >
+        <FullWidth>
+          <WhatsappLinkSection onMejorarPlan={onGoToBilling} />
         </FullWidth>
       </SettingsCategory>
 

@@ -1,12 +1,18 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../../middlewares/error.middleware';
+import { prisma } from '../../config/prisma';
 import { whatsappLinkService } from './whatsapp-link.service';
 
 /** Panel del negocio: opera SIEMPRE sobre la instancia del propio tenant (req.restaurantId). */
 export const whatsappLinkController = {
   estado: asyncHandler(async (req: Request, res: Response) => {
-    res.json({ data: await whatsappLinkService.estado(req.restaurantId!) });
+    const estado = await whatsappLinkService.estado(req.restaurantId!);
+    // planPermitido pinta el candado en la tarjeta: en planes bajos se ve el beneficio
+    // bloqueado (con su invitación a subir de plan) en vez de no existir.
+    const { PLANES_CON_WHATSAPP } = await import('./whatsapp-link.routes');
+    const r = await prisma.restaurant.findUnique({ where: { id: req.restaurantId! }, select: { subscriptionPlan: true } });
+    res.json({ data: { ...estado, planPermitido: !!r?.subscriptionPlan && PLANES_CON_WHATSAPP.has(r.subscriptionPlan) } });
   }),
   vincular: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await whatsappLinkService.vincular(req.restaurantId!) });

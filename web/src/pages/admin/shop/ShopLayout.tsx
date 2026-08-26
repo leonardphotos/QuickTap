@@ -349,7 +349,9 @@ export default function ShopLayout() {
             onTabChange={setAdminTab}
           />
         )}
-        {screen === 'ajustes' && <ShopSettingsPage onBack={() => setScreen('admin')} session={session} />}
+        {screen === 'ajustes' && (
+          <ShopSettingsPage onBack={() => setScreen('admin')} session={session} onGoToBilling={() => setScreen('factura')} />
+        )}
         {screen === 'factura' && <ShopBillingPage restaurant={restaurant} onDone={() => setScreen('admin')} />}
         {screen === 'pass' && <ShopWalletPage />}
         {screen === 'entradas' && <ShopTicketsPage />}
