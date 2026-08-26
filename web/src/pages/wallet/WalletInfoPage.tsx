@@ -119,11 +119,14 @@ export default function WalletInfoPage() {
 
           {/* El teléfono con el portal dibujado: en móvil sobra (ya estás EN un teléfono),
               en escritorio es lo que hace la página. */}
-          <div className="hidden lg:block">
+          {/* El ancla reserva un ancho fijo en el grid (para que el texto conserve el suyo) y
+              la imagen, absoluta dentro de ella, crece mucho más y desborda hacia la derecha —
+              el overflow-hidden del contenedor raíz recorta lo que sobre. */}
+          <div className="relative hidden h-[460px] w-[430px] lg:block">
             <img
               src="/images/wallet-mockup.png"
               alt="QuickTap Wallet en un teléfono, con el saldo y el historial de compras"
-              className="w-[440px] max-w-none drop-shadow-[0_40px_80px_rgba(0,0,0,0.5)]"
+              className="absolute -right-56 top-1/2 w-[880px] max-w-none -translate-y-1/2 drop-shadow-[0_40px_80px_rgba(0,0,0,0.5)]"
             />
           </div>
         </div>
