@@ -4,7 +4,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion, useScroll, useTransform } from 'motion/react';
 import { ArrowUpRight, Banknote, BarChart3, Bell, Bot, Boxes, Building2, CalendarDays, Check, ChefHat, ChevronDown, ChevronRight, Coffee, CreditCard, Crown, Download, Grid2x2, Hash, Menu, MessageCircle, Monitor, Palette, Printer, QrCode, ScanLine, ShieldCheck, ShoppingBag, Smartphone, SplitSquareHorizontal, Tablet, Tag, Trophy, UserCog, Users, UtensilsCrossed, Wallet, Wallet as WalletIcon, X } from 'lucide-react';
 import { IntroLoader } from '@/components/landing/IntroLoader';
-import { WalletPhoneMock } from '@/components/landing/WalletPhoneMock';
 import { GradientWave } from '@/components/ui/gradient-wave';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -911,7 +910,11 @@ export default function LandingPage() {
             {/* El teléfono se asoma inclinado por el borde inferior — la sección lo recorta.
                 Solo en escritorio: en el teléfono ya estás viendo un teléfono. */}
             <div className="hidden lg:block">
-              <WalletPhoneMock className="-mb-40 rotate-[4deg]" />
+              <img
+                src="/images/wallet-mockup.png"
+                alt="QuickTap Wallet en un teléfono, con el saldo y el historial de compras"
+                className="w-[420px] max-w-none drop-shadow-[0_40px_80px_rgba(0,0,0,0.5)]"
+              />
             </div>
           </Reveal>
         </section>

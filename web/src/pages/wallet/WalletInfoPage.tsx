@@ -11,7 +11,6 @@ import {
   Wallet,
 } from 'lucide-react';
 import { useDocumentMeta } from '@/hooks/useDocumentMeta';
-import { WalletPhoneMock } from '@/components/landing/WalletPhoneMock';
 import { WALLET_NAME, WALLET_WORDMARK_URL } from './walletBrand';
 
 /**
@@ -121,7 +120,11 @@ export default function WalletInfoPage() {
           {/* El teléfono con el portal dibujado: en móvil sobra (ya estás EN un teléfono),
               en escritorio es lo que hace la página. */}
           <div className="hidden lg:block">
-            <WalletPhoneMock className="rotate-[3deg]" />
+            <img
+              src="/images/wallet-mockup.png"
+              alt="QuickTap Wallet en un teléfono, con el saldo y el historial de compras"
+              className="w-[440px] max-w-none drop-shadow-[0_40px_80px_rgba(0,0,0,0.5)]"
+            />
           </div>
         </div>
 
