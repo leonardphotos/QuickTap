@@ -193,7 +193,7 @@ export interface Modifier {
   /** Precio propio de este modificador para variantes puntuales del producto (ej. "Extra
    * queso" cuesta distinto en "Pizza Grande" que en "Pizza Pequeña"). Vacío/undefined = usa
    * `priceBase` de arriba sin importar la variante elegida — ver effectiveModifierPrice(). */
-  variantPrices?: { variantId: string; priceBase: string }[];
+  variantPrices?: { variantId: string; priceBase: string; inventoryQuantity?: number | null }[];
 }
 
 export interface ModifierCategory {

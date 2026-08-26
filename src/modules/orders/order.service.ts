@@ -734,6 +734,16 @@ async function deductModifierStock(
   });
   if (modifiers.length === 0) return;
   const byModifierId = new Map(modifiers.map((m) => [m.id, m]));
+  // Consumo propio por VARIANTE (los gramos cambian con el tamaño): el override se resuelve
+  // por nombre de variante porque el pedido congela variantName, no variantId.
+  const variantOverrides = await prisma.modifierVariantPrice.findMany({
+    where: { modifierId: { in: modifiers.map((m) => m.id) }, inventoryQuantity: { not: null } },
+    select: { modifierId: true, inventoryQuantity: true, variant: { select: { name: true, productId: true } } },
+  });
+  const overrideQtyFor = (modifierId: string, productId: string | null, variantName: string | null) =>
+    variantOverrides.find(
+      (o) => o.modifierId === modifierId && o.variant.productId === productId && o.variant.name === variantName,
+    )?.inventoryQuantity ?? null;
   const coveredByItem = await loadRecipeCoveredModifiersByItem(restaurantId, items);
   const graph = await buildCostGraph(prisma, restaurantId);
 
@@ -742,14 +752,16 @@ async function deductModifierStock(
     for (const chosen of item.modifiers) {
       if (!chosen.modifierId) continue;
       const link = byModifierId.get(chosen.modifierId);
-      if (!link || (!link.inventoryItemId && !link.preparationId) || !link.inventoryQuantity) continue;
+      if (!link || (!link.inventoryItemId && !link.preparationId)) continue;
+      const qtyPorUnidad = overrideQtyFor(chosen.modifierId, item.productId, item.variantName) ?? link.inventoryQuantity;
+      if (!qtyPorUnidad) continue;
       // La receta de este producto ya resuelve este topping con sus propios gramos (ver
       // computeRecipeStockDeltas) — no descontar dos veces el mismo insumo.
       if (covered.has(chosen.modifierId)) continue;
 
-      // (consumo por unidad) x (veces elegido) x (unidades del producto vendidas) — si el
-      // vínculo es una preparación, se resuelve hasta sus insumos base (sin stock propio).
-      const used = toDecimal(link.inventoryQuantity).mul(chosen.quantity).mul(item.quantity);
+      // (consumo por unidad — el de la variante si tiene uno propio) x (veces elegido) x
+      // (unidades vendidas) — una preparación se resuelve hasta sus insumos base.
+      const used = toDecimal(qtyPorUnidad).mul(chosen.quantity).mul(item.quantity);
       resolveConsumedInventoryItems(graph, { inventoryItemId: link.inventoryItemId, preparationId: link.preparationId }, used, usedByInventoryItem);
     }
   });
@@ -891,6 +903,16 @@ async function restoreModifierStock(
   });
   if (modifiers.length === 0) return;
   const byModifierId = new Map(modifiers.map((m) => [m.id, m]));
+  // Consumo propio por VARIANTE (los gramos cambian con el tamaño): el override se resuelve
+  // por nombre de variante porque el pedido congela variantName, no variantId.
+  const variantOverrides = await prisma.modifierVariantPrice.findMany({
+    where: { modifierId: { in: modifiers.map((m) => m.id) }, inventoryQuantity: { not: null } },
+    select: { modifierId: true, inventoryQuantity: true, variant: { select: { name: true, productId: true } } },
+  });
+  const overrideQtyFor = (modifierId: string, productId: string | null, variantName: string | null) =>
+    variantOverrides.find(
+      (o) => o.modifierId === modifierId && o.variant.productId === productId && o.variant.name === variantName,
+    )?.inventoryQuantity ?? null;
   const coveredByItem = await loadRecipeCoveredModifiersByItem(restaurantId, items);
   const graph = await buildCostGraph(prisma, restaurantId);
 
@@ -899,9 +921,11 @@ async function restoreModifierStock(
     for (const chosen of item.modifiers) {
       if (!chosen.modifierId) continue;
       const link = byModifierId.get(chosen.modifierId);
-      if (!link || (!link.inventoryItemId && !link.preparationId) || !link.inventoryQuantity) continue;
+      if (!link || (!link.inventoryItemId && !link.preparationId)) continue;
+      const qtyPorUnidad = overrideQtyFor(chosen.modifierId, item.productId, item.variantName) ?? link.inventoryQuantity;
+      if (!qtyPorUnidad) continue;
       if (covered.has(chosen.modifierId)) continue;
-      const used = toDecimal(link.inventoryQuantity).mul(chosen.quantity).mul(item.quantity);
+      const used = toDecimal(qtyPorUnidad).mul(chosen.quantity).mul(item.quantity);
       resolveConsumedInventoryItems(graph, { inventoryItemId: link.inventoryItemId, preparationId: link.preparationId }, used, usedByInventoryItem);
     }
   });

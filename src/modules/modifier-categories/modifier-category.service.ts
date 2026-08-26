@@ -30,7 +30,7 @@ export const modifierCategoryService = {
           include: {
             inventoryItem: { select: { id: true, name: true, unit: true } },
             preparation: { select: { id: true, name: true, unit: true } },
-            variantPrices: { select: { variantId: true, priceBase: true } },
+            variantPrices: { select: { variantId: true, priceBase: true, inventoryQuantity: true } },
           },
         },
         _count: { select: { products: true } },
@@ -66,7 +66,11 @@ export const modifierCategoryService = {
         preparationUnit: m.preparation?.unit ?? null,
         // Precios propios por variante (ej. "Extra queso" en Pizza Grande vs. Pequeña).
         // Vacío = usa priceBase de arriba sin importar la variante elegida.
-        variantPrices: m.variantPrices.map((vp) => ({ variantId: vp.variantId, priceBase: vp.priceBase.toFixed(2) })),
+        variantPrices: m.variantPrices.map((vp) => ({
+          variantId: vp.variantId,
+          priceBase: vp.priceBase.toFixed(2),
+          inventoryQuantity: vp.inventoryQuantity != null ? Number(vp.inventoryQuantity) : null,
+        })),
       })),
     }));
   },
@@ -279,15 +283,25 @@ export const modifierCategoryService = {
     variantId: string,
     input: SetModifierVariantPriceInput,
   ) {
-    const modifier = await prisma.modifier.findFirst({ where: { id: modifierId, restaurantId }, select: { id: true } });
+    const modifier = await prisma.modifier.findFirst({ where: { id: modifierId, restaurantId }, select: { id: true, priceBase: true } });
     if (!modifier) throw notFound('Modificador no encontrado.');
     const variant = await prisma.productVariant.findFirst({ where: { id: variantId, restaurantId }, select: { id: true } });
     if (!variant) throw notFound('Variante no encontrada.');
 
     return prisma.modifierVariantPrice.upsert({
       where: { modifierId_variantId: { modifierId, variantId } },
-      update: { priceBase: input.priceBase },
-      create: { modifierId, variantId, priceBase: input.priceBase },
+      update: {
+        ...(input.priceBase !== undefined ? { priceBase: input.priceBase } : {}),
+        ...(input.inventoryQuantity !== undefined ? { inventoryQuantity: input.inventoryQuantity } : {}),
+      },
+      // Guardar solo el consumo también crea la fila: el precio se copia del general para que
+      // nada cambie en lo que se cobra.
+      create: {
+        modifierId,
+        variantId,
+        priceBase: input.priceBase ?? modifier.priceBase,
+        ...(input.inventoryQuantity !== undefined ? { inventoryQuantity: input.inventoryQuantity } : {}),
+      },
     });
   },
 

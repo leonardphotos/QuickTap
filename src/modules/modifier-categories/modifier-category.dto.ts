@@ -57,7 +57,12 @@ export const associateProductSchema = z.object({
 // Grande vs. Pequeña). Un PUT por variante = "guardar/reemplazar este override"; DELETE = "volver
 // a usar el priceBase de siempre para esa variante".
 export const setModifierVariantPriceSchema = z.object({
-  priceBase: z.coerce.number().nonnegative(),
+  // Opcional: guardar solo el consumo por variante no obliga a repetir el precio — el
+  // service completa con el precio general del modificador si no viene.
+  priceBase: z.coerce.number().nonnegative().optional(),
+  // Consumo del insumo vinculado para ESTA variante, en unidad base (ej. 0.08 kg = 80 gr).
+  // Null borra el override y la variante vuelve al consumo general.
+  inventoryQuantity: z.coerce.number().positive().nullable().optional(),
 });
 
 export type CreateModifierCategoryInput = z.infer<typeof createModifierCategorySchema>;

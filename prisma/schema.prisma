@@ -1212,6 +1212,10 @@ model ModifierVariantPrice {
   modifierId String
   variantId  String
   priceBase  Decimal @db.Decimal(12, 2)
+  // Consumo de insumo propio de ESTA variante (en la unidad base del insumo/preparación
+  // vinculado): "Extra queso" gasta 30 gr en la pizza pequeña y 80 gr en la familiar.
+  // Null = usa el inventoryQuantity general del modificador.
+  inventoryQuantity Decimal? @db.Decimal(12, 4)
 
   modifier Modifier       @relation(fields: [modifierId], references: [id], onDelete: Cascade)
   variant  ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)

@@ -806,6 +806,9 @@ function ModifierRow({
   // Pequeña) — solo tiene sentido si la categoría está asociada a algún producto "por variantes".
   const [showVariantPrices, setShowVariantPrices] = useState((modifier.variantPrices?.length ?? 0) > 0);
   const [variantPriceInputs, setVariantPriceInputs] = useState<Record<string, string>>({});
+  // Consumo del insumo por variante (los gramos cambian con el tamaño). Se muestra en la
+  // misma sub-unidad elegida para el consumo general, y se guarda convertido a unidad base.
+  const [variantQtyInputs, setVariantQtyInputs] = useState<Record<string, string>>({});
 
   // --- Vínculo con inventario: insumo O preparación, nunca ambos. El selector combina las
   // dos listas con un value compuesto ("item:<id>" / "prep:<id>") — ver linkValueOf/decodeLinkValue. ---
@@ -846,6 +849,18 @@ function ModifierRow({
     const priceInputs: Record<string, string> = {};
     for (const vp of modifier.variantPrices ?? []) priceInputs[vp.variantId] = vp.priceBase;
     setVariantPriceInputs(priceInputs);
+    // Los consumos por variante llegan en unidad base: se convierten a la sub-unidad visible
+    // con el mismo criterio del consumo general (30 gr, no 0.03 kg).
+    const qtyInputs: Record<string, string> = {};
+    const opciones = subUnitsFor(modifier.inventoryItemUnit ?? modifier.preparationUnit);
+    const chica = opciones.find((o) => o.toBase < 1);
+    for (const vp of modifier.variantPrices ?? []) {
+      if (vp.inventoryQuantity == null) continue;
+      const baseQ = Number(vp.inventoryQuantity);
+      qtyInputs[vp.variantId] =
+        chica && baseQ < 1 ? String(Number((baseQ / chica.toBase).toFixed(2))) : String(Number(baseQ.toFixed(3)));
+    }
+    setVariantQtyInputs(qtyInputs);
   }, [modifier]);
 
   /** Precio por variante: vacío = borra el override (vuelve a usar el precio general de arriba). */
@@ -860,6 +875,22 @@ function ModifierRow({
           priceBase: Number(trimmed) || 0,
         });
       }
+      onChanged();
+    } catch (err) {
+      setModError(apiErrorMessage(err));
+    }
+  }
+
+  /** Consumo por variante: vacío = borra el override (vuelve a los gramos generales). Se
+   * convierte a unidad base con el factor de la sub-unidad activa, igual que el general. */
+  async function saveVariantQty(variantId: string, raw: string) {
+    const trimmed = raw.trim();
+    const factor = insumoSubUnits.find((u) => u.value === subUnit)?.toBase ?? 1;
+    try {
+      setModError(null);
+      await api.put(`/modifier-categories/modifiers/${modifier.id}/variant-prices/${variantId}`, {
+        inventoryQuantity: trimmed === '' ? null : (Number(trimmed) || 0) * factor,
+      });
       onChanged();
     } catch (err) {
       setModError(apiErrorMessage(err));
@@ -1059,17 +1090,32 @@ function ModifierRow({
               )}
               <div className="grid grid-cols-2 gap-1.5">
                 {product.variants.map((v) => (
-                  <OutlinedField key={v.id} label={v.name} prefix={symbol}>
-                    <input
-                      value={variantPriceInputs[v.id] ?? ''}
-                      onChange={(e) =>
-                        setVariantPriceInputs((prev) => ({ ...prev, [v.id]: e.target.value.replace(/[^0-9.]/g, '') }))
-                      }
-                      onBlur={(e) => saveVariantPrice(v.id, e.target.value)}
-                      placeholder="—"
-                      className={outlinedFieldInputClass}
-                    />
-                  </OutlinedField>
+                  <div key={v.id} className="space-y-1">
+                    <OutlinedField label={v.name} prefix={symbol}>
+                      <input
+                        value={variantPriceInputs[v.id] ?? ''}
+                        onChange={(e) =>
+                          setVariantPriceInputs((prev) => ({ ...prev, [v.id]: e.target.value.replace(/[^0-9.]/g, '') }))
+                        }
+                        onBlur={(e) => saveVariantPrice(v.id, e.target.value)}
+                        placeholder="—"
+                        className={outlinedFieldInputClass}
+                      />
+                    </OutlinedField>
+                    {(insumoId || preparationId) && (
+                      <OutlinedField label={`Consumo (${insumoSubUnits.find((u) => u.value === subUnit)?.label ?? subUnit})`}>
+                        <input
+                          value={variantQtyInputs[v.id] ?? ''}
+                          onChange={(e) =>
+                            setVariantQtyInputs((prev) => ({ ...prev, [v.id]: e.target.value.replace(/[^0-9.]/g, '') }))
+                          }
+                          onBlur={(e) => saveVariantQty(v.id, e.target.value)}
+                          placeholder="general"
+                          className={outlinedFieldInputClass}
+                        />
+                      </OutlinedField>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
