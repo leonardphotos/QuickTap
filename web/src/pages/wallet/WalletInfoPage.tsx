@@ -126,7 +126,7 @@ export default function WalletInfoPage() {
             <img
               src="/images/wallet-conoce.png"
               alt="QuickTap Wallet en un teléfono, con el saldo y el historial de compras"
-              className="absolute right-4 top-1/2 w-[640px] max-w-none -translate-y-[46%] drop-shadow-[0_40px_80px_rgba(0,0,0,0.5)]"
+              className="absolute right-4 top-1/2 w-[640px] max-w-none -translate-y-[51%] drop-shadow-[0_40px_80px_rgba(0,0,0,0.5)]"
             />
           </div>
         </div>
