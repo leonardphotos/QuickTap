@@ -22,7 +22,7 @@ import { WALLET_NAME, WALLET_WORDMARK_URL } from './walletBrand';
  * un error. Cierra con la descarga de la APK, que es a lo que se invita.
  */
 
-const APK_URL = 'https://github.com/leonardphotos/QuickTap/releases/latest/download/QuickTap-Wallet.apk';
+const APK_URL = '/descargas/QuickTap-Wallet.apk';
 
 const FUNCIONES = [
   {

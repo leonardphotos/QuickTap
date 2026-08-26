@@ -1120,14 +1120,14 @@ export default function LandingPage() {
                 línea en tablets angostas. */}
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap">
               <a
-                href="https://github.com/leonardphotos/QuickTap/releases/latest/download/QuickTap-Setup.exe"
+                href="/descargas/QuickTap-Setup.exe"
                 className="inline-flex w-full items-center justify-center gap-2.5 rounded-full bg-white px-7 py-3.5 font-semibold text-brand-950 shadow-lg shadow-black/20 transition-transform hover:scale-[1.03] active:scale-[0.97] sm:w-auto"
               >
                 <Download className="h-5 w-5" />
                 Descargar para Windows
               </a>
               <a
-                href="https://github.com/leonardphotos/QuickTap/releases/latest/download/QuickTap.apk"
+                href="/descargas/QuickTap.apk"
                 className="inline-flex w-full items-center justify-center gap-2.5 rounded-full border border-white/25 bg-white/10 px-7 py-3.5 font-semibold text-white backdrop-blur-sm transition-transform hover:scale-[1.03] hover:bg-white/15 active:scale-[0.97] sm:w-auto"
               >
                 <Download className="h-5 w-5" />

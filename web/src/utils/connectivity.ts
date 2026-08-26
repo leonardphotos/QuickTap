@@ -1,4 +1,5 @@
 import { Capacitor } from '@capacitor/core';
+import { isElectron } from './electronBridge';
 
 /**
  * A quién le habla la app: a la nube, o al relé local de la PC del restaurante.
@@ -28,7 +29,10 @@ export type ConnectivityState =
   /** Ni la nube ni el relé. No se puede tomar pedidos. */
   | 'offline';
 
-const CLOUD_ORIGIN = Capacitor.isNativePlatform()
+// Electron NO cuenta como plataforma nativa para Capacitor (getPlatform() devuelve 'web'
+// en el renderer), pero el panel ahí se sirve desde capacitor-electron:// — con origen
+// relativo el login nunca llegaba al servidor. Por eso se chequea también el puente propio.
+const CLOUD_ORIGIN = Capacitor.isNativePlatform() || isElectron
   ? (import.meta.env.VITE_DESKTOP_API_ORIGIN ?? 'https://quicktap.club')
   : '';
 
