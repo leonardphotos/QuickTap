@@ -427,7 +427,7 @@
 
       <div class="card">
         <h3>Impresoras</h3>
-        <p class="muted small" style="margin-bottom:10px;line-height:1.5;">Conecta una impresora térmica por USB/Serial o por red (Ethernet/WiFi con IP fija) por cada cocina, caja o delivery, y asígnale su estación — así cada comanda sale sola en la impresora correcta. La de Delivery imprime un ticket aparte (cliente, monto, pedido y ubicación juntos) apenas aceptas ese pedido. Si no conectas ninguna, se usa la impresión normal del navegador.</p>
+        <p class="muted small" style="margin-bottom:10px;line-height:1.5;">Conecta una impresora térmica por USB/Serial o por red (Ethernet/WiFi con IP fija) y márcale una o varias estaciones (cocinas, caja, delivery) — así cada comanda sale sola en la impresora correcta. Una misma cocina puede marcarse en varias impresoras para que la comanda salga en todas a la vez. La de Delivery imprime un ticket aparte (cliente, monto, pedido y ubicación juntos) apenas aceptas ese pedido. Si no conectas ninguna, se usa la impresión normal del navegador.</p>
         <button class="btn btn-secondary btn-block" id="connectSerialBtn">🔌 Conectar impresora USB/Serial</button>
         <p class="muted small" style="margin:10px 0 6px;">Impresora de red (IP) — ej. Xprinter Ethernet:</p>
         <div style="display:flex;gap:8px;">
@@ -521,8 +521,10 @@ const state = {
   fontScale: parseFloat(localStorage.getItem('qt_fontScale')) || 1,
   // Cocinas configuradas en el restaurante (para el selector de "a qué estación
   // va cada impresora"), y las impresoras térmicas conectadas por Web Serial.
-  // printers: [{ key, label, port, writer, assignment }] — assignment es el
-  // nombre de una cocina, 'CAJA', o null (sin asignar todavía).
+  // printers: [{ key, label, port, writer, assignments }] — assignments es una
+  // LISTA de estaciones (nombres de cocina, 'CAJA', 'DELIVERY'): una misma
+  // impresora puede atender varias cocinas, y una misma cocina puede salir en
+  // varias impresoras a la vez. Vacía = sin asignar todavía.
   kitchens: [],
   printers: [],
   ticketConfig: loadTicketConfig(),
@@ -532,9 +534,17 @@ const state = {
 function loadSavedAssignments(){
   try{ return JSON.parse(localStorage.getItem('qt_printerAssignments') || '{}'); }catch(e){ return {}; }
 }
-function saveAssignment(key, assignment){
+/** Antes cada impresora tenía UNA estación (string); ahora tiene una lista. Este
+ * normalizador acepta lo guardado en cualquiera de los dos formatos, así una
+ * estación configurada antes del cambio sigue funcionando sin reconfigurar. */
+function normalizeAssignments(value){
+  if(Array.isArray(value)) return value.filter(Boolean);
+  if(typeof value === 'string' && value) return [value];
+  return [];
+}
+function saveAssignment(key, assignments){
   const map = loadSavedAssignments();
-  if(assignment) map[key] = assignment; else delete map[key];
+  if(assignments && assignments.length) map[key] = assignments; else delete map[key];
   localStorage.setItem('qt_printerAssignments', JSON.stringify(map));
 }
 
@@ -545,14 +555,14 @@ function loadNetworkPrinters(){
   try{ return JSON.parse(localStorage.getItem('qt_networkPrinters') || '[]'); }catch(e){ return []; }
 }
 function saveNetworkPrinters(){
-  const list = state.printers.filter(p => p.kind === 'network').map(p => ({ ip: p.ip, port: p.port, assignment: p.assignment }));
+  const list = state.printers.filter(p => p.kind === 'network').map(p => ({ ip: p.ip, port: p.port, assignments: p.assignments }));
   localStorage.setItem('qt_networkPrinters', JSON.stringify(list));
 }
 function hydrateNetworkPrinters(){
   loadNetworkPrinters().forEach(np => {
     const key = `net:${np.ip}:${np.port}`;
     if(state.printers.some(p => p.key === key)) return;
-    state.printers.push({ key, kind: 'network', label: `Red ${np.ip}`, ip: np.ip, port: np.port, assignment: np.assignment ?? null });
+    state.printers.push({ key, kind: 'network', label: `Red ${np.ip}`, ip: np.ip, port: np.port, assignments: normalizeAssignments(np.assignments ?? np.assignment) });
   });
   renderPrintersList();
 }
@@ -1180,25 +1190,31 @@ async function printInsumosList(payload){
  *    diálogo, en la impresora predeterminada del sistema).
  */
 async function sendTicket(assignment, receiptEl){
-  let printer = null;
+  // Todas las impresoras que atienden esta estación — una comanda puede salir en
+  // varias a la vez (ej. Bar asignado a la impresora de cocina Y a la de la barra).
+  let targets = [];
   if(state.printers.length === 1){
-    printer = state.printers[0];
+    targets = [state.printers[0]];
   } else if(state.printers.length > 1){
-    printer = state.printers.find(p => p.assignment === assignment) || null;
+    targets = state.printers.filter(p => (p.assignments || []).includes(assignment));
   }
 
-  if(printer && printer.kind === 'network'){
-    try{
-      await printViaNetwork(printer, receiptToPlainText(receiptEl));
-      return;
-    }catch(err){
-      console.error('Error imprimiendo por red:', err);
-      // Cae al diálogo normal como respaldo (ver bloque de abajo).
+  let impresa = false;
+  for(const printer of targets){
+    if(printer.kind === 'network'){
+      try{
+        await printViaNetwork(printer, receiptToPlainText(receiptEl));
+        impresa = true;
+      }catch(err){
+        console.error('Error imprimiendo por red:', err);
+        // Si NINGUNA imprime, cae al diálogo normal como respaldo (abajo).
+      }
+    } else if(printer.writer){
+      await printViaSerial(printer, receiptToPlainText(receiptEl));
+      impresa = true;
     }
-  } else if(printer && printer.writer){
-    await printViaSerial(printer, receiptToPlainText(receiptEl));
-    return;
   }
+  if(impresa) return;
 
   await new Promise(resolve => {
     window.print();
@@ -1320,7 +1336,7 @@ async function addPrinter(port, presetAssignment){
   if(state.printers.some(p => p.key === key)) return;
   const writer = port.writable.getWriter();
   const saved = loadSavedAssignments();
-  state.printers.push({ key, label: `Impresora ${state.printers.length + 1}`, port, writer, assignment: presetAssignment ?? saved[key] ?? null });
+  state.printers.push({ key, label: `Impresora ${state.printers.length + 1}`, port, writer, assignments: normalizeAssignments(presetAssignment ?? saved[key]) });
   renderPrintersList();
 }
 
@@ -1354,26 +1370,32 @@ $('addNetPrinterBtn').addEventListener('click', () => {
   if(!ip){ alert('Escribe la IP de la impresora.'); return; }
   const key = `net:${ip}:${port}`;
   if(state.printers.some(p => p.key === key)){ alert('Esa impresora ya está agregada.'); return; }
-  state.printers.push({ key, kind: 'network', label: `Red ${ip}`, ip, port, assignment: null });
+  state.printers.push({ key, kind: 'network', label: `Red ${ip}`, ip, port, assignments: [] });
   $('netPrinterIp').value = '';
   renderPrintersList();
   saveNetworkPrinters();
 });
 
-/** Dibuja la lista de impresoras conectadas con su selector de estación (cocina o caja). */
+/** Dibuja la lista de impresoras conectadas con sus estaciones (casillas: una impresora
+ * puede atender varias cocinas, y una cocina puede marcarse en varias impresoras). */
 function renderPrintersList(){
   const el = $('printersList');
   if(state.printers.length === 0){
     el.innerHTML = '<p class="muted small">Ninguna conectada · se usará la impresión normal del navegador.</p>';
     return;
   }
-  const options = [
-    '<option value="">Sin asignar</option>',
-    '<option value="CAJA">Caja (nota de entrega)</option>',
-    '<option value="DELIVERY">🛵 Delivery (comanda de delivery)</option>',
-  ]
-    .concat(state.kitchens.map(k => `<option value="${esc(k.name)}">${esc(k.name)}</option>`))
-    .join('');
+  const stationOptions = [
+    { value: 'CAJA', label: 'Caja (nota de entrega)' },
+    { value: 'DELIVERY', label: '🛵 Delivery' },
+  ].concat(state.kitchens.map(k => ({ value: k.name, label: k.name })));
+
+  const chipsHtml = (p) => stationOptions.map(opt => {
+    const checked = (p.assignments || []).includes(opt.value) ? 'checked' : '';
+    return `<label style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border:1px solid var(--border);border-radius:999px;cursor:pointer;font-size:12px;user-select:none;${checked ? 'background:var(--accent-soft, rgba(0,154,255,.12));border-color:var(--accent, #009aff);' : ''}">
+      <input type="checkbox" class="printer-assign" data-printer-key="${esc(p.key)}" value="${esc(opt.value)}" ${checked} style="margin:0;">
+      ${esc(opt.label)}
+    </label>`;
+  }).join('');
 
   el.innerHTML = state.printers.map((p) => {
     if(p.kind === 'network'){
@@ -1382,28 +1404,31 @@ function renderPrintersList(){
           <span style="flex:0 0 100%;" class="muted small">🌐 Impresora de red</span>
           <input type="text" data-net-field="ip" data-printer-key="${esc(p.key)}" value="${esc(p.ip)}" placeholder="IP" style="flex:2;min-width:110px;">
           <input type="number" data-net-field="port" data-printer-key="${esc(p.key)}" value="${esc(String(p.port))}" placeholder="Puerto" style="flex:1;min-width:70px;">
-          <select data-printer-key="${esc(p.key)}" class="printer-assign" style="flex:2;min-width:110px;">${options}</select>
           <button type="button" class="btn btn-ghost btn-sm" data-test-key="${esc(p.key)}">Probar</button>
           <button type="button" class="btn btn-ghost btn-sm" data-remove-key="${esc(p.key)}">✕</button>
+          <div style="flex:0 0 100%;display:flex;flex-wrap:wrap;gap:5px;margin-top:4px;">${chipsHtml(p)}</div>
         </div>
       `;
     }
     return `
-      <div class="printer-row" style="display:flex;align-items:center;gap:8px;margin-top:8px;">
-        <span class="muted small" style="flex:1;">🖨️ ${esc(p.label)}</span>
-        <select data-printer-key="${esc(p.key)}" class="printer-assign" style="flex:1;">${options}</select>
+      <div class="printer-row" style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:8px;">
+        <span class="muted small" style="flex:0 0 100%;">🖨️ ${esc(p.label)}</span>
+        <div style="flex:0 0 100%;display:flex;flex-wrap:wrap;gap:5px;">${chipsHtml(p)}</div>
       </div>
     `;
   }).join('');
 
-  el.querySelectorAll('.printer-assign').forEach(sel => {
-    const key = sel.getAttribute('data-printer-key');
-    const printer = state.printers.find(p => p.key === key);
-    if(printer) sel.value = printer.assignment || '';
-    sel.addEventListener('change', (e) => {
-      const value = e.target.value || null;
-      if(printer) printer.assignment = value;
-      if(printer && printer.kind === 'network'){ saveNetworkPrinters(); } else { saveAssignment(key, value); }
+  el.querySelectorAll('.printer-assign').forEach(chk => {
+    chk.addEventListener('change', (e) => {
+      const key = e.target.getAttribute('data-printer-key');
+      const printer = state.printers.find(p => p.key === key);
+      if(!printer) return;
+      const value = e.target.value;
+      const set = new Set(printer.assignments || []);
+      if(e.target.checked) set.add(value); else set.delete(value);
+      printer.assignments = [...set];
+      if(printer.kind === 'network'){ saveNetworkPrinters(); } else { saveAssignment(key, printer.assignments); }
+      renderPrintersList();
     });
   });
 

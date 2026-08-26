@@ -233,9 +233,15 @@ export function setupContentSecurityPolicy(customScheme: string): void {
       responseHeaders: {
         ...details.responseHeaders,
         'Content-Security-Policy': [
+          // https://quicktap.club y wss:// tienen que estar permitidos: el panel empaquetado
+          // le habla a la nube (login, API, Socket.IO, /uploads) — sin esto el CSP bloqueaba
+          // todas las peticiones y la app no podía ni iniciar sesión. Las fuentes de Google
+          // van aparte porque el index.html las carga de su propio dominio.
+          // img-src abierto a cualquier https porque las fotos de producto pueden vivir fuera
+          // de quicktap.club (las del seed demo vienen de Unsplash, por ejemplo).
           electronIsDev
-            ? `default-src ${customScheme}://* 'unsafe-inline' devtools://* 'unsafe-eval' data:`
-            : `default-src ${customScheme}://* 'unsafe-inline' data:`,
+            ? `default-src ${customScheme}://* 'unsafe-inline' devtools://* 'unsafe-eval' data: blob: https://quicktap.club wss://quicktap.club https://fonts.googleapis.com https://fonts.gstatic.com https://accounts.google.com; img-src ${customScheme}://* https: data: blob:`
+            : `default-src ${customScheme}://* 'unsafe-inline' data: blob: https://quicktap.club wss://quicktap.club https://fonts.googleapis.com https://fonts.gstatic.com https://accounts.google.com; img-src ${customScheme}://* https: data: blob:`,
         ],
       },
     });
