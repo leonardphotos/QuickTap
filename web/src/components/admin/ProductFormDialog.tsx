@@ -636,7 +636,7 @@ export function ProductFormDialog({
                 )}
                 {comboRows.length === 0 ? (
                   <p className="text-xs text-brand-950/40 font-light">
-                    Ej: 2× Wokbox de 16 + 1× Plato al Wok — cada uno se arma al pedir con sus propios modificadores.
+                    Ej: 2× Pizza mediana + 1× Refresco — cada pizza se arma al pedir con sus propios ingredientes.
                   </p>
                 ) : (
                   <ul className="divide-y divide-brand-950/10">
