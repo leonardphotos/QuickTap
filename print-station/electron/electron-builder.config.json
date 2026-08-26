@@ -4,7 +4,7 @@
   "directories": {
     "output": "dist"
   },
-  "files": ["main.js", "appIcon.ico", "package.json"],
+  "files": ["main.js", "preload.js", "appIcon.ico", "package.json"],
   "win": {
     "target": "nsis",
     "icon": "appIcon.ico",
