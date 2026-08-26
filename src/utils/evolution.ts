@@ -46,11 +46,12 @@ export const evolution = {
       qrcode: true,
       webhook: {
         url: webhookUrl,
-        // Solo lo que usamos: estado de conexión y ACKs de entrega (el detector de números
-        // restringidos vive sobre MESSAGES_UPDATE). Suscribirse a todo llenaría el backend
-        // de tráfico de chats que no procesamos.
-        events: ['CONNECTION_UPDATE', 'MESSAGES_UPDATE', 'SEND_MESSAGE'],
-        base64: false,
+        // Estado de conexión + ACKs (el detector de números restringidos) + MESSAGES_UPSERT:
+        // lo entrante — el "Aprobado" del verificador y la foto del comprobante, que es lo
+        // que hace funcionar la verificación de pagos. base64:true: la imagen llega embebida
+        // en el evento y no hay que ir a buscarla aparte.
+        events: ['CONNECTION_UPDATE', 'MESSAGES_UPDATE', 'SEND_MESSAGE', 'MESSAGES_UPSERT'],
+        base64: true,
       },
     });
   },
@@ -76,5 +77,34 @@ export const evolution = {
   /** Envía texto plano. El número va en dígitos internacionales (58414...). */
   async enviarTexto(instanceName: string, numero: string, texto: string): Promise<{ key?: { id?: string } }> {
     return llamar('POST', `/message/sendText/${instanceName}`, { number: numero, text: texto });
+  },
+
+  /** Envía una imagen (base64) con pie de foto opcional — el comprobante reenviado al verificador. */
+  async enviarImagen(instanceName: string, numero: string, base64: string, caption?: string): Promise<unknown> {
+    return llamar('POST', `/message/sendMedia/${instanceName}`, {
+      number: numero,
+      mediatype: 'image',
+      mimetype: 'image/jpeg',
+      media: base64,
+      caption: caption ?? '',
+      fileName: 'comprobante.jpg',
+    });
+  },
+
+  /** Reconfigura el webhook de una instancia YA creada — para sumarle eventos (p. ej.
+   * mensajes entrantes) a instancias que nacieron antes de que los escucháramos. */
+  async setWebhook(instanceName: string, url: string, events: string[]) {
+    return llamar('POST', `/webhook/set/${instanceName}`, {
+      webhook: { enabled: true, url, events, base64: true, byEvents: false },
+    });
+  },
+
+  /** Descarga el contenido (base64) de un mensaje con media, por su key — el plan B cuando el
+   * webhook no trajo el base64 embebido. */
+  async mediaBase64(instanceName: string, messageKey: unknown): Promise<{ base64?: string }> {
+    return llamar('POST', `/chat/getBase64FromMediaMessage/${instanceName}`, {
+      message: { key: messageKey },
+      convertToMp4: false,
+    });
   },
 };

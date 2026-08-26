@@ -3,6 +3,7 @@ import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
 import { badRequest } from '../../utils/http-error';
 import { evolution } from '../../utils/evolution';
+import { telefonoCanonico } from '../../utils/phone';
 
 /**
  * WhatsApp vinculado por negocio (y el de la plataforma), sobre Evolution API.
@@ -31,6 +32,9 @@ const MAX_ERRORES_SEGUIDOS = 4;
 // rápido UN mensaje; lo inhumano es la ráfaga.
 const JITTER_MIN_MS = 8_000;
 const JITTER_MAX_MS = 25_000;
+
+// Mismos eventos que configura crearInstancia — setWebhook los reaplica a instancias viejas.
+const WEBHOOK_EVENTS = ['CONNECTION_UPDATE', 'MESSAGES_UPDATE', 'SEND_MESSAGE', 'MESSAGES_UPSERT'];
 
 const contadorHora = new Map<string, { desde: number; enviados: number }>();
 const contadorDia = new Map<string, { dia: string; enviados: number }>();
@@ -92,6 +96,9 @@ export const whatsappLinkService = {
       await evolution.crearInstancia(instanceName, webhookUrl());
       fila = await prisma.waInstance.create({ data: { restaurantId, instanceName, status: 'CONNECTING' } });
     }
+    // Reconfigurar el webhook en cada vinculación: una instancia creada antes de que
+    // escucháramos mensajes entrantes se actualiza sola la próxima vez que alguien vincula.
+    await evolution.setWebhook(fila.instanceName, webhookUrl(), WEBHOOK_EVENTS).catch(() => undefined);
     const qr = await evolution.qr(fila.instanceName);
     if (!qr.base64 && !qr.code) {
       // Sin QR y sin error: ya está vinculada.
@@ -137,6 +144,19 @@ export const whatsappLinkService = {
    * (el enlace wa.me de toda la vida), así que no enviar jamás debe romper una operación.
    */
   async enviar(restaurantId: string | null, telefono: string, texto: string): Promise<boolean> {
+    return this.despachar(restaurantId, telefono, (instancia, destino) => evolution.enviarTexto(instancia, destino, texto));
+  },
+
+  /** Imagen (base64) por los MISMOS rieles que el texto: cola, jitter, topes y detectores. */
+  async enviarImagen(restaurantId: string | null, telefono: string, base64: string, caption?: string): Promise<boolean> {
+    return this.despachar(restaurantId, telefono, (instancia, destino) => evolution.enviarImagen(instancia, destino, base64, caption));
+  },
+
+  async despachar(
+    restaurantId: string | null,
+    telefono: string,
+    hacer: (instanceName: string, destino: string) => Promise<unknown>,
+  ): Promise<boolean> {
     if (!evolution.disponible()) return false;
     const fila = await instanciaDe(restaurantId);
     if (!fila || fila.status !== 'CONNECTED' || fila.paused || fila.autoPaused) return false;
@@ -177,7 +197,7 @@ export const whatsappLinkService = {
       if (!viva || viva.status !== 'CONNECTED' || viva.paused || viva.autoPaused) return false;
 
       try {
-        await evolution.enviarTexto(fila.instanceName, destino, texto);
+        await hacer(fila.instanceName, destino);
       } catch {
         // Errores seguidos (número inexistente, bloqueado, rechazo) también auto-pausan:
         // insistirle a destinatarios que fallan es otra firma clásica de spam.
@@ -228,6 +248,16 @@ export const whatsappLinkService = {
       return;
     }
 
+    // Mensaje ENTRANTE por el número vinculado: el "Aprobado" del verificador o la foto del
+    // comprobante — lo que hace funcionar la verificación de pagos con Evolution. Se procesa
+    // aparte y a la mejor suerte: un mensaje malformado no puede tumbar el webhook.
+    if (evento.event === 'messages.upsert') {
+      procesarMensajeEntrante(fila, evento.data as MensajeEntrante).catch((e) =>
+        console.error('[whatsapp-link] mensaje entrante no procesado:', e?.message ?? e),
+      );
+      return;
+    }
+
     // Cualquier update de mensaje con status de entrega/lectura cuenta como señal de vida:
     // el ACK exacto por mensaje no importa, importa que WhatsApp esté confirmando ALGO.
     if (evento.event === 'messages.update' || evento.event === 'send.message') {
@@ -241,3 +271,76 @@ export const whatsappLinkService = {
     }
   },
 };
+
+interface MensajeEntrante {
+  key?: { remoteJid?: string; remoteJidAlt?: string; fromMe?: boolean; id?: string };
+  message?: Record<string, unknown> & { base64?: string };
+  messageType?: string;
+}
+
+/**
+ * Un mensaje que LLEGÓ al número vinculado. Réplica del handleIncomingMessage del bot viejo,
+ * pero alimentada por el webhook de Evolution en vez del socket de Baileys — y reusando los
+ * mismos procesadores (routeVerifierReply, procesarComprobante*), que responden por
+ * sendMessage/sendImage y por lo tanto salen de vuelta por Evolution.
+ *
+ * Deliberadamente NO responde el saludo de bienvenida: eso es función del chatbot
+ * (CHATBOTS_ENABLED) — acá solo vive la verificación de pagos. Y los mensajes a la instancia
+ * del MASTER (restaurantId null) se ignoran: su flujo de comprobantes de suscripción es otro
+ * circuito y se migrará aparte.
+ */
+async function procesarMensajeEntrante(fila: { restaurantId: string | null; instanceName: string }, data: MensajeEntrante) {
+  if (!fila.restaurantId) return;
+  if (!data?.key || data.key.fromMe) return;
+  const jid = data.key.remoteJid ?? '';
+  if (!jid || jid.endsWith('@g.us') || jid === 'status@broadcast') return;
+  // Con "@lid" (linked ID) el remoteJid no trae el teléfono; el alterno sí — mismo caso que
+  // en el bot viejo. Se matchea por dígitos del que tenga el número.
+  const phoneDigits = (data.key.remoteJidAlt || jid).replace(/@.*/, '');
+
+  const restaurant = await prisma.restaurant.findUnique({
+    where: { id: fila.restaurantId },
+    select: { businessType: true, whatsappBotPaymentVerifierPhone: true },
+  });
+  if (!restaurant) return;
+
+  // Desenvuelve mensajes efímeros / "ver una vez", igual que el bot viejo.
+  const crudo = (data.message ?? {}) as Record<string, any>;
+  const contenido: Record<string, any> =
+    crudo.ephemeralMessage?.message ?? crudo.viewOnceMessage?.message ?? crudo.viewOnceMessageV2?.message ?? crudo;
+
+  const { whatsappBotService } = await import('../whatsapp-bot/whatsapp-bot.service');
+
+  // 1) ¿Escribió el verificador? Solo se interpreta como Aprobado/Rechazado.
+  if (
+    restaurant.whatsappBotPaymentVerifierPhone &&
+    telefonoCanonico(restaurant.whatsappBotPaymentVerifierPhone) === telefonoCanonico(phoneDigits)
+  ) {
+    const texto = contenido.conversation ?? contenido.extendedTextMessage?.text;
+    if (!texto) return;
+    if (restaurant.businessType === 'SPORTS_CLUB') {
+      const handled = await whatsappBotService.routeClubDebtVerifierReply(fila.restaurantId, texto);
+      if (handled) return;
+    }
+    await whatsappBotService.routeVerifierReply(fila.restaurantId, texto);
+    return;
+  }
+
+  // 2) ¿Imagen? Posible comprobante. El webhook la trae en base64 (base64:true); si no vino,
+  // se le pide a Evolution por la key del mensaje.
+  if (contenido.imageMessage) {
+    let base64 = crudo.base64 as string | undefined;
+    if (!base64) {
+      base64 = (await evolution.mediaBase64(fila.instanceName, data.key).catch(() => ({ base64: undefined }))).base64;
+    }
+    if (!base64) return;
+    const buffer = Buffer.from(base64.replace(/^data:[^,]+,/, ''), 'base64');
+    if (restaurant.businessType === 'SPORTS_CLUB') {
+      const handled = await whatsappBotService.procesarComprobanteDeudaClub(fila.restaurantId, phoneDigits, buffer);
+      if (handled) return;
+    }
+    await whatsappBotService.procesarComprobantePedido(fila.restaurantId, phoneDigits, buffer);
+  }
+
+  // 3) Texto normal de un cliente: sin bienvenida a propósito (ver doc de arriba).
+}

@@ -370,11 +370,28 @@ export const whatsappBotService = {
       console.error('[whatsapp-bot] no se pudo descargar el comprobante de pago:', err);
       return;
     }
+    await this.procesarComprobantePedido(restaurantId, phoneDigits, buffer, match);
+  },
+
+  /**
+   * El tramo del comprobante de PEDIDO que no depende de Baileys: guarda la foto, la registra
+   * en la verificación, la reenvía al verificador (o la encola) y acusa recibo al cliente.
+   * Lo comparten la sesión del bot viejo (que descarga el buffer con Baileys) y los mensajes
+   * entrantes de Evolution (que lo traen en base64 desde el webhook).
+   */
+  async procesarComprobantePedido(
+    restaurantId: string,
+    phoneDigits: string,
+    bufferOriginal: Buffer,
+    matchPrevio?: { id: string; orderId: string } | null,
+  ): Promise<boolean> {
+    const match = matchPrevio ?? (await orderPaymentVerificationService.matchAwaitingProofOrder(restaurantId, phoneDigits));
+    if (!match) return false;
 
     const dir = path.join(UPLOADS_DIR, 'whatsapp-payment-proofs', restaurantId);
     fs.mkdirSync(dir, { recursive: true });
     const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}.jpg`;
-    buffer = await compressImageBuffer(buffer); // comprobante: 1200px q80, no llena el disco
+    const buffer = await compressImageBuffer(bufferOriginal); // comprobante: 1200px q80, no llena el disco
     fs.writeFileSync(path.join(dir, filename), buffer);
     const proofImageUrl = `/uploads/whatsapp-payment-proofs/${restaurantId}/${filename}`;
 
@@ -396,6 +413,7 @@ export const whatsappBotService = {
       phoneDigits,
       '📥 Recibimos tu comprobante, estamos confirmando tu pago con el restaurante.',
     );
+    return true;
   },
 
   /**
@@ -413,11 +431,24 @@ export const whatsappBotService = {
       console.error('[whatsapp-bot] no se pudo descargar el comprobante de deuda:', err);
       return true;
     }
+    return this.procesarComprobanteDeudaClub(restaurantId, phoneDigits, buffer, match);
+  },
+
+  /** El tramo del comprobante de DEUDA de club que no depende de Baileys — mismo criterio que
+   * procesarComprobantePedido: lo comparten el bot viejo y lo entrante de Evolution. */
+  async procesarComprobanteDeudaClub(
+    restaurantId: string,
+    phoneDigits: string,
+    bufferOriginal: Buffer,
+    matchPrevio?: Awaited<ReturnType<typeof clubDebtBotService.matchDebtByPhone>> | null,
+  ): Promise<boolean> {
+    const match = matchPrevio ?? (await clubDebtBotService.matchDebtByPhone(restaurantId, phoneDigits).catch(() => null));
+    if (!match) return false;
 
     const dir = path.join(UPLOADS_DIR, 'whatsapp-payment-proofs', restaurantId);
     fs.mkdirSync(dir, { recursive: true });
     const filename = `${Date.now()}-${Math.round(Math.random() * 1e9)}.jpg`;
-    buffer = await compressImageBuffer(buffer); // comprobante: 1200px q80, no llena el disco
+    const buffer = await compressImageBuffer(bufferOriginal); // comprobante: 1200px q80, no llena el disco
     fs.writeFileSync(path.join(dir, filename), buffer);
     const proofImageUrl = `/uploads/whatsapp-payment-proofs/${restaurantId}/${filename}`;
 
@@ -621,7 +652,12 @@ export const whatsappBotService = {
   async sendImage(restaurantId: string, phone: string | null | undefined, image: Buffer, caption?: string): Promise<boolean> {
     if (!phone) return false;
     const s = sessions.get(restaurantId);
-    if (!s || s.status !== 'connected' || !s.sock) return false;
+    // Misma caída que sendMessage: sin el bot viejo, la imagen sale por la instancia de
+    // Evolution — es lo que reenvía el comprobante al verificador con el número vinculado.
+    if (!s || s.status !== 'connected' || !s.sock) {
+      const { whatsappLinkService } = await import('../whatsapp-link/whatsapp-link.service');
+      return whatsappLinkService.enviarImagen(restaurantId, phone, image.toString('base64'), caption);
+    }
     try {
       await s.sock.sendMessage(toJid(phone), { image, caption });
       return true;

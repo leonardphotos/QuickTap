@@ -1581,7 +1581,11 @@ export const orderService = {
     // PayPal/Transferencia), manda los datos de pago al cliente y espera su foto. Ambos
     // casos reutilizan la misma verificación (ver order-payment-verification.service.ts)
     // para que, al aprobarse, el pedido pase solo a cocina.
-    if (restaurant.whatsappBotEnabled && customerWhatsapp && restaurant.whatsappBotPaymentVerifierPhone && restaurant.whatsappOrderMode === 'FULL_ORDER') {
+    // Los dos modos de verificación abren también con el WhatsApp VINCULADO (Evolution): la
+    // ida sale por sendMessage/sendImage y la vuelta —el "Aprobado" del verificador, la foto
+    // del cliente— entra por el webhook (ver whatsapp-link.service.procesarMensajeEntrante).
+    const canalActivo = restaurant.whatsappBotEnabled || (await whatsappLinkService.vinculado(restaurantId));
+    if (canalActivo && customerWhatsapp && restaurant.whatsappBotPaymentVerifierPhone && restaurant.whatsappOrderMode === 'FULL_ORDER') {
       const { shouldForwardNow } = await orderPaymentVerificationService.createAwaitingVerifierOrQueue(
         restaurantId,
         order.id,
@@ -1596,7 +1600,7 @@ export const orderService = {
         }
       }
     } else if (
-      restaurant.whatsappBotEnabled &&
+      canalActivo &&
       customerWhatsapp &&
       order.paymentMethod &&
       PROOF_REQUIRED_PAYMENT_METHODS.includes(order.paymentMethod)
