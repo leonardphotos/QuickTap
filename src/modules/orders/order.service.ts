@@ -61,7 +61,8 @@ import { sendPushToRestaurant } from '../../utils/push';
 interface PricedLineModifier {
   // Id del Modifier del catálogo: se guarda en el snapshot solo para poder
   // resolver el insumo vinculado al descontar stock (ver deductModifierStock).
-  modifierId: string;
+  // Null = fila decorativa (el encabezado de cada plato dentro de un combo).
+  modifierId: string | null;
   name: string;
   priceBase: Prisma.Decimal;
   // Cuántas veces se elige esta misma opción (ej. "Ketchup x4"), ver ModifierCategory.maxSelections.
@@ -90,6 +91,78 @@ interface PricedLine {
  * "Precio por variantes", resuelve la variante elegida; valida las categorías
  * de modificadores asociadas (obligatoria / uno-vs-varios) y suma sus precios.
  */
+type ProductForPricing = {
+  name: string;
+  modifierCategories: {
+    maxSelectionsOverride: number | null;
+    modifierCategory: {
+      name: string;
+      isRequired: boolean;
+      allowMultiple: boolean;
+      maxSelections: number | null;
+      minSelections: number | null;
+      modifiers: {
+        id: string;
+        name: string;
+        isAvailable: boolean;
+        maxQuantity: number | null;
+        priceBase: Prisma.Decimal;
+        discountBase: Prisma.Decimal | null;
+        variantPrices: { variantId: string; priceBase: Prisma.Decimal }[];
+      }[];
+    };
+  }[];
+};
+
+/**
+ * Valida y congela los modificadores elegidos contra las categorías de UN producto — el mismo
+ * código para el plato suelto y para cada instancia de un plato dentro de un combo.
+ * `modifierIds` es un multiset: un mismo id repetido N veces = "xN".
+ */
+function priceModifierSelection(product: ProductForPricing, modifierIds: string[], variantId: string | null): PricedLineModifier[] {
+  const idCounts = new Map<string, number>();
+  for (const id of modifierIds) {
+    idCounts.set(id, (idCounts.get(id) ?? 0) + 1);
+  }
+  const modifierLines: PricedLineModifier[] = [];
+  for (const link of product.modifierCategories) {
+    const category = link.modifierCategory;
+    const chosen = category.modifiers.filter((m) => idCounts.has(m.id));
+    const totalSelected = chosen.reduce((acc, m) => acc + (idCounts.get(m.id) ?? 0), 0);
+    // isRequired manda: una categoría marcada "Opcional" nunca debe bloquear el carrito, así
+    // tenga un minSelections guardado — minSelections solo afina el mínimo de una categoría
+    // que ya es obligatoria, no la vuelve obligatoria por sí solo.
+    const effectiveMin = category.isRequired ? (category.minSelections ?? 1) : 0;
+    if (totalSelected < effectiveMin) {
+      throw badRequest(
+        effectiveMin <= 1
+          ? `Elige una opción de "${category.name}" para "${product.name}".`
+          : `Elige al menos ${effectiveMin} opciones de "${category.name}" para "${product.name}".`,
+      );
+    }
+    const effectiveMax = link.maxSelectionsOverride ?? category.maxSelections ?? (category.allowMultiple ? Infinity : 1);
+    if (totalSelected > effectiveMax) {
+      throw badRequest(`Elige como máximo ${effectiveMax} opciones de "${category.name}" para "${product.name}".`);
+    }
+    for (const m of chosen) {
+      if (!m.isAvailable) throw badRequest(`"${m.name}" no está disponible en este momento.`);
+      const chosenQty = idCounts.get(m.id) ?? 1;
+      if (m.maxQuantity != null && chosenQty > m.maxQuantity) {
+        throw badRequest(`Elige como máximo ${m.maxQuantity} de "${m.name}" en "${product.name}".`);
+      }
+      const variantOverride = variantId ? m.variantPrices.find((vp) => vp.variantId === variantId) : undefined;
+      const effectivePriceBase = variantOverride?.priceBase ?? m.priceBase;
+      modifierLines.push({
+        modifierId: m.id,
+        name: m.name,
+        priceBase: round2(effectivePriceBase.sub(m.discountBase ?? 0)),
+        quantity: chosenQty,
+      });
+    }
+  }
+  return modifierLines;
+}
+
 async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<PricedLine[]> {
   const productIds = [...new Set(items.map((i) => i.productId))];
   const products = await prisma.product.findMany({
@@ -99,6 +172,18 @@ async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<
       variants: true,
       modifierCategories: {
         include: { modifierCategory: { include: { modifiers: { include: { variantPrices: true } } } } },
+      },
+      comboComponents: {
+        orderBy: { priority: 'asc' },
+        include: {
+          componentProduct: {
+            include: {
+              modifierCategories: {
+                include: { modifierCategory: { include: { modifiers: { include: { variantPrices: true } } } } },
+              },
+            },
+          },
+        },
       },
     },
   });
@@ -134,49 +219,44 @@ async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<
 
     // Categorías de modificadores asociadas al producto: valida obligatoriedad y el límite de
     // selecciones, y congela nombre + precio efectivo (precio - descuento) + cantidad de cada
-    // modificador elegido. `modifierIds` es un multiset: un mismo id repetido N veces = "xN"
-    // (ver ProductOptionsDialog.tsx / ProductDetailSheet.tsx), no un Set de ids únicos.
-    const idCounts = new Map<string, number>();
-    for (const id of item.modifierIds ?? []) {
-      idCounts.set(id, (idCounts.get(id) ?? 0) + 1);
-    }
-    const modifierLines: PricedLineModifier[] = [];
-    for (const link of product.modifierCategories) {
-      const category = link.modifierCategory;
-      const chosen = category.modifiers.filter((m) => idCounts.has(m.id));
-      const totalSelected = chosen.reduce((acc, m) => acc + (idCounts.get(m.id) ?? 0), 0);
-      // isRequired manda: una categoría marcada "Opcional" nunca debe bloquear el carrito, así
-      // tenga un minSelections guardado (ej. quedó en 1 de una configuración vieja/a medias) —
-      // minSelections solo afina EL mínimo de una categoría que ya es obligatoria (ej. "elige
-      // al menos 2"), no la vuelve obligatoria por sí solo.
-      const effectiveMin = category.isRequired ? (category.minSelections ?? 1) : 0;
-      if (totalSelected < effectiveMin) {
-        throw badRequest(
-          effectiveMin <= 1
-            ? `Elige una opción de "${category.name}" para "${product.name}".`
-            : `Elige al menos ${effectiveMin} opciones de "${category.name}" para "${product.name}".`,
-        );
+    // modificador elegido. Extraído a priceModifierSelection porque un COMBO corre esta misma
+    // validación una vez por cada instancia de cada plato componente.
+    const modifierLines: PricedLineModifier[] = priceModifierSelection(product, item.modifierIds ?? [], variantId);
+
+    // Combo: cada instancia de cada plato componente llega armada por separado en
+    // comboSelections (2× wokbox = dos entradas). Se valida contra los modificadores del
+    // PROPIO plato componente y todo se congela como filas del ítem: un encabezado decorativo
+    // por instancia + sus elecciones — cocina, recibos e impresión ya saben pintar eso.
+    if (product.comboComponents.length > 0) {
+      const esperadas = product.comboComponents.flatMap((c) =>
+        Array.from({ length: c.quantity }, () => c),
+      );
+      const selecciones = item.comboSelections ?? [];
+      if (selecciones.length !== esperadas.length) {
+        throw badRequest(`Arma los ${esperadas.length} platos que trae "${product.name}".`);
       }
-      const effectiveMax = link.maxSelectionsOverride ?? category.maxSelections ?? (category.allowMultiple ? Infinity : 1);
-      if (totalSelected > effectiveMax) {
-        throw badRequest(`Elige como máximo ${effectiveMax} opciones de "${category.name}" para "${product.name}".`);
+      // Se emparejan en orden por componente: las selecciones de cada componentProductId
+      // deben ser exactamente su cantidad.
+      const porComponente = new Map<string, number>();
+      for (const sel of selecciones) {
+        porComponente.set(sel.componentProductId, (porComponente.get(sel.componentProductId) ?? 0) + 1);
       }
-      for (const m of chosen) {
-        if (!m.isAvailable) throw badRequest(`"${m.name}" no está disponible en este momento.`);
-        const chosenQty = idCounts.get(m.id) ?? 1;
-        if (m.maxQuantity != null && chosenQty > m.maxQuantity) {
-          throw badRequest(`Elige como máximo ${m.maxQuantity} de "${m.name}" en "${product.name}".`);
+      for (const c of product.comboComponents) {
+        if ((porComponente.get(c.componentProductId) ?? 0) !== c.quantity) {
+          throw badRequest(`Arma ${c.quantity} "${c.componentProduct.name}" en "${product.name}".`);
         }
-        // Si el modificador tiene un precio propio para la variante elegida (ej. "Extra queso"
-        // en Pizza Grande vs. Pequeña), usa ese en vez del priceBase general.
-        const variantOverride = variantId ? m.variantPrices.find((vp) => vp.variantId === variantId) : undefined;
-        const effectivePriceBase = variantOverride?.priceBase ?? m.priceBase;
-        modifierLines.push({
-          modifierId: m.id,
-          name: m.name,
-          priceBase: round2(effectivePriceBase.sub(m.discountBase ?? 0)),
-          quantity: chosenQty,
-        });
+      }
+      const contadorInstancia = new Map<string, number>();
+      for (const sel of selecciones) {
+        const comp = product.comboComponents.find((c) => c.componentProductId === sel.componentProductId)!;
+        const n = (contadorInstancia.get(sel.componentProductId) ?? 0) + 1;
+        contadorInstancia.set(sel.componentProductId, n);
+        const etiqueta = comp.quantity > 1 ? `${comp.componentProduct.name} (${n})` : comp.componentProduct.name;
+        if (!comp.componentProduct.isAvailable) {
+          throw badRequest(`"${comp.componentProduct.name}" no está disponible en este momento.`);
+        }
+        modifierLines.push({ modifierId: null, name: `▪ ${etiqueta}`, priceBase: toDecimal(0), quantity: 1 });
+        modifierLines.push(...priceModifierSelection(comp.componentProduct, sel.modifierIds ?? [], null));
       }
     }
 

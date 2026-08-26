@@ -97,6 +97,11 @@ export function ProductFormDialog({
   const [linkedCategories, setLinkedCategories] = useState<ModifierCategory[]>([]);
   const [libraryCategories, setLibraryCategories] = useState<ModifierCategory[]>([]);
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
+  // Combo armable: los platos que lo componen. Persisten al instante (PUT del set completo),
+  // mismo criterio que asociar/quitar categorias de modificadores.
+  const [comboRows, setComboRows] = useState<{ componentProductId: string; name: string; quantity: number }[]>([]);
+  const [comboLibrary, setComboLibrary] = useState<{ id: string; name: string }[]>([]);
+  const [showComboPicker, setShowComboPicker] = useState(false);
   const [packagingItems, setPackagingItems] = useState<PackagingItem[]>([]);
   const canLinkPackagingStock = hasFeature(restaurant, 'inventoryBasic');
 
@@ -150,6 +155,11 @@ export function ProductFormDialog({
   useEffect(() => {
     if (!open) return;
     api.get('/modifier-categories').then((res) => setLibraryCategories(res.data.data));
+    if (product) {
+      api.get(`/products/${product.id}/combo`).then((res) => setComboRows(res.data.data)).catch(() => setComboRows([]));
+    } else {
+      setComboRows([]);
+    }
     if (canLinkPackagingStock) {
       api.get('/inventory/packaging').then((res) => setPackagingItems(res.data.data));
     }
@@ -255,6 +265,29 @@ export function ProductFormDialog({
   }
 
   const availableToLink = libraryCategories.filter((c) => !linkedCategories.some((l) => l.id === c.id));
+
+  async function persistCombo(rows: { componentProductId: string; name: string; quantity: number }[]) {
+    if (!product) return;
+    try {
+      const res = await api.put(`/products/${product.id}/combo`, {
+        components: rows.map((r) => ({ componentProductId: r.componentProductId, quantity: r.quantity })),
+      });
+      setComboRows(res.data.data);
+      onSaved();
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo guardar el combo.');
+    }
+  }
+
+  async function openComboPicker() {
+    if (comboLibrary.length === 0) {
+      const res = await api.get('/products');
+      setComboLibrary(
+        (res.data.data as { id: string; name: string }[]).filter((pr) => pr.id !== product?.id),
+      );
+    }
+    setShowComboPicker((v) => !v);
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -554,6 +587,104 @@ export function ProductFormDialog({
                         productId={product!.id}
                         onDissociate={() => dissociateCategory(c.id)}
                       />
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* Combo armable: este producto se vende a su precio, y al pedirlo cada plato
+              componente se arma con SUS propios modificadores (2 wokbox = dos armados
+              distintos) — tanto el cliente en el menu como el mesonero al tomar el pedido. */}
+          <div className="rounded-xl border border-brand-950/10 p-3 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium text-brand-950/70">
+                Combo armable {comboRows.length > 0 && `(${comboRows.reduce((a, r) => a + r.quantity, 0)} platos)`}
+              </p>
+              {product && (
+                <button type="button" onClick={openComboPicker} className="text-brand-500 hover:text-brand-600">
+                  <Plus className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            {!product ? (
+              <p className="text-xs text-brand-950/50">Guarda el producto primero para convertirlo en combo.</p>
+            ) : (
+              <>
+                {showComboPicker && (
+                  <select
+                    autoFocus
+                    value=""
+                    onChange={(e) => {
+                      const pr = comboLibrary.find((x) => x.id === e.target.value);
+                      if (!pr) return;
+                      setShowComboPicker(false);
+                      void persistCombo([...comboRows, { componentProductId: pr.id, name: pr.name, quantity: 1 }]);
+                    }}
+                    className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
+                  >
+                    <option value="">Elige el plato que compone el combo…</option>
+                    {comboLibrary
+                      .filter((pr) => !comboRows.some((r) => r.componentProductId === pr.id))
+                      .map((pr) => (
+                        <option key={pr.id} value={pr.id}>
+                          {pr.name}
+                        </option>
+                      ))}
+                  </select>
+                )}
+                {comboRows.length === 0 ? (
+                  <p className="text-xs text-brand-950/40 font-light">
+                    Ej: 2× Wokbox de 16 + 1× Plato al Wok — cada uno se arma al pedir con sus propios modificadores.
+                  </p>
+                ) : (
+                  <ul className="divide-y divide-brand-950/10">
+                    {comboRows.map((r) => (
+                      <li key={r.componentProductId} className="flex items-center justify-between gap-3 py-2 text-sm">
+                        <span className="min-w-0 truncate text-brand-950">{r.name}</span>
+                        <span className="flex shrink-0 items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void persistCombo(
+                                comboRows.map((x) =>
+                                  x.componentProductId === r.componentProductId
+                                    ? { ...x, quantity: Math.max(1, x.quantity - 1) }
+                                    : x,
+                                ),
+                              )
+                            }
+                            disabled={r.quantity <= 1}
+                            className="h-6 w-6 rounded-full border border-brand-950/20 text-xs font-bold disabled:opacity-30"
+                          >
+                            −
+                          </button>
+                          <span className="w-4 text-center font-medium">{r.quantity}</span>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void persistCombo(
+                                comboRows.map((x) =>
+                                  x.componentProductId === r.componentProductId
+                                    ? { ...x, quantity: Math.min(10, x.quantity + 1) }
+                                    : x,
+                                ),
+                              )
+                            }
+                            className="h-6 w-6 rounded-full border border-brand-950/20 text-xs font-bold"
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void persistCombo(comboRows.filter((x) => x.componentProductId !== r.componentProductId))}
+                            className="ml-1 text-xs font-medium text-red-500 hover:text-red-600"
+                          >
+                            Quitar
+                          </button>
+                        </span>
+                      </li>
                     ))}
                   </ul>
                 )}

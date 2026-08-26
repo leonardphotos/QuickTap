@@ -1255,6 +1255,7 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
         quantity: line.quantity,
         variantId: line.variantId,
         modifierIds: line.selectedModifiers.flatMap((m) => Array(m.quantity ?? 1).fill(m.modifierId)),
+          comboSelections: line.comboSelections,
         note: line.note,
       });
       onSaved();
@@ -1279,6 +1280,7 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
         quantity: line.quantity,
         variantId: line.variantId,
         modifierIds: line.selectedModifiers.flatMap((m) => Array(m.quantity ?? 1).fill(m.modifierId)),
+          comboSelections: line.comboSelections,
         note: line.note,
       });
       await api.patch(`/orders/${order.id}/items`, { items: [{ orderItemId: oldItemId, quantity: 0 }] });

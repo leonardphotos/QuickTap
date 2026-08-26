@@ -152,6 +152,42 @@ export const menuService = {
                 },
               },
             },
+            // Combo armable: sus platos componentes, cada uno con SUS propias categorías de
+            // modificadores — la pantalla de pedido arma cada instancia con esos grupos.
+            comboComponents: {
+              orderBy: { priority: 'asc' },
+              select: {
+                componentProductId: true,
+                quantity: true,
+                componentProduct: {
+                  select: {
+                    name: true,
+                    isAvailable: true,
+                    modifierCategories: {
+                      orderBy: { priority: 'asc' },
+                      select: {
+                        maxSelectionsOverride: true,
+                        modifierCategory: {
+                          select: {
+                            id: true,
+                            name: true,
+                            isRequired: true,
+                            allowMultiple: true,
+                            maxSelections: true,
+                            minSelections: true,
+                            modifiers: {
+                              where: { isAvailable: true },
+                              orderBy: [{ priority: 'asc' }, { name: 'asc' }],
+                              select: { id: true, name: true, priceBase: true, discountBase: true, maxQuantity: true },
+                            },
+                          },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -190,6 +226,27 @@ export const menuService = {
             id: v.id,
             name: v.name,
             priceBase: round2(v.priceBase.add(v.packagingFeeBase ?? 0).sub(v.discountBase ?? 0)).toFixed(2),
+          })),
+          comboComponents: p.comboComponents.map((c) => ({
+            componentProductId: c.componentProductId,
+            name: c.componentProduct.name,
+            quantity: c.quantity,
+            isAvailable: c.componentProduct.isAvailable,
+            modifierCategories: c.componentProduct.modifierCategories.map((link) => ({
+              id: link.modifierCategory.id,
+              name: link.modifierCategory.name,
+              isRequired: link.modifierCategory.isRequired,
+              allowMultiple: link.modifierCategory.allowMultiple,
+              maxSelections: link.maxSelectionsOverride ?? link.modifierCategory.maxSelections,
+              minSelections: link.modifierCategory.minSelections,
+              modifiers: link.modifierCategory.modifiers.map((m) => ({
+                id: m.id,
+                name: m.name,
+                priceBase: round2(toDecimal(m.priceBase).sub(m.discountBase ?? 0)).toFixed(2),
+                maxQuantity: m.maxQuantity,
+                variantPrices: [],
+              })),
+            })),
           })),
           modifierCategories: p.modifierCategories.map((link) => ({
             id: link.modifierCategory.id,

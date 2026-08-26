@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { z } from 'zod';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest } from '../../utils/http-error';
 import { bulkDeleteProductsSchema, createProductSchema, marginReportQuerySchema, updateProductSchema } from './product.dto';
@@ -77,5 +78,22 @@ export const productController = {
     if (files.length === 0) throw badRequest('No se recibió ninguna foto.');
     const result = await productPhotoBulkService.matchAndAssign(req.restaurantId!, files);
     res.json({ data: result });
+  }),
+
+  /** GET /api/v1/products/:id/combo — los platos que componen el combo. */
+  getCombo: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await productService.getComboComponents(req.restaurantId!, req.params.id) });
+  }),
+
+  /** PUT /api/v1/products/:id/combo — reemplaza los componentes (vacío = deja de ser combo). */
+  setCombo: asyncHandler(async (req: Request, res: Response) => {
+    const input = z
+      .object({
+        components: z
+          .array(z.object({ componentProductId: z.string().min(1), quantity: z.coerce.number().int().min(1).max(10) }))
+          .max(10),
+      })
+      .parse(req.body);
+    res.json({ data: await productService.setComboComponents(req.restaurantId!, req.params.id, input.components) });
   }),
 };

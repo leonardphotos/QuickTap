@@ -283,6 +283,8 @@ export interface Product {
   variants?: ProductVariant[];
   // Categorías de modificadores asociadas a este producto (con sus modificadores anidados).
   modifierCategories?: ModifierCategory[];
+  /** Combo armable: platos que lo componen, cada uno con SUS categorias de modificadores. */
+  comboComponents?: ComboComponentInfo[];
 }
 
 export interface PublicMenu {
@@ -547,6 +549,20 @@ export interface SelectedModifier {
   quantity: number;
 }
 
+export interface ComboComponentInfo {
+  componentProductId: string;
+  name: string;
+  quantity: number;
+  isAvailable: boolean;
+  modifierCategories: ModifierCategory[];
+}
+
+/** Una instancia armada de un plato dentro de un combo (2 wokbox = dos entradas). */
+export interface ComboSelection {
+  componentProductId: string;
+  modifierIds: string[];
+}
+
 export interface CartLine {
   product: Product;
   quantity: number;
@@ -554,5 +570,9 @@ export interface CartLine {
   variantId?: string;
   variantName?: string;
   selectedModifiers: SelectedModifier[];
+  /** Combo armable: cada instancia de cada plato componente ya configurada. */
+  comboSelections?: ComboSelection[];
+  /** Suma de los precios de los modificadores elegidos dentro del combo (para el total en pantalla). */
+  comboExtraTotal?: number;
   note?: string;
 }

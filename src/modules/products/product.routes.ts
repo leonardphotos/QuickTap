@@ -43,6 +43,8 @@ router.post('/import', mutate, uploadSpreadsheet, productController.importExcel)
 router.post('/bulk-delete', mutate, productController.bulkRemove);
 
 router.get('/:id', productController.getOne);
+router.get('/:id/combo', productController.getCombo);
+router.put('/:id/combo', mutate, productController.setCombo);
 router.patch('/:id', mutate, productController.update);
 router.delete('/:id', mutate, productController.remove);
 

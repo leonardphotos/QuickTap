@@ -35,6 +35,31 @@ const PRODUCT_MODIFIER_INCLUDE = {
       },
     },
   },
+  // Combo armable: sus platos componentes con SUS propias categorías — el panel arma cada
+  // instancia con esos grupos al tomar el pedido, igual que el menú público.
+  comboComponents: {
+    orderBy: { priority: 'asc' as const },
+    include: {
+      componentProduct: {
+        select: {
+          name: true,
+          isAvailable: true,
+          modifierCategories: {
+            include: {
+              modifierCategory: {
+                include: {
+                  modifiers: {
+                    orderBy: [{ priority: 'asc' as const }, { name: 'asc' as const }],
+                    include: { variantPrices: { select: { variantId: true, priceBase: true } } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
 };
 
 /** Aplana la fila de asociación (ProductModifierCategory -> ModifierCategory) para el frontend,
@@ -58,6 +83,20 @@ function serializeProduct<
   },
 >(product: T) {
   const { modifierCategories, ...rest } = product;
+  const comboComponents = (product as unknown as {
+    comboComponents?: {
+      componentProductId: string;
+      quantity: number;
+      componentProduct: {
+        name: string;
+        isAvailable: boolean;
+        modifierCategories: {
+          maxSelectionsOverride: number | null;
+          modifierCategory: { maxSelections: number | null } & Record<string, unknown>;
+        }[];
+      };
+    }[];
+  }).comboComponents;
   return {
     ...rest,
     // Distingue "agotado por stock" de "desactivado a mano" (isAvailable) para el panel.
@@ -65,6 +104,16 @@ function serializeProduct<
     modifierCategories: modifierCategories.map((link) => ({
       ...link.modifierCategory,
       maxSelections: link.maxSelectionsOverride ?? link.modifierCategory.maxSelections,
+    })),
+    comboComponents: (comboComponents ?? []).map((c) => ({
+      componentProductId: c.componentProductId,
+      name: c.componentProduct.name,
+      quantity: c.quantity,
+      isAvailable: c.componentProduct.isAvailable,
+      modifierCategories: c.componentProduct.modifierCategories.map((link) => ({
+        ...link.modifierCategory,
+        maxSelections: link.maxSelectionsOverride ?? link.modifierCategory.maxSelections,
+      })),
     })),
   };
 }
@@ -260,6 +309,56 @@ export const productService = {
         breakEven.daysElapsed,
       ),
     };
+  },
+
+  /** Los platos que componen un combo, para el editor del panel. */
+  async getComboComponents(restaurantId: string, productId: string) {
+    await this.getById(restaurantId, productId);
+    const rows = await prisma.comboComponent.findMany({
+      where: { productId, restaurantId },
+      orderBy: { priority: 'asc' },
+      include: { componentProduct: { select: { id: true, name: true, isAvailable: true } } },
+    });
+    return rows.map((r) => ({
+      componentProductId: r.componentProductId,
+      name: r.componentProduct.name,
+      quantity: r.quantity,
+      isAvailable: r.componentProduct.isAvailable,
+    }));
+  },
+
+  /**
+   * Reemplaza el set completo de componentes del combo. Vacío = deja de ser combo.
+   * Un componente no puede ser a su vez un combo (sin anidar: armar un combo dentro de otro
+   * en la pantalla de pedido sería un laberinto, y el precio ya no se entendería).
+   */
+  async setComboComponents(
+    restaurantId: string,
+    productId: string,
+    components: { componentProductId: string; quantity: number }[],
+  ) {
+    await this.getById(restaurantId, productId);
+    const ids = components.map((c) => c.componentProductId);
+    if (ids.includes(productId)) throw badRequest('Un combo no puede contenerse a sí mismo.');
+    if (new Set(ids).size !== ids.length) throw badRequest('Cada plato va una sola vez, con su cantidad.');
+    if (ids.length > 0) {
+      const found = await prisma.product.findMany({
+        where: { id: { in: ids }, restaurantId },
+        select: { id: true, name: true, _count: { select: { comboComponents: true } } },
+      });
+      if (found.length !== ids.length) throw badRequest('Uno de los platos no existe en este restaurante.');
+      const anidado = found.find((f) => f._count.comboComponents > 0);
+      if (anidado) throw badRequest(`"${anidado.name}" ya es un combo: un combo no puede contener otro combo.`);
+    }
+    await prisma.$transaction([
+      prisma.comboComponent.deleteMany({ where: { productId, restaurantId } }),
+      ...components.map((c, i) =>
+        prisma.comboComponent.create({
+          data: { restaurantId, productId, componentProductId: c.componentProductId, quantity: c.quantity, priority: i },
+        }),
+      ),
+    ]);
+    return this.getComboComponents(restaurantId, productId);
   },
 };
 

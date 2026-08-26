@@ -1084,6 +1084,8 @@ model Product {
   costStructure      ProductCostStructure?
   wasteRecords       WasteRecord[]
   modifierCategories ProductModifierCategory[]
+  comboComponents    ComboComponent[]          @relation("ComboOwner")
+  comboUsages        ComboComponent[]          @relation("ComboPart")
   variants           ProductVariant[]
 
   @@unique([restaurantId, externalSource, externalSourceId])
@@ -1098,6 +1100,25 @@ model Product {
 //  MODIFICADORES: categorías reutilizables entre productos (ej. "Extra",
 //  "Elige el término de la carne"), cada una con sus propias opciones.
 // ----------------------------------------------------------------------------
+
+// Un plato que compone un COMBO (Product → Product). El combo tiene precio propio; al
+// ordenarlo, cada instancia de cada componente (2× wokbox = dos instancias) se arma eligiendo
+// los modificadores del PROPIO producto componente — el combo no duplica esa configuración.
+model ComboComponent {
+  id                 String @id @default(cuid())
+  restaurantId       String
+  productId          String
+  componentProductId String
+  quantity           Int    @default(1)
+  priority           Int    @default(0)
+
+  product          Product @relation("ComboOwner", fields: [productId], references: [id], onDelete: Cascade)
+  componentProduct Product @relation("ComboPart", fields: [componentProductId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, componentProductId])
+  @@index([restaurantId])
+  @@map("combo_components")
+}
 
 model ModifierCategory {
   id           String @id @default(cuid())

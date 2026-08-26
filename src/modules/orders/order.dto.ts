@@ -11,6 +11,13 @@ export const cartItemSchema = z.object({
   // Modificadores elegidos (ids de Modifier). El service valida obligatoriedad/uno-vs-varios
   // contra las categorías asociadas al producto y congela nombre+precio en el pedido.
   modifierIds: z.array(z.string().min(1)).optional().default([]),
+  // Combo armable: una entrada POR INSTANCIA de cada plato componente (2× wokbox = dos
+  // entradas), cada una con los modificadores elegidos para ESE plato. El service valida
+  // cantidad y reglas contra los componentes reales del combo.
+  comboSelections: z
+    .array(z.object({ componentProductId: z.string().min(1), modifierIds: z.array(z.string().min(1)).default([]) }))
+    .max(40)
+    .optional(),
   note: z.string().max(200).optional(),
 });
 
@@ -249,6 +256,10 @@ export const addOrderItemSchema = z.object({
   quantity: z.coerce.number().int().positive().max(99),
   variantId: z.string().min(1).optional(),
   modifierIds: z.array(z.string().min(1)).optional().default([]),
+  comboSelections: z
+    .array(z.object({ componentProductId: z.string().min(1), modifierIds: z.array(z.string().min(1)).default([]) }))
+    .max(40)
+    .optional(),
   note: z.string().max(200).optional(),
 });
 

@@ -391,6 +391,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
           quantity: l.quantity,
           variantId: l.variantId,
           modifierIds: l.selectedModifiers.flatMap((m) => Array(m.quantity ?? 1).fill(m.modifierId)),
+          comboSelections: l.comboSelections,
           note: l.note,
         })),
         // Nombre/cédula/teléfono ya no se piden en "Menú": vienen del cliente elegido en "Clientes".
@@ -439,6 +440,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
           quantity: l.quantity,
           variantId: l.variantId,
           modifierIds: l.selectedModifiers.flatMap((m) => Array(m.quantity ?? 1).fill(m.modifierId)),
+          comboSelections: l.comboSelections,
           note: l.note,
         });
       }

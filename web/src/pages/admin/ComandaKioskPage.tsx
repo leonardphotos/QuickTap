@@ -167,6 +167,7 @@ export default function ComandaKioskPage() {
           quantity: l.quantity,
           variantId: l.variantId,
           modifierIds: l.selectedModifiers.flatMap((m) => Array(m.quantity ?? 1).fill(m.modifierId)),
+          comboSelections: l.comboSelections,
           note: l.note,
         })),
         paymentMethod: payment,
