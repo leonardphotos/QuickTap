@@ -1,5 +1,6 @@
 import bcrypt from 'bcryptjs';
 import { OrderChannel, PaymentMethod, Prisma } from '@prisma/client';
+import { whatsappLinkService } from '../whatsapp-link/whatsapp-link.service';
 import { prisma } from '../../config/prisma';
 import { primaryTableIdOf } from '../../utils/table-merge';
 import { badRequest, conflict, forbidden, notFound } from '../../utils/http-error';
@@ -1558,7 +1559,7 @@ export const orderService = {
     // Chatbot de WhatsApp (vinculado por QR, ver whatsapp-bot.service.ts): avisa solo al
     // cliente que su pedido llegó — no reemplaza el enlace wa.me de abajo (ese lo manda el
     // cliente al restaurante), es un mensaje aparte que sale DEL restaurante hacia el cliente.
-    if (restaurant.whatsappBotEnabled && restaurant.whatsappBotNotifyReceived) {
+    if ((restaurant.whatsappBotEnabled || (await whatsappLinkService.vinculado(restaurant.id))) && restaurant.whatsappBotNotifyReceived) {
       whatsappBotService
         .sendMessage(
           restaurant.id,
@@ -2038,7 +2039,7 @@ export const orderService = {
           where: { id: restaurantId },
           select: { name: true, whatsappBotEnabled: true, whatsappBotNotifyReady: true },
         });
-        if (restaurant?.whatsappBotEnabled && restaurant.whatsappBotNotifyReady && order.customerPhone) {
+        if ((restaurant?.whatsappBotEnabled || (await whatsappLinkService.vinculado(restaurantId))) && restaurant?.whatsappBotNotifyReady && order.customerPhone) {
           whatsappBotService
             .sendMessage(
               restaurantId,
@@ -2662,7 +2663,7 @@ export const orderService = {
       where: { id: restaurantId },
       select: { name: true, whatsappBotEnabled: true, whatsappBotNotifyReady: true },
     });
-    if (restaurant?.whatsappBotEnabled && restaurant.whatsappBotNotifyReady && order.customerPhone) {
+    if ((restaurant?.whatsappBotEnabled || (await whatsappLinkService.vinculado(restaurantId))) && restaurant?.whatsappBotNotifyReady && order.customerPhone) {
       whatsappBotService
         .sendMessage(
           restaurantId,

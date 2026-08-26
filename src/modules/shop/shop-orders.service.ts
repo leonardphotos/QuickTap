@@ -148,6 +148,33 @@ async function confirm(restaurantId: string, userId: string, orderId: string, pa
     include: ORDER_INCLUDE,
   });
 
+  // Aviso transaccional por el WhatsApp vinculado del local (Evolution): confirmar ES el
+  // momento en que el pago quedó bueno, que es lo que el comprador está esperando saber.
+  // Si el pedido traía entradas, se le dice dónde viven (su Wallet). En segundo plano y
+  // tragándose cualquier error: confirmar un pedido jamás depende de WhatsApp.
+  (async () => {
+    const negocio = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { name: true } });
+    if (!negocio) return;
+    const entradas = sale.tickets?.length ?? 0;
+    const lineaEntradas = entradas > 0
+      ? `
+
+🎟️ ${entradas === 1 ? 'Tu entrada ya está' : `Tus ${entradas} entradas ya están`} en tu QuickTap Wallet: quicktap.club/wallet`
+      : plan
+        ? `
+
+📅 Tu plan de cuotas quedó activo — síguelo en quicktap.club/wallet`
+        : '';
+    const { whatsappLinkService } = await import('../whatsapp-link/whatsapp-link.service');
+    await whatsappLinkService.enviar(
+      restaurantId,
+      order.customerPhone,
+      `✅ *${negocio.name}*
+
+${order.customerName}, confirmamos tu pedido #${order.orderNumber}.${lineaEntradas}`,
+    );
+  })().catch(() => undefined);
+
   // Entradas que la venta emitió, si el pedido llevaba algún evento — es lo que el panel usa
   // para ofrecer la imagen descargable justo al confirmar (ver ShopOrdersPage).
   return { ...actualizado, tickets: sale.tickets };

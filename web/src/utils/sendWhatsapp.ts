@@ -12,18 +12,26 @@ import { CHATBOTS_ENABLED } from '@/config/features';
  * @returns true si se mandó por el bot (mostrar "Mensaje enviado"), false si se usó el fallback.
  */
 export async function sendWhatsappOrOpen(phone: string, message: string, fallbackUrl: string): Promise<boolean> {
-  // Con los chatbots apagados no tiene sentido ni intentar el envío: se va directo al enlace,
-  // sin la espera de una petición que se sabe que va a fallar.
-  if (!CHATBOTS_ENABLED) {
-    window.open(fallbackUrl, '_blank');
-    return false;
-  }
+  // 1) El WhatsApp VINCULADO del negocio (Evolution, ver Ajustes): el mensaje sale del número
+  //    del propio local sin abrirle WhatsApp a nadie. Independiente de los chatbots viejos.
+  //    Responde rápido (corre en el mismo VPS); cualquier fallo —plan sin el beneficio (403),
+  //    instancia sin vincular (sent:false), Evolution caída— cae al siguiente paso.
   try {
-    const res = await api.post('/whatsapp-bot/send', { phone, message });
+    const res = await api.post('/whatsapp-link/send', { phone, message });
     if (res.data?.data?.sent) return true;
   } catch {
-    // Sigue al fallback.
+    // Sigue.
   }
+  // 2) El chatbot viejo, solo si está encendido (hoy no: CHATBOTS_ENABLED=false).
+  if (CHATBOTS_ENABLED) {
+    try {
+      const res = await api.post('/whatsapp-bot/send', { phone, message });
+      if (res.data?.data?.sent) return true;
+    } catch {
+      // Sigue al fallback.
+    }
+  }
+  // 3) El enlace wa.me de siempre: lo manda el staff a mano desde su propio WhatsApp.
   window.open(fallbackUrl, '_blank');
   return false;
 }

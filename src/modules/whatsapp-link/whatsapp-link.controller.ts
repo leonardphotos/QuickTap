@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { z } from 'zod';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { whatsappLinkService } from './whatsapp-link.service';
 
@@ -15,6 +16,18 @@ export const whatsappLinkController = {
   }),
   reanudar: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await whatsappLinkService.reanudar(req.restaurantId!) });
+  }),
+};
+
+const enviarSchema = z.object({ phone: z.string().min(7).max(30), message: z.string().min(1).max(4000) });
+
+export const whatsappLinkSendController = {
+  /** POST /whatsapp-link/send — los botones de WhatsApp del panel intentan esto primero; si
+   * responde sent:false, el frontend abre el wa.me de siempre. */
+  enviar: asyncHandler(async (req: Request, res: Response) => {
+    const input = enviarSchema.parse(req.body);
+    const sent = await whatsappLinkService.enviar(req.restaurantId!, input.phone, input.message);
+    res.json({ data: { sent } });
   }),
 };
 

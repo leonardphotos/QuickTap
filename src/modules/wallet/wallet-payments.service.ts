@@ -290,6 +290,27 @@ export const walletInboxService = {
         where: { id },
         data: { status: 'APPROVED', reviewedAt: new Date(), reviewedById: revisorId, salePaymentId: pago.id },
       });
+    }).then(async (resultado) => {
+      // Aviso por el WhatsApp vinculado del local: el cliente reportó su abono desde el
+      // Wallet y quedó esperando el visto bueno — decírselo cierra el ciclo sin que
+      // pregunte. Fuera de la transacción y a la mejor suerte: aprobar no depende de esto.
+      (async () => {
+        const venta = await prisma.shopSale.findUnique({
+          where: { id: reporte.shopSaleId },
+          select: { customerName: true, customerPhone: true, settledAt: true, restaurant: { select: { name: true } } },
+        });
+        if (!venta?.customerPhone) return;
+        const { whatsappLinkService } = await import('../whatsapp-link/whatsapp-link.service');
+        await whatsappLinkService.enviar(
+          restaurantId,
+          venta.customerPhone,
+          `✅ *${venta.restaurant.name}*
+
+Verificamos tu abono de $${reporte.amount.toFixed(2)}.` +
+            (venta.settledAt ? ' ¡Tu cuenta quedó saldada! 🎉' : ' Puedes ver tu saldo actualizado en tu QuickTap Wallet.'),
+        );
+      })().catch(() => undefined);
+      return resultado;
     });
   },
 

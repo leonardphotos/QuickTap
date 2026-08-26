@@ -3,7 +3,7 @@ import { prisma } from '../../config/prisma';
 import { tenantGuard, requireRole } from '../../middlewares/auth.middleware';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { HttpError } from '../../utils/http-error';
-import { whatsappLinkController } from './whatsapp-link.controller';
+import { whatsappLinkController, whatsappLinkSendController } from './whatsapp-link.controller';
 
 /**
  * Base: /api/v1/whatsapp-link — el WhatsApp vinculado del negocio (Evolution API).
@@ -33,5 +33,8 @@ router.get('/status', whatsappLinkController.estado);
 router.post('/link', requireRole('OWNER', 'ADMIN'), whatsappLinkController.vincular);
 router.post('/unlink', requireRole('OWNER', 'ADMIN'), whatsappLinkController.desvincular);
 router.post('/resume', requireRole('OWNER', 'ADMIN'), whatsappLinkController.reanudar);
+// Envío manual desde los botones del panel. Cualquier rol del staff: ese mismo mensaje ya lo
+// mandan hoy a mano por wa.me — esto solo les ahorra el salto de app.
+router.post('/send', whatsappLinkSendController.enviar);
 
 export default router;

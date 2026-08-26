@@ -595,7 +595,14 @@ export const whatsappBotService = {
   async sendMessage(restaurantId: string, phone: string | null | undefined, message: string): Promise<boolean> {
     if (!phone) return false;
     const s = sessions.get(restaurantId);
-    if (!s || s.status !== 'connected' || !s.sock) return false;
+    // Sin sesión del bot viejo (apagado por CHATBOTS_ENABLED), el envío sale por la
+    // instancia de Evolution del negocio, si la vinculó. Cablearlo AQUÍ revive de una vez
+    // todos los avisos transaccionales que ya llamaban a este método — comanda al
+    // repartidor, "va en camino", "listo para retirar" — sin tocar cada sitio.
+    if (!s || s.status !== 'connected' || !s.sock) {
+      const { whatsappLinkService } = await import('../whatsapp-link/whatsapp-link.service');
+      return whatsappLinkService.enviar(restaurantId, phone, message);
+    }
     try {
       const jid = toJid(phone);
       // WhatsApp no falla al mandarle a un número que no existe: se traga el mensaje y el

@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid';
 import { Prisma } from '@prisma/client';
+import { whatsappLinkService } from '../whatsapp-link/whatsapp-link.service';
 import { prisma } from '../../config/prisma';
 import { badRequest, conflict, forbidden, notFound } from '../../utils/http-error';
 import { clubPlayerService } from '../club-players/club-player.service';
@@ -657,6 +658,28 @@ export const clubService = {
     // El panel refresca la reserva; la tablet del jugador, su saldo "en verificación".
     emitToKitchen(restaurantId, SocketEvents.CLUB_BOOKING_UPDATED, { id: result.bookingId });
     emitToKitchen(restaurantId, SocketEvents.CLUB_TAB_ORDER_UPDATED, { paymentId });
+
+    // Aviso transaccional por el WhatsApp vinculado del club (Evolution). El jugador reportó
+    // el pago y quedó esperando: decirle que ya se verificó cierra ese ciclo sin que llame.
+    // Fuera de la transacción y sin await sobre el resultado — verificar un pago jamás debe
+    // depender de que WhatsApp responda.
+    if (status === 'CONFIRMED') {
+      (async () => {
+        const b = await prisma.clubBooking.findUnique({
+          where: { id: result.bookingId },
+          select: { playerName: true, playerPhone: true, restaurant: { select: { name: true } }, block: { select: { startsAt: true, court: { select: { name: true } } } } },
+        });
+        if (!b?.playerPhone) return;
+        const fecha = b.block.startsAt.toLocaleString('es-VE', { timeZone: 'America/Caracas', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+        await whatsappLinkService.enviar(
+          restaurantId,
+          b.playerPhone,
+          `✅ *${b.restaurant.name}*
+
+${b.playerName ? b.playerName + ', tu' : 'Tu'} pago fue verificado. Reserva de ${b.block.court.name} — ${fecha}. ¡Nos vemos en la cancha!`,
+        );
+      })().catch(() => undefined);
+    }
     return { id: paymentId, status };
   },
 

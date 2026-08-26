@@ -90,6 +90,13 @@ export const whatsappLinkService = {
     return { ok: true };
   },
 
+  /** ¿Este negocio tiene su WhatsApp vinculado y operativo? Barato: una fila por negocio. */
+  async vinculado(restaurantId: string | null): Promise<boolean> {
+    if (!evolution.disponible()) return false;
+    const fila = await instanciaDe(restaurantId);
+    return !!fila && fila.status === 'CONNECTED' && !fila.paused && !fila.autoPaused;
+  },
+
   /**
    * Envía un texto por la instancia del negocio (o la de plataforma con null).
    * Devuelve false — sin tirar — cuando no se puede: el que llama SIEMPRE tiene su fallback
