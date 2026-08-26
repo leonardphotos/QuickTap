@@ -1133,6 +1133,13 @@ export default function LandingPage() {
                 <Download className="h-5 w-5" />
                 Descargar para Android
               </a>
+              <a
+                href="/descargas/QuickTap-Impresion-Setup.exe"
+                className="inline-flex w-full items-center justify-center gap-2.5 rounded-full border border-white/25 bg-white/10 px-7 py-3.5 font-semibold text-white backdrop-blur-sm transition-transform hover:scale-[1.03] hover:bg-white/15 active:scale-[0.97] sm:w-auto"
+              >
+                <Printer className="h-5 w-5" />
+                Estación de impresión
+              </a>
               {IOS_APP_URL ? (
                 <a
                   href={IOS_APP_URL}
@@ -1155,7 +1162,8 @@ export default function LandingPage() {
               )}
             </div>
             <p className="mt-4 text-xs font-light text-white/40">
-              Instalador .exe y APK · gratis · no necesitas iniciar sesión para descargarlos
+              Instalador .exe, APK y estación de impresión para Windows · gratis · no necesitas
+              iniciar sesión para descargarlos
               {!IOS_APP_URL && ' · en iPhone, agrégala a tu pantalla de inicio desde Safari'}
             </p>
           </Reveal>
