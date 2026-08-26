@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense , useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation, useParams } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { appFlavor, isInstalledApp } from './utils/native-platform';
@@ -10,6 +10,20 @@ const LandingPage = lazy(() => import('./pages/LandingPage'));
 const WalletLoginPage = lazy(() => import('./pages/wallet/WalletLoginPage'));
 const WalletDashboardPage = lazy(() => import('./pages/wallet/WalletDashboardPage'));
 const WalletInfoPage = lazy(() => import('./pages/wallet/WalletInfoPage'));
+
+/**
+ * Al navegar a otra ruta, la vista arranca arriba. Sin esto, la SPA conserva el scroll de la
+ * pagina anterior: entrar a /wallet/conoce desde el banner (que vive a media landing) abria
+ * la pagina nueva por el final. Solo reacciona al pathname: los anclas (#funciones) no lo
+ * cambian y siguen funcionando igual.
+ */
+function ScrollToTop() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+  return null;
+}
 const PlansPage = lazy(() => import('./pages/PlansPage'));
 const TutorialsPage = lazy(() => import('./pages/TutorialsPage'));
 const LegalPage = lazy(() => import('./pages/LegalPage'));
@@ -90,6 +104,7 @@ export default function App() {
     <AuthProvider>
       <MasterAuthProvider>
         <Suspense fallback={<RouteFallback />}>
+          <ScrollToTop />
           <Routes>
             {/*
               Quien instala la app (Android o el escritorio de Windows) es personal del

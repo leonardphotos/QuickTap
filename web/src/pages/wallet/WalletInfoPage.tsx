@@ -126,13 +126,13 @@ export default function WalletInfoPage() {
             <img
               src="/images/wallet-conoce.png"
               alt="QuickTap Wallet en un teléfono, con el saldo y el historial de compras"
-              className="absolute -right-40 top-1/2 w-[680px] max-w-none -translate-y-1/2 drop-shadow-[0_40px_80px_rgba(0,0,0,0.5)]"
+              className="absolute right-4 top-1/2 w-[640px] max-w-none -translate-y-[56%] drop-shadow-[0_40px_80px_rgba(0,0,0,0.5)]"
             />
           </div>
         </div>
 
         {/* ---------- Funciones ---------- */}
-        <ul className="mt-14 space-y-2.5 lg:mt-24 lg:grid lg:grid-cols-3 lg:gap-4 lg:space-y-0">
+        <ul className="relative z-10 mt-14 space-y-2.5 lg:mt-24 lg:grid lg:grid-cols-3 lg:gap-4 lg:space-y-0">
           {FUNCIONES.map((f, i) => (
             <li
               key={f.titulo}
