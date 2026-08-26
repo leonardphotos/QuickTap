@@ -111,6 +111,39 @@ async function approve(verificationId: string) {
     data: { status: 'APPROVED', verifierRepliedAt: new Date(), resolvedAt: new Date() },
   });
   await orderService.autoAcceptAfterPaymentApproved(verification.restaurantId, verification.orderId);
+
+  // Aprobar CON comprobante también registra el cobro en el pedido, con la foto como
+  // soporte: el verificador acaba de dar el pago por bueno — sin esto, la cuenta seguía
+  // figurando impaga en Pedidos, la caja y los bancos, y el comprobante quedaba enterrado
+  // en la verificación. Pasa por addPayment (no por un insert directo) para que el asiento
+  // bancario y el candado anti-doble-cobro apliquen igual que si lo registrara el cajero.
+  // FULL_ORDER (sin foto) queda fuera: ahí no hay método ni soporte documentado — el cobro
+  // lo registra caja como siempre. A la mejor suerte: si el cajero se adelantó y ya cobró,
+  // el "excede el saldo" de addPayment lo frena sin tumbar la aprobación.
+  if (verification.proofImageUrl) {
+    try {
+      const order = await prisma.order.findUnique({
+        where: { id: verification.orderId },
+        include: { payments: true },
+      });
+      if (order?.paymentMethod) {
+        const saldado = order.payments.reduce(
+          (acc, p) => acc + Number(p.amountBase) + Number(p.discountBase ?? 0) + Number(p.serviceChargeDiscountBase ?? 0),
+          0,
+        );
+        const saldo = Math.round((Number(order.totalBase) - saldado) * 100) / 100;
+        if (saldo > 0.009) {
+          await orderService.addPayment(verification.restaurantId, verification.orderId, {
+            amountBase: saldo,
+            method: order.paymentMethod,
+            proofImageUrl: verification.proofImageUrl,
+          } as never);
+        }
+      }
+    } catch (err) {
+      console.error('[order-payment-verification] pago aprobado pero no se pudo registrar el cobro:', err);
+    }
+  }
   return {
     orderId: verification.orderId,
     restaurantId: verification.restaurantId,
