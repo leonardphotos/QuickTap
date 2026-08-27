@@ -448,6 +448,16 @@ export const masterWhatsappBotService = {
    * intervalo aleatorio de ~30s para no parecer envío masivo automatizado. */
   async sendMessage(phone: string | null | undefined, message: string): Promise<boolean> {
     if (!phone) return false;
+    // Sin el bot viejo conectado (apagado por CHATBOTS_ENABLED), el envío sale por la
+    // instancia de Evolution de la plataforma (restaurantId null = el master en
+    // whatsapp-link.service.ts) — mismo patrón ya cableado en whatsapp-bot.service.ts para
+    // los avisos por restaurante. Esto es lo que hace que la bienvenida al registrarse y el
+    // aviso de "nuevo ingreso" al verificador lleguen de verdad, en vez de perderse en
+    // silencio contra una sesión de Baileys que nunca se reconecta.
+    if (state.status !== 'connected' || !state.sock) {
+      const { whatsappLinkService } = await import('../whatsapp-link/whatsapp-link.service');
+      return whatsappLinkService.enviar(null, phone, message);
+    }
     return enqueueOutbox(async () => {
       if (state.status !== 'connected' || !state.sock) return false;
       const { exists, jid } = await checkRegistered(phone);
@@ -482,6 +492,12 @@ export const masterWhatsappBotService = {
 
   async sendImage(phone: string | null | undefined, image: Buffer, caption?: string): Promise<boolean> {
     if (!phone) return false;
+    // Misma caída que sendMessage: sin el bot viejo, la imagen (el comprobante reenviado al
+    // verificador) sale por la instancia de Evolution del master.
+    if (state.status !== 'connected' || !state.sock) {
+      const { whatsappLinkService } = await import('../whatsapp-link/whatsapp-link.service');
+      return whatsappLinkService.enviarImagen(null, phone, image.toString('base64'), caption);
+    }
     return enqueueOutbox(async () => {
       if (state.status !== 'connected' || !state.sock) return false;
       const { exists, jid } = await checkRegistered(phone);

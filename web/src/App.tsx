@@ -208,7 +208,9 @@ export default function App() {
             {/* Dashboard maestro (equipo de QuickTap, ve todos los restaurantes) */}
             <Route path="/master/login" element={<MasterLoginPage />} />
             <Route path="/master" element={<MasterLayout />}>
-              <Route index element={<MasterRestaurantsPage />} />
+              {/* Entrar al dashboard maestro abre directo el Resumen, no la lista de locales. */}
+              <Route index element={<Navigate to="/master/summary" replace />} />
+              <Route path="restaurants" element={<MasterRestaurantsPage />} />
               <Route path="restaurants/:id" element={<MasterRestaurantDetailPage />} />
               <Route path="restaurants/:id/olaclick-import" element={<MasterOlaClickImportPage />} />
               <Route path="promo-codes" element={<MasterPromoCodesPage />} />

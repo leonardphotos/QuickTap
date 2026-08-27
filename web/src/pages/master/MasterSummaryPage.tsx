@@ -34,6 +34,7 @@ interface Summary {
   restaurantOwners: number;
   totalRestaurants: number;
   activeRestaurants: number;
+  newSignupsToday: number;
   ordersAllTime: number;
   ordersAllTimeUsd: string;
   ordersAllTimeBs: string;
@@ -109,13 +110,26 @@ export default function MasterSummaryPage() {
         <ServerHealthCard />
       </section>
 
-      {/* 3b. Saldo de SMS (enviatusms): prepago, y sin saldo el código del Wallet no llega. */}
+      {/* 4. Locales — incluye "Nuevos ingresos" (hoy): cada uno también manda un WhatsApp al
+             número verificador apenas se registra, ver sendNewSignupAlertToVerifier en
+             auth.service.ts. */}
+      <section>
+        <h2 className="text-sm font-semibold text-brand-950/70 mb-3">Locales</h2>
+        <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+          <Stat label="Nuevos ingresos (hoy)" value={summary.newSignupsToday} />
+          <Stat label="Dueños de restaurante" value={summary.restaurantOwners} />
+          <Stat label="Restaurantes activos" value={summary.activeRestaurants} />
+          <Stat label="Restaurantes totales" value={summary.totalRestaurants} />
+        </div>
+      </section>
+
+      {/* 5. Saldo de SMS (enviatusms): prepago, y sin saldo el código del Wallet no llega. */}
       <section>
         <h2 className="text-sm font-semibold text-brand-950/70 mb-3">Saldo de SMS</h2>
         <SmsBalanceCard />
       </section>
 
-      {/* 4. Pendientes por atender. */}
+      {/* 6. Pendientes por atender. */}
       <section>
         <h2 className="text-sm font-semibold text-brand-950/70 mb-3">Pendientes por atender</h2>
         <div className="grid sm:grid-cols-2 gap-4">
@@ -155,7 +169,7 @@ export default function MasterSummaryPage() {
         </div>
       </section>
 
-      {/* 5. Accesos rápidos. */}
+      {/* 7. Accesos rápidos. */}
       <section>
         <h2 className="text-sm font-semibold text-brand-950/70 mb-3">Accesos rápidos</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
@@ -184,7 +198,7 @@ export default function MasterSummaryPage() {
         </div>
       </section>
 
-      {/* 6. Ingresos — los dos bloques juntos bajo un solo encabezado y un solo interruptor de
+      {/* 8. Ingresos — los dos bloques juntos bajo un solo encabezado y un solo interruptor de
              visibilidad (antes cada uno traía el suyo, repetido). */}
       <section>
         <div className="flex items-center gap-2 mb-3">
@@ -219,16 +233,6 @@ export default function MasterSummaryPage() {
       {showQuickTapDetail && (
         <QuickTapRevenueDialog onClose={() => setShowQuickTapDetail(false)} onChanged={loadSummary} />
       )}
-
-      {/* 7. Conteos generales. */}
-      <section>
-        <h2 className="text-sm font-semibold text-brand-950/70 mb-3">Locales</h2>
-        <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 grid grid-cols-3 gap-4 text-center">
-          <Stat label="Dueños de restaurante" value={summary.restaurantOwners} />
-          <Stat label="Restaurantes activos" value={summary.activeRestaurants} />
-          <Stat label="Restaurantes totales" value={summary.totalRestaurants} />
-        </div>
-      </section>
     </div>
   );
 }

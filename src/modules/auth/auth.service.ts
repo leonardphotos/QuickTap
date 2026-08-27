@@ -282,6 +282,27 @@ function sendMasterWelcomeMessage(restaurant: { name: string; whatsappPhone: str
     .catch(() => undefined);
 }
 
+/**
+ * Aviso al número verificador (Ajustes → WhatsApp del Dashboard maestro) de que un restaurante
+ * nuevo acaba de registrarse — mismo número que ya recibe los comprobantes de renovación. Fire
+ * and forget, igual que la bienvenida: nunca debe tumbar el registro. Sin número verificador
+ * configurado, no manda nada (no hay a quién avisarle).
+ */
+function sendNewSignupAlertToVerifier(restaurant: { name: string; businessType: string; slug: string }, ownerName: string): void {
+  platformSettingsService
+    .getSubscriptionVerifierPhone()
+    .then((verifierPhone) => {
+      if (!verifierPhone) return;
+      const mensaje =
+        `🆕 Nuevo ingreso a QuickTap\n\n` +
+        `${restaurant.name} (${restaurant.slug})\n` +
+        `Dueño: ${ownerName}\n` +
+        `Tipo: ${restaurant.businessType}`;
+      return masterWhatsappBotService.sendMessage(verifierPhone, mensaje);
+    })
+    .catch(() => undefined);
+}
+
 export const authService = {
   /** Registro de un restaurante nuevo + su usuario dueño (OWNER). Arranca en TRIALING (15 días). */
   async register(input: RegisterInput) {
@@ -319,6 +340,7 @@ export const authService = {
 
     const owner = restaurant.users[0];
     sendMasterWelcomeMessage(restaurant, owner.name);
+    sendNewSignupAlertToVerifier(restaurant, owner.name);
     const token = signToken({ userId: owner.id, restaurantId: restaurant.id, role: owner.role });
 
     return {
@@ -419,6 +441,7 @@ export const authService = {
 
       const owner = restaurant.users[0];
       sendMasterWelcomeMessage(restaurant, owner.name);
+    sendNewSignupAlertToVerifier(restaurant, owner.name);
       return this.buildSession(owner, restaurant);
     }
 

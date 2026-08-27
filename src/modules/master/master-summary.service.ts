@@ -7,6 +7,11 @@ function startOfCurrentMonth(): Date {
   return new Date(now.getFullYear(), now.getMonth(), 1);
 }
 
+function startOfToday(): Date {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
 /**
  * Suma ingresos de un conjunto de órdenes. `totalBs` siempre es sumable (ya
  * congelado en bolívares al momento de cada pedido). `totalBase` solo se suma
@@ -104,30 +109,43 @@ export const masterSummaryService = {
     // Las sucursales (parentRestaurantId seteado, ver src/modules/branches/)
     // tampoco son cuentas propias que le pagan a QuickTap por separado —
     // se excluyen igual para no inflar/duplicar restaurantes/dueños.
-    const [monthOrders, quickTap, restaurantOwners, totalRestaurants, activeRestaurants, ordersAllTime, allTimeTotals] =
-      await Promise.all([
-        prisma.order.findMany({
-          where: {
-            createdAt: { gte: monthStart },
-            status: { not: 'CANCELLED' },
-            restaurant: { isDemo: false, parentRestaurantId: null },
-          },
-          select: { totalBs: true, totalBase: true, currency: true },
-        }),
-        sumQuickTapRevenue(),
-        prisma.user.count({ where: { role: 'OWNER', restaurant: { isDemo: false, parentRestaurantId: null } } }),
-        prisma.restaurant.count({ where: { isDemo: false, parentRestaurantId: null } }),
-        // Aproximación: no descuenta el bloqueo por vencimiento (se calcula en
-        // vivo con periodEnd + 12h de gracia, no se persiste), igual que el
-        // resto del código trata ese estado.
-        prisma.restaurant.count({
-          where: { subscriptionStatus: 'ACTIVE', suspended: false, isDemo: false, parentRestaurantId: null },
-        }),
-        // Valores iniciales del contador en vivo: vienen acá para que la tarjeta pinte de una vez,
-        // sin esperar el primer sondeo a /summary/live.
-        countOrdersAllTime(),
-        sumOrdersAllTime(),
-      ]);
+    const [
+      monthOrders,
+      quickTap,
+      restaurantOwners,
+      totalRestaurants,
+      activeRestaurants,
+      ordersAllTime,
+      allTimeTotals,
+      newSignupsToday,
+    ] = await Promise.all([
+      prisma.order.findMany({
+        where: {
+          createdAt: { gte: monthStart },
+          status: { not: 'CANCELLED' },
+          restaurant: { isDemo: false, parentRestaurantId: null },
+        },
+        select: { totalBs: true, totalBase: true, currency: true },
+      }),
+      sumQuickTapRevenue(),
+      prisma.user.count({ where: { role: 'OWNER', restaurant: { isDemo: false, parentRestaurantId: null } } }),
+      prisma.restaurant.count({ where: { isDemo: false, parentRestaurantId: null } }),
+      // Aproximación: no descuenta el bloqueo por vencimiento (se calcula en
+      // vivo con periodEnd + 12h de gracia, no se persiste), igual que el
+      // resto del código trata ese estado.
+      prisma.restaurant.count({
+        where: { subscriptionStatus: 'ACTIVE', suspended: false, isDemo: false, parentRestaurantId: null },
+      }),
+      // Valores iniciales del contador en vivo: vienen acá para que la tarjeta pinte de una vez,
+      // sin esperar el primer sondeo a /summary/live.
+      countOrdersAllTime(),
+      sumOrdersAllTime(),
+      // Nuevos ingresos de hoy — restaurantes que se registraron (no sucursales, que no son
+      // cuentas propias). Junto con el aviso por WhatsApp al verificador, ver auth.service.ts.
+      prisma.restaurant.count({
+        where: { isDemo: false, parentRestaurantId: null, createdAt: { gte: startOfToday() } },
+      }),
+    ]);
 
     return {
       month: sumRevenue(monthOrders),
@@ -135,6 +153,7 @@ export const masterSummaryService = {
       restaurantOwners,
       totalRestaurants,
       activeRestaurants,
+      newSignupsToday,
       ordersAllTime,
       ordersAllTimeUsd: allTimeTotals.usd,
       ordersAllTimeBs: allTimeTotals.bs,
