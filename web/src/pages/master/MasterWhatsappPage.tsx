@@ -1,19 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MessageCircle } from 'lucide-react';
 import { masterApi } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 import { AnnouncementsSection } from '@/components/master/AnnouncementsSection';
 import { WhatsappLinkSection } from '@/components/admin/WhatsappLinkSection';
-
-type BotStatus = 'idle' | 'connecting' | 'qr' | 'connected' | 'disconnected';
-
-interface StatusResponse {
-  status: BotStatus;
-  qrDataUrl: string | null;
-  connectedNumber: string | null;
-  masterWhatsappEnabled: boolean;
-  subscriptionVerifierPhone: string | null;
-}
 
 interface MessageTemplates {
   reminderMessage: string;
@@ -65,20 +55,20 @@ const TEMPLATE_FIELDS: { key: keyof MessageTemplates; label: string; help: strin
 
 /**
  * Chatbot de WhatsApp de la PLATAFORMA (equipo QuickTap), distinto del que vincula cada
- * restaurante — ver master-whatsapp-bot.service.ts. Manda la bienvenida a cada restaurante
- * que se registra y el recordatorio de renovación de plan 3 días antes del vencimiento.
+ * restaurante. Manda la bienvenida a cada restaurante que se registra, el recordatorio de
+ * renovación de plan, el aviso de nuevo ingreso al verificador y las cotizaciones.
  *
- * Sin sockets (el Dashboard maestro no usa Socket.IO en ningún otro lado todavía): mientras se
- * está vinculando (esperando escaneo del QR), se hace polling corto a /master/whatsapp/status.
+ * El vínculo en sí es SOLO por Evolution API (WhatsappLinkSection, abajo) — el mecanismo viejo
+ * (Baileys, master-whatsapp-bot.service.ts) es el mismo que causó el baneo de agosto 2026 y se
+ * dejó a propósito sin botón acá para que nadie lo vuelva a vincular por accidente. El servicio
+ * sigue existiendo porque sendMessage()/sendImage() (bienvenida, recordatorio, aviso,
+ * cotizaciones) caen solas a Evolution cuando no hay sesión Baileys conectada — que es siempre,
+ * ahora que no hay forma de conectarla desde acá.
  */
 export default function MasterWhatsappPage() {
-  const [data, setData] = useState<StatusResponse | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [verifierDraft, setVerifierDraft] = useState('');
   const [savingVerifier, setSavingVerifier] = useState(false);
   const [verifierSaved, setVerifierSaved] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [templates, setTemplates] = useState<MessageTemplates | null>(null);
   const [templatesDraft, setTemplatesDraft] = useState<MessageTemplates | null>(null);
   const [savingTemplates, setSavingTemplates] = useState(false);
@@ -89,6 +79,9 @@ export default function MasterWhatsappPage() {
     masterApi.get('/master/message-templates').then((res) => {
       setTemplates(res.data.data);
       setTemplatesDraft(res.data.data);
+    });
+    masterApi.get('/master/whatsapp/status').then((res) => {
+      setVerifierDraft((d) => d || res.data.data.subscriptionVerifierPhone || '');
     });
   }, []);
 
@@ -112,80 +105,17 @@ export default function MasterWhatsappPage() {
 
   const templatesChanged = templates && templatesDraft && JSON.stringify(templates) !== JSON.stringify(templatesDraft);
 
-  async function loadStatus() {
-    const res = await masterApi.get('/master/whatsapp/status');
-    setData(res.data.data);
-    setVerifierDraft((d) => d || res.data.data.subscriptionVerifierPhone || '');
-    return res.data.data as StatusResponse;
-  }
-
-  useEffect(() => {
-    loadStatus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    const shouldPoll = data && (data.status === 'connecting' || data.status === 'qr');
-    if (shouldPoll && !pollRef.current) {
-      pollRef.current = setInterval(() => loadStatus().catch(() => undefined), 2000);
-    }
-    if (!shouldPoll && pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-    return () => {
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data?.status]);
-
-  async function connect() {
-    setBusy(true);
-    setError(null);
-    try {
-      await masterApi.post('/master/whatsapp/connect');
-      setData((d) => (d ? { ...d, masterWhatsappEnabled: true, status: 'connecting' } : d));
-    } catch (err: any) {
-      setError(err.response?.data?.error ?? 'No se pudo iniciar la vinculación.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function disconnect() {
-    if (!confirm('¿Desvincular el WhatsApp de la plataforma? Dejarán de salir la bienvenida y los recordatorios de pago.')) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await masterApi.post('/master/whatsapp/disconnect');
-      setData((d) => (d ? { ...d, masterWhatsappEnabled: false, status: 'disconnected', connectedNumber: null, qrDataUrl: null } : d));
-    } catch (err: any) {
-      setError(err.response?.data?.error ?? 'No se pudo desvincular.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
   async function saveVerifierPhone() {
     setSavingVerifier(true);
     setVerifierSaved(false);
     try {
       await masterApi.patch('/master/whatsapp/settings', { subscriptionVerifierPhone: verifierDraft.trim() || null });
-      setData((d) => (d ? { ...d, subscriptionVerifierPhone: verifierDraft.trim() || null } : d));
       setVerifierSaved(true);
       setTimeout(() => setVerifierSaved(false), 3000);
     } finally {
       setSavingVerifier(false);
     }
   }
-
-  if (!data) return <div className="p-10 text-center text-brand-950/50 font-light">Cargando…</div>;
-
-  const connected = data.status === 'connected';
-  const showingQr = data.status === 'qr' && data.qrDataUrl;
 
   return (
     <div className="space-y-6 max-w-xl">
@@ -200,42 +130,10 @@ export default function MasterWhatsappPage() {
         </p>
       </div>
 
-      {/* La vía NUEVA de cobranza: la instancia de Evolution de la plataforma. El botón
+      {/* Único mecanismo de vinculación: la instancia de Evolution de la plataforma. El botón
           "Enviar por WhatsApp" de cada restaurante sale por acá; con el número sin vincular
           o auto-pausado, ese botón lo dice y el cobro sigue saliendo con "Copiar mensaje". */}
       <WhatsappLinkSection base="/master/whatsapp-link" titulo="WhatsApp de cobranzas (vinculado)" cliente={masterApi} />
-
-      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-4">
-        {error && <p className="text-sm text-red-600">{error}</p>}
-
-        {connected ? (
-          <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-            <div>
-              <p className="text-sm font-semibold text-emerald-800">
-                Conectado{data.connectedNumber ? ` · ${data.connectedNumber}` : ''}
-              </p>
-              <p className="text-xs text-emerald-700/70 font-light">Los mensajes salen desde este número.</p>
-            </div>
-            <TextureButton variant="minimal" size="sm" className="!w-auto" disabled={busy} onClick={disconnect}>
-              Desvincular
-            </TextureButton>
-          </div>
-        ) : showingQr ? (
-          <div className="flex flex-col items-center gap-2 py-2">
-            <img src={data.qrDataUrl!} alt="Código QR de WhatsApp" className="h-52 w-52 rounded-xl border border-brand-950/10" />
-            <p className="text-xs text-brand-950/50 font-light text-center max-w-xs">
-              Abre WhatsApp en el celular de la plataforma → Ajustes → Dispositivos vinculados → Vincular un
-              dispositivo, y escanea este código.
-            </p>
-          </div>
-        ) : data.status === 'connecting' ? (
-          <p className="text-sm text-brand-950/50 font-light">Generando código QR…</p>
-        ) : (
-          <TextureButton variant="brand" size="default" className="!w-auto" disabled={busy} onClick={connect}>
-            {busy ? 'Iniciando…' : 'Vincular WhatsApp'}
-          </TextureButton>
-        )}
-      </div>
 
       <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-2">
         <p className="text-sm font-medium text-brand-950">Número que verifica los pagos de renovación</p>
