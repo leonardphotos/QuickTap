@@ -1,6 +1,6 @@
 import { waPhone } from '@/utils/waPhone';
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Landmark, Send } from 'lucide-react';
+import { AlertTriangle, Landmark, Send, Trash2 } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/useToast';
@@ -9,6 +9,7 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { ShopInstallmentsDialog } from './ShopInstallmentsDialog';
 import { TextureCard } from '@/components/ui/texture-card';
 import { Toast } from '@/components/ui/toast';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { shopMoneyFormatters } from './shopFormat';
 
 interface ReceivableSale {
@@ -65,7 +66,8 @@ function whatsappUrl(phone: string, text: string): string {
  * conectado; si no, cae al enlace wa.me de siempre para que el cajero lo mande a mano.
  */
 export default function ShopReceivablesPage() {
-  const { restaurant } = useAuth();
+  const { restaurant, user } = useAuth();
+  const canDeleteSale = user?.role === 'OWNER' || user?.role === 'ADMIN';
   const { money } = shopMoneyFormatters(restaurant!);
   const { show, toastMessage } = useToast();
 
@@ -79,6 +81,9 @@ export default function ShopReceivablesPage() {
   const [editingDueId, setEditingDueId] = useState<string | null>(null);
   const [dueInput, setDueInput] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [saleToDelete, setSaleToDelete] = useState<ReceivableSale | null>(null);
+  const [deletingSale, setDeletingSale] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   function load() {
     api.get(showHistory ? '/shop/receivables/history' : '/shop/receivables').then((res) => setSales(res.data.data));
@@ -265,6 +270,15 @@ export default function ShopReceivablesPage() {
                       <Send className="h-3.5 w-3.5" /> Recordar por WhatsApp
                     </button>
                   )}
+                  {canDeleteSale && (
+                    <button
+                      type="button"
+                      onClick={() => setSaleToDelete(s)}
+                      className="text-sm text-red-600/70 hover:text-red-600 flex items-center gap-1"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Eliminar
+                    </button>
+                  )}
                 </div>
               )}
             </li>
@@ -286,6 +300,58 @@ export default function ShopReceivablesPage() {
           onChanged={load}
         />
       )}
+
+      {/* ---------- Eliminar cuenta por cobrar (Dueño/Admin): borra la venta fiada por completo,
+          no solo la marca saldada — desaparece de todo reporte y el stock vuelve a como estaba. ---------- */}
+      <Dialog
+        open={!!saleToDelete}
+        onOpenChange={(o) => {
+          if (o) return;
+          setSaleToDelete(null);
+          setDeleteError(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar cuenta por cobrar</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-brand-950">
+            ¿Borrar por completo la cuenta de{' '}
+            <span className="font-semibold">{saleToDelete?.customerName || 'este cliente'}</span> por{' '}
+            {saleToDelete ? money(saleToDelete.total) : ''} (saldo pendiente {saleToDelete ? money(saleToDelete.balance) : ''})?
+            Desaparece de todo reporte e historial y el stock vuelve a como estaba antes de la venta. No se puede
+            deshacer.
+          </p>
+          {deleteError && <p className="text-sm text-red-600">{deleteError}</p>}
+          <DialogFooter>
+            <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setSaleToDelete(null)}>
+              Cancelar
+            </TextureButton>
+            <TextureButton
+              variant="destructive"
+              size="default"
+              className="!w-auto"
+              disabled={deletingSale}
+              onClick={async () => {
+                if (!saleToDelete) return;
+                setDeletingSale(true);
+                setDeleteError(null);
+                try {
+                  await api.delete(`/shop/sales/${saleToDelete.id}`);
+                  setSaleToDelete(null);
+                  load();
+                } catch (err: any) {
+                  setDeleteError(err.response?.data?.error ?? 'No se pudo eliminar la cuenta.');
+                } finally {
+                  setDeletingSale(false);
+                }
+              }}
+            >
+              {deletingSale ? 'Eliminando…' : 'Eliminar'}
+            </TextureButton>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

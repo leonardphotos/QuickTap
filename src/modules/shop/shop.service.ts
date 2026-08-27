@@ -120,6 +120,32 @@ async function applySupplyConsumption(
   }
 }
 
+/** Devuelve al stock exactamente lo que una venta descontó (ver recordSale) — usado tanto por
+ * "Devolver" como por el borrado completo de la venta. */
+async function restoreSaleStock(
+  tx: Prisma.TransactionClient,
+  restaurantId: string,
+  items: { productId: string | null; v1: string; v2: string; qty: number; stockQty: number | null }[],
+) {
+  // Mismo chequeo de pertenencia que en recordSale — el productId de cada línea puede apuntar
+  // a un producto de otro tenant si no se validó antes.
+  const requestedProductIds = [...new Set(items.map((it) => it.productId).filter((v): v is string => !!v))];
+  const ownedProducts = requestedProductIds.length
+    ? await tx.shopProduct.findMany({ where: { id: { in: requestedProductIds }, restaurantId }, select: { id: true } })
+    : [];
+  const ownedProductIds = new Set(ownedProducts.map((p) => p.id));
+
+  for (const item of items) {
+    if (!item.productId || !ownedProductIds.has(item.productId)) continue;
+    await tx.shopProductVariant.updateMany({
+      where: { productId: item.productId, v1: item.v1, v2: item.v2 },
+      data: { stock: { increment: item.stockQty ?? item.qty } },
+    });
+  }
+  // Y devuelve al inventario los insumos que esos servicios habían consumido.
+  await applySupplyConsumption(tx, restaurantId, items, 1);
+}
+
 export const shopService = {
   /** Carga inicial única: todo lo que ShopLayout necesita para hidratar la sesión. */
   async getState(restaurantId: string) {
@@ -919,25 +945,7 @@ export const shopService = {
     if (sale.returned) throw badRequest('Esta venta ya fue devuelta.');
 
     return prisma.$transaction(async (tx) => {
-      // Mismo chequeo de pertenencia que en recordSale — sale.items ya venía de una venta de
-      // este restaurante, pero el productId que guarda cada línea es el que mandó el cliente al
-      // vender, así que igual puede apuntar a un producto de otro tenant si no se validó antes.
-      const requestedProductIds = [...new Set(sale.items.map((it) => it.productId).filter((v): v is string => !!v))];
-      const ownedProducts = requestedProductIds.length
-        ? await tx.shopProduct.findMany({ where: { id: { in: requestedProductIds }, restaurantId }, select: { id: true } })
-        : [];
-      const ownedProductIds = new Set(ownedProducts.map((p) => p.id));
-
-      for (const item of sale.items) {
-        if (!item.productId || !ownedProductIds.has(item.productId)) continue;
-        // Se devuelve exactamente lo que se descontó al vender (ver recordSale).
-        await tx.shopProductVariant.updateMany({
-          where: { productId: item.productId, v1: item.v1, v2: item.v2 },
-          data: { stock: { increment: item.stockQty ?? item.qty } },
-        });
-      }
-      // Y devuelve al inventario los insumos que esos servicios habían consumido.
-      await applySupplyConsumption(tx, restaurantId, sale.items, 1);
+      await restoreSaleStock(tx, restaurantId, sale.items);
 
       // Cuentas bancarias: devolver una venta pagada saca del banco lo que había entrado.
       // Las fiadas no — lo abonado se ajusta a mano si aplica (caso raro).
@@ -954,6 +962,66 @@ export const shopService = {
 
       return tx.shopSale.update({ where: { id }, data: { returned: true }, include: { items: true } });
     });
+  },
+
+  /**
+   * Borra por completo el registro de una venta (Local Comercial o Tickera, mismo ShopSale) —
+   * distinto de "Devolver": la devolución repone el stock pero deja la venta en el historial,
+   * marcada y tachada; esto la saca de todo reporte, como si nunca hubiera existido. Solo
+   * Dueño/Administrador pueden hacerlo (ver requireRole en la ruta) — a diferencia de las
+   * comandas del restaurante, acá no hay código alterno para otros roles.
+   *
+   * Antes de borrar queda un registro inborrable (ShopSaleDeletionLog, sin endpoint de borrado)
+   * con quién la borró y qué tenía — mismo criterio que OrderDeletionLog del vertical restaurante.
+   */
+  async deleteSale(restaurantId: string, id: string, userId: string, role: string) {
+    const sale = await prisma.shopSale.findFirst({ where: { id, restaurantId }, include: { items: true } });
+    if (!sale) throw notFound('Venta no encontrada.');
+
+    const [deleter, ticketsCount] = await Promise.all([
+      prisma.user.findFirst({ where: { id: userId, restaurantId }, select: { name: true, email: true } }),
+      prisma.shopTicket.count({ where: { shopSaleId: id, restaurantId } }),
+    ]);
+
+    await prisma.$transaction(async (tx) => {
+      // Si ya se había devuelto, el stock ya está repuesto — restaurarlo de nuevo lo duplicaría.
+      if (!sale.returned) {
+        await restoreSaleStock(tx, restaurantId, sale.items);
+      }
+      // Todos los asientos bancarios que dejó esta venta (cobro inicial, abonos, y la
+      // devolución si la tuvo) comparten sourceRef = sale.id — se deshacen de una vez,
+      // sin importar cuántos haya ni en qué estado quedó.
+      await bankLedgerService.reverseBySourceRef(tx, restaurantId, id);
+      await tx.promotionRedemption.deleteMany({ where: { restaurantId, sourceRef: id } });
+      // Sin relación FK (informativo, igual que Order.offlineTicketRef) — hay que borrarlas
+      // a mano; si no, quedan boletos con un shopSaleId que ya no existe en ningún lado.
+      await tx.shopTicket.deleteMany({ where: { shopSaleId: id, restaurantId } });
+
+      await tx.shopSaleDeletionLog.create({
+        data: {
+          restaurantId,
+          total: sale.total,
+          time: sale.time,
+          customerName: sale.customerName,
+          customerPhone: sale.customerPhone,
+          creditTerms: sale.creditTerms,
+          items: sale.items.map((it) => ({ name: it.name, qty: it.qty, price: it.price })),
+          ticketsCount,
+          deletedByName: deleter?.name || deleter?.email || 'Desconocido',
+          deletedByRole: role,
+        },
+      });
+
+      // Cascada: items, payments, installmentPlan (+ sus installments) y passPayments.
+      await tx.shopSale.delete({ where: { id } });
+    });
+
+    return { deleted: true };
+  },
+
+  /** Registro de ventas eliminadas — solo Dueño/Admin (ver rutas). No hay forma de borrarlo. */
+  async listSaleDeletionLog(restaurantId: string) {
+    return prisma.shopSaleDeletionLog.findMany({ where: { restaurantId }, orderBy: { deletedAt: 'desc' }, take: 300 });
   },
 
   // --- Compras (reponen stock) ---

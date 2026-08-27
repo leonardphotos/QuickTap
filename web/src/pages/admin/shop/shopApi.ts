@@ -264,6 +264,11 @@ export const shopApi = {
     await api.post(`/shop/sales/${id}/return`);
   },
 
+  /** Borrado completo del registro de venta — Dueño/Admin únicamente (ver la ruta). */
+  async deleteSale(id: string): Promise<void> {
+    await api.delete(`/shop/sales/${id}`);
+  },
+
   // ─── QuickTap Wallet ──────────────────────────────────────────────────────
 
   /** La cuenta fiada abierta de ese teléfono en este local, o null si no debe nada. */

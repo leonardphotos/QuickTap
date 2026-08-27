@@ -742,6 +742,7 @@ model Restaurant {
   shopCategories       ShopCategory[]
   shopInstallmentPlans ShopInstallmentPlan[]
   shopPassPayments     ShopPassPayment[]
+  shopSaleDeletionLogs ShopSaleDeletionLog[]
   shopSubcategories    ShopSubcategory[]
   shopServiceSupplies  ShopServiceSupply[]
   // Pedidos que entran por el catálogo público de la tienda virtual (ver ShopOrder).
@@ -5635,4 +5636,29 @@ model OrderDeletionLog {
 
   @@index([restaurantId, deletedAt])
   @@map("order_deletion_logs")
+}
+
+/// Registro inborrable de ventas eliminadas (Locales Comerciales y Tickera, mismo ShopSale):
+/// quién la borró, cuándo y qué tenía. No existe NINGÚN endpoint para borrar filas de esta
+/// tabla a propósito — el registro es permanente; solo Dueño/Admin pueden consultarlo.
+model ShopSaleDeletionLog {
+  id            String   @id @default(cuid())
+  restaurantId  String
+  total         Float
+  time          DateTime
+  customerName  String?
+  customerPhone String?
+  creditTerms   String?
+  /// Snapshot de los renglones al momento del borrado: [{ name, qty, price }]
+  items         Json
+  /// Cuántas entradas de evento (ShopTicket) se borraron con esta venta, si tenía.
+  ticketsCount  Int      @default(0)
+  deletedByName String
+  deletedByRole String
+  deletedAt     DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, deletedAt])
+  @@map("shop_sale_deletion_logs")
 }

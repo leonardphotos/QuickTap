@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/api/client';
 import type { AuthRestaurant } from '@/context/AuthContext';
+import { useAuth } from '@/context/AuthContext';
 import {
   CalendarClock,
   Landmark,
@@ -136,8 +137,13 @@ function groupIncomeByMethod(sales: Sale[]): { method: string; count: number; to
 
 export default function ShopDashboardPage({ session, restaurant, canSeeMoney, userName }: Props) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
-  const { products, sales, purchases, returnSale, providers } = session;
+  const { products, sales, purchases, returnSale, deleteSale, providers } = session;
+  const { user } = useAuth();
+  const canDeleteSale = user?.role === 'OWNER' || user?.role === 'ADMIN';
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
+  const [deletingSale, setDeletingSale] = useState(false);
+  const [deleteSaleError, setDeleteSaleError] = useState<string | null>(null);
   const [showExpenseDialog, setShowExpenseDialog] = useState(false);
   // Corregir un gasto ya cargado (monto mal tipeado, categoría equivocada) sin tener que
   // borrarlo y volver a escribirlo entero.
@@ -648,23 +654,88 @@ export default function ShopDashboardPage({ session, restaurant, canSeeMoney, us
                 )
               )}
 
-              {!selectedSale.returned && (
-                <TextureButton
-                  variant="minimal"
-                  size="sm"
-                  className="!w-auto"
-                  onClick={() => {
-                    if (window.confirm('¿Registrar la devolución de esta venta? Se repondrá el stock.')) {
-                      returnSale(selectedSale.id);
+              <div className="flex flex-wrap gap-2">
+                {!selectedSale.returned && (
+                  <TextureButton
+                    variant="minimal"
+                    size="sm"
+                    className="!w-auto"
+                    onClick={() => {
+                      if (window.confirm('¿Registrar la devolución de esta venta? Se repondrá el stock.')) {
+                        returnSale(selectedSale.id);
+                        setSelectedSale(null);
+                      }
+                    }}
+                  >
+                    <X className="h-3.5 w-3.5" /> Devolver esta venta
+                  </TextureButton>
+                )}
+                {canDeleteSale && (
+                  <TextureButton
+                    variant="minimal"
+                    size="sm"
+                    className="!w-auto !text-red-600"
+                    onClick={() => {
+                      setSaleToDelete(selectedSale);
                       setSelectedSale(null);
-                    }
-                  }}
-                >
-                  <X className="h-3.5 w-3.5" /> Devolver esta venta
-                </TextureButton>
-              )}
+                    }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Eliminar registro
+                  </TextureButton>
+                )}
+              </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ---------- Eliminar venta (Dueño/Admin): borra el registro por completo, no solo lo marca
+          devuelto — el stock se repone igual que "Devolver" si la venta no se había devuelto. ---------- */}
+      <Dialog
+        open={!!saleToDelete}
+        onOpenChange={(o) => {
+          if (o) return;
+          setSaleToDelete(null);
+          setDeleteSaleError(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Eliminar registro de venta</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-brand-950">
+            ¿Borrar por completo esta venta de{' '}
+            <span className="font-semibold">{saleToDelete ? saleAmount(saleToDelete) : ''}</span>
+            {saleToDelete?.customerName ? ` a ${saleToDelete.customerName}` : ''}? Desaparece de todo reporte e
+            historial{!saleToDelete?.returned ? ' y el stock vuelve a como estaba antes' : ''}. No se puede deshacer.
+          </p>
+          {deleteSaleError && <p className="text-sm text-red-600">{deleteSaleError}</p>}
+          <DialogFooter>
+            <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setSaleToDelete(null)}>
+              Cancelar
+            </TextureButton>
+            <TextureButton
+              variant="destructive"
+              size="default"
+              className="!w-auto"
+              disabled={deletingSale}
+              onClick={async () => {
+                if (!saleToDelete) return;
+                setDeletingSale(true);
+                setDeleteSaleError(null);
+                try {
+                  await deleteSale(saleToDelete.id);
+                  setSaleToDelete(null);
+                } catch (err: any) {
+                  setDeleteSaleError(err.response?.data?.error ?? 'No se pudo eliminar la venta.');
+                } finally {
+                  setDeletingSale(false);
+                }
+              }}
+            >
+              {deletingSale ? 'Eliminando…' : 'Eliminar'}
+            </TextureButton>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

@@ -848,6 +848,24 @@ export function useShopSession(initialCategories: string[] = []) {
     shopApi.returnSale(saleId).catch((err) => console.error('No se pudo registrar la devolución en el servidor', err));
   }
 
+  /**
+   * Borrado completo del registro de venta — a diferencia de returnSale, acá se espera la
+   * respuesta del servidor antes de tocar el estado local: es destructivo e irreversible (deja
+   * un rastro permanente en el servidor, pero nada en el panel), así que si el servidor lo
+   * rechaza (otro rol, venta de otro restaurante) la lista no debe quedar mintiendo que ya no
+   * existe. Solo repone stock en el cliente si la venta no se había devuelto antes — el servidor
+   * hace la misma comprobación, esto es solo para que el inventario en pantalla no se adelante.
+   */
+  async function deleteSale(saleId: string) {
+    const sale = sales.find((s) => s.id === saleId);
+    if (!sale) return;
+    await shopApi.deleteSale(saleId);
+    if (!sale.returned) {
+      setProducts((prev) => applyStockMovement(prev, sale.items, serviceSupplies, 1));
+    }
+    setSales((prev) => prev.filter((s) => s.id !== saleId));
+  }
+
   function registerPurchase(supplier: string, productId: string, variantIndex: number, qty: number, cost: number, weightKg?: number) {
     const product = products.find((p) => p.id === productId);
     const variant = product?.variants[variantIndex];
@@ -1049,6 +1067,7 @@ export function useShopSession(initialCategories: string[] = []) {
     closeTill,
     checkout,
     returnSale,
+    deleteSale,
     registerPurchase,
     adjustStock,
     addProduct,

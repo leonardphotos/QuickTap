@@ -206,6 +206,16 @@ export const shopController = {
     res.json({ data: await shopService.returnSale(req.restaurantId!, req.params.id) });
   }),
 
+  /** DELETE /shop/sales/:id — borra por completo el registro de la venta (Dueño/Admin, ver ruta). */
+  deleteSale: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await shopService.deleteSale(req.restaurantId!, req.params.id, req.auth!.userId, req.auth!.role) });
+  }),
+
+  /** GET /shop/sales/deletion-log — registro permanente de ventas eliminadas (Dueño/Admin). */
+  saleDeletionLog: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await shopService.listSaleDeletionLog(req.restaurantId!) });
+  }),
+
   /** PUT /shop/products/:id/supplies — reemplaza la receta de insumos de un servicio. */
   setServiceSupplies: asyncHandler(async (req: Request, res: Response) => {
     const input = setShopServiceSuppliesSchema.parse(req.body);

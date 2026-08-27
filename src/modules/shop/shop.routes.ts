@@ -43,6 +43,11 @@ router.post('/consumption-plans/:id/close', shopController.closePlan);
 
 router.post('/sales', shopController.recordSale);
 router.post('/sales/:id/return', shopController.returnSale);
+// Borrado completo del registro de venta (Local Comercial y Tickera, mismo ShopSale) — solo
+// Dueño/Administrador, sin código alterno para otros roles (a diferencia de las comandas del
+// restaurante). El registro permanente lo pueden consultar los mismos dos roles.
+router.delete('/sales/:id', requireRole('OWNER', 'ADMIN'), shopController.deleteSale);
+router.get('/sales/deletion-log', requireRole('OWNER', 'ADMIN'), shopController.saleDeletionLog);
 
 router.get('/sales-stats', requireRole('OWNER', 'ADMIN'), shopController.salesStats);
 router.get('/sales-by-unit', shopController.salesByUnit);
