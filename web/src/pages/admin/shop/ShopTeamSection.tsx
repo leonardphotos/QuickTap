@@ -9,9 +9,10 @@ import { PasswordInput } from '@/components/ui/password-input';
 
 /** Roles asignables desde Shop: a diferencia del Equipo de restaurante, acá no tiene sentido
  * ofrecer Mesero/Cocina/Pantalla/Comanda/Numero — son conceptos de mesas/cocina que un local
- * comercial no tiene. Solo Administrador (mismo acceso que el dueño, sin poder borrar la cuenta)
- * y Cajero (cobra, sin ver márgenes — ver canSeeMoney en ShopLayout). */
-const SHOP_ASSIGNABLE_ROLES: UserRole[] = ['ADMIN', 'CASHIER'];
+ * comercial no tiene. Administrador (mismo acceso que el dueño, sin poder borrar la cuenta),
+ * Cajero (cobra, sin ver márgenes — ver canSeeMoney en ShopLayout) y Verificador (solo escanea
+ * el QR de las entradas en la puerta de un evento — Tickera → Verificar). */
+const SHOP_ASSIGNABLE_ROLES: UserRole[] = ['ADMIN', 'CASHIER', 'VERIFICADOR'];
 
 const emptyForm = { name: '', email: '', password: '', role: 'CASHIER' as UserRole };
 
