@@ -101,23 +101,6 @@ function blockIfLocked(req: Request, _res: Response, next: NextFunction) {
 export const tenantGuard = [authGuard, blockIfLocked];
 
 /**
- * Restringe una ruta al plan Premium exacto. Debe montarse DESPUÉS de `tenantGuard`.
- * Para funciones que Pro también puede tener (o CUSTOM con el adicional
- * contratado), usar `requireFeature` en su lugar.
- */
-export function requirePremiumPlan(req: Request, _res: Response, next: NextFunction) {
-  prisma.restaurant
-    .findUnique({ where: { id: req.restaurantId }, select: { subscriptionPlan: true } })
-    .then((restaurant) => {
-      if (restaurant?.subscriptionPlan !== 'PREMIUM') {
-        throw forbidden('Esta función solo está disponible en el plan Premium.');
-      }
-      next();
-    })
-    .catch(next);
-}
-
-/**
  * Inventario para roles restringidos (Mesero/Cocina/Cajero sin acceso completo): los de acceso
  * total (OWNER/ADMIN/STAFF) siempre pasan; el resto necesita el permiso individual
  * `canAccessInventory` otorgado desde Ajustes → Equipo (un Cajero con `cashierFullAccess` pasa

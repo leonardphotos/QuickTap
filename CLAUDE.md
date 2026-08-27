@@ -60,7 +60,7 @@ There are **two separate JWT realms**, both signed with the same `JWT_SECRET` bu
 - Tenant/staff auth: `AuthPayload { userId, restaurantId, role }`, verified by `authGuard`. `tenantGuard = [authGuard, blockIfLocked]` is the standard chain for panel routes — it also rejects requests if the restaurant's subscription is locked (see below). `blockIfLocked` is deliberately never mounted on `/auth/*` so login and `/auth/me` keep working even when a tenant is locked out.
 - Platform/master auth: `PlatformAuthPayload { platformAdminId, scope: 'platform' }`, verified by `platformAuthGuard` (`src/middlewares/platform-auth.middleware.ts`). This is the QuickTap team's own login for the master dashboard, unrelated to any single restaurant. The `scope: 'platform'` field exists specifically so a token from one realm can't be replayed against the other.
 
-Additional per-route guards layered on top of `tenantGuard` (all in `auth.middleware.ts`): `requireRole(...roles)`, `requireFeature(flag)` (plan-gated features), `requirePremiumPlan`, `requireInventoryAccess`.
+Additional per-route guards layered on top of `tenantGuard` (all in `auth.middleware.ts`): `requireRole(...roles)`, `requireFeature(flag)` (plan-gated features), `requireInventoryAccess`.
 
 ### Module structure
 

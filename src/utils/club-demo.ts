@@ -1,5 +1,4 @@
 import { prisma } from '../config/prisma';
-import { atTimeCaracas, caracasPartsOf } from './timezone';
 
 /**
  * Mantiene vivo el club de demostración.
@@ -109,10 +108,3 @@ export async function refreshClubDemo(restaurantId: string, force = false): Prom
     });
   }
 }
-
-/** Fecha de hoy en Caracas, para los seeds. */
-export function todayCaracas(): string {
-  return caracasPartsOf(new Date()).dateStr;
-}
-
-export { atTimeCaracas };

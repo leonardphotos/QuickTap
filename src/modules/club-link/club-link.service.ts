@@ -1,6 +1,6 @@
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
-import { badRequest, conflict, forbidden, notFound } from '../../utils/http-error';
+import { badRequest, conflict, notFound } from '../../utils/http-error';
 import { emitToKitchen, SocketEvents } from '../../sockets';
 
 /** El código vive 1 hora, como pidió el negocio: suficiente para llamar al club
@@ -327,9 +327,3 @@ export const clubLinkService = {
 };
 
 export { CLUB_LINK_CODE_TTL_MINUTES };
-
-/** Guard fino: el feed de comandas solo tiene sentido si hay al menos un club vinculado. */
-export async function assertHasLinkedClubs(restaurantId: string): Promise<void> {
-  const count = await prisma.clubRestaurantLink.count({ where: { restaurantId } });
-  if (count === 0) throw forbidden('Tu restaurante no tiene canchas vinculadas.');
-}

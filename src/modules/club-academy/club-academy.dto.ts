@@ -438,7 +438,6 @@ export const rangeQuerySchema = z.object({
 export type RangeQuery = z.infer<typeof rangeQuerySchema>;
 
 // ------------------------------------------------------------------ Público
-export const publicCancelSchema = z.object({ sessionId: z.string().cuid() });
 
 /** Solicitud de particular hecha por el alumno. Bloquea cancha con un hold que
  * vence si no se verifica el pago. */

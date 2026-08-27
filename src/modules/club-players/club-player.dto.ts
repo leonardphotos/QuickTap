@@ -19,13 +19,6 @@ export const sendCodeSchema = z.object({ phone });
 // poder mostrar el paso de verificación sin un WhatsApp vinculado.
 export const verifyCodeSchema = z.object({ phone, code: z.string().trim().regex(/^\d{4,6}$/, 'El código no es válido.') });
 
-/** Nombre y teléfono son obligatorios en toda reserva pública — es requisito del
- * club, no un detalle de formulario. */
-export const publicBookingContactSchema = z.object({
-  playerName: z.string().trim().min(2, 'Escribe tu nombre.').max(80),
-  playerPhone: phone,
-});
-
 export const registerAccountSchema = z.object({
   phone,
   name: z.string().trim().min(2).max(80).optional(),

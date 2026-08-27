@@ -16,20 +16,8 @@ import { prisma } from '../config/prisma';
  * `tableService.merge`, así que una sola indirección siempre alcanza.
  */
 
-/**
- * Devuelve el id de la mesa que lleva la cuenta: la principal si `tableId` está unida a otra,
- * o la misma `tableId` si está suelta. Si la mesa no existe devuelve el id tal cual — quien
- * llama ya tiene su propio manejo de "mesa no encontrada".
- */
-export async function resolvePrimaryTableId(tableId: string): Promise<string> {
-  const table = await prisma.table.findUnique({
-    where: { id: tableId },
-    select: { mergedIntoTableId: true },
-  });
-  return table?.mergedIntoTableId ?? tableId;
-}
-
-/** Igual que `resolvePrimaryTableId`, pero cuando ya se leyó la mesa y no hace falta otra consulta. */
+/** Devuelve el id de la mesa que lleva la cuenta: la principal si `table` está unida a otra,
+ * o su propio id si está suelta. */
 export function primaryTableIdOf(table: { id: string; mergedIntoTableId: string | null }): string {
   return table.mergedIntoTableId ?? table.id;
 }
