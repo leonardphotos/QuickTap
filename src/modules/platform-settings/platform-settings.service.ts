@@ -15,6 +15,7 @@ export interface MessageTemplates {
   paymentApprovedMessage: string;
   paymentRejectedMessage: string;
   welcomeMessage: string;
+  newSignupAlertMessage: string;
 }
 
 /**
@@ -24,6 +25,8 @@ export interface MessageTemplates {
  * - reminderMessage: {{restaurantName}} {{periodEndLabel}} {{amountLine}} {{chargesBlock}} {{pagoMovilBlock}}
  * - paymentApprovedMessage: {{periodEndLabel}}
  * - welcomeMessage: {{ownerName}} {{restaurantName}}
+ * - newSignupAlertMessage: {{restaurantName}} {{ownerName}} {{businessType}} {{slug}} — va al
+ *   número verificador (Ajustes → WhatsApp), no al restaurante nuevo.
  * - proofReceivedMessage / paymentRejectedMessage: sin variables.
  */
 export const DEFAULT_MESSAGE_TEMPLATES: MessageTemplates = {
@@ -45,6 +48,13 @@ export const DEFAULT_MESSAGE_TEMPLATES: MessageTemplates = {
     'Tu cuenta para *{{restaurantName}}* ya está lista, con 15 días de prueba gratis y el plan más completo activado.',
     '',
     'Cualquier duda, escríbenos por este mismo chat. ¡Éxitos con tu negocio! 🚀',
+  ].join('\n'),
+  newSignupAlertMessage: [
+    '🆕 Nuevo ingreso a QuickTap',
+    '',
+    '{{restaurantName}} ({{slug}})',
+    'Dueño: {{ownerName}}',
+    'Tipo: {{businessType}}',
   ].join('\n'),
 };
 

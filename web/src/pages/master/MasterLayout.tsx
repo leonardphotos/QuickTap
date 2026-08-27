@@ -36,8 +36,12 @@ export default function MasterLayout() {
             </Link>
 
             {/* Solo los 4 destinos de uso diario; el resto vive en "Configuración" para que las
-                pastillas no se compriman ni partan el texto en varias líneas. */}
-            <nav className="hidden sm:flex items-center gap-1 flex-1 min-w-0">
+                pastillas no se compriman ni partan el texto en varias líneas. overflow-x-auto:
+                en anchos intermedios las pastillas (whitespace-nowrap) no entraban en el ancho
+                que le quedaba a este flex-1 y se desbordaban PINTANDO ENCIMA de la tasa BCV /
+                el resto de la cabecera (overflow visible, no hay wrap) — con scroll interno se
+                quedan contenidas en su propia caja en vez de superponerse. */}
+            <nav className="hidden sm:flex items-center gap-1 flex-1 min-w-0 overflow-x-auto">
               {MASTER_OPERATION_LINKS.map((l) => (
                 <Link
                   key={l.to}

@@ -289,15 +289,15 @@ function sendMasterWelcomeMessage(restaurant: { name: string; whatsappPhone: str
  * configurado, no manda nada (no hay a quién avisarle).
  */
 function sendNewSignupAlertToVerifier(restaurant: { name: string; businessType: string; slug: string }, ownerName: string): void {
-  platformSettingsService
-    .getSubscriptionVerifierPhone()
-    .then((verifierPhone) => {
+  Promise.all([platformSettingsService.getSubscriptionVerifierPhone(), platformSettingsService.getMessageTemplates()])
+    .then(([verifierPhone, templates]) => {
       if (!verifierPhone) return;
-      const mensaje =
-        `🆕 Nuevo ingreso a QuickTap\n\n` +
-        `${restaurant.name} (${restaurant.slug})\n` +
-        `Dueño: ${ownerName}\n` +
-        `Tipo: ${restaurant.businessType}`;
+      const mensaje = renderTemplate(templates.newSignupAlertMessage, {
+        restaurantName: restaurant.name,
+        ownerName,
+        businessType: restaurant.businessType,
+        slug: restaurant.slug,
+      });
       return masterWhatsappBotService.sendMessage(verifierPhone, mensaje);
     })
     .catch(() => undefined);

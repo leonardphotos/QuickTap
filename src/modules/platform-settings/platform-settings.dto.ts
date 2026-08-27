@@ -75,6 +75,7 @@ export const updateMessageTemplatesSchema = z.object({
   paymentApprovedMessage: z.string().min(1).max(1000).optional(),
   paymentRejectedMessage: z.string().min(1).max(1000).optional(),
   welcomeMessage: z.string().min(1).max(1000).optional(),
+  newSignupAlertMessage: z.string().min(1).max(1000).optional(),
 });
 
 export type UpdateMessageTemplatesInput = z.infer<typeof updateMessageTemplatesSchema>;

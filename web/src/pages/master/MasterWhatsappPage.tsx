@@ -21,13 +21,20 @@ interface MessageTemplates {
   paymentApprovedMessage: string;
   paymentRejectedMessage: string;
   welcomeMessage: string;
+  newSignupAlertMessage: string;
 }
 
 const TEMPLATE_FIELDS: { key: keyof MessageTemplates; label: string; help: string; rows: number }[] = [
   {
     key: 'welcomeMessage',
     label: 'Bienvenida al registrarse',
-    help: 'Variables: {{ownerName}} {{restaurantName}}',
+    help: 'Variables: {{ownerName}} {{restaurantName}} — se le manda al dueño nuevo.',
+    rows: 5,
+  },
+  {
+    key: 'newSignupAlertMessage',
+    label: 'Aviso de nuevo ingreso',
+    help: 'Variables: {{restaurantName}} {{ownerName}} {{businessType}} {{slug}} — se le manda al número verificador de abajo, no al restaurante.',
     rows: 5,
   },
   {
@@ -187,8 +194,9 @@ export default function MasterWhatsappPage() {
           <MessageCircle className="h-6 w-6 text-emerald-600" /> WhatsApp de la plataforma
         </h1>
         <p className="text-sm text-brand-950/60 font-light mt-1">
-          Manda la bienvenida a cada restaurante que se registra y el recordatorio de renovación de plan 3 días antes
-          del vencimiento, con los datos de pago y el comprobante que sube el dueño.
+          Manda la bienvenida a cada restaurante que se registra, el recordatorio de renovación de plan 3 días antes
+          del vencimiento (con los datos de pago y el comprobante que sube el dueño), el aviso de nuevo ingreso al
+          número verificador, y las cotizaciones que se envían desde Cotizaciones — mismo número, mismas 4 vías.
         </p>
       </div>
 
