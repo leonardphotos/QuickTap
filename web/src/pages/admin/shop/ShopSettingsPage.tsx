@@ -77,6 +77,71 @@ function CurrencySection() {
 }
 
 /**
+ * Doble precio: en Venezuela es normal cobrar distinto según cómo paga el cliente — el precio
+ * en $ del catálogo no se toca, pero Pago Móvil/Transferencia (los dos métodos que se cobran en
+ * bolívares y donde el negocio no puede mover ese efectivo tan rápido como el resto) pueden usar
+ * una tasa propia, normalmente más alta que la de referencia. Efectivo $/Zelle/tarjeta/Binance
+ * siguen con el precio de siempre — no son estos dos métodos.
+ */
+function ShopBsSaleRateSection() {
+  const { restaurant, refresh } = useAuth();
+  const [tasa, setTasa] = useState(restaurant?.shopBsSaleRate != null ? String(restaurant.shopBsSaleRate) : '');
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const valor = tasa.trim() ? Number(tasa.trim().replace(',', '.')) : null;
+      await api.patch('/restaurant', { shopBsSaleRate: valor });
+      await refresh();
+      setMessage(valor ? 'Tasa guardada.' : 'Doble precio desactivado — Pago Móvil y Transferencia vuelven a la tasa de referencia.');
+    } catch (err: any) {
+      setError(err.response?.data?.error ?? 'No se pudo guardar.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const referencia = restaurant?.exchangeRate?.rateBs;
+
+  return (
+    <TextureCard>
+      <TextureCardHeader className="px-6">
+        <TextureCardTitle className="pl-0">Doble precio (Pago Móvil / Transferencia)</TextureCardTitle>
+        <p className="text-sm text-brand-950/60 font-light">
+          Tasa propia para cobrar en Bs por Pago Móvil o Transferencia en Venta — normalmente más alta que la de
+          referencia{referencia ? ` (hoy Bs ${Number(referencia).toFixed(2)})` : ''}. El precio en $ del catálogo no
+          cambia; solo el monto en Bs que se le pide a estos dos métodos. Déjalo vacío para no usar doble precio.
+        </p>
+      </TextureCardHeader>
+      <TextureCardContent className="space-y-4">
+        <label className="block text-sm">
+          <span className="text-brand-950/70">Tasa de venta en Bs</span>
+          <input
+            type="number"
+            min={0}
+            step="0.01"
+            value={tasa}
+            onChange={(e) => setTasa(e.target.value)}
+            placeholder={referencia ? Number(referencia).toFixed(2) : '0.00'}
+            className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+          />
+        </label>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        {message && <p className="text-sm text-brand-500">{message}</p>}
+        <TextureButton variant="brand" size="default" disabled={saving} onClick={save} className="!w-auto disabled:opacity-50">
+          {saving ? 'Guardando…' : 'Guardar cambios'}
+        </TextureButton>
+      </TextureCardContent>
+    </TextureCard>
+  );
+}
+
+/**
  * Ajustes de QuickTap Shop, agrupados en categorías colapsables (mismo patrón
  * que Ajustes de restaurante y de Club, ver SettingsCategory.tsx) con un salto
  * rápido arriba — antes era una fila de ~7 tarjetas sueltas sin ningún acceso
@@ -208,6 +273,9 @@ export default function ShopSettingsPage({ onBack, session, onGoToBilling }: Pro
       >
         <FullWidth>
           <PaymentMethodsSection descriptionOverride="Elige qué métodos aceptas al cobrar en Venta, y sus datos para que tus clientes sepan a dónde pagar." />
+        </FullWidth>
+        <FullWidth>
+          <ShopBsSaleRateSection />
         </FullWidth>
       </SettingsCategory>
 

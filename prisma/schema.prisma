@@ -416,6 +416,11 @@ model Restaurant {
   baseCurrency         Currency @default(USD)
   exchangeRateManual   Boolean  @default(false)
   manualExchangeRateBs Decimal? @db.Decimal(12, 4)
+  // Doble precio (Local Comercial): tasa propia para Pago Móvil/Transferencia en el POS,
+  // normalmente más alta que la de referencia — el precio en $ del catálogo no cambia, solo
+  // el monto en Bs que se cobra por esos dos métodos. Null = sin doble precio configurado,
+  // esos métodos siguen usando la tasa de referencia como siempre. Ver ShopPosPage.tsx.
+  shopBsSaleRate Decimal? @db.Decimal(12, 4)
 
   // --- Contacto / checkout ---
   // Número de WhatsApp en formato internacional SIN "+" (ej: 584141234567).

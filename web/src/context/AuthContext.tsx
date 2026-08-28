@@ -34,6 +34,9 @@ export interface AuthRestaurant {
   baseCurrency: Currency;
   currencySymbol: string;
   exchangeRate: ExchangeRateInfo | null;
+  /** Doble precio (Local Comercial): tasa propia para Pago Móvil/Transferencia en el POS de
+   * Shop — null = sin configurar, esos métodos usan la tasa de referencia como siempre. */
+  shopBsSaleRate: number | null;
   theme?: RestaurantTheme | null;
   /** Cuántos clubes deportivos vinculados le mandan pedidos de sus canchas. En 0
    * (lo normal) la pestaña "Canchas" no existe — ver nav-links.ts. */

@@ -28,6 +28,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Toast } from '@/components/ui/toast';
 import type { ShopRubro, ShopVariant } from '@/data/shopRubros';
 import { formatStock, shopMoneyFormatters } from './shopFormat';
+import { formatBs } from '@/utils/format';
 import { tienePreciosDistintos } from './shopFormat';
 import { effectivePrice, lineTotal, productStatus, productStock, type PaymentMeta, type Sale, type ShopProduct, type ShopSession } from './shopSession';
 import ShopBarcodeScanDialog from './ShopBarcodeScanDialog';
@@ -37,7 +38,10 @@ import { describePrint, formatRollWidths, quotePrint, rollWidthLabel } from './p
 
 interface Props {
   session: ShopSession;
-  restaurant: Pick<AuthRestaurant, 'currencySymbol' | 'exchangeRate' | 'name' | 'logoUrl' | 'paymentMethodsConfig' | 'requireCustomerData'>;
+  restaurant: Pick<
+    AuthRestaurant,
+    'currencySymbol' | 'exchangeRate' | 'name' | 'logoUrl' | 'paymentMethodsConfig' | 'requireCustomerData' | 'shopBsSaleRate'
+  >;
   rubro: ShopRubro;
   /** Pedido abierto que se retomó desde Pedidos: al guardar actualiza ESTE, y al cobrarlo se borra. */
   pedidoAbierto?: { id: string; label: string } | null;
@@ -59,6 +63,11 @@ interface ServiceProvider {
 /** Métodos de pago cuyo monto se cobra naturalmente en dólares — el recibo de WhatsApp muestra
  * el $ como monto principal para estos, y Bs para el resto (Pago Móvil, Transferencia, etc.). */
 const USD_PAYMENT_LABELS = new Set(['Efectivo $', 'Zelle', 'Binance', 'PayPal']);
+
+/** Doble precio: solo estos dos métodos (los que de verdad se cobran en Bs y donde el negocio
+ * no puede mover ese efectivo tan rápido) usan la tasa propia de Ajustes → Pagos si existe.
+ * Efectivo Bs y Punto de Venta se quedan con la tasa de referencia de siempre, a propósito. */
+const BS_ALT_PRICE_METHODS: PaymentMethodKey[] = ['MOBILE_PAYMENT', 'TRANSFER'];
 
 
 
@@ -392,6 +401,13 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
     : saleMode.kind === 'fiado'
       ? saleMode.amountPaidNow
       : total;
+  // Doble precio: Pago Móvil y Transferencia (los dos métodos que se cobran en Bs) usan la tasa
+  // propia del negocio si la configuró en Ajustes → Pagos — normalmente más alta que la de
+  // referencia. El precio en $ (pmTargetAmount) no cambia; solo el monto en Bs que se le pide al
+  // cliente. Sin esa tasa configurada, se comporta exactamente como antes.
+  const pmUsaDoblePrecio = BS_ALT_PRICE_METHODS.includes(pmMethodKey) && !!restaurant.shopBsSaleRate;
+  const pmRateBs = pmUsaDoblePrecio ? restaurant.shopBsSaleRate! : restaurant.exchangeRate?.rateBs;
+  const moneyBsPago = (n: number) => (pmRateBs ? formatBs(n, pmRateBs) : null);
   // Las líneas con cantidad decimal (peso en Kg, m² de impresión) cuentan como 1 ítem cada una:
   // sumar su cantidad daría "1.096 items" para un solo banner, o "0.5 items" para medio kilo.
   const cartItemCount = cart.reduce((a, c) => a + (c.soldByWeight || c.unitLabel ? 1 : c.qty), 0);
@@ -1600,7 +1616,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
           qrImageUrl={qrImageUrl}
           amountBase={pmTargetAmount}
           symbol={restaurant.currencySymbol}
-          rateBs={restaurant.exchangeRate?.rateBs}
+          rateBs={pmRateBs}
           detailTitle={qsPendingPayment ? 'Detalle de la venta' : `Detalle de la venta (${cartItemCount} ítems)`}
           detailLines={
             qsPendingPayment
@@ -1658,9 +1674,9 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                 <div className="text-[40px] sm:text-[48px] font-extrabold text-emerald-600 leading-none tracking-tight mt-1">
                   {USD_FIRST_METHODS.includes(pmMethodKey)
                     ? money(pmTargetAmount)
-                    : moneyBs(pmTargetAmount) ?? money(pmTargetAmount)}
+                    : moneyBsPago(pmTargetAmount) ?? money(pmTargetAmount)}
                 </div>
-                {restaurant.exchangeRate && (
+                {pmRateBs && (
                   <p className="text-[13.5px] font-semibold text-brand-950/50 mt-2">
                     {USD_FIRST_METHODS.includes(pmMethodKey) ? (
                       <>
@@ -1668,8 +1684,8 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                       </>
                     ) : (
                       <>
-                        {money(pmTargetAmount)} &nbsp;x&nbsp; Bs{Number(restaurant.exchangeRate.rateBs).toFixed(2)} &nbsp;(tasa
-                        del día)
+                        {money(pmTargetAmount)} &nbsp;x&nbsp; Bs{Number(pmRateBs).toFixed(2)} &nbsp;(
+                        {pmUsaDoblePrecio ? 'tasa de Pago Móvil/Transferencia' : 'tasa del día'})
                       </>
                     )}
                   </p>

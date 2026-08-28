@@ -106,6 +106,10 @@ export const updateRestaurantSchema = z.object({
   baseCurrency: z.enum(['USD', 'EUR']).optional(),
   theme: restaurantThemeSchema.optional(),
 
+  // Doble precio (Local Comercial): tasa propia para Pago Móvil/Transferencia en el POS de Shop.
+  // null limpia la tasa (vuelve a usar la de referencia para esos métodos).
+  shopBsSaleRate: z.coerce.number().positive().nullable().optional(),
+
   // Cargo opcional del checkout (10% de servicio). El IVA (16%) NO va aquí — solo lo activa
   // el equipo QuickTap desde el Master Dashboard (ver master-restaurants.dto.ts), y solo si
   // el restaurante ya tiene su RIF registrado.

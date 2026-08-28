@@ -77,6 +77,7 @@ const RESTAURANT_SELECT = {
   whatsappPhone: true,
   whatsappOrderMessageTemplate: true,
   baseCurrency: true,
+  shopBsSaleRate: true,
   theme: true,
   serviceChargeEnabled: true,
   modifierInventoryLinkEnabled: true,
@@ -135,6 +136,7 @@ type RestaurantRow = {
   whatsappPhone: string | null;
   whatsappOrderMessageTemplate: string | null;
   baseCurrency: 'USD' | 'EUR';
+  shopBsSaleRate: Prisma.Decimal | null;
   theme: unknown;
   serviceChargeEnabled: boolean;
   modifierInventoryLinkEnabled: boolean;
@@ -215,6 +217,7 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
     baseCurrency: restaurant.baseCurrency,
     currencySymbol: CURRENCY_SYMBOLS[restaurant.baseCurrency],
     exchangeRate,
+    shopBsSaleRate: restaurant.shopBsSaleRate != null ? Number(restaurant.shopBsSaleRate) : null,
     theme: restaurant.theme,
     isDemo: restaurant.isDemo,
     demoAdminUnlocked: restaurant.demoAdminUnlocked,
