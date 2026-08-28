@@ -2126,14 +2126,20 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
           money={money}
           moneyBs={moneyBs}
           onClose={() => setWalletOpen(false)}
-          onListo={({ cliente, plan }) => {
+          onListo={({ cliente, plan, montoInicial }) => {
             // Los datos del cliente rellenan el cobro; el plan queda esperando a que la venta
-            // exista para colgarse de ella.
+            // exista para colgarse de ella. Con inicial > 0 el término pasa a INSTALLMENT (mismo
+            // criterio que el resto de la app: FULL es "no se cobra nada hoy") y el paso de pago
+            // que sigue le pide al cajero cómo cobra esa inicial — no se salta, como si fuera FULL.
             setCustName(cliente.name);
             setCustPhone(cliente.phone);
             setPlanPendiente(plan);
             setWalletOpen(false);
-            setSaleMode({ kind: 'fiado', terms: 'FULL', amountPaidNow: 0 });
+            setSaleMode({
+              kind: 'fiado',
+              terms: montoInicial > 0 ? 'INSTALLMENT' : 'FULL',
+              amountPaidNow: montoInicial,
+            });
             setPaymethodOpen(true);
           }}
         />

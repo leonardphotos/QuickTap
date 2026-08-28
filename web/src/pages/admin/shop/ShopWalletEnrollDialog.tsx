@@ -20,7 +20,7 @@ const FRECUENCIAS = [
 ] as const;
 
 interface Props {
-  /** Saldo que se va a financiar (lo que queda por pagar de la venta). */
+  /** Total de la venta, antes de restar la inicial. */
   saldo: number;
   money: (n: number) => string;
   moneyBs: (n: number) => string | null;
@@ -29,6 +29,8 @@ interface Props {
   onListo: (r: {
     cliente: { name: string; phone: string; idNumber: string; email: string };
     plan: { cantidad: number; frecuencia: string; recargoPorcentaje: number; primeraFecha: string };
+    /** Lo que se cobra hoy mismo, aparte de las cuotas — 0 si el cliente no da inicial. */
+    montoInicial: number;
   }) => void;
 }
 
@@ -45,10 +47,16 @@ export function ShopWalletEnrollDialog({ saldo, money, moneyBs, onClose, onListo
   const [cantidad, setCantidad] = useState('3');
   const [frecuencia, setFrecuencia] = useState<string>('MENSUAL');
   const [recargo, setRecargo] = useState('0');
+  const [inicial, setInicial] = useState('0');
 
   const cuotas = Math.max(1, Number(cantidad) || 1);
   const pct = Math.max(0, Number(recargo) || 0);
-  const totalConRecargo = Math.round(saldo * (1 + pct / 100) * 100) / 100;
+  // Lo que de verdad se financia: el total menos lo que el cliente da hoy. La inicial nunca
+  // supera el total — si el cajero escribe de más, se recorta (dejar 0 a financiar rompería el
+  // plan, que necesita al menos 2 cuotas con saldo real).
+  const montoInicial = Math.min(Math.max(0, Number(inicial) || 0), saldo);
+  const saldoAFinanciar = Math.round((saldo - montoInicial) * 100) / 100;
+  const totalConRecargo = Math.round(saldoAFinanciar * (1 + pct / 100) * 100) / 100;
   // Mismo reparto que el backend (shop-installments.service): el sobrante del redondeo va a la
   // PRIMERA cuota, para que la suma cuadre exacta. Se replica acá para que lo que el cajero le
   // muestra al cliente sea idéntico a lo que se va a crear, centavo por centavo.
@@ -88,10 +96,12 @@ export function ShopWalletEnrollDialog({ saldo, money, moneyBs, onClose, onListo
 
   function confirmar() {
     if (cuotas < 2) return setError('Un plan de cuotas necesita al menos 2.');
+    if (saldoAFinanciar <= 0) return setError('Con esa inicial no queda nada por financiar — cobra la venta directo, sin plan de cuotas.');
     setError(null);
     onListo({
       cliente: { name: name.trim(), phone: phone.replace(/\D/g, ''), idNumber: idNumber.trim(), email: email.trim() },
       plan: { cantidad: cuotas, frecuencia, recargoPorcentaje: pct, primeraFecha },
+      montoInicial,
     });
   }
 
@@ -134,6 +144,20 @@ export function ShopWalletEnrollDialog({ saldo, money, moneyBs, onClose, onListo
           </div>
         ) : (
           <div className="space-y-3">
+            <label className="block text-sm">
+              <span className="text-brand-950/70">Monto inicial (se cobra hoy, aparte de las cuotas)</span>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                max={saldo}
+                value={inicial}
+                onChange={(e) => setInicial(e.target.value)}
+                placeholder="0.00"
+                className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2"
+              />
+            </label>
+
             <div className="grid grid-cols-2 gap-3">
               <label className="block text-sm">
                 <span className="text-brand-950/70">Cuotas</span>
@@ -167,17 +191,27 @@ export function ShopWalletEnrollDialog({ saldo, money, moneyBs, onClose, onListo
                 porcentaje, que es lo que el cliente pregunta. */}
             <div className="rounded-xl bg-brand-950/[0.04] px-3 py-2.5">
               <div className="flex justify-between text-[12px] text-brand-950/60">
-                <span>Saldo</span>
+                <span>Total de la venta</span>
                 <span className="tabular-nums">{money(saldo)}</span>
+              </div>
+              {montoInicial > 0 && (
+                <div className="flex justify-between text-[12px] text-brand-950/60">
+                  <span>Inicial (hoy)</span>
+                  <span className="tabular-nums">−{money(montoInicial)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-[12px] text-brand-950/60">
+                <span>A financiar</span>
+                <span className="tabular-nums">{money(saldoAFinanciar)}</span>
               </div>
               {pct > 0 && (
                 <div className="flex justify-between text-[12px] text-brand-950/60">
                   <span>Recargo ({pct}%)</span>
-                  <span className="tabular-nums">{money(totalConRecargo - saldo)}</span>
+                  <span className="tabular-nums">{money(totalConRecargo - saldoAFinanciar)}</span>
                 </div>
               )}
               <div className="mt-1 flex justify-between border-t border-brand-950/10 pt-1 text-sm font-bold text-brand-950">
-                <span>Total a pagar</span>
+                <span>Total en cuotas</span>
                 <span className="tabular-nums">{money(totalConRecargo)}</span>
               </div>
               {/* Cuota por cuota, con su fecha y el monto en las dos monedas: es lo que el
@@ -203,7 +237,7 @@ export function ShopWalletEnrollDialog({ saldo, money, moneyBs, onClose, onListo
               <TextureButton variant="minimal" size="default" className="!w-auto" onClick={() => setPaso('cliente')}>
                 Atrás
               </TextureButton>
-              <TextureButton variant="brand" size="default" onClick={confirmar}>
+              <TextureButton variant="brand" size="default" disabled={saldoAFinanciar <= 0} onClick={confirmar}>
                 Cobrar a cuotas
               </TextureButton>
             </div>
