@@ -70,20 +70,23 @@ router.get('/tickets/events', shopTicketsController.eventos);
 router.get('/tickets', shopTicketsController.lista);
 router.post('/tickets/check-in', shopTicketsController.verificar);
 // CASHIER incluido: la taquilla se opera desde la caja (el mismo rol que aprueba y rechaza
-// pagos, ver /pass más abajo). Restringirlo a OWNER/ADMIN dejaba el botón a la vista y el
+// pagos, ver /wallet más abajo). Restringirlo a OWNER/ADMIN dejaba el botón a la vista y el
 // servidor respondiendo 403. El Verificador sigue afuera: en la puerta solo se marca.
 router.post('/tickets/:id/undo', requireRole('OWNER', 'ADMIN', 'CASHIER'), shopTicketsController.desmarcar);
 router.delete('/tickets/:id', requireRole('OWNER', 'ADMIN', 'CASHIER'), shopTicketsController.eliminar);
 
 // --- QuickTap Wallet: deudores y abonos que los clientes reportan desde su portal ---
-router.get('/pass/pending', shopWalletController.pendientes);
-router.get('/pass/debtors', shopWalletController.deudores);
-// Antes de '/pass/:id': si no, Express tomaria "account" como el id de un abono.
-router.get('/pass/account', shopWalletController.cuenta);
-router.post('/pass/enroll', shopWalletController.alta);
+// El prefijo es /wallet (no /pass) — así es como lo llama todo el frontend
+// (ShopWalletPage.tsx, ShopWalletEnrollDialog.tsx, shopApi.ts). Antes estaba mal acá
+// (/pass) y el diálogo de "Agregar cliente a QuickTap Wallet" daba 404 al guardar.
+router.get('/wallet/pending', shopWalletController.pendientes);
+router.get('/wallet/debtors', shopWalletController.deudores);
+// Antes de '/wallet/:id': si no, Express tomaria "account" como el id de un abono.
+router.get('/wallet/account', shopWalletController.cuenta);
+router.post('/wallet/enroll', shopWalletController.alta);
 // Verificar un abono mueve dinero en las cuentas del local: solo dueño/admin/cajero.
-router.post('/pass/:id/approve', requireRole('OWNER', 'ADMIN', 'CASHIER'), shopWalletController.aprobar);
-router.post('/pass/:id/reject', requireRole('OWNER', 'ADMIN', 'CASHIER'), shopWalletController.rechazar);
+router.post('/wallet/:id/approve', requireRole('OWNER', 'ADMIN', 'CASHIER'), shopWalletController.aprobar);
+router.post('/wallet/:id/reject', requireRole('OWNER', 'ADMIN', 'CASHIER'), shopWalletController.rechazar);
 router.patch('/sales/:id/due-date', shopController.setSaleDueDate);
 
 router.put('/products/:id/supplies', shopController.setServiceSupplies);
