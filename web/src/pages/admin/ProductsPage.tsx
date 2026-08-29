@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { ListPlus, Pencil, Plus, Search, Tag, Trash2, X } from 'lucide-react';
+import { ChefHat, ListPlus, Pencil, Plus, Search, Tag, Trash2, X } from 'lucide-react';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import type { Category, Kitchen, Product } from '../../types';
@@ -10,6 +10,13 @@ import { TextureCard } from '@/components/ui/texture-card';
 import { ProductFormDialog } from '@/components/admin/ProductFormDialog';
 import { CategoryDialog } from '@/components/admin/CategoryDialog';
 import { ModifierCategoriesDialog } from '@/components/admin/ModifierCategoriesDialog';
+import type { InventoryItem } from './InventoryPage';
+// Diferido: RecetasTab vive dentro de InventoryPage (94 KB) y con el import fijo ese trozo se
+// descargaba al abrir Productos, aunque casi nadie entra a tocar recetas. Solo baja al abrir
+// el diálogo. RecetasTab es una exportación nombrada, de ahí el .then que la vuelve default.
+const RecetasTab = lazy(() => import('./InventoryPage').then((m) => ({ default: m.RecetasTab })));
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { hasFeature } from '@/utils/subscription';
 
 /** Minúsculas y sin acentos, para que el buscador no dependa de cómo se tipeó. */
 function normalize(value: string | null | undefined): string {
@@ -28,6 +35,10 @@ export default function ProductsPage() {
   const [productDialogOpen, setProductDialogOpen] = useState(false);
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
   const [modifiersDialogOpen, setModifiersDialogOpen] = useState(false);
+  // Recetario, abierto desde acá además de desde Inventario: la receta es del PLATO, así que
+  // pedirle al dueño que salga del catálogo para armarla parte en dos el mismo trabajo.
+  const [recetasDialogOpen, setRecetasDialogOpen] = useState(false);
+  const [insumos, setInsumos] = useState<InventoryItem[]>([]);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
@@ -84,6 +95,20 @@ export default function ProductsPage() {
     } finally {
       setBulkDeleting(false);
     }
+  }
+
+  // El recetario solo existe en los planes con inventario por receta (mismo criterio que la
+  // pestaña de Inventario), así que el botón no aparece donde no aplica.
+  const puedeRecetas = hasFeature(restaurant, 'inventoryRecipe');
+
+  /** Los insumos se piden al abrir y no al cargar la pantalla: quien solo viene a editar un
+   *  precio no tiene por qué pagar esa consulta. Mismo alcance LOCAL que usa Inventario. */
+  function abrirRecetas() {
+    setRecetasDialogOpen(true);
+    api
+      .get('/inventory', { params: { locationScope: 'LOCAL' } })
+      .then((res) => setInsumos(res.data.data))
+      .catch(() => setInsumos([]));
   }
 
   function openCreate() {
@@ -179,6 +204,16 @@ export default function ProductsPage() {
         >
           <ListPlus className="h-4 w-4" /> Modificadores
         </TextureButton>
+        {puedeRecetas && (
+          <TextureButton
+            variant="minimal"
+            size="default"
+            className="!w-auto flex items-center gap-1.5 whitespace-nowrap"
+            onClick={abrirRecetas}
+          >
+            <ChefHat className="h-4 w-4" /> Recetas
+          </TextureButton>
+        )}
       </div>
 
       {importError && <p className="text-sm text-red-600">{importError}</p>}
@@ -392,6 +427,19 @@ export default function ProductsPage() {
       />
       <CategoryDialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen} categories={categories} onChanged={load} />
       <ModifierCategoriesDialog open={modifiersDialogOpen} onOpenChange={setModifiersDialogOpen} />
+
+      {/* Mismo recetario de Inventario (RecetasTab): se reusa tal cual en vez de duplicarlo,
+          para que no se separen al cambiar uno de los dos. */}
+      <Dialog open={recetasDialogOpen} onOpenChange={setRecetasDialogOpen}>
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Recetas</DialogTitle>
+          </DialogHeader>
+          <Suspense fallback={<p className="py-8 text-center text-sm font-light text-brand-950/40">Cargando recetario…</p>}>
+            <RecetasTab insumos={insumos} />
+          </Suspense>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

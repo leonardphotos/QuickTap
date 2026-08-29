@@ -21,7 +21,7 @@ interface InventoryCategory {
   priority: number;
 }
 
-interface InventoryItem {
+export interface InventoryItem {
   id: string;
   name: string;
   unit: string;
@@ -1753,7 +1753,13 @@ function PreparationDialog({
   );
 }
 
-function RecetasTab({ insumos }: { insumos: InventoryItem[] }) {
+/**
+ * Recetario completo. Vive acá (pestaña Recetas de Inventario) pero se exporta porque también
+ * se abre desde Productos: la receta es del PLATO, así que tenerla solo dentro de Inventario
+ * obligaba a salir del catálogo para armarla. Se carga sus propios datos, así que el que la
+ * abre solo tiene que pasarle la lista de insumos.
+ */
+export function RecetasTab({ insumos }: { insumos: InventoryItem[] }) {
   const [rows, setRows] = useState<RecipeOverviewRow[] | null>(null);
   const [preparations, setPreparations] = useState<PreparationOverviewRow[]>([]);
   const [openProductId, setOpenProductId] = useState<string | null>(null);
