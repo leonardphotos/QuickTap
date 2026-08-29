@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Bike,
@@ -22,7 +22,11 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { AddressAutocomplete, reverseGeocode } from '@/components/AddressAutocomplete';
 import { CustomerPicker } from './CustomerPicker';
 import { ProductOptionsDialog } from './ProductOptionsDialog';
-import ProductBarcodeScanDialog from './ProductBarcodeScanDialog';
+// Carga diferida a propósito: el lector arrastra @zxing (~250 KB minificado) y escanear es
+// algo esporádico, pero al importarlo fijo se metía en el trozo de Pedidos —la pantalla que
+// más se abre— y todos los teléfonos pagaban ese peso al entrar. Ahora solo baja cuando de
+// verdad se abre el escáner.
+const ProductBarcodeScanDialog = lazy(() => import('./ProductBarcodeScanDialog'));
 import type { LiveOrder } from './LiveOrdersPanel';
 
 interface ExistingOrderOption {
@@ -1197,7 +1201,11 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
         />
       )}
 
-      <ProductBarcodeScanDialog open={scanOpen} onOpenChange={setScanOpen} products={products} onFound={setOptionsProduct} />
+      {scanOpen && (
+        <Suspense fallback={null}>
+          <ProductBarcodeScanDialog open onOpenChange={setScanOpen} products={products} onFound={setOptionsProduct} />
+        </Suspense>
+      )}
     </>
   );
 }

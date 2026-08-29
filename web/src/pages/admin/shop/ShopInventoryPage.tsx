@@ -1,4 +1,4 @@
-import { Fragment, useRef, useState } from 'react';
+import { Suspense, lazy, Fragment, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { PackagePlus, ChevronDown, ClipboardList, Eye, EyeOff, FileSpreadsheet, FlaskConical, FolderPlus, Package, Pencil, Plus, ScanLine, Search, Sparkles, Store, Tags, Trash2, TrendingUp, Truck, X } from 'lucide-react';
 import type { AuthRestaurant } from '@/context/AuthContext';
@@ -15,7 +15,8 @@ import { productStatus, productStock, type ShopProduct, type ShopSession } from 
 import { shopApi, fetchProductLots, type ProductLots } from './shopApi';
 import { costPerM2FromRoll, formatRollWidths, parseRollWidths, rollWidthLabel } from './printPricing';
 import { resolveVariantDims } from '@/data/variantDims';
-import ShopSkuScanDialog from './ShopSkuScanDialog';
+// Carga diferida: mismo motivo que en el POS — @zxing solo baja al abrir el escáner.
+const ShopSkuScanDialog = lazy(() => import('./ShopSkuScanDialog'));
 
 interface Props {
   session: ShopSession;
@@ -1173,19 +1174,23 @@ export default function ShopInventoryPage({ session, rubro, restaurant, modo }: 
         </DialogContent>
       </Dialog>
 
-      <ShopSkuScanDialog
-        open={cameraScanOpen}
-        onOpenChange={setCameraScanOpen}
-        onScan={handleCameraScan}
-        onManualEntry={
-          cameraScanFor === 'toolbar'
-            ? () => {
-                setCameraScanOpen(false);
-                openScanDialog();
-              }
-            : undefined
-        }
-      />
+      {cameraScanOpen && (
+        <Suspense fallback={null}>
+          <ShopSkuScanDialog
+            open
+            onOpenChange={setCameraScanOpen}
+            onScan={handleCameraScan}
+            onManualEntry={
+              cameraScanFor === 'toolbar'
+                ? () => {
+                    setCameraScanOpen(false);
+                    openScanDialog();
+                  }
+                : undefined
+            }
+          />
+        </Suspense>
+      )}
 
       {/* ---------- Registrar compra ---------- */}
       {sumarOpen && (

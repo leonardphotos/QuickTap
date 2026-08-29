@@ -1,21 +1,27 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
+# QuickTap — reglas de R8 para la app de Android (envoltorio de WebView con Capacitor).
 #
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Capacitor instancia sus plugins POR REFLEXIÓN, leyendo la lista de clases que genera
+# capacitor.build.gradle. R8 no ve esas referencias y, sin estas reglas, borraría los plugins
+# o les cambiaría el nombre y la app arrancaría con la pantalla en blanco.
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Plugins y núcleo de Capacitor / Cordova.
+-keep class com.getcapacitor.** { *; }
+-keep @com.getcapacitor.annotation.CapacitorPlugin public class * { *; }
+-keep public class * extends com.getcapacitor.Plugin { *; }
+-keep class org.apache.cordova.** { *; }
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Métodos expuestos al JavaScript del WebView: se invocan por nombre desde la página.
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Nuestro propio paquete (MainActivity y lo que el manifiesto referencia por nombre).
+-keep class club.quicktap.app.** { *; }
+
+# Firebase / notificaciones push: el SDK también resuelve por reflexión.
+-keep class com.google.firebase.** { *; }
+-dontwarn com.google.firebase.**
+
+# Silencia avisos de dependencias opcionales que no empaquetamos.
+-dontwarn org.slf4j.**
+-dontwarn javax.annotation.**

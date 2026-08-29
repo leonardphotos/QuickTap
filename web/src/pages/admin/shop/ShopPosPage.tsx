@@ -1,5 +1,5 @@
 import { waPhone } from '@/utils/waPhone';
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, KeyboardEvent } from 'react';
 import { Camera, CheckCircle2, ClipboardList, Download, FileText, Loader2, MessageCircle, Minus, Plus, Printer, QrCode, ScanLine, Search, ShoppingCart, Wallet, Wrench, X } from 'lucide-react';
 import { api } from '@/api/client';
@@ -31,7 +31,9 @@ import { formatStock, shopMoneyFormatters } from './shopFormat';
 import { formatBs } from '@/utils/format';
 import { tienePreciosDistintos } from './shopFormat';
 import { effectivePrice, lineTotal, productStatus, productStock, type PaymentMeta, type Sale, type ShopProduct, type ShopSession } from './shopSession';
-import ShopBarcodeScanDialog from './ShopBarcodeScanDialog';
+// Carga diferida: el lector arrastra @zxing (~250 KB minificado) y escanear es esporádico —
+// importarlo fijo lo metía en el trozo de esta pantalla, que se abre siempre.
+const ShopBarcodeScanDialog = lazy(() => import('./ShopBarcodeScanDialog'));
 import { playCashSound } from './shopSounds';
 import { useTicketDownload } from './TicketDownloadRig';
 import { describePrint, formatRollWidths, quotePrint, rollWidthLabel } from './printPricing';
@@ -2062,13 +2064,17 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
       </Dialog>
 
       {/* ---------- Escanear con cámara ---------- */}
-      <ShopBarcodeScanDialog
-        open={scanCameraOpen}
-        onOpenChange={setScanCameraOpen}
-        products={products}
-        money={money}
-        onAdd={(product, variant, qty) => addToCart(product, variant, qty)}
-      />
+      {scanCameraOpen && (
+        <Suspense fallback={null}>
+          <ShopBarcodeScanDialog
+            open
+            onOpenChange={setScanCameraOpen}
+            products={products}
+            money={money}
+            onAdd={(product, variant, qty) => addToCart(product, variant, qty)}
+          />
+        </Suspense>
+      )}
 
       {/* Entradas recién emitidas: el cajero se las manda al comprador o las abre para
           mostrárselas. Cada una es un enlace público con su QR (ver ShopTicketPage). */}

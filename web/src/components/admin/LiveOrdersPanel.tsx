@@ -330,6 +330,13 @@ export function LiveOrdersPanel({
   const [deletionLogOpen, setDeletionLogOpen] = useState(false);
   const [deletionLog, setDeletionLog] = useState<DeletionLogEntry[] | null>(null);
   // Mesero: eliminar una comanda exige el código de 6 dígitos creado en Ajustes (ver deleteOrderHard en el backend).
+  /**
+   * Cuántas tarjetas se PINTAN de una. La lista nunca corta pedidos —un impago no puede
+   * desaparecer (ver listLiveOrders)— pero pintar cientos de tarjetas de golpe traba un
+   * teléfono de gama baja. En un local que no registra pagos son 443 pedidos abiertos; con
+   * esto se pintan los primeros y el resto entra con el botón, con el total siempre a la vista.
+   */
+  const [tarjetasVisibles, setTarjetasVisibles] = useState(40);
   const [pinPromptFor, setPinPromptFor] = useState<string | null>(null);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState<string | null>(null);
@@ -341,22 +348,44 @@ export function LiveOrdersPanel({
     api.get('/orders/live').then((res) => setOrders(res.data.data));
   }
 
+  /**
+   * Recarga agrupada para los avisos del socket.
+   *
+   * Cada evento (`order:new`, `order:updated`) disparaba una recarga COMPLETA de la lista, y
+   * esa lista no tiene corte por antigüedad a propósito: un pedido impago nunca desaparece
+   * (ver listLiveOrders y el disparador trg_no_ocultar_cuentas_impagas). En un local que no
+   * registra pagos eso son cientos de pedidos — medido en producción: 760 KB y 1,7 s por
+   * llamada. Con una comanda entrando detrás de otra, el teléfono quedaba descargando y
+   * repintando esa lista sin parar, que es justo lo que lo hace sentir trancado en gama baja.
+   *
+   * Agrupar no oculta nada: la recarga igual ocurre, una sola vez por ráfaga.
+   */
+  const recargaPendiente = useRef<ReturnType<typeof setTimeout> | null>(null);
+  function scheduleLoad() {
+    if (recargaPendiente.current) clearTimeout(recargaPendiente.current);
+    recargaPendiente.current = setTimeout(() => {
+      recargaPendiente.current = null;
+      load();
+    }, 700);
+  }
+
   useEffect(() => {
     load();
     api.get('/delivery-couriers').then((res) => setCouriers(res.data.data));
 
     const socket: Socket = io(apiOrigin() || '/', { auth: { token: getToken() } });
-    socket.on('order:new', load);
-    socket.on('order:updated', load);
+    socket.on('order:new', scheduleLoad);
+    socket.on('order:updated', scheduleLoad);
     // Cierre de caja: las comandas saldadas del turno salieron de la lista, así que
     // el panel abierto en otra pantalla no se queda mostrando el turno anterior.
-    socket.on('orders:cleared', load);
+    socket.on('orders:cleared', scheduleLoad);
     socket.on('payment-verification:timeout', () => {
       show('El verificador de pagos no respondió a tiempo — revisa el comprobante manualmente.');
     });
 
     return () => {
       socket.disconnect();
+      if (recargaPendiente.current) clearTimeout(recargaPendiente.current);
     };
   }, []);
 
@@ -657,7 +686,7 @@ export function LiveOrdersPanel({
         </div>
       ) : (
         <div className="space-y-3 lg:space-y-0 lg:grid lg:grid-cols-3 xl:grid-cols-4 lg:gap-3 lg:items-start">
-          {visibleOrders?.map((o) => {
+          {visibleOrders?.slice(0, tarjetasVisibles).map((o) => {
             const { balanceBase, owesBalance, fullyPaid } = getPaymentStatus(o);
             return (
             <div
@@ -851,6 +880,17 @@ export function LiveOrdersPanel({
             );
           })}
         </div>
+      )}
+
+      {/* El resto sigue cargado en memoria: esto solo controla cuántas tarjetas se pintan. */}
+      {visibleOrders && visibleOrders.length > tarjetasVisibles && (
+        <button
+          type="button"
+          onClick={() => setTarjetasVisibles((n) => n + 40)}
+          className="mt-3 w-full rounded-xl border border-brand-950/10 bg-white py-2.5 text-sm font-medium text-brand-950/60 hover:bg-brand-950/[0.03]"
+        >
+          Ver más pedidos ({visibleOrders.length - tarjetasVisibles} restantes)
+        </button>
       )}
 
       {editingOrder && (

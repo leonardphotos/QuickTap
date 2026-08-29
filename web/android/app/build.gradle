@@ -42,8 +42,17 @@ android {
             if (keystoreProps['QUICKTAP_KEYSTORE']) {
                 signingConfig signingConfigs.release
             }
+            // R8 (minifyEnabled/shrinkResources) recortaría el APK ~2-3 MB, y las reglas que
+            // hacen falta ya están escritas en proguard-rules.pro. Queda APAGADO porque no se
+            // pudo probar: Capacitor resuelve sus plugins por reflexión y una regla incompleta
+            // no falla al compilar — falla en el teléfono, con la pantalla en blanco al abrir.
+            // Para activarlo: poner las dos líneas en true, compilar el APK e INSTALARLO en un
+            // teléfono real; si abre y navega, quedó bien. El peso del APK se descarga una vez;
+            // lo que se siente en cada uso es el bundle web, que sí se optimizó (ver el trozo
+            // del escáner, que dejó de viajar con la pantalla de Pedidos).
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            // shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
 }
