@@ -37,6 +37,10 @@ router.get('/breakeven', mutate, requireFeature('administration'), productContro
 
 // Carga masiva de productos por Excel: plantilla descargable + subida que crea/actualiza por
 // nombre. Van ANTES de `/:id` para que "import-template" no se lea como un id de producto.
+// Plantilla ÚNICA del catálogo (Productos + Insumos + Modificadores + Recetas, con las fotos
+// pegadas en la hoja). Va antes de '/:id' por lo mismo que las de abajo.
+router.get('/catalog-template', mutate, productController.downloadCatalogTemplate);
+router.post('/catalog-import', mutate, uploadSpreadsheet, productController.importCatalog);
 router.get('/import-template', mutate, productController.downloadImportTemplate);
 router.post('/import', mutate, uploadSpreadsheet, productController.importExcel);
 

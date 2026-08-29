@@ -37,6 +37,12 @@ export default function ProductsPage() {
     null,
   );
   const [importError, setImportError] = useState<string | null>(null);
+  // Carga inicial del catálogo completo en un solo Excel (Productos + Insumos + Modificadores
+  // + Recetas, con las fotos pegadas en la hoja). Ver catalog-import.service.ts.
+  const [catalogBusy, setCatalogBusy] = useState<'plantilla' | 'subiendo' | null>(null);
+  const [catalogResult, setCatalogResult] = useState<
+    { hojas: { hoja: string; creados: number; actualizados: number; errores: { row: number; message: string }[] }[]; fotosSubidas: number } | null
+  >(null);
   const importInputRef = useRef<HTMLInputElement>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -111,6 +117,42 @@ export default function ProductsPage() {
       setImportError('No se pudo generar la plantilla. Intenta de nuevo.');
     } finally {
       setDownloadingTemplate(false);
+    }
+  }
+
+  async function descargarPlantillaCatalogo() {
+    setCatalogBusy('plantilla');
+    try {
+      const res = await api.get('/products/catalog-template', { responseType: 'blob' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(res.data);
+      link.download = 'catalogo-quicktap.xlsx';
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch {
+      setImportError('No se pudo generar la plantilla. Intenta de nuevo.');
+    } finally {
+      setCatalogBusy(null);
+    }
+  }
+
+  async function subirCatalogo(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setCatalogBusy('subiendo');
+    setCatalogResult(null);
+    setImportError(null);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await api.post('/products/catalog-import', form, { headers: { 'Content-Type': 'multipart/form-data' } });
+      setCatalogResult(res.data.data);
+      load();
+    } catch (err: any) {
+      setImportError(err.response?.data?.error ?? 'No se pudo cargar el catálogo.');
+    } finally {
+      setCatalogBusy(null);
     }
   }
 
@@ -266,6 +308,62 @@ export default function ProductsPage() {
               {photosResult.unmatched.map((name, i) => (
                 <li key={i}>"{name}" no coincide con ningún producto.</li>
               ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* ---------- Carga inicial: TODO el catálogo en un solo Excel ---------- */}
+      <div className="rounded-2xl border border-brand-500/25 bg-brand-500/[0.04] p-4">
+        <p className="text-sm font-semibold text-brand-950">Cargar todo el catálogo con un Excel</p>
+        <p className="mt-0.5 text-xs font-light text-brand-950/60">
+          Una sola plantilla con cuatro hojas: productos (con la foto pegada en la celda), insumos, modificadores y
+          recetas. Llena solo lo que necesites y súbela — puedes volver a subirla corregida sin duplicar nada.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <TextureButton
+            variant="secondary"
+            size="sm"
+            className="!w-auto"
+            disabled={catalogBusy !== null}
+            onClick={descargarPlantillaCatalogo}
+          >
+            {catalogBusy === 'plantilla' ? 'Generando…' : 'Descargar plantilla completa'}
+          </TextureButton>
+          <label className="inline-flex">
+            <input type="file" accept=".xlsx,.xls" className="hidden" onChange={subirCatalogo} disabled={catalogBusy !== null} />
+            <TextureButton variant="brand" size="sm" className="!w-auto" asChild>
+              <span>{catalogBusy === 'subiendo' ? 'Cargando…' : 'Subir catálogo'}</span>
+            </TextureButton>
+          </label>
+        </div>
+      </div>
+
+      {catalogResult && (
+        <div className="rounded-xl border border-brand-950/10 bg-white p-4 text-sm">
+          <p className="font-medium text-brand-950">Catálogo cargado</p>
+          <ul className="mt-2 space-y-1 text-xs">
+            {catalogResult.hojas.map((h) => (
+              <li key={h.hoja} className="text-brand-950/70">
+                <span className="font-semibold text-brand-950">{h.hoja}:</span> {h.creados} creados · {h.actualizados} actualizados
+                {h.errores.length > 0 && <span className="text-red-600"> · {h.errores.length} con error</span>}
+              </li>
+            ))}
+            {catalogResult.fotosSubidas > 0 && (
+              <li className="text-brand-950/70">
+                <span className="font-semibold text-brand-950">Fotos:</span> {catalogResult.fotosSubidas} subidas desde el Excel
+              </li>
+            )}
+          </ul>
+          {catalogResult.hojas.some((h) => h.errores.length > 0) && (
+            <ul className="mt-2 space-y-0.5 text-xs text-red-600">
+              {catalogResult.hojas.flatMap((h) =>
+                h.errores.map((e, i) => (
+                  <li key={`${h.hoja}-${i}`}>
+                    {h.hoja}, fila {e.row}: {e.message}
+                  </li>
+                )),
+              )}
             </ul>
           )}
         </div>

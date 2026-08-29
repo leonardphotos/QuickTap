@@ -4,6 +4,7 @@ import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest } from '../../utils/http-error';
 import { bulkDeleteProductsSchema, createProductSchema, marginReportQuerySchema, updateProductSchema } from './product.dto';
 import { productService } from './product.service';
+import { catalogImportService } from './catalog-import.service';
 import { productImportService } from './product-import.service';
 import { productPhotoBulkService } from './product-photo-bulk.service';
 
@@ -57,6 +58,24 @@ export const productController = {
     const { ids } = bulkDeleteProductsSchema.parse(req.body);
     const result = await productService.bulkRemove(req.restaurantId!, ids);
     res.json({ data: result });
+  }),
+
+  /**
+   * GET /products/catalog-template — plantilla ÚNICA con las cuatro hojas (Productos, Insumos,
+   * Modificadores, Recetas) para montar el menú completo de una vez, fotos incluidas.
+   */
+  downloadCatalogTemplate: asyncHandler(async (req: Request, res: Response) => {
+    const workbook = await catalogImportService.buildTemplate(req.restaurantId!);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="catalogo-quicktap.xlsx"');
+    await workbook.xlsx.write(res);
+    res.end();
+  }),
+
+  /** POST /products/catalog-import — carga ese mismo archivo y devuelve el reporte por hoja. */
+  importCatalog: asyncHandler(async (req: Request, res: Response) => {
+    if (!req.file) throw badRequest('Sube el archivo de Excel.');
+    res.json({ data: await catalogImportService.importWorkbook(req.restaurantId!, req.file.buffer) });
   }),
 
   downloadImportTemplate: asyncHandler(async (_req: Request, res: Response) => {
