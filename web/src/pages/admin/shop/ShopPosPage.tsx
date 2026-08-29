@@ -68,6 +68,10 @@ const USD_PAYMENT_LABELS = new Set(['Efectivo $', 'Zelle', 'Binance', 'PayPal'])
  * no puede mover ese efectivo tan rápido) usan la tasa propia de Ajustes → Pagos si existe.
  * Efectivo Bs y Punto de Venta se quedan con la tasa de referencia de siempre, a propósito. */
 const BS_ALT_PRICE_METHODS: PaymentMethodKey[] = ['MOBILE_PAYMENT', 'TRANSFER'];
+/** Los mismos dos, por ETIQUETA: la venta guarda `paymentMethod` como texto ("Pago Móvil"), no
+ * como clave, así que el recibo y el ticket —que leen la venta ya registrada— necesitan esta
+ * versión para volver a dar con la tasa con la que realmente se cobró. */
+const BS_ALT_PRICE_LABELS = new Set(['Pago Móvil', 'Transferencia']);
 
 
 
@@ -408,6 +412,17 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
   const pmUsaDoblePrecio = BS_ALT_PRICE_METHODS.includes(pmMethodKey) && !!restaurant.shopBsSaleRate;
   const pmRateBs = pmUsaDoblePrecio ? restaurant.shopBsSaleRate! : restaurant.exchangeRate?.rateBs;
   const moneyBsPago = (n: number) => (pmRateBs ? formatBs(n, pmRateBs) : null);
+  /**
+   * El mismo criterio, pero para una venta YA registrada (ticket y recibo de WhatsApp). Sin
+   * esto los dos usaban siempre la tasa de referencia: al cliente se le cobraba Bs con la tasa
+   * de Pago Móvil y su comprobante decía otro monto, más bajo. La venta guarda el método como
+   * etiqueta, de ahí BS_ALT_PRICE_LABELS.
+   */
+  const moneyBsDeVenta = (venta: Pick<Sale, 'paymentMethod'>) => {
+    const usaAlterna = !!venta.paymentMethod && BS_ALT_PRICE_LABELS.has(venta.paymentMethod) && !!restaurant.shopBsSaleRate;
+    const tasa = usaAlterna ? restaurant.shopBsSaleRate! : restaurant.exchangeRate?.rateBs;
+    return (n: number) => (tasa ? formatBs(n, tasa) : null);
+  };
   // Las líneas con cantidad decimal (peso en Kg, m² de impresión) cuentan como 1 ítem cada una:
   // sumar su cantidad daría "1.096 items" para un solo banner, o "0.5 items" para medio kilo.
   const cartItemCount = cart.reduce((a, c) => a + (c.soldByWeight || c.unitLabel ? 1 : c.qty), 0);
@@ -655,7 +670,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
 
   async function sendReceiptWhatsapp(sale: Sale) {
     if (!sale.customerPhone) return;
-    const message = buildReceiptMessage(sale, restaurant.name, money, moneyBs);
+    const message = buildReceiptMessage(sale, restaurant.name, money, moneyBsDeVenta(sale));
     const phone = waPhone(sale.customerPhone);
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
     const sent = await sendWhatsappOrOpen(phone, message, url);
@@ -2404,7 +2419,7 @@ export default function ShopPosPage({ session, restaurant, rubro, pedidoAbierto,
                 <span className="font-bold text-brand-950">Total</span>
                 <span className="text-right font-bold text-brand-950">
                   {money(ticketSale.total)}
-                  {moneyBs(ticketSale.total) && <span className="block text-[11px] font-normal text-brand-950/40">{moneyBs(ticketSale.total)}</span>}
+                  {moneyBsDeVenta(ticketSale)(ticketSale.total) && <span className="block text-[11px] font-normal text-brand-950/40">{moneyBsDeVenta(ticketSale)(ticketSale.total)}</span>}
                 </span>
               </div>
               {ticketSale.creditTerms && (

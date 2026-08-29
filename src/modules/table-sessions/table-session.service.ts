@@ -3,6 +3,16 @@ import { prisma } from '../../config/prisma';
 import { badRequest, conflict, notFound, unauthorized } from '../../utils/http-error';
 import { primaryTableIdOf, unmergeIfGroupFreed } from '../../utils/table-merge';
 
+/**
+ * Sin clave puesta, cualquiera en la mesa puede ponerla — es el flujo normal del primer pedido.
+ * Con clave puesta, solo quien la sabe puede cambiarla o quitarla.
+ */
+async function assertCanChangePin(session: { pinHash: string | null }, currentPin?: string) {
+  if (!session.pinHash) return;
+  if (!currentPin) throw unauthorized('Esta mesa ya tiene clave. Escribe la clave actual para cambiarla.');
+  if (!(await bcrypt.compare(currentPin, session.pinHash))) throw unauthorized('Clave de mesa incorrecta.');
+}
+
 export const tableSessionService = {
   /** Cuenta abierta vigente de una mesa (si la tiene). Con varias cuentas abiertas, devuelve
    * cualquiera de ellas — usar `listOpenForTable` cuando la mesa pueda tener más de una. */
@@ -41,8 +51,15 @@ export const tableSessionService = {
     };
   },
 
-  /** El cliente elige proteger la mesa con una clave de 4 dígitos (tras su primer pedido). */
-  async setPinByQrToken(qrToken: string, pin: string) {
+  /**
+   * El cliente elige proteger la mesa con una clave de 4 dígitos (tras su primer pedido).
+   *
+   * Si la cuenta YA tenía clave hay que mandar la actual: el qrToken va impreso en la mesa y le
+   * queda en el historial a cualquiera que la haya escaneado antes, así que sin esta condición
+   * un desconocido podía reescribirle la clave a una cuenta ajena —o quitarla con skip— y
+   * cargarle sus pedidos a quien está sentado ahí, que es justo lo que la clave impide.
+   */
+  async setPinByQrToken(qrToken: string, pin: string, currentPin?: string) {
     const table = await prisma.table.findUnique({
       where: { qrToken },
       select: { id: true, isActive: true, mergedIntoTableId: true },
@@ -51,14 +68,15 @@ export const tableSessionService = {
 
     const session = await this.getOpenForTable(primaryTableIdOf(table));
     if (!session) throw badRequest('Esta mesa no tiene una cuenta abierta todavía.');
+    await assertCanChangePin(session, currentPin);
 
     const pinHash = await bcrypt.hash(pin, 10);
     await prisma.tableSession.update({ where: { id: session.id }, data: { pinHash, pinSkipped: false } });
     return { ok: true };
   },
 
-  /** El cliente elige dejar la cuenta abierta, sin clave. */
-  async skipPinByQrToken(qrToken: string) {
+  /** El cliente elige dejar la cuenta abierta, sin clave. Con clave puesta, exige la actual. */
+  async skipPinByQrToken(qrToken: string, currentPin?: string) {
     const table = await prisma.table.findUnique({
       where: { qrToken },
       select: { id: true, isActive: true, mergedIntoTableId: true },
@@ -67,8 +85,9 @@ export const tableSessionService = {
 
     const session = await this.getOpenForTable(primaryTableIdOf(table));
     if (!session) throw badRequest('Esta mesa no tiene una cuenta abierta todavía.');
+    await assertCanChangePin(session, currentPin);
 
-    await prisma.tableSession.update({ where: { id: session.id }, data: { pinSkipped: true } });
+    await prisma.tableSession.update({ where: { id: session.id }, data: { pinHash: null, pinSkipped: true } });
     return { ok: true };
   },
 

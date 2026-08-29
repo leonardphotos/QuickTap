@@ -186,7 +186,19 @@ export const preparationService = {
     const existing = await prisma.preparationIngredient.findFirst({ where: { id, restaurantId } });
     if (!existing) throw notFound('Ingrediente no encontrado.');
 
+    // Que la FILA sea de este restaurante no dice nada de los ids que traiga el cuerpo: sin
+    // esta validación se podía apuntar el ingrediente al insumo de OTRO local (o a su
+    // preparación) y, al vender el producto, el descuento de receta caía sobre el stock ajeno.
+    // Es exactamente lo que ya valida addIngredient — acá faltaba.
+    if (input.inventoryItemId) {
+      const item = await prisma.inventoryItem.findFirst({
+        where: { id: input.inventoryItemId, restaurantId: await resolveInventoryScopeById(restaurantId) },
+      });
+      if (!item) throw badRequest('El insumo elegido no existe.');
+    }
     if (input.componentPreparationId) {
+      const component = await prisma.preparation.findFirst({ where: { id: input.componentPreparationId, restaurantId } });
+      if (!component) throw badRequest('La preparación elegida no existe.');
       const graph = await buildCostGraph(prisma, restaurantId);
       if (wouldCreateCycle(graph, existing.preparationId, input.componentPreparationId)) {
         throw badRequest('Esa preparación ya depende de esta — no se puede armar un ciclo.');

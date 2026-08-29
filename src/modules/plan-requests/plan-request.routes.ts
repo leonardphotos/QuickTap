@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { tenantGuard } from '../../middlewares/auth.middleware';
+import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
+import { TEAM_MANAGER_ROLES } from '../../utils/roles';
 import { platformAuthGuard } from '../../middlewares/platform-auth.middleware';
 import { optimizeImage, uploadPlanPaymentProof } from '../../middlewares/upload.middleware';
 import { planRequestController } from './plan-request.controller';
@@ -17,18 +18,22 @@ publicPlanRequestRoutes.post('/ramblay-checkout', planRequestController.createRa
 /** Base: /api/v1/plan-requests — pago de mensualidad, ya autenticado como restaurante. */
 export const tenantPlanRequestRoutes = Router();
 tenantPlanRequestRoutes.use(tenantGuard);
+// Subir, bajar o pagar el plan es del dueño/administrador. Antes bastaba con tener sesión del
+// local: un mesero o una pantalla podían dejar programada una BAJA de plan para la renovación.
+const soloDuenio = requireRole(...TEAM_MANAGER_ROLES);
 tenantPlanRequestRoutes.get('/quote', planRequestController.getQuote);
 tenantPlanRequestRoutes.get('/my-plan', planRequestController.myPlan);
-tenantPlanRequestRoutes.post('/upgrade', uploadPlanPaymentProof, optimizeImage(1200, 1200), planRequestController.createUpgrade);
-tenantPlanRequestRoutes.post('/downgrade', planRequestController.scheduleDowngrade);
-tenantPlanRequestRoutes.delete('/downgrade', planRequestController.cancelDowngrade);
+tenantPlanRequestRoutes.post('/upgrade', soloDuenio, uploadPlanPaymentProof, optimizeImage(1200, 1200), planRequestController.createUpgrade);
+tenantPlanRequestRoutes.post('/downgrade', soloDuenio, planRequestController.scheduleDowngrade);
+tenantPlanRequestRoutes.delete('/downgrade', soloDuenio, planRequestController.cancelDowngrade);
 tenantPlanRequestRoutes.get('/installment/pending', planRequestController.getPendingInstallment);
-tenantPlanRequestRoutes.post('/installment', planRequestController.createInstallment);
-tenantPlanRequestRoutes.post('/', uploadPlanPaymentProof, optimizeImage(1200, 1200), planRequestController.createRenewal);
-tenantPlanRequestRoutes.post('/ramblay-checkout', planRequestController.createRenewalRamblayCheckout);
+tenantPlanRequestRoutes.post('/installment', soloDuenio, planRequestController.createInstallment);
+tenantPlanRequestRoutes.post('/', soloDuenio, uploadPlanPaymentProof, optimizeImage(1200, 1200), planRequestController.createRenewal);
+tenantPlanRequestRoutes.post('/ramblay-checkout', soloDuenio, planRequestController.createRenewalRamblayCheckout);
 // "Pago fraccionado": un abono con su comprobante por cada llamada, hasta cubrir priceUsd.
 tenantPlanRequestRoutes.post(
   '/:id/payments',
+  soloDuenio,
   uploadPlanPaymentProof,
   optimizeImage(1200, 1200),
   planRequestController.addPayment,

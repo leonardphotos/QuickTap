@@ -137,10 +137,42 @@ async function restoreSaleStock(
 
   for (const item of items) {
     if (!item.productId || !ownedProductIds.has(item.productId)) continue;
+    const aDevolver = item.stockQty ?? item.qty;
     await tx.shopProductVariant.updateMany({
       where: { productId: item.productId, v1: item.v1, v2: item.v2 },
-      data: { stock: { increment: item.stockQty ?? item.qty } },
+      data: { stock: { increment: aDevolver } },
     });
+
+    /**
+     * Y recarga los LOTES, que la venta también descargó (ver recordSale: descuenta
+     * `remainingQty` en orden de llegada). Sin esto el stock de la variante volvía pero los
+     * lotes quedaban vacíos para siempre: Inventario mostraba "quedan 40 en lotes, 10 sin
+     * lote" sobre 50 reales, y el stock valorizado salía corto por esas 10 — y cada
+     * devolución o borrado ensanchaba la diferencia.
+     *
+     * Se recarga al revés que la venta (el más nuevo primero, `time: desc`), que es el orden
+     * inverso al que se consumió, y ninguno pasa de lo que entró originalmente (`qty`).
+     */
+    let pendiente = aDevolver;
+    if (pendiente <= 0) continue;
+    const lotes = await tx.shopPurchase.findMany({
+      where: { restaurantId, productId: item.productId, v1: item.v1, v2: item.v2 },
+      orderBy: { time: 'desc' },
+      select: { id: true, qty: true, remainingQty: true },
+    });
+    for (const lote of lotes) {
+      if (pendiente <= 0) break;
+      const cabe = Math.round((lote.qty - lote.remainingQty) * 10000) / 10000;
+      if (cabe <= 0) continue;
+      const pone = Math.min(cabe, pendiente);
+      pendiente = Math.round((pendiente - pone) * 10000) / 10000;
+      await tx.shopPurchase.update({
+        where: { id: lote.id },
+        data: { remainingQty: Math.round((lote.remainingQty + pone) * 10000) / 10000 },
+      });
+    }
+    // Si sobra (se vendió más de lo que había en lotes), se queda como "sin lote" — es lo
+    // mismo que ya pasa al vender sin lotes cargados, y no se inventa una compra que no existió.
   }
   // Y devuelve al inventario los insumos que esos servicios habían consumido.
   await applySupplyConsumption(tx, restaurantId, items, 1);

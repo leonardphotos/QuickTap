@@ -80,7 +80,15 @@ export function initSockets(server: HttpServer): IOServer {
 
     if (token) {
       try {
-        const payload = jwt.verify(token, env.jwtSecret) as AuthPayload;
+        const payload = jwt.verify(token, env.jwtSecret) as AuthPayload & { scope?: string };
+        // MISMA comprobación de forma que authGuard (ver auth.middleware.ts): todos los realms
+        // se firman con el mismo secreto, así que la firma sola no alcanza. El token de jugador
+        // de club lleva `restaurantId` y pasaba por acá, uniéndose a la room de cocina de ese
+        // restaurante y recibiendo cada pedido en vivo — nombre, teléfono y total del cliente —
+        // con una cuenta que cualquiera se crea solo desde el enlace público del club.
+        if (typeof payload.restaurantId !== 'string' || typeof payload.userId !== 'string' || payload.scope) {
+          return next(new Error('Token inválido.'));
+        }
         socket.data.auth = payload;
         return next();
       } catch {

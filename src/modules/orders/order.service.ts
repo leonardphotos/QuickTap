@@ -681,9 +681,16 @@ async function loadRecipeCoveredModifiersByItem(
 async function deductRecipeStock(restaurantId: string, items: RecipeStockItem[]) {
   const deltas = await computeRecipeStockDeltas(restaurantId, items);
   let deducted = false;
+  // Mismo alcance que deductModifierStock: el insumo tiene que ser de ESTE restaurante (o de la
+  // raíz del grupo, en inventario compartido). Sin este filtro, una receta que apuntara al
+  // insumo de otro local — ver la validación de preparation.service — le descontaba el stock a
+  // ese otro local al marcar el pedido SERVED.
+  const inventoryRestaurantId = await resolveInventoryScopeById(restaurantId);
 
   for (const [inventoryItemId, used] of deltas) {
-    const item = await prisma.inventoryItem.findUnique({ where: { id: inventoryItemId } });
+    const item = await prisma.inventoryItem.findFirst({
+      where: { id: inventoryItemId, restaurantId: inventoryRestaurantId },
+    });
     if (!item) continue;
     const nextQuantity = Prisma.Decimal.max(0, toDecimal(item.quantity).sub(used));
     await prisma.inventoryItem.update({ where: { id: item.id }, data: { quantity: nextQuantity } });
@@ -874,10 +881,15 @@ async function deductPackagingStock(
  */
 async function restoreRecipeStock(restaurantId: string, items: RecipeStockItem[]) {
   const deltas = await computeRecipeStockDeltas(restaurantId, items);
+  // updateMany y no update: el filtro por restaurante es el que impide devolverle stock al
+  // insumo de otro local (el mismo motivo que en deductRecipeStock), y de paso no lanza si el
+  // insumo se borró desde entonces — simplemente no afecta ninguna fila.
+  const inventoryRestaurantId = await resolveInventoryScopeById(restaurantId);
   for (const [inventoryItemId, used] of deltas) {
-    await prisma.inventoryItem
-      .update({ where: { id: inventoryItemId }, data: { quantity: { increment: used } } })
-      .catch(() => undefined); // el insumo pudo haberse borrado desde entonces
+    await prisma.inventoryItem.updateMany({
+      where: { id: inventoryItemId, restaurantId: inventoryRestaurantId },
+      data: { quantity: { increment: used } },
+    });
   }
 }
 
@@ -930,10 +942,14 @@ async function restoreModifierStock(
     }
   });
 
+  // Mismo alcance que el descuento (ver deductModifierStock): solo insumos de este restaurante
+  // — o de la raíz del grupo en inventario compartido.
+  const inventoryRestaurantId = await resolveInventoryScopeById(restaurantId);
   for (const [inventoryItemId, used] of usedByInventoryItem) {
-    await prisma.inventoryItem
-      .update({ where: { id: inventoryItemId }, data: { quantity: { increment: used } } })
-      .catch(() => undefined);
+    await prisma.inventoryItem.updateMany({
+      where: { id: inventoryItemId, restaurantId: inventoryRestaurantId },
+      data: { quantity: { increment: used } },
+    });
   }
 }
 
@@ -985,10 +1001,13 @@ async function restorePackagingStock(
     usedByItem.set(p.packagingItemId, (usedByItem.get(p.packagingItemId) ?? 0) + qty);
   }
 
+  // Mismo alcance que deductPackagingStock, que sí filtraba por restaurante.
+  const inventoryRestaurantId = await resolveInventoryScopeById(restaurantId);
   for (const [inventoryItemId, used] of usedByItem) {
-    await prisma.inventoryItem
-      .update({ where: { id: inventoryItemId }, data: { quantity: { increment: used } } })
-      .catch(() => undefined);
+    await prisma.inventoryItem.updateMany({
+      where: { id: inventoryItemId, restaurantId: inventoryRestaurantId },
+      data: { quantity: { increment: used } },
+    });
   }
 }
 
@@ -1777,7 +1796,7 @@ export const orderService = {
   async updateItems(restaurantId: string, orderId: string, updates: UpdateOrderItemsInput['items']) {
     const order = await prisma.order.findFirst({
       where: { id: orderId, restaurantId },
-      include: { items: { include: { modifiers: true } } },
+      include: { items: { include: { modifiers: true } }, payments: true },
     });
     if (!order) throw notFound('Comanda no encontrada.');
     if (order.status === 'SERVED' || order.status === 'CANCELLED') {
@@ -1814,6 +1833,23 @@ export const orderService = {
     const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant!);
     const envaseFeeBase = await computeEnvaseFee(restaurantId, order.channel, remaining);
     const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(order.deliveryFeeBase).add(envaseFeeBase));
+
+    // El chequeo de arriba (paidQuantity) solo cubre el cobro fraccionado POR ÍTEM: un cobro de
+    // monto libre no marca paidQuantity en ningún renglón, así que dejaba bajar el total por
+    // debajo de lo ya cobrado y la cuenta quedaba con saldo negativo — un cobro registrado sin
+    // pedido que lo respalde, que ningún reporte sabe explicar. Visto en producción: un pedido
+    // con $214 cobrados y total editado a $188. addPayment ya valida el caso inverso (que un
+    // cobro no supere el saldo); esto cierra el mismo hueco desde el lado de la edición.
+    const cobrado = order.payments.reduce(
+      (acc, p) => acc.add(p.amountBase).add(p.discountBase ?? toDecimal(0)).add(p.serviceChargeDiscountBase ?? toDecimal(0)),
+      toDecimal(0),
+    );
+    if (cobrado.gt(0) && totalBase.lt(round2(cobrado).sub(0.01))) {
+      throw badRequest(
+        `No se puede dejar el pedido en ${totalBase.toFixed(2)}: ya se cobraron ${round2(cobrado).toFixed(2)}. Registra primero la devolución de la diferencia.`,
+      );
+    }
+
     const totalBs = baseToBs(totalBase, order.exchangeRate);
 
     await prisma.$transaction(async (tx) => {

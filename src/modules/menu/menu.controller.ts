@@ -33,11 +33,13 @@ export const menuController = {
   /** POST /api/v1/public/table-session/:qrToken/pin — protege la mesa con una clave de 4 dígitos. */
   setPin: asyncHandler(async (req: Request, res: Response) => {
     const input = setTableSessionPinSchema.parse(req.body);
-    res.json({ data: await tableSessionService.setPinByQrToken(req.params.qrToken, input.pin) });
+    res.json({ data: await tableSessionService.setPinByQrToken(req.params.qrToken, input.pin, input.currentPin) });
   }),
 
   /** POST /api/v1/public/table-session/:qrToken/skip-pin — deja la cuenta abierta, sin clave. */
   skipPin: asyncHandler(async (req: Request, res: Response) => {
-    res.json({ data: await tableSessionService.skipPinByQrToken(req.params.qrToken) });
+    // La clave actual solo hace falta si la cuenta ya tenía una (ver assertCanChangePin).
+    const currentPin = typeof req.body?.currentPin === 'string' ? req.body.currentPin : undefined;
+    res.json({ data: await tableSessionService.skipPinByQrToken(req.params.qrToken, currentPin) });
   }),
 };
