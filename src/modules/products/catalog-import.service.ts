@@ -292,6 +292,29 @@ function hoja(workbook: ExcelJS.Workbook, nombre: string): ExcelJS.Worksheet | u
   return workbook.worksheets.find((w) => clave(w.name) === clave(nombre));
 }
 
+/**
+ * La hoja de productos, con respaldo para archivos que NO son nuestra plantilla.
+ *
+ * Un local que llega desde otro sistema trae su catálogo exportado: una sola hoja, con
+ * cualquier nombre ("Hoja1", "Sheet1", "Menu"). Exigir que se llame "Productos" lo obligaría a
+ * renombrarla para algo que el archivo ya tiene. Si no hay hoja con ese nombre, se busca la
+ * primera cuyo encabezado se parezca a un catálogo (nombre + al menos otra columna conocida);
+ * las demás hojas del libro se ignoran, así un export con hojas de resumen no confunde.
+ */
+function hojaDeProductos(workbook: ExcelJS.Workbook): ExcelJS.Worksheet | undefined {
+  const porNombre = hoja(workbook, 'Productos');
+  if (porNombre) return porNombre;
+
+  const nombresPropios = ['instrucciones', 'insumos', 'modificadores', 'recetas'];
+  for (const w of workbook.worksheets) {
+    if (nombresPropios.includes(clave(w.name))) continue;
+    const fila = detectHeaderRow(w, PRODUCTOS_SPEC);
+    const { columns } = resolveColumns(w, PRODUCTOS_SPEC, fila);
+    if (columns.name && Object.keys(columns).length >= 2) return w;
+  }
+  return undefined;
+}
+
 async function importarInsumos(workbook: ExcelJS.Workbook, restaurantId: string): Promise<CatalogSheetResult | null> {
   const sheet = hoja(workbook, 'Insumos');
   if (!sheet) return null;
@@ -356,7 +379,7 @@ async function importarProductos(
   workbook: ExcelJS.Workbook,
   restaurantId: string,
 ): Promise<{ resultado: CatalogSheetResult; fotos: number } | null> {
-  const sheet = hoja(workbook, 'Productos');
+  const sheet = hojaDeProductos(workbook);
   if (!sheet) return null;
 
   const filaEncabezado = detectHeaderRow(sheet, PRODUCTOS_SPEC);

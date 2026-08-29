@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { FileSpreadsheet, Images, ListPlus, Pencil, Plus, Search, Tag, Trash2, Upload, X } from 'lucide-react';
+import { ListPlus, Pencil, Plus, Search, Tag, Trash2, X } from 'lucide-react';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import type { Category, Kitchen, Product } from '../../types';
@@ -31,11 +31,6 @@ export default function ProductsPage() {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
-  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const [importResult, setImportResult] = useState<{ created: number; updated: number; errors: { row: number; message: string }[] } | null>(
-    null,
-  );
   const [importError, setImportError] = useState<string | null>(null);
   // Carga inicial del catálogo completo en un solo Excel (Productos + Insumos + Modificadores
   // + Recetas, con las fotos pegadas en la hoja). Ver catalog-import.service.ts.
@@ -43,16 +38,8 @@ export default function ProductsPage() {
   const [catalogResult, setCatalogResult] = useState<
     { hojas: { hoja: string; creados: number; actualizados: number; errores: { row: number; message: string }[] }[]; fotosSubidas: number } | null
   >(null);
-  const importInputRef = useRef<HTMLInputElement>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
-  const [uploadingPhotos, setUploadingPhotos] = useState(false);
-  const [photosResult, setPhotosResult] = useState<{
-    matched: { fileName: string; productName: string }[];
-    unmatched: string[];
-  } | null>(null);
-  const [photosError, setPhotosError] = useState<string | null>(null);
-  const photosInputRef = useRef<HTMLInputElement>(null);
 
   function load() {
     api.get('/products').then((res) => setProducts(res.data.data));
@@ -104,22 +91,6 @@ export default function ProductsPage() {
     setProductDialogOpen(true);
   }
 
-  async function downloadImportTemplate() {
-    setDownloadingTemplate(true);
-    try {
-      const res = await api.get('/products/import-template', { responseType: 'blob' });
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(res.data);
-      link.download = 'plantilla-productos.xlsx';
-      link.click();
-      URL.revokeObjectURL(link.href);
-    } catch {
-      setImportError('No se pudo generar la plantilla. Intenta de nuevo.');
-    } finally {
-      setDownloadingTemplate(false);
-    }
-  }
-
   async function descargarPlantillaCatalogo() {
     setCatalogBusy('plantilla');
     try {
@@ -153,46 +124,6 @@ export default function ProductsPage() {
       setImportError(err.response?.data?.error ?? 'No se pudo cargar el catálogo.');
     } finally {
       setCatalogBusy(null);
-    }
-  }
-
-  async function handleImportFileChange(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    setImporting(true);
-    setImportResult(null);
-    setImportError(null);
-    try {
-      const form = new FormData();
-      form.append('file', file);
-      const res = await api.post('/products/import', form, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setImportResult(res.data.data);
-      load();
-    } catch (err: any) {
-      setImportError(err.response?.data?.error ?? 'No se pudo importar el archivo.');
-    } finally {
-      setImporting(false);
-    }
-  }
-
-  async function handlePhotosFileChange(e: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(e.target.files ?? []);
-    e.target.value = '';
-    if (files.length === 0) return;
-    setUploadingPhotos(true);
-    setPhotosResult(null);
-    setPhotosError(null);
-    try {
-      const form = new FormData();
-      files.forEach((file) => form.append('photos', file));
-      const res = await api.post('/products/bulk-photos', form, { headers: { 'Content-Type': 'multipart/form-data' } });
-      setPhotosResult(res.data.data);
-      load();
-    } catch (err: any) {
-      setPhotosError(err.response?.data?.error ?? 'No se pudieron subir las fotos.');
-    } finally {
-      setUploadingPhotos(false);
     }
   }
 
@@ -248,70 +179,9 @@ export default function ProductsPage() {
         >
           <ListPlus className="h-4 w-4" /> Modificadores
         </TextureButton>
-        <TextureButton
-          variant="minimal"
-          size="default"
-          className="!w-auto flex items-center gap-1.5 whitespace-nowrap"
-          disabled={downloadingTemplate}
-          onClick={downloadImportTemplate}
-        >
-          <FileSpreadsheet className="h-4 w-4" /> {downloadingTemplate ? 'Generando…' : 'Descargar plantilla'}
-        </TextureButton>
-        <TextureButton
-          variant="minimal"
-          size="default"
-          className="!w-auto flex items-center gap-1.5 whitespace-nowrap"
-          disabled={importing}
-          onClick={() => importInputRef.current?.click()}
-        >
-          <Upload className="h-4 w-4" /> {importing ? 'Importando…' : 'Importar Excel'}
-        </TextureButton>
-        <input ref={importInputRef} type="file" accept=".xlsx" className="hidden" onChange={handleImportFileChange} />
-        <TextureButton
-          variant="minimal"
-          size="default"
-          className="!w-auto flex items-center gap-1.5 whitespace-nowrap"
-          disabled={uploadingPhotos}
-          onClick={() => photosInputRef.current?.click()}
-        >
-          <Images className="h-4 w-4" /> {uploadingPhotos ? 'Subiendo…' : 'Subir fotos por nombre'}
-        </TextureButton>
-        <input
-          ref={photosInputRef}
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          multiple
-          className="hidden"
-          onChange={handlePhotosFileChange}
-        />
       </div>
 
       {importError && <p className="text-sm text-red-600">{importError}</p>}
-
-      {photosError && <p className="text-sm text-red-600">{photosError}</p>}
-
-      {photosResult && (
-        <div className="rounded-xl border border-brand-950/10 bg-white p-4 text-sm">
-          <p className="font-medium text-brand-950">
-            {photosResult.matched.length} foto{photosResult.matched.length === 1 ? '' : 's'} vinculada
-            {photosResult.matched.length === 1 ? '' : 's'}
-            {photosResult.unmatched.length > 0 && (
-              <span className="text-amber-600"> · {photosResult.unmatched.length} sin producto coincidente</span>
-            )}
-          </p>
-          <p className="mt-1 text-xs font-light text-brand-950/50">
-            Cada foto se vincula al producto cuyo nombre coincide con el nombre del archivo (sin la extensión, sin
-            importar mayúsculas ni acentos). Ej: "Hamburguesa Clásica.jpg" → producto "Hamburguesa Clásica".
-          </p>
-          {photosResult.unmatched.length > 0 && (
-            <ul className="mt-2 space-y-0.5 text-xs text-amber-700">
-              {photosResult.unmatched.map((name, i) => (
-                <li key={i}>"{name}" no coincide con ningún producto.</li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
 
       {/* ---------- Carga inicial: TODO el catálogo en un solo Excel ---------- */}
       <div className="rounded-2xl border border-brand-500/25 bg-brand-500/[0.04] p-4">
@@ -364,27 +234,6 @@ export default function ProductsPage() {
                   </li>
                 )),
               )}
-            </ul>
-          )}
-        </div>
-      )}
-
-      {importResult && (
-        <div className="rounded-xl border border-brand-950/10 bg-white p-4 text-sm">
-          <p className="font-medium text-brand-950">
-            {importResult.created} creados · {importResult.updated} actualizados
-            {importResult.errors.length > 0 && <span className="text-red-600"> · {importResult.errors.length} con error</span>}
-          </p>
-          <p className="mt-1 text-xs font-light text-brand-950/50">
-            Solo se cargó lo que traía el archivo; el resto (foto, cocina, modificadores…) lo completas desde cada producto.
-          </p>
-          {importResult.errors.length > 0 && (
-            <ul className="mt-2 space-y-0.5 text-xs text-red-600">
-              {importResult.errors.map((e, i) => (
-                <li key={i}>
-                  Fila {e.row}: {e.message}
-                </li>
-              ))}
             </ul>
           )}
         </div>
