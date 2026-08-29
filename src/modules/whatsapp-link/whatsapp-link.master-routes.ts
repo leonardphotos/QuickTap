@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Router, Request, Response } from 'express';
 import { env } from '../../config/env';
 import { platformAuthGuard } from '../../middlewares/platform-auth.middleware';
@@ -19,10 +20,33 @@ masterWhatsappLinkRouter.post('/resume', masterWhatsappLinkController.reanudar);
  * podría inventar ACKs y des-pausar un número restringido.
  */
 export const waWebhookRouter = Router();
+
+/** ¿La conexión viene de esta misma máquina? Se mira el peer TCP real (`socket.remoteAddress`)
+ * y no `req.ip`, que puede venir de una cabecera X-Forwarded-For que cualquiera falsifica. */
+function vieneDeLocalhost(req: Request): boolean {
+  const ip = req.socket.remoteAddress ?? '';
+  return ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+}
+
+/** Comparación en tiempo constante: con `!==` el tiempo de respuesta filtra cuántos caracteres
+ * del secreto acertó quien prueba, y se puede reconstruir a fuerza de intentos. */
+function secretoValido(recibido: string, esperado: string): boolean {
+  const a = Buffer.from(recibido);
+  const b = Buffer.from(esperado);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 waWebhookRouter.post(
   '/:secret',
   asyncHandler(async (req: Request, res: Response) => {
-    if (!env.evolution.webhookSecret || req.params.secret !== env.evolution.webhookSecret) {
+    // Evolution corre en este mismo VPS y llama por 127.0.0.1 (ver webhookUrl() en el servicio),
+    // así que nada legítimo entra por acá desde afuera. Con esto, aunque el secreto se filtre,
+    // un tercero no puede forjar un "Aprobado" del número verificador y aprobarse un pago.
+    if (!vieneDeLocalhost(req)) {
+      res.status(404).end();
+      return;
+    }
+    if (!env.evolution.webhookSecret || !secretoValido(req.params.secret, env.evolution.webhookSecret)) {
       res.status(404).end();
       return;
     }

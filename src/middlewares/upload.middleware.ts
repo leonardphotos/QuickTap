@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import multer from 'multer';
@@ -50,7 +51,12 @@ function makeUpload(
     destination: (_req, _file, cb) => cb(null, dir),
     filename: (_req, file, cb) => {
       const ext = extByMime[file.mimetype] ?? path.extname(file.originalname) ?? '';
-      const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
+      // randomBytes y no Math.random: /uploads se sirve estático y sin auth (ver app.ts), así
+      // que el NOMBRE es lo único que protege un comprobante de pago — capturas con número de
+      // cuenta, titular y cédula. Math.random es predecible (no es criptográfico) y la subida
+      // pública de comprobantes devuelve el nombre generado, que sirve de oráculo para
+      // reconstruir la secuencia y adivinar los de otros.
+      const unique = `${Date.now()}-${crypto.randomBytes(16).toString('hex')}${ext}`;
       cb(null, unique);
     },
   });

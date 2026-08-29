@@ -50,3 +50,35 @@ export const lockPinRateLimit = rateLimit({
   keyGenerator: (req: Request) => req.auth?.userId ?? ipKeyGenerator(req.ip ?? 'unknown'),
   message: { error: 'Demasiados intentos. Espera unos minutos e intenta de nuevo.' },
 });
+
+/**
+ * Acciones públicas de la mesa (llamar al mesero, pedir la cuenta, poner/quitar la clave).
+ *
+ * No piden credenciales: basta el qrToken impreso en la mesa. Llamar al mesero dispara una
+ * notificación push a TODOS los teléfonos del personal, así que un bucle desde una sola mesa
+ * los inunda a todos (y arriesga que FCM marque al remitente); y poner la clave hace un
+ * bcrypt(10), que es CPU cara contra un proceso PM2 de una sola instancia.
+ *
+ * El tope es holgado a propósito: una mesa real llama al mesero un par de veces por comida.
+ */
+export const publicTableActionRateLimit = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas solicitudes seguidas. Espera un momento e intenta de nuevo.' },
+});
+
+/**
+ * Embudo de registro: lo llama el formulario en cada blur, sin credenciales y con un
+ * sessionId que elige quien llama. Sin tope, cualquiera llena la lista de "contactables" del
+ * Dashboard maestro con filas inventadas. 60 en 15 min cubre de sobra a una persona real
+ * llenando el formulario (son ~6 campos).
+ */
+export const registrationFunnelRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas solicitudes. Espera unos minutos e intenta de nuevo.' },
+});

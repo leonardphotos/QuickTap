@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { registrationFunnelRateLimit } from '../../middlewares/rate-limit.middleware';
 import { platformAuthGuard } from '../../middlewares/platform-auth.middleware';
 import { registrationFunnelController } from './registration-funnel.controller';
 
@@ -8,7 +9,7 @@ import { registrationFunnelController } from './registration-funnel.controller';
  * nada de ningún tenant, solo su propio intento de registro.
  */
 export const publicRegistrationFunnelRoutes = Router();
-publicRegistrationFunnelRoutes.post('/', registrationFunnelController.track);
+publicRegistrationFunnelRoutes.post('/', registrationFunnelRateLimit, registrationFunnelController.track);
 
 /** Base: /api/v1/master/registration-funnel — solo el equipo QuickTap. */
 export const masterRegistrationFunnelRoutes = Router();

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { requireRole, tenantGuard } from '../../middlewares/auth.middleware';
 import { TEAM_MANAGER_ROLES } from '../../utils/roles';
 import { platformAuthGuard } from '../../middlewares/platform-auth.middleware';
+import { publicBookingRateLimit } from '../../middlewares/rate-limit.middleware';
 import { optimizeImage, uploadPlanPaymentProof } from '../../middlewares/upload.middleware';
 import { planRequestController } from './plan-request.controller';
 
@@ -12,8 +13,8 @@ import { planRequestController } from './plan-request.controller';
 export const publicPlanRequestRoutes = Router();
 // El comprobante es opcional (multer no exige el campo "photo"): si el prospecto lo adjunta,
 // se reenvía al número verificador por WhatsApp (ver planRequestController#create).
-publicPlanRequestRoutes.post('/', uploadPlanPaymentProof, optimizeImage(1200, 1200), planRequestController.create);
-publicPlanRequestRoutes.post('/ramblay-checkout', planRequestController.createRamblayCheckout);
+publicPlanRequestRoutes.post('/', publicBookingRateLimit, uploadPlanPaymentProof, optimizeImage(1200, 1200), planRequestController.create);
+publicPlanRequestRoutes.post('/ramblay-checkout', publicBookingRateLimit, planRequestController.createRamblayCheckout);
 
 /** Base: /api/v1/plan-requests — pago de mensualidad, ya autenticado como restaurante. */
 export const tenantPlanRequestRoutes = Router();
