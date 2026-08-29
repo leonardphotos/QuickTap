@@ -5667,3 +5667,55 @@ model ShopSaleDeletionLog {
   @@index([restaurantId, deletedAt])
   @@map("shop_sale_deletion_logs")
 }
+
+/// Intento de registro en la pasarela (/empezar → /admin/register), completado o no.
+///
+/// Existe para responder "¿cuánta gente empieza a registrarse y no termina?" y, sobre todo, para
+/// no perder a quien dejó su contacto a medio camino: cada fila guarda lo que alcanzó a escribir
+/// (nunca la contraseña) para que el equipo pueda llamarlo después.
+///
+/// Se identifica por `sessionId`, un id opaco que genera el navegador y vive en su
+/// sessionStorage: sin cuenta todavía no hay a quién atarlo, y usar la IP mezclaría a todos los
+/// que comparten una. Una misma persona que vuelve en otra pestaña cuenta como intento nuevo, a
+/// propósito — es un intento de registro, no una persona.
+model RegistrationAttempt {
+  id        String @id @default(cuid())
+  sessionId String @unique
+
+  /// Hasta dónde llegó: START (eligió vertical) | FORM (abrió el formulario) | COMPLETED (se registró).
+  stage String @default("START")
+
+  /// Vertical elegido en /empezar: restaurant | shop | club | office.
+  businessType String?
+  /// Rubro de Local Comercial, cuando aplica.
+  shopRubro    String?
+
+  // Lo que alcanzó a escribir en el formulario. La contraseña NUNCA se guarda ni viaja al
+  // servidor — el frontend no la manda en el seguimiento.
+  restaurantName String?
+  slug           String?
+  whatsappPhone  String?
+  ownerName      String?
+  email          String?
+
+  /// De dónde venía (?plan=, utm_*, etc.), para saber qué campaña trae gente que no cierra.
+  landingQuery String?
+
+  /// Último error que le impidió registrarse ("Ese slug ya está en uso"), si lo intentó.
+  lastError String?
+
+  /// Se llena solo cuando termina el registro — sirve para el % de conversión y para no
+  /// llamar a quien ya es cliente.
+  completedAt  DateTime?
+  restaurantId String?
+
+  /// Marcado por el equipo cuando ya lo contactó, para no llamar dos veces.
+  contactedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([stage, createdAt])
+  @@index([completedAt])
+  @@map("registration_attempts")
+}

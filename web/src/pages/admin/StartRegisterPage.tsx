@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Calculator, LandPlot, Store, Utensils, Warehouse } from 'lucide-react';
 import AuthLayout from './AuthLayout';
 import { cn } from '@/lib/utils';
+import { trackFunnel } from '@/utils/registrationFunnel';
 
 type StartOption = 'restaurant' | 'shop' | 'club' | 'office' | 'warehouse';
 
@@ -32,7 +34,15 @@ export default function StartRegisterPage() {
   const [searchParams] = useSearchParams();
   const qs = searchParams.toString();
 
+  // Arranca el embudo de registro: quien llega acá y no termina cuenta como abandono, y en qué
+  // paso se cayó (ver registration-funnel en el backend).
+  useEffect(() => {
+    trackFunnel({ stage: 'START', landingQuery: qs || undefined });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function choose(option: StartOption) {
+    trackFunnel({ stage: 'START', businessType: option });
     // Reenvía location.state (datos ya verificados de "Continuar con Google" desde
     // /admin/login, ver LoginPage.tsx) — sin esto se pierden al pasar por acá.
     if (option === 'restaurant') navigate(`/admin/register${qs ? `?${qs}` : ''}`, { state: location.state });

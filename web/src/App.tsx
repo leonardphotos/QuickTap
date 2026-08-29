@@ -76,6 +76,7 @@ const MasterWhatsappPage = lazy(() => import('./pages/master/MasterWhatsappPage'
 const MasterProofsPage = lazy(() => import('./pages/master/MasterProofsPage'));
 const MasterAdminsPage = lazy(() => import('./pages/master/MasterAdminsPage'));
 const MasterSummaryPage = lazy(() => import('./pages/master/MasterSummaryPage'));
+const MasterFunnelPage = lazy(() => import('./pages/master/MasterFunnelPage'));
 const MasterLivePage = lazy(() => import('./pages/master/MasterLivePage'));
 const MasterQuotesPage = lazy(() => import('./pages/master/MasterQuotesPage'));
 const MasterQrNfcRequestsPage = lazy(() => import('./pages/master/MasterQrNfcRequestsPage'));
@@ -219,6 +220,7 @@ export default function App() {
               <Route path="whatsapp" element={<MasterWhatsappPage />} />
               <Route path="proofs" element={<MasterProofsPage />} />
               <Route path="summary" element={<MasterSummaryPage />} />
+              <Route path="funnel" element={<MasterFunnelPage />} />
               <Route path="live" element={<MasterLivePage />} />
               <Route path="quotes" element={<MasterQuotesPage />} />
               <Route path="qrnfc-requests" element={<MasterQrNfcRequestsPage />} />

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
@@ -9,6 +9,7 @@ import type { Currency } from '../../types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { WhatsappPhoneInput } from '@/components/ui/whatsapp-phone-input';
 import { getShopRubro } from '@/data/shopRubros';
+import { funnelSessionId, trackFunnel } from '@/utils/registrationFunnel';
 
 interface GoogleSignupState {
   googleCredential: string;
@@ -43,6 +44,19 @@ export default function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Embudo de registro: se marca que llegó al formulario (ver registrationFunnel.ts). Cada
+  // campo guarda su avance al perder el foco, así que aunque cierre el navegador de golpe queda
+  // con qué contactarlo. La contraseña nunca se manda.
+  useEffect(() => {
+    trackFunnel({
+      stage: 'FORM',
+      businessType: isShop ? 'shop' : isClub ? 'club' : isOffice ? 'office' : 'restaurant',
+      shopRubro: shopRubroId ?? undefined,
+      landingQuery: searchParams.toString() || undefined,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function onGoogleSuccess(credential: string) {
     setError(null);
     setGoogleSignup({ googleCredential: credential, googleEmail: '', googleName: '' });
@@ -75,6 +89,7 @@ export default function RegisterPage() {
           baseCurrency,
           businessType: isShop ? 'SHOP' : isClub ? 'SPORTS_CLUB' : isOffice ? 'ADMIN_OFFICE' : 'RESTAURANT',
           shopRubro: isShop ? (shopRubroId ?? undefined) : undefined,
+          funnelSessionId: funnelSessionId(),
         });
         if (result.needsRegistration) return; // no debería pasar en esta rama, pero por las dudas no navega
       } else {
@@ -88,13 +103,18 @@ export default function RegisterPage() {
           password,
           businessType: isShop ? 'SHOP' : isClub ? 'SPORTS_CLUB' : isOffice ? 'ADMIN_OFFICE' : 'RESTAURANT',
           shopRubro: isShop ? (shopRubroId ?? undefined) : undefined,
+          funnelSessionId: funnelSessionId(),
         });
       }
       // Si venía de "Elegir plan" en la landing, lo mandamos directo a pagar ese plan.
       const plan = searchParams.get('plan');
       navigate(plan ? `/admin/billing?${searchParams.toString()}` : '/admin');
     } catch (err: any) {
-      setError(err.response?.data?.error ?? 'No se pudo registrar el restaurante.');
+      const mensaje = err.response?.data?.error ?? 'No se pudo registrar el restaurante.';
+      setError(mensaje);
+      // Queda registrado con qué se topó: un "ese enlace ya está en uso" repetido en la lista
+      // dice que el problema es el formulario, no el interés del cliente.
+      trackFunnel({ stage: 'FORM', lastError: mensaje });
     } finally {
       setLoading(false);
     }
@@ -159,16 +179,18 @@ export default function RegisterPage() {
           label={isShop ? 'Nombre del negocio' : isClub ? 'Nombre de la cancha' : isOffice ? 'Tu nombre o el de tu firma' : 'Nombre del restaurante'}
           value={restaurantName}
           onChange={setRestaurantName}
+          onBlur={() => trackFunnel({ stage: 'FORM', restaurantName })}
         />
         <Field
           label="Nombre de usuario"
           value={slug}
           onChange={(v) => setSlug(v.toLowerCase().replace(/[^a-z0-9-]/g, '-'))}
+          onBlur={() => trackFunnel({ stage: 'FORM', slug })}
           placeholder={isClub ? 'mi-club' : isOffice ? 'mi-administracion' : 'mi-restaurante'}
         />
         <label className="block text-sm">
           <span className="text-brand-950/70">{isOffice ? 'Teléfono de contacto' : 'WhatsApp'}</span>
-          <div className="mt-1">
+          <div className="mt-1" onBlur={() => trackFunnel({ stage: 'FORM', whatsappPhone })}>
             <WhatsappPhoneInput value={whatsappPhone} onChange={setWhatsappPhone} />
           </div>
           <span className="text-xs text-brand-950/40 font-light">
@@ -193,8 +215,8 @@ export default function RegisterPage() {
         )}
         {!googleSignup && (
           <>
-            <Field label="Tu nombre" value={ownerName} onChange={setOwnerName} />
-            <Field label="Email" type="email" value={email} onChange={setEmail} />
+            <Field label="Tu nombre" value={ownerName} onChange={setOwnerName} onBlur={() => trackFunnel({ stage: 'FORM', ownerName })} />
+            <Field label="Email" type="email" value={email} onChange={setEmail} onBlur={() => trackFunnel({ stage: 'FORM', email })} />
             <Field label="Contraseña" type="password" value={password} onChange={setPassword} />
           </>
         )}

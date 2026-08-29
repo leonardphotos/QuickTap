@@ -27,6 +27,9 @@ export const registerSchema = z.object({
   // SPORTS_CLUB desde el registro de "Canchas"; ADMIN_OFFICE desde "Administración".
   businessType: z.enum(['RESTAURANT', 'SHOP', 'SPORTS_CLUB', 'ADMIN_OFFICE']).optional().default('RESTAURANT'),
   shopRubro: z.string().min(1).max(60).optional(),
+  // Id del intento de registro que venía siguiéndose (ver registration-funnel): al llegar acá
+  // el embudo se cierra como completado. Opcional — el registro nunca depende de esto.
+  funnelSessionId: z.string().min(8).max(64).optional(),
 });
 
 // "Continuar con Google": el credential (ID token firmado por Google) se verifica

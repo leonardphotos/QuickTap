@@ -42,6 +42,10 @@ import masterWhatsappRoutes from '../modules/master-whatsapp/master-whatsapp.rou
 import whatsappLinkRoutes from '../modules/whatsapp-link/whatsapp-link.routes';
 import { masterWhatsappLinkRouter, waWebhookRouter } from '../modules/whatsapp-link/whatsapp-link.master-routes';
 import masterAnnouncementRoutes from '../modules/platform-announcements/platform-announcement.routes';
+import {
+  publicRegistrationFunnelRoutes,
+  masterRegistrationFunnelRoutes,
+} from '../modules/registration-funnel/registration-funnel.routes';
 import inventoryRoutes from '../modules/inventory/inventory.routes';
 import movementRoutes from '../modules/movements/movement.routes';
 import paymentOrderRoutes from '../modules/payment-orders/payment-order.routes';
@@ -177,6 +181,8 @@ router.use('/public/wallet', walletRoutes);
 // Latido de presencia de las páginas públicas: alimenta el contador de "personas en la
 // página" del Dashboard maestro. Anónimo y sin sesión (ver presenciaController).
 router.post('/public/presence', presenciaController.latido);
+// Embudo de registro: lo llama el navegador de quien todavía se está registrando.
+router.use('/public/registration-funnel', publicRegistrationFunnelRoutes);
 router.use('/public/ramblay', publicRamblayRoutes);
 // Página del jugador del club: disponibilidad y reserva, resueltas por slug.
 router.use('/public/club', publicClubRoutes);
@@ -194,6 +200,7 @@ router.get('/public/tickets/:accessToken', shopTicketsController.publico);
 
 // --- Dashboard maestro (equipo de QuickTap, ve todos los restaurantes) ---
 router.use('/master/promo-codes', masterPromoCodeRoutes);
+router.use('/master/registration-funnel', masterRegistrationFunnelRoutes);
 router.use('/master/payment-methods', masterPlatformSettingsRoutes);
 router.use('/master/plans', masterPlanContentRoutes);
 router.use('/master/message-templates', masterMessageTemplatesRoutes);

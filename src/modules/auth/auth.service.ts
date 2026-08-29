@@ -14,6 +14,7 @@ import { demoResetService } from '../../utils/demo-reset.service';
 import { formatVenezuelanWhatsappPhone } from '../../utils/whatsapp';
 import { masterWhatsappBotService } from '../master-whatsapp/master-whatsapp-bot.service';
 import { platformSettingsService, renderTemplate } from '../platform-settings/platform-settings.service';
+import { registrationFunnelService } from '../registration-funnel/registration-funnel.service';
 import { ForgotPasswordInput, GoogleAuthInput, LoginInput, RegisterInput, ResetPasswordInput } from './auth.dto';
 
 const googleClient = new OAuth2Client();
@@ -306,6 +307,16 @@ function sendNewSignupAlertToVerifier(restaurant: { name: string; businessType: 
     .catch(() => undefined);
 }
 
+/**
+ * Cierra el intento de registro que venía siguiéndose (ver registration-funnel): pasa a
+ * COMPLETED y deja de contar como abandono. Fire-and-forget, igual que los avisos de arriba —
+ * una estadística nunca puede tumbar un registro que ya se hizo bien.
+ */
+function cerrarEmbudoDeRegistro(funnelSessionId: string | undefined, restaurantId: string): void {
+  if (!funnelSessionId) return;
+  registrationFunnelService.markCompleted(funnelSessionId, restaurantId).catch(() => undefined);
+}
+
 export const authService = {
   /** Registro de un restaurante nuevo + su usuario dueño (OWNER). Arranca en TRIALING (15 días). */
   async register(input: RegisterInput) {
@@ -344,6 +355,7 @@ export const authService = {
     const owner = restaurant.users[0];
     sendMasterWelcomeMessage(restaurant, owner.name);
     sendNewSignupAlertToVerifier(restaurant, owner.name);
+    cerrarEmbudoDeRegistro(input.funnelSessionId, restaurant.id);
     const token = signToken({ userId: owner.id, restaurantId: restaurant.id, role: owner.role });
 
     return {
@@ -444,7 +456,8 @@ export const authService = {
 
       const owner = restaurant.users[0];
       sendMasterWelcomeMessage(restaurant, owner.name);
-    sendNewSignupAlertToVerifier(restaurant, owner.name);
+      sendNewSignupAlertToVerifier(restaurant, owner.name);
+      cerrarEmbudoDeRegistro(input.registration.funnelSessionId, restaurant.id);
       return this.buildSession(owner, restaurant);
     }
 

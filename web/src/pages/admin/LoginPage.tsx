@@ -125,6 +125,7 @@ export function Field({
   label,
   value,
   onChange,
+  onBlur,
   type = 'text',
   placeholder,
   name,
@@ -133,6 +134,8 @@ export function Field({
   label: string;
   value: string;
   onChange: (v: string) => void;
+  /** Se dispara al salir del campo — lo usa el registro para guardar el avance del embudo. */
+  onBlur?: () => void;
   type?: string;
   placeholder?: string;
   name?: string;
@@ -149,6 +152,7 @@ export function Field({
           value={value}
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
+          onBlur={onBlur}
           className={inputClassName}
           name={name}
           autoComplete={autoComplete}
@@ -160,6 +164,7 @@ export function Field({
           value={value}
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
+          onBlur={onBlur}
           className={inputClassName}
           name={name}
           autoComplete={autoComplete}

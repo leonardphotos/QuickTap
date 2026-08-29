@@ -121,6 +121,8 @@ interface AuthState {
     baseCurrency?: Currency;
     businessType?: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB' | 'ADMIN_OFFICE';
     shopRubro?: string;
+    /** Cierra el intento de registro que venía siguiéndose (ver registrationFunnel.ts). */
+    funnelSessionId?: string;
   }) => Promise<void>;
   logout: () => void;
   /** "Continuar con Google": `credential` es el ID token que devuelve el botón de Google.
@@ -136,6 +138,7 @@ interface AuthState {
       baseCurrency?: Currency;
       businessType?: 'RESTAURANT' | 'SHOP' | 'SPORTS_CLUB' | 'ADMIN_OFFICE';
       shopRubro?: string;
+      funnelSessionId?: string;
     },
   ) => Promise<{ needsRegistration: true; email: string; name: string } | { needsRegistration?: undefined }>;
   refresh: () => Promise<void>;
