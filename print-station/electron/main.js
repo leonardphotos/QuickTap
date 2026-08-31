@@ -59,18 +59,64 @@ ipcMain.handle('listar-impresoras', async () => {
   return impresoras.map((p) => ({ name: p.name, displayName: p.displayName || p.name, isDefault: !!p.isDefault }));
 });
 
+/**
+ * Un print() a la vez, en fila.
+ *
+ * Electron descarta una de dos impresiones simultáneas sobre el mismo webContents: de dos
+ * print() solapados, uno vuelve con ok=false y ese papel no sale nunca. La página ya encola
+ * sus trabajos, pero esto es la garantía real — nada que llegue por IPC puede solaparse,
+ * venga de donde venga.
+ */
+let cola = Promise.resolve();
+
+/** Una impresión, con red de seguridad por si el callback nunca vuelve. */
+function imprimirUna(deviceName) {
+  return new Promise((resolve) => {
+    if (!win || win.isDestroyed()) return resolve(false);
+    let resuelto = false;
+    const fin = (ok) => {
+      if (resuelto) return;
+      resuelto = true;
+      resolve(ok);
+    };
+    // Sin esto, una impresora apagada o en pausa puede dejar el callback colgado para siempre
+    // y con él la cola entera: la estación quedaría muda hasta reiniciarla.
+    const reloj = setTimeout(() => {
+      console.error('La impresora no respondió en 20s; se sigue con el resto de la cola.');
+      fin(false);
+    }, 20000);
+    try {
+      win.webContents.print(
+        { silent: true, printBackground: true, margins: { marginType: 'none' }, ...(deviceName ? { deviceName } : {}) },
+        (ok, motivo) => {
+          clearTimeout(reloj);
+          if (!ok && motivo !== 'cancelled') console.error('Fallo imprimiendo:', motivo || '(sin motivo)');
+          fin(ok);
+        },
+      );
+    } catch (err) {
+      clearTimeout(reloj);
+      console.error('print() lanzó:', err.message);
+      fin(false);
+    }
+  });
+}
+
 // Imprime la página actual (el CSS de la estación deja visible solo el ticket)
 // directo a la impresora indicada, sin diálogo — el modo terminal.
-ipcMain.handle('imprimir-silencioso', (_event, deviceName) => new Promise((resolve) => {
-  if (!win || win.isDestroyed()) return resolve(false);
-  win.webContents.print(
-    { silent: true, printBackground: true, margins: { marginType: 'none' }, ...(deviceName ? { deviceName } : {}) },
-    (ok, motivo) => {
-      if (!ok && motivo !== 'cancelled') console.error('Fallo imprimiendo:', motivo);
-      resolve(ok);
-    },
-  );
-}));
+ipcMain.handle('imprimir-silencioso', (_event, deviceName) => {
+  const trabajo = cola.then(async () => {
+    const ok = await imprimirUna(deviceName);
+    if (ok) return true;
+    // Un solo reintento: el ok=false de una carrera perdida se resuelve reintentando, y el de
+    // una impresora que de verdad no está fallará igual la segunda vez sin trabar nada.
+    await new Promise((r) => setTimeout(r, 600));
+    return imprimirUna(deviceName);
+  });
+  // La cola nunca se rompe: un trabajo que falla no puede dejar sin imprimir a los siguientes.
+  cola = trabajo.catch(() => false);
+  return trabajo;
+});
 
 app.whenReady().then(createWindow);
 
