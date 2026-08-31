@@ -418,11 +418,15 @@
         <div class="field" style="margin-bottom:12px;">
           <label>Tamaño de letra</label>
           <select id="fontScale">
-            <option value="0.8">Compacta (más renglones por papel)</option>
+            <option value="0.85">Compacta (más renglones por papel)</option>
             <option value="1">Normal</option>
             <option value="1.15">Grande</option>
             <option value="1.3">Muy grande</option>
           </select>
+          <!-- Se muestra el tamaño real que sale impreso: sin esto, desde fuera no hay forma
+               de saber qué está aplicando esta PC, y un ajuste viejo guardado pasa por "el
+               cambio no llegó". -->
+          <small class="muted" style="display:block;margin-top:4px;font-size:11px;" id="fontScaleInfo"></small>
         </div>
         <div class="toggle-field" style="margin-bottom:0;">
           <label>Auto-imprimir comandas nuevas</label>
@@ -528,7 +532,13 @@ const state = {
   paperWidth: localStorage.getItem('qt_paperWidth') || '80',
   // Escala del tamaño de letra del ticket impreso (1 = normal). Se aplica sobre
   // el tamaño base de cada ancho de papel (58mm/80mm) al momento de imprimir.
-  fontScale: parseFloat(localStorage.getItem('qt_fontScale')) || 1,
+  // Se acota a las opciones reales: un valor guardado que ya no está en la lista dejaba el
+  // selector en blanco y seguía aplicando el tamaño viejo en silencio — pasó al renombrar
+  // "Pequeña", y desde afuera parecía que el cambio de letra no había llegado.
+  fontScale: (() => {
+    const v = parseFloat(localStorage.getItem('qt_fontScale'));
+    return [0.85, 1, 1.15, 1.3].includes(v) ? v : 1;
+  })(),
   // Cocinas configuradas en el restaurante (para el selector de "a qué estación
   // va cada impresora"), y las impresoras térmicas conectadas por Web Serial.
   // printers: [{ key, label, port, writer, assignments }] — assignments es una
@@ -1573,15 +1583,26 @@ $('testOrderBtn').addEventListener('click', () => {
    ============================================================ */
 $('paperWidth').value = state.paperWidth;
 $('fontScale').value = String(state.fontScale);
+mostrarTamanoReal();
 $('autoPrintToggle').checked = state.autoPrint;
 
 $('paperWidth').addEventListener('change', (e) => {
   state.paperWidth = e.target.value;
   localStorage.setItem('qt_paperWidth', state.paperWidth);
+  mostrarTamanoReal();
 });
+/** Qué tamaño de letra sale realmente impreso, con el ancho de papel ya aplicado. */
+function mostrarTamanoReal(){
+  const el = $('fontScaleInfo');
+  if(!el) return;
+  const base = state.paperWidth === '58' ? 15 : 17;
+  el.textContent = `Sale impreso a ${(base * state.fontScale).toFixed(1)} px (papel de ${state.paperWidth}mm).`;
+}
+
 $('fontScale').addEventListener('change', (e) => {
   state.fontScale = parseFloat(e.target.value) || 1;
   localStorage.setItem('qt_fontScale', String(state.fontScale));
+  mostrarTamanoReal();
 });
 $('autoPrintToggle').addEventListener('change', (e) => {
   state.autoPrint = e.target.checked;
