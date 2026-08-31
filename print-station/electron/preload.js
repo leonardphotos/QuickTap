@@ -7,6 +7,10 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('estacionNativa', {
+  // Versión del INSTALABLE (distinta de la de la página, que se actualiza sola). Sin esto no
+  // había forma de saber si una PC tenía el .exe viejo: la página se veía nueva y el arreglo
+  // que vive en el ejecutable no estaba, y desde fuera parecía que nada había servido.
+  version: '1.6.0',
   listarImpresoras: () => ipcRenderer.invoke('listar-impresoras'),
   // deviceName null = la impresora predeterminada del sistema.
   // `papel` = {anchoMm, altoMm} del ticket ya medido: sin esto la impresora usa la hoja del
