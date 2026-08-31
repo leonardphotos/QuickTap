@@ -6,12 +6,26 @@
  * a las PCs instaladas sin reinstalar nada. Al ser el mismo origen que la API,
  * tampoco necesita entrada propia en CORS_ORIGINS.
  */
-const { app, BrowserWindow, Menu, ipcMain } = require('electron');
+const { app, BrowserWindow, Menu, globalShortcut, ipcMain } = require('electron');
 const path = require('path');
 
 const ESTACION_URL = 'https://quicktap.club/impresion/';
 
 let win = null;
+
+/**
+ * Carga la estación SALTÁNDOSE LA CACHÉ.
+ *
+ * La app abre una página servida desde el sitio, así que un arreglo debería llegar con solo
+ * reabrirla. En la práctica no siempre pasaba: Chromium se quedaba con la copia guardada y la
+ * PC del local seguía imprimiendo con la versión vieja, sin forma de notarlo ni de forzar una
+ * recarga — el menú está oculto, así que tampoco había F5. Acá se pide la página de nuevo
+ * siempre; es un HTML de 100 KB una vez por arranque, no cuesta nada.
+ */
+function cargarEstacion() {
+  if (!win || win.isDestroyed()) return;
+  win.loadURL(ESTACION_URL, { extraHeaders: 'Cache-Control: no-cache\nPragma: no-cache\n' });
+}
 
 function createWindow() {
   win = new BrowserWindow({
@@ -43,12 +57,10 @@ function createWindow() {
   // Sin internet al abrir (o un tropiezo del sitio): reintentar solo, la PC de
   // impresión no tiene a nadie apretando F5.
   win.webContents.on('did-fail-load', () => {
-    setTimeout(() => {
-      if (win && !win.isDestroyed()) win.loadURL(ESTACION_URL);
-    }, 5000);
+    setTimeout(cargarEstacion, 5000);
   });
 
-  win.loadURL(ESTACION_URL);
+  cargarEstacion();
   win.on('closed', () => { win = null; });
 }
 
@@ -118,7 +130,15 @@ ipcMain.handle('imprimir-silencioso', (_event, deviceName) => {
   return trabajo;
 });
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  createWindow();
+  // Sin menú no hay atajos, así que se registran a mano: si alguna vez la pantalla queda
+  // pegada o desactualizada, F5 la vuelve a traer sin desinstalar nada.
+  globalShortcut.register('F5', cargarEstacion);
+  globalShortcut.register('CommandOrControl+R', cargarEstacion);
+});
+
+app.on('will-quit', () => globalShortcut.unregisterAll());
 
 app.on('window-all-closed', () => app.quit());
 app.on('activate', () => { if (win === null) createWindow(); });
