@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { FormEvent } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Download, MapPin, Pencil, Trash2 } from 'lucide-react';
+import { Download, MapPin, Pencil, Plus, Trash2 } from 'lucide-react';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import type { TableItem, Zone } from '../../types';
-import { PopoverForm, PopoverFormButton, PopoverFormSuccess } from '@/components/ui/popover-form';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard } from '@/components/ui/texture-card';
 import { Toast } from '@/components/ui/toast';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ZoneDialog } from '@/components/admin/ZoneDialog';
 import { TableEditDialog } from '@/components/admin/TableEditDialog';
 import { downloadAllTableQrCodes } from '../../utils/qr-zip';
@@ -96,52 +96,77 @@ export default function TablesPage() {
       <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Mesas / Códigos QR</h1>
 
       <div className="flex flex-wrap gap-3 items-center">
-        <PopoverForm
-          title="Nueva mesa"
-          open={open}
-          setOpen={setOpen}
-          showSuccess={showSuccess}
-          width="320px"
-          height="360px"
-          openChild={
-            <form onSubmit={onSubmit} className="p-4 h-full flex flex-col gap-3 overflow-y-auto">
-              <input
-                autoFocus
-                value={number}
-                onChange={(e) => setNumber(e.target.value)}
-                placeholder="ej: 5, Terraza-1"
-                className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-                required
-              />
-              <select
-                value={zoneId}
-                onChange={(e) => setZoneId(e.target.value)}
-                className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-              >
-                <option value="">Sin zona</option>
-                {zones.map((z) => (
-                  <option key={z.id} value={z.id}>
-                    {z.name}
-                  </option>
-                ))}
-              </select>
-              <label className="flex items-center justify-between gap-2 text-sm text-brand-950/60">
-                Sillas
-                <input
-                  type="number"
-                  min={1}
-                  max={20}
-                  value={seats}
-                  onChange={(e) => setSeats(e.target.value)}
-                  className="w-20 border border-brand-950/15 rounded-lg px-3 py-2 text-sm text-brand-950 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-                />
-              </label>
-              {error && <p className="text-xs text-red-600">{error}</p>}
-              <PopoverFormButton loading={saving} text="Agregar" />
-            </form>
-          }
-          successChild={<PopoverFormSuccess title="¡Listo!" description={`Mesa "${number}" creada.`} />}
-        />
+        {/* Diálogo centrado, el mismo del resto del panel. Antes esto era un popover anclado
+            al botón, con alto y ancho fijos: en una tablet se desbordaba hacia la izquierda y
+            quedaba medio tapado por la barra lateral, y el teclado en pantalla le comía el
+            resto. Centrado no depende de dónde esté el botón ni de cuánta pantalla quede. */}
+        <TextureButton
+          variant="brand"
+          size="default"
+          className="!w-auto flex items-center gap-1.5"
+          onClick={() => setOpen(true)}
+        >
+          <Plus className="h-4 w-4" /> Nueva mesa
+        </TextureButton>
+
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Nueva mesa</DialogTitle>
+            </DialogHeader>
+            {showSuccess ? (
+              <div className="py-8 text-center">
+                <p className="text-2xl">✅</p>
+                <p className="mt-2 font-medium text-brand-950">¡Listo!</p>
+                <p className="text-sm font-light text-brand-950/50">Mesa "{number}" creada.</p>
+              </div>
+            ) : (
+              <form onSubmit={onSubmit} className="flex flex-col gap-3">
+                <label className="block text-sm">
+                  <span className="text-xs text-brand-950/60">Nombre o número</span>
+                  <input
+                    autoFocus
+                    value={number}
+                    onChange={(e) => setNumber(e.target.value)}
+                    placeholder="ej: 5, Terraza-1"
+                    className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                    required
+                  />
+                </label>
+                <label className="block text-sm">
+                  <span className="text-xs text-brand-950/60">Zona</span>
+                  <select
+                    value={zoneId}
+                    onChange={(e) => setZoneId(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                  >
+                    <option value="">Sin zona</option>
+                    {zones.map((z) => (
+                      <option key={z.id} value={z.id}>
+                        {z.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block text-sm">
+                  <span className="text-xs text-brand-950/60">Sillas</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={seats}
+                    onChange={(e) => setSeats(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm text-brand-950 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+                  />
+                </label>
+                {error && <p className="text-xs text-red-600">{error}</p>}
+                <TextureButton variant="brand" size="default" disabled={saving} className="!w-auto disabled:opacity-50">
+                  {saving ? 'Agregando…' : 'Agregar'}
+                </TextureButton>
+              </form>
+            )}
+          </DialogContent>
+        </Dialog>
 
         <TextureButton
           variant="minimal"
