@@ -29,6 +29,20 @@ interface Ingrediente {
   yaExiste?: boolean;
 }
 
+interface Tamano {
+  nombre: string;
+  precio: string;
+}
+
+interface GrupoModificador {
+  nombre: string;
+  obligatorio: boolean;
+  permiteVarias: boolean;
+  /** Nombres de los tamaños en los que aplica. Vacío = en todos. */
+  tamanos: string[];
+  opciones: { nombre: string; precio: string }[];
+}
+
 interface Plato {
   /** Identificador local de la fila, para poder editarla y borrarla antes de guardar. */
   key: string;
@@ -38,6 +52,8 @@ interface Plato {
   descripcion: string;
   photoUrl: string;
   ingredientes: Ingrediente[];
+  tamanos: Tamano[];
+  modificadores: GrupoModificador[];
 }
 
 const UNIDADES = [
@@ -50,7 +66,8 @@ export default function MasterCatalogAiPage() {
   const [restaurantes, setRestaurantes] = useState<Restaurante[]>([]);
   const [restaurantId, setRestaurantId] = useState('');
   const [mejorarFoto, setMejorarFoto] = useState(false);
-  const [categoriaPorDefecto, setCategoriaPorDefecto] = useState('General');
+  const [categoriaPorDefecto, setCategoriaPorDefecto] = useState('');
+  const [categorias, setCategorias] = useState<{ id: string; name: string }[]>([]);
   const [platos, setPlatos] = useState<Plato[]>([]);
   const [analizando, setAnalizando] = useState(0);
   const [guardando, setGuardando] = useState(false);
@@ -61,9 +78,29 @@ export default function MasterCatalogAiPage() {
   useEffect(() => {
     masterApi
       .get('/master/restaurants')
-      .then((res) => setRestaurantes(res.data.data ?? res.data))
+      // Solo restaurantes: esta carga arma platos con receta e insumos, que es el modelo de un
+      // restaurante. Un local comercial o un club llevan su propio catálogo y no se cargan así.
+      .then((res) => setRestaurantes((res.data.data ?? res.data).filter((r: Restaurante) => r.businessType === 'RESTAURANT')))
       .catch(() => setRestaurantes([]));
   }, []);
+
+  /** Las categorías del cliente elegido, para colgar los platos de las suyas. */
+  useEffect(() => {
+    if (!restaurantId) {
+      setCategorias([]);
+      setCategoriaPorDefecto('');
+      return;
+    }
+    masterApi
+      .get(`/master/catalog-ai/${restaurantId}/categorias`)
+      .then((res) => {
+        const cats = res.data.data ?? [];
+        setCategorias(cats);
+        // Si ya tiene carta, se arranca por la primera suya; si no, hay que escribir una.
+        setCategoriaPorDefecto(cats[0]?.name ?? '');
+      })
+      .catch(() => setCategorias([]));
+  }, [restaurantId]);
 
   async function subirFotos(files: FileList) {
     if (!restaurantId) {
@@ -94,6 +131,8 @@ export default function MasterCatalogAiPage() {
             descripcion: d.descripcion ?? '',
             photoUrl: d.photoUrl,
             ingredientes: d.ingredientes ?? [],
+            tamanos: [],
+            modificadores: [],
           },
         ]);
       } catch (e: any) {
@@ -119,9 +158,15 @@ export default function MasterCatalogAiPage() {
   async function cargar() {
     setError(null);
     setResultado(null);
-    const sinPrecio = platos.filter((p) => !p.precio.trim());
+    // Con tamaños el precio del plato no se usa: cada tamaño lleva el suyo.
+    const sinPrecio = platos.filter((p) => !p.precio.trim() && p.tamanos.length === 0);
     if (sinPrecio.length > 0) {
       setError(`Falta el precio en: ${sinPrecio.map((p) => p.nombre).join(', ')}.`);
+      return;
+    }
+    const tamanoSinPrecio = platos.filter((p) => p.tamanos.some((t) => !t.precio.trim()));
+    if (tamanoSinPrecio.length > 0) {
+      setError(`Falta el precio de algún tamaño en: ${tamanoSinPrecio.map((p) => p.nombre).join(', ')}.`);
       return;
     }
     setGuardando(true);
@@ -136,12 +181,34 @@ export default function MasterCatalogAiPage() {
           ingredientes: p.ingredientes
             .filter((g) => g.nombre.trim() && g.cantidad > 0)
             .map((g) => ({ nombre: g.nombre.trim(), unidad: g.unidad, cantidad: g.cantidad })),
+          tamanos: p.tamanos
+            .filter((t) => t.nombre.trim())
+            .map((t) => ({ nombre: t.nombre.trim(), precio: Number(t.precio) || 0 })),
+          modificadores: p.modificadores
+            .filter((g) => g.nombre.trim())
+            .map((g) => ({
+              nombre: g.nombre.trim(),
+              obligatorio: g.obligatorio,
+              permiteVarias: g.permiteVarias,
+              // Solo los tamaños que siguen existiendo: si el operador renombró uno después de
+              // marcarlo, mandarlo igual crearía un grupo acotado a algo que no existe.
+              tamanos: g.tamanos.filter((n) => p.tamanos.some((t) => t.nombre.trim() === n)),
+              opciones: g.opciones
+                .filter((o) => o.nombre.trim())
+                .map((o) => ({ nombre: o.nombre.trim(), precio: Number(o.precio) || 0 })),
+            })),
         })),
       });
       const r = data.data;
+      const creados: string[] = r.insumosCreados ?? [];
       setResultado(
-        `${r.productosCreados} producto(s) creados, ${r.productosActualizados} actualizados, ` +
-          `${r.insumosCreados} insumo(s) nuevos y ${r.lineasReceta} línea(s) de receta.`,
+        `${r.productosCreados} producto(s) creados, ${r.productosActualizados} actualizados y ` +
+          `${r.lineasReceta} línea(s) de receta.` +
+          (r.tamanosCreados ? ` ${r.tamanosCreados} tamaño(s).` : '') +
+          (r.gruposCreados ? ` ${r.gruposCreados} grupo(s) de modificadores nuevos.` : '') +
+          (creados.length > 0
+            ? ` Se crearon ${creados.length} insumo(s) en su inventario: ${creados.join(', ')} — todos sin costo, para que el cliente cargue el suyo.`
+            : ' No hizo falta crear ningún insumo nuevo.'),
       );
       setPlatos([]);
     } catch (e: any) {
@@ -178,18 +245,20 @@ export default function MasterCatalogAiPage() {
           </select>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block text-sm">
+            <div className="text-sm">
               <span className="text-xs text-brand-950/60">Categoría por defecto</span>
-              <input
+              <CategoriaPicker
+                categorias={categorias}
                 value={categoriaPorDefecto}
-                onChange={(e) => setCategoriaPorDefecto(e.target.value)}
-                placeholder="Ej: Hamburguesas"
-                className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+                onChange={setCategoriaPorDefecto}
+                disabled={!restaurantId}
               />
               <span className="text-[11px] font-light text-brand-950/40">
-                Se le pone a cada plato nuevo; puedes cambiarla plato por plato.
+                {categorias.length > 0
+                  ? `Este cliente ya tiene ${categorias.length} categoría${categorias.length === 1 ? '' : 's'}. Se le pone a cada plato nuevo; puedes cambiarla plato por plato.`
+                  : 'Este cliente todavía no tiene categorías: la que escribas se creará.'}
               </span>
-            </label>
+            </div>
             <label className="flex items-start gap-2 self-start pt-5 text-sm">
               <input
                 type="checkbox"
@@ -265,14 +334,14 @@ export default function MasterCatalogAiPage() {
                         className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
                       />
                     </label>
-                    <label className="block text-sm">
+                    <div className="text-sm">
                       <span className="text-xs text-brand-950/60">Categoría</span>
-                      <input
+                      <CategoriaPicker
+                        categorias={categorias}
                         value={p.categoria}
-                        onChange={(e) => editarPlato(p.key, { categoria: e.target.value })}
-                        className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm"
+                        onChange={(v) => editarPlato(p.key, { categoria: v })}
                       />
-                    </label>
+                    </div>
                     <label className="block text-sm">
                       <span className="text-xs text-brand-950/60">Precio de venta</span>
                       <input
@@ -335,11 +404,15 @@ export default function MasterCatalogAiPage() {
                         <span className="flex items-center gap-1.5">
                           {/* Se avisa acá y no al guardar: es la diferencia entre vincular un
                               insumo que el cliente ya tiene y crearle uno nuevo. */}
-                          {g.yaExiste && (
-                            <span className="whitespace-nowrap rounded-full bg-brand-500/10 px-2 py-0.5 text-[10px] font-medium text-brand-700">
-                              ya lo tiene
-                            </span>
-                          )}
+                          {/* Se marcan los dos casos: sin la etiqueta de "nuevo" no se ve cuáles
+                              insumos van a aparecerle al cliente en su inventario. */}
+                          <span
+                            className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                              g.yaExiste ? 'bg-brand-500/10 text-brand-700' : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {g.yaExiste ? 'ya lo tiene' : 'insumo nuevo'}
+                          </span>
                           <button
                             type="button"
                             onClick={() =>
@@ -365,6 +438,8 @@ export default function MasterCatalogAiPage() {
                     <Plus className="h-4 w-4" /> Añadir ingrediente
                   </button>
                 </div>
+
+                <TamanosYModificadores plato={p} onChange={(patch) => editarPlato(p.key, patch)} />
               </div>
           ))}
 
@@ -403,6 +478,323 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
     <div className="space-y-4 rounded-2xl border border-brand-950/10 bg-white p-6 shadow-sm">
       <p className="font-semibold text-brand-950">{title}</p>
       {children}
+    </div>
+  );
+}
+
+/**
+ * Elegir una categoría del cliente, o escribir una nueva.
+ *
+ * Es un selector y no un campo libre porque escribir "Hamburguesas" a mano en un local que ya
+ * tiene esa categoría le crea una segunda con el mismo nombre a la vista — el backend compara
+ * sin acentos ni mayúsculas, pero "Hamburguesa" en singular ya es otra.
+ */
+function CategoriaPicker({
+  categorias,
+  value,
+  onChange,
+  disabled,
+}: {
+  categorias: { id: string; name: string }[];
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  const esNueva = value !== '' && !categorias.some((c) => c.name === value);
+  const [escribiendo, setEscribiendo] = useState(esNueva || categorias.length === 0);
+
+  useEffect(() => {
+    if (categorias.length === 0) setEscribiendo(true);
+  }, [categorias.length]);
+
+  if (escribiendo) {
+    return (
+      <div className="mt-1 flex gap-2">
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Ej: Hamburguesas"
+          disabled={disabled}
+          className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-3 py-2 text-sm disabled:opacity-50"
+        />
+        {categorias.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              setEscribiendo(false);
+              onChange(categorias[0].name);
+            }}
+            className="shrink-0 text-xs font-medium text-brand-500 hover:text-brand-600"
+          >
+            Usar una existente
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <select
+      value={value}
+      disabled={disabled}
+      onChange={(e) => {
+        if (e.target.value === '__nueva__') {
+          setEscribiendo(true);
+          onChange('');
+          return;
+        }
+        onChange(e.target.value);
+      }}
+      className="mt-1 w-full rounded-lg border border-brand-950/15 px-3 py-2 text-sm disabled:opacity-50"
+    >
+      {categorias.map((c) => (
+        <option key={c.id} value={c.name}>
+          {c.name}
+        </option>
+      ))}
+      <option value="__nueva__">+ Crear una categoría nueva…</option>
+    </select>
+  );
+}
+
+/**
+ * Tamaños y modificadores de un plato, dentro de la carga asistida.
+ *
+ * Van juntos y colapsados porque la mayoría de los platos no llevan ninguno de los dos, y
+ * desplegarlos siempre convertía cada tarjeta en una pantalla entera. Los tamaños van primero
+ * porque los grupos se acotan a ellos: no se puede decir "solo en la grande" antes de que la
+ * grande exista.
+ */
+function TamanosYModificadores({ plato, onChange }: { plato: Plato; onChange: (patch: Partial<Plato>) => void }) {
+  const [abierto, setAbierto] = useState(false);
+  const resumen =
+    plato.tamanos.length === 0 && plato.modificadores.length === 0
+      ? 'ninguno'
+      : [
+          plato.tamanos.length ? `${plato.tamanos.length} tamaño${plato.tamanos.length === 1 ? '' : 's'}` : null,
+          plato.modificadores.length
+            ? `${plato.modificadores.length} grupo${plato.modificadores.length === 1 ? '' : 's'}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(' · ');
+
+  if (!abierto) {
+    return (
+      <button
+        type="button"
+        onClick={() => setAbierto(true)}
+        className="flex items-center gap-1.5 text-sm font-medium text-brand-500 hover:text-brand-600"
+      >
+        <Plus className="h-4 w-4" /> Tamaños y modificadores ({resumen})
+      </button>
+    );
+  }
+
+  const nombresTamanos = plato.tamanos.map((t) => t.nombre.trim()).filter(Boolean);
+
+  function editarGrupo(idx: number, patch: Partial<GrupoModificador>) {
+    onChange({ modificadores: plato.modificadores.map((g, i) => (i === idx ? { ...g, ...patch } : g)) });
+  }
+
+  return (
+    <div className="space-y-3 rounded-xl border border-brand-950/10 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium text-brand-950/70">Tamaños y modificadores</p>
+        <button type="button" onClick={() => setAbierto(false)} className="text-xs text-brand-950/40 hover:text-brand-950">
+          Ocultar
+        </button>
+      </div>
+
+      {/* --- Tamaños --- */}
+      <div>
+        <p className="text-xs text-brand-950/60">
+          Tamaños {plato.tamanos.length > 0 && <span className="text-brand-950/40">— el precio de arriba deja de usarse</span>}
+        </p>
+        <ul className="mt-1 space-y-1.5">
+          {plato.tamanos.map((t, i) => (
+            <li key={i} className="grid grid-cols-[1fr_6rem_auto] items-center gap-2">
+              <input
+                value={t.nombre}
+                onChange={(e) =>
+                  onChange({ tamanos: plato.tamanos.map((x, j) => (j === i ? { ...x, nombre: e.target.value } : x)) })
+                }
+                placeholder="Ej: Grande"
+                className="min-w-0 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+              />
+              <input
+                value={t.precio}
+                onChange={(e) =>
+                  onChange({
+                    tamanos: plato.tamanos.map((x, j) =>
+                      j === i ? { ...x, precio: e.target.value.replace(/[^0-9.]/g, '') } : x,
+                    ),
+                  })
+                }
+                placeholder="Precio"
+                inputMode="decimal"
+                className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => onChange({ tamanos: plato.tamanos.filter((_, j) => j !== i) })}
+                className="text-brand-950/30 hover:text-red-500"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </li>
+          ))}
+        </ul>
+        <button
+          type="button"
+          onClick={() => onChange({ tamanos: [...plato.tamanos, { nombre: '', precio: '' }] })}
+          className="mt-1.5 flex items-center gap-1.5 text-sm font-medium text-brand-500 hover:text-brand-600"
+        >
+          <Plus className="h-4 w-4" /> Añadir tamaño
+        </button>
+      </div>
+
+      {/* --- Grupos de modificadores --- */}
+      <div className="border-t border-brand-950/10 pt-3">
+        <p className="text-xs text-brand-950/60">Grupos de modificadores</p>
+        <div className="mt-1 space-y-3">
+          {plato.modificadores.map((g, i) => (
+            <div key={i} className="space-y-2 rounded-lg bg-brand-950/[0.03] p-2.5">
+              <div className="flex items-center gap-2">
+                <input
+                  value={g.nombre}
+                  onChange={(e) => editarGrupo(i, { nombre: e.target.value })}
+                  placeholder="Ej: Término de la carne"
+                  className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => onChange({ modificadores: plato.modificadores.filter((_, j) => j !== i) })}
+                  className="text-brand-950/30 hover:text-red-500"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-4 text-xs">
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    checked={g.obligatorio}
+                    onChange={(e) => editarGrupo(i, { obligatorio: e.target.checked })}
+                  />
+                  Obligatorio
+                </label>
+                <label className="flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    checked={g.permiteVarias}
+                    onChange={(e) => editarGrupo(i, { permiteVarias: e.target.checked })}
+                  />
+                  Permite varias
+                </label>
+              </div>
+
+              {/* En qué tamaños se ofrece. Solo aparece si el plato tiene tamaños: sin ellos no
+                  hay entre qué elegir y el grupo va en el plato entero. */}
+              {nombresTamanos.length > 0 && (
+                <div>
+                  <span className="text-[11px] text-brand-950/40">¿En qué tamaños?</span>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => editarGrupo(i, { tamanos: [] })}
+                      className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+                        g.tamanos.length === 0
+                          ? 'border-brand-500 bg-brand-500 text-white'
+                          : 'border-brand-950/15 text-brand-950/60'
+                      }`}
+                    >
+                      Todos
+                    </button>
+                    {nombresTamanos.map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() =>
+                          editarGrupo(i, {
+                            tamanos: g.tamanos.includes(n) ? g.tamanos.filter((x) => x !== n) : [...g.tamanos, n],
+                          })
+                        }
+                        className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+                          g.tamanos.includes(n)
+                            ? 'border-brand-500 bg-brand-500 text-white'
+                            : 'border-brand-950/15 text-brand-950/60'
+                        }`}
+                      >
+                        {n}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <ul className="space-y-1.5">
+                {g.opciones.map((o, k) => (
+                  <li key={k} className="grid grid-cols-[1fr_6rem_auto] items-center gap-2">
+                    <input
+                      value={o.nombre}
+                      onChange={(e) =>
+                        editarGrupo(i, {
+                          opciones: g.opciones.map((x, j) => (j === k ? { ...x, nombre: e.target.value } : x)),
+                        })
+                      }
+                      placeholder="Ej: Término medio"
+                      className="min-w-0 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                    />
+                    <input
+                      value={o.precio}
+                      onChange={(e) =>
+                        editarGrupo(i, {
+                          opciones: g.opciones.map((x, j) =>
+                            j === k ? { ...x, precio: e.target.value.replace(/[^0-9.]/g, '') } : x,
+                          ),
+                        })
+                      }
+                      placeholder="+ precio"
+                      inputMode="decimal"
+                      className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => editarGrupo(i, { opciones: g.opciones.filter((_, j) => j !== k) })}
+                      className="text-brand-950/30 hover:text-red-500"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              <button
+                type="button"
+                onClick={() => editarGrupo(i, { opciones: [...g.opciones, { nombre: '', precio: '' }] })}
+                className="flex items-center gap-1.5 text-xs font-medium text-brand-500 hover:text-brand-600"
+              >
+                <Plus className="h-3.5 w-3.5" /> Añadir opción
+              </button>
+            </div>
+          ))}
+        </div>
+        <button
+          type="button"
+          onClick={() =>
+            onChange({
+              modificadores: [
+                ...plato.modificadores,
+                { nombre: '', obligatorio: false, permiteVarias: false, tamanos: [], opciones: [] },
+              ],
+            })
+          }
+          className="mt-2 flex items-center gap-1.5 text-sm font-medium text-brand-500 hover:text-brand-600"
+        >
+          <Plus className="h-4 w-4" /> Añadir grupo de modificadores
+        </button>
+      </div>
     </div>
   );
 }

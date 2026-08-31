@@ -30,6 +30,30 @@ export const confirmarCatalogoSchema = z.object({
             }),
           )
           .default([]),
+        // Tamaños del plato (Pequeña/Mediana/Grande). Si van, el producto pasa a "por variantes"
+        // y `precio` queda solo como referencia.
+        tamanos: z
+          .array(z.object({ nombre: z.string().min(1).max(60), precio: z.coerce.number().nonnegative() }))
+          .max(12)
+          .default([]),
+        // Grupos de modificadores del plato. `tamanos` dentro de cada grupo son NOMBRES de los
+        // tamaños de arriba (no ids: todavía no existen cuando el operador arma esto);
+        // vacío = el grupo va en todos.
+        modificadores: z
+          .array(
+            z.object({
+              nombre: z.string().min(1).max(120),
+              obligatorio: z.boolean().default(false),
+              permiteVarias: z.boolean().default(false),
+              tamanos: z.array(z.string().min(1).max(60)).default([]),
+              opciones: z
+                .array(z.object({ nombre: z.string().min(1).max(120), precio: z.coerce.number().default(0) }))
+                .max(50)
+                .default([]),
+            }),
+          )
+          .max(20)
+          .default([]),
       }),
     )
     .min(1, 'No hay productos que cargar.')

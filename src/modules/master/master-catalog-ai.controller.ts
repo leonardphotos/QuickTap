@@ -5,6 +5,10 @@ import { analizarPlatoSchema, confirmarCatalogoSchema } from './master-catalog-a
 import { masterCatalogAiService } from './master-catalog-ai.service';
 
 export const masterCatalogAiController = {
+  categorias: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await masterCatalogAiService.categorias(req.params.restaurantId) });
+  }),
+
   analizar: asyncHandler(async (req: Request, res: Response) => {
     if (!req.file) throw badRequest('Sube una foto del plato.');
     const { nombre, mejorarFoto } = analizarPlatoSchema.parse(req.body);

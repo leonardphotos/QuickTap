@@ -88,6 +88,20 @@ async function llamarServicioIA(endpoint: string, file: Express.Multer.File, cam
 
 export const masterCatalogAiService = {
   /**
+   * Las categorías que el cliente YA tiene, para colgar los platos nuevos de las suyas en vez
+   * de inventarle una carta paralela: un local que ya tiene "Hamburguesas" no necesita que le
+   * aparezca "General" al lado con lo mismo adentro.
+   */
+  async categorias(restaurantId: string) {
+    await restauranteOThrow(restaurantId);
+    return prisma.category.findMany({
+      where: { restaurantId },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    });
+  },
+
+  /**
    * Mira la foto y propone plato + descripción + ingredientes. NO escribe en la base.
    *
    * `mejorarFoto` pasa además la imagen por el retoque de Gemini. Va aparte porque es la
@@ -157,13 +171,29 @@ export const masterCatalogAiService = {
       descripcion?: string;
       photoUrl?: string;
       ingredientes: { nombre: string; unidad: string; cantidad: number }[];
+      tamanos?: { nombre: string; precio: number }[];
+      modificadores?: {
+        nombre: string;
+        obligatorio: boolean;
+        permiteVarias: boolean;
+        /** Nombres de los tamaños en los que aplica. Vacío = en todos. */
+        tamanos: string[];
+        opciones: { nombre: string; precio: number }[];
+      }[];
     }[],
   ) {
     await restauranteOThrow(restaurantId);
     if (productos.length === 0) throw badRequest('No hay productos que cargar.');
 
     const inventarioDe = await resolveInventoryScopeById(restaurantId);
-    const resultado = { productosCreados: 0, productosActualizados: 0, insumosCreados: 0, lineasReceta: 0 };
+    const resultado = {
+      productosCreados: 0,
+      productosActualizados: 0,
+      insumosCreados: [] as string[],
+      lineasReceta: 0,
+      tamanosCreados: 0,
+      gruposCreados: 0,
+    };
 
     // Índices por nombre normalizado, para no consultar la base por cada línea.
     const categorias = new Map<string, string>();
@@ -196,6 +226,7 @@ export const masterCatalogAiService = {
         ...(p.photoUrl ? { photoUrl: p.photoUrl } : {}),
         // Con receta armada, el costo del plato sale de ella y no de un número a mano.
         costSource: 'RECIPE' as const,
+        pricingMode: (p.tamanos?.length ? 'VARIANTS' : 'SIMPLE') as 'VARIANTS' | 'SIMPLE',
       };
 
       const existente = await prisma.product.findFirst({
@@ -213,6 +244,70 @@ export const masterCatalogAiService = {
         resultado.productosCreados += 1;
       }
 
+      // --- Tamaños ---------------------------------------------------------------------
+      // Se crean o actualizan por nombre. No se borran los que el producto ya tuviera: un
+      // tamaño viejo puede estar referenciado por pedidos y recetas, y esto es una carga
+      // asistida, no una migración que deba dejar el plato idéntico a la propuesta.
+      const variantePorNombre = new Map<string, string>();
+      for (const v of await prisma.productVariant.findMany({ where: { productId }, select: { id: true, name: true } })) {
+        variantePorNombre.set(clave(v.name), v.id);
+      }
+      for (const t of p.tamanos ?? []) {
+        const nombreT = t.nombre.trim();
+        if (!nombreT) continue;
+        const existenteId = variantePorNombre.get(clave(nombreT));
+        if (existenteId) {
+          await prisma.productVariant.update({ where: { id: existenteId }, data: { priceBase: toDecimal(t.precio || 0) } });
+        } else {
+          const creada = await prisma.productVariant.create({
+            data: { restaurantId, productId, name: nombreT, priceBase: toDecimal(t.precio || 0) },
+          });
+          variantePorNombre.set(clave(nombreT), creada.id);
+          resultado.tamanosCreados += 1;
+        }
+      }
+
+      // --- Modificadores ----------------------------------------------------------------
+      // Los grupos son del RESTAURANTE, no del plato: se reusa el que ya exista con ese nombre
+      // (así "Extras" es uno solo en toda la carta) y solo se le agregan las opciones que le
+      // falten. Al plato se le engancha el vínculo, con los tamaños en los que aplica.
+      for (const g of p.modificadores ?? []) {
+        const nombreG = g.nombre.trim();
+        if (!nombreG) continue;
+        let grupo = await prisma.modifierCategory.findFirst({
+          where: { restaurantId, name: { equals: nombreG, mode: 'insensitive' } },
+          select: { id: true },
+        });
+        if (!grupo) {
+          grupo = await prisma.modifierCategory.create({
+            data: { restaurantId, name: nombreG, isRequired: g.obligatorio, allowMultiple: g.permiteVarias },
+            select: { id: true },
+          });
+          resultado.gruposCreados += 1;
+        }
+        const opcionesExistentes = new Set(
+          (
+            await prisma.modifier.findMany({ where: { categoryId: grupo.id }, select: { name: true } })
+          ).map((m) => clave(m.name)),
+        );
+        for (const o of g.opciones) {
+          const nombreO = o.nombre.trim();
+          if (!nombreO || opcionesExistentes.has(clave(nombreO))) continue;
+          await prisma.modifier.create({
+            data: { restaurantId, categoryId: grupo.id, name: nombreO, priceBase: toDecimal(o.precio || 0) },
+          });
+          opcionesExistentes.add(clave(nombreO));
+        }
+        // Los tamaños llegan por NOMBRE porque cuando el operador armó esto todavía no existían
+        // sus ids. Un nombre que no corresponde a ningún tamaño se ignora en vez de romper.
+        const variantIds = g.tamanos.map((n) => variantePorNombre.get(clave(n))).filter((x): x is string => !!x);
+        await prisma.productModifierCategory.upsert({
+          where: { productId_modifierCategoryId: { productId, modifierCategoryId: grupo.id } },
+          create: { productId, modifierCategoryId: grupo.id, variantIds },
+          update: { variantIds },
+        });
+      }
+
       // Insumos que falten. Sin costo y sin stock: son datos del cliente.
       for (const ing of p.ingredientes) {
         const nombreIng = ing.nombre.trim();
@@ -222,7 +317,7 @@ export const masterCatalogAiService = {
           data: { restaurantId: inventarioDe, name: nombreIng, unit: ing.unidad, quantity: 0, minQuantity: 0 },
         });
         insumos.set(clave(nombreIng), creado.id);
-        resultado.insumosCreados += 1;
+        resultado.insumosCreados.push(creado.name);
       }
 
       // Las líneas de receta se rehacen: si el operador quitó un ingrediente al revisar, no

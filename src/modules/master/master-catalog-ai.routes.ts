@@ -17,6 +17,7 @@ import { masterCatalogAiController } from './master-catalog-ai.controller';
 const router = Router();
 router.use(platformAuthGuard);
 
+router.get('/:restaurantId/categorias', masterCatalogAiController.categorias);
 router.post('/:restaurantId/analizar', uploadPhotoToMemory, masterCatalogAiController.analizar);
 router.post('/:restaurantId/confirmar', masterCatalogAiController.confirmar);
 
