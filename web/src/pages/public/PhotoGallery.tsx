@@ -4,7 +4,7 @@ import type { PanInfo } from 'motion/react';
 import { ChevronRight, X } from 'lucide-react';
 import type { CartLine, ModifierCategory, Product, Restaurant, SelectedModifier } from '../../types';
 import { formatBase, formatModifierLabel, modifierSelectionKey, publicPriceLabel } from '../../utils/format';
-import { effectiveMax, effectiveMin } from '../../utils/modifierLimits';
+import { effectiveMax, effectiveMin, effectiveModifierPrice } from '../../utils/modifierLimits';
 
 interface Props {
   products: Product[];
@@ -73,7 +73,15 @@ export default function PhotoGallery({
   const chosenModifiers: SelectedModifier[] = modifierCategories.flatMap((c) =>
     c.modifiers
       .filter((m) => (selectedQty[m.id] ?? 0) > 0)
-      .map((m) => ({ modifierId: m.id, name: m.name, priceBase: m.priceBase, quantity: selectedQty[m.id] })),
+      // effectiveModifierPrice y no m.priceBase: un modificador puede costar distinto según el
+      // tamaño elegido, y el servidor cobra ESE precio al crear el pedido. Con el precio base
+      // acá, el cliente veía un total en la galería y le llegaba otro.
+      .map((m) => ({
+        modifierId: m.id,
+        name: m.name,
+        priceBase: String(effectiveModifierPrice(m, selectedVariant?.id)),
+        quantity: selectedQty[m.id],
+      })),
   );
   const modifiersTotal = chosenModifiers.reduce((acc, m) => acc + Number(m.priceBase) * m.quantity, 0);
   const unitPrice = basePrice + modifiersTotal;
@@ -367,6 +375,7 @@ export default function PhotoGallery({
                             {category.modifiers.map((m) => {
                               const qty = selectedQty[m.id] ?? 0;
                               const selected = qty > 0;
+                              const modPrice = effectiveModifierPrice(m, selectedVariant?.id);
                               const atCap =
                                 category.allowMultiple &&
                                 (categoryTotal(category) >= effectiveMax(category) || qty >= (m.maxQuantity ?? Infinity));
@@ -382,9 +391,9 @@ export default function PhotoGallery({
                                   <span className="font-medium text-sm">
                                     {formatModifierLabel({ name: m.name, quantity: qty || undefined })}
                                   </span>
-                                  {Number(m.priceBase) > 0 && (
+                                  {modPrice > 0 && (
                                     <span className={`text-sm shrink-0 ${selected ? 'text-neutral-500' : 'text-white/50'}`}>
-                                      +{formatBase(m.priceBase, restaurant.currencySymbol)}
+                                      +{formatBase(modPrice, restaurant.currencySymbol)}
                                     </span>
                                   )}
                                 </button>
