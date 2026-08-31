@@ -19,6 +19,8 @@ export const reorderModifiersSchema = z.object({
 
 export const updateProductLinkSchema = z.object({
   maxSelectionsOverride: z.coerce.number().int().positive().nullable().optional(),
+  // Tamaños en los que aparece este grupo para ESTE producto. Vacío = en todos.
+  variantIds: z.array(z.string().min(1)).optional(),
 });
 
 const modifierBaseSchema = z.object({

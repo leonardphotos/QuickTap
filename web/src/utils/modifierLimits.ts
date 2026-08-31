@@ -28,3 +28,16 @@ export function effectiveModifierPrice(modifier: Modifier, variantId?: string | 
   }
   return Number(modifier.priceBase);
 }
+
+/**
+ * ¿Este grupo de modificadores se ofrece en el tamaño elegido?
+ *
+ * `variantIds` vacío o ausente = en todos los tamaños, que es como se comportaba antes de que
+ * el grupo pudiera acotarse por variante. Vive acá para que las tres pantallas que arman un
+ * pedido (menú público, galería de fotos y el diálogo del panel) decidan igual — y para que
+ * coincidan con lo que valida el servidor en priceModifierSelection, que es quien manda.
+ */
+export function aplicaAlTamano(category: ModifierCategory, variantId?: string | null): boolean {
+  if (!category.variantIds || category.variantIds.length === 0) return true;
+  return variantId != null && category.variantIds.includes(variantId);
+}

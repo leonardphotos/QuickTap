@@ -1240,6 +1240,11 @@ model ProductModifierCategory {
   priority              Int    @default(0)
   // Sobreescribe ModifierCategory.maxSelections solo para este producto. null = usa el de la categoría.
   maxSelectionsOverride Int?
+  // Tamaños (ProductVariant) en los que aparece este grupo. VACÍO = en todos, que es como se
+  // comportaba antes de existir esta columna y por eso es el valor por defecto: los grupos ya
+  // asociados siguen saliendo en todas las variantes sin tocar nada.
+  // Ej: "Término de la carne" solo en las hamburguesas dobles y triples, no en la sencilla.
+  variantIds            String[] @default([])
 
   product          Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
   modifierCategory ModifierCategory @relation(fields: [modifierCategoryId], references: [id], onDelete: Cascade)

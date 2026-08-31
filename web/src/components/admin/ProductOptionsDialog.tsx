@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { formatBase } from '@/utils/format';
-import { effectiveModifierPrice } from '@/utils/modifierLimits';
+import { effectiveModifierPrice, aplicaAlTamano } from '@/utils/modifierLimits';
 import type { CartLine, ComboComponentInfo, ComboSelection, ModifierCategory, Product, SelectedModifier } from '@/types';
 
 interface Props {
@@ -101,8 +101,11 @@ export function ProductOptionsDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product]);
 
-  const modifierCategories = product.modifierCategories ?? [];
   const selectedVariant = product.pricingMode === 'VARIANTS' ? product.variants?.find((v) => v.id === selectedVariantId) : undefined;
+  // Solo los grupos que se ofrecen en el tamaño elegido. Filtrar acá y no en cada uso hace que
+  // todo lo de abajo (lo elegido, los obligatorios que faltan, el total) mire la misma lista:
+  // un grupo que no aplica no puede exigirse ni cobrarse, y el servidor lo rechaza igual.
+  const modifierCategories = (product.modifierCategories ?? []).filter((c) => aplicaAlTamano(c, selectedVariant?.id));
   const basePrice = selectedVariant ? Number(selectedVariant.priceBase) : Number(product.price);
   const chosenModifiers: SelectedModifier[] = modifierCategories.flatMap((c) =>
     c.modifiers

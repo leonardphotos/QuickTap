@@ -71,6 +71,7 @@ function serializeProduct<
     stockQuantity: number | null;
     modifierCategories: {
       maxSelectionsOverride: number | null;
+      variantIds: string[];
       modifierCategory: {
         id: string;
         name: string;
@@ -92,6 +93,7 @@ function serializeProduct<
         isAvailable: boolean;
         modifierCategories: {
           maxSelectionsOverride: number | null;
+          variantIds: string[];
           modifierCategory: { maxSelections: number | null } & Record<string, unknown>;
         }[];
       };
@@ -104,6 +106,7 @@ function serializeProduct<
     modifierCategories: modifierCategories.map((link) => ({
       ...link.modifierCategory,
       maxSelections: link.maxSelectionsOverride ?? link.modifierCategory.maxSelections,
+      variantIds: link.variantIds,
     })),
     comboComponents: (comboComponents ?? []).map((c) => ({
       componentProductId: c.componentProductId,
@@ -113,6 +116,7 @@ function serializeProduct<
       modifierCategories: c.componentProduct.modifierCategories.map((link) => ({
         ...link.modifierCategory,
         maxSelections: link.maxSelectionsOverride ?? link.modifierCategory.maxSelections,
+        variantIds: link.variantIds,
       })),
     })),
   };

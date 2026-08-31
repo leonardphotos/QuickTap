@@ -95,6 +95,8 @@ type ProductForPricing = {
   name: string;
   modifierCategories: {
     maxSelectionsOverride: number | null;
+    /** Tamaños en los que aplica el grupo. Vacío = en todos. */
+    variantIds: string[];
     modifierCategory: {
       name: string;
       isRequired: boolean;
@@ -125,8 +127,21 @@ function priceModifierSelection(product: ProductForPricing, modifierIds: string[
     idCounts.set(id, (idCounts.get(id) ?? 0) + 1);
   }
   const modifierLines: PricedLineModifier[] = [];
+  // Grupos que NO aplican al tamaño elegido: se guardan para reventar después si el cliente
+  // mandó igual una de sus opciones. Se valida acá y no solo en la pantalla porque el pedido
+  // entra por HTTP: sin esto se podría pedir "Término de la carne" en una hamburguesa sencilla
+  // que no lo ofrece, y la cocina recibiría una comanda imposible.
+  const opcionesNoOfrecidas = new Map<string, string>();
   for (const link of product.modifierCategories) {
     const category = link.modifierCategory;
+    // variantIds vacío = el grupo va en todos los tamaños (comportamiento de siempre).
+    const aplicaAlTamano = link.variantIds.length === 0 || (variantId != null && link.variantIds.includes(variantId));
+    if (!aplicaAlTamano) {
+      for (const m of category.modifiers) {
+        if (idCounts.has(m.id)) opcionesNoOfrecidas.set(m.name, category.name);
+      }
+      continue;
+    }
     const chosen = category.modifiers.filter((m) => idCounts.has(m.id));
     const totalSelected = chosen.reduce((acc, m) => acc + (idCounts.get(m.id) ?? 0), 0);
     // isRequired manda: una categoría marcada "Opcional" nunca debe bloquear el carrito, así
@@ -159,6 +174,10 @@ function priceModifierSelection(product: ProductForPricing, modifierIds: string[
         quantity: chosenQty,
       });
     }
+  }
+  if (opcionesNoOfrecidas.size > 0) {
+    const [nombre, grupo] = [...opcionesNoOfrecidas.entries()][0];
+    throw badRequest(`"${nombre}" (${grupo}) no está disponible en el tamaño elegido de "${product.name}".`);
   }
   return modifierLines;
 }

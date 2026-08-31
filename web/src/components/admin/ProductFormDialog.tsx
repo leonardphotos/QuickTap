@@ -631,6 +631,7 @@ export function ProductFormDialog({
                                 key={c.id}
                                 category={c}
                                 productId={product!.id}
+                                variants={pricingMode === 'VARIANTS' ? variants : []}
                                 onDissociate={() => dissociateCategory(c.id)}
                               />
                             ))}
@@ -1023,20 +1024,38 @@ export function ProductFormDialog({
 function LinkedCategoryRow({
   category,
   productId,
+  variants,
   onDissociate,
 }: {
   category: ModifierCategory;
   productId: string;
+  /** Tamaños del producto. Vacío = producto de precio simple, no hay nada que acotar. */
+  variants: ProductVariant[];
   onDissociate: () => void;
 }) {
   const [maxSelections, setMaxSelectionsInput] = useState(category.maxSelections?.toString() ?? '');
+  // Vacío = el grupo va en todos los tamaños. Es el valor de siempre y el que conviene por
+  // defecto: acotar es la excepción ("Término de la carne" solo en la doble y la triple).
+  const [variantIds, setVariantIds] = useState<string[]>(category.variantIds ?? []);
+  const [guardandoTamanos, setGuardandoTamanos] = useState(false);
 
   useEffect(() => setMaxSelectionsInput(category.maxSelections?.toString() ?? ''), [category.id, category.maxSelections]);
+  useEffect(() => setVariantIds(category.variantIds ?? []), [category.id, category.variantIds]);
 
   async function saveOverride() {
     const n = maxSelections.trim() === '' ? null : Number(maxSelections);
     if (n === (category.maxSelections ?? null)) return;
     await api.patch(`/modifier-categories/${category.id}/products/${productId}`, { maxSelectionsOverride: n });
+  }
+
+  async function guardarTamanos(ids: string[]) {
+    setVariantIds(ids);
+    setGuardandoTamanos(true);
+    try {
+      await api.patch(`/modifier-categories/${category.id}/products/${productId}`, { variantIds: ids });
+    } finally {
+      setGuardandoTamanos(false);
+    }
   }
 
   return (
@@ -1059,6 +1078,47 @@ function LinkedCategoryRow({
             className="mt-0.5 w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1"
           />
         </label>
+      )}
+
+      {/* En qué tamaños se ofrece. Solo tiene sentido con variantes: en un producto de precio
+          simple no hay entre qué elegir. Se guarda al tocar, como el resto de esta sección. */}
+      {variants.length > 0 && (
+        <div>
+          <span className="text-[11px] text-brand-950/40">
+            ¿En qué tamaños? {guardandoTamanos && <span className="text-brand-500">guardando…</span>}
+          </span>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={() => void guardarTamanos([])}
+              className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+                variantIds.length === 0
+                  ? 'border-brand-500 bg-brand-500 text-white'
+                  : 'border-brand-950/15 text-brand-950/60'
+              }`}
+            >
+              Todos
+            </button>
+            {variants.map((v) => (
+              <button
+                key={v.id}
+                type="button"
+                onClick={() =>
+                  void guardarTamanos(
+                    variantIds.includes(v.id) ? variantIds.filter((x) => x !== v.id) : [...variantIds, v.id],
+                  )
+                }
+                className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+                  variantIds.includes(v.id)
+                    ? 'border-brand-500 bg-brand-500 text-white'
+                    : 'border-brand-950/15 text-brand-950/60'
+                }`}
+              >
+                {v.name}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
     </li>
   );

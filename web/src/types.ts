@@ -209,6 +209,9 @@ export interface ModifierCategory {
    * (1 si isRequired, 0 si no). */
   minSelections?: number | null;
   priority?: number;
+  /** Tamaños (variantes) de ESTE producto en los que aparece el grupo. Vacío/ausente = en todos.
+   *  Solo llega dentro de un producto; en la biblioteca de Modificadores no aplica. */
+  variantIds?: string[];
   /** Cuántos productos tienen esta categoría asociada (solo en la biblioteca de Modificadores). */
   productCount?: number;
   modifiers: Modifier[];

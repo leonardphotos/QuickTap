@@ -128,6 +128,7 @@ export const menuService = {
               orderBy: { priority: 'asc' },
               select: {
                 maxSelectionsOverride: true,
+                variantIds: true,
                 modifierCategory: {
                   select: {
                     id: true,
@@ -167,6 +168,7 @@ export const menuService = {
                       orderBy: { priority: 'asc' },
                       select: {
                         maxSelectionsOverride: true,
+                        variantIds: true,
                         modifierCategory: {
                           select: {
                             id: true,
@@ -238,6 +240,7 @@ export const menuService = {
               isRequired: link.modifierCategory.isRequired,
               allowMultiple: link.modifierCategory.allowMultiple,
               maxSelections: link.maxSelectionsOverride ?? link.modifierCategory.maxSelections,
+            variantIds: link.variantIds,
               minSelections: link.modifierCategory.minSelections,
               modifiers: link.modifierCategory.modifiers.map((m) => ({
                 id: m.id,
@@ -254,6 +257,7 @@ export const menuService = {
             isRequired: link.modifierCategory.isRequired,
             allowMultiple: link.modifierCategory.allowMultiple,
             maxSelections: link.maxSelectionsOverride ?? link.modifierCategory.maxSelections,
+            variantIds: link.variantIds,
             minSelections: link.modifierCategory.minSelections,
             modifiers: link.modifierCategory.modifiers.map((m) => ({
               id: m.id,

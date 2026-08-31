@@ -3,7 +3,7 @@ import type { MouseEvent } from 'react';
 import { Check, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import type { CartLine, ComboSelection, ModifierCategory, Product, Restaurant, SelectedModifier } from '../../types';
 import { formatBase, productDisplayPriceBase, publicPriceLabel } from '../../utils/format';
-import { effectiveMax, effectiveMin, effectiveModifierPrice } from '../../utils/modifierLimits';
+import { effectiveMax, effectiveMin, effectiveModifierPrice, aplicaAlTamano } from '../../utils/modifierLimits';
 import { ComboInstancePicker } from '@/components/admin/ProductOptionsDialog';
 import {
   FamilyDrawerRoot,
@@ -91,9 +91,12 @@ export default function ProductDetailSheet({
 
   if (!product) return null;
 
-  const modifierCategories = product.modifierCategories ?? [];
   const selectedVariant =
     product.pricingMode === 'VARIANTS' ? product.variants?.find((v) => v.id === selectedVariantId) : undefined;
+  // Solo los grupos que se ofrecen en el tamaño elegido. Filtrar acá y no en cada uso hace que
+  // todo lo de abajo (lo elegido, los obligatorios que faltan, el total) mire la misma lista:
+  // un grupo que no aplica no puede exigirse ni cobrarse, y el servidor lo rechaza igual.
+  const modifierCategories = (product.modifierCategories ?? []).filter((c) => aplicaAlTamano(c, selectedVariant?.id));
   const basePrice = selectedVariant ? Number(selectedVariant.priceBase) : Number(product.price);
   const chosenModifiers: SelectedModifier[] = modifierCategories.flatMap((c) =>
     c.modifiers
