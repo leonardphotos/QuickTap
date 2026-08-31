@@ -7,6 +7,7 @@ import { UPLOADS_DIR } from '../../middlewares/upload.middleware';
 import { resolveInventoryScopeById } from '../inventory/inventory-scope';
 import { buildCostGraph, resolveCostPerBaseUnit } from '../inventory/costing';
 import { round2 } from '../../utils/money';
+import { claveNombre as clave } from '../../utils/nombre-clave';
 import {
   cellBoolean,
   cellNumber,
@@ -122,14 +123,6 @@ export interface CatalogImportResult {
 }
 
 /** Normaliza para comparar nombres: sin acentos, sin espacios de más, en minúscula. */
-function clave(texto: string): string {
-  return texto
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ');
-}
 
 /**
  * Guarda una imagen que venía pegada en el Excel y devuelve su ruta pública.
