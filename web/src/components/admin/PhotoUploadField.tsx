@@ -47,6 +47,16 @@ export function PhotoUploadField({
   aiEnabled = false,
 }: Props) {
   const [preview, setPreview] = useState<string | null>(value ?? null);
+  // `preview` puede adelantarse a `value` (mientras se sube, muestra la imagen local), así que
+  // no es simplemente la prop. Pero tampoco puede ignorarla: si no, al cerrar la ventana de un
+  // producto y abrir otro —o "Nuevo producto"— seguía viéndose la foto del anterior, con el
+  // formulario en realidad vacío. Se resincroniza solo cuando la prop cambia desde afuera, que
+  // es lo que distingue "cambiamos de producto" de "estoy subiendo una foto".
+  const [valueVisto, setValueVisto] = useState<string | null>(value ?? null);
+  if ((value ?? null) !== valueVisto) {
+    setValueVisto(value ?? null);
+    setPreview(value ?? null);
+  }
   const [uploading, setUploading] = useState(false);
   const [aiProcessing, setAiProcessing] = useState<'enhance' | 'white-background' | null>(null);
   const [error, setError] = useState<string | null>(null);

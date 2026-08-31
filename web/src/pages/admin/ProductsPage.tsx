@@ -1,6 +1,6 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { ChefHat, ListPlus, Pencil, Plus, Search, Tag, Trash2, X } from 'lucide-react';
+import { ListPlus, Pencil, Plus, Search, Tag, Trash2, X } from 'lucide-react';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import type { Category, Kitchen, Product } from '../../types';
@@ -10,13 +10,6 @@ import { TextureCard } from '@/components/ui/texture-card';
 import { ProductFormDialog } from '@/components/admin/ProductFormDialog';
 import { CategoryDialog } from '@/components/admin/CategoryDialog';
 import { ModifierCategoriesDialog } from '@/components/admin/ModifierCategoriesDialog';
-import type { InventoryItem } from './InventoryPage';
-// Diferido: RecetasTab vive dentro de InventoryPage (94 KB) y con el import fijo ese trozo se
-// descargaba al abrir Productos, aunque casi nadie entra a tocar recetas. Solo baja al abrir
-// el diálogo. RecetasTab es una exportación nombrada, de ahí el .then que la vuelve default.
-const RecetasTab = lazy(() => import('./InventoryPage').then((m) => ({ default: m.RecetasTab })));
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { hasFeature } from '@/utils/subscription';
 
 /** Minúsculas y sin acentos, para que el buscador no dependa de cómo se tipeó. */
 function normalize(value: string | null | undefined): string {
@@ -37,8 +30,6 @@ export default function ProductsPage() {
   const [modifiersDialogOpen, setModifiersDialogOpen] = useState(false);
   // Recetario, abierto desde acá además de desde Inventario: la receta es del PLATO, así que
   // pedirle al dueño que salga del catálogo para armarla parte en dos el mismo trabajo.
-  const [recetasDialogOpen, setRecetasDialogOpen] = useState(false);
-  const [insumos, setInsumos] = useState<InventoryItem[]>([]);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [query, setQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
@@ -51,11 +42,21 @@ export default function ProductsPage() {
   >(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  /** Platos sin receta. null = este restaurante no cobra por receta, no se marca nada. */
+  const [sinReceta, setSinReceta] = useState<Set<string> | null>(null);
 
   function load() {
     api.get('/products').then((res) => setProducts(res.data.data));
     api.get('/categories').then((res) => setCategories(res.data.data));
     api.get('/kitchens').then((res) => setKitchens(res.data.data));
+    // Qué platos ya tienen receta. Reemplaza al filtro "Sin receta" que vivía en la pestaña de
+    // Inventario: ahora que la receta se arma dentro del producto, lo que falta se ve acá mismo.
+    // Falla en silencio: sin el plan que incluye recetas la ruta responde 403 y la marca
+    // simplemente no aparece, que es justo lo que corresponde.
+    api
+      .get('/inventory/recipes')
+      .then((res) => setSinReceta(new Set((res.data.data as { productId: string; hasRecipe: boolean }[]).filter((r) => !r.hasRecipe).map((r) => r.productId))))
+      .catch(() => setSinReceta(null));
   }
 
   useEffect(load, []);
@@ -95,20 +96,6 @@ export default function ProductsPage() {
     } finally {
       setBulkDeleting(false);
     }
-  }
-
-  // El recetario solo existe en los planes con inventario por receta (mismo criterio que la
-  // pestaña de Inventario), así que el botón no aparece donde no aplica.
-  const puedeRecetas = hasFeature(restaurant, 'inventoryRecipe');
-
-  /** Los insumos se piden al abrir y no al cargar la pantalla: quien solo viene a editar un
-   *  precio no tiene por qué pagar esa consulta. Mismo alcance LOCAL que usa Inventario. */
-  function abrirRecetas() {
-    setRecetasDialogOpen(true);
-    api
-      .get('/inventory', { params: { locationScope: 'LOCAL' } })
-      .then((res) => setInsumos(res.data.data))
-      .catch(() => setInsumos([]));
   }
 
   function openCreate() {
@@ -154,6 +141,10 @@ export default function ProductsPage() {
 
   // El filtro corre en memoria porque GET /products ya trae el catálogo completo
   // (sin paginar); ignora acentos para que "cesar" encuentre "César".
+  // Se marca lo que falta solo si ya hay algo costeado: en una carta donde nadie armó una sola
+  // receta, marcar los cien productos no avisa nada — es la pantalla entera en amarillo.
+  const marcarSinReceta = sinReceta !== null && sinReceta.size < products.length;
+
   const filtered = useMemo(() => {
     const q = normalize(query);
     return products.filter((p) => {
@@ -204,16 +195,6 @@ export default function ProductsPage() {
         >
           <ListPlus className="h-4 w-4" /> Modificadores
         </TextureButton>
-        {puedeRecetas && (
-          <TextureButton
-            variant="minimal"
-            size="default"
-            className="!w-auto flex items-center gap-1.5 whitespace-nowrap"
-            onClick={abrirRecetas}
-          >
-            <ChefHat className="h-4 w-4" /> Recetas
-          </TextureButton>
-        )}
       </div>
 
       {importError && <p className="text-sm text-red-600">{importError}</p>}
@@ -386,6 +367,13 @@ export default function ProductsPage() {
                     {formatBase(p.price, currencySymbol)}
                     {p.sku && <span className="text-brand-950/40"> · SKU {p.sku}</span>}
                   </p>
+                  {/* Solo se marca cuando el negocio ya empezó a costear: si todavía no hay
+                      ninguna receta armada, marcar la carta entera sería ruido, no un aviso. */}
+                  {marcarSinReceta && sinReceta?.has(p.id) && (
+                    <span className="mt-0.5 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+                      Sin receta
+                    </span>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-3 shrink-0">
@@ -427,19 +415,6 @@ export default function ProductsPage() {
       />
       <CategoryDialog open={categoryDialogOpen} onOpenChange={setCategoryDialogOpen} categories={categories} onChanged={load} />
       <ModifierCategoriesDialog open={modifiersDialogOpen} onOpenChange={setModifiersDialogOpen} />
-
-      {/* Mismo recetario de Inventario (RecetasTab): se reusa tal cual en vez de duplicarlo,
-          para que no se separen al cambiar uno de los dos. */}
-      <Dialog open={recetasDialogOpen} onOpenChange={setRecetasDialogOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Recetas</DialogTitle>
-          </DialogHeader>
-          <Suspense fallback={<p className="py-8 text-center text-sm font-light text-brand-950/40">Cargando recetario…</p>}>
-            <RecetasTab insumos={insumos} />
-          </Suspense>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
