@@ -9,5 +9,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('estacionNativa', {
   listarImpresoras: () => ipcRenderer.invoke('listar-impresoras'),
   // deviceName null = la impresora predeterminada del sistema.
-  imprimir: (deviceName) => ipcRenderer.invoke('imprimir-silencioso', deviceName || null),
+  // `papel` = {anchoMm, altoMm} del ticket ya medido: sin esto la impresora usa la hoja del
+  // driver y rellena con blanco hasta completarla.
+  imprimir: (deviceName, papel) => ipcRenderer.invoke('imprimir-silencioso', deviceName || null, papel || null),
 });

@@ -81,8 +81,16 @@ ipcMain.handle('listar-impresoras', async () => {
  */
 let cola = Promise.resolve();
 
-/** Una impresión, con red de seguridad por si el callback nunca vuelve. */
-function imprimirUna(deviceName) {
+/**
+ * Una impresión, con red de seguridad por si el callback nunca vuelve.
+ *
+ * `papel` viene medido por la página (el alto real del ticket). Se lo pasamos como pageSize
+ * para que la hoja mida lo que mide la comanda: si no, manda el tamaño configurado en el
+ * driver de Windows —normalmente una hoja larga— y la impresora rellena el resto con papel en
+ * blanco. Eso era medio metro desperdiciado por comanda, y no hay CSS que lo arregle porque la
+ * decisión es del driver, no del documento.
+ */
+function imprimirUna(deviceName, papel) {
   return new Promise((resolve) => {
     if (!win || win.isDestroyed()) return resolve(false);
     let resuelto = false;
@@ -99,7 +107,17 @@ function imprimirUna(deviceName) {
     }, 20000);
     try {
       win.webContents.print(
-        { silent: true, printBackground: true, margins: { marginType: 'none' }, ...(deviceName ? { deviceName } : {}) },
+        {
+          silent: true,
+          printBackground: true,
+          margins: { marginType: 'none' },
+          // En micras. Se ignora un alto absurdo (medida rara, ticket vacío) antes que mandarle
+          // a la impresora una hoja imposible.
+          ...(papel && papel.altoMm >= 20 && papel.altoMm <= 2000
+            ? { pageSize: { width: Math.round(papel.anchoMm * 1000), height: Math.round(papel.altoMm * 1000) } }
+            : {}),
+          ...(deviceName ? { deviceName } : {}),
+        },
         (ok, motivo) => {
           clearTimeout(reloj);
           if (!ok && motivo !== 'cancelled') console.error('Fallo imprimiendo:', motivo || '(sin motivo)');
@@ -116,14 +134,15 @@ function imprimirUna(deviceName) {
 
 // Imprime la página actual (el CSS de la estación deja visible solo el ticket)
 // directo a la impresora indicada, sin diálogo — el modo terminal.
-ipcMain.handle('imprimir-silencioso', (_event, deviceName) => {
+ipcMain.handle('imprimir-silencioso', (_event, deviceName, papel) => {
   const trabajo = cola.then(async () => {
-    const ok = await imprimirUna(deviceName);
+    const ok = await imprimirUna(deviceName, papel);
     if (ok) return true;
-    // Un solo reintento: el ok=false de una carrera perdida se resuelve reintentando, y el de
-    // una impresora que de verdad no está fallará igual la segunda vez sin trabar nada.
+    // Un solo reintento, y SIN el tamaño a medida: si falló por una carrera perdida, reintentar
+    // lo resuelve igual; y si el driver no acepta hojas personalizadas, así al menos sale el
+    // ticket con el tamaño que él tenga configurado. Peor es no imprimir.
     await new Promise((r) => setTimeout(r, 600));
-    return imprimirUna(deviceName);
+    return imprimirUna(deviceName, null);
   });
   // La cola nunca se rompe: un trabajo que falla no puede dejar sin imprimir a los siguientes.
   cola = trabajo.catch(() => false);
