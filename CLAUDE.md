@@ -82,6 +82,10 @@ A standalone, single-file HTML app (no build step, no dependencies besides CDN P
 
 Not served through Vite or the Express app — it's meant to be opened directly (or via a tiny static server) on the till/print computer, independent of the admin panel. Because it's a separate origin, it needs its own entry in `CORS_ORIGINS` (currently `http://localhost:5500`, for local testing via `npx serve print-station -p 5500`) — a `file://` origin will NOT work, `fetch`/Socket.IO get silently blocked by CORS. Restarting `npm run dev` is required after editing `CORS_ORIGINS`, since it's only read at boot.
 
+### AI photo retouching — currently OFF (`src/config/features.ts`)
+
+`AI_PHOTO_ENABLED = false` (since 2026-08-31) hides the "Mejorar con IA" / "Fondo blanco con IA" buttons. The gate lives in `PhotoUploadField`, so it covers every screen that uses it at once (restaurant products, shop POS, shop inventory) rather than each caller's `aiEnabled` prop. Mirrored manually in `web/src/config/features.ts` — **change both together**. The backend cut is in `ai-photo.routes.ts` and returns 503 *before* multer, so a stale tab can't buffer an image only to discard it — nor reach the AI microservice, which is the part that costs money.
+
 ### WhatsApp chatbots — currently OFF (`src/config/features.ts`)
 
 `CHATBOTS_ENABLED = false` kills all four WhatsApp bots at once: the platform's own collections bot (`master-whatsapp`), the per-restaurant order bot (`whatsapp-bot`), the club debt bot, and the panel's help widget. The flag is mirrored manually in `web/src/config/features.ts` — **change both together**.

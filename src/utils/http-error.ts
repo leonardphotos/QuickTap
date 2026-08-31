@@ -15,3 +15,5 @@ export const unauthorized = (msg = 'No autorizado') => new HttpError(401, msg);
 export const forbidden = (msg = 'Acceso denegado') => new HttpError(403, msg);
 export const notFound = (msg = 'Recurso no encontrado') => new HttpError(404, msg);
 export const conflict = (msg: string) => new HttpError(409, msg);
+/** Función apagada a propósito (ver config/features.ts) — no es un error del que llama. */
+export const serviceUnavailable = (msg: string) => new HttpError(503, msg);

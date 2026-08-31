@@ -18,3 +18,16 @@
  * Para reactivarlo: poner esto en true acá y en src/config/features.ts del backend.
  */
 export const CHATBOTS_ENABLED = false;
+
+/**
+ * Retoque de fotos con IA (Mejorar con IA / Fondo blanco con IA). Apagado desde el 31/08/2026
+ * a pedido, sin motivo técnico.
+ *
+ * Apagado no rompe nada: los dos botones desaparecen y el campo de foto queda como el de
+ * siempre — subir, recortar y listo. Lo apaga PhotoUploadField para todos sus usos de una vez
+ * (productos del restaurante, POS e inventario de locales), en vez de tener que acordarse de
+ * quitar `aiEnabled` de cada pantalla que lo usa.
+ *
+ * Para reactivarlo: poner esto en true acá y en src/config/features.ts del backend.
+ */
+export const AI_PHOTO_ENABLED = false;

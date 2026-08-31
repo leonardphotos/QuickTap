@@ -4,6 +4,7 @@ import { ImagePlus, Loader2, Sparkles, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { cn } from '@/lib/utils';
 import { ImageCropDialog } from './ImageCropDialog';
+import { AI_PHOTO_ENABLED } from '@/config/features';
 
 interface Props {
   value?: string | null;
@@ -169,7 +170,7 @@ export function PhotoUploadField({
           </div>
         )}
       </div>
-      {aiEnabled && preview && (
+      {aiEnabled && AI_PHOTO_ENABLED && preview && (
         <div className="flex gap-2">
           <button
             type="button"
