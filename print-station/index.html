@@ -319,16 +319,24 @@
   .r-upper{text-transform:uppercase;}
 
   @media print{
-    body *{visibility:hidden;}
-    #receipt, #receipt *{visibility:visible;}
+    /* display:none y NO visibility:hidden. Lo oculto con visibility sigue ocupando su alto,
+       así que el documento medía lo que mide el panel entero (~1745px) y cada ticket salía
+       repartido en TRES páginas: la primera con el texto y las otras dos en blanco. En una
+       impresora de rollo eso es medio metro de papel desperdiciado por comanda, y es lo que
+       se veía como "no sale completo". Con display:none el documento mide lo que mide el
+       ticket y sale un solo trozo, del largo justo. */
+    html, body{height:auto;margin:0;padding:0;background:#fff;}
+    body > *{display:none !important;}
     #receipt{
-      display:block;
-      position:absolute;top:0;left:0;
+      display:block !important;
+      margin:0;
       padding:6px 4px;
       -webkit-print-color-adjust:exact;
       print-color-adjust:exact;
     }
-    @page{margin:0;}
+    /* size:auto = el alto lo pone el contenido, no un tamaño de hoja fijo. Sin esto el
+       driver asume una hoja y vuelve a rellenar con blanco hasta completarla. */
+    @page{margin:0;size:auto;}
   }
 </style>
 </head>
