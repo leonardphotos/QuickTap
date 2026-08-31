@@ -1,7 +1,14 @@
 import { Router } from 'express';
 import { requireRole, requireRoleOrCashierFullAccess, tenantGuard } from '../../middlewares/auth.middleware';
 import { TEAM_MANAGER_ROLES } from '../../utils/roles';
-import { optimizeImage, uploadCoverImage, uploadFullscreenImage, uploadLogo, uploadPaymentQr } from '../../middlewares/upload.middleware';
+import {
+  optimizeImage,
+  uploadCoverImage,
+  uploadFullscreenImage,
+  uploadLogo,
+  uploadPaymentQr,
+  verificarImagen,
+} from '../../middlewares/upload.middleware';
 import { restaurantController } from './restaurant.controller';
 
 /** Base: /api/v1/restaurant (el tenant activo, resuelto por JWT). */
@@ -35,7 +42,8 @@ router.post(
   '/upload-fullscreen-image',
   mutate,
   uploadFullscreenImage,
-  optimizeImage(1440, 2560, 78),
+  // verificarImagen y NO optimizeImage: la cartelera se guarda a resolución original.
+  verificarImagen(),
   restaurantController.uploadFullscreenImage,
 );
 

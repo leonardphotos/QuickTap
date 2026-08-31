@@ -158,15 +158,18 @@ export const uploadClubCourtPhoto = makeImageUpload('club-courts', 'photo');
 // Soportes de una orden de pago a proveedores (factura, retenciones, comprobante de la
 // transferencia): imágenes o PDF, tanto al emitir la orden como al registrar el pago.
 export const uploadPaymentOrderDocument = makeDocumentUpload('payment-order-docs', 'file');
-// Imagen de "Modo Cartelera" (pantalla completa del menú público). Estas
-// imágenes suelen ser piezas verticales grandes; `optimizeImage` de abajo
-// se encarga de bajarlas a un tamaño razonable para celular.
+// Imagen de "Modo Cartelera" (pantalla completa del menú público). Es la única subida que se
+// guarda SIN redimensionar (ver la ruta: verificarImagen en vez de optimizeImage): son piezas
+// verticales grandes que se ven en un televisor o en un cartel, y ahí el reescalado se nota.
+// Por eso el tope sube de 10 a 20 MB — una pieza a resolución completa no entra en 10. Queda
+// por debajo del client_max_body_size de nginx (25m) a propósito, para que un archivo pasado
+// de tamaño reciba nuestro mensaje y no un 413 pelado del proxy.
 export const uploadFullscreenImage = makeUpload(
   'fullscreen',
   'photo',
   ALLOWED_MIME,
   EXT_BY_MIME,
-  10 * 1024 * 1024,
+  20 * 1024 * 1024,
   'Formato de imagen no soportado (usa JPG, PNG o WEBP).',
 );
 
@@ -254,6 +257,25 @@ function formatoRealPermitido(filePath: string): boolean {
  * pero esto es la garantía real: sin importar lo que llegue, nunca se sirve
  * al público una imagen más pesada o grande que esto.
  */
+/**
+ * Solo valida que los bytes sean de verdad JPG/PNG/WEBP, sin tocar la imagen.
+ *
+ * Para las subidas que deben conservar su resolución original (Modo Cartelera). Existe porque
+ * esa comprobación vivía DENTRO de optimizeImage: quitar el redimensionado sin más habría
+ * quitado también la única barrera contra subir bytes arbitrarios con un Content-Type de
+ * imagen, y /uploads se sirve estático.
+ */
+export function verificarImagen() {
+  return asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
+    if (!req.file || req.file.mimetype === 'application/pdf') return next();
+    if (!formatoRealPermitido(req.file.path)) {
+      fs.rmSync(req.file.path, { force: true });
+      throw badRequest('Ese archivo no es una imagen JPG, PNG o WEBP. Conviértela y vuelve a subirla.');
+    }
+    next();
+  });
+}
+
 export function optimizeImage(maxWidth: number, maxHeight: number, quality = 80) {
   return asyncHandler(async (req: Request, _res: Response, next: NextFunction) => {
     if (!sharp || !req.file || req.file.mimetype === 'application/pdf') return next();

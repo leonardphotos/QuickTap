@@ -18,6 +18,10 @@ interface Props {
   maxWidthOrHeight?: number;
   /** Peso máx. del archivo comprimido, en MB. */
   maxSizeMB?: number;
+  /** Sube el archivo TAL CUAL, sin redimensionar ni recomprimir (ignora maxWidthOrHeight y
+   *  maxSizeMB). Para piezas donde la nitidez es el punto — el Modo Cartelera se ve en un
+   *  televisor o en un cartel, no en la tarjeta de un menú, y ahí el reescalado se nota. */
+  sinComprimir?: boolean;
   /** Texto de ayuda bajo el recuadro de subida (reemplaza el default de 800×800px). */
   helpText?: string;
   /** Imagen mostrada cuando no hay foto subida (ej. perfil.jpg para el logo del restaurante). */
@@ -42,6 +46,7 @@ export function PhotoUploadField({
   shape = 'square',
   maxWidthOrHeight = 800,
   maxSizeMB = 1,
+  sinComprimir = false,
   helpText,
   defaultPreview,
   cropAspect,
@@ -68,12 +73,14 @@ export function PhotoUploadField({
     setError(null);
     setUploading(true);
     try {
-      const compressed = await imageCompression(blob as File, {
-        maxWidthOrHeight,
-        maxSizeMB,
-        useWebWorker: true,
-        initialQuality: 0.85,
-      });
+      const compressed = sinComprimir
+        ? blob
+        : await imageCompression(blob as File, {
+            maxWidthOrHeight,
+            maxSizeMB,
+            useWebWorker: true,
+            initialQuality: 0.85,
+          });
 
       setPreview(URL.createObjectURL(compressed));
 
