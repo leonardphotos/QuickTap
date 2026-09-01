@@ -647,7 +647,7 @@ export function LiveOrdersPanel({
         </div>
       </div>
 
-      <div className="flex gap-1.5 mb-3 overflow-x-auto -mx-0.5 px-0.5 pb-0.5">
+      <div className="flex gap-2 mb-3 overflow-x-auto -mx-0.5 px-0.5 pb-0.5">
         {filterOptions.map((f) => (
           <button
             key={f.label}
@@ -657,7 +657,9 @@ export function LiveOrdersPanel({
               // dado en Deudas hacía que "Pagadas" pintara de golpe cientos de tarjetas.
               setTarjetasVisibles(40);
             }}
-            className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+            // Rectangulares y con área de toque cómoda: se usan con el dedo en la tablet del
+            // mostrador, y como píldoras chicas costaba acertarle a la pestaña de al lado.
+            className={`shrink-0 text-sm font-semibold px-4 py-3 rounded-lg border transition-colors ${
               channelFilter === f.value
                 ? 'bg-brand-500 text-white border-brand-500'
                 : 'bg-white text-brand-950/60 border-brand-950/15'
