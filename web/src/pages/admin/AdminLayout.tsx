@@ -37,6 +37,7 @@ import { daysRemaining, graceHoursRemaining, hasFeature } from '../../utils/subs
 import { visibleNavLinks } from './nav-links';
 import { useSyncConflictsCount } from '@/hooks/useSyncConflicts';
 import { ConnectivityBanner } from '@/components/admin/ConnectivityBanner';
+import { VersionBanner } from '@/components/admin/VersionBanner';
 
 const WaiterLayout = lazy(() => import('./WaiterLayout'));
 const LandscapeStaffLayout = lazy(() => import('./landscape/LandscapeStaffLayout'));
@@ -382,6 +383,7 @@ export default function AdminLayout() {
           sidebarHidden ? 'lg:pl-0' : 'lg:pl-[264px]'
         }`}
       >
+        <VersionBanner />
         <ConnectivityBanner />
         <main
           className={`max-w-5xl lg:max-w-7xl mx-auto px-6 lg:px-8 pt-10 pb-28 lg:pb-12 transition-[padding-top] duration-300 ease-out motion-reduce:transition-none ${
