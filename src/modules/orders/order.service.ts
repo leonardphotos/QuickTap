@@ -207,6 +207,26 @@ function priceModifierSelection(product: ProductForPricing, modifierIds: string[
   return modifierLines;
 }
 
+/**
+ * Encuentra la fila del combo que corresponde a una selección. Con `variantId` en la selección
+ * el emparejamiento es exacto (plato+tamaño); sin él, solo resuelve si el plato aparece UNA
+ * vez en el combo — un cliente viejo que no manda tamaño sigue funcionando mientras el combo
+ * no tenga el mismo plato en dos tamaños.
+ */
+function resolverComponente<T extends { componentProductId: string; variantId: string | null }>(
+  componentes: T[],
+  sel: { componentProductId: string; variantId?: string | null },
+): T | undefined {
+  if (sel.variantId !== undefined) {
+    const exacto = componentes.find(
+      (c) => c.componentProductId === sel.componentProductId && (c.variantId ?? null) === (sel.variantId ?? null),
+    );
+    if (exacto) return exacto;
+  }
+  const delPlato = componentes.filter((c) => c.componentProductId === sel.componentProductId);
+  return delPlato.length === 1 ? delPlato[0] : undefined;
+}
+
 async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<PricedLine[]> {
   const productIds = [...new Set(items.map((i) => i.productId))];
   const products = await prisma.product.findMany({
@@ -220,6 +240,7 @@ async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<
       comboComponents: {
         orderBy: { priority: 'asc' },
         include: {
+          variant: { select: { id: true, name: true } },
           componentProduct: {
             include: {
               modifierCategories: {
@@ -287,7 +308,7 @@ async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<
           throw badRequest(`Elige como máximo ${max} plato${max === 1 ? '' : 's'} en "${product.name}".`);
         }
         for (const sel of selecciones) {
-          if (!product.comboComponents.some((c) => c.componentProductId === sel.componentProductId)) {
+          if (!resolverComponente(product.comboComponents, sel)) {
             throw badRequest(`Uno de los platos elegidos no pertenece al combo "${product.name}".`);
           }
         }
@@ -298,14 +319,16 @@ async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<
         if (selecciones.length !== esperadas.length) {
           throw badRequest(`Arma los ${esperadas.length} platos que trae "${product.name}".`);
         }
-        // Se emparejan en orden por componente: las selecciones de cada componentProductId
-        // deben ser exactamente su cantidad.
+        // Se emparejan por plato+tamaño ("Noodle Bar 16OZ" y "26OZ" cuentan por separado): las
+        // selecciones de cada fila del combo deben ser exactamente su cantidad.
         const porComponente = new Map<string, number>();
         for (const sel of selecciones) {
-          porComponente.set(sel.componentProductId, (porComponente.get(sel.componentProductId) ?? 0) + 1);
+          const comp = resolverComponente(product.comboComponents, sel);
+          if (!comp) throw badRequest(`Uno de los platos elegidos no pertenece al combo "${product.name}".`);
+          porComponente.set(comp.id, (porComponente.get(comp.id) ?? 0) + 1);
         }
         for (const c of product.comboComponents) {
-          if ((porComponente.get(c.componentProductId) ?? 0) !== c.quantity) {
+          if ((porComponente.get(c.id) ?? 0) !== c.quantity) {
             throw badRequest(`Arma ${c.quantity} "${c.componentProduct.name}" en "${product.name}".`);
           }
         }
@@ -313,21 +336,28 @@ async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<
       const contadorInstancia = new Map<string, number>();
       const totalPorComponente = new Map<string, number>();
       for (const sel of selecciones) {
-        totalPorComponente.set(sel.componentProductId, (totalPorComponente.get(sel.componentProductId) ?? 0) + 1);
+        const comp = resolverComponente(product.comboComponents, sel)!;
+        totalPorComponente.set(comp.id, (totalPorComponente.get(comp.id) ?? 0) + 1);
       }
       for (const sel of selecciones) {
-        const comp = product.comboComponents.find((c) => c.componentProductId === sel.componentProductId)!;
-        const n = (contadorInstancia.get(sel.componentProductId) ?? 0) + 1;
-        contadorInstancia.set(sel.componentProductId, n);
+        const comp = resolverComponente(product.comboComponents, sel)!;
+        const n = (contadorInstancia.get(comp.id) ?? 0) + 1;
+        contadorInstancia.set(comp.id, n);
         // Numera "(1)/(2)" cuando el mismo plato va más de una vez EN ESTE pedido — en pool la
         // cantidad fija del componente no dice nada, lo que cuenta es cuántos eligió el cliente.
-        const repetido = (totalPorComponente.get(sel.componentProductId) ?? 0) > 1;
-        const etiqueta = repetido ? `${comp.componentProduct.name} (${n})` : comp.componentProduct.name;
+        const repetido = (totalPorComponente.get(comp.id) ?? 0) > 1;
+        // El tamaño fijado por el combo forma parte del nombre del plato en cocina y recibo:
+        // "Noodle Bar 16OZ (1)". Sin él, dos tamaños del mismo plato serían indistinguibles.
+        const nombreConTamano = comp.variant ? `${comp.componentProduct.name} ${comp.variant.name}` : comp.componentProduct.name;
+        const etiqueta = repetido ? `${nombreConTamano} (${n})` : nombreConTamano;
         if (!comp.componentProduct.isAvailable) {
           throw badRequest(`"${comp.componentProduct.name}" no está disponible en este momento.`);
         }
         modifierLines.push({ modifierId: null, name: `▪ ${etiqueta}`, priceBase: toDecimal(0), quantity: 1 });
-        modifierLines.push(...priceModifierSelection(comp.componentProduct, sel.modifierIds ?? [], null));
+        // El armado de la instancia se valida y valora con el TAMAÑO fijado del componente:
+        // así aplican los grupos acotados por variante y los precios por variante de sus
+        // modificadores ("Extra proteína" cuesta distinto en 16OZ que en 26OZ).
+        modifierLines.push(...priceModifierSelection(comp.componentProduct, sel.modifierIds ?? [], comp.variantId ?? null));
       }
     }
 

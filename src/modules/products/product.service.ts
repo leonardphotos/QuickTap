@@ -40,6 +40,7 @@ const PRODUCT_MODIFIER_INCLUDE = {
   comboComponents: {
     orderBy: { priority: 'asc' as const },
     include: {
+      variant: { select: { id: true, name: true } },
       componentProduct: {
         select: {
           name: true,
@@ -89,6 +90,8 @@ function serializeProduct<
     comboComponents?: {
       componentProductId: string;
       quantity: number;
+      variantId: string | null;
+      variant: { id: string; name: string } | null;
       componentProduct: {
         name: string;
         isAvailable: boolean;
@@ -116,6 +119,8 @@ function serializeProduct<
       name: c.componentProduct.name,
       quantity: c.quantity,
       isAvailable: c.componentProduct.isAvailable,
+      variantId: c.variantId,
+      variantName: c.variant?.name ?? null,
       modifierCategories: c.componentProduct.modifierCategories.map((link) => ({
         ...link.modifierCategory,
         maxSelections: link.maxSelectionsOverride ?? link.modifierCategory.maxSelections,
@@ -325,13 +330,18 @@ export const productService = {
     const rows = await prisma.comboComponent.findMany({
       where: { productId, restaurantId },
       orderBy: { priority: 'asc' },
-      include: { componentProduct: { select: { id: true, name: true, isAvailable: true } } },
+      include: {
+        componentProduct: { select: { id: true, name: true, isAvailable: true } },
+        variant: { select: { id: true, name: true } },
+      },
     });
     return rows.map((r) => ({
       componentProductId: r.componentProductId,
       name: r.componentProduct.name,
       quantity: r.quantity,
       isAvailable: r.componentProduct.isAvailable,
+      variantId: r.variantId,
+      variantName: r.variant?.name ?? null,
     }));
   },
 
@@ -343,27 +353,55 @@ export const productService = {
   async setComboComponents(
     restaurantId: string,
     productId: string,
-    components: { componentProductId: string; quantity: number }[],
+    components: { componentProductId: string; quantity: number; variantId?: string | null }[],
     pool?: { minSelections: number | null; maxSelections: number | null },
   ) {
     await this.getById(restaurantId, productId);
     const ids = components.map((c) => c.componentProductId);
     if (ids.includes(productId)) throw badRequest('Un combo no puede contenerse a sí mismo.');
-    if (new Set(ids).size !== ids.length) throw badRequest('Cada plato va una sola vez, con su cantidad.');
+    // La unicidad es plato+tamaño: "Noodle Bar 16OZ" y "Noodle Bar 26OZ" pueden convivir.
+    const claves = components.map((c) => `${c.componentProductId}::${c.variantId ?? ''}`);
+    if (new Set(claves).size !== claves.length) throw badRequest('Cada plato (con su tamaño) va una sola vez, con su cantidad.');
     if (ids.length > 0) {
       const found = await prisma.product.findMany({
-        where: { id: { in: ids }, restaurantId },
-        select: { id: true, name: true, _count: { select: { comboComponents: true } } },
+        where: { id: { in: [...new Set(ids)] }, restaurantId },
+        select: {
+          id: true,
+          name: true,
+          pricingMode: true,
+          variants: { select: { id: true, name: true } },
+          _count: { select: { comboComponents: true } },
+        },
       });
-      if (found.length !== ids.length) throw badRequest('Uno de los platos no existe en este restaurante.');
+      if (found.length !== new Set(ids).size) throw badRequest('Uno de los platos no existe en este restaurante.');
       const anidado = found.find((f) => f._count.comboComponents > 0);
       if (anidado) throw badRequest(`"${anidado.name}" ya es un combo: un combo no puede contener otro combo.`);
+      // Un componente por variantes DEBE traer su tamaño fijado: sin él no se pueden resolver
+      // ni los grupos acotados por variante ni los precios por variante de sus modificadores.
+      for (const c of components) {
+        const prod = found.find((f) => f.id === c.componentProductId)!;
+        if (prod.pricingMode === 'VARIANTS') {
+          if (!c.variantId) throw badRequest(`Elige el tamaño de "${prod.name}" para el combo.`);
+          if (!prod.variants.some((v) => v.id === c.variantId)) {
+            throw badRequest(`Ese tamaño no pertenece a "${prod.name}".`);
+          }
+        } else if (c.variantId) {
+          throw badRequest(`"${prod.name}" no se vende por tamaños.`);
+        }
+      }
     }
     await prisma.$transaction([
       prisma.comboComponent.deleteMany({ where: { productId, restaurantId } }),
       ...components.map((c, i) =>
         prisma.comboComponent.create({
-          data: { restaurantId, productId, componentProductId: c.componentProductId, quantity: c.quantity, priority: i },
+          data: {
+            restaurantId,
+            productId,
+            componentProductId: c.componentProductId,
+            quantity: c.quantity,
+            priority: i,
+            variantId: c.variantId ?? null,
+          },
         }),
       ),
       // Pool escogible: los límites viven en el producto. Si el combo se vacía, se limpian

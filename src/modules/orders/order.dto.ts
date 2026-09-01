@@ -15,7 +15,15 @@ export const cartItemSchema = z.object({
   // entradas), cada una con los modificadores elegidos para ESE plato. El service valida
   // cantidad y reglas contra los componentes reales del combo.
   comboSelections: z
-    .array(z.object({ componentProductId: z.string().min(1), modifierIds: z.array(z.string().min(1)).default([]) }))
+    .array(
+      z.object({
+        componentProductId: z.string().min(1),
+        // Distingue "Noodle Bar 16OZ" de "26OZ" cuando el combo trae los dos. Opcional: con
+        // una sola fila del plato en el combo se resuelve sola (retrocompatibilidad).
+        variantId: z.string().min(1).nullable().optional(),
+        modifierIds: z.array(z.string().min(1)).default([]),
+      }),
+    )
     .max(40)
     .optional(),
   note: z.string().max(200).optional(),
@@ -260,7 +268,15 @@ export const addOrderItemSchema = z.object({
   variantId: z.string().min(1).optional(),
   modifierIds: z.array(z.string().min(1)).optional().default([]),
   comboSelections: z
-    .array(z.object({ componentProductId: z.string().min(1), modifierIds: z.array(z.string().min(1)).default([]) }))
+    .array(
+      z.object({
+        componentProductId: z.string().min(1),
+        // Distingue "Noodle Bar 16OZ" de "26OZ" cuando el combo trae los dos. Opcional: con
+        // una sola fila del plato en el combo se resuelve sola (retrocompatibilidad).
+        variantId: z.string().min(1).nullable().optional(),
+        modifierIds: z.array(z.string().min(1)).default([]),
+      }),
+    )
     .max(40)
     .optional(),
   note: z.string().max(200).optional(),

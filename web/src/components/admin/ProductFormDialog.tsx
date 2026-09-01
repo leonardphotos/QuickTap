@@ -103,11 +103,15 @@ export function ProductFormDialog({
   const [showCategoryPicker, setShowCategoryPicker] = useState(false);
   // Combo armable: los platos que lo componen. Persisten al instante (PUT del set completo),
   // mismo criterio que asociar/quitar categorias de modificadores.
-  const [comboRows, setComboRows] = useState<{ componentProductId: string; name: string; quantity: number }[]>([]);
+  const [comboRows, setComboRows] = useState<
+    { componentProductId: string; name: string; quantity: number; variantId?: string | null; variantName?: string | null }[]
+  >([]);
   // Pool escogible: "elige entre mín y máx platos de la lista". Vacíos = combo fijo de siempre.
   const [comboMin, setComboMin] = useState('');
   const [comboMax, setComboMax] = useState('');
-  const [comboLibrary, setComboLibrary] = useState<{ id: string; name: string; categoryId: string }[]>([]);
+  const [comboLibrary, setComboLibrary] = useState<
+    { id: string; name: string; categoryId: string; variants: { id: string; name: string }[] }[]
+  >([]);
   const [showComboPicker, setShowComboPicker] = useState(false);
   const [packagingItems, setPackagingItems] = useState<PackagingItem[]>([]);
   const canLinkPackagingStock = hasFeature(restaurant, 'inventoryBasic');
@@ -291,7 +295,7 @@ export function ProductFormDialog({
   const availableToLink = libraryCategories.filter((c) => !linkedCategories.some((l) => l.id === c.id));
 
   async function persistCombo(
-    rows: { componentProductId: string; name: string; quantity: number }[],
+    rows: { componentProductId: string; name: string; quantity: number; variantId?: string | null }[],
     pool?: { min: string; max: string },
   ) {
     if (!product) return;
@@ -299,7 +303,11 @@ export function ProductFormDialog({
     const max = (pool?.max ?? comboMax).trim();
     try {
       const res = await api.put(`/products/${product.id}/combo`, {
-        components: rows.map((r) => ({ componentProductId: r.componentProductId, quantity: r.quantity })),
+        components: rows.map((r) => ({
+          componentProductId: r.componentProductId,
+          quantity: r.quantity,
+          variantId: r.variantId ?? null,
+        })),
         // Pool escogible: se mandan siempre — vacíos van como null y el combo vuelve a fijo.
         minSelections: min === '' ? null : Number(min),
         maxSelections: max === '' ? null : Number(max),
@@ -315,9 +323,16 @@ export function ProductFormDialog({
     if (comboLibrary.length === 0) {
       const res = await api.get('/products');
       setComboLibrary(
-        (res.data.data as { id: string; name: string; categoryId: string }[])
+        (res.data.data as { id: string; name: string; categoryId: string; pricingMode: string; variants?: { id: string; name: string }[] }[])
           .filter((pr) => pr.id !== product?.id)
-          .map((pr) => ({ id: pr.id, name: pr.name, categoryId: pr.categoryId })),
+          .map((pr) => ({
+            id: pr.id,
+            name: pr.name,
+            categoryId: pr.categoryId,
+            // Un plato por variantes entra al combo con su tamaño FIJADO ("Noodle Bar 16OZ"):
+            // cada tamaño es una opción aparte del selector.
+            variants: pr.pricingMode === 'VARIANTS' ? (pr.variants ?? []).map((v) => ({ id: v.id, name: v.name })) : [],
+          })),
       );
     }
     setShowComboPicker((v) => !v);
@@ -681,10 +696,21 @@ export function ProductFormDialog({
                             autoFocus
                             value=""
                             onChange={(e) => {
-                              const pr = comboLibrary.find((x) => x.id === e.target.value);
+                              const [prodId, varId] = e.target.value.split('::');
+                              const pr = comboLibrary.find((x) => x.id === prodId);
                               if (!pr) return;
+                              const variante = varId ? pr.variants.find((v) => v.id === varId) : undefined;
                               setShowComboPicker(false);
-                              void persistCombo([...comboRows, { componentProductId: pr.id, name: pr.name, quantity: 1 }]);
+                              void persistCombo([
+                                ...comboRows,
+                                {
+                                  componentProductId: pr.id,
+                                  name: pr.name,
+                                  quantity: 1,
+                                  variantId: variante?.id ?? null,
+                                  variantName: variante?.name ?? null,
+                                },
+                              ]);
                             }}
                             className="w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
                           >
@@ -697,16 +723,32 @@ export function ProductFormDialog({
                               const platos = comboLibrary.filter(
                                 (pr) =>
                                   pr.categoryId === cat.id &&
-                                  !comboRows.some((r) => r.componentProductId === pr.id),
+                                  (pr.variants.length > 0
+                                    ? pr.variants.some(
+                                        (v) => !comboRows.some((r) => r.componentProductId === pr.id && r.variantId === v.id),
+                                      )
+                                    : !comboRows.some((r) => r.componentProductId === pr.id)),
                               );
                               if (platos.length === 0) return null;
                               return (
                                 <optgroup key={cat.id} label={cat.name}>
-                                  {platos.map((pr) => (
-                                    <option key={pr.id} value={pr.id}>
-                                      {pr.name}
-                                    </option>
-                                  ))}
+                                  {platos.flatMap((pr) =>
+                                    pr.variants.length > 0
+                                      ? pr.variants
+                                          .filter(
+                                            (v) => !comboRows.some((r) => r.componentProductId === pr.id && r.variantId === v.id),
+                                          )
+                                          .map((v) => (
+                                            <option key={`${pr.id}::${v.id}`} value={`${pr.id}::${v.id}`}>
+                                              {pr.name} ({v.name})
+                                            </option>
+                                          ))
+                                      : [
+                                          <option key={pr.id} value={pr.id}>
+                                            {pr.name}
+                                          </option>,
+                                        ],
+                                  )}
                                 </optgroup>
                               );
                             })}
@@ -716,16 +758,32 @@ export function ProductFormDialog({
                               const sueltos = comboLibrary.filter(
                                 (pr) =>
                                   !categories.some((c) => c.id === pr.categoryId) &&
-                                  !comboRows.some((r) => r.componentProductId === pr.id),
+                                  (pr.variants.length > 0
+                                    ? pr.variants.some(
+                                        (v) => !comboRows.some((r) => r.componentProductId === pr.id && r.variantId === v.id),
+                                      )
+                                    : !comboRows.some((r) => r.componentProductId === pr.id)),
                               );
                               if (sueltos.length === 0) return null;
                               return (
                                 <optgroup label="Otros">
-                                  {sueltos.map((pr) => (
-                                    <option key={pr.id} value={pr.id}>
-                                      {pr.name}
-                                    </option>
-                                  ))}
+                                  {sueltos.flatMap((pr) =>
+                                    pr.variants.length > 0
+                                      ? pr.variants
+                                          .filter(
+                                            (v) => !comboRows.some((r) => r.componentProductId === pr.id && r.variantId === v.id),
+                                          )
+                                          .map((v) => (
+                                            <option key={`${pr.id}::${v.id}`} value={`${pr.id}::${v.id}`}>
+                                              {pr.name} ({v.name})
+                                            </option>
+                                          ))
+                                      : [
+                                          <option key={pr.id} value={pr.id}>
+                                            {pr.name}
+                                          </option>,
+                                        ],
+                                  )}
                                 </optgroup>
                               );
                             })()}
@@ -738,8 +796,14 @@ export function ProductFormDialog({
                         ) : (
                           <ul className="divide-y divide-brand-950/10">
                             {comboRows.map((r) => (
-                              <li key={r.componentProductId} className="flex items-center justify-between gap-3 py-2 text-sm">
-                                <span className="min-w-0 truncate text-brand-950">{r.name}</span>
+                              <li
+                                key={`${r.componentProductId}::${r.variantId ?? ''}`}
+                                className="flex items-center justify-between gap-3 py-2 text-sm"
+                              >
+                                <span className="min-w-0 truncate text-brand-950">
+                                  {r.name}
+                                  {r.variantName && <span className="text-brand-950/60"> ({r.variantName})</span>}
+                                </span>
                                 <span className="flex shrink-0 items-center gap-2">
                                   {/* En pool la cantidad fija no aplica: el cliente decide cuántos
                                       lleva de cada plato, así que el stepper se esconde. */}
@@ -750,7 +814,7 @@ export function ProductFormDialog({
                                         onClick={() =>
                                           void persistCombo(
                                             comboRows.map((x) =>
-                                              x.componentProductId === r.componentProductId
+                                              x.componentProductId === r.componentProductId && (x.variantId ?? null) === (r.variantId ?? null)
                                                 ? { ...x, quantity: Math.max(1, x.quantity - 1) }
                                                 : x,
                                             ),
@@ -767,7 +831,7 @@ export function ProductFormDialog({
                                         onClick={() =>
                                           void persistCombo(
                                             comboRows.map((x) =>
-                                              x.componentProductId === r.componentProductId
+                                              x.componentProductId === r.componentProductId && (x.variantId ?? null) === (r.variantId ?? null)
                                                 ? { ...x, quantity: Math.min(10, x.quantity + 1) }
                                                 : x,
                                             ),
@@ -782,7 +846,11 @@ export function ProductFormDialog({
                                   <button
                                     type="button"
                                     onClick={() =>
-                                      void persistCombo(comboRows.filter((x) => x.componentProductId !== r.componentProductId))
+                                      void persistCombo(
+                                        comboRows.filter(
+                                          (x) => !(x.componentProductId === r.componentProductId && (x.variantId ?? null) === (r.variantId ?? null)),
+                                        ),
+                                      )
                                     }
                                     className="ml-1 text-xs font-medium text-red-500 hover:text-red-600"
                                   >

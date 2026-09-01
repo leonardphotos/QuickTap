@@ -109,7 +109,14 @@ export const productController = {
     const input = z
       .object({
         components: z
-          .array(z.object({ componentProductId: z.string().min(1), quantity: z.coerce.number().int().min(1).max(10) }))
+          .array(
+            z.object({
+              componentProductId: z.string().min(1),
+              quantity: z.coerce.number().int().min(1).max(10),
+              // Tamaño fijado del componente (obligatorio si el plato se vende por variantes).
+              variantId: z.string().min(1).nullable().optional(),
+            }),
+          )
           .max(10),
         // Pool escogible: el cliente elige entre min y max platos de la lista (ambos en null =
         // combo fijo de siempre). Se validan juntos para no guardar un rango imposible.

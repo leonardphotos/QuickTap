@@ -163,6 +163,8 @@ export const menuService = {
               select: {
                 componentProductId: true,
                 quantity: true,
+                variantId: true,
+                variant: { select: { name: true } },
                 componentProduct: {
                   select: {
                     name: true,
@@ -184,7 +186,14 @@ export const menuService = {
                             modifiers: {
                               where: { isAvailable: true },
                               orderBy: [{ priority: 'asc' }, { name: 'asc' }],
-                              select: { id: true, name: true, priceBase: true, discountBase: true, maxQuantity: true },
+                              select: {
+                                id: true,
+                                name: true,
+                                priceBase: true,
+                                discountBase: true,
+                                maxQuantity: true,
+                                variantPrices: { select: { variantId: true, priceBase: true } },
+                              },
                             },
                           },
                         },
@@ -240,6 +249,8 @@ export const menuService = {
             name: c.componentProduct.name,
             quantity: c.quantity,
             isAvailable: c.componentProduct.isAvailable,
+            variantId: c.variantId,
+            variantName: c.variant?.name ?? null,
             modifierCategories: c.componentProduct.modifierCategories.map((link) => ({
               id: link.modifierCategory.id,
               name: link.modifierCategory.name,
@@ -254,7 +265,12 @@ export const menuService = {
                 name: m.name,
                 priceBase: round2(toDecimal(m.priceBase).sub(m.discountBase ?? 0)).toFixed(2),
                 maxQuantity: m.maxQuantity,
-                variantPrices: [],
+                // Con el tamaño del componente fijado en el combo ya se pueden resolver los
+                // precios por variante de sus modificadores (antes iban vacíos a propósito).
+                variantPrices: m.variantPrices.map((vp) => ({
+                  variantId: vp.variantId,
+                  priceBase: round2(toDecimal(vp.priceBase).sub(m.discountBase ?? 0)).toFixed(2),
+                })),
               })),
             })),
           })),

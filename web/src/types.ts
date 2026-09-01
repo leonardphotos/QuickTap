@@ -568,12 +568,18 @@ export interface ComboComponentInfo {
   name: string;
   quantity: number;
   isAvailable: boolean;
+  /** Tamaño fijado por el combo cuando el plato se vende por variantes ("Noodle Bar 16OZ").
+   * Lo decide quien arma el combo, no el cliente — el precio del combo no se mueve. */
+  variantId?: string | null;
+  variantName?: string | null;
   modifierCategories: ModifierCategory[];
 }
 
 /** Una instancia armada de un plato dentro de un combo (2 wokbox = dos entradas). */
 export interface ComboSelection {
   componentProductId: string;
+  /** Distingue el tamaño cuando el combo trae el mismo plato en dos ("16OZ" y "26OZ"). */
+  variantId?: string | null;
   modifierIds: string[];
 }
 

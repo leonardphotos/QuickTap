@@ -1124,11 +1124,19 @@ model ComboComponent {
   componentProductId String
   quantity           Int    @default(1)
   priority           Int    @default(0)
+  // Tamaño FIJO del plato dentro del combo cuando el componente se vende por variantes
+  // ("2× Noodle Bar 16OZ"): lo decide quien arma el combo, no el cliente, así el precio del
+  // combo no se mueve. Obligatorio si el componente es VARIANTS — sin tamaño no se pueden
+  // resolver ni los grupos acotados por variante ni los precios por variante de sus
+  // modificadores. null = componente de precio simple.
+  variantId          String?
 
-  product          Product @relation("ComboOwner", fields: [productId], references: [id], onDelete: Cascade)
-  componentProduct Product @relation("ComboPart", fields: [componentProductId], references: [id], onDelete: Cascade)
+  product          Product         @relation("ComboOwner", fields: [productId], references: [id], onDelete: Cascade)
+  componentProduct Product         @relation("ComboPart", fields: [componentProductId], references: [id], onDelete: Cascade)
+  variant          ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
 
-  @@unique([productId, componentProductId])
+  // Incluye la variante: "Noodle Bar 16OZ" y "Noodle Bar 26OZ" pueden convivir en el mismo combo.
+  @@unique([productId, componentProductId, variantId])
   @@index([restaurantId])
   @@map("combo_components")
 }
@@ -1295,6 +1303,7 @@ model ProductVariant {
 
   restaurant     Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   product        Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
+  comboComponents ComboComponent[]
   modifierPrices ModifierVariantPrice[]
   // Líneas de receta que solo aplican a este tamaño (ver RecipeIngredient.productVariantId).
   recipeLines    RecipeIngredient[]
