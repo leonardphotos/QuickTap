@@ -35,7 +35,7 @@ import { isAdminCashier } from '@/utils/roles';
 import { hasFeature } from '@/utils/subscription';
 import { useToast } from '@/hooks/useToast';
 import { Toast } from '@/components/ui/toast';
-import { abbreviateTableBadge, CURRENCY_SYMBOLS, formatBase, formatBsAbsolute, formatModifierLabel } from '@/utils/format';
+import { abbreviateTableBadge, cartLineUnitPrice, CURRENCY_SYMBOLS, formatBase, formatBsAbsolute, formatModifierLabel } from '@/utils/format';
 import { settledOf } from '@/utils/orderBalance';
 import { useIsLandscapeTablet } from '@/hooks/useIsLandscapeTablet';
 
@@ -1081,6 +1081,11 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [optionsProduct, setOptionsProduct] = useState<Product | null>(null);
   const [editingItem, setEditingItem] = useState<LiveOrderItem | null>(null);
+  // Productos nuevos tocados pero todavía sin confirmar: se acumulan acá (no llaman al
+  // servidor) hasta que el mesero presiona "Enviar a cocina" — antes se mandaban al toque,
+  // uno por uno, sin darle chance de revisar lo que está a punto de salir impreso en cocina.
+  const [pendingLines, setPendingLines] = useState<CartLine[]>([]);
+  const [sendingPending, setSendingPending] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [printing, setPrinting] = useState(false);
@@ -1371,23 +1376,40 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
     }
   }
 
-  async function addProductLine(line: CartLine) {
-    setSaving(true);
+  /** Un producto tocado se acumula en `pendingLines` en vez de mandarse de una vez — la
+   * confirmación real (y la impresión que dispara, ver order.service.ts addItem) espera al
+   * botón "Enviar a cocina". */
+  function queueProductLine(line: CartLine) {
+    setPendingLines((prev) => [...prev, line]);
+  }
+
+  function removePendingLine(index: number) {
+    setPendingLines((prev) => prev.filter((_, i) => i !== index));
+  }
+
+  async function sendPendingLines() {
+    if (pendingLines.length === 0) return;
+    setSendingPending(true);
     setError(null);
     try {
-      await api.post(`/orders/${order.id}/items`, {
-        productId: line.product.id,
-        quantity: line.quantity,
-        variantId: line.variantId,
-        modifierIds: line.selectedModifiers.flatMap((m) => Array(m.quantity ?? 1).fill(m.modifierId)),
+      // Secuencial: el backend recalcula el total del pedido a partir de todos sus ítems en
+      // cada llamada (mismo criterio que addToExisting en CreateOrderDialog).
+      for (const line of pendingLines) {
+        await api.post(`/orders/${order.id}/items`, {
+          productId: line.product.id,
+          quantity: line.quantity,
+          variantId: line.variantId,
+          modifierIds: line.selectedModifiers.flatMap((m) => Array(m.quantity ?? 1).fill(m.modifierId)),
           comboSelections: line.comboSelections,
-        note: line.note,
-      });
+          note: line.note,
+        });
+      }
+      setPendingLines([]);
       onSaved();
     } catch (e: any) {
-      setError(e.response?.data?.error ?? 'No se pudo añadir el producto.');
+      setError(e.response?.data?.error ?? 'No se pudo enviar a cocina.');
     } finally {
-      setSaving(false);
+      setSendingPending(false);
     }
   }
 
@@ -1519,7 +1541,7 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
                   <button
                     type="button"
                     disabled={saving}
-                    onClick={() => addProductLine({ product: p, quantity: 1, selectedModifiers: [] })}
+                    onClick={() => queueProductLine({ product: p, quantity: 1, selectedModifiers: [] })}
                     className="w-full flex items-center justify-center gap-1 rounded-lg bg-brand-500 text-white text-xs font-semibold py-1.5 disabled:opacity-40"
                   >
                     <Plus className="h-3.5 w-3.5" /> Añadir
@@ -1555,7 +1577,7 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
                 <button
                   type="button"
                   disabled={saving}
-                  onClick={() => addProductLine({ product: p, quantity: 1, selectedModifiers: [] })}
+                  onClick={() => queueProductLine({ product: p, quantity: 1, selectedModifiers: [] })}
                   className="w-full flex items-center justify-center gap-1 rounded-lg bg-brand-500 text-white text-xs font-medium py-1 disabled:opacity-40"
                 >
                   <Plus className="h-3.5 w-3.5" /> Añadir
@@ -1570,6 +1592,47 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
           </p>
         )}
       </div>
+    </div>
+  );
+
+  /** Previsualización de lo tocado en esta ronda, todavía sin mandar a cocina — ver
+   * queueProductLine/sendPendingLines arriba. Se reutiliza en el layout de POS (columnas fijas)
+   * y en el de siempre (celular/escritorio angosto), que arman el panel de "Productos" por
+   * separado. */
+  const pendingLinesPanel = pendingLines.length > 0 && (
+    <div className="rounded-xl border border-amber-300 bg-amber-50 p-2.5 space-y-2">
+      <p className="text-xs font-semibold text-amber-800">Por enviar a cocina</p>
+      <ul className="space-y-1.5">
+        {pendingLines.map((l, i) => {
+          const unitPrice = cartLineUnitPrice(l);
+          return (
+            <li key={i} className="flex items-start gap-2 text-xs">
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-brand-950">
+                  {l.quantity}x {l.product.name}
+                  {l.variantName && <span className="text-brand-950/50 font-normal"> ({l.variantName})</span>}
+                </p>
+                {l.selectedModifiers.length > 0 && (
+                  <p className="text-brand-950/50">{l.selectedModifiers.map(formatModifierLabel).join(', ')}</p>
+                )}
+                {l.note && <p className="text-brand-950/50 italic">Nota: {l.note}</p>}
+              </div>
+              <span className="text-brand-950/60 shrink-0">{formatBase(unitPrice * l.quantity, symbol)}</span>
+              <button
+                type="button"
+                onClick={() => removePendingLine(i)}
+                className="shrink-0 text-brand-950/30 hover:text-red-500"
+                aria-label="Quitar"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <TextureButton variant="brand" size="sm" className="!w-full" disabled={sendingPending} onClick={sendPendingLines}>
+        {sendingPending ? 'Enviando…' : 'Enviar a cocina'}
+      </TextureButton>
     </div>
   );
 
@@ -1814,6 +1877,8 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
                   </ul>
                 </div>
 
+                {pendingLinesPanel}
+
                 <div className="text-sm text-brand-950/70 space-y-1.5 rounded-2xl bg-brand-950/[0.03] px-4 py-3">
                   <div className="flex justify-between">
                     <span>Subtotal</span>
@@ -2020,6 +2085,8 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
                 <Plus className="h-3.5 w-3.5" /> Añadir producto
               </TextureButton>
             )}
+
+            {pendingLinesPanel}
           </div>
 
           <div className="text-xs text-brand-950/60 space-y-1 pt-2 border-t border-brand-950/10">
@@ -2176,7 +2243,7 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
               }}
               onAdd={(line) => {
                 if (editingItem) replaceItemWithLine(editingItem.id, line);
-                else addProductLine(line);
+                else queueProductLine(line);
                 setOptionsProduct(null);
                 setEditingItem(null);
               }}

@@ -1087,7 +1087,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                               disabled={addingToId !== null}
                               onClick={() => addToExisting(o.id)}
                             >
-                              {addingToId === o.id ? 'Añadiendo…' : 'Agregar'}
+                              {addingToId === o.id ? 'Enviando…' : 'Enviar a cocina'}
                             </TextureButton>
                           </div>
                         ))}
