@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { formatBase } from '@/utils/format';
@@ -67,6 +68,14 @@ export function ProductOptionsDialog({
   initialNote,
   confirmLabel,
 }: Props) {
+  const { user } = useAuth();
+  /**
+   * Pantalla completa con botones grandes para el staff que toma pedidos en tablet (mesero,
+   * cajero, dueño…). El kiosco de autoservicio (rol COMANDA) conserva el diálogo compacto:
+   * esa pantalla ya tiene su propio flujo pensado para el cliente. El menú público no pasa
+   * por acá (tiene su propia hoja de producto).
+   */
+  const grande = user != null && user.role !== 'COMANDA';
   const [quantity, setQuantity] = useState(initialQuantity ?? 1);
   const [note, setNote] = useState(initialNote ?? '');
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
@@ -249,30 +258,66 @@ export function ProductOptionsDialog({
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{product.name}</DialogTitle>
+      <DialogContent
+        className={
+          grande
+            ? // Pantalla completa: en la tablet del salón el diálogo compacto quedaba chico y
+              // los toques fallaban. El contenido va centrado a un ancho de lectura y el pie
+              // (cantidad + Agregar) queda pegado abajo, siempre a la vista.
+              'left-0 top-0 h-[100dvh] max-h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 rounded-none border-0 p-0 gap-0 grid-rows-[auto_minmax(0,1fr)] data-[state=open]:animate-none data-[state=closed]:animate-none'
+            : undefined
+        }
+        hideClose={grande}
+      >
+        <DialogHeader
+          className={grande ? 'flex-row items-center justify-between border-b border-brand-950/10 px-5 py-3.5' : undefined}
+        >
+          <DialogTitle className={grande ? 'text-xl' : undefined}>{product.name}</DialogTitle>
+          {grande && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-brand-950/15 px-5 py-2.5 text-sm font-semibold text-brand-950/60 hover:bg-brand-950/5"
+            >
+              Cancelar
+            </button>
+          )}
         </DialogHeader>
-        <div className="space-y-4">
+        <div className={grande ? 'overflow-y-auto px-5 py-4' : undefined}>
+        <div className={grande ? 'w-full space-y-5 pb-2' : 'space-y-4'}>
           {product.pricingMode === 'VARIANTS' && product.variants && product.variants.length > 0 && (
             <div>
               <p className="text-sm font-medium text-brand-950/70 mb-2">Elige una opción</p>
-              <div className="space-y-2">
-                {product.variants.map((v) => (
-                  <label
-                    key={v.id}
-                    className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-sm cursor-pointer ${
-                      selectedVariantId === v.id ? 'border-brand-500 bg-brand-400/10' : 'border-brand-950/10'
-                    }`}
-                  >
-                    <span className="flex items-center gap-2 text-brand-950">
-                      <input type="radio" name="variant" checked={selectedVariantId === v.id} onChange={() => setSelectedVariantId(v.id)} />
-                      {v.name}
-                    </span>
-                    <span className="text-brand-950/60 font-medium">{formatBase(v.priceBase, currencySymbol)}</span>
-                  </label>
-                ))}
-              </div>
+              {grande ? (
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
+                  {product.variants.map((v) => (
+                    <OpcionTile
+                      key={v.id}
+                      nombre={v.name}
+                      precio={formatBase(v.priceBase, currencySymbol)}
+                      qty={selectedVariantId === v.id ? 1 : 0}
+                      onMas={() => setSelectedVariantId(v.id)}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {product.variants.map((v) => (
+                    <label
+                      key={v.id}
+                      className={`flex items-center justify-between gap-3 rounded-xl border cursor-pointer px-3 py-2.5 text-sm ${
+                        selectedVariantId === v.id ? 'border-brand-500 bg-brand-400/10' : 'border-brand-950/10'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2 text-brand-950">
+                        <input type="radio" name="variant" checked={selectedVariantId === v.id} onChange={() => setSelectedVariantId(v.id)} />
+                        {v.name}
+                      </span>
+                      <span className="text-brand-950/60 font-medium">{formatBase(v.priceBase, currencySymbol)}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -282,7 +327,7 @@ export function ProductOptionsDialog({
             return (
               <div key={category.id}>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-sm font-semibold text-brand-950">{category.name}</p>
+                  <p className={grande ? 'text-base font-bold text-brand-950' : 'text-sm font-semibold text-brand-950'}>{category.name}</p>
                   <span
                     className={`text-[11px] font-medium px-2 py-0.5 rounded-full ${
                       category.isRequired ? 'bg-amber-100 text-amber-700' : 'bg-brand-950/5 text-brand-950/40'
@@ -304,7 +349,9 @@ export function ProductOptionsDialog({
                     <button
                       type="button"
                       onClick={() => toggleTodos(category)}
-                      className={`ml-auto text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+                      className={`ml-auto font-semibold rounded-lg border transition-colors ${
+                        grande ? 'px-5 py-2.5 text-sm' : 'px-3 py-1.5 text-xs'
+                      } ${
                         todosMarcados(category)
                           ? 'bg-brand-500 text-white border-brand-500'
                           : 'bg-white text-brand-950/60 border-brand-950/15 hover:border-brand-500 hover:text-brand-950'
@@ -315,6 +362,33 @@ export function ProductOptionsDialog({
                   )}
                 </div>
                 <p className="text-xs text-brand-950/40 mt-0.5 mb-2">{categoryHint(category)}</p>
+                {grande ? (
+                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
+                    {category.modifiers.map((m) => {
+                      const qty = selectedQty[m.id] ?? 0;
+                      const modPrice = effectiveModifierPrice(m, selectedVariant?.id);
+                      return category.allowMultiple ? (
+                        <OpcionTile
+                          key={m.id}
+                          nombre={m.name}
+                          precio={modPrice > 0 ? `+${formatBase(modPrice, currencySymbol)}` : null}
+                          qty={qty}
+                          disabledMas={total >= max || qty >= (m.maxQuantity ?? Infinity)}
+                          onMas={() => stepQty(category, m.id, 1)}
+                          onMenos={() => stepQty(category, m.id, -1)}
+                        />
+                      ) : (
+                        <OpcionTile
+                          key={m.id}
+                          nombre={m.name}
+                          precio={modPrice > 0 ? `+${formatBase(modPrice, currencySymbol)}` : null}
+                          qty={qty}
+                          onMas={() => toggleSingle(category, m.id)}
+                        />
+                      );
+                    })}
+                  </div>
+                ) : (
                 <div className="space-y-2">
                   {category.modifiers.map((m) => {
                     const qty = selectedQty[m.id] ?? 0;
@@ -384,6 +458,7 @@ export function ProductOptionsDialog({
                     );
                   })}
                 </div>
+                )}
               </div>
             );
           })}
@@ -394,6 +469,7 @@ export function ProductOptionsDialog({
               poolQty={poolQty}
               min={comboPoolMin}
               max={comboPoolMax}
+              grande={grande}
               onChange={setPoolQty}
             />
           )}
@@ -409,26 +485,38 @@ export function ProductOptionsDialog({
                 categorias={inst.comp.modifierCategories}
                 qty={comboQty[clave] ?? {}}
                 variantId={inst.comp.variantId ?? null}
+                grande={grande}
                 currencySymbol={currencySymbol}
                 onChange={(next) => setComboQty((prev) => ({ ...prev, [clave]: next }))}
               />
             );
           })}
 
+          <div
+            className={
+              grande
+                ? // Pegado abajo del área de scroll: la cantidad y el botón de agregar quedan
+                  // siempre a mano por mucho que el armado sea largo.
+                  'sticky bottom-0 -mx-5 space-y-3 border-t border-brand-950/10 bg-white px-5 pb-1 pt-3'
+                : 'space-y-4'
+            }
+          >
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-brand-950/70">Cantidad</span>
+            <span className={grande ? 'text-base font-semibold text-brand-950/70' : 'text-sm font-medium text-brand-950/70'}>
+              Cantidad
+            </span>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                 disabled={quantity <= 1}
-                className="w-8 h-8 rounded-full border border-brand-950/20 font-bold text-brand-950 flex items-center justify-center disabled:opacity-30"
+                className={`${grande ? 'w-12 h-12 text-lg' : 'w-8 h-8'} rounded-full border border-brand-950/20 font-bold text-brand-950 flex items-center justify-center disabled:opacity-30`}
               >
                 −
               </button>
-              <span className="w-5 text-center font-semibold text-brand-950">{quantity}</span>
+              <span className={`${grande ? 'w-8 text-xl' : 'w-5'} text-center font-semibold text-brand-950`}>{quantity}</span>
               <button
                 onClick={() => setQuantity((q) => q + 1)}
-                className="w-8 h-8 rounded-full border border-brand-950/20 font-bold text-brand-950 flex items-center justify-center"
+                className={`${grande ? 'w-12 h-12 text-lg' : 'w-8 h-8'} rounded-full border border-brand-950/20 font-bold text-brand-950 flex items-center justify-center`}
               >
                 +
               </button>
@@ -439,7 +527,9 @@ export function ProductOptionsDialog({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Nota de cocina (ej: sin cebolla)"
-            className="w-full text-sm border border-brand-950/15 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+            className={`w-full border border-brand-950/15 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 ${
+              grande ? 'text-base px-4 py-3' : 'text-sm px-3 py-2'
+            }`}
           />
 
           <TextureButton
@@ -447,10 +537,12 @@ export function ProductOptionsDialog({
             size="default"
             disabled={!canAdd}
             onClick={confirmAdd}
-            className="disabled:opacity-50"
+            className={grande ? 'disabled:opacity-50 !h-14 !text-lg font-bold' : 'disabled:opacity-50'}
           >
             {confirmLabel ?? 'Agregar'} · {formatBase(unitPrice * quantity, currencySymbol)}
           </TextureButton>
+          </div>
+        </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -467,6 +559,74 @@ export function ProductOptionsDialog({
  * contador del rango (mín–máx) siempre a la vista. El armado de cada unidad elegida sale
  * debajo, como instancias normales.
  */
+/**
+ * Tarjeta táctil de una opción (variante o modificador) para el modo pantalla completa del
+ * staff: cuadrícula de cuadros grandes en vez de filas — el dedo acierta y el ojo recorre el
+ * grupo entero de un vistazo. Tocar la tarjeta suma (o selecciona, en grupos de una opción);
+ * el "−" solo aparece cuando ya hay algo elegido.
+ */
+export function OpcionTile({
+  nombre,
+  precio,
+  qty,
+  disabledMas,
+  onMas,
+  onMenos,
+}: {
+  nombre: string;
+  /** Texto de precio ya formateado ("+$1.50" / "$8.90"). null = sin precio visible. */
+  precio: string | null;
+  qty: number;
+  disabledMas?: boolean;
+  onMas: () => void;
+  /** Sin onMenos la tarjeta es de una sola opción: tocarla otra vez la deselecciona. */
+  onMenos?: () => void;
+}) {
+  const activa = qty > 0;
+  return (
+    <button
+      type="button"
+      onClick={onMas}
+      disabled={!activa && disabledMas}
+      className={`relative flex min-h-[4.5rem] flex-col items-start justify-center gap-0.5 rounded-2xl border-2 px-3.5 py-3 text-left transition-colors disabled:opacity-40 ${
+        activa ? 'border-brand-500 bg-brand-400/10' : 'border-brand-950/10 bg-white hover:border-brand-950/25'
+      }`}
+    >
+      <span className={`w-full text-[15px] font-semibold leading-tight text-brand-950 ${activa ? 'pr-20' : 'pr-8'}`}>
+        {nombre}
+      </span>
+      {precio && <span className="text-sm font-medium text-brand-950/60">{precio}</span>}
+      {/* Un solo grupo en la esquina: en tarjetas bajas el "−" abajo se montaba sobre el ×N. */}
+      {activa && (
+        <span className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1.5">
+          {onMenos && (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation();
+                onMenos();
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.stopPropagation();
+                  onMenos();
+                }
+              }}
+              className="flex h-9 w-9 items-center justify-center rounded-full border border-brand-950/20 bg-white text-base font-bold text-brand-950"
+            >
+              −
+            </span>
+          )}
+          <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-brand-500 px-1.5 text-sm font-bold text-white">
+            {onMenos ? `×${qty}` : '✓'}
+          </span>
+        </span>
+      )}
+    </button>
+  );
+}
+
 /** Identidad de una fila del combo: plato+tamaño ("Noodle Bar" en 16OZ y 26OZ son filas distintas). */
 export function claveComponente(c: { componentProductId: string; variantId?: string | null }): string {
   return `${c.componentProductId}::${c.variantId ?? ''}`;
@@ -477,12 +637,15 @@ export function ComboPoolSelector({
   poolQty,
   min,
   max,
+  grande,
   onChange,
 }: {
   componentes: ComboComponentInfo[];
   poolQty: Record<string, number>;
   min: number;
   max: number;
+  /** Cuadrícula de tarjetas grandes (modo pantalla completa del staff). */
+  grande?: boolean;
   onChange: (next: Record<string, number>) => void;
 }) {
   const total = Object.values(poolQty).reduce((a, b) => a + b, 0);
@@ -514,6 +677,26 @@ export function ComboPoolSelector({
           {total}{Number.isFinite(max) ? `/${max}` : ''} elegidos
         </span>
       </div>
+      {grande ? (
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
+          {componentes.map((c) => {
+            const clave = claveComponente(c);
+            const q = poolQty[clave] ?? 0;
+            const agotado = c.isAvailable === false;
+            return (
+              <OpcionTile
+                key={clave}
+                nombre={c.variantName ? `${c.name} ${c.variantName}` : c.name}
+                precio={agotado ? 'Agotado' : null}
+                qty={q}
+                disabledMas={agotado || total >= max}
+                onMas={() => step(clave, 1)}
+                onMenos={() => step(clave, -1)}
+              />
+            );
+          })}
+        </div>
+      ) : (
       <div className="space-y-1.5">
         {componentes.map((c) => {
           const clave = claveComponente(c);
@@ -554,6 +737,7 @@ export function ComboPoolSelector({
           );
         })}
       </div>
+      )}
     </div>
   );
 }
@@ -563,6 +747,7 @@ export function ComboInstancePicker({
   categorias,
   qty,
   variantId,
+  grande,
   currencySymbol,
   onChange,
 }: {
@@ -571,6 +756,8 @@ export function ComboInstancePicker({
   qty: Record<string, number>;
   /** Tamaño fijado por el combo para este plato: resuelve los precios por variante de sus modificadores. */
   variantId?: string | null;
+  /** Cuadrícula de tarjetas grandes (modo pantalla completa del staff). */
+  grande?: boolean;
   currencySymbol: string;
   onChange: (next: Record<string, number>) => void;
 }) {
@@ -629,6 +816,33 @@ export function ComboInstancePicker({
                 )}
               </div>
               {min > 1 && <p className="mt-0.5 text-[11px] text-brand-950/40">Elige al menos {min}</p>}
+              {grande ? (
+                <div className="mt-1.5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
+                  {cat.modifiers.map((m) => {
+                    const q = qty[m.id] ?? 0;
+                    const precio = effectiveModifierPrice(m, variantId);
+                    return cat.allowMultiple ? (
+                      <OpcionTile
+                        key={m.id}
+                        nombre={m.name}
+                        precio={precio > 0 ? `+${formatBase(precio, currencySymbol)}` : null}
+                        qty={q}
+                        disabledMas={totalDe(cat) >= max || q >= (m.maxQuantity ?? Infinity)}
+                        onMas={() => step(cat, m.id, 1)}
+                        onMenos={() => step(cat, m.id, -1)}
+                      />
+                    ) : (
+                      <OpcionTile
+                        key={m.id}
+                        nombre={m.name}
+                        precio={precio > 0 ? `+${formatBase(precio, currencySymbol)}` : null}
+                        qty={q}
+                        onMas={() => toggleSingle(cat, m.id)}
+                      />
+                    );
+                  })}
+                </div>
+              ) : (
               <div className="mt-1.5 space-y-1.5">
                 {cat.modifiers.map((m) => {
                   const q = qty[m.id] ?? 0;
@@ -674,6 +888,7 @@ export function ComboInstancePicker({
                   );
                 })}
               </div>
+              )}
             </div>
           );
         })}
