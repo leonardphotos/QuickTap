@@ -104,7 +104,7 @@ export function ProductFormDialog({
   // Combo armable: los platos que lo componen. Persisten al instante (PUT del set completo),
   // mismo criterio que asociar/quitar categorias de modificadores.
   const [comboRows, setComboRows] = useState<{ componentProductId: string; name: string; quantity: number }[]>([]);
-  const [comboLibrary, setComboLibrary] = useState<{ id: string; name: string }[]>([]);
+  const [comboLibrary, setComboLibrary] = useState<{ id: string; name: string; categoryId: string }[]>([]);
   const [showComboPicker, setShowComboPicker] = useState(false);
   const [packagingItems, setPackagingItems] = useState<PackagingItem[]>([]);
   const canLinkPackagingStock = hasFeature(restaurant, 'inventoryBasic');
@@ -300,7 +300,9 @@ export function ProductFormDialog({
     if (comboLibrary.length === 0) {
       const res = await api.get('/products');
       setComboLibrary(
-        (res.data.data as { id: string; name: string }[]).filter((pr) => pr.id !== product?.id),
+        (res.data.data as { id: string; name: string; categoryId: string }[])
+          .filter((pr) => pr.id !== product?.id)
+          .map((pr) => ({ id: pr.id, name: pr.name, categoryId: pr.categoryId })),
       );
     }
     setShowComboPicker((v) => !v);
@@ -672,13 +674,46 @@ export function ProductFormDialog({
                             className="w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
                           >
                             <option value="">Elige el plato que compone el combo…</option>
-                            {comboLibrary
-                              .filter((pr) => !comboRows.some((r) => r.componentProductId === pr.id))
-                              .map((pr) => (
-                                <option key={pr.id} value={pr.id}>
-                                  {pr.name}
-                                </option>
-                              ))}
+                            {/* Agrupado por categoría, en el mismo orden en que están en la carta:
+                                una carta larga en una lista plana obliga a recorrerla entera para
+                                encontrar el plato. Se omiten las categorías que se quedan sin
+                                platos disponibles (todos ya añadidos al combo). */}
+                            {categories.map((cat) => {
+                              const platos = comboLibrary.filter(
+                                (pr) =>
+                                  pr.categoryId === cat.id &&
+                                  !comboRows.some((r) => r.componentProductId === pr.id),
+                              );
+                              if (platos.length === 0) return null;
+                              return (
+                                <optgroup key={cat.id} label={cat.name}>
+                                  {platos.map((pr) => (
+                                    <option key={pr.id} value={pr.id}>
+                                      {pr.name}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              );
+                            })}
+                            {/* Red de seguridad: un plato cuya categoría no esté en la lista
+                                (recién creada en otra pestaña, por ejemplo) no debe desaparecer. */}
+                            {(() => {
+                              const sueltos = comboLibrary.filter(
+                                (pr) =>
+                                  !categories.some((c) => c.id === pr.categoryId) &&
+                                  !comboRows.some((r) => r.componentProductId === pr.id),
+                              );
+                              if (sueltos.length === 0) return null;
+                              return (
+                                <optgroup label="Otros">
+                                  {sueltos.map((pr) => (
+                                    <option key={pr.id} value={pr.id}>
+                                      {pr.name}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              );
+                            })()}
                           </select>
                         )}
                         {comboRows.length === 0 ? (
