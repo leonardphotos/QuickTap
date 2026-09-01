@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { ArrowLeft, Camera, Check, Copy, Loader2, QrCode } from 'lucide-react';
 import { api } from '@/api/client';
@@ -20,7 +20,7 @@ import { PaymentClientScreen } from '@/components/admin/PaymentClientScreen';
 import { MethodAccountPicker } from '@/components/admin/MethodAccountPicker';
 import { PromoCodeField, promoDiscountAmount, type AppliedPromo } from '@/components/admin/crm/PromoCodeField';
 import { settledOf } from '@/utils/orderBalance';
-import { useIsLandscapeTablet } from '@/hooks/useIsLandscapeTablet';
+import { useIsLandscapeTablet, useIsTactil } from '@/hooks/useIsLandscapeTablet';
 import { PosNumericKeypad, type PosKeypadField } from '@/components/admin/PosNumericKeypad';
 import type { LiveOrder, LiveOrderPayment } from './LiveOrdersPanel';
 
@@ -142,8 +142,13 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
    * los navegadores nuevos, pero readOnly es lo que de verdad garantiza que ningún teclado
    * suba en un Android viejo, que es lo que hay en los mostradores. El valor lo escribe el
    * teclado numérico por estado, así que readOnly no impide editar.
+   *
+   * Pero solo en pantalla táctil: `isPos` se enciende con (orientation: landscape) and
+   * (min-width: 900px), que también encaja en un monitor de escritorio, y ahí readOnly dejaba
+   * al cajero sin poder escribir la referencia con su teclado físico.
    */
-  const posInputProps = isPos ? ({ readOnly: true, inputMode: 'none' } as const) : {};
+  const esTactil = useIsTactil();
+  const posInputProps = isPos && esTactil ? ({ readOnly: true, inputMode: 'none' } as const) : {};
 
   /**
    * Elegir qué campo llena el teclado. Se engancha al TOQUE además del foco: el onFocus solo
@@ -181,6 +186,17 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   const [uploadingProof, setUploadingProof] = useState(false);
   const [proofError, setProofError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  /**
+   * Foco inicial en "Monto a abonar". Va por ref y no con el atributo autoFocus del input:
+   * autoFocus se vuelve a aplicar cada vez que React remonta ese input, y al escribir el monto
+   * aparece la línea del equivalente en Bs y cambia el árbol de al lado, así que el foco
+   * saltaba de vuelta al monto y no se podía escribir la referencia. Acá se hace una sola vez
+   * por modalidad.
+   */
+  const amountInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (payMode === 'split') amountInputRef.current?.focus();
+  }, [payMode]);
   // Submodalidad de "Pago fraccionado": por monto libre (de siempre) o eligiendo ítems puntuales.
   const [splitBy, setSplitBy] = useState<'amount' | 'items'>('amount');
   const [pickedQty, setPickedQty] = useState<Record<string, number>>({});
@@ -1044,7 +1060,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     </p>
                     <div className="flex items-stretch gap-2">
                       <input
-                        autoFocus
+                        ref={amountInputRef}
                         value={amount}
                         onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
                         {...posTarget('amount')}

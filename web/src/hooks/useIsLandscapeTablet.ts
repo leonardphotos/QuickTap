@@ -16,3 +16,21 @@ export function useIsLandscapeTablet(): boolean {
 
   return matches;
 }
+
+const TACTIL = '(pointer: coarse)';
+
+/** Pantalla táctil sin ratón: tablet o celular. En escritorio da false aunque el layout
+ * sea POS, porque `(orientation: landscape) and (min-width: 900px)` también encaja en un
+ * monitor. Sirve para bloquear el teclado nativo solo donde no hay teclado físico. */
+export function useIsTactil(): boolean {
+  const [matches, setMatches] = useState(() => window.matchMedia(TACTIL).matches);
+
+  useEffect(() => {
+    const mql = window.matchMedia(TACTIL);
+    const onChange = () => setMatches(mql.matches);
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+
+  return matches;
+}
