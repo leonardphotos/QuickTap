@@ -97,6 +97,9 @@ export function PromoCodeField({
               apply();
             }
           }}
+          // Único campo del cobro que SÍ usa el teclado del sistema, incluso en modo POS: un
+          // código promocional lleva letras y guiones ("PROMO-ABC12") y el teclado numérico de
+          // la pantalla solo tiene dígitos. Bloquearlo acá lo volvería imposible de escribir.
           placeholder="Ej. PROMO-ABC12"
           className="w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 font-mono text-sm uppercase focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
         />

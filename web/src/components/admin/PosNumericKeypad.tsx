@@ -1,7 +1,15 @@
 import { Delete } from 'lucide-react';
 
 /** Campos que el teclado puede llenar. El diálogo de cobro decide cuál está activo. */
-export type PosKeypadField = 'amount' | 'tip' | 'discount' | 'service' | 'reference' | 'received';
+export type PosKeypadField =
+  | 'amount'
+  | 'tip'
+  | 'discount'
+  | 'service'
+  | 'reference'
+  | 'received'
+  /** Referencia del pago móvil con el que se devuelve el vuelto. */
+  | 'changeReference';
 
 interface Props {
   /** Etiqueta de qué se está escribiendo ahora ("Monto a abonar", "Propina"…). */

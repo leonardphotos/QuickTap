@@ -132,6 +132,29 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   // en tres columnas (cuenta · cobro · teclado) porque ahí no hay teclado físico y el del
   // sistema tapa media pantalla — ver PosNumericKeypad.
   const isPos = useIsLandscapeTablet();
+  /**
+   * En modo POS los campos NO abren el teclado del sistema: se escriben con el teclado
+   * numérico de la pantalla. Tocarlos sigue sirviendo para elegir qué campo se está editando
+   * (el onFocus de cada uno), pero el teclado nativo tapaba media tablet justo encima del
+   * teclado numérico, y quedaban dos teclados peleándose por la misma pantalla.
+   *
+   * readOnly además de inputMode="none" a propósito: inputMode es lo correcto y lo entienden
+   * los navegadores nuevos, pero readOnly es lo que de verdad garantiza que ningún teclado
+   * suba en un Android viejo, que es lo que hay en los mostradores. El valor lo escribe el
+   * teclado numérico por estado, así que readOnly no impide editar.
+   */
+  const posInputProps = isPos ? ({ readOnly: true, inputMode: 'none' } as const) : {};
+
+  /**
+   * Elegir qué campo llena el teclado. Se engancha al TOQUE además del foco: el onFocus solo
+   * no basta — si el campo ya tenía el foco no vuelve a dispararse, y dentro de un diálogo con
+   * trampa de foco no siempre llega. Tocar un campo tiene que seleccionarlo siempre, que es lo
+   * único que el cajero espera.
+   */
+  const posTarget = (campo: PosKeypadField) => ({
+    onFocus: () => setPosField(campo),
+    onPointerDown: () => setPosField(campo),
+  });
   const [posField, setPosField] = useState<PosKeypadField>(payMode === 'split' ? 'amount' : 'tip');
   // El abono, igual que la propina, se escribe en la moneda con la que el cliente paga.
   const [amountCurrency, setAmountCurrency] = useState<'BASE' | 'BS'>('BASE');
@@ -509,6 +532,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
     },
     received: { label: 'Efectivo recibido', value: amountReceived, suffix: symbol, set: setAmountReceived },
     reference: { label: referenceLabel(method), value: referenceNumber, suffix: null, set: setReferenceNumber },
+    changeReference: { label: 'Referencia del vuelto', value: changeReference, suffix: null, set: setChangeReference },
   };
   const activePosField = posFields[posField];
   const keypadDigit = (d: string) => activePosField.set(`${activePosField.value ?? ''}${d}`);
@@ -794,7 +818,8 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                       <input
                         value={amountReceived}
                         onChange={(e) => setAmountReceived(e.target.value.replace(/[^0-9.]/g, ''))}
-                        onFocus={() => setPosField('received')}
+                        {...posTarget('received')}
+                        {...posInputProps}
                         inputMode="decimal"
                         placeholder={amountToCharge > 0 ? totalWithTip.toFixed(2) : '0.00'}
                         className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
@@ -838,6 +863,8 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                         <input
                           value={changeReference}
                           onChange={(e) => setChangeReference(e.target.value)}
+                          onFocus={() => setPosField('changeReference')}
+                          {...posInputProps}
                           placeholder="Referencia del pago móvil del vuelto (opcional)"
                           className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
                         />
@@ -861,7 +888,8 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                   <input
                     value={referenceNumber}
                     onChange={(e) => setReferenceNumber(e.target.value)}
-                    onFocus={() => setPosField('reference')}
+                    {...posTarget('reference')}
+                    {...posInputProps}
                     placeholder={referenceLabel(method)}
                     className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
                   />
@@ -905,7 +933,8 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     <input
                       value={discountValue}
                       onChange={(e) => onDiscountValueChange(e.target.value)}
-                      onFocus={() => setPosField('discount')}
+                      {...posTarget('discount')}
+                      {...posInputProps}
                       placeholder="0"
                       className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
                     />
@@ -936,7 +965,8 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     <input
                       value={serviceValue}
                       onChange={(e) => onServiceValueChange(e.target.value)}
-                      onFocus={() => setPosField('service')}
+                      {...posTarget('service')}
+                      {...posInputProps}
                       placeholder="0"
                       className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
                     />
@@ -1017,7 +1047,8 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                         autoFocus
                         value={amount}
                         onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ''))}
-                        onFocus={() => setPosField('amount')}
+                        {...posTarget('amount')}
+                        {...posInputProps}
                         placeholder={
                           amountCurrency === 'BS' && rateBsOfOrder > 0
                             ? `Máx. ${(balanceBase * rateBsOfOrder).toFixed(2)}`
@@ -1111,7 +1142,8 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                   <input
                     value={tipValue}
                     onChange={(e) => setTipValue(e.target.value.replace(/[^0-9.]/g, ''))}
-                    onFocus={() => setPosField('tip')}
+                    {...posTarget('tip')}
+                    {...posInputProps}
                     placeholder="0.00 — ¿el cliente quiere dejar propina?"
                     className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
                   />
