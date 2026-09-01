@@ -6,6 +6,7 @@ export type UserRole =
   | 'ADMIN'
   | 'CASHIER'
   | 'WAITER'
+  | 'WAITER_TABLET'
   | 'KITCHEN'
   | 'SCREEN'
   | 'COMANDA'

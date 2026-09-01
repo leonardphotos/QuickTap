@@ -37,6 +37,7 @@ export const ASSIGNABLE_TEAM_ROLES: UserRole[] = [
   'ADMIN',
   'CASHIER',
   'WAITER',
+  'WAITER_TABLET',
   'KITCHEN',
   'SCREEN',
   'COMANDA',
@@ -44,6 +45,10 @@ export const ASSIGNABLE_TEAM_ROLES: UserRole[] = [
   'CANCHA',
   'COACH',
 ];
+// Tablet compartida de meseros: mismo patrón que SCREEN/COMANDA/NUMERO (una cuenta de
+// dispositivo, con correo/clave real para el login normal), pero su única pantalla es un
+// teclado de 4 dígitos — identifica al mesero solo con la clave, sin elegir nombre.
+export const WAITER_TABLET_ROLES: UserRole[] = ['WAITER_TABLET'];
 // Roles a los que aplica la Pantalla de bloqueo — se excluyen SCREEN/COMANDA/NUMERO/CANCHA
 // (dispositivos compartidos: TV de cocina, kiosco de autoservicio, ticker de "listo",
 // tablet de la cancha). COACH sí entra: es la sesión personal de una persona.
@@ -56,6 +61,7 @@ export const ROLE_LABELS: Record<UserRole, string> = {
   ADMIN: 'Administrador',
   CASHIER: 'Cajero',
   WAITER: 'Mesero',
+  WAITER_TABLET: 'Tablet de meseros',
   KITCHEN: 'Cocina',
   SCREEN: 'Pantalla',
   COMANDA: 'Comanda',
@@ -114,6 +120,11 @@ export function isCanchaRole(role?: UserRole | null): boolean {
   return CANCHA_ROLES.includes(role);
 }
 
+export function isWaiterTabletRole(role?: UserRole | null): boolean {
+  if (!role) return false;
+  return WAITER_TABLET_ROLES.includes(role);
+}
+
 export function canManageTeam(role?: UserRole | null): boolean {
   if (!role) return false;
   return TEAM_MANAGER_ROLES.includes(role);
@@ -131,6 +142,7 @@ export function needsLockScreen(role?: UserRole | null): boolean {
 
 const KIOSK_PATH = '/admin/comanda';
 const NUMERO_PATH = '/admin/numero';
+const WAITER_TABLET_PATH = '/admin/waiter-tablet';
 
 export function canAccessPath(
   role: UserRole | null | undefined,
@@ -143,6 +155,7 @@ export function canAccessPath(
   if (isScreenRole(role)) return pathname.startsWith(SCREEN_PATH);
   if (isKioskRole(role)) return pathname.startsWith(KIOSK_PATH);
   if (isNumeroRole(role)) return pathname.startsWith(NUMERO_PATH);
+  if (isWaiterTabletRole(role)) return pathname.startsWith(WAITER_TABLET_PATH);
   if (canAccessInventory && pathname.startsWith('/admin/inventory')) return true;
   // Comandas también es visible para Mesero/Cocina/Cajero (sin acceso completo): ahí ven sus
   // propios pedidos (Mesero/Cajero) o todos (Cocina) — Resumen ("/admin" exacto) queda vedado
@@ -157,6 +170,7 @@ export function defaultPathFor(role?: UserRole | null): string {
   if (isScreenRole(role)) return SCREEN_PATH;
   if (isKioskRole(role)) return KIOSK_PATH;
   if (isNumeroRole(role)) return NUMERO_PATH;
+  if (isWaiterTabletRole(role)) return WAITER_TABLET_PATH;
   // Mesero/Cajero arrancan en Comandas (su pantalla de trabajo); Cocina en su cola.
   if (role === 'WAITER' || role === 'CASHIER') return '/admin/comandas';
   return '/admin/kitchen';

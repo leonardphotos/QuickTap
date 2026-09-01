@@ -53,11 +53,17 @@ export const COACH_ROLES = ['COACH'] as const;
 // misma puerta. No ve inventario, caja ni reportes.
 export const VERIFICADOR_ROLES = ['VERIFICADOR'] as const;
 
+// Tablet compartida de meseros: mismo patrón que SCREEN/COMANDA/NUMERO (una cuenta de
+// dispositivo, con su correo/clave real para el login normal), pero su única pantalla es un
+// teclado de 4 dígitos — la clave sola identifica a cuál mesero pertenece, sin elegir nombre.
+export const WAITER_TABLET_ROLES = ['WAITER_TABLET'] as const;
+
 // Roles asignables desde la UI de Equipo (OWNER/STAFF no se asignan ahí).
 export const ASSIGNABLE_TEAM_ROLES = [
   'ADMIN',
   'CASHIER',
   'WAITER',
+  'WAITER_TABLET',
   'KITCHEN',
   'SCREEN',
   'COMANDA',
@@ -68,9 +74,10 @@ export const ASSIGNABLE_TEAM_ROLES = [
 ] as const;
 
 // Roles a los que aplica la Pantalla de bloqueo (PIN de 4 dígitos). Se excluyen
-// SCREEN/COMANDA/NUMERO/CANCHA porque son dispositivos compartidos de un solo uso (TV de cocina,
-// kiosco de autoservicio, ticker de "listo", tablet de la cancha) — bloquearlos periódicamente
-// interrumpiría a clientes/pantallas públicas en vez de proteger la sesión de un miembro del equipo.
+// SCREEN/COMANDA/NUMERO/CANCHA/WAITER_TABLET porque son dispositivos compartidos de un solo uso
+// (TV de cocina, kiosco de autoservicio, ticker de "listo", tablet de la cancha, tablet de
+// meseros) — bloquearlos periódicamente interrumpiría a clientes/pantallas públicas en vez de
+// proteger la sesión de un miembro del equipo.
 export const LOCK_SCREEN_ROLES = ['OWNER', 'ADMIN', 'CASHIER', 'STAFF', 'WAITER', 'KITCHEN', 'COACH'] as const;
 
 // Minutos de inactividad por defecto cuando el rol no tiene un valor propio en

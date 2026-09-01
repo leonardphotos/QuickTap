@@ -9,6 +9,7 @@ import {
   setLockPinSchema,
   verifyLockPinSchema,
   switchUserSchema,
+  identifyWaiterSchema,
 } from './auth.dto';
 import { authService } from './auth.service';
 
@@ -78,5 +79,11 @@ export const authController = {
   switchUser: asyncHandler(async (req: Request, res: Response) => {
     const { userId, pin } = switchUserSchema.parse(req.body);
     res.json({ data: await authService.switchUser(req.restaurantId!, userId, pin) });
+  }),
+
+  /** Tablet de Meseros: identifica al mesero solo por su clave (ver auth.service.identifyWaiterByPin). */
+  identifyWaiter: asyncHandler(async (req: Request, res: Response) => {
+    const { pin } = identifyWaiterSchema.parse(req.body);
+    res.json({ data: await authService.identifyWaiterByPin(req.restaurantId!, pin) });
   }),
 };

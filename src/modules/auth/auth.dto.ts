@@ -83,6 +83,12 @@ export const switchUserSchema = z.object({
 });
 export type SwitchUserInput = z.infer<typeof switchUserSchema>;
 
+// Tablet de Meseros: identifica al mesero SOLO por su clave, sin elegir nombre.
+export const identifyWaiterSchema = z.object({
+  pin: z.string().regex(/^\d{4}$/, 'El PIN debe tener 4 dígitos.'),
+});
+export type IdentifyWaiterInput = z.infer<typeof identifyWaiterSchema>;
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type GoogleAuthInput = z.infer<typeof googleAuthSchema>;

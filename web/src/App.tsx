@@ -61,6 +61,7 @@ const SyncConflictsPage = lazy(() => import('./pages/admin/SyncConflictsPage'));
 const QuotesPage = lazy(() => import('./pages/admin/QuotesPage'));
 const ComandaKioskPage = lazy(() => import('./pages/admin/ComandaKioskPage'));
 const NumeroPage = lazy(() => import('./pages/admin/NumeroPage'));
+const WaiterTabletPage = lazy(() => import('./pages/admin/WaiterTabletPage').then((m) => ({ default: m.WaiterTabletPage })));
 const WelcomePage = lazy(() => import('./pages/admin/WelcomePage'));
 const ClubPublicPage = lazy(() => import('./pages/public/ClubPublicPage'));
 const ClubTicketPage = lazy(() => import('./pages/public/ClubTicketPage'));
@@ -205,6 +206,10 @@ export default function App() {
               {/* AdminLayout intercepta el rol Numero antes del Outlet y renderiza la pantalla
                   de avisos a pantalla completa — esta ruta solo existe para que /admin/numero matchee. */}
               <Route path="numero" element={<NumeroPage />} />
+              {/* AdminLayout intercepta el rol Tablet de meseros antes del Outlet y renderiza el
+                  teclado a pantalla completa — esta ruta solo existe para que /admin/waiter-tablet
+                  matchee (y para que dueño/admin puedan entrar a previsualizarla). */}
+              <Route path="waiter-tablet" element={<WaiterTabletPage />} />
             </Route>
 
             {/* Dashboard maestro (equipo de QuickTap, ve todos los restaurantes) */}

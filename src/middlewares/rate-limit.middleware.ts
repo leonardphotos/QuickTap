@@ -66,6 +66,19 @@ export const switchUserRateLimit = rateLimit({
   message: { error: 'Demasiados intentos. Espera unos minutos e intenta de nuevo.' },
 });
 
+/** /auth/identify-waiter: la Tablet de Meseros prueba una clave de 4 dígitos contra TODOS los
+ * meseros del restaurante — no hay un "targetUserId" que limitar como en switchUserRateLimit,
+ * así que se limita por restaurante entero: cualquiera parado frente a esa tablet comparte la
+ * misma cuota, que es justo lo que hay que frenar (fuerza bruta contra el conjunto de claves). */
+export const identifyWaiterRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 15,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => req.restaurantId ?? ipKeyGenerator(req.ip ?? 'unknown'),
+  message: { error: 'Demasiados intentos. Espera unos minutos e intenta de nuevo.' },
+});
+
 /**
  * Acciones públicas de la mesa (llamar al mesero, pedir la cuenta, poner/quitar la clave).
  *

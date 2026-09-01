@@ -4,6 +4,7 @@ import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { isDeliveryTierPlan } from '../../utils/subscription';
 import { CreateStaffInput, SetStaffPinInput, UpdateStaffInput } from './team.dto';
+import { assertWaiterPinAvailable } from '../auth/auth.service';
 
 // OWNER nunca aparece en la lista de "Equipo" gestionable (es el dueño de la cuenta).
 const STAFF_SELECT = {
@@ -59,11 +60,23 @@ export const teamService = {
   },
 
   async create(restaurantId: string, input: CreateStaffInput) {
+    const isWaiter = input.role === 'WAITER';
+    // Mesero ya no da correo: se le genera uno interno, invisible, que nunca va a usar (su
+    // único acceso es la clave de 4 dígitos en la Tablet de Meseros). "interno.quicktap.club"
+    // no es un dominio real a propósito — nunca se le manda correo ahí, solo hace falta que sea
+    // único en la tabla (User.email es NOT NULL + único por restaurante).
+    const email = input.email ?? (isWaiter ? `mesero-${crypto.randomUUID()}@interno.quicktap.club` : undefined);
+    if (!email) throw badRequest('El email es obligatorio.');
+
     const existing = await prisma.user.findFirst({
-      where: { restaurantId, email: { equals: input.email, mode: 'insensitive' } },
+      where: { restaurantId, email: { equals: email, mode: 'insensitive' } },
       select: { id: true },
     });
     if (existing) throw badRequest('Ya existe un miembro del equipo con ese email.');
+
+    // Clave única por restaurante: la Tablet de Meseros identifica solo con ella, sin nombre —
+    // dos meseros con la misma clave la dejarían ambigua (ver identifyWaiterByPin).
+    if (isWaiter && input.pin) await assertWaiterPinAvailable(restaurantId, input.pin);
 
     // Plan Solo Delivery (con o sin sucursales): máximo 6 usuarios (incluye al dueño).
     const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { subscriptionPlan: true } });
@@ -74,16 +87,14 @@ export const teamService = {
       }
     }
 
-    const passwordHash = await bcrypt.hash(input.password, 10);
-    // El PIN del segundo inicio de sesión, si lo trae — solo tiene sentido en Mesero (ver
-    // auth.service.listSwitchableWaiters), así que se ignora en cualquier otro rol en vez de
-    // guardarlo sin efecto y confundir después por qué "no aparece en la cuadrícula".
-    const lockPinHash = input.pin && input.role === 'WAITER' ? await bcrypt.hash(input.pin, 10) : null;
+    // Sin clave propia (Mesero: solo entra por su PIN en la Tablet de Meseros).
+    const passwordHash = input.password ? await bcrypt.hash(input.password, 10) : null;
+    const lockPinHash = isWaiter && input.pin ? await bcrypt.hash(input.pin, 10) : null;
     const created = await prisma.user.create({
       data: {
         restaurantId,
         name: input.name,
-        email: input.email,
+        email,
         passwordHash,
         role: input.role,
         canAccessInventory: input.canAccessInventory ?? false,
@@ -125,6 +136,7 @@ export const teamService = {
    * (que sigue funcionando igual, es el mismo campo). null = lo quita. */
   async setPin(restaurantId: string, id: string, input: SetStaffPinInput) {
     await this.assertManageable(restaurantId, id);
+    if (input.pin) await assertWaiterPinAvailable(restaurantId, input.pin, id);
     const lockPinHash = input.pin ? await bcrypt.hash(input.pin, 10) : null;
     const updated = await prisma.user.update({ where: { id }, data: { lockPinHash }, select: STAFF_SELECT });
     return serializeStaff(updated);

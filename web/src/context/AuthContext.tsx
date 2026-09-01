@@ -156,6 +156,9 @@ interface AuthState {
   /** Cambia la sesión activa a OTRO mesero del mismo restaurante, con su PIN de 4 dígitos —
    * sin pedir correo/clave. Recarga la app, igual que switchToBranch. */
   switchUser: (userId: string, pin: string) => Promise<void>;
+  /** Tablet de Meseros: identifica al mesero SOLO por su PIN de 4 dígitos, sin elegir nombre.
+   * Recarga la app, igual que switchUser. */
+  identifyWaiterByPin: (pin: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -307,6 +310,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.href = '/admin';
   }
 
+  async function identifyWaiterByPin(pin: string) {
+    const { data } = await api.post('/auth/identify-waiter', { pin });
+    setToken(data.data.token);
+    window.location.href = '/admin';
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -324,6 +333,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         verifyLockPin,
         switchableWaiters,
         switchUser,
+        identifyWaiterByPin,
       }}
     >
       {children}

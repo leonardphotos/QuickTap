@@ -30,6 +30,10 @@ enum UserRole {
   ADMIN // Administrador (acceso total)
   CASHIER // Cajero (acceso total)
   WAITER // Mesero (solo Cocina + Órdenes de Mesa)
+  // Tablet compartida de meseros: pantalla de solo un teclado de 4 dígitos. El mesero no
+  // elige su nombre — la clave sola identifica cuál WAITER es (ver auth.service.ts
+  // identifyWaiterByPin). Por eso la clave de un WAITER debe ser única dentro del restaurante.
+  WAITER_TABLET
   KITCHEN // Cocina (solo Cocina + Órdenes de Mesa)
   SCREEN // Pantalla (vista horizontal de Mesas + Cocina, para un monitor/TV)
   COMANDA // Kiosco de autoservicio (tablet en modo tótem, el cliente pide sin mesero)

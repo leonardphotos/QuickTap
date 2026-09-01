@@ -5,7 +5,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
-import { badRequest, conflict, unauthorized } from '../../utils/http-error';
+import { badRequest, conflict, notFound, unauthorized } from '../../utils/http-error';
 import { isLockedAsync, trialPeriodEnd, trialPlanFor } from '../../utils/subscription';
 import { sendMail } from '../../utils/mailer';
 import { CURRENCY_SYMBOLS } from '../../utils/money';
@@ -595,8 +595,13 @@ export const authService = {
     };
   },
 
-  /** Ajustes → Pantalla de bloqueo: cada usuario crea/cambia su propio PIN de 4 dígitos. */
+  /** Ajustes → Pantalla de bloqueo: cada usuario crea/cambia su propio PIN de 4 dígitos.
+   * Si es Mesero, además tiene que ser única en el restaurante — ver assertWaiterPinAvailable:
+   * es la misma clave que la Tablet de Meseros usa para identificarlo, sola, sin elegir nombre. */
   async setLockPin(userId: string, pin: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { restaurantId: true, role: true } });
+    if (!user) throw notFound('Usuario no encontrado.');
+    if (user.role === 'WAITER') await assertWaiterPinAvailable(user.restaurantId, pin, userId);
     const lockPinHash = await bcrypt.hash(pin, 10);
     await prisma.user.update({ where: { id: userId }, data: { lockPinHash } });
     return { done: true };
@@ -650,6 +655,30 @@ export const authService = {
     const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } });
     if (!restaurant?.isActive) throw unauthorized();
     return this.buildSession(user, restaurant);
+  },
+
+  /**
+   * Tablet de Meseros: identifica al mesero SOLO por su clave de 4 dígitos, sin elegir nombre.
+   * Compara contra todos los WAITER del restaurante uno por uno (bcrypt no se puede indexar/
+   * buscar directo) — con la clave única por restaurante (assertWaiterPinAvailable, exigida al
+   * fijarla) el resultado nunca debería dar más de una coincidencia; si da más de una es un
+   * dato corrupto, no una clave débil, y se informa en vez de elegir cualquiera de las dos.
+   */
+  async identifyWaiterByPin(restaurantId: string, pin: string) {
+    const waiters = await prisma.user.findMany({
+      where: { restaurantId, role: 'WAITER', isActive: true, lockPinHash: { not: null } },
+    });
+    const matches = [];
+    for (const w of waiters) {
+      if (await bcrypt.compare(pin, w.lockPinHash!)) matches.push(w);
+    }
+    if (matches.length === 0) throw badRequest('Clave incorrecta.');
+    if (matches.length > 1) {
+      throw badRequest('Hay más de un mesero con esa clave — pide que uno de los dos la cambie desde Equipo.');
+    }
+    const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } });
+    if (!restaurant?.isActive) throw unauthorized();
+    return this.buildSession(matches[0], restaurant);
   },
 
   /**
@@ -734,3 +763,28 @@ export const authService = {
     });
   },
 };
+
+/**
+ * La clave de un mesero debe ser única DENTRO del restaurante: la Tablet de Meseros identifica
+ * a quién pertenece comparándola contra todos los WAITER uno por uno (ver identifyWaiterByPin),
+ * así que dos meseros con la misma clave la dejarían ambigua. Se llama al fijar o cambiar la
+ * clave de un WAITER (Equipo → "PIN", el alta con clave, y el autoservicio de Ajustes) —
+ * `excludeUserId` es el propio mesero cuando está cambiando SU clave, para no chocar consigo mismo.
+ */
+export async function assertWaiterPinAvailable(restaurantId: string, pin: string, excludeUserId?: string) {
+  const others = await prisma.user.findMany({
+    where: {
+      restaurantId,
+      role: 'WAITER',
+      isActive: true,
+      lockPinHash: { not: null },
+      ...(excludeUserId ? { id: { not: excludeUserId } } : {}),
+    },
+    select: { lockPinHash: true },
+  });
+  for (const o of others) {
+    if (await bcrypt.compare(pin, o.lockPinHash!)) {
+      throw badRequest('Esa clave ya la usa otro mesero de este restaurante. Elige otra.');
+    }
+  }
+}

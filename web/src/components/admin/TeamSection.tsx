@@ -58,7 +58,13 @@ export function TeamSection() {
     setError(null);
     setSaving(true);
     try {
-      await api.post('/team', { ...form, pin: form.pin || undefined });
+      // Mesero: solo nombre + clave — el correo/clave se generan solos en el backend (ver
+      // team.service.ts create()). Mandar '' rompería la validación de email del resto de roles.
+      const payload =
+        form.role === 'WAITER'
+          ? { name: form.name, role: form.role, pin: form.pin }
+          : { ...form, pin: form.pin || undefined };
+      await api.post('/team', payload);
       setForm(emptyForm);
       load();
     } catch (err: any) {
@@ -113,21 +119,25 @@ export function TeamSection() {
             className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
             required
           />
-          <input
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-            placeholder="Email"
-            type="email"
-            className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-            required
-          />
-          <PasswordInput
-            value={form.password}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-            placeholder="Contraseña"
-            className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
-            required
-          />
+          {form.role !== 'WAITER' && (
+            <>
+              <input
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="Email"
+                type="email"
+                className="border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                required
+              />
+              <PasswordInput
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                placeholder="Contraseña"
+                className="w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                required
+              />
+            </>
+          )}
           <select
             value={form.role}
             onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}
@@ -142,7 +152,7 @@ export function TeamSection() {
           {form.role === 'WAITER' && (
             <label className="block text-sm sm:col-span-2">
               <span className="text-xs text-brand-950/60">
-                PIN de la tablet (opcional) — para la cuadrícula de "¿Quién está atendiendo?"
+                Clave de 4 dígitos — con esto entra a la Tablet de Meseros, no necesita email ni contraseña.
               </span>
               <input
                 value={form.pin}
@@ -150,7 +160,9 @@ export function TeamSection() {
                 placeholder="4 dígitos, ej: 1234"
                 inputMode="numeric"
                 maxLength={4}
+                pattern="\d{4}"
                 className="mt-1 w-full sm:w-40 rounded-lg border border-brand-950/15 px-3 py-2 text-sm text-center tracking-[0.3em] focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+                required
               />
             </label>
           )}

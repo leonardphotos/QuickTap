@@ -31,6 +31,7 @@ import {
   isKioskRole,
   isNumeroRole,
   isScreenRole,
+  isWaiterTabletRole,
 } from '../../utils/roles';
 import { daysRemaining, graceHoursRemaining, hasFeature } from '../../utils/subscription';
 import { visibleNavLinks } from './nav-links';
@@ -41,6 +42,7 @@ const WaiterLayout = lazy(() => import('./WaiterLayout'));
 const LandscapeStaffLayout = lazy(() => import('./landscape/LandscapeStaffLayout'));
 const ComandaKioskPage = lazy(() => import('./ComandaKioskPage'));
 const NumeroPage = lazy(() => import('./NumeroPage'));
+const WaiterTabletPage = lazy(() => import('./WaiterTabletPage').then((m) => ({ default: m.WaiterTabletPage })));
 const ShopLayout = lazy(() => import('./shop/ShopLayout'));
 const OfficeLayout = lazy(() => import('./office/OfficeLayout'));
 const ClubLayout = lazy(() => import('./club/ClubLayout'));
@@ -186,6 +188,13 @@ export default function AdminLayout() {
         <NumeroPage />
       </div>
     );
+  }
+
+  // Tablet de meseros: sin cabecera ni navegación, solo el teclado de 4 dígitos a pantalla
+  // completa — la propia página ya arranca en fixed inset-0, no necesita el contenido normal
+  // del Outlet (esta ES la pantalla dedicada, no una ruta más dentro del panel).
+  if (isWaiterTabletRole(user.role)) {
+    return <WaiterTabletPage />;
   }
 
   // Tablet real en horizontal (Mesero, o Cajero SIN acceso completo): sidebar de iconos + POS en

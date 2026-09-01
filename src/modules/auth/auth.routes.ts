@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authGuard } from '../../middlewares/auth.middleware';
-import { authRateLimit, lockPinRateLimit, passwordResetRateLimit, switchUserRateLimit } from '../../middlewares/rate-limit.middleware';
+import { authRateLimit, lockPinRateLimit, passwordResetRateLimit, switchUserRateLimit, identifyWaiterRateLimit } from '../../middlewares/rate-limit.middleware';
 import { authController } from './auth.controller';
 
 /** Base: /api/v1/auth */
@@ -20,6 +20,7 @@ router.post('/verify-lock-pin', authGuard, lockPinRateLimit, authController.veri
 // suscripción bloqueada no debe perder ni siquiera esto.
 router.get('/switchable-waiters', authGuard, authController.switchableWaiters);
 router.post('/switch-user', authGuard, switchUserRateLimit, authController.switchUser);
+router.post('/identify-waiter', authGuard, identifyWaiterRateLimit, authController.identifyWaiter);
 // Sin authGuard a propósito: navigator.sendBeacon (cierre de pestaña) no puede mandar
 // headers, así que el token viaja en el body — auth.controller.logout lo valida a mano.
 router.post('/logout', authController.logout);
