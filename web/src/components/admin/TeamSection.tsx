@@ -17,6 +17,9 @@ const emptyForm = {
   role: 'WAITER' as UserRole,
   canAccessInventory: false,
   cashierFullAccess: false,
+  // Segundo inicio de sesión (tablet compartida): el PIN de este mesero, opcional acá mismo —
+  // sin esto había que crear el usuario y aparte abrir "PIN" en la lista, uno por uno.
+  pin: '',
 };
 
 const INVENTORY_ELIGIBLE_ROLES: UserRole[] = ['WAITER', 'KITCHEN'];
@@ -55,7 +58,7 @@ export function TeamSection() {
     setError(null);
     setSaving(true);
     try {
-      await api.post('/team', form);
+      await api.post('/team', { ...form, pin: form.pin || undefined });
       setForm(emptyForm);
       load();
     } catch (err: any) {
@@ -136,6 +139,21 @@ export function TeamSection() {
               </option>
             ))}
           </select>
+          {form.role === 'WAITER' && (
+            <label className="block text-sm sm:col-span-2">
+              <span className="text-xs text-brand-950/60">
+                PIN de la tablet (opcional) — para la cuadrícula de "¿Quién está atendiendo?"
+              </span>
+              <input
+                value={form.pin}
+                onChange={(e) => setForm({ ...form, pin: e.target.value.replace(/[^0-9]/g, '').slice(0, 4) })}
+                placeholder="4 dígitos, ej: 1234"
+                inputMode="numeric"
+                maxLength={4}
+                className="mt-1 w-full sm:w-40 rounded-lg border border-brand-950/15 px-3 py-2 text-sm text-center tracking-[0.3em] focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              />
+            </label>
+          )}
           {INVENTORY_ELIGIBLE_ROLES.includes(form.role) && (
             <label className="flex items-center gap-2 text-sm text-brand-950/70 sm:col-span-2">
               <input

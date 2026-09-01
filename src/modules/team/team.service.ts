@@ -75,6 +75,10 @@ export const teamService = {
     }
 
     const passwordHash = await bcrypt.hash(input.password, 10);
+    // El PIN del segundo inicio de sesión, si lo trae — solo tiene sentido en Mesero (ver
+    // auth.service.listSwitchableWaiters), así que se ignora en cualquier otro rol en vez de
+    // guardarlo sin efecto y confundir después por qué "no aparece en la cuadrícula".
+    const lockPinHash = input.pin && input.role === 'WAITER' ? await bcrypt.hash(input.pin, 10) : null;
     const created = await prisma.user.create({
       data: {
         restaurantId,
@@ -88,6 +92,7 @@ export const teamService = {
         commissionPercent: input.commissionPercent ?? null,
         paymentMethodsConfig: (input.paymentMethodsConfig ?? undefined) as Prisma.InputJsonValue | undefined,
         clubCourtId: await resolveClubCourtId(restaurantId, input.role, input.clubCourtId),
+        lockPinHash,
       },
       select: STAFF_SELECT,
     });

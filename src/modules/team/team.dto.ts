@@ -29,6 +29,11 @@ export const createStaffSchema = z.object({
   // Tablet de cancha (rol CANCHA): a qué cancha queda atornillada. El QR que se
   // escanee ahí tiene que ser de una reserva DE ESA cancha.
   clubCourtId: z.string().cuid().nullable().optional(),
+  // Solo tiene efecto en Mesero: el PIN de 4 dígitos para la cuadrícula de la tablet
+  // compartida (segundo inicio de sesión), fijado de una vez al crearlo — sin esto había que
+  // crear el usuario y aparte abrir "PIN" en la lista para cada mesero. Opcional: se puede
+  // dejar para después, o que el propio mesero se lo configure en Ajustes.
+  pin: z.string().regex(/^\d{4}$/, 'El PIN debe tener 4 dígitos.').optional(),
 });
 
 export const updateStaffSchema = z.object({
