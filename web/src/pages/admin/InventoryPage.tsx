@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
-import { AlertTriangle, FileSpreadsheet, Plus, Printer, Trash2, Upload, X } from 'lucide-react';
+import { AlertTriangle, FileSpreadsheet, Plus, Printer, Search, Trash2, Upload, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { hasFeature } from '@/utils/subscription';
@@ -46,6 +46,14 @@ export interface InventoryItem {
 }
 
 const PACKAGING_TYPE_LABELS: Record<string, string> = { ENVASE: 'Envase', CAJA: 'Caja', BOLSA: 'Bolsa' };
+
+/** Minúsculas y sin acentos, para que el buscador no dependa de cómo se tipeó. */
+function normalize(value: string | null | undefined): string {
+  return (value ?? '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
 
 /** Costo real por unidad tras aplicar rendimiento/factor de corrección — mismo cálculo
  * que src/modules/inventory/costing.ts#resolveCostPerBaseUnit, aquí solo para mostrar. */
@@ -407,6 +415,7 @@ function InsumosTab({
     null,
   );
   const importInputRef = useRef<HTMLInputElement>(null);
+  const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   // Interruptor del vínculo modificador -> insumo.
@@ -575,9 +584,18 @@ function InsumosTab({
   }
 
   function toggleSelectAll() {
-    const allIds = (items ?? []).map((i) => i.id);
+    const allIds = filteredItems.map((i) => i.id);
     setSelected((prev) => (prev.size === allIds.length ? new Set() : new Set(allIds)));
   }
+
+  // El buscador filtra por nombre y categoría, ignorando acentos — mismo criterio que
+  // Productos. Se aplica antes de agrupar por categoría, así que una búsqueda puede dejar
+  // secciones vacías fuera de la vista en vez de mostrarlas con "0 insumos".
+  const filteredItems = (items ?? []).filter((i) => {
+    const q = normalize(search);
+    if (!q) return true;
+    return normalize(i.name).includes(q) || normalize(i.category?.name).includes(q);
+  });
 
   // Mover los insumos seleccionados a una categoría de un solo golpe ('' = "Sin categoría").
   const [bulkMoving, setBulkMoving] = useState(false);
@@ -767,18 +785,15 @@ function InsumosTab({
             />
           </label>
           <label className="block text-sm sm:col-span-2">
-            <span className="text-brand-950/70">
-              Fecha de caducidad <span className="text-red-500">*</span>
-            </span>
+            <span className="text-brand-950/70">Fecha de caducidad (opcional)</span>
             <input
               value={form.expiryDate}
               onChange={(e) => setForm({ ...form, expiryDate: e.target.value })}
               type="date"
-              required
               className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
             />
             <span className="mt-1 block text-[11px] font-light text-brand-950/40">
-              Obligatoria: con ella el sistema te avisa en el Dashboard cuando el lote está por vencer.
+              Si la pones, el sistema te avisa en el Dashboard cuando el lote está por vencer.
             </span>
           </label>
           <label className="block text-sm">
@@ -908,13 +923,13 @@ function InsumosTab({
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <h2 className="text-sm font-semibold text-brand-950">Insumos</h2>
-          {!!items?.length && (
+          {filteredItems.length > 0 && (
             <label className="flex items-center gap-1.5 text-xs font-medium text-brand-950/60">
               <input
                 type="checkbox"
-                checked={selected.size > 0 && selected.size === items.length}
+                checked={selected.size > 0 && selected.size === filteredItems.length}
                 ref={(el) => {
-                  if (el) el.indeterminate = selected.size > 0 && selected.size < items.length;
+                  if (el) el.indeterminate = selected.size > 0 && selected.size < filteredItems.length;
                 }}
                 onChange={toggleSelectAll}
                 className="h-4 w-4 rounded border-brand-950/30 text-brand-500 focus:ring-brand-400"
@@ -1003,6 +1018,28 @@ function InsumosTab({
         </div>
       </div>
 
+      <div className="relative">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-950/35" />
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar insumo por nombre o categoría…"
+          aria-label="Buscar insumos"
+          className="w-full rounded-xl border border-brand-950/15 bg-white py-2 pl-10 pr-10 text-sm text-brand-950 placeholder:text-brand-950/35 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-400/40"
+        />
+        {search && (
+          <button
+            type="button"
+            onClick={() => setSearch('')}
+            aria-label="Limpiar búsqueda"
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-brand-950/40 hover:bg-brand-950/5 hover:text-brand-950/70"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+
       {showCategoryManager && (
         <CategoryManager
           categories={categories}
@@ -1040,7 +1077,13 @@ function InsumosTab({
         </div>
       )}
 
-      {groupByCategory(items ?? [], categories).map(([groupName, groupItems]) => (
+      {!!items?.length && filteredItems.length === 0 && (
+        <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-5">
+          <p className="text-sm text-brand-950/40 font-light">Ningún insumo coincide con "{search}".</p>
+        </div>
+      )}
+
+      {groupByCategory(filteredItems, categories).map(([groupName, groupItems]) => (
         <div key={groupName} className="space-y-2">
           <h3 className="text-xs font-semibold text-brand-950/50 uppercase tracking-wide px-1">{groupName}</h3>
           <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm divide-y divide-brand-950/[0.06]">
