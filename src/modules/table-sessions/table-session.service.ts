@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '../../config/prisma';
 import { badRequest, conflict, notFound, unauthorized } from '../../utils/http-error';
 import { primaryTableIdOf, unmergeIfGroupFreed } from '../../utils/table-merge';
+import { emitToKitchen, SocketEvents } from '../../sockets';
 
 /**
  * Sin clave puesta, cualquiera en la mesa puede ponerla — es el flujo normal del primer pedido.
@@ -126,12 +127,40 @@ export const tableSessionService = {
     const session = await this.getById(restaurantId, id);
     if (session.status === 'CLOSED') throw badRequest('Esa cuenta ya está cerrada.');
 
+    // Cerrar la cuenta también saca sus comandas de la pantalla de Cocina. Cerrar la mesa no
+    // tocaba el estado de los pedidos, así que una comanda que nadie llegó a marcar lista se
+    // quedaba en la cola para siempre y el cocinero terminaba con tarjetas de mesas que ya se
+    // fueron. Se sellan como listas y el pedido pasa a SERVED (que es lo que ya hace el botón
+    // "Listo" cuando cae el último ítem). Ojo: SERVED no es "pagado" — un pedido con saldo
+    // sigue apareciendo en Pedidos, que es justo lo que listLiveOrders garantiza.
+    const enCocina = await prisma.order.findMany({
+      where: { tableSessionId: id, restaurantId, status: { in: ['PENDING', 'KITCHEN'] } },
+      select: { id: true },
+    });
+    const ahora = new Date();
+
     const results = await prisma.$transaction([
       ...(paymentMethod
         ? [prisma.order.updateMany({ where: { tableSessionId: id, restaurantId }, data: { paymentMethod } })]
         : []),
+      ...(enCocina.length > 0
+        ? [
+            prisma.orderItem.updateMany({
+              where: { orderId: { in: enCocina.map((o) => o.id) }, kitchenReadyAt: null },
+              data: { kitchenReadyAt: ahora },
+            }),
+            prisma.order.updateMany({
+              where: { id: { in: enCocina.map((o) => o.id) } },
+              data: { status: 'SERVED' },
+            }),
+          ]
+        : []),
       prisma.tableSession.update({ where: { id }, data: { status: 'CLOSED', closedAt: new Date() } }),
     ]);
+
+    for (const o of enCocina) {
+      emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId: o.id, status: 'SERVED' });
+    }
 
     // Si esta era la última cuenta de un grupo de mesas unidas, el grupo se deshace solo: el
     // salón se junta para un grupo concreto y al irse las mesas vuelven a su sitio. Igual queda

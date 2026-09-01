@@ -2575,6 +2575,17 @@ model OrderItem {
   // WasteReason.CUSTOMER_RETURN — misma tabla que "estadística aparte" de devoluciones).
   deliveredAt      DateTime?
 
+  // Cuándo entró esta línea a la comanda. En un pedido nuevo es igual al createdAt del pedido,
+  // pero un producto añadido después llega mucho más tarde — y es lo que cocina necesita para
+  // contar el tiempo de SU tanda, no el del pedido entero.
+  createdAt        DateTime  @default(now())
+  // Número de tanda dentro del pedido: 1 = lo que se pidió al abrir la comanda, 2+ = cada
+  // ronda añadida después. Cocina muestra una tarjeta por tanda para que no se confunda lo
+  // nuevo con lo viejo; en Pedidos el pedido sigue siendo uno solo. Lo asigna addItem
+  // agrupando por cercanía en el tiempo (ver VENTANA_TANDA_MS), porque el panel añade los
+  // productos de una misma ronda uno por uno.
+  kitchenBatch     Int       @default(1)
+
   order     Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product   Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
   modifiers OrderItemModifier[]

@@ -136,6 +136,9 @@ export const updateStatusSchema = z.object({
 /** Una estación de cocina marca lista su parte de la comanda. null = sin cocina asignada. */
 export const markKitchenReadySchema = z.object({
   kitchenName: z.string().min(1).max(60).nullable(),
+  // Tanda concreta dentro del pedido. Cocina la manda siempre (cada tarjeta es una tanda);
+  // se deja opcional para no romper a un cliente viejo, que sigue cerrando la estación entera.
+  kitchenBatch: z.number().int().positive().optional(),
 });
 
 /** Editar cantidades de un pedido ya creado (sección Delivery). quantity: 0 quita el ítem. */

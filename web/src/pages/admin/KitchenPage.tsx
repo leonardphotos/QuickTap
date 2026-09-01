@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import type { Socket } from 'socket.io-client';
 import { apiOrigin } from '@/utils/apiOrigin';
-import { Check, ChefHat, Flame } from 'lucide-react';
+import { Check, ChefHat, Clock, Flame, Plus } from 'lucide-react';
 import { api, getToken } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { hasFullAccess, isAdminCashier } from '../../utils/roles';
@@ -18,6 +18,20 @@ const CHANNEL_LABELS: Record<string, string> = { DELIVERY: 'Delivery', PICKUP: '
 interface Ticket {
   order: OrderView;
   items: OrderItemView[];
+  /** Tanda dentro del pedido: 1 = la comanda original, 2+ = una ronda añadida después. */
+  batch: number;
+  /** Cuándo llegó ESTA tanda a cocina — de acá sale el contador de la tarjeta. */
+  arrivedAt: number;
+}
+
+/** Tiempo de espera en mm:ss (o h:mm pasada la hora, que a esa altura los segundos sobran). */
+function formatEspera(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const sec = total % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')} h`;
+  return `${m}:${String(sec).padStart(2, '0')}`;
 }
 
 interface Lane {
@@ -34,17 +48,34 @@ function buildLanes(orders: OrderView[], kitchens: Kitchen[]): Lane[] {
 
   for (const order of orders) {
     const pendingItems = order.items.filter((it) => !it.kitchenReadyAt);
+    // Doble agrupación: por estación (cada cocina ve lo suyo) y dentro de ella por tanda, para
+    // que lo que se añadió a una comanda ya abierta salga en una tarjeta aparte y no se mezcle
+    // con lo que ya estaba en fuego. En Pedidos sigue siendo un único pedido.
     const itemsByKey = new Map<string, OrderItemView[]>();
     for (const it of pendingItems) {
-      const key = it.kitchenName ?? UNASSIGNED_KEY;
+      const key = `${it.kitchenName ?? UNASSIGNED_KEY}\u0000${it.kitchenBatch ?? 1}`;
       if (!itemsByKey.has(key)) itemsByKey.set(key, []);
       itemsByKey.get(key)!.push(it);
     }
-    for (const [key, items] of itemsByKey) {
+    for (const [compuesta, items] of itemsByKey) {
+      const [key, batchRaw] = compuesta.split('\u0000');
       if (!byKey.has(key)) byKey.set(key, []);
-      byKey.get(key)!.push({ order, items });
+      // La tanda llega cuando entra su primer ítem. Si el ítem no trae fecha (pedido guardado
+      // antes de esta versión) se usa la del pedido, que es lo que era de hecho.
+      const arrivedAt = items.reduce(
+        (min, it) => Math.min(min, it.createdAt ? new Date(it.createdAt).getTime() : Number.POSITIVE_INFINITY),
+        Number.POSITIVE_INFINITY,
+      );
+      byKey.get(key)!.push({
+        order,
+        items,
+        batch: Number(batchRaw) || 1,
+        arrivedAt: Number.isFinite(arrivedAt) ? arrivedAt : new Date(order.createdAt).getTime(),
+      });
     }
   }
+  // Lo que más lleva esperando, primero: es el orden en el que cocina tiene que sacarlo.
+  for (const tickets of byKey.values()) tickets.sort((a, b) => a.arrivedAt - b.arrivedAt);
 
   const keys = [...byKey.keys()].filter((k) => k !== UNASSIGNED_KEY);
   keys.sort((a, b) => (priorityByName.get(a) ?? 999) - (priorityByName.get(b) ?? 999) || a.localeCompare(b));
@@ -86,13 +117,13 @@ export default function KitchenPage() {
     };
   }, []);
 
-  async function markReady(orderId: string, kitchenName: string | null) {
-    await api.patch(`/orders/${orderId}/kitchen-ready`, { kitchenName });
+  async function markReady(orderId: string, kitchenName: string | null, kitchenBatch: number) {
+    await api.patch(`/orders/${orderId}/kitchen-ready`, { kitchenName, kitchenBatch });
     load();
   }
 
-  async function markStarted(orderId: string, kitchenName: string | null) {
-    await api.patch(`/orders/${orderId}/kitchen-start`, { kitchenName });
+  async function markStarted(orderId: string, kitchenName: string | null, kitchenBatch: number) {
+    await api.patch(`/orders/${orderId}/kitchen-start`, { kitchenName, kitchenBatch });
     load();
   }
 
@@ -106,6 +137,14 @@ export default function KitchenPage() {
     await api.patch(`/orders/${orderId}/status`, { status: 'CANCELLED' });
     load();
   }
+
+  // Un solo reloj para todas las tarjetas: los contadores se recalculan en el render, así que
+  // basta con forzar un render por segundo en vez de un intervalo por comanda.
+  const [ahora, setAhora] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setAhora(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const lanes = buildLanes(orders, kitchens);
   const filterOptions = [...kitchens.map((k) => ({ key: k.name, label: k.name })), { key: UNASSIGNED_KEY, label: 'Sin asignar' }];
@@ -184,9 +223,19 @@ export default function KitchenPage() {
               {lane.tickets.map((ticket) => {
                 // "En proceso": la estación ya tocó el botón en todos sus ítems de esta comanda.
                 const started = ticket.items.length > 0 && ticket.items.every((it) => it.kitchenStartedAt);
+                // Contador de espera de ESTA tanda. Los tramos son la señal que de verdad usa
+                // el cocinero: normal hasta 10 min, ámbar hasta 20, rojo pasados los 20.
+                const espera = ahora - ticket.arrivedAt;
+                const minutos = espera / 60000;
+                const tonoEspera =
+                  minutos >= 20
+                    ? 'bg-red-100 text-red-700'
+                    : minutos >= 10
+                      ? 'bg-amber-100 text-amber-700'
+                      : 'bg-brand-950/[0.06] text-brand-950/60';
                 return (
                 <TextureCard
-                  key={`${lane.key}-${ticket.order.id}`}
+                  key={`${lane.key}-${ticket.order.id}-${ticket.batch}`}
                   className={`transition-shadow duration-300 hover:shadow-md ${
                     ticket.order.status === 'PENDING' ? 'ring-1 ring-amber-300' : started ? 'ring-1 ring-orange-300' : ''
                   }`}
@@ -195,15 +244,33 @@ export default function KitchenPage() {
                     <div className="flex items-center justify-between gap-2">
                       <p className="font-semibold text-brand-950 truncate">
                         #{ticket.order.orderNumber}
+                        {ticket.batch > 1 && (
+                          <span className="font-normal text-brand-950/60"> · añadido {ticket.batch - 1}</span>
+                        )}
                         {ticket.order.customerName && (
                           <span className="font-normal text-brand-950/60"> · {ticket.order.customerName}</span>
                         )}
                       </p>
-                      <span className="text-xs bg-brand-950/[0.06] px-2 py-0.5 rounded-full shrink-0">
+                      <span
+                        className={`inline-flex items-center gap-1 text-xs font-semibold tabular-nums px-2 py-0.5 rounded-full shrink-0 ${tonoEspera}`}
+                        title="Tiempo que lleva esta comanda en cocina"
+                      >
+                        <Clock className="h-3 w-3" /> {formatEspera(espera)}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs bg-brand-950/[0.06] px-2 py-0.5 rounded-full">
                         {ticket.order.channel === 'DINE_IN'
                           ? `Mesa ${ticket.order.table?.number ?? ''}`
                           : CHANNEL_LABELS[ticket.order.channel] ?? ticket.order.channel}
                       </span>
+                      {ticket.batch > 1 && (
+                        // Lo que entró después de que la comanda ya estaba en cocina. Sin esta
+                        // marca el cocinero no distingue lo nuevo de lo que ya tenía en fuego.
+                        <span className="inline-flex items-center gap-1 text-xs bg-sky-100 text-sky-700 px-2 py-0.5 rounded-full font-medium">
+                          <Plus className="h-3 w-3" /> Añadido a la comanda
+                        </span>
+                      )}
                     </div>
                     {ticket.order.status === 'PENDING' && (
                       <span className="inline-block text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
@@ -246,14 +313,14 @@ export default function KitchenPage() {
                       <div className="space-y-2">
                         {!started && (
                           <button
-                            onClick={() => markStarted(ticket.order.id, lane.key === UNASSIGNED_KEY ? null : lane.key)}
+                            onClick={() => markStarted(ticket.order.id, lane.key === UNASSIGNED_KEY ? null : lane.key, ticket.batch)}
                             className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-orange-100 hover:bg-orange-200 text-orange-700 text-sm font-medium py-2 transition-colors"
                           >
                             <Flame className="h-4 w-4" /> En proceso
                           </button>
                         )}
                         <button
-                          onClick={() => markReady(ticket.order.id, lane.key === UNASSIGNED_KEY ? null : lane.key)}
+                          onClick={() => markReady(ticket.order.id, lane.key === UNASSIGNED_KEY ? null : lane.key, ticket.batch)}
                           className="w-full flex items-center justify-center gap-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-medium py-2 transition-colors"
                         >
                           <Check className="h-4 w-4" /> Listo

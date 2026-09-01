@@ -142,15 +142,15 @@ export const orderController = {
 
   /** PATCH /api/v1/orders/:id/kitchen-ready — una estación de cocina marca lista su parte. */
   markKitchenReady: asyncHandler(async (req: Request, res: Response) => {
-    const { kitchenName } = markKitchenReadySchema.parse(req.body);
-    const order = await orderService.markKitchenReady(req.restaurantId!, req.params.id, kitchenName);
+    const { kitchenName, kitchenBatch } = markKitchenReadySchema.parse(req.body);
+    const order = await orderService.markKitchenReady(req.restaurantId!, req.params.id, kitchenName, kitchenBatch);
     res.json({ data: order });
   }),
 
   /** PATCH /api/v1/orders/:id/kitchen-start — una estación marca su parte como "En proceso". */
   markKitchenStarted: asyncHandler(async (req: Request, res: Response) => {
-    const { kitchenName } = markKitchenReadySchema.parse(req.body);
-    const order = await orderService.markKitchenStarted(req.restaurantId!, req.params.id, kitchenName);
+    const { kitchenName, kitchenBatch } = markKitchenReadySchema.parse(req.body);
+    const order = await orderService.markKitchenStarted(req.restaurantId!, req.params.id, kitchenName, kitchenBatch);
     res.json({ data: order });
   }),
 

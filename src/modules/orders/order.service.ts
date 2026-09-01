@@ -325,6 +325,14 @@ function sumSubtotal(lines: PricedLine[]): Prisma.Decimal {
 
 // Cargos opcionales del checkout: el restaurante los activa/desactiva desde
 // Ajustes, pero el porcentaje en sí no es configurable.
+/**
+ * Cuánto tiempo sigue abierta una tanda de cocina. El panel añade los productos de una misma
+ * ronda uno por uno, con segundos entre llamadas; todo lo que caiga dentro de esta ventana se
+ * considera la misma ronda. Más allá, es una adición posterior y cocina la ve como tarjeta
+ * nueva — que es exactamente lo que hay que poder distinguir de la comanda vieja.
+ */
+const VENTANA_TANDA_MS = 60_000;
+
 const SERVICE_CHARGE_RATE = 0.1;
 const IVA_RATE = 0.16;
 
@@ -1977,9 +1985,20 @@ export const orderService = {
     const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(order.deliveryFeeBase).add(envaseFeeBase));
     const totalBs = baseToBs(totalBase, order.exchangeRate);
 
+    // Tanda: cocina necesita ver aparte lo que se añadió después, pero el panel manda los
+    // productos de una misma ronda uno por uno (ver addToExisting en CreateOrderDialog), así
+    // que se agrupan por cercanía en el tiempo en vez de abrir una tanda por producto. Lo que
+    // llega dentro de la ventana entra en la tanda que está abierta; lo que llega más tarde
+    // abre una nueva, que es justo lo que el cocinero tiene que distinguir.
+    const ahora = new Date();
+    const ultimaTanda = order.items.reduce((max, it) => Math.max(max, it.kitchenBatch), 1);
+    const masReciente = order.items.reduce((max, it) => Math.max(max, it.createdAt.getTime()), 0);
+    const kitchenBatch =
+      order.items.length === 0 || ahora.getTime() - masReciente <= VENTANA_TANDA_MS ? ultimaTanda : ultimaTanda + 1;
+
     await prisma.$transaction([
       prisma.orderItem.create({
-        data: { orderId, ...buildOrderItemCreateData(line) },
+        data: { orderId, ...buildOrderItemCreateData(line), createdAt: ahora, kitchenBatch },
       }),
       prisma.order.update({
         where: { id: orderId },
@@ -2231,15 +2250,17 @@ export const orderService = {
    * completo pasa a SERVED (con sus mismos efectos: descuento de inventario,
    * aviso al cliente) solo cuando TODAS sus estaciones ya marcaron listo.
    */
-  async markKitchenReady(restaurantId: string, orderId: string, kitchenName: string | null) {
+  async markKitchenReady(restaurantId: string, orderId: string, kitchenName: string | null, kitchenBatch?: number) {
     const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { items: { include: { modifiers: true } } } });
     if (!existing) throw notFound('Comanda no encontrada.');
     if (existing.status !== 'PENDING' && existing.status !== 'KITCHEN') {
       throw badRequest('Este pedido ya no está en cocina.');
     }
 
+    // Sin tanda cierra toda la estación (cliente viejo); con tanda cierra solo esa tarjeta,
+    // para que marcar lista la primera ronda no dé por hecha la que acaba de entrar.
     await prisma.orderItem.updateMany({
-      where: { orderId, kitchenName, kitchenReadyAt: null },
+      where: { orderId, kitchenName, kitchenReadyAt: null, ...(kitchenBatch ? { kitchenBatch } : {}) },
       data: { kitchenReadyAt: new Date() },
     });
 
@@ -2260,7 +2281,7 @@ export const orderService = {
    * inventario. Sella kitchenStartedAt en los ítems de esa cocina que aún no lo tenían;
    * el aviso por socket sincroniza las demás pantallas de cocina.
    */
-  async markKitchenStarted(restaurantId: string, orderId: string, kitchenName: string | null) {
+  async markKitchenStarted(restaurantId: string, orderId: string, kitchenName: string | null, kitchenBatch?: number) {
     const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });
     if (!existing) throw notFound('Comanda no encontrada.');
     if (existing.status !== 'PENDING' && existing.status !== 'KITCHEN') {
@@ -2268,7 +2289,7 @@ export const orderService = {
     }
 
     await prisma.orderItem.updateMany({
-      where: { orderId, kitchenName, kitchenStartedAt: null, kitchenReadyAt: null },
+      where: { orderId, kitchenName, kitchenStartedAt: null, kitchenReadyAt: null, ...(kitchenBatch ? { kitchenBatch } : {}) },
       data: { kitchenStartedAt: new Date() },
     });
 

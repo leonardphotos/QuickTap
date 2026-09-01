@@ -528,6 +528,10 @@ export interface OrderItemView {
   kitchenStartedAt?: string | null;
   /** Cuándo esa estación marcó su parte lista. null = todavía pendiente. */
   kitchenReadyAt?: string | null;
+  /** Cuándo entró esta línea a la comanda — de ahí sale el tiempo que lleva esperando cocina. */
+  createdAt?: string;
+  /** Tanda dentro del pedido: 1 = la comanda original, 2+ = cada ronda añadida después. */
+  kitchenBatch?: number;
 }
 
 export interface OrderView {

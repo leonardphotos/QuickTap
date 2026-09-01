@@ -672,7 +672,10 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
             <ul
               className={
                 isPos
-                  ? 'text-lg space-y-2 mt-3 flex-1 min-h-0 overflow-y-auto divide-y divide-brand-950/[0.06]'
+                  ? // Un punto por debajo del resto de la pasarela: el detalle es para repasar la
+                    // cuenta, no para leerlo de lejos, y a text-lg empujaba fuera de pantalla los
+                    // datos de pago cuando el pedido tenía varias líneas.
+                    'text-base space-y-2 mt-3 flex-1 min-h-0 overflow-y-auto divide-y divide-brand-950/[0.06]'
                   : 'text-sm space-y-1 mt-2 max-h-32 overflow-y-auto'
               }
             >
@@ -682,7 +685,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                     <span className="font-medium">{it.quantity}x</span> {it.productName}
                     {it.variantName && <span className="text-brand-950/50"> ({it.variantName})</span>}
                     {it.modifiers.length > 0 && (
-                      <span className={isPos ? 'block text-sm text-brand-950/50' : 'text-brand-950/50'}>
+                      <span className={isPos ? 'block text-xs text-brand-950/50' : 'text-brand-950/50'}>
                         {isPos ? '' : ' ('}
                         {it.modifiers.map(formatModifierLabel).join(', ')}
                         {isPos ? '' : ')'}
