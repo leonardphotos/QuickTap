@@ -321,6 +321,37 @@ export function ProductOptionsDialog({
             </div>
           )}
 
+          {esComboPool && (
+            <ComboPoolSelector
+              componentes={product.comboComponents ?? []}
+              poolQty={poolQty}
+              min={comboPoolMin}
+              max={comboPoolMax}
+              grande={grande}
+              onChange={setPoolQty}
+            />
+          )}
+
+          {comboInstances.map((inst) => {
+            const clave = claveInstancia(inst);
+            const repetidas = esComboPool ? (poolQty[claveComponente(inst.comp)] ?? 0) : inst.comp.quantity;
+            const nombre = inst.comp.variantName ? `${inst.comp.name} ${inst.comp.variantName}` : inst.comp.name;
+            return (
+              <ComboInstancePicker
+                key={clave}
+                titulo={repetidas > 1 ? `${nombre} (${inst.n})` : nombre}
+                categorias={inst.comp.modifierCategories}
+                qty={comboQty[clave] ?? {}}
+                variantId={inst.comp.variantId ?? null}
+                grande={grande}
+                currencySymbol={currencySymbol}
+                onChange={(next) => setComboQty((prev) => ({ ...prev, [clave]: next }))}
+              />
+            );
+          })}
+
+          {/* Los modificadores del producto van al final: después de elegir tamaño/opción y,
+              si es un combo, después de elegir los componentes — no antes. */}
           {modifierCategories.map((category) => {
             const total = categoryTotal(category);
             const max = effectiveMax(category);
@@ -460,35 +491,6 @@ export function ProductOptionsDialog({
                 </div>
                 )}
               </div>
-            );
-          })}
-
-          {esComboPool && (
-            <ComboPoolSelector
-              componentes={product.comboComponents ?? []}
-              poolQty={poolQty}
-              min={comboPoolMin}
-              max={comboPoolMax}
-              grande={grande}
-              onChange={setPoolQty}
-            />
-          )}
-
-          {comboInstances.map((inst) => {
-            const clave = claveInstancia(inst);
-            const repetidas = esComboPool ? (poolQty[claveComponente(inst.comp)] ?? 0) : inst.comp.quantity;
-            const nombre = inst.comp.variantName ? `${inst.comp.name} ${inst.comp.variantName}` : inst.comp.name;
-            return (
-              <ComboInstancePicker
-                key={clave}
-                titulo={repetidas > 1 ? `${nombre} (${inst.n})` : nombre}
-                categorias={inst.comp.modifierCategories}
-                qty={comboQty[clave] ?? {}}
-                variantId={inst.comp.variantId ?? null}
-                grande={grande}
-                currencySymbol={currencySymbol}
-                onChange={(next) => setComboQty((prev) => ({ ...prev, [clave]: next }))}
-              />
             );
           })}
 
