@@ -45,12 +45,16 @@ router.get('/import-template', mutate, productController.downloadImportTemplate)
 router.post('/import', mutate, uploadSpreadsheet, productController.importExcel);
 
 router.post('/bulk-delete', mutate, productController.bulkRemove);
+// Orden personalizado (arrastrar y soltar) dentro de una categoría. Va antes de '/:id' por lo
+// mismo que las rutas de arriba: sin esto, "reorder" se leería como un id de producto.
+router.patch('/reorder', mutate, productController.reorder);
 
 router.get('/:id', productController.getOne);
 router.get('/:id/combo', productController.getCombo);
 router.put('/:id/combo', mutate, productController.setCombo);
 router.patch('/:id', mutate, productController.update);
 router.delete('/:id', mutate, productController.remove);
+router.post('/:id/duplicate', mutate, productController.duplicate);
 
 router.get('/:productId/variants', productVariantController.list);
 router.post('/:productId/variants', mutate, productVariantController.create);

@@ -2,7 +2,13 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import { asyncHandler } from '../../middlewares/error.middleware';
 import { badRequest } from '../../utils/http-error';
-import { bulkDeleteProductsSchema, createProductSchema, marginReportQuerySchema, updateProductSchema } from './product.dto';
+import {
+  bulkDeleteProductsSchema,
+  createProductSchema,
+  marginReportQuerySchema,
+  reorderProductsSchema,
+  updateProductSchema,
+} from './product.dto';
 import { productService } from './product.service';
 import { catalogImportService } from './catalog-import.service';
 import { productImportService } from './product-import.service';
@@ -57,6 +63,17 @@ export const productController = {
   bulkRemove: asyncHandler(async (req: Request, res: Response) => {
     const { ids } = bulkDeleteProductsSchema.parse(req.body);
     const result = await productService.bulkRemove(req.restaurantId!, ids);
+    res.json({ data: result });
+  }),
+
+  duplicate: asyncHandler(async (req: Request, res: Response) => {
+    const copy = await productService.duplicate(req.restaurantId!, req.params.id);
+    res.status(201).json({ data: copy });
+  }),
+
+  reorder: asyncHandler(async (req: Request, res: Response) => {
+    const input = reorderProductsSchema.parse(req.body);
+    const result = await productService.reorder(req.restaurantId!, input.categoryId, input.productIds);
     res.json({ data: result });
   }),
 

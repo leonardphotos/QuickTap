@@ -15,6 +15,14 @@ export const bulkDeleteProductsSchema = z.object({
 });
 export type BulkDeleteProductsInput = z.infer<typeof bulkDeleteProductsSchema>;
 
+/** Orden personalizado (arrastrar y soltar) DENTRO de una categoría — mismo criterio que
+ * reorderModifiersSchema: manda el array completo ya reordenado, el índice se vuelve priority. */
+export const reorderProductsSchema = z.object({
+  categoryId: z.string().min(1),
+  productIds: z.array(z.string().min(1)).min(1),
+});
+export type ReorderProductsInput = z.infer<typeof reorderProductsSchema>;
+
 /** Validación de entrada para crear/actualizar productos. */
 export const createProductSchema = z.object({
   categoryId: z.string().min(1, 'La categoría es obligatoria.'),

@@ -275,6 +275,131 @@ export const productService = {
     return { deleted: ownedIds.length };
   },
 
+  /** Copia completa de un producto: variantes, categorías de modificadores asociadas (con su
+   * acotado por variante), componentes de combo, receta y estructura de costo — el mismo
+   * criterio que modifierCategoryService.duplicate, todo en una sola transacción. La copia
+   * queda con `(copia)` en el nombre y sin `externalSource`/`externalSourceId` (si el original
+   * venía de una importación, la copia es de acá en adelante independiente de ese origen: dos
+   * productos con el mismo id externo violarían el índice único). */
+  async duplicate(restaurantId: string, id: string) {
+    const source = await prisma.product.findFirst({
+      where: { id, restaurantId },
+      include: {
+        variants: { orderBy: { priority: 'asc' } },
+        modifierCategories: true,
+        comboComponents: true,
+        recipeIngredients: true,
+        costStructure: true,
+      },
+    });
+    if (!source) throw notFound('Producto no encontrado.');
+
+    return prisma.$transaction(async (tx) => {
+      const {
+        id: _id,
+        createdAt: _createdAt,
+        updatedAt: _updatedAt,
+        variants,
+        modifierCategories,
+        comboComponents,
+        recipeIngredients,
+        costStructure,
+        externalSource: _externalSource,
+        externalSourceId: _externalSourceId,
+        ...fields
+      } = source;
+
+      const copy = await tx.product.create({
+        data: { ...fields, name: `${source.name} (copia)` },
+      });
+
+      // Mapa variante vieja -> nueva: hace falta para remapear los grupos de modificadores
+      // acotados por variante (ProductModifierCategory.variantIds) y las líneas de receta por
+      // tamaño (RecipeIngredient.productVariantId) — ambos apuntan a variantes DE ESTE producto.
+      const variantIdMap = new Map<string, string>();
+      for (const v of variants) {
+        const { id: oldVariantId, productId: _pid, restaurantId: _rid, createdAt: _vc, updatedAt: _vu, externalSourceId: _vext, ...variantFields } = v;
+        const newVariant = await tx.productVariant.create({
+          data: { ...variantFields, productId: copy.id, restaurantId },
+        });
+        variantIdMap.set(oldVariantId, newVariant.id);
+      }
+
+      if (modifierCategories.length > 0) {
+        await tx.productModifierCategory.createMany({
+          data: modifierCategories.map((link) => ({
+            productId: copy.id,
+            modifierCategoryId: link.modifierCategoryId,
+            priority: link.priority,
+            maxSelectionsOverride: link.maxSelectionsOverride,
+            freeQuantity: link.freeQuantity,
+            variantIds: link.variantIds.map((vid) => variantIdMap.get(vid) ?? vid),
+          })),
+        });
+      }
+
+      // Componentes de combo: apuntan a OTROS productos (y a SUS variantes, no a las de este
+      // producto), así que se copian tal cual — nada que remapear.
+      if (comboComponents.length > 0) {
+        await tx.comboComponent.createMany({
+          data: comboComponents.map((c) => ({
+            restaurantId,
+            productId: copy.id,
+            componentProductId: c.componentProductId,
+            quantity: c.quantity,
+            priority: c.priority,
+            variantId: c.variantId,
+          })),
+        });
+      }
+
+      if (recipeIngredients.length > 0) {
+        await tx.recipeIngredient.createMany({
+          data: recipeIngredients.map((r) => ({
+            restaurantId,
+            productId: copy.id,
+            inventoryItemId: r.inventoryItemId,
+            preparationId: r.preparationId,
+            customerChoiceModifierCategoryId: r.customerChoiceModifierCategoryId,
+            customerChoiceModifierId: r.customerChoiceModifierId,
+            componentProductId: r.componentProductId,
+            productVariantId: r.productVariantId ? (variantIdMap.get(r.productVariantId) ?? null) : null,
+            quantity: r.quantity,
+            costBase: r.costBase,
+          })),
+        });
+      }
+
+      if (costStructure) {
+        const { id: _csId, productId: _csProductId, restaurantId: _csRestaurantId, createdAt: _csCreatedAt, updatedAt: _csUpdatedAt, ...costFields } =
+          costStructure;
+        await tx.productCostStructure.create({
+          data: { ...costFields, materials: costFields.materials as Prisma.InputJsonValue, productId: copy.id, restaurantId },
+        });
+      }
+
+      return copy;
+    });
+  },
+
+  /** Orden personalizado (arrastrar y soltar) dentro de una categoría — mismo criterio que
+   * modifierCategoryService.reorderModifiers: valida que todos los ids pertenezcan a este
+   * restaurante Y a esta categoría antes de tocar nada, para que nadie pueda colar el id de un
+   * producto ajeno o de otra categoría en el array. */
+  async reorder(restaurantId: string, categoryId: string, productIds: string[]) {
+    const owned = await prisma.product.findMany({
+      where: { id: { in: productIds }, restaurantId, categoryId },
+      select: { id: true },
+    });
+    if (owned.length !== productIds.length) {
+      throw badRequest('Alguno de los productos no pertenece a esta categoría.');
+    }
+    await prisma.$transaction(
+      productIds.map((id, index) => prisma.product.update({ where: { id }, data: { priority: index } })),
+    );
+    return { reordered: true };
+  },
+
   /** Administración → Margen de utilidad: margen (ingreso − costo) de lo REALMENTE vendido
    * en el período, no todo el catálogo. El costo usado es el ACTUAL del producto (costo
    * manual o receta en vivo) — a diferencia de unitPrice/productName, el costo no queda
