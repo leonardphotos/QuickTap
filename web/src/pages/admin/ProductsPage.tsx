@@ -377,6 +377,15 @@ export default function ProductsPage() {
                 </div>
               </div>
               <div className="flex items-center gap-3 shrink-0">
+                {/* A qué cocina sale la comanda de este plato — de un vistazo, junto al estado
+                    de disponibilidad, para notar rápido un plato mal asignado (o sin asignar). */}
+                <span
+                  className={`text-xs px-2 py-1 rounded-full font-medium ${
+                    p.kitchen ? 'bg-brand-950/[0.06] text-brand-950/60' : 'bg-amber-100 text-amber-700'
+                  }`}
+                >
+                  {p.kitchen ? p.kitchen.name : 'Sin cocina'}
+                </span>
                 {p.stockDepleted && p.isAvailable && (
                   <span className="text-xs px-2 py-1 rounded-full font-medium bg-red-100 text-red-700">Agotado (stock)</span>
                 )}

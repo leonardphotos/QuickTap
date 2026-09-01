@@ -142,6 +142,9 @@ export const productService = {
         // Precio del envase vinculado (packagingMode INVENTORY): sin esto el panel no puede
         // mostrar el cargo por envase que el servidor sí cobra en Delivery/Pickup.
         packagingItem: { select: { salePriceBase: true } },
+        // A qué cocina sale la comanda de este plato — la lista de Productos lo muestra junto
+        // a "Disponible" para poder revisar de un vistazo que todo quedó bien asignado.
+        kitchen: { select: { id: true, name: true } },
         ...PRODUCT_MODIFIER_INCLUDE,
       },
     });

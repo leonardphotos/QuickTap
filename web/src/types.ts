@@ -235,6 +235,9 @@ export interface Product {
   id: string;
   categoryId: string;
   kitchenId?: string | null;
+  /** Solo lo trae el listado de Productos (para mostrar junto a "Disponible"); el resto de
+   * pantallas ya tenían kitchenId y no necesitan el nombre resuelto. */
+  kitchen?: { id: string; name: string } | null;
   name: string;
   description?: string | null;
   price: string;
