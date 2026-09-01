@@ -282,6 +282,12 @@ export const addOrderItemSchema = z.object({
   note: z.string().max(200).optional(),
 });
 
+/** Varios productos agregados de una sola vez a un pedido ya creado (ver "Enviar a cocina" en
+ * el panel) — UNA sola tanda de cocina y UNA sola comanda con todo junto, no una por producto. */
+export const addOrderItemsBatchSchema = z.object({
+  items: z.array(addOrderItemSchema).min(1).max(40),
+});
+
 /** Editar los datos del cliente de un pedido ya creado. */
 export const updateOrderCustomerSchema = z.object({
   customerName: z.string().min(1).max(120).optional(),
@@ -374,6 +380,7 @@ export type SetAwaitingPaymentInput = z.infer<typeof setAwaitingPaymentSchema>;
 export type DeleteOrderInput = z.infer<typeof deleteOrderSchema>;
 export type DispatchCourierInput = z.infer<typeof dispatchCourierSchema>;
 export type AddOrderItemInput = z.infer<typeof addOrderItemSchema>;
+export type AddOrderItemsBatchInput = z.infer<typeof addOrderItemsBatchSchema>;
 export type RecordPaymentInput = z.infer<typeof recordPaymentSchema>;
 export type UpdateOrderCustomerInput = z.infer<typeof updateOrderCustomerSchema>;
 export type ChangeChannelInput = z.infer<typeof changeChannelSchema>;

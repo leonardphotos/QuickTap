@@ -2142,6 +2142,99 @@ export const orderService = {
     return updated;
   },
 
+  /** Igual que addItem, pero para varios productos de una sola vez — "Enviar a cocina" en el
+   * panel manda TODO lo que el mesero acumuló en la previsualización en una sola llamada, para
+   * que salga UNA comanda de adición con todo junto y no una por producto (antes, el frontend
+   * llamaba addItem en un loop y cada llamada disparaba su propio print:request por separado). */
+  async addItems(restaurantId: string, orderId: string, inputs: AddOrderItemInput[]) {
+    const order = await prisma.order.findFirst({ where: { id: orderId, restaurantId }, include: { items: { include: { modifiers: true } } } });
+    if (!order) throw notFound('Comanda no encontrada.');
+    if (order.status === 'SERVED' || order.status === 'CANCELLED') {
+      throw badRequest('No se puede editar un pedido ya finalizado o cancelado.');
+    }
+
+    const lines = await priceCart(
+      restaurantId,
+      inputs.map((input) => ({
+        productId: input.productId,
+        quantity: input.quantity,
+        variantId: input.variantId,
+        modifierIds: input.modifierIds,
+        comboSelections: input.comboSelections,
+        note: input.note,
+      })),
+    );
+
+    const addedTotal = lines.reduce((acc, l) => acc.add(l.lineTotal), toDecimal(0));
+    const subtotalBase = round2(
+      order.items.reduce((acc, it) => acc.add(it.unitPrice.mul(it.quantity)), toDecimal(0)).add(addedTotal),
+    );
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { serviceChargeEnabled: true, ivaEnabled: true },
+    });
+    const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant!);
+    const envaseFeeBase = await computeEnvaseFee(restaurantId, order.channel, [
+      ...order.items,
+      ...lines.map((l) => ({ productId: l.productId, quantity: l.quantity })),
+    ]);
+    const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(order.deliveryFeeBase).add(envaseFeeBase));
+    const totalBs = baseToBs(totalBase, order.exchangeRate);
+
+    // Toda esta llamada es UNA sola ronda del mesero — una sola tanda para todo el grupo, no
+    // una por producto (mismo criterio de ventana que addItem, ver VENTANA_TANDA_MS arriba).
+    const ahora = new Date();
+    const ultimaTanda = order.items.reduce((max, it) => Math.max(max, it.kitchenBatch), 1);
+    const masReciente = order.items.reduce((max, it) => Math.max(max, it.createdAt.getTime()), 0);
+    const kitchenBatch =
+      order.items.length === 0 || ahora.getTime() - masReciente <= VENTANA_TANDA_MS ? ultimaTanda : ultimaTanda + 1;
+
+    await prisma.$transaction([
+      ...lines.map((line) =>
+        prisma.orderItem.create({
+          data: { orderId, ...buildOrderItemCreateData(line), createdAt: ahora, kitchenBatch },
+        }),
+      ),
+      prisma.order.update({
+        where: { id: orderId },
+        data: { subtotalBase, serviceChargeBase, ivaBase, envaseFeeBase, totalBase, totalBs },
+      }),
+    ]);
+
+    const updated = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        items: { include: { modifiers: true } },
+        table: { select: { number: true, zone: { select: { name: true } } } },
+        placedByUser: { select: { name: true } },
+      },
+    });
+    emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: updated!.status });
+
+    if (updated!.status === 'KITCHEN') {
+      emitToKitchen(restaurantId, SocketEvents.PRINT_REQUEST, {
+        type: 'comanda-adicion',
+        orderId: updated!.id,
+        orderNumber: updated!.orderNumber,
+        channel: updated!.channel,
+        table: updated!.table ? { number: updated!.table.number, zoneName: updated!.table.zone?.name ?? null } : null,
+        placedByUser: updated!.placedByUser?.name ?? null,
+        customerName: updated!.customerName,
+        items: lines.map((line) => ({
+          name: line.productName,
+          variantName: line.variantName,
+          quantity: line.quantity,
+          modifiers: line.modifiers.map((m) => ({ name: m.name, quantity: m.quantity })),
+          note: line.note,
+          kitchenName: line.kitchenName,
+        })),
+        createdAt: ahora,
+      });
+    }
+
+    return updated;
+  },
+
   /** Edita los datos del cliente de un pedido ya creado (nombre, teléfono, dirección, nota). */
   async updateCustomer(restaurantId: string, orderId: string, input: UpdateOrderCustomerInput) {
     const existing = await prisma.order.findFirst({ where: { id: orderId, restaurantId } });

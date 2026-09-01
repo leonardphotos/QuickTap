@@ -4,6 +4,7 @@ import { badRequest, forbidden } from '../../utils/http-error';
 import { DISCOUNT_ROLES } from '../../utils/roles';
 import {
   addOrderItemSchema,
+  addOrderItemsBatchSchema,
   changeChannelSchema,
   deleteOrderSchema,
   deliveryCheckoutSchema,
@@ -78,6 +79,14 @@ export const orderController = {
   addItem: asyncHandler(async (req: Request, res: Response) => {
     const input = addOrderItemSchema.parse(req.body);
     const order = await orderService.addItem(req.restaurantId!, req.params.id, input);
+    res.status(201).json({ data: order });
+  }),
+
+  /** POST /api/v1/orders/:id/items/batch — "Enviar a cocina": varios productos de una sola
+   * ronda en una sola llamada, para que salga UNA comanda de adición, no una por producto. */
+  addItemsBatch: asyncHandler(async (req: Request, res: Response) => {
+    const input = addOrderItemsBatchSchema.parse(req.body);
+    const order = await orderService.addItems(req.restaurantId!, req.params.id, input.items);
     res.status(201).json({ data: order });
   }),
 

@@ -430,17 +430,18 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
     setAddingToId(orderId);
     setError(null);
     try {
-      // Secuencial: el backend recalcula el total del pedido a partir de todos sus ítems en cada llamada.
-      for (const l of lines) {
-        await api.post(`/orders/${orderId}/items`, {
+      // Una sola llamada con TODAS las líneas: así cocina recibe UNA comanda de adición con
+      // todo junto, no una por producto (ver order.service.ts addItems).
+      await api.post(`/orders/${orderId}/items/batch`, {
+        items: lines.map((l) => ({
           productId: l.product.id,
           quantity: l.quantity,
           variantId: l.variantId,
           modifierIds: l.selectedModifiers.flatMap((m) => Array(m.quantity ?? 1).fill(m.modifierId)),
           comboSelections: l.comboSelections,
           note: l.note,
-        });
-      }
+        })),
+      });
       onCreated();
       onSelectExisting(orderId);
     } catch (e: any) {

@@ -1392,18 +1392,19 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
     setSendingPending(true);
     setError(null);
     try {
-      // Secuencial: el backend recalcula el total del pedido a partir de todos sus ítems en
-      // cada llamada (mismo criterio que addToExisting en CreateOrderDialog).
-      for (const line of pendingLines) {
-        await api.post(`/orders/${order.id}/items`, {
+      // Una sola llamada con TODAS las líneas: así cocina recibe UNA comanda de adición con
+      // todo junto, no una por producto (antes era secuencial, una petición por línea, y cada
+      // una disparaba su propia impresión por separado).
+      await api.post(`/orders/${order.id}/items/batch`, {
+        items: pendingLines.map((line) => ({
           productId: line.product.id,
           quantity: line.quantity,
           variantId: line.variantId,
           modifierIds: line.selectedModifiers.flatMap((m) => Array(m.quantity ?? 1).fill(m.modifierId)),
           comboSelections: line.comboSelections,
           note: line.note,
-        });
-      }
+        })),
+      });
       setPendingLines([]);
       onSaved();
     } catch (e: any) {

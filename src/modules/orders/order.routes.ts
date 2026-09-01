@@ -57,6 +57,7 @@ router.post('/:id/send-whatsapp', orderController.sendWhatsapp);
 router.post('/:id/print-comanda', orderController.printComanda);
 router.post('/:id/print-receipt', orderController.printReceipt);
 router.post('/:id/items', orderController.addItem);
+router.post('/:id/items/batch', orderController.addItemsBatch);
 router.post('/:id/items/:itemId/return', orderController.returnItem);
 router.post('/:id/payments', orderController.addPayment);
 router.post('/upload-payment-proof', uploadOrderPaymentProof, optimizeImage(1200, 1200), orderController.uploadPaymentProof);
