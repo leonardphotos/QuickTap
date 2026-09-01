@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ArrowLeft,
   Bike,
@@ -6,7 +6,6 @@ import {
   Clock,
   MapPin,
   Martini,
-  ScanLine,
   Search,
   SplitSquareHorizontal,
   Store,
@@ -22,11 +21,6 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { AddressAutocomplete, reverseGeocode } from '@/components/AddressAutocomplete';
 import { CustomerPicker } from './CustomerPicker';
 import { ProductOptionsDialog } from './ProductOptionsDialog';
-// Carga diferida a propósito: el lector arrastra @zxing (~250 KB minificado) y escanear es
-// algo esporádico, pero al importarlo fijo se metía en el trozo de Pedidos —la pantalla que
-// más se abre— y todos los teléfonos pagaban ese peso al entrar. Ahora solo baja cuando de
-// verdad se abre el escáner.
-const ProductBarcodeScanDialog = lazy(() => import('./ProductBarcodeScanDialog'));
 import type { LiveOrder } from './LiveOrdersPanel';
 
 interface ExistingOrderOption {
@@ -165,7 +159,6 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   const [customerNote, setCustomerNote] = useState('');
   const [lines, setLines] = useState<CartLine[]>([]);
   const [optionsProduct, setOptionsProduct] = useState<Product | null>(null);
-  const [scanOpen, setScanOpen] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deliveryFeeBase, setDeliveryFeeBase] = useState<number | null>(null);
@@ -975,35 +968,24 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                     sticky y no en dos separados para no tener que calcular el `top` del segundo
                     contra la altura del primero — que cambia según el ancho de la pantalla. */}
                 <div className="sticky top-0 bg-[#f4f6f9] pt-1 pb-2 -mt-1 z-10 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <div className="relative flex-1 min-w-0 max-w-sm">
-                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-950/30" />
-                      <input
-                        value={productSearch}
-                        onChange={(e) => setProductSearch(e.target.value)}
-                        placeholder="Buscar en el menú…"
-                        className="w-full text-sm bg-white border border-brand-950/10 rounded-xl pl-8 pr-2.5 py-2"
-                      />
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setScanOpen(true)}
-                      title="Escanear código de barras"
-                      aria-label="Escanear código de barras"
-                      className="shrink-0 flex items-center justify-center h-[38px] w-[38px] rounded-xl border border-brand-950/10 bg-white text-brand-950/50 hover:bg-brand-950/5 hover:text-brand-950"
-                    >
-                      <ScanLine className="h-4 w-4" />
-                    </button>
+                  <div className="relative max-w-sm">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-950/30" />
+                    <input
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      placeholder="Buscar en el menú…"
+                      className="w-full text-sm bg-white border border-brand-950/10 rounded-xl pl-8 pr-2.5 py-2"
+                    />
                   </div>
                   {/* Una sola fila que se desplaza de lado, en vez de envolverse en varias:
                       ahora que la barra está fija, una carta con muchas categorías se comía
                       media pantalla de forma permanente. Mismo patrón que usan Productos e
                       Inventario para sus filtros. */}
                   <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                    <div className="flex w-max gap-1.5">
+                    <div className="flex w-max gap-2">
                       <button
                         onClick={() => setCategoryFilter(null)}
-                        className={`whitespace-nowrap text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+                        className={`whitespace-nowrap text-sm font-semibold px-4 py-3 rounded-lg transition-colors ${
                           !categoryFilter ? 'bg-brand-950 text-white' : 'bg-white border border-brand-950/10 text-brand-950/50'
                         }`}
                       >
@@ -1013,7 +995,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                         <button
                           key={c}
                           onClick={() => setCategoryFilter(c)}
-                          className={`whitespace-nowrap text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+                          className={`whitespace-nowrap text-sm font-semibold px-4 py-3 rounded-lg transition-colors ${
                             categoryFilter === c ? 'bg-brand-950 text-white' : 'bg-white border border-brand-950/10 text-brand-950/50'
                           }`}
                         >
@@ -1214,11 +1196,6 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
         />
       )}
 
-      {scanOpen && (
-        <Suspense fallback={null}>
-          <ProductBarcodeScanDialog open onOpenChange={setScanOpen} products={products} onFound={setOptionsProduct} />
-        </Suspense>
-      )}
     </>
   );
 }
