@@ -27,9 +27,15 @@ export function formatBsAbsolute(bs: string | number): string {
 
 /**
  * Precio base a mostrar en las tarjetas del menú público (grid, destacados, sugeridos): el
- * precio simple del producto, o — si el producto es de variantes (pricingMode VARIANTS) — la
- * más barata de sus variantes disponibles. Sin esto, una tarjeta de un producto sin precio
- * simple (todo su precio vive en las variantes) mostraba $0.00, no el precio real del producto.
+ * precio simple del producto, o — si el producto es de variantes (pricingMode VARIANTS) — el
+ * de su PRIMERA variante disponible (el orden que el restaurante armó al crear el producto,
+ * el mismo que ve el cliente arriba del todo en el selector de tamaños). Sin esto, una
+ * tarjeta de un producto sin precio simple (todo su precio vive en las variantes) mostraba
+ * $0.00, no el precio real del producto.
+ *
+ * No es la más barata a propósito: la primera variante es la que el restaurante quiso mostrar
+ * primero (ej. el tamaño "normal"), y usar el mínimo podía enseñar el precio de una opción
+ * rara o poco pedida en vez del que el cliente espera ver.
  */
 export function productDisplayPriceBase(product: {
   price: string;
@@ -38,8 +44,8 @@ export function productDisplayPriceBase(product: {
 }): { amountBase: number; isFromVariant: boolean } {
   if (product.pricingMode === 'VARIANTS' && product.variants?.length) {
     const pool = product.variants.filter((v) => v.isAvailable !== false);
-    const candidates = (pool.length > 0 ? pool : product.variants).map((v) => Number(v.priceBase));
-    return { amountBase: Math.min(...candidates), isFromVariant: true };
+    const primera = pool.length > 0 ? pool[0] : product.variants[0];
+    return { amountBase: Number(primera.priceBase), isFromVariant: true };
   }
   return { amountBase: Number(product.price), isFromVariant: false };
 }
