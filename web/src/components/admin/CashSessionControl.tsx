@@ -345,6 +345,21 @@ function CloseCashForm({
     await downloadElementAsPdf(receiptRef.current, `cierre-caja-${closed?.closeNumber ?? session.id}.pdf`);
   }
 
+  const [printing, setPrinting] = useState(false);
+
+  // El PDF queda como respaldo descargable; esto es la copia en papel para archivar junto a la
+  // gaveta — sale por la impresora de Caja ("Nota de entrega" en la estación de impresión, ver
+  // cashSessionService.printClosing), no por el diálogo de impresión del navegador.
+  async function printClosing() {
+    if (!closed) return;
+    setPrinting(true);
+    try {
+      await api.post(`/cash-sessions/${closed.id}/print`);
+    } finally {
+      setPrinting(false);
+    }
+  }
+
   return (
     <>
       {!closed && (
@@ -542,9 +557,14 @@ function CloseCashForm({
           <p className="text-sm text-brand-950/70">
             Cierre #{closed.closeNumber} generado correctamente. Descarga el comprobante para tu registro.
           </p>
-          <TextureButton variant="brand" size="default" onClick={download}>
-            Descargar cierre (PDF)
-          </TextureButton>
+          <div className="flex flex-wrap gap-2">
+            <TextureButton variant="brand" size="default" onClick={download}>
+              Descargar cierre (PDF)
+            </TextureButton>
+            <TextureButton variant="secondary" size="default" onClick={printClosing} disabled={printing}>
+              {printing ? 'Enviando…' : 'Imprimir (Nota de entrega)'}
+            </TextureButton>
+          </div>
           <div className="fixed -left-[9999px] top-0">
             <CashSessionReceipt ref={receiptRef} session={closed} restaurantName={restaurantName} currency={currency} rateBs={rateBs} />
           </div>

@@ -17,5 +17,6 @@ router.post('/open', cashSessionController.open);
 router.get('/:id/preview', cashSessionController.previewClose);
 router.post('/:id/close', cashSessionController.close);
 router.get('/:id', cashSessionController.getById);
+router.post('/:id/print', cashSessionController.printClosing);
 
 export default router;

@@ -431,4 +431,31 @@ export const cashSessionService = {
       select: { id: true, closeNumber: true, openedAt: true, closedAt: true, closingSummary: true },
     });
   },
+
+  /** Botón "Imprimir" del recibo de cierre: lo manda a la impresora de Caja (rol "Nota de
+   * entrega" en la estación de impresión) — el mismo canal que ya usa printReceipt para la
+   * cuenta de un pedido, ver order.service.ts. El PDF (html2canvas) sigue siendo el respaldo
+   * descargable; esto es la copia en papel para archivar junto a la gaveta. */
+  async printClosing(restaurantId: string, id: string) {
+    const session = await prisma.cashSession.findFirst({
+      where: { id, restaurantId, status: 'CLOSED' },
+      include: { openedByUser: { select: { name: true } }, closedByUser: { select: { name: true } } },
+    });
+    if (!session) throw notFound('Cierre de caja no encontrado.');
+    const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { name: true, baseCurrency: true } });
+
+    emitToKitchen(restaurantId, SocketEvents.PRINT_REQUEST, {
+      type: 'cierre-caja',
+      restaurantName: restaurant?.name ?? null,
+      currency: restaurant?.baseCurrency ?? 'USD',
+      closeNumber: session.closeNumber,
+      openedAt: session.openedAt,
+      closedAt: session.closedAt,
+      openedByName: session.openedByUser?.name ?? null,
+      closedByName: session.closedByUser?.name ?? null,
+      summary: session.closingSummary,
+    });
+
+    return { sent: true };
+  },
 };

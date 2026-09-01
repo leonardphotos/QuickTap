@@ -27,6 +27,9 @@ export const cashSessionController = {
   getById: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await cashSessionService.getById(req.restaurantId!, req.params.id) });
   }),
+  printClosing: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await cashSessionService.printClosing(req.restaurantId!, req.params.id) });
+  }),
   list: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await cashSessionService.list(req.restaurantId!) });
   }),

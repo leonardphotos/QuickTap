@@ -2100,8 +2100,45 @@ export const orderService = {
       }),
     ]);
 
-    const updated = await prisma.order.findUnique({ where: { id: orderId }, include: { items: { include: { modifiers: true } } } });
+    const updated = await prisma.order.findUnique({
+      where: { id: orderId },
+      include: {
+        items: { include: { modifiers: true } },
+        table: { select: { number: true, zone: { select: { name: true } } } },
+        placedByUser: { select: { name: true } },
+      },
+    });
     emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: updated!.status });
+
+    // Un pedido ya comandado (en KITCHEN) no vuelve a imprimirse solo porque cambió `status` —
+    // order:updated no lleva items y la estación de impresión no reimprime nada en esa
+    // transición (solo imprime la comanda completa la primera vez que el pedido pasa a
+    // KITCHEN). Sin este aviso aparte, lo agregado a una cuenta ya en curso nunca salía en
+    // cocina. Mismo canal que el botón "Imprimir" (print:request), pero solo con la línea
+    // nueva — no reimprime la comanda entera.
+    if (updated!.status === 'KITCHEN') {
+      emitToKitchen(restaurantId, SocketEvents.PRINT_REQUEST, {
+        type: 'comanda-adicion',
+        orderId: updated!.id,
+        orderNumber: updated!.orderNumber,
+        channel: updated!.channel,
+        table: updated!.table ? { number: updated!.table.number, zoneName: updated!.table.zone?.name ?? null } : null,
+        placedByUser: updated!.placedByUser?.name ?? null,
+        customerName: updated!.customerName,
+        items: [
+          {
+            name: line.productName,
+            variantName: line.variantName,
+            quantity: line.quantity,
+            modifiers: line.modifiers.map((m) => ({ name: m.name, quantity: m.quantity })),
+            note: line.note,
+            kitchenName: line.kitchenName,
+          },
+        ],
+        createdAt: ahora,
+      });
+    }
+
     return updated;
   },
 
