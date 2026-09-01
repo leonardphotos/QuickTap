@@ -56,6 +56,8 @@ export interface HistoryOrderItem {
 export interface HistoryOrderPayment {
   method: string;
   referenceNumber: string | null;
+  /** Foto del comprobante adjuntada al cobrar (pago móvil/transferencia). */
+  proofImageUrl?: string | null;
   amountBase: string;
   discountBase: string | null;
   createdAt: string;
@@ -225,13 +227,27 @@ export function OrderDetailRow({
             </div>
           </div>
           {order.payments.length > 0 ? (
-            <div className="space-y-1 pt-1">
+            <div className="space-y-2 pt-1">
               {order.payments.map((p, i) => (
-                <p key={i} className="text-xs text-brand-950/50">
-                  {ALL_PAYMENT_LABELS[p.method as AnyPaymentMethod] ?? p.method}
-                  {p.referenceNumber && ` · Ref: ${p.referenceNumber}`}
-                  {order.payments.length > 1 && ` · ${formatBase(p.amountBase, symbol)}`}
-                </p>
+                <div key={i} className="space-y-1">
+                  <p className="text-xs text-brand-950/50">
+                    {ALL_PAYMENT_LABELS[p.method as AnyPaymentMethod] ?? p.method}
+                    {p.referenceNumber && ` · Ref: ${p.referenceNumber}`}
+                    {order.payments.length > 1 && ` · ${formatBase(p.amountBase, symbol)}`}
+                  </p>
+                  {/* El comprobante va acá dentro, junto a su pago: verificar un cobro dudoso
+                      es justo lo que se viene a hacer a esta pantalla, y hasta ahora había que
+                      pedirle la foto a quien cobró. Se abre a tamaño completo en otra pestaña. */}
+                  {p.proofImageUrl && (
+                    <a href={p.proofImageUrl} target="_blank" rel="noreferrer" className="block w-fit">
+                      <img
+                        src={p.proofImageUrl}
+                        alt="Comprobante de pago"
+                        className="w-full max-w-[220px] rounded-lg border border-brand-950/10 object-contain hover:border-brand-500"
+                      />
+                    </a>
+                  )}
+                </div>
               ))}
             </div>
           ) : (

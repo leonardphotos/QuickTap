@@ -3249,7 +3249,7 @@ export const orderService = {
           placedByUser: { select: { name: true, role: true } },
           items: { select: { productId: true, productName: true, quantity: true, unitPrice: true, lineTotal: true } },
           payments: {
-            select: { method: true, referenceNumber: true, amountBase: true, discountBase: true, createdAt: true },
+            select: { method: true, referenceNumber: true, proofImageUrl: true, amountBase: true, discountBase: true, createdAt: true },
             orderBy: { createdAt: 'asc' },
           },
         },
@@ -3298,6 +3298,9 @@ export const orderService = {
         payments: o.payments.map((p) => ({
           method: p.method,
           referenceNumber: p.referenceNumber,
+          // Comprobante adjunto al cobrar (foto del pago móvil/transferencia): Administración
+          // lo muestra dentro del propio movimiento, para poder verificar un pago sin salir.
+          proofImageUrl: p.proofImageUrl,
           amountBase: p.amountBase.toFixed(2),
           discountBase: p.discountBase?.toFixed(2) ?? null,
           createdAt: p.createdAt,
@@ -3544,7 +3547,7 @@ export const orderService = {
         table: { select: { number: true } },
         items: { select: { productName: true, variantName: true, quantity: true, unitPrice: true, lineTotal: true } },
         payments: {
-          select: { method: true, referenceNumber: true, amountBase: true, discountBase: true, createdAt: true },
+          select: { method: true, referenceNumber: true, proofImageUrl: true, amountBase: true, discountBase: true, createdAt: true },
         },
       },
     });
@@ -3570,6 +3573,7 @@ export const orderService = {
       payments: o.payments.map((p) => ({
         method: p.method,
         referenceNumber: p.referenceNumber,
+        proofImageUrl: p.proofImageUrl,
         amountBase: p.amountBase.toFixed(2),
         discountBase: p.discountBase?.toFixed(2) ?? null,
         createdAt: p.createdAt,
