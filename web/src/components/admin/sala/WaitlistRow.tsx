@@ -45,7 +45,7 @@ export function WaitlistRow({
             </span>
             {table ? (
               <span className="flex items-center gap-1 font-semibold text-brand-600">
-                <Table2 className="h-3 w-3" /> Mesa {table.number}
+                <Table2 className="h-3 w-3" /> {table.number}
               </span>
             ) : (
               entry.zone && <span className="truncate">{entry.zone.name}</span>

@@ -35,7 +35,7 @@ function reservationMessage(restaurantName: string, r: Reservation): string {
   const tables = r.tables.map((t) => t.number).join(', ');
   return [
     `Hola ${r.customerName}, te escribimos de *${restaurantName}* sobre tu reserva.`,
-    `📅 ${formatDate(r.date)}, ${r.time} · 👥 ${r.partySize} · 🪑 Mesa ${tables}`,
+    `📅 ${formatDate(r.date)}, ${r.time} · 👥 ${r.partySize} · 🪑 ${tables}`,
     r.status === 'CONFIRMED' ? '¡Tu reserva está confirmada, te esperamos!' : '',
   ]
     .filter(Boolean)
@@ -195,7 +195,7 @@ function ReservationRow({
             <Users className="h-3 w-3" /> {reservation.partySize}
           </span>
           <span className="flex items-center gap-1">
-            <Table2 className="h-3 w-3" /> Mesa {reservation.tables.map((t) => t.number).join(', ')}
+            <Table2 className="h-3 w-3" /> {reservation.tables.map((t) => t.number).join(', ')}
           </span>
         </p>
       </div>

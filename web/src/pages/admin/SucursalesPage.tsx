@@ -390,7 +390,7 @@ function BranchSalesDialog({
               >
                 <div className="min-w-0">
                   <p className="font-medium text-brand-950">
-                    #{sale.orderNumber} · {sale.table ? `Mesa ${sale.table}` : CHANNEL_ROW_LABELS[sale.channel]}
+                    #{sale.orderNumber} · {sale.table ? sale.table : CHANNEL_ROW_LABELS[sale.channel]}
                   </p>
                   <p className="text-xs text-brand-950/40">
                     {new Date(sale.createdAt).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })}
@@ -428,7 +428,7 @@ function BranchSaleDetailDialog({ sale, symbol, onClose }: { sale: BranchSale; s
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>
-            Pedido #{sale.orderNumber} · {sale.table ? `Mesa ${sale.table}` : CHANNEL_ROW_LABELS[sale.channel]}
+            Pedido #{sale.orderNumber} · {sale.table ? sale.table : CHANNEL_ROW_LABELS[sale.channel]}
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">

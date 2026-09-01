@@ -136,7 +136,7 @@ export function NewOrderAlert({ onNavigate }: Props) {
     // En la app de escritorio (Electron) esto además dispara una notificación nativa
     // del sistema operativo — así se ve aunque la ventana esté minimizada o sin foco,
     // algo que el banner de acá (solo visible con la ventana abierta) no puede lograr.
-    const title = fresh.channel === 'DINE_IN' ? `Mesa ${fresh.table?.number ?? ''}` : fresh.customerName || CHANNEL_META[fresh.channel].label;
+    const title = fresh.channel === 'DINE_IN' ? (fresh.table?.number ?? '') : fresh.customerName || CHANNEL_META[fresh.channel].label;
     void notifyNative({
       title: `Nuevo pedido — ${title}`,
       body: fresh.items.map((i) => `${i.quantity}x ${i.productName}`).join(', ') || 'Sin productos',
@@ -213,7 +213,7 @@ export function NewOrderAlert({ onNavigate }: Props) {
 
   const meta = CHANNEL_META[order.channel];
   const Icon = meta.icon;
-  const title = order.channel === 'DINE_IN' ? `Mesa ${order.table?.number ?? ''}` : order.customerName || meta.label;
+  const title = order.channel === 'DINE_IN' ? (order.table?.number ?? '') : order.customerName || meta.label;
   const itemsSummary = order.items.map((i) => `${i.quantity}x ${i.productName}`).join(', ');
   const timeLabel = elapsed < 60 ? `hace ${elapsed}s` : `hace ${Math.floor(elapsed / 60)} min`;
 

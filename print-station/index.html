@@ -1066,7 +1066,7 @@ function renderQueue(){
 function orderCardHtml(order){
   const badgeClass = CHANNEL_BADGE[order.channel] || 'badge-dinein';
   const channelLabel = CHANNEL_LABEL[order.channel] || order.channel || '';
-  const tableInfo = order.table ? `Mesa ${esc(order.table.number)}` : (order.customerName ? esc(order.customerName) : '');
+  const tableInfo = order.table ? esc(order.table.number) : (order.customerName ? esc(order.customerName) : '');
   const itemsHtml = (order.items || []).map(it => `
     <li>
       <span class="qty">${esc(it.quantity)}x</span>

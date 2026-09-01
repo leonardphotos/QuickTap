@@ -69,7 +69,7 @@ export function AssignTablesDialog({ waiter, onClose }: Props) {
                     <label className="flex items-center justify-between gap-2 px-3 py-2.5 text-sm cursor-pointer">
                       <span className="flex items-center gap-2 text-brand-950">
                         <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggle(t.id)} />
-                        Mesa {t.number}
+                        {t.number}
                         {t.zone && <span className="text-brand-950/40"> · {t.zone.name}</span>}
                       </span>
                       {takenByOther && <span className="text-xs text-amber-600">Asignada a otro mesero</span>}

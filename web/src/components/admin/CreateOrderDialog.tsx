@@ -456,7 +456,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
       : tableMode === 'ADD'
         ? 'Abrir mesa'
         : selectedTable
-          ? `${selectedTable.zoneName ? `${selectedTable.zoneName} · ` : ''}Mesa ${selectedTable.number}`
+          ? `${selectedTable.zoneName ? `${selectedTable.zoneName} · ` : ''}${selectedTable.number}`
           : 'Nuevo pedido';
 
   const stepDots = (
@@ -789,7 +789,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                                     : 'border-brand-950/10 bg-white hover:border-brand-500/40'
                               }`}
                             >
-                              <p className="text-sm font-bold text-brand-950 truncate">Mesa {t.number}</p>
+                              <p className="text-sm font-bold text-brand-950 truncate">{t.number}</p>
                               {t.zoneName && <p className="text-[10px] text-brand-950/40 truncate">{t.zoneName}</p>}
                               {busy && firstSession ? (
                                 <>
@@ -868,7 +868,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                                   : 'border-brand-950/10 bg-white hover:border-brand-500/40'
                               }`}
                             >
-                              <p className="text-sm font-bold text-brand-950 truncate">Mesa {t.number}</p>
+                              <p className="text-sm font-bold text-brand-950 truncate">{t.number}</p>
                               {t.zoneName && <p className="text-[10px] text-brand-950/40 truncate">{t.zoneName}</p>}
                               <p className="text-[10px] font-semibold mt-0.5 text-emerald-600">Libre</p>
                             </button>

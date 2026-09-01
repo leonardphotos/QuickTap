@@ -64,7 +64,7 @@ export const ComandaReceipt = forwardRef<HTMLDivElement, Props>(({ order, restau
         </div>
         <div style={rowGap}>
           <span>Canal</span>
-          <span>{order.table ? `Mesa ${order.table.number}` : CHANNEL_LABELS[order.channel]}</span>
+          <span>{order.table ? order.table.number : CHANNEL_LABELS[order.channel]}</span>
         </div>
         {order.placedByUser && (
           <div style={rowGap}>

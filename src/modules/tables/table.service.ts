@@ -7,6 +7,7 @@ import { startOfTodayCaracas } from '../../utils/timezone';
 import { primaryTableIdOf, unmergeGroup } from '../../utils/table-merge';
 import { sendPushToRestaurant } from '../../utils/push';
 import { CreateTableInput, MergeTablesInput, SaveFloorPlanInput, UpdateTableInput } from './table.dto';
+import { naturalCompare } from '../../utils/natural-sort';
 
 async function assertZoneBelongs(restaurantId: string, zoneId: string) {
   const zone = await prisma.zone.findFirst({ where: { id: zoneId, restaurantId }, select: { id: true } });
@@ -64,11 +65,13 @@ function serializeSession(session: {
 
 export const tableService = {
   async list(restaurantId: string) {
-    return prisma.table.findMany({
+    const tables = await prisma.table.findMany({
       where: { restaurantId },
-      orderBy: { number: 'asc' },
       include: { zone: { select: { id: true, name: true } } },
     });
+    // orderBy de Postgres es alfabético puro: "Mesa 10" salía antes que "Mesa 2". number es
+    // texto libre (ver el modelo), así que el reorden se hace acá con orden natural.
+    return tables.sort((a, b) => naturalCompare(a.number, b.number));
   },
 
   /** Crea la mesa con un qrToken único; ese token es lo que va embebido en el QR. */
@@ -122,12 +125,11 @@ export const tableService = {
         where: { restaurantId },
         orderBy: [{ priority: 'asc' }, { name: 'asc' }],
         include: {
-          tables: { where: { isActive: true }, orderBy: { number: 'asc' } },
+          tables: { where: { isActive: true } },
         },
       }),
       prisma.table.findMany({
         where: { restaurantId, zoneId: null, isActive: true },
-        orderBy: { number: 'asc' },
       }),
       prisma.tableSession.findMany({
         where: { restaurantId, status: 'OPEN' },
@@ -145,6 +147,11 @@ export const tableService = {
         select: { tables: { select: { id: true } } },
       }),
     ]);
+
+    // orderBy de Postgres es alfabético puro ("Mesa 10" antes que "Mesa 2"): se reordena acá
+    // con orden natural, igual que en list().
+    for (const zone of zones) zone.tables.sort((a, b) => naturalCompare(a.number, b.number));
+    unzonedTables.sort((a, b) => naturalCompare(a.number, b.number));
 
     // Una mesa puede tener varias cuentas abiertas a la vez — se agrupan todas, no solo la última.
     const sessionByTable = new Map<string, typeof openSessions>();
@@ -390,7 +397,8 @@ export const tableService = {
       }),
     ]);
 
-    return prisma.table.findMany({ where: { restaurantId, assignedWaiterId: waiterId }, orderBy: { number: 'asc' } });
+    const asignadas = await prisma.table.findMany({ where: { restaurantId, assignedWaiterId: waiterId } });
+    return asignadas.sort((a, b) => naturalCompare(a.number, b.number));
   },
 
   /** El mesero atiende la solicitud desde el plano de mesas: la limpia y avisa al comensal. */

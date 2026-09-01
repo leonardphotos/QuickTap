@@ -1002,7 +1002,7 @@ export function LiveOrdersPanel({
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-semibold text-brand-950">
                         #{r.orderNumber}
-                        {r.tableName ? ` · Mesa ${r.tableName}` : ''}
+                        {r.tableName ? ` · ${r.tableName}` : ''}
                         {r.customerName ? ` · ${r.customerName}` : ''}
                       </span>
                       <span className="text-sm font-bold text-brand-950">{formatBase(r.totalBase, symbol)}</span>
@@ -1633,7 +1633,7 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
                 <option value="">{channelTables === null ? 'Cargando mesas…' : 'Selecciona una mesa…'}</option>
                 {channelTables?.map((t) => (
                   <option key={t.id} value={t.id}>
-                    {t.zoneName ? `${t.zoneName} · Mesa ${t.number}` : `Mesa ${t.number}`}
+                    {t.zoneName ? `${t.zoneName} · ${t.number}` : t.number}
                   </option>
                 ))}
               </select>

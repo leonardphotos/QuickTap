@@ -50,10 +50,10 @@ export function ReservationRow({
             </span>
             {seatedTable ? (
               <span className="flex items-center gap-1 font-semibold text-brand-600">
-                <Table2 className="h-3 w-3" /> Mesa {seatedTable.number}
+                <Table2 className="h-3 w-3" /> {seatedTable.number}
               </span>
             ) : (
-              tables && <span className="truncate">Mesa {tables}</span>
+              tables && <span className="truncate">{tables}</span>
             )}
           </p>
           {reservation.note && <p className="mt-0.5 truncate text-[11px] italic text-brand-950/40">{reservation.note}</p>}

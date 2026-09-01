@@ -41,7 +41,7 @@ export function TableServiceAlert() {
       // en la barra del sistema y suena aunque el mesero tenga la app minimizada.
       void notifyNative({
         title: payload.type === 'WAITER_CALL' ? 'Llaman al mesero' : 'Piden la cuenta',
-        body: number ? `Mesa ${number}` : 'Una mesa necesita atención',
+        body: number || 'Una mesa necesita atención',
       });
     });
 
@@ -79,7 +79,7 @@ export function TableServiceAlert() {
           {isCall ? <BellRing className="h-6 w-6" /> : <Receipt className="h-6 w-6" />}
         </div>
         <h3 className="text-base font-semibold text-brand-950">
-          Mesa {alert.tableNumber} {isCall ? 'te está llamando' : 'pidió la cuenta'}
+          {alert.tableNumber} {isCall ? 'te está llamando' : 'pidió la cuenta'}
         </h3>
         <p className="mt-1 text-xs text-brand-950/50 font-light">
           {isCall ? 'Solicitó atención en la mesa' : 'Solicitó cerrar la mesa'}

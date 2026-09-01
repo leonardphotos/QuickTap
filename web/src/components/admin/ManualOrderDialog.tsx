@@ -138,7 +138,7 @@ export function ManualOrderDialog({ tableId, tableNumber, sessions, products, on
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {step === 'cliente' ? 'Datos del cliente' : 'Menú'} · Mesa {tableNumber}
+              {step === 'cliente' ? 'Datos del cliente' : 'Menú'} · {tableNumber}
             </DialogTitle>
           </DialogHeader>
 

@@ -719,7 +719,7 @@ function StatsTab() {
                         >
                           <div className="min-w-0">
                             <p className="font-medium text-brand-950">
-                              #{sale.orderNumber} · {sale.table ? `Mesa ${sale.table}` : CHANNEL_ROW_LABELS[sale.channel]}
+                              #{sale.orderNumber} · {sale.table ? sale.table : CHANNEL_ROW_LABELS[sale.channel]}
                             </p>
                             <p className="text-brand-950/40">
                               {new Date(sale.createdAt).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })}
@@ -937,7 +937,7 @@ function SalesListPanel({
             >
               <div className="min-w-0">
                 <p className="font-medium text-brand-950">
-                  #{sale.orderNumber} · {sale.table ? `Mesa ${sale.table}` : CHANNEL_ROW_LABELS[sale.channel]}
+                  #{sale.orderNumber} · {sale.table ? sale.table : CHANNEL_ROW_LABELS[sale.channel]}
                 </p>
                 <p className="text-xs text-brand-950/40">
                   {new Date(sale.createdAt).toLocaleString('es-VE', { dateStyle: 'short', timeStyle: 'short' })}
@@ -955,7 +955,7 @@ function SalesListPanel({
 function SaleDetailPanel({ sale, symbol, onClose }: { sale: UserSale; symbol: string; onClose: () => void }) {
   return (
     <InlinePanel
-      title={`Pedido #${sale.orderNumber} · ${sale.table ? `Mesa ${sale.table}` : CHANNEL_ROW_LABELS[sale.channel]}`}
+      title={`Pedido #${sale.orderNumber} · ${sale.table ? sale.table : CHANNEL_ROW_LABELS[sale.channel]}`}
       onClose={onClose}
       closeLabel="← Volver"
     >

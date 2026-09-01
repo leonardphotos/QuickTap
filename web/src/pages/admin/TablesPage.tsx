@@ -118,7 +118,7 @@ export default function TablesPage() {
               <div className="py-8 text-center">
                 <p className="text-2xl">✅</p>
                 <p className="mt-2 font-medium text-brand-950">¡Listo!</p>
-                <p className="text-sm font-light text-brand-950/50">Mesa "{number}" creada.</p>
+                <p className="text-sm font-light text-brand-950/50">"{number}" creada.</p>
               </div>
             ) : (
               <form onSubmit={onSubmit} className="flex flex-col gap-3">
@@ -234,7 +234,7 @@ export default function TablesPage() {
                 <QRCodeSVG value={menuUrl(t.qrToken)} size={36} fgColor="#001B43" />
               </button>
               <div className="min-w-0 flex-1">
-                <p className="font-medium text-brand-950 truncate">Mesa {t.number}</p>
+                <p className="font-medium text-brand-950 truncate">{t.number}</p>
                 {t.zone && <p className="text-xs text-brand-950/40 truncate">{t.zone.name}</p>}
               </div>
               <button

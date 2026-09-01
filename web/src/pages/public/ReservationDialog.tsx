@@ -166,7 +166,7 @@ export default function ReservationDialog({ restaurant, onClose }: Props) {
                             >
                               <Table2 className="h-5 w-5" />
                             </span>
-                            <span className="text-[11px] text-brand-950/60 font-medium">Mesa {t.number}</span>
+                            <span className="text-[11px] text-brand-950/60 font-medium">{t.number}</span>
                           </button>
                         );
                       })}

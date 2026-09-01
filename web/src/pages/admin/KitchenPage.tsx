@@ -261,7 +261,7 @@ export default function KitchenPage() {
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-xs bg-brand-950/[0.06] px-2 py-0.5 rounded-full">
                         {ticket.order.channel === 'DINE_IN'
-                          ? `Mesa ${ticket.order.table?.number ?? ''}`
+                          ? (ticket.order.table?.number ?? '')
                           : CHANNEL_LABELS[ticket.order.channel] ?? ticket.order.channel}
                       </span>
                       {ticket.batch > 1 && (

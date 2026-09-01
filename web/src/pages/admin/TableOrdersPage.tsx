@@ -556,7 +556,7 @@ export default function TableOrdersPage() {
     activeSession && editingOrder && editingOrder.channel === 'DINE_IN' ? (
       <>
         <p className="text-sm font-semibold text-brand-950 flex items-center gap-2">
-          Mesa {selected?.number}
+          {selected?.number}
           {activeSession.pinRequired && (
             <span className="inline-flex items-center gap-1 text-xs text-brand-500 font-normal">
               <Lock className="h-3 w-3" /> Con clave
@@ -778,7 +778,7 @@ export default function TableOrdersPage() {
       <Dialog open={!!selected && !editingOrder} onOpenChange={(o) => !o && setSelected(null)}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Mesa {selected?.number}</DialogTitle>
+            <DialogTitle>{selected?.number}</DialogTitle>
           </DialogHeader>
           {activeSession ? (
             <div className="space-y-4">
@@ -877,7 +877,7 @@ export default function TableOrdersPage() {
       <Dialog open={moveOpen} onOpenChange={setMoveOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Rodar mesa {selected?.number} a…</DialogTitle>
+            <DialogTitle>Rodar {selected?.number} a…</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-4 gap-2 max-h-72 overflow-y-auto">
             {freeTables.map((t) => (
