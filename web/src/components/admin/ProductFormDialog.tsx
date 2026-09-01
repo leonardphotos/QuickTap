@@ -4,7 +4,7 @@ import { Eye, EyeOff, Plus, Trash2, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { hasFeature } from '@/utils/subscription';
-import type { Category, Kitchen, ModifierCategory, Product, ProductVariant } from '@/types';
+import type { Category, Kitchen, Modifier, ModifierCategory, Product, ProductVariant } from '@/types';
 import { TextureButton } from '@/components/ui/texture-button';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { PhotoUploadField } from './PhotoUploadField';
@@ -1302,7 +1302,80 @@ function LinkedCategoryRow({
           </div>
         </div>
       )}
+
+      {/* Por debajo del "¿En qué tamaños?" del grupo: acotar un modificador SUELTO dentro de
+          él, sin tocar al resto del grupo (ej. "Extra tocineta" solo en la Doble/Triple). */}
+      {variants.length > 0 && category.modifiers.length > 0 && (
+        <div className="space-y-2 pt-1">
+          <span className="text-[11px] text-brand-950/40">Modificadores acotados por tamaño (opcional)</span>
+          {category.modifiers.map((m) => (
+            <ModifierVariantRow key={m.id} modifier={m} productId={productId} variants={variants} />
+          ))}
+        </div>
+      )}
     </li>
+  );
+}
+
+function ModifierVariantRow({
+  modifier,
+  productId,
+  variants,
+}: {
+  modifier: Modifier;
+  productId: string;
+  variants: ProductVariant[];
+}) {
+  // Vacío = este modificador aparece en todos los tamaños donde ya aparece el grupo — igual
+  // criterio que el "¿En qué tamaños?" del grupo, un nivel más abajo.
+  const [variantIds, setVariantIds] = useState<string[]>(modifier.variantIds ?? []);
+  const [guardando, setGuardando] = useState(false);
+
+  useEffect(() => setVariantIds(modifier.variantIds ?? []), [modifier.id, modifier.variantIds]);
+
+  async function guardar(ids: string[]) {
+    setVariantIds(ids);
+    setGuardando(true);
+    try {
+      await api.patch(`/modifier-categories/modifiers/${modifier.id}/products/${productId}/variant-visibility`, {
+        variantIds: ids,
+      });
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  return (
+    <div className="pl-3 border-l-2 border-brand-950/10">
+      <span className="text-[11px] text-brand-950/50">
+        {modifier.name} {guardando && <span className="text-brand-500">guardando…</span>}
+      </span>
+      <div className="mt-1 flex flex-wrap gap-1.5">
+        <button
+          type="button"
+          onClick={() => void guardar([])}
+          className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+            variantIds.length === 0 ? 'border-brand-500 bg-brand-500 text-white' : 'border-brand-950/15 text-brand-950/60'
+          }`}
+        >
+          Todos
+        </button>
+        {variants.map((v) => (
+          <button
+            key={v.id}
+            type="button"
+            onClick={() =>
+              void guardar(variantIds.includes(v.id) ? variantIds.filter((x) => x !== v.id) : [...variantIds, v.id])
+            }
+            className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
+              variantIds.includes(v.id) ? 'border-brand-500 bg-brand-500 text-white' : 'border-brand-950/15 text-brand-950/60'
+            }`}
+          >
+            {v.name}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

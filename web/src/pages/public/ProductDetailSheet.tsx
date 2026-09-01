@@ -3,7 +3,7 @@ import type { MouseEvent } from 'react';
 import { Check, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import type { CartLine, ComboComponentInfo, ComboSelection, ModifierCategory, Product, Restaurant, SelectedModifier } from '../../types';
 import { formatBase, productDisplayPriceBase, publicPriceLabel } from '../../utils/format';
-import { effectiveMax, effectiveMin, effectiveModifierPrice, aplicaAlTamano, lineasConGratis, totalGrupoConGratis } from '../../utils/modifierLimits';
+import { effectiveMax, effectiveMin, effectiveModifierPrice, aplicaAlTamano, modifierAplicaAlTamano, lineasConGratis, totalGrupoConGratis } from '../../utils/modifierLimits';
 import { ComboInstancePicker, ComboPoolSelector, claveComponente } from '@/components/admin/ProductOptionsDialog';
 import {
   FamilyDrawerRoot,
@@ -366,7 +366,7 @@ export default function ProductDetailSheet({
                           </button>
                           {!collapsed && (
                             <div className="space-y-2 mt-2.5">
-                              {category.modifiers.map((m) => {
+                              {category.modifiers.filter((m) => modifierAplicaAlTamano(m, selectedVariant?.id)).map((m) => {
                                 const qty = selectedQty[m.id] ?? 0;
                                 const checked = qty > 0;
                                 const modPrice = effectiveModifierPrice(m, selectedVariant?.id);

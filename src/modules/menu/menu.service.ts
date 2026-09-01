@@ -150,6 +150,7 @@ export const menuService = {
                         discountBase: true,
                         maxQuantity: true,
                         variantPrices: { select: { variantId: true, priceBase: true } },
+                        variantVisibility: { select: { productId: true, variantIds: true } },
                       },
                     },
                   },
@@ -193,6 +194,7 @@ export const menuService = {
                                 discountBase: true,
                                 maxQuantity: true,
                                 variantPrices: { select: { variantId: true, priceBase: true } },
+                                variantVisibility: { select: { productId: true, variantIds: true } },
                               },
                             },
                           },
@@ -271,6 +273,8 @@ export const menuService = {
                   variantId: vp.variantId,
                   priceBase: round2(toDecimal(vp.priceBase).sub(m.discountBase ?? 0)).toFixed(2),
                 })),
+                // En qué variantes DE ESTE plato componente aparece este modificador puntual.
+                variantIds: m.variantVisibility.find((v) => v.productId === c.componentProductId)?.variantIds ?? [],
               })),
             })),
           })),
@@ -295,6 +299,9 @@ export const menuService = {
                 variantId: vp.variantId,
                 priceBase: round2(toDecimal(vp.priceBase).sub(m.discountBase ?? 0)).toFixed(2),
               })),
+              // En qué variantes DE ESTE producto aparece este modificador puntual (no el grupo
+              // entero, ver `variantIds` del grupo arriba) — vacío = en todas donde ya aplique el grupo.
+              variantIds: m.variantVisibility.find((v) => v.productId === p.id)?.variantIds ?? [],
             })),
           })),
           };

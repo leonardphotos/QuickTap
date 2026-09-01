@@ -424,7 +424,7 @@ model Restaurant {
   // normalmente más alta que la de referencia — el precio en $ del catálogo no cambia, solo
   // el monto en Bs que se cobra por esos dos métodos. Null = sin doble precio configurado,
   // esos métodos siguen usando la tasa de referencia como siempre. Ver ShopPosPage.tsx.
-  shopBsSaleRate Decimal? @db.Decimal(12, 4)
+  shopBsSaleRate       Decimal? @db.Decimal(12, 4)
 
   // --- Contacto / checkout ---
   // Número de WhatsApp en formato internacional SIN "+" (ej: 584141234567).
@@ -651,10 +651,10 @@ model Restaurant {
   // plan (ver src/utils/subscription.ts, hasFeature()); estos 4 campos solo
   // importan cuando subscriptionPlan = CUSTOM, marcados al aprobar la
   // solicitud con esos adicionales elegidos.
-  customAdministration  Boolean   @default(false)
-  customInventoryBasic  Boolean   @default(false)
-  customInventoryRecipe Boolean   @default(false)
-  customAccountsPayable Boolean   @default(false)
+  customAdministration  Boolean           @default(false)
+  customInventoryBasic  Boolean           @default(false)
+  customInventoryRecipe Boolean           @default(false)
+  customAccountsPayable Boolean           @default(false)
   // Locales que ya tenían el plan Shop pagado cuando se separó Elite Shop:
   // conservan TODO (contabilidad, bancos, órdenes de pago…) hasta esta fecha
   // (= su periodEnd de entonces). Al renovar/activar cualquier plan se limpia
@@ -662,10 +662,10 @@ model Restaurant {
   legacyFullAccessUntil DateTime?
   // Baja de plan programada: el plan actual sigue hasta el vencimiento (sin devolución) y la
   // PRÓXIMA renovación se cobra y activa con este plan. Se limpia en cada activación.
-  pendingDowngradePlan SubscriptionPlan?
+  pendingDowngradePlan  SubscriptionPlan?
   // Bloqueo manual desde el Dashboard maestro, independiente del vencimiento
   // del plan. Si es true, la cuenta queda bloqueada sin importar periodEnd.
-  suspended             Boolean   @default(false)
+  suspended             Boolean           @default(false)
 
   // Cuenta de demostración (sembrada con `npm run seed:demo`): sus pedidos y
   // su facturación se excluyen del reporte financiero del Dashboard maestro.
@@ -1082,28 +1082,29 @@ model Product {
   externalSourceId String?
   importedImageUrl String?
 
-  restaurant         Restaurant                @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  category           Category                  @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  kitchen            Kitchen?                  @relation(fields: [kitchenId], references: [id], onDelete: SetNull)
+  restaurant                Restaurant                  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category                  Category                    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  kitchen                   Kitchen?                    @relation(fields: [kitchenId], references: [id], onDelete: SetNull)
   // Insumo vinculado como envase (packagingMode = INVENTORY). SetNull: si se borra el
   // insumo, el producto no se rompe, solo deja de cobrar/descontar envase.
-  packagingItem      InventoryItem?            @relation("ProductPackaging", fields: [packagingItemId], references: [id], onDelete: SetNull)
-  orderItems         OrderItem[]
-  recipeIngredients  RecipeIngredient[]
+  packagingItem             InventoryItem?              @relation("ProductPackaging", fields: [packagingItemId], references: [id], onDelete: SetNull)
+  orderItems                OrderItem[]
+  recipeIngredients         RecipeIngredient[]
   /// Recetas de OTROS platos que incluyen a este como parte de un combo.
-  enCombos           RecipeIngredient[]        @relation("ComboComponente")
-  costStructure      ProductCostStructure?
-  wasteRecords       WasteRecord[]
-  modifierCategories ProductModifierCategory[]
+  enCombos                  RecipeIngredient[]          @relation("ComboComponente")
+  costStructure             ProductCostStructure?
+  wasteRecords              WasteRecord[]
+  modifierCategories        ProductModifierCategory[]
   // Combo "pool escogible": si alguno de estos dos está definido, los comboComponents dejan de
   // ser cantidades fijas (2× pizza + 1× refresco) y pasan a ser la LISTA de platos disponibles:
   // el cliente escoge entre el mínimo y el máximo, repitiendo plato si quiere, al precio del
   // combo. Con ambos en null el combo se comporta como siempre (cantidades fijas por plato).
-  comboMinSelections Int?
-  comboMaxSelections Int?
-  comboComponents    ComboComponent[]          @relation("ComboOwner")
-  comboUsages        ComboComponent[]          @relation("ComboPart")
-  variants           ProductVariant[]
+  comboMinSelections        Int?
+  comboMaxSelections        Int?
+  comboComponents           ComboComponent[]            @relation("ComboOwner")
+  comboUsages               ComboComponent[]            @relation("ComboPart")
+  variants                  ProductVariant[]
+  modifierVariantVisibility ModifierVariantVisibility[]
 
   @@unique([restaurantId, externalSource, externalSourceId])
   @@index([restaurantId, categoryId])
@@ -1122,12 +1123,12 @@ model Product {
 // ordenarlo, cada instancia de cada componente (2× wokbox = dos instancias) se arma eligiendo
 // los modificadores del PROPIO producto componente — el combo no duplica esa configuración.
 model ComboComponent {
-  id                 String @id @default(cuid())
+  id                 String  @id @default(cuid())
   restaurantId       String
   productId          String
   componentProductId String
-  quantity           Int    @default(1)
-  priority           Int    @default(0)
+  quantity           Int     @default(1)
+  priority           Int     @default(0)
   // Tamaño FIJO del plato dentro del combo cuando el componente se vende por variantes
   // ("2× Noodle Bar 16OZ"): lo decide quien arma el combo, no el cliente, así el precio del
   // combo no se mueve. Obligatorio si el componente es VARIANTS — sin tamaño no se pueden
@@ -1213,15 +1214,16 @@ model Modifier {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurant    Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  category      ModifierCategory       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  restaurant        Restaurant                  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category          ModifierCategory            @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   // SetNull: si se borra el insumo/preparación, el modificador sigue vivo (solo deja de
   // descontar) — borrar un insumo no puede tumbar el menú.
-  inventoryItem InventoryItem?         @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
-  preparation   Preparation?           @relation(fields: [preparationId], references: [id], onDelete: SetNull)
-  variantPrices ModifierVariantPrice[]
+  inventoryItem     InventoryItem?              @relation(fields: [inventoryItemId], references: [id], onDelete: SetNull)
+  preparation       Preparation?                @relation(fields: [preparationId], references: [id], onDelete: SetNull)
+  variantPrices     ModifierVariantPrice[]
+  variantVisibility ModifierVariantVisibility[]
   // Líneas de receta "A elección del cliente" con porción propia para este topping.
-  recipeLines   RecipeIngredient[]
+  recipeLines       RecipeIngredient[]
 
   @@index([restaurantId, categoryId])
   @@index([inventoryItemId])
@@ -1233,10 +1235,10 @@ model Modifier {
 // cuesta distinto en "Pizza Grande" que en "Pizza Pequeña"). Sin fila acá = el modificador usa
 // su Modifier.priceBase de siempre, sin importar la variante elegida — esto es solo el override.
 model ModifierVariantPrice {
-  id         String  @id @default(cuid())
-  modifierId String
-  variantId  String
-  priceBase  Decimal @db.Decimal(12, 2)
+  id                String   @id @default(cuid())
+  modifierId        String
+  variantId         String
+  priceBase         Decimal  @db.Decimal(12, 2)
   // Consumo de insumo propio de ESTA variante (en la unidad base del insumo/preparación
   // vinculado): "Extra queso" gasta 30 gr en la pizza pequeña y 80 gr en la familiar.
   // Null = usa el inventoryQuantity general del modificador.
@@ -1250,12 +1252,33 @@ model ModifierVariantPrice {
   @@map("modifier_variant_prices")
 }
 
+// En qué variantes DE UN PRODUCTO aparece UN MODIFICADOR individual — el mismo concepto que
+// ProductModifierCategory.variantIds (grupo completo por producto) pero un nivel más abajo:
+// "Extra tocineta" solo en la hamburguesa Doble y Triple, sin acotar el resto del grupo
+// "Extras", que sigue viéndose en las tres. No puede vivir directo en Modifier porque la
+// categoría (y sus modificadores) se reutiliza entre productos y cada uno tiene sus propias
+// variantes — por eso esta fila ata explícitamente modifierId + productId, igual que
+// ModifierVariantPrice ata modifierId + variantId (que ya es inequívoco de un solo producto).
+// Sin fila acá = el modificador aparece en todas las variantes donde ya aparece el grupo.
+model ModifierVariantVisibility {
+  id         String   @id @default(cuid())
+  modifierId String
+  productId  String
+  variantIds String[] @default([])
+
+  modifier Modifier @relation(fields: [modifierId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([modifierId, productId])
+  @@map("modifier_variant_visibility")
+}
+
 // Asocia una categoría de modificadores reutilizable a un producto puntual ("Asociar/Desasociar").
 model ProductModifierCategory {
-  id                    String @id @default(cuid())
+  id                    String   @id @default(cuid())
   productId             String
   modifierCategoryId    String
-  priority              Int    @default(0)
+  priority              Int      @default(0)
   // Sobreescribe ModifierCategory.maxSelections solo para este producto. null = usa el de la categoría.
   maxSelectionsOverride Int?
   // Unidades gratis de este grupo EN ESTE PLATO: las primeras N no se cobran aunque tengan
@@ -1305,12 +1328,12 @@ model ProductVariant {
   // y por eso la importación nunca la borra.
   externalSourceId String?
 
-  restaurant     Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  product        Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
+  restaurant      Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  product         Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
   comboComponents ComboComponent[]
-  modifierPrices ModifierVariantPrice[]
+  modifierPrices  ModifierVariantPrice[]
   // Líneas de receta que solo aplican a este tamaño (ver RecipeIngredient.productVariantId).
-  recipeLines    RecipeIngredient[]
+  recipeLines     RecipeIngredient[]
 
   @@unique([productId, externalSourceId])
   @@index([restaurantId, productId])
@@ -2602,13 +2625,13 @@ model OrderItem {
   // Cuándo entró esta línea a la comanda. En un pedido nuevo es igual al createdAt del pedido,
   // pero un producto añadido después llega mucho más tarde — y es lo que cocina necesita para
   // contar el tiempo de SU tanda, no el del pedido entero.
-  createdAt        DateTime  @default(now())
+  createdAt    DateTime @default(now())
   // Número de tanda dentro del pedido: 1 = lo que se pidió al abrir la comanda, 2+ = cada
   // ronda añadida después. Cocina muestra una tarjeta por tanda para que no se confunda lo
   // nuevo con lo viejo; en Pedidos el pedido sigue siendo uno solo. Lo asigna addItem
   // agrupando por cercanía en el tiempo (ver VENTANA_TANDA_MS), porque el panel añade los
   // productos de una misma ronda uno por uno.
-  kitchenBatch     Int       @default(1)
+  kitchenBatch Int      @default(1)
 
   order     Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product   Product?            @relation(fields: [productId], references: [id], onDelete: SetNull)
@@ -3474,33 +3497,33 @@ model ShopProduct {
   // fecha, hora y un cupo limitado de puestos. Se marca con una bandera propia y no por el
   // nombre de la categoría: el local puede renombrarla y el comportamiento no debe depender
   // de eso.
-  isEvent    Boolean @default(false)
+  isEvent                Boolean @default(false)
   // Día del evento, ISO yyyy-mm-dd (mismo criterio que expiryDate: es una fecha de calendario).
-  eventDate  String?
+  eventDate              String?
   // Hora de inicio "HH:mm", 24h. Texto y no DateTime por lo mismo que eventDate: es la hora
   // local del local, sin huso horario que la corra.
-  eventTime  String?
+  eventTime              String?
   // Puestos totales a la venta. Los ocupados se cuentan sobre las ventas, no se guardan acá,
   // para que una devolución libere el puesto sola.
-  eventSeats Int?
+  eventSeats             Int?
   // Texto largo del evento, para la pantalla "Más información" de la taquilla.
-  eventDescription String?
+  eventDescription       String?
   // Hasta 5 imágenes del carrusel de esa pantalla (rutas de /uploads, como photoUrl). La
   // portada del boleto sigue siendo photoUrl: son cosas distintas y se cargan aparte.
-  eventImages Json?
+  eventImages            Json?
   // Cláusulas que el comprador tiene que aceptar antes de ver el precio y pagar.
-  eventTerms String?
+  eventTerms             String?
   // --- Financiamiento del evento ---
   // Se define al crear el evento y se copia al plan de cuotas de cada venta. Vive acá y no en
   // ShopInstallmentPlan porque eso es el plan YA pactado de una venta concreta: esto es la
   // plantilla que el local ofrece.
-  eventFinancingEnabled Boolean @default(false)
+  eventFinancingEnabled  Boolean @default(false)
   // Inicial como PORCENTAJE del precio, no como monto: así sirve igual para una entrada de
   // $250 que de $80, sin que el local recalcule nada al cambiar el precio.
-  eventDownPercent      Float?
-  eventInstallments     Int?
+  eventDownPercent       Float?
+  eventInstallments      Int?
   // SEMANAL | QUINCENAL | MENSUAL — mismas frecuencias que shop-installments.service.
-  eventFrequency        String?
+  eventFrequency         String?
   // Hasta cuándo se acepta financiar (YYYY-MM-DD, inclusive) y fecha tope para terminar de
   // pagar: pasada la fecha solo se vende de contado, y antes de ella las cuotas que se
   // ofrecen son las que CABEN — de nada sirve un plan cuya última cuota vence después del
@@ -3532,14 +3555,14 @@ model ShopProduct {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  restaurant      Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  variants        ShopProductVariant[]
+  restaurant       Restaurant            @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  variants         ShopProductVariant[]
   // Insumos que consume este producto cuando es un servicio (ver ShopServiceSupply).
-  serviceSupplies ShopServiceSupply[]  @relation("ShopServiceSupplyService")
+  serviceSupplies  ShopServiceSupply[]   @relation("ShopServiceSupplyService")
   consumptionPlans ShopConsumptionPlan[]
   // Gastos imputados a este evento (local, sonido, permisos): su suma es el costo del evento.
-  eventExpenses   Movement[]           @relation("ShopEventExpenses")
-  tickets         ShopTicket[]
+  eventExpenses    Movement[]            @relation("ShopEventExpenses")
+  tickets          ShopTicket[]
 
   @@index([restaurantId])
   @@map("shop_products")
@@ -4044,8 +4067,8 @@ model WalletAccount {
   smsSentAt        DateTime?
 
   verifiedAt DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@map("wallet_accounts")
 }
@@ -4067,7 +4090,7 @@ model WaInstance {
 
   // CONNECTED | CONNECTING | DISCONNECTED — espejo del connectionState de Evolution,
   // refrescado por webhook. Se guarda para no preguntarle a Evolution en cada envío.
-  status String @default("DISCONNECTED")
+  status String  @default("DISCONNECTED")
   // Número que quedó vinculado (informativo, para mostrar en Ajustes).
   phone  String?
 
@@ -4075,9 +4098,9 @@ model WaInstance {
   // entregas: si varios envíos seguidos quedan sin ACK, el número probablemente está
   // restringido y seguir enviando solo empeora el caso — que fue EXACTAMENTE el modo de
   // fallo de agosto: sendMessage resolvía y nada llegaba.
-  paused      Boolean @default(false)
-  autoPaused  Boolean @default(false)
-  pendingAcks Int     @default(0)
+  paused      Boolean   @default(false)
+  autoPaused  Boolean   @default(false)
+  pendingAcks Int       @default(0)
   lastAckAt   DateTime?
   lastSentAt  DateTime?
 
@@ -4152,19 +4175,19 @@ model ShopOrder {
   // | 'CANCELLED'. No hay estados intermedios: el local confirma cuando va a despacharlo.
   status String @default("PENDING")
 
-  customerName    String
-  customerPhone   String
+  customerName     String
+  customerPhone    String
   // Cédula del comprador. Obligatoria solo cuando la compra va a existir en el Wallet
   // (entradas de un evento o compra financiada): es, junto al teléfono, la clave con la que
   // el comprador entra al portal a ver su entrada y sus cuotas. Ver shop-storefront.service.
   customerIdNumber String?
   // Solo en DELIVERY. Incluye el enlace de mapa cuando el cliente compartió su ubicación,
   // mismo criterio que Order.customerAddress del vertical restaurante.
-  customerAddress String?
-  note            String?
+  customerAddress  String?
+  note             String?
 
   // Método de pago que eligió el cliente (MOBILE_PAYMENT, ZELLE, CASH…), congelado.
-  paymentMethod String?
+  paymentMethod   String?
   // Captura de la transferencia/Pago Móvil que adjuntó el comprador al hacer el pedido, para
   // que el local verifique antes de confirmar. Ruta bajo /uploads/shop-payment-proofs.
   paymentProofUrl String?
@@ -4179,11 +4202,11 @@ model ShopOrder {
 
   // Venta generada al confirmar. Sin relación FK: si la venta se borra o se devuelve, el
   // pedido histórico no se toca (mismo criterio que ShopSaleItem.productId).
-  shopSaleId String?
+  shopSaleId         String?
   // El comprador eligió financiar esta compra (solo aplica a entradas de eventos con
   // financiamiento habilitado). Al confirmar el pedido, la venta se arma a crédito con el
   // plan de cuotas del evento en vez de cobrarse completa. Ver shop-orders.service.confirm.
-  financed Boolean @default(false)
+  financed           Boolean @default(false)
   // En cuántas cuotas quiere pagar. Es una PREFERENCIA, no una orden: al confirmar se recorta
   // al máximo que el evento permite (eventInstallments) — el tope lo decide el local, el
   // reparto dentro del tope lo decide el comprador.

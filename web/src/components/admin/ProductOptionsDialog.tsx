@@ -3,7 +3,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { formatBase } from '@/utils/format';
-import { effectiveModifierPrice, aplicaAlTamano, lineasConGratis, totalGrupoConGratis } from '@/utils/modifierLimits';
+import { effectiveModifierPrice, aplicaAlTamano, modifierAplicaAlTamano, lineasConGratis, totalGrupoConGratis } from '@/utils/modifierLimits';
 import type { CartLine, ComboComponentInfo, ComboSelection, ModifierCategory, Product, SelectedModifier } from '@/types';
 
 interface Props {
@@ -395,7 +395,7 @@ export function ProductOptionsDialog({
                 <p className="text-xs text-brand-950/40 mt-0.5 mb-2">{categoryHint(category)}</p>
                 {grande ? (
                   <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5">
-                    {category.modifiers.map((m) => {
+                    {category.modifiers.filter((m) => modifierAplicaAlTamano(m, selectedVariant?.id)).map((m) => {
                       const qty = selectedQty[m.id] ?? 0;
                       const modPrice = effectiveModifierPrice(m, selectedVariant?.id);
                       return category.allowMultiple ? (
@@ -421,7 +421,7 @@ export function ProductOptionsDialog({
                   </div>
                 ) : (
                 <div className="space-y-2">
-                  {category.modifiers.map((m) => {
+                  {category.modifiers.filter((m) => modifierAplicaAlTamano(m, selectedVariant?.id)).map((m) => {
                     const qty = selectedQty[m.id] ?? 0;
                     const checked = qty > 0;
                     const modPrice = effectiveModifierPrice(m, selectedVariant?.id);

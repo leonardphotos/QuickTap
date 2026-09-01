@@ -69,6 +69,12 @@ export const setModifierVariantPriceSchema = z.object({
   inventoryQuantity: z.coerce.number().positive().nullable().optional(),
 });
 
+// Variantes DE UN PRODUCTO en las que aparece un modificador individual (no el grupo entero,
+// ver updateProductLinkSchema.variantIds para eso). Vacío = en todas las que ya aplique el grupo.
+export const setModifierVariantVisibilitySchema = z.object({
+  variantIds: z.array(z.string().min(1)),
+});
+
 export type CreateModifierCategoryInput = z.infer<typeof createModifierCategorySchema>;
 export type UpdateModifierCategoryInput = z.infer<typeof updateModifierCategorySchema>;
 export type CreateModifierInput = z.infer<typeof createModifierSchema>;
@@ -77,3 +83,4 @@ export type AssociateProductInput = z.infer<typeof associateProductSchema>;
 export type UpdateProductLinkInput = z.infer<typeof updateProductLinkSchema>;
 export type ReorderModifiersInput = z.infer<typeof reorderModifiersSchema>;
 export type SetModifierVariantPriceInput = z.infer<typeof setModifierVariantPriceSchema>;
+export type SetModifierVariantVisibilityInput = z.infer<typeof setModifierVariantVisibilitySchema>;

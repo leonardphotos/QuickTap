@@ -29,7 +29,10 @@ const PRODUCT_MODIFIER_INCLUDE = {
         include: {
           modifiers: {
             orderBy: [{ priority: 'asc' as const }, { name: 'asc' as const }],
-            include: { variantPrices: { select: { variantId: true, priceBase: true } } },
+            include: {
+              variantPrices: { select: { variantId: true, priceBase: true } },
+              variantVisibility: { select: { productId: true, variantIds: true } },
+            },
           },
         },
       },
@@ -51,7 +54,10 @@ const PRODUCT_MODIFIER_INCLUDE = {
                 include: {
                   modifiers: {
                     orderBy: [{ priority: 'asc' as const }, { name: 'asc' as const }],
-                    include: { variantPrices: { select: { variantId: true, priceBase: true } } },
+                    include: {
+                      variantPrices: { select: { variantId: true, priceBase: true } },
+                      variantVisibility: { select: { productId: true, variantIds: true } },
+                    },
                   },
                 },
               },
@@ -66,8 +72,25 @@ const PRODUCT_MODIFIER_INCLUDE = {
 /** Aplana la fila de asociación (ProductModifierCategory -> ModifierCategory) para el frontend,
  * resolviendo el límite efectivo de selecciones (override del producto, si lo tiene, si no el de
  * la categoría) para que el cliente solo tenga que leer un único `maxSelections` ya resuelto. */
+/** Para cada modificador, resuelve `variantIds` (en qué variantes DE ESTE producto aparece —
+ * ver ModifierVariantVisibility) a partir de las filas crudas, que traen la de TODOS los
+ * productos que comparten la categoría (igual que ya pasa con `variantPrices`: se filtra por
+ * id exacto al usarlas, no al pedirlas). */
+function mapModifiersConVisibilidad(modifiers: unknown[], forProductId: string) {
+  return (modifiers as ({ variantVisibility?: { productId: string; variantIds: string[] }[] } & Record<string, unknown>)[]).map(
+    (m) => {
+      const { variantVisibility, ...modifierRest } = m;
+      return {
+        ...modifierRest,
+        variantIds: variantVisibility?.find((v) => v.productId === forProductId)?.variantIds ?? [],
+      };
+    },
+  );
+}
+
 function serializeProduct<
   T extends {
+    id: string;
     stockControlEnabled: boolean;
     stockQuantity: number | null;
     modifierCategories: {
@@ -99,7 +122,7 @@ function serializeProduct<
           maxSelectionsOverride: number | null;
           variantIds: string[];
           freeQuantity: number | null;
-          modifierCategory: { maxSelections: number | null } & Record<string, unknown>;
+          modifierCategory: { maxSelections: number | null; modifiers?: unknown[] } & Record<string, unknown>;
         }[];
       };
     }[];
@@ -113,6 +136,7 @@ function serializeProduct<
       maxSelections: link.maxSelectionsOverride ?? link.modifierCategory.maxSelections,
       variantIds: link.variantIds,
       freeQuantity: link.freeQuantity,
+      modifiers: mapModifiersConVisibilidad(link.modifierCategory.modifiers, rest.id),
     })),
     comboComponents: (comboComponents ?? []).map((c) => ({
       componentProductId: c.componentProductId,
@@ -126,6 +150,7 @@ function serializeProduct<
         maxSelections: link.maxSelectionsOverride ?? link.modifierCategory.maxSelections,
         variantIds: link.variantIds,
         freeQuantity: link.freeQuantity,
+        modifiers: mapModifiersConVisibilidad(link.modifierCategory.modifiers ?? [], c.componentProductId),
       })),
     })),
   };

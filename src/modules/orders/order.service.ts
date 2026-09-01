@@ -92,6 +92,7 @@ interface PricedLine {
  * de modificadores asociadas (obligatoria / uno-vs-varios) y suma sus precios.
  */
 type ProductForPricing = {
+  id: string;
   name: string;
   modifierCategories: {
     maxSelectionsOverride: number | null;
@@ -113,6 +114,9 @@ type ProductForPricing = {
         priceBase: Prisma.Decimal;
         discountBase: Prisma.Decimal | null;
         variantPrices: { variantId: string; priceBase: Prisma.Decimal }[];
+        /** En qué variantes DE ESTE producto aparece este modificador puntual. Vacío = en
+         * todas donde ya aplique el grupo (ver ModifierVariantVisibility). */
+        variantVisibility: { productId: string; variantIds: string[] }[];
       }[];
     };
   }[];
@@ -144,7 +148,15 @@ function priceModifierSelection(product: ProductForPricing, modifierIds: string[
       }
       continue;
     }
-    const chosen = category.modifiers.filter((m) => idCounts.has(m.id));
+    // Igual que el grupo, pero un nivel más abajo: un modificador puntual dentro de un grupo ya
+    // visible en este tamaño puede seguir acotado a solo algunas variantes (ej. "Extra
+    // tocineta" solo en la Doble/Triple). Vacío = en todas donde ya aplique el grupo.
+    const chosen = category.modifiers.filter((m) => idCounts.has(m.id)).filter((m) => {
+      const modifierVariantIds = m.variantVisibility.find((v) => v.productId === product.id)?.variantIds ?? [];
+      const aplica = modifierVariantIds.length === 0 || (variantId != null && modifierVariantIds.includes(variantId));
+      if (!aplica) opcionesNoOfrecidas.set(m.name, category.name);
+      return aplica;
+    });
     const totalSelected = chosen.reduce((acc, m) => acc + (idCounts.get(m.id) ?? 0), 0);
     // isRequired manda: una categoría marcada "Opcional" nunca debe bloquear el carrito, así
     // tenga un minSelections guardado — minSelections solo afina el mínimo de una categoría
@@ -235,7 +247,7 @@ async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<
       kitchen: { select: { name: true } },
       variants: true,
       modifierCategories: {
-        include: { modifierCategory: { include: { modifiers: { include: { variantPrices: true } } } } },
+        include: { modifierCategory: { include: { modifiers: { include: { variantPrices: true, variantVisibility: true } } } } },
       },
       comboComponents: {
         orderBy: { priority: 'asc' },
@@ -244,7 +256,7 @@ async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<
           componentProduct: {
             include: {
               modifierCategories: {
-                include: { modifierCategory: { include: { modifiers: { include: { variantPrices: true } } } } },
+                include: { modifierCategory: { include: { modifiers: { include: { variantPrices: true, variantVisibility: true } } } } },
               },
             },
           },

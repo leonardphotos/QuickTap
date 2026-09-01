@@ -43,6 +43,17 @@ export function aplicaAlTamano(category: ModifierCategory, variantId?: string | 
 }
 
 /**
+ * Igual que aplicaAlTamano pero un nivel más abajo: ¿este MODIFICADOR puntual (no el grupo
+ * entero) se ofrece en el tamaño elegido? Un grupo ya visible en esta variante puede seguir
+ * acotando modificadores sueltos dentro de él (ej. "Extra tocineta" solo en la Doble/Triple,
+ * aunque el resto de "Extras" se vea en las tres).
+ */
+export function modifierAplicaAlTamano(modifier: Modifier, variantId?: string | null): boolean {
+  if (!modifier.variantIds || modifier.variantIds.length === 0) return true;
+  return variantId != null && modifier.variantIds.includes(variantId);
+}
+
+/**
  * Total a cobrar de UN grupo con sus unidades gratis ya descontadas. `qtyMap` es
  * modifierId → cantidad elegida. Las gratis se asignan a las unidades MÁS BARATAS — la misma
  * regla que congela el servidor (priceModifierSelection), para que el total que se le muestra

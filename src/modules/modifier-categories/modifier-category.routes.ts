@@ -21,6 +21,9 @@ router.delete('/modifiers/:modifierId', modifierCategoryController.removeModifie
 
 router.put('/modifiers/:modifierId/variant-prices/:variantId', modifierCategoryController.setModifierVariantPrice);
 router.delete('/modifiers/:modifierId/variant-prices/:variantId', modifierCategoryController.removeModifierVariantPrice);
+// En qué variantes DE UN PRODUCTO puntual aparece este modificador (no el grupo entero, ver
+// PATCH /:id/products/:productId de abajo para eso).
+router.patch('/modifiers/:modifierId/products/:productId/variant-visibility', modifierCategoryController.setModifierVariantVisibility);
 
 router.get('/:id/products', modifierCategoryController.listLinkedProducts);
 router.post('/:id/products', modifierCategoryController.associateProduct);

@@ -7,6 +7,7 @@ import {
   CreateModifierInput,
   ReorderModifiersInput,
   SetModifierVariantPriceInput,
+  SetModifierVariantVisibilityInput,
   UpdateModifierCategoryInput,
   UpdateModifierInput,
   UpdateProductLinkInput,
@@ -315,5 +316,31 @@ export const modifierCategoryService = {
     if (!modifier) throw notFound('Modificador no encontrado.');
     await prisma.modifierVariantPrice.deleteMany({ where: { modifierId, variantId } });
     return { deleted: true };
+  },
+
+  /** Guarda en qué variantes de ESTE producto aparece este modificador puntual (no el grupo
+   * entero — ver updateProductLink). variantIds vacío = vuelve a aparecer en todas las
+   * variantes donde ya aplique el grupo, que es el mismo criterio de siempre. */
+  async setModifierVariantVisibility(
+    restaurantId: string,
+    modifierId: string,
+    productId: string,
+    input: SetModifierVariantVisibilityInput,
+  ) {
+    const modifier = await prisma.modifier.findFirst({ where: { id: modifierId, restaurantId }, select: { id: true } });
+    if (!modifier) throw notFound('Modificador no encontrado.');
+    const product = await prisma.product.findFirst({ where: { id: productId, restaurantId }, select: { id: true } });
+    if (!product) throw notFound('Producto no encontrado.');
+
+    if (input.variantIds.length === 0) {
+      await prisma.modifierVariantVisibility.deleteMany({ where: { modifierId, productId } });
+      return { variantIds: [] };
+    }
+    const saved = await prisma.modifierVariantVisibility.upsert({
+      where: { modifierId_productId: { modifierId, productId } },
+      update: { variantIds: input.variantIds },
+      create: { modifierId, productId, variantIds: input.variantIds },
+    });
+    return { variantIds: saved.variantIds };
   },
 };

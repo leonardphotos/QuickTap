@@ -195,6 +195,10 @@ export interface Modifier {
    * queso" cuesta distinto en "Pizza Grande" que en "Pizza Pequeña"). Vacío/undefined = usa
    * `priceBase` de arriba sin importar la variante elegida — ver effectiveModifierPrice(). */
   variantPrices?: { variantId: string; priceBase: string; inventoryQuantity?: number | null }[];
+  /** Variantes DE ESTE producto en las que aparece este modificador puntual (no el grupo
+   * entero, ver ModifierCategory.variantIds para eso). Vacío/undefined = en todas las que ya
+   * aplique el grupo — ver aplicaAlTamano/modifierAplicaAlTamano en modifierLimits.ts. */
+  variantIds?: string[];
 }
 
 export interface ModifierCategory {
