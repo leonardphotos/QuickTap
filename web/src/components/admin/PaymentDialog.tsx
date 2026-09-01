@@ -90,14 +90,37 @@ function PaymentRow({ payment, symbol }: { payment: LiveOrderPayment; symbol: st
 }
 
 /** "Pagar" / "Pago Fraccionado": selecciona método, muestra sus datos de cobro y registra el pago del pedido. */
+/**
+ * En modo POS agrupa su contenido en una columna; en vertical lo deja tal cual estaba
+ * (hijo directo del `space-y-4`), para no alterar el layout de siempre en teléfono.
+ *
+ * Va a nivel de módulo a propósito. Estaba declarado dentro de PaymentDialog, y entonces cada
+ * render creaba una función nueva: para React eso es un tipo de componente distinto, así que
+ * desmontaba y volvía a montar TODO lo que hay dentro de la columna en cada pulsación. El
+ * efecto en el mostrador era que el monto y la referencia perdían el foco tecla a tecla y solo
+ * entraba un carácter.
+ */
+function PosColumn({ isPos, className, children }: { isPos: boolean; className: string; children: React.ReactNode }) {
+  return isPos ? <div className={className}>{children}</div> : <>{children}</>;
+}
+
 export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   const { restaurant, user } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const showDiscount = canApplyDiscount(user?.role);
 
+  // Pagos registrados durante esta sesión del diálogo (para el desglose final y, sobre todo,
+  // para el saldo: el padre le pasa a este diálogo un `order` capturado al abrirlo y no lo
+  // vuelve a sustituir, así que sin esto el segundo abono seguía calculando contra el saldo
+  // original y "Máx." ofrecía cobrar de más.
+  const [sessionPayments, setSessionPayments] = useState<LiveOrderPayment[]>([]);
+  // `order` viene del padre; el pago recién hecho puede estar ya en `order.payments` y además
+  // en `sessionPayments`. Se deduplica por id para no contarlo dos veces.
+  const allPayments = [...order.payments, ...sessionPayments.filter((sp) => !order.payments.some((p) => p.id === sp.id))];
+
   // Un descuento (y el ajuste de servicio) perdona esa parte de la deuda: cuenta como
   // "saldado" igual que el efectivo cobrado — misma cuenta que hace el backend.
-  const paidBase = settledOf(order.payments);
+  const paidBase = settledOf(allPayments);
   const balanceBase = Math.max(0, Number(order.totalBase) - paidBase);
 
   // Propina: aparte del saldo de la venta (no cuenta para "saldado"). `tipOutstanding` es lo
@@ -204,13 +227,12 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paidNow, setPaidNow] = useState<number | null>(null);
+  /** Saldo pendiente según el servidor después del último pago. null = todavía no se cobró nada. */
+  const [remainingServer, setRemainingServer] = useState<number | null>(null);
   // Pantalla a pantalla completa que ve el cliente tras elegir método (ver PaymentClientScreen).
   const [clientScreenOpen, setClientScreenOpen] = useState(false);
   const [showPrintPrompt, setShowPrintPrompt] = useState(false);
   const [printing, setPrinting] = useState(false);
-  // Pagos registrados durante esta sesión del diálogo (para el desglose final, junto a order.payments).
-  const [sessionPayments, setSessionPayments] = useState<LiveOrderPayment[]>([]);
-
   const methodAccounts = methodAccountsOf(paymentConfig, method);
   const selectedAccount = methodAccounts.find((a) => a.key === accountKey) ?? methodAccounts[0] ?? null;
   const needsReference = METHODS_REQUIRING_PROOF_OR_REFERENCE.includes(method);
@@ -473,7 +495,12 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
       // pagos con su descuento y ajuste de servicio). Restar solo `amountBase` daba por
       // pendiente lo que el descuento acababa de perdonar.
       const remaining = Number(data.data?.totalBase ?? order.totalBase) - settledOf(freshPayments);
-      const fullyPaid = payMode === 'full' || remaining <= 0.01;
+      // Saldada solo si de verdad no queda nada. Antes la modalidad "Pagar completo" la daba
+      // por saldada sin mirar el monto: si el cajero bajaba el importe (cuenta de 66,30 y cobra
+      // 50) salía "✓ Cuenta saldada" con la deuda viva, y en delivery además disparaba el
+      // despacho automático. No hay límite de abonos: lo único que cierra la cuenta es el saldo.
+      const fullyPaid = remaining <= 0.01;
+      setRemainingServer(Math.max(0, remaining));
       onPaid(fullyPaid);
       if (fullyPaid) {
         setShowPrintPrompt(true);
@@ -522,13 +549,9 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
     }
   }
 
-  const remainingAfter = paidNow != null ? Math.max(0, balanceBase - paidNow) : balanceBase;
-  // `order` es una prop que el padre mantiene sincronizada con el servidor (se refresca
-  // en segundo plano apenas hay datos nuevos) — una vez que ese refresco llega, el pago que
-  // acabamos de registrar aparece TANTO en `order.payments` como en `sessionPayments` (lo
-  // guardamos localmente para no depender de esa carrera). Se filtra por id para no duplicarlo.
-  const allPayments = [...order.payments, ...sessionPayments.filter((sp) => !order.payments.some((p) => p.id === sp.id))];
-
+  // Lo que queda debiendo según el servidor tras el último pago — no `balanceBase - paidNow`,
+  // que ignoraba el descuento y el ajuste de servicio que ese mismo pago acababa de perdonar.
+  const remainingAfter = remainingServer ?? balanceBase;
   // Qué campo llena el teclado numérico del modo POS. `set` reusa los mismos manejadores que
   // los inputs (onDiscountValueChange recalcula el abono sugerido), no escribe el estado crudo.
   const posFields: Record<PosKeypadField, { label: string; value: string; suffix: string | null; set: (v: string) => void }> = {
@@ -554,11 +577,6 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   const keypadDigit = (d: string) => activePosField.set(`${activePosField.value ?? ''}${d}`);
   const keypadBackspace = () => activePosField.set(String(activePosField.value ?? '').slice(0, -1));
   const keypadClear = () => activePosField.set('');
-
-  /** En modo POS agrupa su contenido en una columna; en vertical lo deja tal cual estaba
-   * (hijo directo del `space-y-4`), para no alterar el layout de siempre en teléfono. */
-  const PosColumn = ({ className, children }: { className: string; children: React.ReactNode }) =>
-    isPos ? <div className={className}>{children}</div> : <>{children}</>;
 
   return (
     <>
@@ -627,7 +645,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
               : 'space-y-4'
           }
         >
-          <PosColumn className="flex flex-col gap-3 min-h-0">
+          <PosColumn isPos={isPos} className="flex flex-col gap-3 min-h-0">
           {/* En POS el total es lo que el cajero le canta al cliente: va grande y en Bs primero. */}
           <div className={isPos ? 'rounded-2xl bg-brand-950/[0.04] px-5 py-4' : 'rounded-xl bg-brand-950/[0.03] px-3 py-2.5 space-y-1'}>
             {isPos ? (
@@ -710,7 +728,7 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
           )}
           </PosColumn>
 
-          <PosColumn className="space-y-4 min-h-0 overflow-y-auto pr-1">
+          <PosColumn isPos={isPos} className="space-y-4 min-h-0 overflow-y-auto pr-1">
           {/* Cómo va a pagar: se elige acá mismo, sin volver a la pantalla anterior. */}
           {!showPrintPrompt && paidNow == null && (
             <div className="grid grid-cols-3 gap-2">
@@ -786,13 +804,17 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                 <p className="text-sm text-brand-950/60">Cuenta saldada.</p>
               )}
               <div className="flex gap-2 justify-center">
-                {payMode === 'split' && remainingAfter > 0.01 && (
+                {/* Mientras quede saldo se puede seguir cobrando, venga de "Fraccionado" o de un
+                    "Pagar completo" que terminó siendo un abono: no hay límite de abonos. */}
+                {remainingAfter > 0.01 && (
                   <TextureButton
                     variant="brand"
                     size="default"
                     className="!w-auto"
                     onClick={() => {
                       setPaidNow(null);
+                      setRemainingServer(null);
+                      setPayMode('split');
                       setAmount('');
                       setDiscountValue('');
                       setServiceValue('');
