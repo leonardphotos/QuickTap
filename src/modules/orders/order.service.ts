@@ -95,6 +95,8 @@ type ProductForPricing = {
   name: string;
   modifierCategories: {
     maxSelectionsOverride: number | null;
+    /** Unidades gratis del grupo en este plato (las más baratas primero). null/0 = todas se cobran. */
+    freeQuantity: number | null;
     /** Tamaños en los que aplica el grupo. Vacío = en todos. */
     variantIds: string[];
     modifierCategory: {
@@ -159,6 +161,9 @@ function priceModifierSelection(product: ProductForPricing, modifierIds: string[
     if (totalSelected > effectiveMax) {
       throw badRequest(`Elige como máximo ${effectiveMax} opciones de "${category.name}" para "${product.name}".`);
     }
+    // Precio efectivo por opción (con override de variante y descuento), antes de repartir
+    // las gratis: hace falta conocer TODOS los precios del grupo para saber cuáles no cobrar.
+    const lineasDelGrupo: { modifierId: string; name: string; priceBase: Prisma.Decimal; quantity: number }[] = [];
     for (const m of chosen) {
       if (!m.isAvailable) throw badRequest(`"${m.name}" no está disponible en este momento.`);
       const chosenQty = idCounts.get(m.id) ?? 1;
@@ -167,13 +172,33 @@ function priceModifierSelection(product: ProductForPricing, modifierIds: string[
       }
       const variantOverride = variantId ? m.variantPrices.find((vp) => vp.variantId === variantId) : undefined;
       const effectivePriceBase = variantOverride?.priceBase ?? m.priceBase;
-      modifierLines.push({
+      lineasDelGrupo.push({
         modifierId: m.id,
         name: m.name,
         priceBase: round2(effectivePriceBase.sub(m.discountBase ?? 0)),
         quantity: chosenQty,
       });
     }
+    // Unidades incluidas del grupo en este plato: las primeras N gratis, asignadas a las MÁS
+    // BARATAS — regla fija, espejada en el panel y el menú público, para que el total que ve
+    // quien pide sea exactamente el que congela el servidor. La parte gratis sale como línea
+    // aparte a $0 (mismo nombre): el recibo enseña qué se regaló y qué se cobró.
+    let gratisRestantes = link.freeQuantity ?? 0;
+    if (gratisRestantes > 0) {
+      const ordenadas = [...lineasDelGrupo].sort((a, b) => a.priceBase.comparedTo(b.priceBase));
+      for (const linea of ordenadas) {
+        if (gratisRestantes <= 0) break;
+        const libres = Math.min(linea.quantity, gratisRestantes);
+        gratisRestantes -= libres;
+        if (libres === linea.quantity) {
+          linea.priceBase = toDecimal(0);
+        } else {
+          linea.quantity -= libres;
+          modifierLines.push({ modifierId: linea.modifierId, name: linea.name, priceBase: toDecimal(0), quantity: libres });
+        }
+      }
+    }
+    modifierLines.push(...lineasDelGrupo);
   }
   if (opcionesNoOfrecidas.size > 0) {
     const [nombre, grupo] = [...opcionesNoOfrecidas.entries()][0];
@@ -247,30 +272,57 @@ async function priceCart(restaurantId: string, items: CartItemInput[]): Promise<
     // PROPIO plato componente y todo se congela como filas del ítem: un encabezado decorativo
     // por instancia + sus elecciones — cocina, recibos e impresión ya saben pintar eso.
     if (product.comboComponents.length > 0) {
-      const esperadas = product.comboComponents.flatMap((c) =>
-        Array.from({ length: c.quantity }, () => c),
-      );
       const selecciones = item.comboSelections ?? [];
-      if (selecciones.length !== esperadas.length) {
-        throw badRequest(`Arma los ${esperadas.length} platos que trae "${product.name}".`);
-      }
-      // Se emparejan en orden por componente: las selecciones de cada componentProductId
-      // deben ser exactamente su cantidad.
-      const porComponente = new Map<string, number>();
-      for (const sel of selecciones) {
-        porComponente.set(sel.componentProductId, (porComponente.get(sel.componentProductId) ?? 0) + 1);
-      }
-      for (const c of product.comboComponents) {
-        if ((porComponente.get(c.componentProductId) ?? 0) !== c.quantity) {
-          throw badRequest(`Arma ${c.quantity} "${c.componentProduct.name}" en "${product.name}".`);
+      // Pool escogible: con mín/máx definidos, los componentes son la LISTA de platos
+      // disponibles y el cliente escoge cuántos y cuáles (repitiendo si quiere) dentro del
+      // rango. Sin límites definidos, el combo es el fijo de siempre: cantidades exactas.
+      const esPool = product.comboMinSelections != null || product.comboMaxSelections != null;
+      if (esPool) {
+        const min = product.comboMinSelections ?? 1;
+        const max = product.comboMaxSelections ?? Number.POSITIVE_INFINITY;
+        if (selecciones.length < min) {
+          throw badRequest(`Elige al menos ${min} plato${min === 1 ? '' : 's'} en "${product.name}".`);
+        }
+        if (selecciones.length > max) {
+          throw badRequest(`Elige como máximo ${max} plato${max === 1 ? '' : 's'} en "${product.name}".`);
+        }
+        for (const sel of selecciones) {
+          if (!product.comboComponents.some((c) => c.componentProductId === sel.componentProductId)) {
+            throw badRequest(`Uno de los platos elegidos no pertenece al combo "${product.name}".`);
+          }
+        }
+      } else {
+        const esperadas = product.comboComponents.flatMap((c) =>
+          Array.from({ length: c.quantity }, () => c),
+        );
+        if (selecciones.length !== esperadas.length) {
+          throw badRequest(`Arma los ${esperadas.length} platos que trae "${product.name}".`);
+        }
+        // Se emparejan en orden por componente: las selecciones de cada componentProductId
+        // deben ser exactamente su cantidad.
+        const porComponente = new Map<string, number>();
+        for (const sel of selecciones) {
+          porComponente.set(sel.componentProductId, (porComponente.get(sel.componentProductId) ?? 0) + 1);
+        }
+        for (const c of product.comboComponents) {
+          if ((porComponente.get(c.componentProductId) ?? 0) !== c.quantity) {
+            throw badRequest(`Arma ${c.quantity} "${c.componentProduct.name}" en "${product.name}".`);
+          }
         }
       }
       const contadorInstancia = new Map<string, number>();
+      const totalPorComponente = new Map<string, number>();
+      for (const sel of selecciones) {
+        totalPorComponente.set(sel.componentProductId, (totalPorComponente.get(sel.componentProductId) ?? 0) + 1);
+      }
       for (const sel of selecciones) {
         const comp = product.comboComponents.find((c) => c.componentProductId === sel.componentProductId)!;
         const n = (contadorInstancia.get(sel.componentProductId) ?? 0) + 1;
         contadorInstancia.set(sel.componentProductId, n);
-        const etiqueta = comp.quantity > 1 ? `${comp.componentProduct.name} (${n})` : comp.componentProduct.name;
+        // Numera "(1)/(2)" cuando el mismo plato va más de una vez EN ESTE pedido — en pool la
+        // cantidad fija del componente no dice nada, lo que cuenta es cuántos eligió el cliente.
+        const repetido = (totalPorComponente.get(sel.componentProductId) ?? 0) > 1;
+        const etiqueta = repetido ? `${comp.componentProduct.name} (${n})` : comp.componentProduct.name;
         if (!comp.componentProduct.isAvailable) {
           throw badRequest(`"${comp.componentProduct.name}" no está disponible en este momento.`);
         }

@@ -104,6 +104,9 @@ export function ProductFormDialog({
   // Combo armable: los platos que lo componen. Persisten al instante (PUT del set completo),
   // mismo criterio que asociar/quitar categorias de modificadores.
   const [comboRows, setComboRows] = useState<{ componentProductId: string; name: string; quantity: number }[]>([]);
+  // Pool escogible: "elige entre mín y máx platos de la lista". Vacíos = combo fijo de siempre.
+  const [comboMin, setComboMin] = useState('');
+  const [comboMax, setComboMax] = useState('');
   const [comboLibrary, setComboLibrary] = useState<{ id: string; name: string; categoryId: string }[]>([]);
   const [showComboPicker, setShowComboPicker] = useState(false);
   const [packagingItems, setPackagingItems] = useState<PackagingItem[]>([]);
@@ -174,8 +177,12 @@ export function ProductFormDialog({
     api.get('/modifier-categories').then((res) => setLibraryCategories(res.data.data));
     if (product) {
       api.get(`/products/${product.id}/combo`).then((res) => setComboRows(res.data.data)).catch(() => setComboRows([]));
+      setComboMin(product.comboMinSelections?.toString() ?? '');
+      setComboMax(product.comboMaxSelections?.toString() ?? '');
     } else {
       setComboRows([]);
+      setComboMin('');
+      setComboMax('');
     }
     if (canLinkPackagingStock) {
       api.get('/inventory/packaging').then((res) => setPackagingItems(res.data.data));
@@ -283,11 +290,19 @@ export function ProductFormDialog({
 
   const availableToLink = libraryCategories.filter((c) => !linkedCategories.some((l) => l.id === c.id));
 
-  async function persistCombo(rows: { componentProductId: string; name: string; quantity: number }[]) {
+  async function persistCombo(
+    rows: { componentProductId: string; name: string; quantity: number }[],
+    pool?: { min: string; max: string },
+  ) {
     if (!product) return;
+    const min = (pool?.min ?? comboMin).trim();
+    const max = (pool?.max ?? comboMax).trim();
     try {
       const res = await api.put(`/products/${product.id}/combo`, {
         components: rows.map((r) => ({ componentProductId: r.componentProductId, quantity: r.quantity })),
+        // Pool escogible: se mandan siempre — vacíos van como null y el combo vuelve a fijo.
+        minSelections: min === '' ? null : Number(min),
+        maxSelections: max === '' ? null : Number(max),
       });
       setComboRows(res.data.data);
       onSaved();
@@ -726,38 +741,44 @@ export function ProductFormDialog({
                               <li key={r.componentProductId} className="flex items-center justify-between gap-3 py-2 text-sm">
                                 <span className="min-w-0 truncate text-brand-950">{r.name}</span>
                                 <span className="flex shrink-0 items-center gap-2">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      void persistCombo(
-                                        comboRows.map((x) =>
-                                          x.componentProductId === r.componentProductId
-                                            ? { ...x, quantity: Math.max(1, x.quantity - 1) }
-                                            : x,
-                                        ),
-                                      )
-                                    }
-                                    disabled={r.quantity <= 1}
-                                    className="h-6 w-6 rounded-full border border-brand-950/20 text-xs font-bold disabled:opacity-30"
-                                  >
-                                    −
-                                  </button>
-                                  <span className="w-4 text-center font-medium">{r.quantity}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      void persistCombo(
-                                        comboRows.map((x) =>
-                                          x.componentProductId === r.componentProductId
-                                            ? { ...x, quantity: Math.min(10, x.quantity + 1) }
-                                            : x,
-                                        ),
-                                      )
-                                    }
-                                    className="h-6 w-6 rounded-full border border-brand-950/20 text-xs font-bold"
-                                  >
-                                    +
-                                  </button>
+                                  {/* En pool la cantidad fija no aplica: el cliente decide cuántos
+                                      lleva de cada plato, así que el stepper se esconde. */}
+                                  {!(comboMin.trim() !== '' || comboMax.trim() !== '') && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          void persistCombo(
+                                            comboRows.map((x) =>
+                                              x.componentProductId === r.componentProductId
+                                                ? { ...x, quantity: Math.max(1, x.quantity - 1) }
+                                                : x,
+                                            ),
+                                          )
+                                        }
+                                        disabled={r.quantity <= 1}
+                                        className="h-6 w-6 rounded-full border border-brand-950/20 text-xs font-bold disabled:opacity-30"
+                                      >
+                                        −
+                                      </button>
+                                      <span className="w-4 text-center font-medium">{r.quantity}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          void persistCombo(
+                                            comboRows.map((x) =>
+                                              x.componentProductId === r.componentProductId
+                                                ? { ...x, quantity: Math.min(10, x.quantity + 1) }
+                                                : x,
+                                            ),
+                                          )
+                                        }
+                                        className="h-6 w-6 rounded-full border border-brand-950/20 text-xs font-bold"
+                                      >
+                                        +
+                                      </button>
+                                    </>
+                                  )}
                                   <button
                                     type="button"
                                     onClick={() =>
@@ -771,6 +792,40 @@ export function ProductFormDialog({
                               </li>
                             ))}
                           </ul>
+                        )}
+                        {comboRows.length > 0 && (
+                          <div className="mt-2 border-t border-brand-950/10 pt-2">
+                            {/* Pool escogible: con límites, la lista de arriba pasa de cantidades
+                                fijas a "platos disponibles" y el cliente elige cuántos (mín–máx)
+                                al precio del combo. Vacíos = combo fijo de siempre. */}
+                            <span className="text-[11px] text-brand-950/40">
+                              Platos a escoger (vacío = cantidades fijas)
+                            </span>
+                            <div className="mt-1 flex items-center gap-2">
+                              <label className="flex items-center gap-1.5 text-xs text-brand-950/60">
+                                Mín.
+                                <input
+                                  value={comboMin}
+                                  onChange={(e) => setComboMin(e.target.value.replace(/[^0-9]/g, ''))}
+                                  onBlur={() => void persistCombo(comboRows)}
+                                  placeholder="—"
+                                  inputMode="numeric"
+                                  className="w-14 rounded-lg border border-brand-950/15 px-2 py-1 text-sm"
+                                />
+                              </label>
+                              <label className="flex items-center gap-1.5 text-xs text-brand-950/60">
+                                Máx.
+                                <input
+                                  value={comboMax}
+                                  onChange={(e) => setComboMax(e.target.value.replace(/[^0-9]/g, ''))}
+                                  onBlur={() => void persistCombo(comboRows)}
+                                  placeholder="—"
+                                  inputMode="numeric"
+                                  className="w-14 rounded-lg border border-brand-950/15 px-2 py-1 text-sm"
+                                />
+                              </label>
+                            </div>
+                          </div>
                         )}
                       </>
                     )}
@@ -1069,18 +1124,26 @@ function LinkedCategoryRow({
   onDissociate: () => void;
 }) {
   const [maxSelections, setMaxSelectionsInput] = useState(category.maxSelections?.toString() ?? '');
+  const [freeQuantity, setFreeQuantityInput] = useState(category.freeQuantity?.toString() ?? '');
   // Vacío = el grupo va en todos los tamaños. Es el valor de siempre y el que conviene por
   // defecto: acotar es la excepción ("Término de la carne" solo en la doble y la triple).
   const [variantIds, setVariantIds] = useState<string[]>(category.variantIds ?? []);
   const [guardandoTamanos, setGuardandoTamanos] = useState(false);
 
   useEffect(() => setMaxSelectionsInput(category.maxSelections?.toString() ?? ''), [category.id, category.maxSelections]);
+  useEffect(() => setFreeQuantityInput(category.freeQuantity?.toString() ?? ''), [category.id, category.freeQuantity]);
   useEffect(() => setVariantIds(category.variantIds ?? []), [category.id, category.variantIds]);
 
   async function saveOverride() {
     const n = maxSelections.trim() === '' ? null : Number(maxSelections);
     if (n === (category.maxSelections ?? null)) return;
     await api.patch(`/modifier-categories/${category.id}/products/${productId}`, { maxSelectionsOverride: n });
+  }
+
+  async function saveFreeQuantity() {
+    const n = freeQuantity.trim() === '' || Number(freeQuantity) === 0 ? null : Number(freeQuantity);
+    if (n === (category.freeQuantity ?? null)) return;
+    await api.patch(`/modifier-categories/${category.id}/products/${productId}`, { freeQuantity: n });
   }
 
   async function guardarTamanos(ids: string[]) {
@@ -1102,17 +1165,33 @@ function LinkedCategoryRow({
         </button>
       </div>
       {category.allowMultiple && (
-        <label className="block max-w-[10rem]">
-          <span className="text-[11px] text-brand-950/40">Límite para este producto</span>
-          <input
-            value={maxSelections}
-            onChange={(e) => setMaxSelectionsInput(e.target.value.replace(/[^0-9]/g, ''))}
-            onBlur={saveOverride}
-            placeholder="Usar el de la categoría"
-            inputMode="numeric"
-            className="mt-0.5 w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1"
-          />
-        </label>
+        <div className="flex flex-wrap gap-3">
+          <label className="block max-w-[10rem]">
+            <span className="text-[11px] text-brand-950/40">Límite para este producto</span>
+            <input
+              value={maxSelections}
+              onChange={(e) => setMaxSelectionsInput(e.target.value.replace(/[^0-9]/g, ''))}
+              onBlur={saveOverride}
+              placeholder="Usar el de la categoría"
+              inputMode="numeric"
+              className="mt-0.5 w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1"
+            />
+          </label>
+          {/* Incluidos sin costo EN ESTE PLATO: las primeras N unidades del grupo van a $0
+              aunque tengan precio, y de la N+1 en adelante se cobran (las gratis se asignan
+              a las más baratas — misma regla del servidor). Vacío o 0 = todas se cobran. */}
+          <label className="block max-w-[10rem]">
+            <span className="text-[11px] text-brand-950/40">Gratis (incluidos)</span>
+            <input
+              value={freeQuantity}
+              onChange={(e) => setFreeQuantityInput(e.target.value.replace(/[^0-9]/g, ''))}
+              onBlur={saveFreeQuantity}
+              placeholder="0 = se cobran todos"
+              inputMode="numeric"
+              className="mt-0.5 w-full text-sm border border-brand-950/15 rounded-lg px-2 py-1"
+            />
+          </label>
+        </div>
       )}
 
       {/* En qué tamaños se ofrece. Solo tiene sentido con variantes: en un producto de precio

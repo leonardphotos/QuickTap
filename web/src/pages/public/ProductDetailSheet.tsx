@@ -3,8 +3,8 @@ import type { MouseEvent } from 'react';
 import { Check, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 import type { CartLine, ComboSelection, ModifierCategory, Product, Restaurant, SelectedModifier } from '../../types';
 import { formatBase, productDisplayPriceBase, publicPriceLabel } from '../../utils/format';
-import { effectiveMax, effectiveMin, effectiveModifierPrice, aplicaAlTamano } from '../../utils/modifierLimits';
-import { ComboInstancePicker } from '@/components/admin/ProductOptionsDialog';
+import { effectiveMax, effectiveMin, effectiveModifierPrice, aplicaAlTamano, lineasConGratis, totalGrupoConGratis } from '../../utils/modifierLimits';
+import { ComboInstancePicker, ComboPoolSelector } from '@/components/admin/ProductOptionsDialog';
 import {
   FamilyDrawerRoot,
   FamilyDrawerPortal,
@@ -60,10 +60,23 @@ export default function ProductDetailSheet({
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(null);
   const [selectedQty, setSelectedQty] = useState<Record<string, number>>({});
   // Combo armable: una instancia por unidad de cada plato componente, cada una con su estado.
-  const comboInstances = (product?.comboComponents ?? []).flatMap((c) =>
-    Array.from({ length: c.quantity }, (_, i) => ({ comp: c, n: i + 1 })),
-  );
-  const [comboQty, setComboQty] = useState<Record<number, Record<string, number>>>({});
+  // Pool: con mín/máx definidos el comensal elige cuántos de cada plato; sin límites, fijo.
+  const esComboPool = product?.comboMinSelections != null || product?.comboMaxSelections != null;
+  const comboPoolMin = product?.comboMinSelections ?? 1;
+  const comboPoolMax = product?.comboMaxSelections ?? Infinity;
+  const [poolQty, setPoolQty] = useState<Record<string, number>>({});
+  const poolTotal = Object.values(poolQty).reduce((a, b) => a + b, 0);
+  const comboInstances = esComboPool
+    ? (product?.comboComponents ?? []).flatMap((c) =>
+        Array.from({ length: poolQty[c.componentProductId] ?? 0 }, (_, i) => ({ comp: c, n: i + 1 })),
+      )
+    : (product?.comboComponents ?? []).flatMap((c) =>
+        Array.from({ length: c.quantity }, (_, i) => ({ comp: c, n: i + 1 })),
+      );
+  // Clave estable plato+número: en pool, quitar un plato desplaza los índices del arreglo.
+  const claveInstancia = (inst: { comp: { componentProductId: string }; n: number }) =>
+    `${inst.comp.componentProductId}#${inst.n}`;
+  const [comboQty, setComboQty] = useState<Record<string, Record<string, number>>>({});
   const [collapsedCategories, setCollapsedCategories] = useState<Set<string>>(new Set());
   const addedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -75,6 +88,7 @@ export default function ProductDetailSheet({
     setSelectedVariantId(firstVariant?.id ?? null);
     setSelectedQty({});
     setComboQty({});
+    setPoolQty({});
     setCollapsedCategories(new Set());
   }, [product?.id]);
 
@@ -98,23 +112,19 @@ export default function ProductDetailSheet({
   // un grupo que no aplica no puede exigirse ni cobrarse, y el servidor lo rechaza igual.
   const modifierCategories = (product.modifierCategories ?? []).filter((c) => aplicaAlTamano(c, selectedVariant?.id));
   const basePrice = selectedVariant ? Number(selectedVariant.priceBase) : Number(product.price);
+  // Con las unidades gratis del grupo aplicadas (las más baratas a $0, igual que el servidor).
   const chosenModifiers: SelectedModifier[] = modifierCategories.flatMap((c) =>
-    c.modifiers
-      .filter((m) => (selectedQty[m.id] ?? 0) > 0)
-      .map((m) => ({
-        modifierId: m.id,
-        name: m.name,
-        priceBase: String(effectiveModifierPrice(m, selectedVariant?.id)),
-        quantity: selectedQty[m.id],
-      })),
+    lineasConGratis(c, selectedQty, selectedVariant?.id).map((l) => ({
+      modifierId: l.modifierId,
+      name: l.name,
+      priceBase: String(l.priceBase),
+      quantity: l.quantity,
+    })),
   );
   const modifiersTotal = chosenModifiers.reduce((acc, m) => acc + Number(m.priceBase) * m.quantity, 0);
-  const comboExtraTotal = comboInstances.reduce((acc, inst, idx) => {
-    const qty = comboQty[idx] ?? {};
-    return acc + inst.comp.modifierCategories.reduce(
-      (a, cat) => a + cat.modifiers.reduce((x, m) => x + Number(m.priceBase ?? 0) * (qty[m.id] ?? 0), 0),
-      0,
-    );
+  const comboExtraTotal = comboInstances.reduce((acc, inst) => {
+    const qty = comboQty[claveInstancia(inst)] ?? {};
+    return acc + inst.comp.modifierCategories.reduce((a, cat) => a + totalGrupoConGratis(cat, qty, null), 0);
   }, 0);
   const unitPrice = basePrice + modifiersTotal + comboExtraTotal;
   const price = publicPriceLabel(unitPrice, restaurant);
@@ -126,13 +136,15 @@ export default function ProductDetailSheet({
 
   const needsVariant = product.pricingMode === 'VARIANTS' && !selectedVariant;
   const missingRequiredCategory = modifierCategories.some((c) => categoryTotal(c) < effectiveMin(c));
-  const comboIncomplete = comboInstances.some((inst, idx) => {
-    const qty = comboQty[idx] ?? {};
-    return inst.comp.modifierCategories.some((cat) => {
-      const total = cat.modifiers.reduce((a, m) => a + (qty[m.id] ?? 0), 0);
-      return total < effectiveMin(cat);
+  const comboIncomplete =
+    (esComboPool && (poolTotal < comboPoolMin || poolTotal > comboPoolMax)) ||
+    comboInstances.some((inst) => {
+      const qty = comboQty[claveInstancia(inst)] ?? {};
+      return inst.comp.modifierCategories.some((cat) => {
+        const total = cat.modifiers.reduce((a, m) => a + (qty[m.id] ?? 0), 0);
+        return total < effectiveMin(cat);
+      });
     });
-  });
   const canAdd = !needsVariant && !missingRequiredCategory && !comboIncomplete;
 
   function toggleCollapse(categoryId: string) {
@@ -181,9 +193,11 @@ export default function ProductDetailSheet({
         variantName: selectedVariant?.name,
         selectedModifiers: chosenModifiers,
         comboSelections: comboInstances.length
-          ? (comboInstances.map((inst, idx) => ({
+          ? (comboInstances.map((inst) => ({
               componentProductId: inst.comp.componentProductId,
-              modifierIds: Object.entries(comboQty[idx] ?? {}).flatMap(([id, q]) => Array(q).fill(id) as string[]),
+              modifierIds: Object.entries(comboQty[claveInstancia(inst)] ?? {}).flatMap(
+                ([id, q]) => Array(q).fill(id) as string[],
+              ),
             })) satisfies ComboSelection[])
           : undefined,
         comboExtraTotal: comboInstances.length ? comboExtraTotal : undefined,
@@ -390,17 +404,35 @@ export default function ProductDetailSheet({
                       );
                     })}
 
-                    {comboInstances.map((inst, idx) => (
-                      <div key={idx} className="mt-4">
-                        <ComboInstancePicker
-                          titulo={inst.comp.quantity > 1 ? `${inst.comp.name} (${inst.n})` : inst.comp.name}
-                          categorias={inst.comp.modifierCategories}
-                          qty={comboQty[idx] ?? {}}
-                          currencySymbol={restaurant.currencySymbol ?? '$'}
-                          onChange={(next) => setComboQty((prev) => ({ ...prev, [idx]: next }))}
+                    {esComboPool && (
+                      <div className="mt-4">
+                        <ComboPoolSelector
+                          componentes={product.comboComponents ?? []}
+                          poolQty={poolQty}
+                          min={comboPoolMin}
+                          max={comboPoolMax}
+                          onChange={setPoolQty}
                         />
                       </div>
-                    ))}
+                    )}
+
+                    {comboInstances.map((inst) => {
+                      const clave = claveInstancia(inst);
+                      const repetidas = esComboPool
+                        ? (poolQty[inst.comp.componentProductId] ?? 0)
+                        : inst.comp.quantity;
+                      return (
+                        <div key={clave} className="mt-4">
+                          <ComboInstancePicker
+                            titulo={repetidas > 1 ? `${inst.comp.name} (${inst.n})` : inst.comp.name}
+                            categorias={inst.comp.modifierCategories}
+                            qty={comboQty[clave] ?? {}}
+                            currencySymbol={restaurant.currencySymbol ?? '$'}
+                            onChange={(next) => setComboQty((prev) => ({ ...prev, [clave]: next }))}
+                          />
+                        </div>
+                      );
+                    })}
 
                     <div className="flex items-center justify-between mt-5">
                       <span className="text-sm font-medium text-brand-950/70">Cantidad</span>

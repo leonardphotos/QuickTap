@@ -41,3 +41,65 @@ export function aplicaAlTamano(category: ModifierCategory, variantId?: string | 
   if (!category.variantIds || category.variantIds.length === 0) return true;
   return variantId != null && category.variantIds.includes(variantId);
 }
+
+/**
+ * Total a cobrar de UN grupo con sus unidades gratis ya descontadas. `qtyMap` es
+ * modifierId → cantidad elegida. Las gratis se asignan a las unidades MÁS BARATAS — la misma
+ * regla que congela el servidor (priceModifierSelection), para que el total que se le muestra
+ * a quien pide sea exactamente el que después se cobra.
+ */
+export function totalGrupoConGratis(
+  category: ModifierCategory,
+  qtyMap: Record<string, number>,
+  variantId?: string | null,
+): number {
+  const unidades: number[] = [];
+  for (const m of category.modifiers ?? []) {
+    const qty = qtyMap[m.id] ?? 0;
+    if (qty <= 0) continue;
+    const precio = effectiveModifierPrice(m, variantId);
+    for (let i = 0; i < qty; i++) unidades.push(precio);
+  }
+  unidades.sort((a, b) => a - b);
+  const gratis = Math.min(category.freeQuantity ?? 0, unidades.length);
+  return unidades.slice(gratis).reduce((acc, p) => acc + p, 0);
+}
+
+/**
+ * Las líneas elegidas de UN grupo con las gratis ya aplicadas: misma información que el
+ * multiset que viaja al backend, pero con el precio unitario que de verdad se cobrará. Si un
+ * modificador queda mitad gratis y mitad cobrado, sale en dos líneas (como las congela el
+ * servidor) para que el carrito enseñe qué se regaló.
+ */
+export function lineasConGratis(
+  category: ModifierCategory,
+  qtyMap: Record<string, number>,
+  variantId?: string | null,
+): { modifierId: string; name: string; priceBase: number; quantity: number }[] {
+  const lineas = (category.modifiers ?? [])
+    .filter((m) => (qtyMap[m.id] ?? 0) > 0)
+    .map((m) => ({
+      modifierId: m.id,
+      name: m.name,
+      priceBase: effectiveModifierPrice(m, variantId),
+      quantity: qtyMap[m.id],
+    }));
+  let gratis = category.freeQuantity ?? 0;
+  if (gratis <= 0) return lineas;
+  const resultado: { modifierId: string; name: string; priceBase: number; quantity: number }[] = [];
+  // Mismo orden que el servidor: las más baratas primero se vuelven gratis.
+  const porPrecio = [...lineas].sort((a, b) => a.priceBase - b.priceBase);
+  const libresDe = new Map<string, number>();
+  for (const l of porPrecio) {
+    if (gratis <= 0) break;
+    const libres = Math.min(l.quantity, gratis);
+    gratis -= libres;
+    libresDe.set(l.modifierId, libres);
+  }
+  for (const l of lineas) {
+    const libres = libresDe.get(l.modifierId) ?? 0;
+    if (libres > 0) resultado.push({ ...l, priceBase: 0, quantity: libres });
+    if (l.quantity - libres > 0) resultado.push({ ...l, quantity: l.quantity - libres });
+  }
+  return resultado;
+}

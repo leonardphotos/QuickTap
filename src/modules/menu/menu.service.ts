@@ -118,6 +118,8 @@ export const menuService = {
             pricingMode: true,
             packagingMode: true,
             packagingFeeBase: true,
+            comboMinSelections: true,
+            comboMaxSelections: true,
             packagingItem: { select: { salePriceBase: true } },
             variants: {
               where: { isAvailable: true },
@@ -128,6 +130,7 @@ export const menuService = {
               orderBy: { priority: 'asc' },
               select: {
                 maxSelectionsOverride: true,
+                freeQuantity: true,
                 variantIds: true,
                 modifierCategory: {
                   select: {
@@ -168,6 +171,7 @@ export const menuService = {
                       orderBy: { priority: 'asc' },
                       select: {
                         maxSelectionsOverride: true,
+                        freeQuantity: true,
                         variantIds: true,
                         modifierCategory: {
                           select: {
@@ -229,6 +233,8 @@ export const menuService = {
             name: v.name,
             priceBase: round2(v.priceBase.add(v.packagingFeeBase ?? 0).sub(v.discountBase ?? 0)).toFixed(2),
           })),
+          comboMinSelections: p.comboMinSelections,
+          comboMaxSelections: p.comboMaxSelections,
           comboComponents: p.comboComponents.map((c) => ({
             componentProductId: c.componentProductId,
             name: c.componentProduct.name,
@@ -241,6 +247,7 @@ export const menuService = {
               allowMultiple: link.modifierCategory.allowMultiple,
               maxSelections: link.maxSelectionsOverride ?? link.modifierCategory.maxSelections,
             variantIds: link.variantIds,
+            freeQuantity: link.freeQuantity,
               minSelections: link.modifierCategory.minSelections,
               modifiers: link.modifierCategory.modifiers.map((m) => ({
                 id: m.id,
@@ -258,6 +265,7 @@ export const menuService = {
             allowMultiple: link.modifierCategory.allowMultiple,
             maxSelections: link.maxSelectionsOverride ?? link.modifierCategory.maxSelections,
             variantIds: link.variantIds,
+            freeQuantity: link.freeQuantity,
             minSelections: link.modifierCategory.minSelections,
             modifiers: link.modifierCategory.modifiers.map((m) => ({
               id: m.id,

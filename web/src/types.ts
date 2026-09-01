@@ -212,6 +212,9 @@ export interface ModifierCategory {
   /** Tamaños (variantes) de ESTE producto en los que aparece el grupo. Vacío/ausente = en todos.
    *  Solo llega dentro de un producto; en la biblioteca de Modificadores no aplica. */
   variantIds?: string[];
+  /** Unidades gratis del grupo en ESTE plato: las primeras N no se cobran (las más baratas
+   * primero, misma regla del servidor). Solo llega dentro de un producto. */
+  freeQuantity?: number | null;
   /** Cuántos productos tienen esta categoría asociada (solo en la biblioteca de Modificadores). */
   productCount?: number;
   modifiers: Modifier[];
@@ -286,6 +289,10 @@ export interface Product {
   variants?: ProductVariant[];
   // Categorías de modificadores asociadas a este producto (con sus modificadores anidados).
   modifierCategories?: ModifierCategory[];
+  /** Combo pool: el cliente elige entre estos límites cuántos platos lleva (null en ambos =
+   * combo fijo: las cantidades de cada componente son exactas). */
+  comboMinSelections?: number | null;
+  comboMaxSelections?: number | null;
   /** Combo armable: platos que lo componen, cada uno con SUS categorias de modificadores. */
   comboComponents?: ComboComponentInfo[];
 }

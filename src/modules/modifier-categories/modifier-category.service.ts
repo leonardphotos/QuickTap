@@ -147,6 +147,10 @@ export const modifierCategoryService = {
             modifierCategoryId: copy.id,
             priority: p.priority,
             maxSelectionsOverride: p.maxSelectionsOverride,
+            // Duplicar el grupo conserva también la configuración por plato: los tamaños en
+            // los que aparece y las unidades gratis — antes se perdían en la copia.
+            variantIds: p.variantIds,
+            freeQuantity: p.freeQuantity,
           })),
         });
       }

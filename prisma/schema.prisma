@@ -1091,6 +1091,12 @@ model Product {
   costStructure      ProductCostStructure?
   wasteRecords       WasteRecord[]
   modifierCategories ProductModifierCategory[]
+  // Combo "pool escogible": si alguno de estos dos está definido, los comboComponents dejan de
+  // ser cantidades fijas (2× pizza + 1× refresco) y pasan a ser la LISTA de platos disponibles:
+  // el cliente escoge entre el mínimo y el máximo, repitiendo plato si quiere, al precio del
+  // combo. Con ambos en null el combo se comporta como siempre (cantidades fijas por plato).
+  comboMinSelections Int?
+  comboMaxSelections Int?
   comboComponents    ComboComponent[]          @relation("ComboOwner")
   comboUsages        ComboComponent[]          @relation("ComboPart")
   variants           ProductVariant[]
@@ -1240,6 +1246,11 @@ model ProductModifierCategory {
   priority              Int    @default(0)
   // Sobreescribe ModifierCategory.maxSelections solo para este producto. null = usa el de la categoría.
   maxSelectionsOverride Int?
+  // Unidades gratis de este grupo EN ESTE PLATO: las primeras N no se cobran aunque tengan
+  // precio, y de la N+1 en adelante se cobra normal (ej: "5 toppings incluidos, el 6º se paga").
+  // Las gratis se asignan a las unidades más baratas — regla fija para que el panel, el menú
+  // público y el backend calculen exactamente el mismo total. null/0 = todas se cobran.
+  freeQuantity          Int?
   // Tamaños (ProductVariant) en los que aparece este grupo. VACÍO = en todos, que es como se
   // comportaba antes de existir esta columna y por eso es el valor por defecto: los grupos ya
   // asociados siguen saliendo en todas las variantes sin tocar nada.

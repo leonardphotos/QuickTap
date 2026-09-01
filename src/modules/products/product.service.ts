@@ -72,6 +72,7 @@ function serializeProduct<
     modifierCategories: {
       maxSelectionsOverride: number | null;
       variantIds: string[];
+      freeQuantity: number | null;
       modifierCategory: {
         id: string;
         name: string;
@@ -94,6 +95,7 @@ function serializeProduct<
         modifierCategories: {
           maxSelectionsOverride: number | null;
           variantIds: string[];
+          freeQuantity: number | null;
           modifierCategory: { maxSelections: number | null } & Record<string, unknown>;
         }[];
       };
@@ -107,6 +109,7 @@ function serializeProduct<
       ...link.modifierCategory,
       maxSelections: link.maxSelectionsOverride ?? link.modifierCategory.maxSelections,
       variantIds: link.variantIds,
+      freeQuantity: link.freeQuantity,
     })),
     comboComponents: (comboComponents ?? []).map((c) => ({
       componentProductId: c.componentProductId,
@@ -117,6 +120,7 @@ function serializeProduct<
         ...link.modifierCategory,
         maxSelections: link.maxSelectionsOverride ?? link.modifierCategory.maxSelections,
         variantIds: link.variantIds,
+        freeQuantity: link.freeQuantity,
       })),
     })),
   };
@@ -340,6 +344,7 @@ export const productService = {
     restaurantId: string,
     productId: string,
     components: { componentProductId: string; quantity: number }[],
+    pool?: { minSelections: number | null; maxSelections: number | null },
   ) {
     await this.getById(restaurantId, productId);
     const ids = components.map((c) => c.componentProductId);
@@ -361,6 +366,17 @@ export const productService = {
           data: { restaurantId, productId, componentProductId: c.componentProductId, quantity: c.quantity, priority: i },
         }),
       ),
+      // Pool escogible: los límites viven en el producto. Si el combo se vacía, se limpian
+      // también — un producto que dejó de ser combo no debe conservar un mínimo colgando.
+      prisma.product.update({
+        where: { id: productId },
+        data:
+          components.length === 0
+            ? { comboMinSelections: null, comboMaxSelections: null }
+            : pool
+              ? { comboMinSelections: pool.minSelections, comboMaxSelections: pool.maxSelections }
+              : {},
+      }),
     ]);
     return this.getComboComponents(restaurantId, productId);
   },

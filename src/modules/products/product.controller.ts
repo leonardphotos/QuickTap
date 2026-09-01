@@ -111,8 +111,20 @@ export const productController = {
         components: z
           .array(z.object({ componentProductId: z.string().min(1), quantity: z.coerce.number().int().min(1).max(10) }))
           .max(10),
+        // Pool escogible: el cliente elige entre min y max platos de la lista (ambos en null =
+        // combo fijo de siempre). Se validan juntos para no guardar un rango imposible.
+        minSelections: z.coerce.number().int().min(1).max(20).nullable().optional(),
+        maxSelections: z.coerce.number().int().min(1).max(20).nullable().optional(),
+      })
+      .refine((v) => v.minSelections == null || v.maxSelections == null || v.minSelections <= v.maxSelections, {
+        message: 'El mínimo de platos no puede ser mayor que el máximo.',
       })
       .parse(req.body);
-    res.json({ data: await productService.setComboComponents(req.restaurantId!, req.params.id, input.components) });
+    res.json({
+      data: await productService.setComboComponents(req.restaurantId!, req.params.id, input.components, {
+        minSelections: input.minSelections ?? null,
+        maxSelections: input.maxSelections ?? null,
+      }),
+    });
   }),
 };

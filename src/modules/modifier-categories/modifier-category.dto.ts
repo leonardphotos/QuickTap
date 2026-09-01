@@ -19,6 +19,8 @@ export const reorderModifiersSchema = z.object({
 
 export const updateProductLinkSchema = z.object({
   maxSelectionsOverride: z.coerce.number().int().positive().nullable().optional(),
+  // Unidades gratis del grupo en este plato: las primeras N no se cobran (null/0 = todas se cobran).
+  freeQuantity: z.coerce.number().int().positive().nullable().optional(),
   // Tamaños en los que aparece este grupo para ESTE producto. Vacío = en todos.
   variantIds: z.array(z.string().min(1)).optional(),
 });

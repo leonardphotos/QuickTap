@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { TextureButton } from '@/components/ui/texture-button';
 import { formatBase } from '@/utils/format';
-import { effectiveModifierPrice, aplicaAlTamano } from '@/utils/modifierLimits';
+import { effectiveModifierPrice, aplicaAlTamano, lineasConGratis, totalGrupoConGratis } from '@/utils/modifierLimits';
 import type { CartLine, ComboComponentInfo, ComboSelection, ModifierCategory, Product, SelectedModifier } from '@/types';
 
 interface Props {
@@ -81,10 +81,25 @@ export function ProductOptionsDialog({
   // Combo armable: una instancia por cada unidad de cada plato componente (2 wokbox = dos
   // instancias que se arman POR SEPARADO). El estado vive por instancia: clave "idx" del
   // arreglo aplanado, y adentro modifierId -> cantidad, igual que selectedQty.
-  const comboInstances = (product.comboComponents ?? []).flatMap((c) =>
-    Array.from({ length: c.quantity }, (_, i) => ({ comp: c, n: i + 1 })),
-  );
-  const [comboQty, setComboQty] = useState<Record<number, Record<string, number>>>({});
+  // Combo pool: con mín/máx definidos, los componentes son la lista disponible y el cajero
+  // elige cuántos de cada uno (repitiendo si quiere); sin límites, cantidades fijas de siempre.
+  const esComboPool = product.comboMinSelections != null || product.comboMaxSelections != null;
+  const comboPoolMin = product.comboMinSelections ?? 1;
+  const comboPoolMax = product.comboMaxSelections ?? Infinity;
+  const [poolQty, setPoolQty] = useState<Record<string, number>>({});
+  const poolTotal = Object.values(poolQty).reduce((a, b) => a + b, 0);
+  const comboInstances = esComboPool
+    ? (product.comboComponents ?? []).flatMap((c) =>
+        Array.from({ length: poolQty[c.componentProductId] ?? 0 }, (_, i) => ({ comp: c, n: i + 1 })),
+      )
+    : (product.comboComponents ?? []).flatMap((c) =>
+        Array.from({ length: c.quantity }, (_, i) => ({ comp: c, n: i + 1 })),
+      );
+  // Clave estable por plato+número (no el índice del arreglo): en pool, quitar un plato
+  // desplaza los índices y el armado de un plato se le colaría a otro.
+  const claveInstancia = (inst: { comp: { componentProductId: string }; n: number }) =>
+    `${inst.comp.componentProductId}#${inst.n}`;
+  const [comboQty, setComboQty] = useState<Record<string, Record<string, number>>>({});
 
   useEffect(() => {
     setQuantity(initialQuantity ?? 1);
@@ -98,6 +113,7 @@ export function ProductOptionsDialog({
     );
     setSelectedQty(initialQtyFrom(initialModifierIds));
     setComboQty({});
+    setPoolQty({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product]);
 
@@ -107,15 +123,15 @@ export function ProductOptionsDialog({
   // un grupo que no aplica no puede exigirse ni cobrarse, y el servidor lo rechaza igual.
   const modifierCategories = (product.modifierCategories ?? []).filter((c) => aplicaAlTamano(c, selectedVariant?.id));
   const basePrice = selectedVariant ? Number(selectedVariant.priceBase) : Number(product.price);
+  // Con las unidades gratis del grupo ya aplicadas (las más baratas a $0, igual que el
+  // servidor): lo que se muestra y lo que se manda es exactamente lo que se va a cobrar.
   const chosenModifiers: SelectedModifier[] = modifierCategories.flatMap((c) =>
-    c.modifiers
-      .filter((m) => (selectedQty[m.id] ?? 0) > 0)
-      .map((m) => ({
-        modifierId: m.id,
-        name: m.name,
-        priceBase: String(effectiveModifierPrice(m, selectedVariant?.id)),
-        quantity: selectedQty[m.id],
-      })),
+    lineasConGratis(c, selectedQty, selectedVariant?.id).map((l) => ({
+      modifierId: l.modifierId,
+      name: l.name,
+      priceBase: String(l.priceBase),
+      quantity: l.quantity,
+    })),
   );
   const modifiersTotal = chosenModifiers.reduce((acc, m) => acc + Number(m.priceBase) * m.quantity, 0);
 
@@ -125,20 +141,20 @@ export function ProductOptionsDialog({
 
   // Total y validez de las instancias del combo: cada plato armado cumple sus categorias
   // obligatorias, y los extras con precio suman al total que se muestra.
-  const comboExtraTotal = comboInstances.reduce((acc, inst, idx) => {
-    const qty = comboQty[idx] ?? {};
-    return acc + inst.comp.modifierCategories.reduce(
-      (a, cat) => a + cat.modifiers.reduce((x, m) => x + Number(m.priceBase ?? 0) * (qty[m.id] ?? 0), 0),
-      0,
-    );
+  const comboExtraTotal = comboInstances.reduce((acc, inst) => {
+    const qty = comboQty[claveInstancia(inst)] ?? {};
+    // Cada plato del combo aplica sus propias unidades gratis (misma regla del servidor).
+    return acc + inst.comp.modifierCategories.reduce((a, cat) => a + totalGrupoConGratis(cat, qty, null), 0);
   }, 0);
-  const comboIncomplete = comboInstances.some((inst, idx) => {
-    const qty = comboQty[idx] ?? {};
-    return inst.comp.modifierCategories.some((cat) => {
-      const total = cat.modifiers.reduce((a, m) => a + (qty[m.id] ?? 0), 0);
-      return total < effectiveMin(cat as Category);
+  const comboIncomplete =
+    (esComboPool && (poolTotal < comboPoolMin || poolTotal > comboPoolMax)) ||
+    comboInstances.some((inst) => {
+      const qty = comboQty[claveInstancia(inst)] ?? {};
+      return inst.comp.modifierCategories.some((cat) => {
+        const total = cat.modifiers.reduce((a, m) => a + (qty[m.id] ?? 0), 0);
+        return total < effectiveMin(cat as Category);
+      });
     });
-  });
 
   const unitPrice = basePrice + modifiersTotal + comboExtraTotal;
 
@@ -206,9 +222,11 @@ export function ProductOptionsDialog({
   function confirmAdd() {
     if (!canAdd) return;
     const comboSelections: ComboSelection[] | undefined = comboInstances.length
-      ? comboInstances.map((inst, idx) => ({
+      ? comboInstances.map((inst) => ({
           componentProductId: inst.comp.componentProductId,
-          modifierIds: Object.entries(comboQty[idx] ?? {}).flatMap(([id, q]) => Array(q).fill(id) as string[]),
+          modifierIds: Object.entries(comboQty[claveInstancia(inst)] ?? {}).flatMap(
+            ([id, q]) => Array(q).fill(id) as string[],
+          ),
         }))
       : undefined;
     onAdd({
@@ -270,6 +288,11 @@ export function ProductOptionsDialog({
                   {Number.isFinite(max) && (
                     <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-brand-400/10 text-brand-600">
                       {total}/{max} seleccionados
+                    </span>
+                  )}
+                  {(category.freeQuantity ?? 0) > 0 && (
+                    <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                      {category.freeQuantity} gratis
                     </span>
                   )}
                   {todosCabenEn(category) && (
@@ -360,16 +383,30 @@ export function ProductOptionsDialog({
             );
           })}
 
-          {comboInstances.map((inst, idx) => (
-            <ComboInstancePicker
-              key={idx}
-              titulo={inst.comp.quantity > 1 ? `${inst.comp.name} (${inst.n})` : inst.comp.name}
-              categorias={inst.comp.modifierCategories}
-              qty={comboQty[idx] ?? {}}
-              currencySymbol={currencySymbol}
-              onChange={(next) => setComboQty((prev) => ({ ...prev, [idx]: next }))}
+          {esComboPool && (
+            <ComboPoolSelector
+              componentes={product.comboComponents ?? []}
+              poolQty={poolQty}
+              min={comboPoolMin}
+              max={comboPoolMax}
+              onChange={setPoolQty}
             />
-          ))}
+          )}
+
+          {comboInstances.map((inst) => {
+            const clave = claveInstancia(inst);
+            const repetidas = esComboPool ? (poolQty[inst.comp.componentProductId] ?? 0) : inst.comp.quantity;
+            return (
+              <ComboInstancePicker
+                key={clave}
+                titulo={repetidas > 1 ? `${inst.comp.name} (${inst.n})` : inst.comp.name}
+                categorias={inst.comp.modifierCategories}
+                qty={comboQty[clave] ?? {}}
+                currencySymbol={currencySymbol}
+                onChange={(next) => setComboQty((prev) => ({ ...prev, [clave]: next }))}
+              />
+            );
+          })}
 
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-brand-950/70">Cantidad</span>
@@ -418,6 +455,95 @@ export function ProductOptionsDialog({
  * interacción del diálogo (radio para una opción, stepper para varias), pero con estado
  * propio por instancia — dos wokbox del mismo combo se arman distinto.
  */
+/**
+ * Selector del combo pool: cuántas unidades de cada plato de la lista lleva el combo, con el
+ * contador del rango (mín–máx) siempre a la vista. El armado de cada unidad elegida sale
+ * debajo, como instancias normales.
+ */
+export function ComboPoolSelector({
+  componentes,
+  poolQty,
+  min,
+  max,
+  onChange,
+}: {
+  componentes: ComboComponentInfo[];
+  poolQty: Record<string, number>;
+  min: number;
+  max: number;
+  onChange: (next: Record<string, number>) => void;
+}) {
+  const total = Object.values(poolQty).reduce((a, b) => a + b, 0);
+  const etiquetaRango = Number.isFinite(max)
+    ? min === max
+      ? `Elige ${max} plato${max === 1 ? '' : 's'}`
+      : `Elige entre ${min} y ${max} platos`
+    : `Elige al menos ${min} plato${min === 1 ? '' : 's'}`;
+  function step(componentProductId: string, delta: number) {
+    if (delta > 0 && total >= max) return;
+    const val = Math.max(0, (poolQty[componentProductId] ?? 0) + delta);
+    const next = { ...poolQty };
+    if (val === 0) delete next[componentProductId];
+    else next[componentProductId] = val;
+    onChange(next);
+  }
+  return (
+    <div className="rounded-xl border border-brand-950/10 bg-brand-950/[0.02] p-3">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <p className="text-sm font-bold text-brand-950">Platos del combo</p>
+        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10.5px] font-medium text-amber-700">
+          {etiquetaRango}
+        </span>
+        <span
+          className={`rounded-full px-2 py-0.5 text-[10.5px] font-medium ${
+            total >= min && total <= max ? 'bg-emerald-100 text-emerald-700' : 'bg-brand-400/10 text-brand-600'
+          }`}
+        >
+          {total}{Number.isFinite(max) ? `/${max}` : ''} elegidos
+        </span>
+      </div>
+      <div className="space-y-1.5">
+        {componentes.map((c) => {
+          const q = poolQty[c.componentProductId] ?? 0;
+          const agotado = c.isAvailable === false;
+          return (
+            <div
+              key={c.componentProductId}
+              className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-sm ${
+                q > 0 ? 'border-brand-500 bg-brand-400/10' : 'border-brand-950/10'
+              } ${agotado ? 'opacity-40' : ''}`}
+            >
+              <span className="min-w-0 truncate text-brand-950">
+                {c.name}
+                {agotado && <span className="text-brand-950/50"> (agotado)</span>}
+              </span>
+              <div className="flex shrink-0 items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => step(c.componentProductId, -1)}
+                  disabled={q === 0}
+                  className="h-7 w-7 rounded-full border border-brand-950/20 text-xs font-bold text-brand-950 disabled:opacity-30"
+                >
+                  −
+                </button>
+                <span className="w-4 text-center text-sm font-medium">{q}</span>
+                <button
+                  type="button"
+                  onClick={() => step(c.componentProductId, 1)}
+                  disabled={agotado || total >= max}
+                  className="h-7 w-7 rounded-full border border-brand-950/20 text-xs font-bold text-brand-950 disabled:opacity-30"
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export function ComboInstancePicker({
   titulo,
   categorias,
@@ -477,6 +603,11 @@ export function ComboInstancePicker({
                 {Number.isFinite(max) && max > 1 && (
                   <span className="rounded-full bg-brand-400/10 px-2 py-0.5 text-[10.5px] font-medium text-brand-600">
                     {total}/{max}
+                  </span>
+                )}
+                {(cat.freeQuantity ?? 0) > 0 && (
+                  <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10.5px] font-medium text-emerald-700">
+                    {cat.freeQuantity} gratis
                   </span>
                 )}
               </div>
