@@ -2550,7 +2550,7 @@ export const orderService = {
     };
   },
 
-  async listLiveOrders(restaurantId: string) {
+  async listLiveOrders(restaurantId: string, incluirPagadas = false) {
     const orders = await prisma.order.findMany({
       where: {
         restaurantId,
@@ -2567,6 +2567,14 @@ export const orderService = {
     });
     // Del lado servido solo quedan las que todavía deben algo (el saldo no se puede calcular
     // en SQL: hay que sumar los pagos con sus descuentos, igual que en addPayment).
+    //
+    // `incluirPagadas` lo pide SOLO la pantalla de Comandas, que necesita las ya cobradas para
+    // su pestaña "Pagadas". El resto de consumidores (Órdenes de Mesa, el aviso de pedido
+    // nuevo, el selector de comandas abiertas…) son pantallas de trabajo: ahí una cuenta
+    // cobrada solo estorba, así que siguen recibiendo únicamente lo que queda por atender.
+    // El corte de las pagadas sigue siendo el cierre de caja (`clearedAt`, arriba), que no
+    // borra nada: solo las oculta de esta pantalla y quedan enteras en Administración.
+    if (incluirPagadas) return orders;
     return orders.filter((o) => {
       if (o.status !== 'SERVED') return true;
       const settled = o.payments.reduce(
@@ -2799,8 +2807,42 @@ export const orderService = {
       // fiscal-invoicing.service.ts), pero el .catch es una segunda red de seguridad
       // para que un fallo de red jamás afecte la respuesta de este cobro.
       if (fullyPaid) fiscalInvoicingService.issueForOrder(restaurantId, orderId).catch(() => undefined);
+      // Cobrar desde Comandas también libera la mesa. Antes solo la soltaba el botón "Cerrar
+      // mesa" de Órdenes de Mesa, así que una cuenta cobrada desde Pedidos dejaba la mesa
+      // ocupada (y sus comandas colgadas en Cocina) hasta que alguien se acordara de ir a
+      // cerrarla. Nunca rompe el cobro: si algo falla acá, el pago ya está registrado.
+      if (fullyPaid && updated.tableSessionId) {
+        await this.cerrarCuentaSiTodoPagado(restaurantId, updated.tableSessionId).catch(() => undefined);
+      }
       return updated;
     });
+  },
+
+  /**
+   * Cierra la cuenta de una mesa solo si TODOS sus pedidos quedaron saldados. Una cuenta puede
+   * tener varias comandas (rondas sucesivas de la misma mesa): cerrarla al cobrar una sola
+   * liberaría la mesa con deuda viva en las otras. El cierre en sí lo hace tableSessionService
+   * para no duplicar sus efectos — libera la mesa, deshace la unión de mesas si era la última
+   * del grupo y saca las comandas de Cocina.
+   */
+  async cerrarCuentaSiTodoPagado(restaurantId: string, tableSessionId: string) {
+    const session = await prisma.tableSession.findFirst({ where: { id: tableSessionId, restaurantId } });
+    if (!session || session.status !== 'OPEN') return;
+
+    const ordenes = await prisma.order.findMany({
+      where: { tableSessionId, restaurantId, status: { not: 'CANCELLED' } },
+      include: { payments: true },
+    });
+    const algunaDebe = ordenes.some((o) => {
+      const settled = o.payments.reduce(
+        (acc, p) => acc.add(p.amountBase).add(p.discountBase ?? toDecimal(0)).add(p.serviceChargeDiscountBase ?? toDecimal(0)),
+        toDecimal(0),
+      );
+      return round2(o.totalBase.sub(settled)).gt(0.01);
+    });
+    if (algunaDebe) return;
+
+    await tableSessionService.close(restaurantId, tableSessionId);
   },
 
   /**

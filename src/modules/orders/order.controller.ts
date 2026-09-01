@@ -241,9 +241,12 @@ export const orderController = {
     res.json({ data: order });
   }),
 
-  /** GET /api/v1/orders/live — todos los pedidos activos, para el panel del Dashboard. */
+  /** GET /api/v1/orders/live — todos los pedidos activos, para el panel del Dashboard.
+   * `?incluirPagadas=1` añade las ya cobradas del turno: solo lo pide Comandas, que las
+   * necesita para su pestaña "Pagadas". */
   liveOrders: asyncHandler(async (req: Request, res: Response) => {
-    const orders = await orderService.listLiveOrders(req.restaurantId!);
+    const incluirPagadas = req.query.incluirPagadas === '1';
+    const orders = await orderService.listLiveOrders(req.restaurantId!, incluirPagadas);
     res.json({ data: orders });
   }),
 

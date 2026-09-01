@@ -116,7 +116,7 @@ export interface LiveOrder {
   awaitingPayment: boolean;
 }
 
-type ChannelFilter = LiveOrder['channel'] | 'AWAITING_PAYMENT' | 'PAID' | 'PARTIAL';
+type ChannelFilter = LiveOrder['channel'] | 'NEW' | 'AWAITING_PAYMENT' | 'PAID' | 'PARTIAL';
 
 /** Estado de pago de un pedido, para colorear la tarjeta y filtrar el Dashboard. */
 export function getPaymentStatus(o: LiveOrder) {
@@ -278,24 +278,21 @@ function canAcceptOrder(role: string | undefined, channel: LiveOrder['channel'],
  * Qué pedidos le tocan a un Mesero. Fuente única: la usan el panel de Pedidos y la vista
  * previa de comandas del mesero, que antes llevaban dos copias del mismo criterio.
  *
- * Ve los que él mismo tomó, los que aceptó de un cliente que pidió desde su mesa, los de una
- * mesa que tiene asignada (Equipo → "Asignar mesas", o porque aceptó el primer pedido de esa
- * mesa), y los que un cliente pidió desde una mesa sin dueño que nadie aceptó todavía, para
- * poder tomarlos. En cuanto la mesa queda asignada a otro mesero, deja de aparecerle.
+ * Solo lo suyo: los que él mismo tomó, los que aceptó de un cliente que pidió desde su mesa,
+ * y los de una mesa que tiene asignada (Equipo → "Asignar mesas", o porque aceptó el primer
+ * pedido de esa mesa). Nada más.
  *
- * Los pedidos de BARRA son de todos: no tienen mesa, así que no hay dueño natural de dónde
- * colgarlos. Sin esta línea, una comanda de barra tomada en caja no le aparecía a NINGÚN
- * mesero — quedaba visible solo para caja y administración, y el mesero veía la pantalla
- * vacía teniendo cuentas sin cobrar. Delivery y Pickup se quedan fuera a propósito: tampoco
- * tienen mesa, pero solo Caja/Admin los acepta (ver canAcceptOrder), así que al mesero solo
- * le harían ruido.
+ * Antes también veía TODAS las comandas de barra y cualquier pedido sin dueño, con la idea de
+ * que ninguna cuenta quedara sin mesero que la cobrara. En la práctica eso llenaba su pantalla
+ * de comandas ajenas y se prestaba a confusión, así que se quitó a propósito. La contrapartida
+ * es que barra y los pedidos que llegan a una mesa sin mesero asignado quedan a la vista de
+ * Caja/Admin, que son quienes los reparten: para que un mesero los vea, hay que asignarle la
+ * mesa (Equipo → "Asignar mesas") o que él mismo tome la comanda.
  */
 export function leCorresponde(o: LiveOrder, userId: string): boolean {
   if (o.placedByUser?.id === userId) return true;
   if (o.acceptedByUserId === userId) return true;
-  if (o.channel === 'BAR') return true;
-  if (o.table?.assignedWaiterId) return o.table.assignedWaiterId === userId;
-  return !o.placedByUser && !o.acceptedByUserId;
+  return o.table?.assignedWaiterId === userId;
 }
 
 /** Panel "Pedidos": todos los pedidos activos con Aceptar/Cancelar/Finalizar/Delivery. Va en el Dashboard. */
@@ -345,7 +342,7 @@ export function LiveOrdersPanel({
   const actionBtnClass = 'text-xs font-medium py-3 lg:text-[10.5px] lg:py-2.5 lg:px-0.5 lg:leading-tight';
 
   function load() {
-    api.get('/orders/live').then((res) => setOrders(res.data.data));
+    api.get('/orders/live', { params: { incluirPagadas: '1' } }).then((res) => setOrders(res.data.data));
   }
 
   /**
@@ -584,24 +581,33 @@ export function LiveOrdersPanel({
   // El resto de los roles (Admin, Cajero, Cocina, Pantalla) ve todos.
   const roleFiltered = user?.role === 'WAITER' ? (orders ?? []).filter((o) => leCorresponde(o, user.id)) : orders;
 
+  // Las ya cobradas solo se ven en su propia pestaña: el resto son pantallas de trabajo y una
+  // cuenta saldada ahí solo estorba. Es el "limpiar las comandas ya pagadas" — no se borran ni
+  // se ocultan del sistema, se mueven a "Pagadas" (y al cerrar caja pasan a Administración).
+  const sinCobrar = (lista: LiveOrder[]) => lista.filter((o) => !getPaymentStatus(o).fullyPaid);
+
   const visibleOrders = !channelFilter
-    ? roleFiltered
-    : channelFilter === 'AWAITING_PAYMENT'
-      ? filterByDebtSearch((roleFiltered ?? []).filter((o) => o.awaitingPayment), debtSearch)
-      : channelFilter === 'PAID'
-        ? (roleFiltered ?? []).filter((o) => getPaymentStatus(o).fullyPaid)
-        : channelFilter === 'PARTIAL'
-          ? (roleFiltered ?? []).filter((o) => getPaymentStatus(o).owesBalance)
-          : (roleFiltered ?? []).filter((o) => o.channel === channelFilter);
+    ? sinCobrar(roleFiltered ?? [])
+    : channelFilter === 'NEW'
+      ? // "Nuevas": lo que entró y todavía nadie aceptó — la bandeja de entrada del turno.
+        sinCobrar(roleFiltered ?? []).filter((o) => o.status === 'PENDING' || o.status === 'NEEDS_CONFIRMATION')
+      : channelFilter === 'AWAITING_PAYMENT'
+        ? filterByDebtSearch(sinCobrar(roleFiltered ?? []).filter((o) => o.awaitingPayment), debtSearch)
+        : channelFilter === 'PAID'
+          ? filterByDebtSearch((roleFiltered ?? []).filter((o) => getPaymentStatus(o).fullyPaid), debtSearch)
+          : channelFilter === 'PARTIAL'
+            ? sinCobrar(roleFiltered ?? []).filter((o) => getPaymentStatus(o).owesBalance)
+            : sinCobrar(roleFiltered ?? []).filter((o) => o.channel === channelFilter);
 
   if (!orders) return null;
 
   const filterOptions: { value: ChannelFilter | null; label: string }[] = [
-    { value: null, label: 'Todos' },
+    { value: 'NEW', label: 'Nuevas' },
     ...CHANNEL_TABS,
     ...(canAccountsPayable ? [{ value: 'AWAITING_PAYMENT' as const, label: 'Deudas' }] : []),
-    { value: 'PAID', label: 'Pagados' },
+    { value: 'PAID', label: 'Pagadas' },
     { value: 'PARTIAL', label: 'Fraccionado' },
+    { value: null, label: 'Todas' },
   ];
 
   return (
@@ -609,9 +615,9 @@ export function LiveOrdersPanel({
       <div className="flex items-center justify-between mb-3 gap-2">
         <div className="flex items-center gap-2.5">
           <h2 className="text-lg font-semibold text-brand-950">Pedidos</h2>
-          {(roleFiltered?.length ?? 0) > 0 && (
+          {(visibleOrders?.length ?? 0) > 0 && (
             <span className="text-sm bg-brand-500 text-white rounded-full h-7 min-w-7 px-2 flex items-center justify-center font-bold">
-              {roleFiltered?.length}
+              {visibleOrders?.length}
             </span>
           )}
         </div>
@@ -645,7 +651,12 @@ export function LiveOrdersPanel({
         {filterOptions.map((f) => (
           <button
             key={f.label}
-            onClick={() => setChannelFilter(f.value)}
+            onClick={() => {
+              setChannelFilter(f.value);
+              // Cada pestaña arranca con su primer bloque de tarjetas: si no, un "Ver más"
+              // dado en Deudas hacía que "Pagadas" pintara de golpe cientos de tarjetas.
+              setTarjetasVisibles(40);
+            }}
             className={`shrink-0 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
               channelFilter === f.value
                 ? 'bg-brand-500 text-white border-brand-500'
@@ -657,7 +668,7 @@ export function LiveOrdersPanel({
         ))}
       </div>
 
-      {channelFilter === 'AWAITING_PAYMENT' && (
+      {(channelFilter === 'AWAITING_PAYMENT' || channelFilter === 'PAID') && (
         <div className="relative mb-3">
           <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-950/30" />
           <input
