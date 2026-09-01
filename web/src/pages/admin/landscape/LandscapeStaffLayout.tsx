@@ -14,6 +14,7 @@ import { CreateOrderDialog } from '@/components/admin/CreateOrderDialog';
 import { PaymentDialog } from '@/components/admin/PaymentDialog';
 import { CashSessionControl } from '@/components/admin/CashSessionControl';
 import { TodayPaymentMethodsDialog } from '@/components/admin/TodayPaymentMethodsDialog';
+import { WaiterProfilePicker } from '@/components/admin/WaiterProfilePicker';
 
 const TableOrdersPage = lazy(() => import('../TableOrdersPage'));
 const KitchenPage = lazy(() => import('../KitchenPage'));
@@ -40,6 +41,10 @@ export default function LandscapeStaffLayout() {
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<LiveOrder | null>(null);
   const [paymentDialog, setPaymentDialog] = useState<{ order: LiveOrder; mode: 'full' | 'split' } | null>(null);
+  // Segundo inicio de sesión: en la tablet compartida, tocar el avatar reabre la cuadrícula de
+  // meseros (misma pantalla del login) sin pedir correo/clave otra vez. Solo Mesero — Cajero
+  // llega a este mismo layout pero cambiar de mesero no es lo suyo.
+  const [switchingUser, setSwitchingUser] = useState(false);
 
   if (!user || !restaurant) return null;
 
@@ -123,9 +128,20 @@ export default function LandscapeStaffLayout() {
             <div className="flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1.5 text-[11.5px] font-semibold text-emerald-600">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" /> En vivo
             </div>
-            <div className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-brand-500 text-[13px] font-semibold text-white">
-              {user.name?.[0]?.toUpperCase() ?? '?'}
-            </div>
+            {user.role === 'WAITER' ? (
+              <button
+                type="button"
+                onClick={() => setSwitchingUser(true)}
+                title="Cambiar de mesero"
+                className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-brand-500 text-[13px] font-semibold text-white hover:brightness-110"
+              >
+                {user.name?.[0]?.toUpperCase() ?? '?'}
+              </button>
+            ) : (
+              <div className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-brand-500 text-[13px] font-semibold text-white">
+                {user.name?.[0]?.toUpperCase() ?? '?'}
+              </div>
+            )}
           </div>
         </div>
 
@@ -180,6 +196,8 @@ export default function LandscapeStaffLayout() {
           onPaid={loadExistingOrders}
         />
       )}
+
+      {switchingUser && <WaiterProfilePicker onClose={() => setSwitchingUser(false)} />}
     </div>
   );
 }

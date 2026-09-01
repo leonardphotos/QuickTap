@@ -8,6 +8,7 @@ import {
   resetPasswordSchema,
   setLockPinSchema,
   verifyLockPinSchema,
+  switchUserSchema,
 } from './auth.dto';
 import { authService } from './auth.service';
 
@@ -65,5 +66,17 @@ export const authController = {
   verifyLockPin: asyncHandler(async (req: Request, res: Response) => {
     const { pin } = verifyLockPinSchema.parse(req.body);
     res.json({ data: await authService.verifyLockPin(req.auth!.userId, pin) });
+  }),
+
+  /** Segundo inicio de sesión: meseros de este restaurante que pueden aparecer en la
+   * cuadrícula de la tablet (ver auth.service.listSwitchableWaiters). */
+  switchableWaiters: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await authService.listSwitchableWaiters(req.restaurantId!) });
+  }),
+
+  /** Cambia la sesión activa a otro mesero del mismo restaurante, con su PIN. */
+  switchUser: asyncHandler(async (req: Request, res: Response) => {
+    const { userId, pin } = switchUserSchema.parse(req.body);
+    res.json({ data: await authService.switchUser(req.restaurantId!, userId, pin) });
   }),
 };

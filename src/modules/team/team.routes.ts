@@ -12,6 +12,7 @@ router.get('/', teamController.list);
 router.post('/', teamController.create);
 router.patch('/:id', blockIfDemoRoleChange, teamController.update);
 router.patch('/:id/tables', teamController.assignTables);
+router.patch('/:id/pin', teamController.setPin);
 router.delete('/:id', blockIfDemo, teamController.remove);
 
 export default router;

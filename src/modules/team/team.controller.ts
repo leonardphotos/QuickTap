@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
-import { assignTablesSchema, createStaffSchema, updateStaffSchema } from './team.dto';
+import { assignTablesSchema, createStaffSchema, setStaffPinSchema, updateStaffSchema } from './team.dto';
 import { teamService } from './team.service';
 import { tableService } from '../tables/table.service';
 
@@ -23,5 +23,9 @@ export const teamController = {
   }),
   remove: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await teamService.remove(req.restaurantId!, req.params.id) });
+  }),
+  setPin: asyncHandler(async (req: Request, res: Response) => {
+    const input = setStaffPinSchema.parse(req.body);
+    res.json({ data: await teamService.setPin(req.restaurantId!, req.params.id, input) });
   }),
 };

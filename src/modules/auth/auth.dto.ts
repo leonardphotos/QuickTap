@@ -75,6 +75,14 @@ export const verifyLockPinSchema = z.object({
 export type SetLockPinInput = z.infer<typeof setLockPinSchema>;
 export type VerifyLockPinInput = z.infer<typeof verifyLockPinSchema>;
 
+// Segundo inicio de sesión (tablet compartida): cambiar de mesero sin volver a escribir
+// correo y clave, con el PIN de 4 dígitos de la Pantalla de bloqueo (mismo campo, mismo PIN).
+export const switchUserSchema = z.object({
+  userId: z.string().min(1),
+  pin: z.string().regex(/^\d{4}$/, 'El PIN debe tener 4 dígitos.'),
+});
+export type SwitchUserInput = z.infer<typeof switchUserSchema>;
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type GoogleAuthInput = z.infer<typeof googleAuthSchema>;

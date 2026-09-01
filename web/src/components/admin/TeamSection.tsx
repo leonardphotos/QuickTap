@@ -8,6 +8,7 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
 import { PasswordInput } from '@/components/ui/password-input';
 import { AssignTablesDialog } from '@/components/admin/AssignTablesDialog';
+import { SetWaiterPinDialog } from '@/components/admin/SetWaiterPinDialog';
 
 const emptyForm = {
   name: '',
@@ -41,6 +42,7 @@ export function TeamSection() {
   } | null>(null);
   const [savingEdit, setSavingEdit] = useState(false);
   const [assigningTablesFor, setAssigningTablesFor] = useState<StaffMember | null>(null);
+  const [settingPinFor, setSettingPinFor] = useState<StaffMember | null>(null);
 
   function load() {
     api.get('/team').then((res) => setStaff(res.data.data));
@@ -264,6 +266,14 @@ export function TeamSection() {
                       Asignar mesas
                     </button>
                   )}
+                  {s.role === 'WAITER' && (
+                    <button
+                      onClick={() => setSettingPinFor(s)}
+                      className="text-brand-500 hover:text-brand-400 text-xs"
+                    >
+                      PIN{s.hasLockPin ? '' : ' (sin configurar)'}
+                    </button>
+                  )}
                   <button onClick={() => startEdit(s)} className="text-brand-500 hover:text-brand-400 text-xs">
                     Editar
                   </button>
@@ -283,6 +293,9 @@ export function TeamSection() {
       </TextureCardContent>
       {assigningTablesFor && (
         <AssignTablesDialog waiter={assigningTablesFor} onClose={() => setAssigningTablesFor(null)} />
+      )}
+      {settingPinFor && (
+        <SetWaiterPinDialog waiter={settingPinFor} onClose={() => setSettingPinFor(null)} onSaved={load} />
       )}
     </TextureCard>
   );

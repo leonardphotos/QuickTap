@@ -51,6 +51,21 @@ export const lockPinRateLimit = rateLimit({
   message: { error: 'Demasiados intentos. Espera unos minutos e intenta de nuevo.' },
 });
 
+/** /auth/switch-user: el segundo inicio de sesión de la tablet compartida (mesero A → mesero B
+ * con solo el PIN de 4 dígitos, sin correo/clave). Mismo riesgo que lock-pin —10.000
+ * combinaciones— pero acá el que intenta NO es todavía la cuenta objetivo (es cualquier mesero
+ * ya logueado en esa tablet probando el PIN de otro), así que no sirve limitar por req.auth.userId:
+ * dos sesiones cualquiera de la misma tablet podrían repartirse los intentos contra UNA cuenta
+ * objetivo y cada una tendría su propia cuota. Se limita por restaurante+cuenta objetivo. */
+export const switchUserRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator: (req: Request) => `${req.restaurantId ?? 'x'}:${req.body?.userId ?? 'x'}`,
+  message: { error: 'Demasiados intentos. Espera unos minutos e intenta de nuevo.' },
+});
+
 /**
  * Acciones públicas de la mesa (llamar al mesero, pedir la cuenta, poner/quitar la clave).
  *

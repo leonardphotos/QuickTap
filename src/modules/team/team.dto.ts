@@ -47,6 +47,17 @@ export const assignTablesSchema = z.object({
   tableIds: z.array(z.string().min(1)),
 });
 
+// PIN de 4 dígitos para el segundo inicio de sesión (tablet compartida de meseros) — el
+// mismo campo que la Pantalla de bloqueo, así que fijarlo acá también sirve para eso.
+// null = quitar el PIN (el mesero deja de aparecer en la cuadrícula de la tablet).
+export const setStaffPinSchema = z.object({
+  pin: z
+    .string()
+    .regex(/^\d{4}$/, 'El PIN debe tener 4 dígitos.')
+    .nullable(),
+});
+
 export type CreateStaffInput = z.infer<typeof createStaffSchema>;
 export type UpdateStaffInput = z.infer<typeof updateStaffSchema>;
 export type AssignTablesInput = z.infer<typeof assignTablesSchema>;
+export type SetStaffPinInput = z.infer<typeof setStaffPinSchema>;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
@@ -7,16 +7,42 @@ import { clearRememberedEmail, getRememberedEmail, getStoredSlug, setRememberedE
 import { TextureButton } from '@/components/ui/texture-button';
 import { PasswordInput } from '@/components/ui/password-input';
 import AuthLayout from './AuthLayout';
+import { WaiterProfilePicker } from '@/components/admin/WaiterProfilePicker';
 
 export default function LoginPage() {
-  const { login, loginWithGoogle, user, loading: authLoading } = useAuth();
+  const { login, loginWithGoogle, switchableWaiters, user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
+  // Segundo inicio de sesión: si este restaurante ya tiene meseros con PIN configurado, un
+  // login normal (correo/clave) no entra directo al panel — primero pregunta de quién es la
+  // tablet, estilo Netflix. "Seguir como {tú}" en la cuadrícula es la salida para quien de
+  // verdad quería entrar con su propia cuenta (dueño/admin en su propio dispositivo).
+  const [showPicker, setShowPicker] = useState(false);
+  // login()/loginWithGoogle() dejan `user` seteado en cuanto responde el POST — el efecto de
+  // abajo (auto-saltar el login si ya hay sesión) reacciona a ESE mismo cambio y mandaba a
+  // /admin antes de que afterLogin() alcanzara a preguntar si hay que mostrar la cuadrícula.
+  // Este ref frena al efecto mientras esa pregunta está en vuelo.
+  const resolviendoLoginRef = useRef(false);
+
+  async function afterLogin() {
+    try {
+      const waiters = await switchableWaiters();
+      if (waiters.length > 0) {
+        setShowPicker(true);
+        return;
+      }
+    } catch {
+      // Sin lista (fallo de red, restaurante recién creado, etc.): no bloquea el login normal.
+    } finally {
+      resolviendoLoginRef.current = false;
+    }
+    navigate('/admin');
+  }
 
   // Con el acceso directo instalado (PWA), la app abre directo en /admin/login —
   // si el navegador ya tiene sesión, salta la pantalla de login en vez de pedirla de nuevo.
   useEffect(() => {
-    if (!authLoading && user) navigate('/admin', { replace: true });
-  }, [authLoading, user, navigate]);
+    if (!authLoading && user && !resolviendoLoginRef.current && !showPicker) navigate('/admin', { replace: true });
+  }, [authLoading, user, navigate, showPicker]);
   const rememberedEmail = getRememberedEmail();
   const [email, setEmail] = useState(rememberedEmail ?? '');
   const [password, setPassword] = useState('');
@@ -29,14 +55,16 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    resolviendoLoginRef.current = true;
     try {
       // Si este navegador ya conoce el restaurante (login previo) se manda
       // como atajo; si no, el backend resuelve la cuenta por el correo.
       await login(email, password, getStoredSlug() ?? undefined);
       if (remember) setRememberedEmail(email);
       else clearRememberedEmail();
-      navigate('/admin');
+      await afterLogin();
     } catch (err: any) {
+      resolviendoLoginRef.current = false;
       setError(err.response?.data?.error ?? 'No se pudo iniciar sesión.');
     } finally {
       setLoading(false);
@@ -46,20 +74,27 @@ export default function LoginPage() {
   async function onGoogleSuccess(credential: string) {
     setGoogleLoading(true);
     setError(null);
+    resolviendoLoginRef.current = true;
     try {
       const result = await loginWithGoogle(credential, getStoredSlug() ?? undefined);
       if (result.needsRegistration) {
         // Sin cuenta todavía: manda los datos ya verificados de Google al registro para
         // que solo falte pedir nombre del restaurante + slug (nunca email/contraseña).
+        resolviendoLoginRef.current = false;
         navigate('/empezar', { state: { googleCredential: credential, googleEmail: result.email, googleName: result.name } });
         return;
       }
-      navigate('/admin');
+      await afterLogin();
     } catch (err: any) {
+      resolviendoLoginRef.current = false;
       setError(err.response?.data?.error ?? 'No se pudo iniciar sesión con Google.');
     } finally {
       setGoogleLoading(false);
     }
+  }
+
+  if (showPicker) {
+    return <WaiterProfilePicker onSkip={() => navigate('/admin')} />;
   }
 
   return (

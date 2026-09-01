@@ -150,6 +150,12 @@ interface AuthState {
   setLockPin: (pin: string) => Promise<void>;
   /** Pantalla de bloqueo: valida el PIN del usuario actual contra el que tiene guardado. */
   verifyLockPin: (pin: string) => Promise<boolean>;
+  /** Segundo inicio de sesión (tablet compartida): meseros de este restaurante que pueden
+   * aparecer en la cuadrícula — solo los que ya tienen su PIN configurado. */
+  switchableWaiters: () => Promise<{ id: string; name: string }[]>;
+  /** Cambia la sesión activa a OTRO mesero del mismo restaurante, con su PIN de 4 dígitos —
+   * sin pedir correo/clave. Recarga la app, igual que switchToBranch. */
+  switchUser: (userId: string, pin: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -286,6 +292,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return !!data.data.valid;
   }
 
+  async function switchableWaiters() {
+    const { data } = await api.get('/auth/switchable-waiters');
+    return data.data as { id: string; name: string }[];
+  }
+
+  // Mismo criterio que switchToBranch: cambia de identidad dentro del mismo restaurante, así
+  // que hay estado por-usuario disperso por toda la app (sockets con el JWT viejo en el
+  // handshake, listas ya cargadas, etc.) — recargar entero es lo único que garantiza que todo
+  // arranque limpio con el mesero nuevo.
+  async function switchUser(userId: string, pin: string) {
+    const { data } = await api.post('/auth/switch-user', { userId, pin });
+    setToken(data.data.token);
+    window.location.href = '/admin';
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -301,6 +322,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         switchToParent,
         setLockPin,
         verifyLockPin,
+        switchableWaiters,
+        switchUser,
       }}
     >
       {children}

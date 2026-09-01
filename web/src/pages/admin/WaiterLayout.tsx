@@ -1,6 +1,6 @@
 import { lazy, Suspense, useRef, useState } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
-import { Boxes, ChefHat, Grid2x2, LogOut, Plus, Receipt } from 'lucide-react';
+import { Boxes, ChefHat, Grid2x2, LogOut, Plus, Receipt, Users } from 'lucide-react';
 import { api } from '../../api/client';
 import { useAuth } from '../../context/AuthContext';
 import { hasFeature } from '../../utils/subscription';
@@ -15,6 +15,7 @@ import { ActiveOrdersPreview } from '@/components/admin/ActiveOrdersPreview';
 import { CreateOrderDialog } from '@/components/admin/CreateOrderDialog';
 import { PaymentDialog } from '@/components/admin/PaymentDialog';
 import { TextureButton } from '@/components/ui/texture-button';
+import { WaiterProfilePicker } from '@/components/admin/WaiterProfilePicker';
 
 const TableOrdersPage = lazy(() => import('./TableOrdersPage'));
 const KitchenPage = lazy(() => import('./KitchenPage'));
@@ -54,6 +55,9 @@ function loadFabPosition() {
 export default function WaiterLayout() {
   const { user, restaurant, logout } = useAuth();
   const [tab, setTab] = useState<WaiterTab>('comandas');
+  // Segundo inicio de sesión: "Cambiar" reabre la misma cuadrícula de perfiles del login,
+  // usando la sesión ya activa (no hace falta correo/clave de nuevo) para elegir a otro mesero.
+  const [switchingUser, setSwitchingUser] = useState(false);
   const [existingOrders, setExistingOrders] = useState<LiveOrder[]>([]);
   const [createOrderOpen, setCreateOrderOpen] = useState(false);
   const [editingOrder, setEditingOrder] = useState<LiveOrder | null>(null);
@@ -128,14 +132,25 @@ export default function WaiterLayout() {
             <p className="text-xs text-brand-950/50 truncate">Mesero · {user.name}</p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={logout}
-          className="flex items-center gap-1.5 rounded-full border border-brand-950/10 bg-white px-3.5 py-2 text-xs font-medium text-brand-950/60 shrink-0"
-        >
-          <LogOut className="h-3.5 w-3.5" /> Salir
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setSwitchingUser(true)}
+            className="flex items-center gap-1.5 rounded-full border border-brand-950/10 bg-white px-3.5 py-2 text-xs font-medium text-brand-950/60"
+          >
+            <Users className="h-3.5 w-3.5" /> Cambiar
+          </button>
+          <button
+            type="button"
+            onClick={logout}
+            className="flex items-center gap-1.5 rounded-full border border-brand-950/10 bg-white px-3.5 py-2 text-xs font-medium text-brand-950/60"
+          >
+            <LogOut className="h-3.5 w-3.5" /> Salir
+          </button>
+        </div>
       </header>
+
+      {switchingUser && <WaiterProfilePicker onClose={() => setSwitchingUser(false)} />}
 
       <nav className="flex gap-1.5 px-3 py-2.5 bg-white border-b border-brand-950/[0.06] overflow-x-auto">
         {tabs.map((t) => {

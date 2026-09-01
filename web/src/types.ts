@@ -342,6 +342,9 @@ export interface StaffMember {
   commissionPercent?: number | null;
   /** Sus propios datos de cobro (Pago Móvil/Zelle) — en barbería el cliente le paga directo. */
   paymentMethodsConfig?: PaymentMethodsConfig | null;
+  /** true si ya tiene el PIN de 4 dígitos configurado (Pantalla de bloqueo / segundo inicio
+   * de sesión de mesero). No viaja el PIN ni su hash, solo si existe. */
+  hasLockPin: boolean;
   createdAt: string;
 }
 

@@ -3,7 +3,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { badRequest, notFound } from '../../utils/http-error';
 import { isDeliveryTierPlan } from '../../utils/subscription';
-import { CreateStaffInput, UpdateStaffInput } from './team.dto';
+import { CreateStaffInput, SetStaffPinInput, UpdateStaffInput } from './team.dto';
 
 // OWNER nunca aparece en la lista de "Equipo" gestionable (es el dueño de la cuenta).
 const STAFF_SELECT = {
@@ -20,7 +20,16 @@ const STAFF_SELECT = {
   clubCourtId: true,
   clubCourt: { select: { id: true, name: true } },
   createdAt: true,
+  // Se resuelve a hasLockPin (booleano) antes de salir — ver serializeStaff. Es el mismo PIN
+  // de 4 dígitos de la Pantalla de bloqueo: acá el dueño lo fija/quita, y también sirve para
+  // que el mesero aparezca (o no) en la cuadrícula de la tablet compartida.
+  lockPinHash: true,
 } as const;
+
+function serializeStaff<T extends { lockPinHash: string | null }>(user: T) {
+  const { lockPinHash, ...rest } = user;
+  return { ...rest, hasLockPin: !!lockPinHash };
+}
 
 /** Una tablet de cancha sin cancha asignada no sabe qué QR aceptar, así que se
  * exige al crearla. En cualquier otro rol el campo no aplica y se ignora. */
@@ -41,11 +50,12 @@ async function assertCourtOfTenant(restaurantId: string, clubCourtId: string) {
 
 export const teamService = {
   async list(restaurantId: string) {
-    return prisma.user.findMany({
+    const rows = await prisma.user.findMany({
       where: { restaurantId, role: { not: 'OWNER' } },
       orderBy: { createdAt: 'asc' },
       select: STAFF_SELECT,
     });
+    return rows.map(serializeStaff);
   },
 
   async create(restaurantId: string, input: CreateStaffInput) {
@@ -65,7 +75,7 @@ export const teamService = {
     }
 
     const passwordHash = await bcrypt.hash(input.password, 10);
-    return prisma.user.create({
+    const created = await prisma.user.create({
       data: {
         restaurantId,
         name: input.name,
@@ -81,6 +91,7 @@ export const teamService = {
       },
       select: STAFF_SELECT,
     });
+    return serializeStaff(created);
   },
 
   async update(restaurantId: string, id: string, input: UpdateStaffInput) {
@@ -88,7 +99,7 @@ export const teamService = {
     // paymentMethodsConfig es una columna Json: para borrarla hay que mandar Prisma.DbNull, no
     // null a secas (null en un campo Json significa "no tocar" en el tipado de Prisma).
     const { paymentMethodsConfig, clubCourtId, ...rest } = input;
-    return prisma.user.update({
+    const updated = await prisma.user.update({
       where: { id },
       data: {
         ...rest,
@@ -101,6 +112,17 @@ export const teamService = {
       },
       select: STAFF_SELECT,
     });
+    return serializeStaff(updated);
+  },
+
+  /** El dueño/admin fija o quita el PIN de 4 dígitos de un mesero desde Equipo — para que no
+   * dependa de que el propio mesero entre una vez con correo/clave a configurárselo en Ajustes
+   * (que sigue funcionando igual, es el mismo campo). null = lo quita. */
+  async setPin(restaurantId: string, id: string, input: SetStaffPinInput) {
+    await this.assertManageable(restaurantId, id);
+    const lockPinHash = input.pin ? await bcrypt.hash(input.pin, 10) : null;
+    const updated = await prisma.user.update({ where: { id }, data: { lockPinHash }, select: STAFF_SELECT });
+    return serializeStaff(updated);
   },
 
   async remove(restaurantId: string, id: string) {

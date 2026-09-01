@@ -611,6 +611,48 @@ export const authService = {
   },
 
   /**
+   * Segundo inicio de sesión: los meseros que pueden aparecer en la cuadrícula de la tablet.
+   * Solo WAITER, activos, y CON el PIN ya configurado — el que no tiene PIN todavía simplemente
+   * no aparece (nada que seleccionar sin PIN), en vez de aparecer y fallar al tocarlo.
+   */
+  async listSwitchableWaiters(restaurantId: string) {
+    return prisma.user.findMany({
+      where: { restaurantId, role: 'WAITER', isActive: true, lockPinHash: { not: null } },
+      orderBy: { name: 'asc' },
+      select: { id: true, name: true },
+    });
+  },
+
+  /**
+   * Cambia la sesión activa de la tablet a OTRO mesero del mismo restaurante, verificando su
+   * PIN de 4 dígitos — el "cambiar de perfil" estilo Netflix. No pide correo/clave: el que
+   * cambia ya está autenticado como alguien de este restaurante (mismo tenant, mismo req.auth),
+   * así que solo hace falta demostrar que sabe el PIN de la cuenta a la que se cambia.
+   *
+   * Emite un JWT nuevo con el userId del mesero elegido — placedByUserId/acceptedByUserId salen
+   * directo de ahí en todo el módulo de pedidos, así que sin un token nuevo las comandas
+   * seguirían quedando a nombre de quien tenía la sesión antes del cambio.
+   */
+  async switchUser(restaurantId: string, targetUserId: string, pin: string) {
+    const user = await prisma.user.findFirst({
+      where: { id: targetUserId, restaurantId, role: 'WAITER', isActive: true },
+    });
+    // 400 y no 401 a propósito: quien llama YA está autenticado (authGuard ya pasó) y el
+    // interceptor del frontend borra la sesión activa ante cualquier 401 —"sesión vencida,
+    // vuelve a entrar". Un PIN mal tecleado no es eso: es un dato inválido de ESTA acción
+    // puntual, y no debería tumbarle la sesión a quien lo estaba intentando.
+    //
+    // Mismo mensaje exista o no la cuenta / tenga o no PIN: no hay que dejarle adivinar a un
+    // atacante cuáles de los ids que probó son meseros reales con PIN configurado.
+    if (!user?.lockPinHash || !(await bcrypt.compare(pin, user.lockPinHash))) {
+      throw badRequest('PIN incorrecto.');
+    }
+    const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId } });
+    if (!restaurant?.isActive) throw unauthorized();
+    return this.buildSession(user, restaurant);
+  },
+
+  /**
    * Genera un código de 6 dígitos y lo envía por correo. El email es único
    * por restaurante (no globalmente), así que un mismo correo puede tener
    * cuentas en varios restaurantes: todas reciben el mismo código y se
