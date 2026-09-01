@@ -267,3 +267,177 @@ ipcMain.handle('imprimir-crudo', async (_event, deviceName, base64) => {
     });
   });
 });
+
+/* ============================================================
+   Impresión fiscal (The Factory HKA / Aclas PP9-PLUS)
+   ============================================================
+   La comandera imprime en papel y ya; la fiscal además le asigna a la venta un
+   número de factura y un número de control que el SENIAT exige. Es otro
+   protocolo y otro puerto (RS232/USB-serie), así que no comparte NADA con el
+   camino de las comanderas de arriba — solo convive con él.
+
+   El puente es fiscal/fiscal.ps1, que carga el driver oficial TfhkaNet.dll (ver
+   las notas del propio script). Acá solo se lo invoca y se parsea su JSON.
+   ============================================================ */
+
+/**
+ * Ruta del script y de la DLL, en desarrollo y dentro del .exe empaquetado.
+ *
+ * Ya empaquetado, __dirname apunta DENTRO de app.asar, y ni PowerShell ni el
+ * driver .NET pueden leer de ahí: para ellos el asar es un archivo, no una
+ * carpeta. Por eso fiscal/ va en `asarUnpack` (ver electron-builder.config.json)
+ * y acá se apunta a la copia real en disco. En desarrollo no hay asar en la
+ * ruta y el replace no hace nada.
+ */
+function rutaFiscal(archivo) {
+  return path.join(__dirname.replace(/app\.asar([\\/])/, 'app.asar.unpacked$1'), 'fiscal', archivo);
+}
+
+/**
+ * La DLL está compilada 32BITREQUIRED, así que en un Windows de 64 bits hay que
+ * usar el PowerShell de 32 bits o Add-Type revienta con BadImageFormatException.
+ * SysWOW64 es, contra toda intuición, la carpeta de 32 bits.
+ */
+function powershell32() {
+  const sysWow = path.join(process.env.SystemRoot || 'C:\\Windows', 'SysWOW64', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+  return fs.existsSync(sysWow) ? sysWow : 'powershell.exe';
+}
+
+/** Configuración editable por el usuario. Vive en %APPDATA% y no dentro de la
+ *  carpeta de instalación: en Program Files haría falta permiso de administrador
+ *  para cada ajuste. Se crea sola la primera vez. */
+function rutaConfigFiscal() {
+  return path.join(app.getPath('userData'), 'fiscal.config.json');
+}
+
+const CONFIG_FISCAL_DEFAULT = {
+  // Vacío = detectar sola recorriendo los puertos. Con un valor ("COM4"), se
+  // prueba ese primero y solo se escanea si no responde.
+  puerto: '',
+  // Cuánto se espera a que un puerto conteste durante el escaneo. La fiscal
+  // responde en cientos de milisegundos; lo que tarda más está ocupado o no es.
+  timeoutProbeMs: 5000,
+  // Puertos que NO hay que tocar durante el escaneo: abrir el COM de otro
+  // aparato (una balanza, un lector) puede dejarlo trabado.
+  ignorarPuertos: [],
+};
+
+function leerConfigFiscal() {
+  const ruta = rutaConfigFiscal();
+  try {
+    if (fs.existsSync(ruta)) {
+      return { ...CONFIG_FISCAL_DEFAULT, ...JSON.parse(fs.readFileSync(ruta, 'utf8')) };
+    }
+    fs.mkdirSync(path.dirname(ruta), { recursive: true });
+    fs.writeFileSync(ruta, JSON.stringify(CONFIG_FISCAL_DEFAULT, null, 2), 'utf8');
+  } catch (err) {
+    console.error('No se pudo leer/crear fiscal.config.json:', err.message);
+  }
+  return { ...CONFIG_FISCAL_DEFAULT };
+}
+
+/** Corre fiscal.ps1 sobre UN puerto y devuelve su JSON ya parseado. */
+function correrFiscalPs(accion, puerto, timeoutMs) {
+  return new Promise((resolve) => {
+    const args = [
+      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+      '-File', rutaFiscal('fiscal.ps1'),
+      '-Accion', accion,
+      '-Puerto', puerto,
+    ];
+    execFile(powershell32(), args, { timeout: timeoutMs, windowsHide: true }, (err, stdout, stderr) => {
+      const salida = (stdout || '').trim();
+      if (salida) {
+        try {
+          return resolve(JSON.parse(salida));
+        } catch {
+          // Sigue al manejo de error de abajo: una salida que no es JSON casi
+          // siempre es PowerShell quejándose antes de que el script arrancara.
+        }
+      }
+      if (err && err.killed) {
+        return resolve({ ok: false, codigo: 'TIMEOUT', error: `${puerto} no respondió a tiempo.` });
+      }
+      const motivo = (stderr || (err && err.message) || salida || '').split('\n')[0].trim();
+      resolve({ ok: false, codigo: 'FALLO_PS', error: motivo || 'No se pudo consultar la impresora fiscal.' });
+    });
+  });
+}
+
+/** Puertos COM del sistema, por el mismo PowerShell de 32 bits. */
+function listarPuertosCom() {
+  return new Promise((resolve) => {
+    const args = [
+      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+      '-Command', '[System.IO.Ports.SerialPort]::GetPortNames() -join ","',
+    ];
+    execFile(powershell32(), args, { timeout: 10000, windowsHide: true }, (err, stdout) => {
+      if (err) return resolve([]);
+      const lista = (stdout || '').trim().split(',').map((p) => p.trim()).filter(Boolean);
+      // COM1..COM9 primero y luego por número: en la práctica el USB-serie de la
+      // fiscal cae en los números bajos, así que se encuentra antes.
+      resolve([...new Set(lista)].sort((a, b) => (parseInt(a.slice(3), 10) || 0) - (parseInt(b.slice(3), 10) || 0)));
+    });
+  });
+}
+
+/**
+ * Encuentra la impresora fiscal y devuelve puerto, modelo y serial.
+ *
+ * Si hay un puerto fijo en la configuración se prueba ese primero (el caso
+ * normal: una sola invocación). Solo si no responde se recorren los demás, uno
+ * por uno y cada uno con su propio timeout — así un COM ocupado que deje la
+ * llamada colgada no arrastra al resto del escaneo.
+ */
+async function detectarFiscal() {
+  if (process.platform !== 'win32') {
+    return { ok: false, codigo: 'NO_WINDOWS', error: 'La impresión fiscal solo funciona en Windows.' };
+  }
+  const cfg = leerConfigFiscal();
+  const intentados = [];
+
+  if (cfg.puerto) {
+    const r = await correrFiscalPs('probe', cfg.puerto, cfg.timeoutProbeMs);
+    if (r.ok) return { ...r, configurado: true };
+    intentados.push({ puerto: cfg.puerto, ...r });
+  }
+
+  const puertos = (await listarPuertosCom()).filter(
+    (p) => p !== cfg.puerto && !(cfg.ignorarPuertos || []).includes(p),
+  );
+  for (const p of puertos) {
+    const r = await correrFiscalPs('probe', p, cfg.timeoutProbeMs);
+    if (r.ok) return { ...r, configurado: false };
+    intentados.push({ puerto: p, ...r });
+  }
+
+  // Sin impresora fiscal la estación tiene que seguir imprimiendo comandas: esto
+  // se reporta, no se lanza.
+  return {
+    ok: false,
+    codigo: 'NO_ENCONTRADA',
+    error: puertos.length === 0 && !cfg.puerto
+      ? 'No hay puertos COM disponibles en esta PC.'
+      : 'No se encontró ninguna impresora fiscal en los puertos disponibles.',
+    intentados,
+  };
+}
+
+ipcMain.handle('fiscal-detectar', () => detectarFiscal());
+
+ipcMain.handle('fiscal-status', async (_event, puerto) => {
+  if (process.platform !== 'win32') {
+    return { ok: false, codigo: 'NO_WINDOWS', error: 'La impresión fiscal solo funciona en Windows.' };
+  }
+  const cfg = leerConfigFiscal();
+  const destino = puerto || cfg.puerto;
+  if (!destino) {
+    const encontrada = await detectarFiscal();
+    if (!encontrada.ok) return encontrada;
+    return correrFiscalPs('status', encontrada.puerto, cfg.timeoutProbeMs);
+  }
+  return correrFiscalPs('status', destino, cfg.timeoutProbeMs);
+});
+
+/** Para poder decirle al usuario dónde está el archivo que tiene que editar. */
+ipcMain.handle('fiscal-config-ruta', () => rutaConfigFiscal());
