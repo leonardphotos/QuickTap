@@ -158,6 +158,36 @@ export function ProductOptionsDialog({
     });
   }
 
+  /**
+   * "Todos": marca de una vez todas las opciones de la categoría (una unidad de cada una), y
+   * vuelto a pulsar las quita todas. Es para los grupos largos tipo "Sin cebolla / Sin lechuga
+   * / Sin tomate…", donde ir una por una es la parte lenta de tomar la comanda.
+   *
+   * Solo tiene sentido en categorías de varias opciones y cuando el tope de la categoría da
+   * para todas: si "hasta 3" y hay 6 opciones, marcar todas sería un pedido inválido, así que
+   * ahí el botón ni aparece (ver cabeElTodo).
+   */
+  function todosCabenEn(category: Category): boolean {
+    if (!category.allowMultiple) return false;
+    return category.modifiers.length <= effectiveMax(category);
+  }
+
+  function todosMarcados(category: Category): boolean {
+    return category.modifiers.length > 0 && category.modifiers.every((m) => (selectedQty[m.id] ?? 0) > 0);
+  }
+
+  function toggleTodos(category: Category) {
+    const marcar = !todosMarcados(category);
+    setSelectedQty((prev) => {
+      const next = { ...prev };
+      for (const m of category.modifiers) {
+        if (marcar) next[m.id] = 1;
+        else delete next[m.id];
+      }
+      return next;
+    });
+  }
+
   /** Categorías de varias opciones: stepper por modificador, respetando el límite total de la
    * categoría y el tope propio del modificador (si tiene uno). */
   function stepQty(category: Category, modifierId: string, delta: number) {
@@ -241,6 +271,19 @@ export function ProductOptionsDialog({
                     <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-brand-400/10 text-brand-600">
                       {total}/{max} seleccionados
                     </span>
+                  )}
+                  {todosCabenEn(category) && (
+                    <button
+                      type="button"
+                      onClick={() => toggleTodos(category)}
+                      className={`ml-auto text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors ${
+                        todosMarcados(category)
+                          ? 'bg-brand-500 text-white border-brand-500'
+                          : 'bg-white text-brand-950/60 border-brand-950/15 hover:border-brand-500 hover:text-brand-950'
+                      }`}
+                    >
+                      Todos
+                    </button>
                   )}
                 </div>
                 <p className="text-xs text-brand-950/40 mt-0.5 mb-2">{categoryHint(category)}</p>
