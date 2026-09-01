@@ -1249,7 +1249,6 @@ function CrearInsumoDialog({
 
   async function crear() {
     if (!form.name.trim()) return setError('Ponle un nombre al insumo.');
-    if (!form.expiryDate) return setError('La fecha de caducidad es obligatoria.');
     setBusy(true);
     setError(null);
     try {

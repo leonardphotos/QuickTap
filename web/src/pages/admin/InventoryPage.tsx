@@ -520,10 +520,6 @@ function InsumosTab({
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!form.expiryDate) {
-      setError('La fecha de caducidad es obligatoria.');
-      return;
-    }
     setSaving(true);
     setError(null);
     try {
