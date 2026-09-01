@@ -207,6 +207,22 @@ async function bootstrap() {
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
+// Red de seguridad: todo el código de rutas ya pasa por asyncHandler (captura y responde 500
+// sin tumbar el proceso), y los intervalos de arriba ya van con .catch(() => undefined) cada
+// uno. Esto es para lo que se escape de ambos (una librería de terceros, un socket handler, un
+// callback suelto). El proceso igual termina — después de un error no capturado el estado de
+// la app ya no es confiable como para seguir sirviendo tráfico — pero deja constancia clara en
+// logs/error.log (PM2 lo reinicia solo, ver ecosystem.config.js) en vez de que el único rastro
+// quede enterrado en dmesg/journalctl como pasó con el OOM del 26/08.
+process.on('uncaughtException', (err) => {
+  console.error('uncaughtException:', err);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('unhandledRejection:', reason);
+  process.exit(1);
+});
+
 bootstrap().catch((err) => {
 
   console.error('Fallo al iniciar el servidor:', err);
