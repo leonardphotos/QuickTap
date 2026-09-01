@@ -969,46 +969,59 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                   </div>
                 )}
 
-                <div className="flex items-center gap-2 sticky top-0 bg-[#f4f6f9] pt-1 pb-2 -mt-1 z-10">
-                  <div className="relative flex-1 min-w-0 max-w-sm">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-950/30" />
-                    <input
-                      value={productSearch}
-                      onChange={(e) => setProductSearch(e.target.value)}
-                      placeholder="Buscar en el menú…"
-                      className="w-full text-sm bg-white border border-brand-950/10 rounded-xl pl-8 pr-2.5 py-2"
-                    />
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setScanOpen(true)}
-                    title="Escanear código de barras"
-                    aria-label="Escanear código de barras"
-                    className="shrink-0 flex items-center justify-center h-[38px] w-[38px] rounded-xl border border-brand-950/10 bg-white text-brand-950/50 hover:bg-brand-950/5 hover:text-brand-950"
-                  >
-                    <ScanLine className="h-4 w-4" />
-                  </button>
-                </div>
-                <div className="flex gap-1.5 flex-wrap">
-                  <button
-                    onClick={() => setCategoryFilter(null)}
-                    className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
-                      !categoryFilter ? 'bg-brand-950 text-white' : 'bg-white border border-brand-950/10 text-brand-950/50'
-                    }`}
-                  >
-                    Todas
-                  </button>
-                  {categoryNames.map((c) => (
+                {/* Buscador y categorías van juntos en UN solo contenedor fijo. Antes solo
+                    flotaba el buscador y las categorías se iban con el scroll: al bajar por la
+                    carta había que volver arriba para cambiar de categoría. Van en el mismo
+                    sticky y no en dos separados para no tener que calcular el `top` del segundo
+                    contra la altura del primero — que cambia según el ancho de la pantalla. */}
+                <div className="sticky top-0 bg-[#f4f6f9] pt-1 pb-2 -mt-1 z-10 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <div className="relative flex-1 min-w-0 max-w-sm">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-brand-950/30" />
+                      <input
+                        value={productSearch}
+                        onChange={(e) => setProductSearch(e.target.value)}
+                        placeholder="Buscar en el menú…"
+                        className="w-full text-sm bg-white border border-brand-950/10 rounded-xl pl-8 pr-2.5 py-2"
+                      />
+                    </div>
                     <button
-                      key={c}
-                      onClick={() => setCategoryFilter(c)}
-                      className={`text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
-                        categoryFilter === c ? 'bg-brand-950 text-white' : 'bg-white border border-brand-950/10 text-brand-950/50'
-                      }`}
+                      type="button"
+                      onClick={() => setScanOpen(true)}
+                      title="Escanear código de barras"
+                      aria-label="Escanear código de barras"
+                      className="shrink-0 flex items-center justify-center h-[38px] w-[38px] rounded-xl border border-brand-950/10 bg-white text-brand-950/50 hover:bg-brand-950/5 hover:text-brand-950"
                     >
-                      {c}
+                      <ScanLine className="h-4 w-4" />
                     </button>
-                  ))}
+                  </div>
+                  {/* Una sola fila que se desplaza de lado, en vez de envolverse en varias:
+                      ahora que la barra está fija, una carta con muchas categorías se comía
+                      media pantalla de forma permanente. Mismo patrón que usan Productos e
+                      Inventario para sus filtros. */}
+                  <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                    <div className="flex w-max gap-1.5">
+                      <button
+                        onClick={() => setCategoryFilter(null)}
+                        className={`whitespace-nowrap text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+                          !categoryFilter ? 'bg-brand-950 text-white' : 'bg-white border border-brand-950/10 text-brand-950/50'
+                        }`}
+                      >
+                        Todas
+                      </button>
+                      {categoryNames.map((c) => (
+                        <button
+                          key={c}
+                          onClick={() => setCategoryFilter(c)}
+                          className={`whitespace-nowrap text-xs font-semibold px-3 py-1.5 rounded-full transition-colors ${
+                            categoryFilter === c ? 'bg-brand-950 text-white' : 'bg-white border border-brand-950/10 text-brand-950/50'
+                          }`}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3.5 pt-1">
