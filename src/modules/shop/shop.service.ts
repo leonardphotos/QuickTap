@@ -540,9 +540,11 @@ export const shopService = {
       where: {
         restaurantId,
         returned: false,
-        ...(desde || hasta
-          ? { time: { ...(desde ? { gte: new Date(`${desde}T00:00:00`) } : {}), ...(hasta ? { lte: new Date(`${hasta}T23:59:59`) } : {}) } }
-          : {}),
+        // Hora de CARACAS, no del servidor: el VPS corre en UTC, así que
+        // `new Date("2026-09-02T00:00:00")` era la medianoche UTC — las 8 de la noche del día
+        // anterior en Venezuela. Pedir un día devolvía las ventas de la noche previa y cortaba
+        // las de esa misma noche, que en un local es justo cuando más se vende.
+        ...(desde || hasta ? { time: resolveDateFilter({ range: 'all', from: desde, to: hasta }) } : {}),
       },
       include: { items: true },
     });

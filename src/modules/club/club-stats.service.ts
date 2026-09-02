@@ -422,8 +422,10 @@ async function consumption(restaurantId: string, days: number, from?: string, to
     .sort((a, b) => a.stock - b.stock);
 
   return {
-    // Los 15 que más rotan: la lista completa no se lee y el resto casi nunca importa.
-    top: top.slice(0, 15),
+    // Antes se cortaba en 15 porque la pantalla era un panel de rotación y el resto no se leía.
+    // Ahora el período se elige a mano (un día, una semana concreta): pedir "el martes" y que
+    // la lista esconda lo que se vendió ese martes no es un resumen, es un dato incompleto.
+    top: top.slice(0, 200),
     // Lo que se acaba en menos de una semana al ritmo actual, aunque todavía no esté bajo mínimo.
     runningOut: top
       .filter((p) => p.daysLeft != null && p.daysLeft <= 7)

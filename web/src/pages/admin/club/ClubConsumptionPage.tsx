@@ -4,7 +4,7 @@ import { api } from '@/api/client';
 import type { AuthRestaurant } from '@/context/AuthContext';
 import { formatBase } from '@/utils/format';
 import { card } from './clubStyle';
-import { ClubDateRangeFilter } from './ClubDateRangeFilter';
+import { PeriodPicker, periodParams, periodoDeHoy, type Period } from '@/components/admin/PeriodPicker';
 
 interface ConsumedItem {
   productId: string | null;
@@ -30,12 +30,6 @@ interface Response {
   days: number;
 }
 
-const RANGES = [
-  { days: 7, label: '7 días' },
-  { days: 30, label: '30 días' },
-  { days: 90, label: '90 días' },
-];
-
 /**
  * Qué se consume más en el club y qué está por acabarse.
  *
@@ -44,20 +38,23 @@ const RANGES = [
  */
 export default function ClubConsumptionPage({ restaurant }: { restaurant: Pick<AuthRestaurant, 'currencySymbol'> }) {
   const [data, setData] = useState<Response | null>(null);
-  const [days, setDays] = useState(30);
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
+  // Mismo selector que Restaurantes y Locales: día suelto, semana concreta, mes o tramo libre.
+  const [periodo, setPeriodo] = useState<Period>(() => periodoDeHoy('month'));
   const [loading, setLoading] = useState(true);
   const symbol = restaurant.currencySymbol ?? '$';
+
+  const { from, to } = periodParams(periodo);
 
   const load = useCallback(() => {
     setLoading(true);
     api
-      .get('/club/stats/consumption', { params: { days, from: from || undefined, to: to || undefined } })
+      // `days` sigue en la firma del backend para el caso sin tramo; acá siempre se manda
+      // from/to, así que el valor es indiferente.
+      .get('/club/stats/consumption', { params: { days: 30, from, to } })
       .then((r) => setData(r.data.data))
       .catch(() => setData(null))
       .finally(() => setLoading(false));
-  }, [days, from, to]);
+  }, [from, to]);
 
   useEffect(load, [load]);
 
@@ -68,27 +65,7 @@ export default function ClubConsumptionPage({ restaurant }: { restaurant: Pick<A
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="-mx-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <div className="flex w-max items-center gap-1 rounded-full bg-brand-950/[0.05] p-1">
-          {RANGES.map((r) => (
-            <button
-              key={r.days}
-              type="button"
-              onClick={() => {
-                setDays(r.days);
-                setFrom('');
-                setTo('');
-              }}
-              className={`whitespace-nowrap rounded-full px-3.5 py-2 text-[13px] font-semibold transition-colors ${
-                !from && !to && days === r.days ? 'bg-white text-brand-950 shadow-sm' : 'text-brand-950/50 hover:text-brand-950'
-              }`}
-            >
-              {r.label}
-            </button>
-          ))}
-        </div>
-      </div>
-      <ClubDateRangeFilter from={from} to={to} onFrom={setFrom} onTo={setTo} />
+      <PeriodPicker value={periodo} onChange={setPeriodo} />
 
       {data.runningOut.length > 0 && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/api/client';
 import { shopMoneyFormatters } from './shopFormat';
 import type { AuthRestaurant } from '@/context/AuthContext';
+import { PeriodPicker, periodParams, periodoDeHoy, type Period } from '@/components/admin/PeriodPicker';
 
 /**
  * Cuánto se vendió, en la unidad de cada producto.
@@ -33,16 +34,23 @@ const UNIDAD: Record<string, string> = { KG: 'Kg', MT: 'Mt', UND: 'und.' };
 export default function ShopSalesByUnitPage({ restaurant }: { restaurant: AuthRestaurant }) {
   const { money, moneyBs } = shopMoneyFormatters(restaurant);
   const [data, setData] = useState<{ categorias: Cat[]; detalle: Fila[] } | null>(null);
-  const [desde, setDesde] = useState('');
-  const [hasta, setHasta] = useState('');
+  // Antes solo había desde/hasta a mano, sin forma rápida de ver un día o una semana concreta.
+  const [periodo, setPeriodo] = useState<Period>(() => periodoDeHoy('month'));
 
-  function cargar() {
+  const { from, to } = periodParams(periodo);
+  const clave = `${from ?? ''}|${to ?? ''}`;
+
+  useEffect(() => {
+    setData(null);
     const q = new URLSearchParams();
-    if (desde) q.set('desde', desde);
-    if (hasta) q.set('hasta', hasta);
-    api.get(`/shop/sales-by-unit?${q}`).then((r) => setData(r.data.data)).catch(() => setData({ categorias: [], detalle: [] }));
-  }
-  useEffect(cargar, []);
+    if (from) q.set('desde', from);
+    if (to) q.set('hasta', to);
+    api
+      .get(`/shop/sales-by-unit?${q}`)
+      .then((r) => setData(r.data.data))
+      .catch(() => setData({ categorias: [], detalle: [] }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clave]);
 
   return (
     <div className="space-y-5">
@@ -53,19 +61,7 @@ export default function ShopSalesByUnitPage({ restaurant }: { restaurant: AuthRe
         </p>
       </div>
 
-      <div className="flex flex-wrap items-end gap-2">
-        <label className="text-xs">
-          <span className="block text-brand-950/60">Desde</span>
-          <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)} className="mt-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm" />
-        </label>
-        <label className="text-xs">
-          <span className="block text-brand-950/60">Hasta</span>
-          <input type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} className="mt-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm" />
-        </label>
-        <button onClick={cargar} className="rounded-lg bg-brand-500 px-3 py-2 text-sm font-semibold text-white">
-          Aplicar
-        </button>
-      </div>
+      <PeriodPicker value={periodo} onChange={setPeriodo} />
 
       {!data && <p className="text-sm font-light text-brand-950/40">Cargando…</p>}
 

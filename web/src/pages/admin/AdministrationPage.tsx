@@ -14,6 +14,7 @@ import { FiscalBooksSection } from '@/components/admin/FiscalBooksSection';
 import { BankAccountsSection } from '@/components/admin/BankAccountsSection';
 import { AccountingHub } from '@/components/admin/AccountingHub';
 import { CrmHub } from '@/components/admin/crm/CrmHub';
+import { PeriodPicker, periodLabel, periodParams, periodoDeHoy, type Period } from '@/components/admin/PeriodPicker';
 import { DishTimesSection } from '@/components/admin/DishTimesSection';
 import { PurchasesHub } from '@/components/admin/purchases/PurchasesHub';
 import { CostStructureHub } from '@/components/admin/cost-structure/CostStructureHub';
@@ -1093,18 +1094,26 @@ interface ProductReportRow {
 function ProductsTab() {
   const { restaurant } = useAuth();
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
-  const [range, setRange] = useState<Range>('month');
+  // Antes solo había presets relativos a hoy (Este mes, Esta semana...), así que no había forma
+  // de mirar UNA semana concreta ni un día pasado. Ahora todo pasa por from/to.
+  const [periodo, setPeriodo] = useState<Period>(() => periodoDeHoy('month'));
   const [rows, setRows] = useState<ProductReportRow[] | null>(null);
   const [order, setOrder] = useState<'desc' | 'asc'>('desc');
   const [error, setError] = useState<string | null>(null);
   const [detailProduct, setDetailProduct] = useState<{ productId: string; name: string } | null>(null);
 
+  const params = periodParams(periodo);
+  const paramsKey = `${params.from ?? ''}|${params.to ?? ''}`;
+
   useEffect(() => {
+    setRows(null);
     api
-      .get('/orders/reports/products', { params: { range } })
+      .get('/orders/reports/products', { params })
       .then((res) => setRows(res.data.data))
       .catch((err) => setError(err.response?.data?.error ?? 'No se pudo cargar el reporte.'));
-  }, [range]);
+    // `params` se reconstruye en cada render; la clave de texto evita el bucle infinito.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paramsKey]);
 
   if (error) return <p className="text-sm text-red-600">{error}</p>;
 
@@ -1112,19 +1121,9 @@ function ProductsTab() {
 
   return (
     <div className="space-y-5">
+      <PeriodPicker value={periodo} onChange={setPeriodo} />
+
       <div className="flex flex-wrap items-center gap-2">
-        {(Object.keys(RANGE_LABELS) as Range[]).map((r) => (
-          <button
-            key={r}
-            onClick={() => setRange(r)}
-            className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-              range === r ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'
-            }`}
-          >
-            {RANGE_LABELS[r]}
-          </button>
-        ))}
-        <span className="w-px h-4 bg-brand-950/10 mx-1" />
         <button
           onClick={() => setOrder('desc')}
           className={`text-xs font-medium px-2.5 py-1 rounded-full ${order === 'desc' ? 'bg-brand-500 text-white' : 'bg-brand-950/[0.06] text-brand-950/50'}`}
@@ -1174,8 +1173,8 @@ function ProductsTab() {
 
       {detailProduct && (
         <OrdersListPanel
-          title={`${detailProduct.name} · ${RANGE_LABELS[range]}`}
-          params={{ productId: detailProduct.productId, range }}
+          title={`${detailProduct.name} · ${periodLabel(periodo)}`}
+          params={{ productId: detailProduct.productId, ...params }}
           highlightProductId={detailProduct.productId}
           onClose={() => setDetailProduct(null)}
         />

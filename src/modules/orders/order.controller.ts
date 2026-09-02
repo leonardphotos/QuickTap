@@ -226,8 +226,10 @@ export const orderController = {
 
   /** GET /api/v1/orders/reports/products — más/menos vendidos (solo plan Premium). */
   productReport: asyncHandler(async (req: Request, res: Response) => {
-    const { range, date } = orderHistoryQuerySchema.pick({ range: true, date: true }).parse(req.query);
-    const rows = await orderService.getProductReport(req.restaurantId!, range, date);
+    const { range, date, from, to } = orderHistoryQuerySchema
+      .pick({ range: true, date: true, from: true, to: true })
+      .parse(req.query);
+    const rows = await orderService.getProductReport(req.restaurantId!, range, date, from, to);
     res.json({ data: rows });
   }),
 

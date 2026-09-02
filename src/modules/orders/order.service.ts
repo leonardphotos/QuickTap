@@ -3673,10 +3673,11 @@ export const orderService = {
     });
   },
 
-  /** Reporte de productos más/menos vendidos, con filtro de rango o fecha exacta. Cada variante de precio cuenta como su propia fila. */
-  async getProductReport(restaurantId: string, range: ReportRange, date?: string) {
+  /** Reporte de productos más/menos vendidos. Acepta preset, día exacto o tramo desde–hasta
+   * (un día suelto, una semana concreta, un mes). Cada variante de precio es su propia fila. */
+  async getProductReport(restaurantId: string, range: ReportRange, date?: string, from?: string, to?: string) {
     const items = await prisma.orderItem.findMany({
-      where: { order: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt: resolveDateFilter({ range, date }) } },
+      where: { order: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt: resolveDateFilter({ range, date, from, to }) } },
       select: { productId: true, productName: true, variantName: true, quantity: true, lineTotal: true },
     });
 
