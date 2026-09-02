@@ -2485,6 +2485,51 @@ model Customer {
 }
 
 // ============================================================================
+// Solicitudes de contacto con un asesor (Plan Elite)
+// ============================================================================
+
+enum AdvisorLeadStatus {
+  PENDING   // Recién llegó, nadie la ha tomado
+  CONTACTED // Un asesor ya llamó
+  CLOSED    // Terminó en venta
+  DISCARDED // No prosperó
+}
+
+// Prospecto que pidió que lo contacte un asesor en vez de contratar solo.
+//
+// El Plan Elite no se contrata desde la página: son sucursales ilimitadas, migración de
+// catálogo y gerente de cuenta, cosas que se acuerdan hablando. El formulario deja el
+// contacto acá y además dispara un WhatsApp al número verificador.
+//
+// La fila se guarda SIEMPRE, aunque el WhatsApp no salga: el número del máster puede estar
+// desconectado o fuera de su ventana horaria, y un prospecto perdido no se recupera.
+// notifiedAt distingue "ya lo avisamos" de "está acá pero nadie recibió el aviso".
+model AdvisorLead {
+  id           String @id @default(cuid())
+  /// Nombre de la persona que llenó el formulario.
+  contactName  String
+  /// Teléfono de contacto, tal cual lo escribió — es a donde va a llamar el asesor.
+  phone        String
+  address      String
+  businessName String
+  /// Qué plan miraba cuando pidió el contacto. Hoy siempre ELITE; queda por si mañana
+  /// otro plan pasa a venderse hablado.
+  plan         SubscriptionPlan @default(ELITE)
+
+  status AdvisorLeadStatus @default(PENDING)
+  /// Notas del asesor tras la llamada.
+  notes  String?
+  /// Cuándo salió el aviso por WhatsApp. Null = la solicitud está acá pero el aviso no salió.
+  notifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@map("advisor_leads")
+}
+
+// ============================================================================
 // CRM: promociones personalizadas con código canjeable
 // ============================================================================
 

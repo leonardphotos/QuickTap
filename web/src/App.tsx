@@ -82,6 +82,7 @@ const MasterFunnelPage = lazy(() => import('./pages/master/MasterFunnelPage'));
 const MasterLivePage = lazy(() => import('./pages/master/MasterLivePage'));
 const MasterQuotesPage = lazy(() => import('./pages/master/MasterQuotesPage'));
 const MasterQrNfcRequestsPage = lazy(() => import('./pages/master/MasterQrNfcRequestsPage'));
+const MasterAdvisorLeadsPage = lazy(() => import('./pages/master/MasterAdvisorLeadsPage'));
 
 /** Enlaces viejos tipo quicktap.club/:slug -> redirige a quicktap.club/r/:slug (URL actual del menú). */
 function LegacyMenuRedirect() {
@@ -231,6 +232,7 @@ export default function App() {
               <Route path="live" element={<MasterLivePage />} />
               <Route path="quotes" element={<MasterQuotesPage />} />
               <Route path="qrnfc-requests" element={<MasterQrNfcRequestsPage />} />
+              <Route path="advisor-leads" element={<MasterAdvisorLeadsPage />} />
               <Route path="admins" element={<MasterAdminsPage />} />
             </Route>
 

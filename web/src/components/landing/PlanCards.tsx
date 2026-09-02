@@ -4,6 +4,7 @@ import { api } from '@/api/client';
 import { formatBs } from '@/utils/format';
 import { BILLING_CYCLE_LABEL, CYCLE_MONTHS, FIXED_PLAN_PRICES, type BillingCycle, type PurchasablePlan } from '@/utils/plans';
 import { TextureButton } from '@/components/ui/texture-button';
+import { AdvisorLeadDialog } from './AdvisorLeadDialog';
 
 export interface PlanContent {
   id: PurchasablePlan;
@@ -104,6 +105,8 @@ export function PlanCards({ rateBs, billingCycle, onBillingCycleChange, onChoose
   // correcto aunque el padre solo tenga la tasa de USD.
   const [currencySymbol, setCurrencySymbol] = useState('$');
   const [ownRateBs, setOwnRateBs] = useState<string | null>(null);
+  // Plan Elite: en vez de mandar a registrarse, abre el formulario de contacto.
+  const [pidiendoAsesor, setPidiendoAsesor] = useState(false);
 
   useEffect(() => {
     api
@@ -242,19 +245,29 @@ export function PlanCards({ rateBs, billingCycle, onBillingCycleChange, onChoose
                   ))}
                 </ul>
 
-                <TextureButton
-                  variant={isPopular ? 'brand' : 'primary'}
-                  size="default"
-                  className="mt-6"
-                  onClick={() => onChoosePlan(plan.id)}
-                >
-                  Elegir plan
-                </TextureButton>
+                {/* El Elite no se contrata solo: sucursales ilimitadas, migración de catálogo
+                    y gerente de cuenta se acuerdan hablando, no eligiendo un plan y pagando. */}
+                {plan.id === 'ELITE' ? (
+                  <TextureButton variant="primary" size="default" className="mt-6" onClick={() => setPidiendoAsesor(true)}>
+                    Contactar a un asesor
+                  </TextureButton>
+                ) : (
+                  <TextureButton
+                    variant={isPopular ? 'brand' : 'primary'}
+                    size="default"
+                    className="mt-6"
+                    onClick={() => onChoosePlan(plan.id)}
+                  >
+                    Elegir plan
+                  </TextureButton>
+                )}
               </div>
             </div>
           );
         })}
       </div>
+
+      {pidiendoAsesor && <AdvisorLeadDialog onClose={() => setPidiendoAsesor(false)} />}
     </div>
   );
 }

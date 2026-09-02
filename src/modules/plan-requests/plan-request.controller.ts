@@ -74,10 +74,25 @@ async function notifyVerifierOfProof(request: {
   }
 }
 
+/**
+ * El Plan Elite no se contrata solo: se pide un asesor (ver advisor-leads). El botón ya no
+ * existe en la página, pero el endpoint es público, así que se cierra también acá — si no,
+ * un POST a mano seguiría dando de alta un Elite sin que nadie del equipo se entere.
+ *
+ * Solo aplica al alta pública. La renovación y la mejora de plan van por rutas autenticadas:
+ * un cliente que YA es Elite tiene que poder seguir pagando su mensualidad.
+ */
+function assertPlanContratableSolo(plan: string): void {
+  if (plan === 'ELITE') {
+    throw badRequest('El Plan Elite se contrata con un asesor. Escríbenos desde "Contactar a un asesor" y te llamamos.');
+  }
+}
+
 export const planRequestController = {
   /** POST /api/v1/public/plan-requests — el prospecto elige plan + método de pago y escribe el número de referencia (inscripción). */
   create: asyncHandler(async (req: Request, res: Response) => {
     const input = createPlanRequestSchema.parse(parseBody(req));
+    assertPlanContratableSolo(input.plan);
     const proofImageUrl = req.file ? `/uploads/plan-payment-proofs/${req.file.filename}` : undefined;
     const request = await planRequestService.create(input, { kind: 'SIGNUP' }, proofImageUrl);
     if (proofImageUrl) void notifyVerifierOfProof(request, proofImageUrl);
@@ -163,6 +178,7 @@ export const planRequestController = {
   /** POST /api/v1/public/plan-requests/ramblay-checkout — inscripción pagando con Ramblay (C2P/Binance Pay), sin comprobante manual. */
   createRamblayCheckout: asyncHandler(async (req: Request, res: Response) => {
     const input = createRamblayCheckoutSchema.parse(req.body);
+    assertPlanContratableSolo(input.plan);
     const result = await planRequestService.createRamblayCheckout(input, { kind: 'SIGNUP' });
     res.status(201).json({ data: result });
   }),

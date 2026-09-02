@@ -25,6 +25,7 @@ import masterSummaryRoutes from '../modules/master/master-summary.routes';
 import masterLiveRoutes from '../modules/master/master-live.routes';
 import { presenciaController } from '../modules/master/master-live.controller';
 import masterQuotesRoutes from '../modules/master/master-quotes.routes';
+import { masterAdvisorLeadRoutes, publicAdvisorLeadRoutes } from '../modules/advisor-leads/advisor-lead.routes';
 import masterServerStatusRoutes from '../modules/master/master-server-status.routes';
 import platformAuthRoutes from '../modules/platform-auth/platform-auth.routes';
 import { publicPromoCodeRoutes, masterPromoCodeRoutes } from '../modules/promo-codes/promo-code.routes';
@@ -173,6 +174,8 @@ router.get('/public/checkout/delivery/:slug/quote', orderController.deliveryQuot
 // Tasa BCV para la landing (precios de planes en $ y Bs): es un dato global, no de un restaurante.
 router.get('/public/exchange-rate', exchangeRateController.summary);
 router.use('/public/plan-requests', publicPlanRequestRoutes);
+// Plan Elite: no se contrata solo, se pide que llame un asesor.
+router.use('/public/advisor-leads', publicAdvisorLeadRoutes);
 router.use('/public/promo-codes', publicPromoCodeRoutes);
 router.use('/public/payment-methods', publicPlatformSettingsRoutes);
 router.use('/public/plans', publicPlanContentRoutes);
@@ -206,6 +209,7 @@ router.use('/master/payment-methods', masterPlatformSettingsRoutes);
 router.use('/master/plans', masterPlanContentRoutes);
 router.use('/master/message-templates', masterMessageTemplatesRoutes);
 router.use('/master/plan-requests', masterPlanRequestRoutes);
+router.use('/master/advisor-leads', masterAdvisorLeadRoutes);
 router.use('/master/qr-nfc-requests', masterQrNfcRequestRoutes);
 router.use('/master/summary', masterSummaryRoutes);
 // Estadísticas en vivo de toda la plataforma (pedidos, visitantes y plata por vertical).
