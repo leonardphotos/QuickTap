@@ -311,8 +311,9 @@ function rutaConfigFiscal() {
 }
 
 const CONFIG_FISCAL_DEFAULT = {
-  // Vacío = detectar sola recorriendo los puertos. Con un valor ("COM4"), se
-  // prueba ese primero y solo se escanea si no responde.
+  // Vacío = detectar sola recorriendo los puertos. Con un valor ("COM3"), se
+  // prueba ese primero y solo se escanea si no responde — que es el caso normal
+  // y evita andar abriendo puertos ajenos en cada arranque.
   puerto: '',
   // Cuánto se espera a que un puerto conteste durante el escaneo. La fiscal
   // responde en cientos de milisegundos; lo que tarda más está ocupado o no es.
