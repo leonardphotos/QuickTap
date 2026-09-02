@@ -4,9 +4,16 @@
   "directories": {
     "output": "dist"
   },
-  "files": ["main.js", "preload.js", "appIcon.ico", "package.json", "fiscal/**"],
-  "//asarUnpack": "PowerShell y el driver .NET son procesos externos: no pueden leer de dentro del app.asar, así que fiscal/ se deja desempaquetado en disco (ver rutaFiscal en main.js).",
-  "asarUnpack": ["fiscal/**"],
+  "files": [
+    "main.js",
+    "preload.js",
+    "appIcon.ico",
+    "package.json",
+    "fiscal/**"
+  ],
+  "asarUnpack": [
+    "fiscal/**"
+  ],
   "win": {
     "target": "nsis",
     "icon": "appIcon.ico",
