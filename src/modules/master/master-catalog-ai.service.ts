@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import ExcelJS from 'exceljs';
 import crypto from 'crypto';
 import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
@@ -46,6 +47,33 @@ export interface AnalisisPlato {
   ingredientes: IngredientePropuesto[];
 }
 
+/** Un plato leído de la carta (foto del menú o planilla del cliente). Todavía sin ficha técnica. */
+export interface ProductoLeido {
+  nombre: string;
+  categoria: string;
+  precio: number;
+  descripcion: string;
+}
+
+export interface PreparacionPropuesta {
+  nombre: string;
+  unidad: string;
+  /** Cuánto rinde UNA tanda, en `unidad`. */
+  rendimiento: number;
+  /** Cuánto usa este plato de la preparación, en `unidad`. */
+  cantidad: number;
+  /** Ingredientes de la tanda entera, no de una porción. */
+  insumos: IngredientePropuesto[];
+  yaExiste: boolean;
+}
+
+/** Ficha técnica propuesta para un plato: lo que va directo y lo que se prepara aparte. */
+export interface FichaPropuesta {
+  nombre: string;
+  insumos: IngredientePropuesto[];
+  preparaciones: PreparacionPropuesta[];
+}
+
 
 async function restauranteOThrow(restaurantId: string) {
   const r = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { id: true, name: true } });
@@ -86,6 +114,98 @@ async function llamarServicioIA(endpoint: string, file: Express.Multer.File, cam
   return response;
 }
 
+/**
+ * Aplana un .xlsx a texto plano para mandárselo a la IA.
+ *
+ * No hay plantilla ni columnas fijas a propósito: el archivo llega como lo mandó el cliente
+ * (a veces con el logo en las primeras filas, o los precios en la tercera columna, o dos hojas).
+ * Se vuelca todo tal cual y la IA deduce qué es cada cosa; el operador revisa antes de escribir.
+ */
+async function hojaATexto(buffer: Buffer): Promise<string> {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
+
+  const lineas: string[] = [];
+  workbook.eachSheet((sheet) => {
+    lineas.push(`### Hoja: ${sheet.name}`);
+    sheet.eachRow((row) => {
+      const celdas: string[] = [];
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        const v = cell.value;
+        if (v === null || v === undefined) celdas.push('');
+        else if (typeof v === 'object' && 'text' in v) celdas.push(String((v as { text: unknown }).text ?? '').trim());
+        else if (typeof v === 'object' && 'result' in v) celdas.push(String((v as { result: unknown }).result ?? '').trim());
+        else if (v instanceof Date) celdas.push(v.toISOString().slice(0, 10));
+        else celdas.push(String(v).trim());
+      });
+      // Las filas vacías (separadores visuales de la hoja) no aportan nada y gastan contexto.
+      if (celdas.some((c) => c !== '')) lineas.push(celdas.join(' | ').replace(/(\s*\|\s*)+$/, ''));
+    });
+  });
+  return lineas.join('\n');
+}
+
+/** Igual que `llamarServicioIA` pero con cuerpo JSON — las fichas técnicas no llevan archivo. */
+async function llamarServicioIAJson(endpoint: string, cuerpo: unknown) {
+  let response: Response;
+  try {
+    response = await fetch(`${env.aiPhotoServiceUrl}/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cuerpo),
+    });
+  } catch {
+    throw new HttpError(503, SERVICIO_CAIDO);
+  }
+  if (!response.ok) {
+    let detalle = 'El servicio de IA no pudo procesar la solicitud.';
+    try {
+      const body = (await response.json()) as { detail?: string };
+      if (body?.detail) detalle = body.detail;
+    } catch {
+      /* respuesta sin JSON */
+    }
+    throw new HttpError(502, detalle);
+  }
+  return response;
+}
+
+/** Qué insumos y preparaciones YA tiene el cliente, por clave de nombre. */
+async function loQueYaTiene(restaurantId: string) {
+  const inventarioDe = await resolveInventoryScopeById(restaurantId);
+  const [insumos, preparaciones] = await Promise.all([
+    prisma.inventoryItem.findMany({ where: { restaurantId: inventarioDe }, select: { name: true } }),
+    prisma.preparation.findMany({ where: { restaurantId }, select: { name: true } }),
+  ]);
+  return {
+    insumos: new Set(insumos.map((i) => clave(i.name))),
+    preparaciones: new Set(preparaciones.map((p) => clave(p.name))),
+  };
+}
+
+function marcarInsumos(
+  crudos: { nombre: string; unidad: string; cantidad: number }[] | undefined,
+  existentes: Set<string>,
+): IngredientePropuesto[] {
+  const salida: IngredientePropuesto[] = [];
+  for (const ing of crudos ?? []) {
+    const nombre = String(ing?.nombre ?? '').trim();
+    const cantidad = Number(ing?.cantidad);
+    if (!nombre || !UNIDADES.has(ing?.unidad) || !Number.isFinite(cantidad) || cantidad <= 0) continue;
+    salida.push({ nombre, unidad: ing.unidad, cantidad, yaExiste: existentes.has(clave(nombre)) });
+  }
+  return salida;
+}
+
+/**
+ * Cuántos platos se le piden a la IA por llamada.
+ *
+ * Ni uno por uno (una carta de 80 platos serían 80 viajes y varios minutos de espera) ni todos
+ * de golpe: pasado cierto tamaño el modelo empieza a devolver fichas cada vez más pobres para
+ * los últimos platos de la lista. Doce es el punto donde la respuesta sigue siendo detallada.
+ */
+const PLATOS_POR_LOTE = 12;
+
 export const masterCatalogAiService = {
   /**
    * Las categorías que el cliente YA tiene, para colgar los platos nuevos de las suyas en vez
@@ -99,6 +219,132 @@ export const masterCatalogAiService = {
       select: { id: true, name: true },
       orderBy: { name: 'asc' },
     });
+  },
+
+  /**
+   * Lee una carta completa y devuelve la lista de platos. NO escribe en la base.
+   *
+   * Entra una FOTO del menú impreso o un EXCEL del cliente tal como lo mandó — no hay
+   * plantilla que llenar: la IA deduce qué columna es el nombre, cuál el precio y cuál la
+   * categoría. Es transcripción, no creación; las fichas técnicas son el paso siguiente.
+   */
+  async leerCarta(restaurantId: string, file: Express.Multer.File): Promise<ProductoLeido[]> {
+    await restauranteOThrow(restaurantId);
+
+    const esExcel =
+      file.mimetype.includes('spreadsheet') ||
+      file.mimetype.includes('excel') ||
+      file.originalname.toLowerCase().endsWith('.xlsx');
+
+    let response: Response;
+    if (esExcel) {
+      // La hoja se aplana a texto acá y no en Python: exceljs ya está en el backend, y así el
+      // microservicio de IA sigue siendo solo "entra contenido, sale JSON" sin saber de Excel.
+      const texto = await hojaATexto(file.buffer);
+      if (!texto.trim()) throw badRequest('La hoja está vacía o no se pudo leer.');
+      const form = new FormData();
+      form.append('texto', texto);
+      try {
+        response = await fetch(`${env.aiPhotoServiceUrl}/leer-carta`, { method: 'POST', body: form });
+      } catch {
+        throw new HttpError(503, SERVICIO_CAIDO);
+      }
+      if (!response.ok) {
+        let detalle = 'El servicio de IA no pudo leer la lista.';
+        try {
+          const body = (await response.json()) as { detail?: string };
+          if (body?.detail) detalle = body.detail;
+        } catch {
+          /* respuesta sin JSON */
+        }
+        throw new HttpError(502, detalle);
+      }
+    } else {
+      response = await llamarServicioIA('leer-carta', file);
+    }
+
+    const datos = (await response.json()) as { productos?: ProductoLeido[] };
+    const productos: ProductoLeido[] = [];
+    for (const p of datos.productos ?? []) {
+      const nombre = String(p?.nombre ?? '').trim();
+      if (!nombre) continue;
+      const precio = Number(p?.precio);
+      productos.push({
+        nombre,
+        categoria: String(p?.categoria ?? '').trim() || 'General',
+        precio: Number.isFinite(precio) && precio > 0 ? round2(toDecimal(precio)).toNumber() : 0,
+        descripcion: String(p?.descripcion ?? '').trim(),
+      });
+    }
+    if (productos.length === 0) {
+      throw badRequest('No se reconoció ningún plato. Prueba con una foto más nítida o revisa la hoja.');
+    }
+    return productos;
+  },
+
+  /**
+   * Ficha técnica de cada plato: insumos directos y preparaciones (bases que se hacen aparte).
+   *
+   * Va por lotes contra la IA (ver PLATOS_POR_LOTE) y marca lo que el cliente YA tiene en su
+   * inventario, para que el operador vincule en vez de duplicar — un local que ya tiene "Queso"
+   * no necesita que le aparezca "queso cheddar" al lado con lo mismo adentro.
+   */
+  async fichas(
+    restaurantId: string,
+    platos: { nombre: string; descripcion?: string }[],
+  ): Promise<FichaPropuesta[]> {
+    await restauranteOThrow(restaurantId);
+    const existentes = await loQueYaTiene(restaurantId);
+
+    const fichas: FichaPropuesta[] = [];
+    for (let i = 0; i < platos.length; i += PLATOS_POR_LOTE) {
+      const lote = platos.slice(i, i + PLATOS_POR_LOTE);
+      const res = await llamarServicioIAJson('fichas-tecnicas', { platos: lote });
+      const datos = (await res.json()) as {
+        platos?: {
+          nombre: string;
+          insumos?: { nombre: string; unidad: string; cantidad: number }[];
+          preparaciones?: {
+            nombre: string;
+            unidad: string;
+            rendimiento: number;
+            cantidad: number;
+            insumos?: { nombre: string; unidad: string; cantidad: number }[];
+          }[];
+        }[];
+      };
+
+      for (const ficha of datos.platos ?? []) {
+        const nombre = String(ficha?.nombre ?? '').trim();
+        if (!nombre) continue;
+        const preparaciones: PreparacionPropuesta[] = [];
+        for (const prep of ficha.preparaciones ?? []) {
+          const prepNombre = String(prep?.nombre ?? '').trim();
+          const rendimiento = Number(prep?.rendimiento);
+          const cantidad = Number(prep?.cantidad);
+          const insumos = marcarInsumos(prep?.insumos, existentes.insumos);
+          if (!prepNombre || !UNIDADES.has(prep?.unidad)) continue;
+          if (!Number.isFinite(rendimiento) || rendimiento <= 0) continue;
+          if (!Number.isFinite(cantidad) || cantidad <= 0) continue;
+          // Sin ingredientes la preparación no se puede costear: sería una base vacía.
+          if (insumos.length === 0) continue;
+          preparaciones.push({
+            nombre: prepNombre,
+            unidad: prep.unidad,
+            rendimiento,
+            cantidad,
+            insumos,
+            yaExiste: existentes.preparaciones.has(clave(prepNombre)),
+          });
+        }
+        fichas.push({
+          nombre,
+          insumos: marcarInsumos(ficha.insumos, existentes.insumos),
+          preparaciones,
+        });
+      }
+    }
+    return fichas;
   },
 
   /**
@@ -171,6 +417,17 @@ export const masterCatalogAiService = {
       descripcion?: string;
       photoUrl?: string;
       ingredientes: { nombre: string; unidad: string; cantidad: number }[];
+      /** Bases que se preparan aparte (salsas, masas, caldos) y que este plato consume. */
+      preparaciones?: {
+        nombre: string;
+        unidad: string;
+        /** Cuánto rinde una tanda, en `unidad`. */
+        rendimiento: number;
+        /** Cuánto usa este plato, en `unidad`. */
+        cantidad: number;
+        /** Ingredientes de la TANDA entera. */
+        insumos: { nombre: string; unidad: string; cantidad: number }[];
+      }[];
       tamanos?: { nombre: string; precio: number }[];
       modificadores?: {
         nombre: string;
@@ -190,6 +447,7 @@ export const masterCatalogAiService = {
       productosCreados: 0,
       productosActualizados: 0,
       insumosCreados: [] as string[],
+      preparacionesCreadas: [] as string[],
       lineasReceta: 0,
       tamanosCreados: 0,
       gruposCreados: 0,
@@ -203,6 +461,12 @@ export const masterCatalogAiService = {
     const insumos = new Map<string, string>();
     for (const i of await prisma.inventoryItem.findMany({ where: { restaurantId: inventarioDe }, select: { id: true, name: true } })) {
       insumos.set(clave(i.name), i.id);
+    }
+    // Las preparaciones se comparten entre platos: si tres pastas llevan la misma boloñesa,
+    // tiene que existir UNA sola y que las tres apunten a ella.
+    const preparaciones = new Map<string, string>();
+    for (const pr of await prisma.preparation.findMany({ where: { restaurantId }, select: { id: true, name: true } })) {
+      preparaciones.set(clave(pr.name), pr.id);
     }
 
     for (const p of productos) {
@@ -308,8 +572,10 @@ export const masterCatalogAiService = {
         });
       }
 
-      // Insumos que falten. Sin costo y sin stock: son datos del cliente.
-      for (const ing of p.ingredientes) {
+      // Insumos que falten — los del plato Y los de sus preparaciones. Sin costo y sin stock:
+      // el precio de compra es del cliente, y uno inventado daría un costo de receta falso.
+      const todosLosInsumos = [...p.ingredientes, ...(p.preparaciones ?? []).flatMap((pr) => pr.insumos)];
+      for (const ing of todosLosInsumos) {
         const nombreIng = ing.nombre.trim();
         if (!nombreIng || !UNIDADES.has(ing.unidad)) continue;
         if (insumos.has(clave(nombreIng))) continue;
@@ -326,6 +592,47 @@ export const masterCatalogAiService = {
 
       // El costo de cada línea se congela igual que en el panel: el grafo se reconstruye
       // DESPUÉS de crear los insumos, para que los recién creados existan en él.
+      // Grafo con los insumos ya creados: las líneas de la preparación congelan su costo igual
+      // que en el panel (ver preparation.service.ts#addIngredient). Los insumos nuevos entran
+      // en cero, así que el costo arranca en cero hasta que el cliente cargue sus precios.
+      const grafoInsumos = await buildCostGraph(prisma, restaurantId);
+
+      // Preparaciones: se crean (o se reutilizan por nombre) ANTES del grafo final, para que
+      // ya existan cuando se calcule lo que cuesta cada línea de la receta.
+      for (const prep of p.preparaciones ?? []) {
+        const nombrePrep = prep.nombre.trim();
+        if (!nombrePrep || !UNIDADES.has(prep.unidad)) continue;
+        const rendimiento = Number(prep.rendimiento);
+        if (!Number.isFinite(rendimiento) || rendimiento <= 0) continue;
+
+        let preparationId = preparaciones.get(clave(nombrePrep));
+        if (!preparationId) {
+          const creada = await prisma.preparation.create({
+            data: { restaurantId, name: nombrePrep, unit: prep.unidad, yieldQuantity: toDecimal(rendimiento) },
+          });
+          preparationId = creada.id;
+          preparaciones.set(clave(nombrePrep), creada.id);
+          resultado.preparacionesCreadas.push(creada.name);
+        }
+
+        // Los ingredientes de la preparación se rehacen igual que los de la receta: si el
+        // operador quitó uno al revisar, no puede quedar colgado de una carga anterior.
+        await prisma.preparationIngredient.deleteMany({ where: { preparationId } });
+        for (const ing of prep.insumos) {
+          const inventoryItemId = insumos.get(clave(ing.nombre.trim()));
+          const cantidad = Number(ing.cantidad);
+          if (!inventoryItemId || !Number.isFinite(cantidad) || cantidad <= 0) continue;
+          const costoLinea = resolveCostPerBaseUnit(grafoInsumos, { inventoryItemId })
+            .mul(cantidad)
+            .toDecimalPlaces(4);
+          await prisma.preparationIngredient.create({
+            data: { restaurantId, preparationId, inventoryItemId, quantity: toDecimal(cantidad), costBase: costoLinea },
+          });
+        }
+      }
+
+      // El costo de cada línea se congela igual que en el panel: el grafo se reconstruye
+      // DESPUÉS de crear insumos y preparaciones, para que los recién creados existan en él.
       const grafo = await buildCostGraph(prisma, restaurantId);
       for (const ing of p.ingredientes) {
         const inventoryItemId = insumos.get(clave(ing.nombre.trim()));
@@ -334,6 +641,16 @@ export const masterCatalogAiService = {
         const costo = round2(resolveCostPerBaseUnit(grafo, { inventoryItemId }).mul(cantidad));
         await prisma.recipeIngredient.create({
           data: { restaurantId, productId, inventoryItemId, quantity: toDecimal(cantidad), costBase: costo },
+        });
+        resultado.lineasReceta += 1;
+      }
+      for (const prep of p.preparaciones ?? []) {
+        const preparationId = preparaciones.get(clave(prep.nombre.trim()));
+        const cantidad = Number(prep.cantidad);
+        if (!preparationId || !Number.isFinite(cantidad) || cantidad <= 0) continue;
+        const costo = round2(resolveCostPerBaseUnit(grafo, { preparationId }).mul(cantidad));
+        await prisma.recipeIngredient.create({
+          data: { restaurantId, productId, preparationId, quantity: toDecimal(cantidad), costBase: costo },
         });
         resultado.lineasReceta += 1;
       }

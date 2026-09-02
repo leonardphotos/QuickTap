@@ -16,7 +16,7 @@ import io
 import json
 import os
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 from google import genai
 from google.genai import types
@@ -263,3 +263,295 @@ async def analizar_plato(file: UploadFile = File(...), nombre: str = Form("")):
         "descripcion": str(datos.get("descripcion") or "").strip()[:500],
         "ingredientes": ingredientes,
     }
+
+
+# ============================================================================
+#  Carga masiva de catálogo (panel maestro)
+# ============================================================================
+#  Dos pasos, deliberadamente separados:
+#
+#    1. LEER LA CARTA  -> qué platos hay, a qué precio y en qué categoría.
+#       Entra una foto del menú impreso o el texto de la hoja de cálculo que
+#       mandó el cliente. Es pura transcripción: no se inventa nada.
+#
+#    2. FICHAS TÉCNICAS -> qué lleva cada plato.
+#       Entra la lista de nombres del paso 1 y sale, por plato, sus insumos
+#       directos y sus preparaciones (bases que se hacen aparte).
+#
+#  Van aparte porque son tareas distintas y fallan distinto: transcribir mal
+#  un precio se ve al instante en la revisión; estimar mal unos gramos es una
+#  aproximación que el restaurante corrige después. Mezclarlas en una sola
+#  llamada haría que un error de lectura arrastrara toda la ficha.
+
+CARTA_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "productos": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "nombre": {"type": "STRING"},
+                    "categoria": {"type": "STRING"},
+                    "precio": {"type": "NUMBER"},
+                    "descripcion": {"type": "STRING"},
+                },
+                "required": ["nombre", "categoria", "precio"],
+            },
+        },
+    },
+    "required": ["productos"],
+}
+
+CARTA_PROMPT = (
+    "Eres un asistente que transcribe la carta de un restaurante para cargarla en su sistema. "
+    "Devuelve TODOS los platos que encuentres, en español.\n\n"
+    "1. `nombre`: el nombre del plato tal cual está escrito.\n"
+    "2. `categoria`: la sección de la carta donde aparece (Entradas, Hamburguesas, Bebidas...). "
+    "Si la carta no las separa, deduce una categoría corta y sensata por el tipo de plato.\n"
+    "3. `precio`: solo el número, sin símbolo de moneda ni separadores de miles. Si un plato no "
+    "tiene precio visible, pon 0 — es preferible un cero evidente a un precio inventado.\n"
+    "4. `descripcion`: la descripción que trae la carta. Si no trae, déjala vacía; NO la inventes.\n\n"
+    "Reglas:\n"
+    "- Esto es TRANSCRIPCIÓN, no creación: no agregues platos que no estén, no corrijas nombres, "
+    "no completes precios que no se ven.\n"
+    "- Si el mismo plato aparece con varios tamaños o precios (Pequeña/Mediana/Grande), devuelve "
+    "una fila por cada tamaño y ponlo en el nombre: 'Pizza Margarita (Grande)'.\n"
+    "- Ignora todo lo que no sea un plato vendible: horarios, direcciones, redes sociales, "
+    "encabezados decorativos, notas al pie."
+)
+
+FICHAS_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "platos": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "nombre": {"type": "STRING"},
+                    "insumos": {
+                        "type": "ARRAY",
+                        "items": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "nombre": {"type": "STRING"},
+                                "unidad": {"type": "STRING", "enum": ["kg", "lt", "unidad"]},
+                                "cantidad": {"type": "NUMBER"},
+                            },
+                            "required": ["nombre", "unidad", "cantidad"],
+                        },
+                    },
+                    "preparaciones": {
+                        "type": "ARRAY",
+                        "items": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "nombre": {"type": "STRING"},
+                                "unidad": {"type": "STRING", "enum": ["kg", "lt", "unidad"]},
+                                "rendimiento": {"type": "NUMBER"},
+                                "cantidad": {"type": "NUMBER"},
+                                "insumos": {
+                                    "type": "ARRAY",
+                                    "items": {
+                                        "type": "OBJECT",
+                                        "properties": {
+                                            "nombre": {"type": "STRING"},
+                                            "unidad": {"type": "STRING", "enum": ["kg", "lt", "unidad"]},
+                                            "cantidad": {"type": "NUMBER"},
+                                        },
+                                        "required": ["nombre", "unidad", "cantidad"],
+                                    },
+                                },
+                            },
+                            "required": ["nombre", "unidad", "rendimiento", "cantidad", "insumos"],
+                        },
+                    },
+                },
+                "required": ["nombre", "insumos", "preparaciones"],
+            },
+        },
+    },
+    "required": ["platos"],
+}
+
+FICHAS_PROMPT = (
+    "Eres un chef de cocina profesional armando las fichas técnicas de una carta para el sistema "
+    "de inventario de un restaurante. Para CADA plato de la lista devuelve qué lleva, en español.\n\n"
+    "Separa lo que lleva en dos cosas:\n\n"
+    "`insumos`: lo que se compra y va directo al plato — el pan, la carne, el queso, el aceite.\n"
+    "  - Nombra el insumo que se COMPRA, no el plato preparado: 'Carne de res molida', no "
+    "'hamburguesa cocida'.\n"
+    "  - Nombres genéricos y en singular, como los pondría un almacén: 'Queso cheddar', "
+    "'Pan para hamburguesa', 'Aceite vegetal'.\n"
+    "  - `unidad` solo puede ser 'kg' (lo que se pesa), 'lt' (líquidos) o 'unidad' (lo que se "
+    "cuenta: panes, huevos, rebanadas).\n"
+    "  - `cantidad` SIEMPRE en esa unidad y para UNA porción: 150 gramos es 0.15 en 'kg'; "
+    "30 mililitros es 0.03 en 'lt'.\n\n"
+    "`preparaciones`: SOLO las bases que en una cocina de verdad se preparan aparte, en tanda, y "
+    "se reutilizan — salsas, masas, caldos, adobos, mezclas madre.\n"
+    "  - `rendimiento` es cuánto rinde UNA tanda completa (ej. 2 lt de salsa) y `insumos` son los "
+    "ingredientes de ESA tanda entera, no de una porción.\n"
+    "  - `cantidad` es cuánto usa este plato de esa preparación, en la unidad de la preparación.\n"
+    "  - Usa el MISMO nombre de preparación cuando varios platos comparten la base, para que no "
+    "se dupliquen.\n\n"
+    "Reglas importantes:\n"
+    "- NO conviertas en preparación algo que se compra hecho ni algo que solo usa un plato y no "
+    "se prepara en tanda. Una hamburguesa normal NO tiene preparaciones; una pasta con salsa "
+    "boloñesa SÍ (la boloñesa).\n"
+    "- Si dudas, ponlo como insumo directo. Es preferible una ficha simple y correcta que un "
+    "inventario lleno de preparaciones que nadie prepara.\n"
+    "- Incluye lo que no se nombra pero es evidente (sal, aceite de cocción, condimentos básicos) "
+    "con cantidades pequeñas y realistas.\n"
+    "- Devuelve un elemento por CADA plato de la lista, con el nombre EXACTO que te pasaron.\n\n"
+    "Son estimaciones de partida: el restaurante corregirá los pesos exactos después."
+)
+
+
+def _pedir_json(contents, schema, que_falló: str) -> dict:
+    """Llama a Gemini pidiendo JSON con esquema y devuelve el dict ya parseado."""
+    client = _get_client()
+    try:
+        response = client.models.generate_content(
+            model=GEMINI_VISION_MODEL,
+            contents=contents,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=schema,
+            ),
+        )
+    except Exception as exc:
+        raise HTTPException(502, f"Gemini no pudo {que_falló}: {exc}")
+
+    texto = (response.text or "").strip()
+    if not texto:
+        raise HTTPException(502, f"Gemini no devolvió nada al {que_falló}. Intenta de nuevo.")
+    try:
+        return json.loads(texto)
+    except json.JSONDecodeError:
+        raise HTTPException(502, "Gemini devolvió una respuesta que no se pudo leer.")
+
+
+def _limpiar_insumos(crudos) -> list[dict]:
+    """Red de seguridad sobre lo que devuelve el modelo: quien escribe en la base es Node
+    y no puede confiar en que el esquema llegó respetado."""
+    salida = []
+    for item in crudos or []:
+        nombre = str(item.get("nombre") or "").strip()
+        unidad = item.get("unidad")
+        try:
+            cantidad = float(item.get("cantidad"))
+        except (TypeError, ValueError):
+            continue
+        if not nombre or unidad not in ("kg", "lt", "unidad") or cantidad <= 0:
+            continue
+        salida.append({"nombre": nombre[:120], "unidad": unidad, "cantidad": cantidad})
+    return salida
+
+
+@app.post("/leer-carta")
+async def leer_carta(file: UploadFile | None = File(None), texto: str = Form("")):
+    """Transcribe una carta a lista de productos. Entra una foto del menú o el texto de la
+    hoja de cálculo del cliente (Node ya la convirtió a texto plano)."""
+    contenido_texto = texto.strip()
+    if file is None and not contenido_texto:
+        raise HTTPException(400, "Manda una foto del menú o el texto de la lista.")
+
+    if file is not None:
+        raw = await file.read()
+        _validate_upload(file, raw)
+        buf = io.BytesIO()
+        _read_upload(raw).save(buf, format="PNG")
+        contents = [types.Part.from_bytes(data=buf.getvalue(), mime_type="image/png"), CARTA_PROMPT]
+    else:
+        # Tope de tamaño: una carta de restaurante no llega ni cerca, y sin él una hoja
+        # enorme se lleva por delante la ventana de contexto del modelo.
+        if len(contenido_texto) > 60000:
+            raise HTTPException(400, "La lista es demasiado larga. Cárgala por partes.")
+        contents = [f"{CARTA_PROMPT}\n\nEsta es la lista del cliente:\n\n{contenido_texto}"]
+
+    datos = _pedir_json(contents, CARTA_SCHEMA, "leer la carta")
+
+    productos = []
+    for item in datos.get("productos") or []:
+        nombre = str(item.get("nombre") or "").strip()
+        if not nombre:
+            continue
+        try:
+            precio = float(item.get("precio") or 0)
+        except (TypeError, ValueError):
+            precio = 0.0
+        productos.append({
+            "nombre": nombre[:120],
+            "categoria": (str(item.get("categoria") or "").strip() or "General")[:120],
+            "precio": max(0.0, precio),
+            "descripcion": str(item.get("descripcion") or "").strip()[:500],
+        })
+
+    return {"productos": productos}
+
+
+@app.post("/fichas-tecnicas")
+async def fichas_tecnicas(payload: dict = Body(...)):
+    """Dada una lista de platos, devuelve por cada uno sus insumos y sus preparaciones."""
+    platos = payload.get("platos") or []
+    if not isinstance(platos, list) or not platos:
+        raise HTTPException(400, "Manda al menos un plato.")
+    # El lote lo arma Node; acá solo se pone el techo que protege al modelo.
+    if len(platos) > 25:
+        raise HTTPException(400, "Manda como máximo 25 platos por llamada.")
+
+    lineas = []
+    for p in platos:
+        if isinstance(p, str):
+            lineas.append(f"- {p.strip()[:160]}")
+        elif isinstance(p, dict):
+            nombre = str(p.get("nombre") or "").strip()[:120]
+            if not nombre:
+                continue
+            extra = str(p.get("descripcion") or "").strip()[:200]
+            lineas.append(f"- {nombre}" + (f" ({extra})" if extra else ""))
+    if not lineas:
+        raise HTTPException(400, "Ninguno de los platos tenía nombre.")
+
+    datos = _pedir_json(
+        [f"{FICHAS_PROMPT}\n\nPlatos:\n" + "\n".join(lineas)],
+        FICHAS_SCHEMA,
+        "armar las fichas técnicas",
+    )
+
+    salida = []
+    for item in datos.get("platos") or []:
+        nombre = str(item.get("nombre") or "").strip()
+        if not nombre:
+            continue
+        preparaciones = []
+        for prep in item.get("preparaciones") or []:
+            prep_nombre = str(prep.get("nombre") or "").strip()
+            unidad = prep.get("unidad")
+            try:
+                rendimiento = float(prep.get("rendimiento"))
+                cantidad = float(prep.get("cantidad"))
+            except (TypeError, ValueError):
+                continue
+            insumos_prep = _limpiar_insumos(prep.get("insumos"))
+            # Una preparación sin ingredientes o sin rendimiento no se puede costear:
+            # entraría como una base vacía que ensucia el inventario sin aportar nada.
+            if not prep_nombre or unidad not in ("kg", "lt", "unidad") or rendimiento <= 0 or cantidad <= 0:
+                continue
+            if not insumos_prep:
+                continue
+            preparaciones.append({
+                "nombre": prep_nombre[:120],
+                "unidad": unidad,
+                "rendimiento": rendimiento,
+                "cantidad": cantidad,
+                "insumos": insumos_prep,
+            })
+        salida.append({
+            "nombre": nombre[:120],
+            "insumos": _limpiar_insumos(item.get("insumos")),
+            "preparaciones": preparaciones,
+        })
+
+    return {"platos": salida}

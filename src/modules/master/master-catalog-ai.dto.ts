@@ -30,6 +30,28 @@ export const confirmarCatalogoSchema = z.object({
             }),
           )
           .default([]),
+        // Bases que se preparan aparte (salsas, masas, caldos). `rendimiento` es lo que da una
+        // tanda y `insumos` son los de ESA tanda; `cantidad` es lo que consume este plato.
+        preparaciones: z
+          .array(
+            z.object({
+              nombre: z.string().min(1).max(120),
+              unidad: UNIDAD,
+              rendimiento: z.coerce.number().positive(),
+              cantidad: z.coerce.number().positive(),
+              insumos: z
+                .array(
+                  z.object({
+                    nombre: z.string().min(1).max(120),
+                    unidad: UNIDAD,
+                    cantidad: z.coerce.number().positive(),
+                  }),
+                )
+                .min(1, 'Una preparación sin ingredientes no se puede costear.'),
+            }),
+          )
+          .max(20)
+          .default([]),
         // Tamaños del plato (Pequeña/Mediana/Grande). Si van, el producto pasa a "por variantes"
         // y `precio` queda solo como referencia.
         tamanos: z
@@ -59,4 +81,18 @@ export const confirmarCatalogoSchema = z.object({
     .min(1, 'No hay productos que cargar.')
     // Tope de cordura: es una carga manual revisada plato por plato, no una importación masiva.
     .max(200, 'Carga como máximo 200 productos a la vez.'),
+});
+
+/** POST /master/catalog-ai/:restaurantId/fichas — los platos a los que armarles la ficha. */
+export const fichasSchema = z.object({
+  platos: z
+    .array(
+      z.object({
+        nombre: z.string().min(1, 'Cada plato necesita un nombre.').max(120),
+        descripcion: z.string().max(300).optional(),
+      }),
+    )
+    .min(1, 'Manda al menos un plato.')
+    // Techo alto pero finito: son varias llamadas a la IA en cadena y cada una cuesta.
+    .max(200, 'Arma las fichas de como máximo 200 platos a la vez.'),
 });

@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { platformAuthGuard } from '../../middlewares/platform-auth.middleware';
+import { uploadCartaToMemory } from '../../middlewares/upload.middleware';
 import { uploadPhotoToMemory } from '../../middlewares/upload.middleware';
 import { masterCatalogAiController } from './master-catalog-ai.controller';
 
@@ -19,6 +20,10 @@ router.use(platformAuthGuard);
 
 router.get('/:restaurantId/categorias', masterCatalogAiController.categorias);
 router.post('/:restaurantId/analizar', uploadPhotoToMemory, masterCatalogAiController.analizar);
+// Carga masiva: leer la carta entera (foto del menú o Excel del cliente) y después armar
+// las fichas técnicas de los platos que el operador dejó marcados.
+router.post('/:restaurantId/leer-carta', uploadCartaToMemory, masterCatalogAiController.leerCarta);
+router.post('/:restaurantId/fichas', masterCatalogAiController.fichas);
 router.post('/:restaurantId/confirmar', masterCatalogAiController.confirmar);
 
 export default router;

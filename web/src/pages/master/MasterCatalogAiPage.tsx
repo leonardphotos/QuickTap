@@ -43,6 +43,19 @@ interface GrupoModificador {
   opciones: { nombre: string; precio: string }[];
 }
 
+/** Base que se prepara aparte y se reutiliza (salsa, masa, caldo). */
+interface Preparacion {
+  nombre: string;
+  unidad: string;
+  /** Cuánto rinde UNA tanda, en `unidad`. */
+  rendimiento: number;
+  /** Cuánto usa este plato, en `unidad`. */
+  cantidad: number;
+  /** Ingredientes de la TANDA entera, no de una porción. */
+  insumos: Ingrediente[];
+  yaExiste?: boolean;
+}
+
 interface Plato {
   /** Identificador local de la fila, para poder editarla y borrarla antes de guardar. */
   key: string;
@@ -52,6 +65,7 @@ interface Plato {
   descripcion: string;
   photoUrl: string;
   ingredientes: Ingrediente[];
+  preparaciones: Preparacion[];
   tamanos: Tamano[];
   modificadores: GrupoModificador[];
 }
@@ -70,10 +84,13 @@ export default function MasterCatalogAiPage() {
   const [categorias, setCategorias] = useState<{ id: string; name: string }[]>([]);
   const [platos, setPlatos] = useState<Plato[]>([]);
   const [analizando, setAnalizando] = useState(0);
+  const [leyendoCarta, setLeyendoCarta] = useState(false);
+  const [armandoFichas, setArmandoFichas] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resultado, setResultado] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const cartaRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     masterApi
@@ -131,6 +148,7 @@ export default function MasterCatalogAiPage() {
             descripcion: d.descripcion ?? '',
             photoUrl: d.photoUrl,
             ingredientes: d.ingredientes ?? [],
+            preparaciones: [],
             tamanos: [],
             modificadores: [],
           },
@@ -140,6 +158,88 @@ export default function MasterCatalogAiPage() {
       } finally {
         setAnalizando((n) => n - 1);
       }
+    }
+  }
+
+  /**
+   * Carga masiva: una foto del menú impreso o el Excel del cliente, tal como lo mandó.
+   *
+   * Son dos pasos contra la IA a propósito. Primero LEER la carta (qué platos hay y a qué
+   * precio) — eso es transcripción y se revisa de un vistazo. Después las FICHAS TÉCNICAS de
+   * cada plato, que es estimación. Separados, un error de lectura no arrastra toda la ficha, y
+   * el operador ve platos en pantalla apenas termina el primer paso en vez de esperar todo.
+   */
+  async function subirCarta(file: File) {
+    if (!restaurantId) {
+      setError('Elige primero a qué cliente se le va a cargar el catálogo.');
+      return;
+    }
+    setError(null);
+    setResultado(null);
+    setLeyendoCarta(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const { data } = await masterApi.post(`/master/catalog-ai/${restaurantId}/leer-carta`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const leidos: { nombre: string; categoria: string; precio: number; descripcion: string }[] = data.data ?? [];
+
+      const nuevos: Plato[] = leidos.map((d, i) => ({
+        key: `carta-${Date.now()}-${i}`,
+        nombre: d.nombre,
+        categoria: d.categoria || categoriaPorDefecto,
+        precio: d.precio > 0 ? String(d.precio) : '',
+        descripcion: d.descripcion ?? '',
+        photoUrl: '',
+        ingredientes: [],
+        preparaciones: [],
+        tamanos: [],
+        modificadores: [],
+      }));
+      setPlatos((prev) => [...prev, ...nuevos]);
+      setLeyendoCarta(false);
+      setResultado(`Se leyeron ${nuevos.length} platos. Armando las fichas técnicas…`);
+      await pedirFichas(nuevos);
+      setResultado(`${nuevos.length} platos listos para revisar. Ajusta lo que haga falta y carga el catálogo.`);
+    } catch (e: any) {
+      setError(e.response?.data?.error ?? 'No se pudo leer la carta.');
+      setResultado(null);
+    } finally {
+      setLeyendoCarta(false);
+      setArmandoFichas(false);
+    }
+  }
+
+  /** Pide a la IA los insumos y preparaciones de una tanda de platos y los pega en su fila. */
+  async function pedirFichas(objetivo: Plato[]) {
+    const conNombre = objetivo.filter((p) => p.nombre.trim());
+    if (conNombre.length === 0) return;
+    setArmandoFichas(true);
+    try {
+      const { data } = await masterApi.post(`/master/catalog-ai/${restaurantId}/fichas`, {
+        platos: conNombre.map((p) => ({ nombre: p.nombre.trim(), descripcion: p.descripcion.trim() || undefined })),
+      });
+      const fichas: { nombre: string; insumos: Ingrediente[]; preparaciones: Preparacion[] }[] = data.data ?? [];
+      // La IA devuelve el nombre que se le pasó, pero puede cambiarle mayúsculas o acentos:
+      // se cruza por nombre normalizado para no perder la ficha por una tilde.
+      const norm = (t: string) => t.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const porNombre = new Map(fichas.map((f) => [norm(f.nombre), f]));
+      const claves = new Set(conNombre.map((p) => p.key));
+      setPlatos((prev) =>
+        prev.map((p) => {
+          if (!claves.has(p.key)) return p;
+          const f = porNombre.get(norm(p.nombre));
+          if (!f) return p;
+          return { ...p, ingredientes: f.insumos ?? [], preparaciones: f.preparaciones ?? [] };
+        }),
+      );
+    } catch (e: any) {
+      // La carta ya se leyó: se avisa pero no se borra lo cargado — el operador puede cargar
+      // los platos sin ficha y completarlas después, que es mejor que perder la lectura.
+      setError(e.response?.data?.error ?? 'Se leyeron los platos pero no se pudieron armar las fichas técnicas.');
+    } finally {
+      setArmandoFichas(false);
     }
   }
 
@@ -181,6 +281,20 @@ export default function MasterCatalogAiPage() {
           ingredientes: p.ingredientes
             .filter((g) => g.nombre.trim() && g.cantidad > 0)
             .map((g) => ({ nombre: g.nombre.trim(), unidad: g.unidad, cantidad: g.cantidad })),
+          // Una preparación sin ingredientes no se puede costear: el backend la rechaza, así
+          // que se filtra acá en vez de hacer fallar la carga entera por una fila vacía.
+          preparaciones: p.preparaciones
+            .filter((pr) => pr.nombre.trim() && pr.rendimiento > 0 && pr.cantidad > 0)
+            .map((pr) => ({
+              nombre: pr.nombre.trim(),
+              unidad: pr.unidad,
+              rendimiento: pr.rendimiento,
+              cantidad: pr.cantidad,
+              insumos: pr.insumos
+                .filter((g) => g.nombre.trim() && g.cantidad > 0)
+                .map((g) => ({ nombre: g.nombre.trim(), unidad: g.unidad, cantidad: g.cantidad })),
+            }))
+            .filter((pr) => pr.insumos.length > 0),
           tamanos: p.tamanos
             .filter((t) => t.nombre.trim())
             .map((t) => ({ nombre: t.nombre.trim(), precio: Number(t.precio) || 0 })),
@@ -277,7 +391,61 @@ export default function MasterCatalogAiPage() {
           </div>
         </Section>
 
-      <Section title="2. Sube las fotos">
+      <Section title="2. Carga la carta completa (foto del menú o Excel)">
+          <p className="text-sm font-light text-brand-950/50">
+            Sube una <span className="font-medium">foto del menú impreso</span> o el{' '}
+            <span className="font-medium">Excel del cliente tal como lo mandó</span> — no hace falta
+            plantilla. La IA saca los platos con su precio y categoría, y después arma la ficha
+            técnica de cada uno: sus insumos y las preparaciones que se hacen aparte.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <TextureButton
+              type="button"
+              variant="brand"
+              size="default"
+              className="!w-auto"
+              disabled={!restaurantId || leyendoCarta || armandoFichas}
+              onClick={() => cartaRef.current?.click()}
+            >
+              <Upload className="h-4 w-4" />{' '}
+              {leyendoCarta
+                ? 'Leyendo la carta…'
+                : armandoFichas
+                  ? 'Armando fichas técnicas…'
+                  : 'Subir carta o Excel'}
+            </TextureButton>
+            <input
+              ref={cartaRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void subirCarta(f);
+                e.target.value = '';
+              }}
+            />
+            {armandoFichas && (
+              <span className="text-sm text-brand-950/50">
+                Esto tarda: son varias consultas a la IA, una por cada tanda de platos.
+              </span>
+            )}
+          </div>
+          {platos.length > 0 && (
+            <TextureButton
+              type="button"
+              variant="minimal"
+              size="sm"
+              className="!w-auto"
+              disabled={leyendoCarta || armandoFichas}
+              onClick={() => void pedirFichas(platos)}
+            >
+              Rehacer las fichas técnicas de los {platos.length} platos
+            </TextureButton>
+          )}
+        </Section>
+
+      <Section title="3. O sube fotos de platos, uno por uno">
           <div className="flex flex-wrap items-center gap-2">
             <TextureButton
               type="button"
@@ -314,7 +482,7 @@ export default function MasterCatalogAiPage() {
 
       {platos.length > 0 && (
         <>
-          <Section title="3. Revisa lo que propuso la IA">
+          <Section title="4. Revisa lo que propuso la IA">
               <p className="text-sm font-light text-brand-950/50">
                 Las cantidades son estimaciones a ojo, para que el cliente no arranque de cero. Corrige lo que esté mal
                 y quita lo que sobre — nada se guarda hasta que le des a cargar.
@@ -438,6 +606,10 @@ export default function MasterCatalogAiPage() {
                     <Plus className="h-4 w-4" /> Añadir ingrediente
                   </button>
                 </div>
+
+                {p.preparaciones.length > 0 && (
+                  <PreparacionesDelPlato plato={p} onChange={(patch) => editarPlato(p.key, patch)} />
+                )}
 
                 <TamanosYModificadores plato={p} onChange={(patch) => editarPlato(p.key, patch)} />
               </div>
@@ -794,6 +966,148 @@ function TamanosYModificadores({ plato, onChange }: { plato: Plato; onChange: (p
         >
           <Plus className="h-4 w-4" /> Añadir grupo de modificadores
         </button>
+      </div>
+    </div>
+  );
+}
+
+
+/**
+ * Preparaciones propuestas para un plato: las bases que se hacen aparte (salsas, masas,
+ * caldos) con sus propios ingredientes.
+ *
+ * La distinción que hay que tener clara al revisar, y por eso está escrita en pantalla: el
+ * `rendimiento` y los ingredientes son de UNA TANDA entera, mientras que `cantidad` es lo que
+ * se lleva este plato. Confundirlos es el error que haría que una salsa para 2 litros se cargue
+ * como si cada plato usara 2 litros.
+ */
+function PreparacionesDelPlato({ plato, onChange }: { plato: Plato; onChange: (patch: Partial<Plato>) => void }) {
+  function editar(idx: number, patch: Partial<Preparacion>) {
+    onChange({ preparaciones: plato.preparaciones.map((pr, i) => (i === idx ? { ...pr, ...patch } : pr)) });
+  }
+  function editarInsumo(idx: number, j: number, patch: Partial<Ingrediente>) {
+    onChange({
+      preparaciones: plato.preparaciones.map((pr, i) =>
+        i === idx ? { ...pr, insumos: pr.insumos.map((g, x) => (x === j ? { ...g, ...patch } : g)) } : pr,
+      ),
+    });
+  }
+
+  return (
+    <div className="rounded-xl border border-violet-200 bg-violet-50/40 p-3">
+      <p className="text-sm font-medium text-violet-900">
+        Preparaciones ({plato.preparaciones.length})
+      </p>
+      <p className="mb-2 text-[11px] font-light text-violet-900/60">
+        Bases que se preparan aparte y se reutilizan. El rendimiento y sus ingredientes son de una
+        tanda completa; abajo se indica cuánto usa este plato.
+      </p>
+
+      <div className="space-y-3">
+        {plato.preparaciones.map((pr, i) => (
+          <div key={i} className="rounded-lg border border-violet-200 bg-white p-2.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                value={pr.nombre}
+                onChange={(e) => editar(i, { nombre: e.target.value })}
+                className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm font-medium"
+              />
+              <span
+                className={`whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                  pr.yaExiste ? 'bg-brand-500/10 text-brand-700' : 'bg-amber-100 text-amber-800'
+                }`}
+              >
+                {pr.yaExiste ? 'ya la tiene' : 'preparación nueva'}
+              </span>
+              <button
+                type="button"
+                onClick={() => onChange({ preparaciones: plato.preparaciones.filter((_, x) => x !== i) })}
+                className="text-brand-950/30 hover:text-red-500"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              <label className="text-[11px] text-brand-950/50">
+                Rinde (una tanda)
+                <input
+                  value={pr.rendimiento}
+                  onChange={(e) => editar(i, { rendimiento: Number(e.target.value) || 0 })}
+                  inputMode="decimal"
+                  className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                />
+              </label>
+              <label className="text-[11px] text-brand-950/50">
+                Unidad
+                <select
+                  value={pr.unidad}
+                  onChange={(e) => editar(i, { unidad: e.target.value })}
+                  className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                >
+                  {UNIDADES.map((u) => (
+                    <option key={u.value} value={u.value}>
+                      {u.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="text-[11px] text-brand-950/50">
+                Usa este plato
+                <input
+                  value={pr.cantidad}
+                  onChange={(e) => editar(i, { cantidad: Number(e.target.value) || 0 })}
+                  inputMode="decimal"
+                  className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                />
+              </label>
+            </div>
+
+            <p className="mt-2 text-[11px] font-medium text-brand-950/50">Lleva (para la tanda):</p>
+            <ul className="mt-1 space-y-1.5">
+              {pr.insumos.map((g, j) => (
+                <li key={j} className="grid grid-cols-[1fr_5rem_5.5rem_auto] items-center gap-2">
+                  <input
+                    value={g.nombre}
+                    onChange={(e) => editarInsumo(i, j, { nombre: e.target.value })}
+                    className="min-w-0 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                  />
+                  <input
+                    value={g.cantidad}
+                    onChange={(e) => editarInsumo(i, j, { cantidad: Number(e.target.value) || 0 })}
+                    inputMode="decimal"
+                    className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                  />
+                  <select
+                    value={g.unidad}
+                    onChange={(e) => editarInsumo(i, j, { unidad: e.target.value })}
+                    className="rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                  >
+                    {UNIDADES.map((u) => (
+                      <option key={u.value} value={u.value}>
+                        {u.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => editar(i, { insumos: pr.insumos.filter((_, x) => x !== j) })}
+                    className="text-brand-950/30 hover:text-red-500"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <button
+              type="button"
+              onClick={() => editar(i, { insumos: [...pr.insumos, { nombre: '', unidad: 'kg', cantidad: 0 }] })}
+              className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-brand-500 hover:text-brand-600"
+            >
+              <Plus className="h-3.5 w-3.5" /> Añadir ingrediente a la preparación
+            </button>
+          </div>
+        ))}
       </div>
     </div>
   );

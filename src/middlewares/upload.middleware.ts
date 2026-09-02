@@ -202,6 +202,24 @@ const SPREADSHEET_MIME = new Set([
   // Algunos navegadores/SO mandan este genérico para .xlsx en vez del MIME correcto.
   'application/octet-stream',
 ]);
+/**
+ * Carga masiva de catálogo (panel maestro): acepta FOTO del menú impreso o EXCEL del cliente
+ * por el mismo campo. Es un solo botón para el operador — que el archivo sea una cosa u otra
+ * lo decide el servicio mirando el mimetype, no obliga a elegir antes de subirlo.
+ */
+export const uploadCartaToMemory = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const esHoja = SPREADSHEET_MIME.has(file.mimetype) || file.originalname.toLowerCase().endsWith('.xlsx');
+    if (!ALLOWED_MIME.has(file.mimetype) && !esHoja) {
+      cb(badRequest('Sube una foto del menú (JPG, PNG o WEBP) o un archivo .xlsx.'));
+      return;
+    }
+    cb(null, true);
+  },
+}).single('file');
+
 export const uploadSpreadsheet = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
