@@ -5,6 +5,8 @@ import { DISCOUNT_ROLES } from '../../utils/roles';
 import {
   addOrderItemSchema,
   addOrderItemsBatchSchema,
+  fiscalResultSchema,
+  printFiscalSchema,
   changeChannelSchema,
   deleteOrderSchema,
   deliveryCheckoutSchema,
@@ -302,6 +304,22 @@ export const orderController = {
   /** POST /api/v1/orders/:id/print-receipt — "¿Desea imprimir la cuenta?": reenvía la cuenta a la impresora de Caja. */
   printReceipt: asyncHandler(async (req: Request, res: Response) => {
     const result = await orderService.printReceipt(req.restaurantId!, req.params.id);
+    res.json({ data: result });
+  }),
+
+  /** POST /api/v1/orders/:id/print-fiscal — botón "Factura fiscal": manda el pedido a la
+   * máquina fiscal del local (ver orderService.printFiscalInvoice). */
+  printFiscal: asyncHandler(async (req: Request, res: Response) => {
+    const cliente = printFiscalSchema.parse(req.body);
+    const result = await orderService.printFiscalInvoice(req.restaurantId!, req.params.id, cliente);
+    res.json({ data: result });
+  }),
+
+  /** POST /api/v1/orders/:id/fiscal-result — la Estación de Impresión reporta el número que
+   * asignó la máquina, para guardarlo junto a la venta. */
+  fiscalResult: asyncHandler(async (req: Request, res: Response) => {
+    const input = fiscalResultSchema.parse(req.body);
+    const result = await orderService.registerFiscalPrint(req.restaurantId!, req.params.id, input);
     res.json({ data: result });
   }),
 

@@ -30,6 +30,7 @@ import { CreateOrderDialog } from './CreateOrderDialog';
 import { PaymentDialog } from './PaymentDialog';
 import { ComandaReceipt } from './ComandaReceipt';
 import { ProductOptionsDialog } from './ProductOptionsDialog';
+import { FiscalInvoiceDialog } from './FiscalInvoiceDialog';
 import { useAuth } from '@/context/AuthContext';
 import { isAdminCashier } from '@/utils/roles';
 import { hasFeature } from '@/utils/subscription';
@@ -114,6 +115,11 @@ export interface LiveOrder {
   items: LiveOrderItem[];
   payments: LiveOrderPayment[];
   awaitingPayment: boolean;
+  /** Factura emitida por la máquina fiscal del local. Con valor, ya salió y no se vuelve a
+   * emitir: cada emisión consume numeración fiscal (ver FiscalInvoiceDialog). */
+  fiscalPrinterInvoice?: string | null;
+  fiscalPrinterSerial?: string | null;
+  fiscalPrintedAt?: string | null;
 }
 
 type ChannelFilter = LiveOrder['channel'] | 'NEW' | 'AWAITING_PAYMENT' | 'PAID' | 'PARTIAL';
@@ -1093,6 +1099,7 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
   const [downloading, setDownloading] = useState(false);
   const [sendingWhatsapp, setSendingWhatsapp] = useState(false);
   const [showReciboMenu, setShowReciboMenu] = useState(false);
+  const [showFiscalDialog, setShowFiscalDialog] = useState(false);
   const [paymentMode, setPaymentMode] = useState<'full' | 'split' | null>(null);
   const [markingDebt, setMarkingDebt] = useState(false);
   const [togglingDeliveredId, setTogglingDeliveredId] = useState<string | null>(null);
@@ -1922,6 +1929,17 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
                   <TextureButton variant="secondary" size="sm" className="!w-auto" onClick={() => setShowReciboMenu((s) => !s)}>
                     <Receipt className="h-3.5 w-3.5" /> Nota de entrega
                   </TextureButton>
+                  {/* Máquina fiscal del local: documento legal, aparte de la nota de entrega.
+                      Abre un diálogo de confirmación porque es irreversible. */}
+                  <TextureButton
+                    variant="secondary"
+                    size="sm"
+                    className="!w-auto"
+                    onClick={() => setShowFiscalDialog(true)}
+                  >
+                    <Receipt className="h-3.5 w-3.5" />
+                    {order.fiscalPrintedAt ? `Fiscal ${order.fiscalPrinterInvoice}` : 'Factura fiscal'}
+                  </TextureButton>
                   {isMesa ? (
                     <TextureButton
                       variant="secondary"
@@ -2137,6 +2155,15 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
             >
               <Receipt className="h-3.5 w-3.5" /> Nota de entrega
             </TextureButton>
+            <TextureButton
+              variant="secondary"
+              size="sm"
+              className="!w-auto"
+              onClick={() => setShowFiscalDialog(true)}
+            >
+              <Receipt className="h-3.5 w-3.5" />
+              {order.fiscalPrintedAt ? `Fiscal ${order.fiscalPrinterInvoice}` : 'Factura fiscal'}
+            </TextureButton>
             {isMesa ? (
               <TextureButton
                 variant="secondary"
@@ -2251,6 +2278,15 @@ export function EditOrderDialog({ order, onClose, onSaved, mesaFooter, context =
             />
           );
         })()}
+
+      {showFiscalDialog && (
+        <FiscalInvoiceDialog
+          order={order}
+          currencySymbol={symbol}
+          onClose={() => setShowFiscalDialog(false)}
+          onEmitted={onSaved}
+        />
+      )}
 
       {paymentMode && (
         <PaymentDialog

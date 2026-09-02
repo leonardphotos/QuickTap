@@ -1676,6 +1676,19 @@ model Order {
   /// qué comanda del corte corresponde a qué pedido. null = nació con conexión, como siempre.
   offlineTicketRef String?
 
+  // --- Factura emitida por la impresora fiscal física (máquina fiscal del local) ---
+  // No confundir con el modelo FiscalInvoice, que es la facturación DIGITAL vía
+  // Unidigital/SENIAT: son dos vías distintas y un restaurante usa una u otra.
+  // Acá solo se guarda el comprobante de lo que la máquina ya imprimió, para poder
+  // cruzar el papel con la venta. Los tres se llenan juntos o quedan los tres en null.
+  /// Número correlativo que la impresora fiscal le asignó ("00001040").
+  fiscalPrinterInvoice String?
+  /// Serial de la máquina fiscal que la emitió — el mismo que sale al pie del ticket.
+  fiscalPrinterSerial  String?
+  /// Cuándo se imprimió. Sirve además de bandera: con valor, la factura ya salió y
+  /// no hay que volver a emitirla (cada emisión consume numeración fiscal).
+  fiscalPrintedAt      DateTime?
+
   placedByUserId String?
 
   // Mesero/staff que apretó "Aceptar" en un pedido pedido por el cliente

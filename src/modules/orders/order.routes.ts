@@ -56,6 +56,10 @@ router.post('/:id/dispatch-courier', orderController.dispatchCourier);
 router.post('/:id/send-whatsapp', orderController.sendWhatsapp);
 router.post('/:id/print-comanda', orderController.printComanda);
 router.post('/:id/print-receipt', orderController.printReceipt);
+// Factura fiscal: emitir (con los datos del cliente ya confirmados en el panel) y recibir de
+// vuelta el número que asignó la máquina.
+router.post('/:id/print-fiscal', orderController.printFiscal);
+router.post('/:id/fiscal-result', orderController.fiscalResult);
 router.post('/:id/items', orderController.addItem);
 router.post('/:id/items/batch', orderController.addItemsBatch);
 router.post('/:id/items/:itemId/return', orderController.returnItem);

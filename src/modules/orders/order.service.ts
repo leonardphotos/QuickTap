@@ -3237,6 +3237,100 @@ export const orderService = {
     return { sent, url: buildWhatsappUrl(customerWhatsapp, message) };
   },
 
+  /**
+   * Botón "Factura fiscal": manda el pedido a la impresora fiscal del local (la máquina
+   * certificada por el SENIAT), no a las comanderas.
+   *
+   * Solo prepara y despacha la orden — quien habla con la impresora es la Estación de
+   * Impresión, que corre en la PC donde está enchufada (ver print-station/electron/fiscal/).
+   * El número de factura vuelve después por `registerFiscalPrint`.
+   *
+   * Se niega a emitir dos veces el mismo pedido: cada emisión consume un número fiscal, y una
+   * factura de más no se borra — se corrige con una nota de crédito.
+   *
+   * Los datos del cliente llegan SIEMPRE desde el diálogo de confirmación del panel, nunca se
+   * toman solos del pedido: el RIF impreso es un dato legal y un error ahí obliga a anular la
+   * factura. El panel precarga lo que el pedido ya tenga, pero alguien tiene que confirmarlo.
+   */
+  async printFiscalInvoice(
+    restaurantId: string,
+    orderId: string,
+    cliente: { rif: string; nombre: string },
+  ) {
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      include: { items: { include: { modifiers: true } } },
+    });
+    if (!order) throw notFound('Pedido no encontrado.');
+    if (order.status === 'CANCELLED') throw badRequest('No se puede facturar un pedido cancelado.');
+    if (order.fiscalPrintedAt) {
+      throw badRequest(
+        `Este pedido ya tiene la factura fiscal ${order.fiscalPrinterInvoice}. Para corregirla hay que emitir una nota de crédito.`,
+      );
+    }
+    if (order.items.length === 0) throw badRequest('El pedido no tiene productos.');
+
+    const restaurant = await prisma.restaurant.findUnique({
+      where: { id: restaurantId },
+      select: { ivaEnabled: true },
+    });
+
+    // La impresora aplica el IVA por su cuenta según la tasa de cada renglón, así que se le
+    // manda el precio SIN impuesto. Si el restaurante no cobra IVA, todo va como exento.
+    const tasa = restaurant?.ivaEnabled ? 'general' : 'exenta';
+
+    emitToKitchen(restaurantId, SocketEvents.PRINT_REQUEST, {
+      type: 'factura-fiscal',
+      orderId: order.id,
+      venta: {
+        tipo: 'fiscal',
+        id_venta: `${order.orderNumber}`,
+        cliente: { rif: cliente.rif, nombre: cliente.nombre },
+        items: order.items.map((i) => ({
+          descripcion: i.variantName ? `${i.productName} ${i.variantName}` : i.productName,
+          precio: Number(i.unitPrice),
+          cantidad: i.quantity,
+          tasa,
+        })),
+        // Un solo medio por factura: es lo que soporta la secuencia confirmada (ver
+        // print-station/electron/fiscal/factura.ps1).
+        pagos: [{ medio: 'efectivo', monto: Number(order.totalBase) }],
+      },
+    });
+
+    return { sent: true };
+  },
+
+  /**
+   * La Estación de Impresión avisa el resultado de la factura fiscal.
+   *
+   * Se guarda el número que asignó la máquina para poder cruzar el papel con la venta. Es la
+   * única fuente: ese correlativo lo lleva la impresora, no QuickTap.
+   */
+  async registerFiscalPrint(
+    restaurantId: string,
+    orderId: string,
+    data: { numeroFactura: string; serialMaquina: string },
+  ) {
+    const order = await prisma.order.findFirst({ where: { id: orderId, restaurantId }, select: { id: true, fiscalPrintedAt: true } });
+    if (!order) throw notFound('Pedido no encontrado.');
+    // Llegó dos veces el mismo aviso (un reintento de la estación): se respeta el primero, que
+    // es el que de verdad salió impreso.
+    if (order.fiscalPrintedAt) return { alreadyRegistered: true };
+
+    const updated = await prisma.order.update({
+      where: { id: orderId },
+      data: {
+        fiscalPrinterInvoice: data.numeroFactura,
+        fiscalPrinterSerial: data.serialMaquina,
+        fiscalPrintedAt: new Date(),
+      },
+      select: { id: true, fiscalPrinterInvoice: true, fiscalPrinterSerial: true, fiscalPrintedAt: true },
+    });
+    emitToKitchen(restaurantId, SocketEvents.ORDER_UPDATED, { orderId, status: 'FISCAL_PRINTED' });
+    return updated;
+  },
+
   /** Botón "Imprimir" del panel: reenvía la comanda a la estación de impresión (misma room de
    * cocina que recibe las comandas nuevas) para que la imprima en las impresoras conectadas. */
   async printComanda(restaurantId: string, orderId: string) {

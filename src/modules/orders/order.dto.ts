@@ -288,6 +288,36 @@ export const addOrderItemsBatchSchema = z.object({
   items: z.array(addOrderItemSchema).min(1).max(40),
 });
 
+/**
+ * Datos que el cajero confirma en el diálogo "Factura fiscal" antes de emitirla.
+ *
+ * El RIF/cédula es OBLIGATORIO: va impreso en un documento legal y una factura con el dato
+ * errado no se corrige, se anula con nota de crédito. Se acepta el formato venezolano
+ * (V/E/J/G/P + números, con o sin guion) y también solo dígitos, que es como la gente teclea
+ * la cédula; el guion se normaliza acá para que la impresora reciba siempre lo mismo.
+ */
+export const printFiscalSchema = z.object({
+  rif: z
+    .string()
+    .trim()
+    .min(1, 'La cédula o RIF es obligatorio para la factura fiscal.')
+    .max(20)
+    .regex(/^([VEJGPvejgp]-?)?\d{5,10}$/, 'Cédula o RIF inválido. Ej: V-12345678 o J-407123456.')
+    .transform((v) => {
+      const s = v.toUpperCase().replace(/-/g, '');
+      // Sin letra explícita se asume V (cédula de venezolano), que es el caso corriente.
+      return /^\d+$/.test(s) ? `V-${s}` : `${s[0]}-${s.slice(1)}`;
+    }),
+  nombre: z.string().trim().min(1, 'El nombre o razón social es obligatorio.').max(60),
+});
+export type PrintFiscalInput = z.infer<typeof printFiscalSchema>;
+
+/** Lo que la Estación de Impresión reporta tras emitir: el correlativo lo lleva la máquina. */
+export const fiscalResultSchema = z.object({
+  numeroFactura: z.string().trim().min(1).max(30),
+  serialMaquina: z.string().trim().min(1).max(30),
+});
+
 /** Editar los datos del cliente de un pedido ya creado. */
 export const updateOrderCustomerSchema = z.object({
   customerName: z.string().min(1).max(120).optional(),

@@ -442,3 +442,64 @@ ipcMain.handle('fiscal-status', async (_event, puerto) => {
 
 /** Para poder decirle al usuario dónde está el archivo que tiene que editar. */
 ipcMain.handle('fiscal-config-ruta', () => rutaConfigFiscal());
+
+/**
+ * Emite una factura fiscal.
+ *
+ * La venta va por archivo temporal y no por argumento de línea de comandos: los nombres de
+ * producto traen acentos, comillas y ñ, y escaparlos para PowerShell es una fuente de errores
+ * que acá no puede permitirse — un comando mal formado deja un documento fiscal a medias.
+ *
+ * El timeout es amplio (60s) a propósito: imprimir una factura con varios renglones es lento,
+ * y cortar a mitad es justo el escenario que deja la impresora trabada.
+ */
+ipcMain.handle('fiscal-factura', async (_event, venta, puerto) => {
+  if (process.platform !== 'win32') {
+    return { ok: false, codigo: 'NO_WINDOWS', error: 'La impresión fiscal solo funciona en Windows.' };
+  }
+  const cfg = leerConfigFiscal();
+  let destino = puerto || cfg.puerto;
+  if (!destino) {
+    const encontrada = await detectarFiscal();
+    if (!encontrada.ok) return encontrada;
+    destino = encontrada.puerto;
+  }
+
+  const tmp = path.join(os.tmpdir(), `quicktap-fiscal-${Date.now()}.json`);
+  try {
+    fs.writeFileSync(tmp, JSON.stringify(venta), 'utf8');
+  } catch (err) {
+    return { ok: false, codigo: 'TMP', error: 'No se pudo preparar la venta: ' + err.message };
+  }
+
+  return new Promise((resolve) => {
+    const args = [
+      '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+      '-File', rutaFiscal('factura.ps1'),
+      '-Puerto', destino,
+      '-JsonPath', tmp,
+    ];
+    execFile(powershell32(), args, { timeout: 60000, windowsHide: true }, (err, stdout, stderr) => {
+      fs.rmSync(tmp, { force: true });
+      const salida = (stdout || '').trim();
+      if (salida) {
+        try {
+          return resolve(JSON.parse(salida));
+        } catch {
+          // Cae al manejo de abajo.
+        }
+      }
+      if (err && err.killed) {
+        // Sin respuesta no se sabe si alcanzó a imprimir: hay que mirar el papel antes de
+        // reintentar, porque un reintento a ciegas puede emitir la factura dos veces.
+        return resolve({
+          ok: false,
+          codigo: 'TIMEOUT',
+          error: 'La impresora fiscal no respondió a tiempo. Revisa el papel antes de reintentar.',
+        });
+      }
+      const motivo = (stderr || (err && err.message) || salida || '').split('\n')[0].trim();
+      resolve({ ok: false, codigo: 'FALLO_PS', error: motivo || 'No se pudo emitir la factura fiscal.' });
+    });
+  });
+});

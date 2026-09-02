@@ -10,7 +10,7 @@ contextBridge.exposeInMainWorld('estacionNativa', {
   // Versión del INSTALABLE (distinta de la de la página, que se actualiza sola). Sin esto no
   // había forma de saber si una PC tenía el .exe viejo: la página se veía nueva y el arreglo
   // que vive en el ejecutable no estaba, y desde fuera parecía que nada había servido.
-  version: '1.8.0',
+  version: '1.9.0',
   listarImpresoras: () => ipcRenderer.invoke('listar-impresoras'),
   // deviceName null = la impresora predeterminada del sistema.
   // `papel` = {anchoMm, altoMm} del ticket ya medido: sin esto la impresora usa la hoja del
@@ -32,5 +32,8 @@ contextBridge.exposeInMainWorld('estacionNativa', {
     detectar: () => ipcRenderer.invoke('fiscal-detectar'),
     status: (puerto) => ipcRenderer.invoke('fiscal-status', puerto || null),
     rutaConfig: () => ipcRenderer.invoke('fiscal-config-ruta'),
+    // Emite una factura fiscal REAL: queda registrada de forma permanente en la memoria
+    // fiscal de la máquina. Devuelve { ok, numeroFactura, serialMaquina } o { ok:false, codigo }.
+    factura: (venta, puerto) => ipcRenderer.invoke('fiscal-factura', venta, puerto || null),
   },
 });
