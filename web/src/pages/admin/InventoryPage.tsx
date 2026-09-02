@@ -403,6 +403,8 @@ function InsumosTab({
   const initialForm = toppingsOnly ? { ...emptyForm, isTopping: true } : emptyForm;
   const [form, setForm] = useState(initialForm);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
+  const nombreRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [printingList, setPrintingList] = useState(false);
@@ -521,6 +523,25 @@ function InsumosTab({
   }
 
   const subUnitOptions = SUB_UNITS[form.unit] ?? [];
+
+  /**
+   * Al empezar a editar, llevar la vista al formulario.
+   *
+   * El formulario vive ARRIBA de la lista: tocar "Editar" en un insumo del final llenaba los
+   * campos a mil píxeles de donde estaba mirando el usuario, así que el botón parecía no hacer
+   * nada — y peor, se podía seguir escribiendo creyendo que se cargaba uno nuevo cuando en
+   * realidad se estaba pisando el que quedó abierto.
+   *
+   * Va en un efecto y no en el manejador del clic porque ahí haría falta esperar al render con
+   * requestAnimationFrame, que NO se ejecuta mientras la pestaña está en segundo plano. El
+   * salto es instantáneo a propósito: `behavior: 'smooth'` depende del navegador y de los
+   * ajustes de movimiento del sistema, y acá no es un adorno sino la señal de que pasó algo.
+   */
+  useEffect(() => {
+    if (!editingId) return;
+    formRef.current?.scrollIntoView({ block: 'start' });
+    nombreRef.current?.focus({ preventScroll: true });
+  }, [editingId]);
 
   function cancelEdit() {
     setEditingId(null);
@@ -667,7 +688,25 @@ function InsumosTab({
         </div>
       )}
 
-      <form onSubmit={onSubmit} className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 space-y-4">
+      <form
+        ref={formRef}
+        onSubmit={onSubmit}
+        className={`rounded-2xl border bg-white shadow-sm p-6 space-y-4 transition-colors ${
+          editingId ? 'border-brand-500 ring-2 ring-brand-400/25' : 'border-brand-950/10'
+        }`}
+      >
+        {/* Sin este encabezado el formulario se ve idéntico creando y editando: la única pista
+            era que el botón del final dijera "Guardar cambios". */}
+        {editingId && (
+          <div className="flex flex-wrap items-center justify-between gap-2 -mt-1">
+            <p className="text-sm font-semibold text-brand-500">
+              Editando <span className="text-brand-950">{form.name || 'insumo'}</span>
+            </p>
+            <button type="button" onClick={cancelEdit} className="text-xs font-medium text-brand-950/50 hover:text-brand-950">
+              Cancelar y crear uno nuevo
+            </button>
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row items-start gap-4">
           <PhotoUploadField
             value={form.photoUrl}
@@ -679,6 +718,7 @@ function InsumosTab({
           <div className="w-full flex-1 min-w-0 space-y-3">
             <div className="grid sm:grid-cols-2 gap-3">
               <input
+                ref={nombreRef}
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 placeholder="Insumo (ej: Queso)"

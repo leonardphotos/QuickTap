@@ -102,12 +102,9 @@ async function importFromExcel(
     const minQuantity = cellNumber(row, columns.minQuantity) ?? 0;
     const price = cellNumber(row, columns.price);
     const categoryName = cellText(row, columns.category);
+    // La caducidad es opcional (igual que en el formulario): hay insumos que no vencen, y
+    // rechazar la fila entera por eso obligaba a inventar fechas para poder importar.
     const expiry = cellDate(row, columns.expiryDate);
-    // La caducidad es obligatoria en los insumos: una fila sin fecha no crea ni actualiza nada.
-    if (!expiry) {
-      result.errors.push({ row: rowNumber, message: 'Falta la fecha de caducidad (obligatoria).' });
-      continue;
-    }
 
     let categoryId: string | undefined;
     if (categoryName) {
