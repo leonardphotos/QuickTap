@@ -45,6 +45,36 @@ $ps32 = Join-Path $env:SystemRoot 'SysWOW64\WindowsPowerShell\v1.0\powershell.ex
 if (-not (Test-Path $ps32)) { $ps32 = 'powershell.exe' }
 Write-Host ("PowerShell 32-bit : {0}" -f $ps32) -ForegroundColor DarkGray
 Write-Host ("Driver            : {0}" -f $dll) -ForegroundColor DarkGray
+
+# Windows marca lo que viene de internet y .NET no carga una DLL asi marcada:
+# Add-Type falla y el sintoma es engañoso — parece que la impresora no contesta.
+# Se desbloquea acá también (además del .bat) por si el script se corre suelto.
+try {
+  Get-ChildItem -Path $PSScriptRoot -Recurse -ErrorAction SilentlyContinue |
+    Unblock-File -ErrorAction SilentlyContinue
+} catch { }
+
+# Prueba de humo: si la DLL no carga, no tiene sentido recorrer puertos — el
+# fallo sería el mismo en todos y el mensaje ("no se encontró impresora")
+# mandaría a revisar cables cuando el problema está en el archivo.
+try {
+  Add-Type -Path $dll -ErrorAction Stop
+  Write-Host 'Driver cargado    : OK' -ForegroundColor DarkGray
+} catch {
+  Write-Host ''
+  Write-Host 'No se pudo cargar el driver TfhkaNet.dll.' -ForegroundColor Red
+  Write-Host ("Detalle: {0}" -f $_.Exception.Message) -ForegroundColor DarkGray
+  if ($_.Exception.InnerException) {
+    Write-Host ("Causa  : {0}" -f $_.Exception.InnerException.Message) -ForegroundColor DarkGray
+  }
+  Write-Host ''
+  Write-Host 'Cosas que suelen ser:' -ForegroundColor Yellow
+  Write-Host '  - El archivo sigue bloqueado por Windows (vino de una descarga).'
+  Write-Host '    Clic derecho sobre TfhkaNet.dll > Propiedades > marcar "Desbloquear" > Aceptar.'
+  Write-Host '  - La carpeta se abrio DENTRO del .zip sin extraer. Extraela primero.'
+  Write-Host '  - Falta .NET Framework 4.x en esta PC.'
+  Read-Host "`nEnter para salir"; exit 1
+}
 Write-Host ''
 
 # --- Qué puertos probar -----------------------------------------------------

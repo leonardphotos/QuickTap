@@ -53,11 +53,19 @@ if (-not (Test-Path $Dll)) {
   Salir-Error "No se encontró TfhkaNet.dll en '$Dll'." 'DLL_NO_ENCONTRADA'
 }
 
+# Windows marca lo que viene de internet ("Mark of the Web") y .NET se niega a
+# cargar una DLL así marcada. Pasa siempre que el archivo llega por descarga o
+# copiado desde otra PC, y el síntoma engaña: parece que la impresora no
+# responde. Desbloquear es barato, así que se hace siempre.
+try { Unblock-File -Path $Dll -ErrorAction SilentlyContinue } catch { }
+
 try {
   Add-Type -Path $Dll
 } catch {
-  # El caso típico: se invocó con el PowerShell de 64 bits (ver nota de arriba).
-  Salir-Error "No se pudo cargar TfhkaNet.dll: $($_.Exception.Message)" 'DLL_NO_CARGA'
+  # Los dos casos típicos: la DLL bloqueada (arriba), o haberla invocado con el
+  # PowerShell de 64 bits — la DLL es 32BITREQUIRED (ver nota del encabezado).
+  $causa = if ($_.Exception.InnerException) { $_.Exception.InnerException.Message } else { $_.Exception.Message }
+  Salir-Error "No se pudo cargar TfhkaNet.dll: $causa" 'DLL_NO_CARGA'
 }
 
 $fp = New-Object TfhkaNet.IF.VE.Tfhka
