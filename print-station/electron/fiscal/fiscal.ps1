@@ -1,4 +1,4 @@
-# =============================================================================
+﻿# =============================================================================
 #  Puente hacia la impresora fiscal (The Factory HKA / Aclas PP9-PLUS)
 # =============================================================================
 #  Carga TfhkaNet.dll —el driver oficial de HKA— y expone sus operaciones como

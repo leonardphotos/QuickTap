@@ -1,4 +1,4 @@
-# =============================================================================
+﻿# =============================================================================
 #  Prueba de la impresora fiscal — para correr a mano en la PC del local
 # =============================================================================
 #  No hace falta reinstalar la Estación de Impresión para usar esto: basta con
@@ -99,13 +99,13 @@ Write-Host ''
 $encontrada = $null
 foreach ($p in $puertos) {
   Write-Host ("  {0,-6} ... " -f $p) -NoNewline
-  $args = @(
+  $psArgs = @(
     '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
     '-File', $fiscalPs1, '-Accion', 'status', '-Puerto', $p
   )
   $salida = ''
   try {
-    $proc = Start-Process -FilePath $ps32 -ArgumentList $args -NoNewWindow -PassThru `
+    $proc = Start-Process -FilePath $ps32 -ArgumentList $psArgs -NoNewWindow -PassThru `
                           -RedirectStandardOutput "$env:TEMP\qt_fiscal_out.txt" `
                           -RedirectStandardError  "$env:TEMP\qt_fiscal_err.txt"
     if (-not $proc.WaitForExit($TimeoutSegundos * 1000)) {

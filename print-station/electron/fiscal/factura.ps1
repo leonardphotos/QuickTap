@@ -1,4 +1,4 @@
-# =============================================================================
+﻿# =============================================================================
 #  Emisión de factura fiscal (The Factory HKA / Aclas PP9-PLUS)
 # =============================================================================
 #  DE DÓNDE SALEN ESTOS COMANDOS
@@ -110,16 +110,23 @@ function Fmt-Cantidad($v) {
   "$c".PadLeft(8, '0')
 }
 function Limpiar($t, $max) {
-  # La impresora es de 8 bits: los acentos y la ñ se transliteran para que no
-  # salgan como basura en el papel.
+  # La impresora es de 8 bits: los acentos y la enie se transliteran para que
+  # no salgan como basura en el papel.
+  #
+  # Se hace por normalizacion Unicode (FormD separa la letra de su tilde, y se
+  # descartan las tildes) en vez de con una lista de reemplazos literales: el
+  # codigo de este archivo se mantiene 100% ASCII, que es lo que evita que
+  # PowerShell lo malinterprete si algun dia se guarda sin BOM.
   $s = "$t"
-  $s = $s -replace '[áàäâ]','a' -replace '[ÁÀÄÂ]','A' `
-          -replace '[éèëê]','e' -replace '[ÉÈËÊ]','E' `
-          -replace '[íìïî]','i' -replace '[ÍÌÏÎ]','I' `
-          -replace '[óòöô]','o' -replace '[ÓÒÖÔ]','O' `
-          -replace '[úùüû]','u' -replace '[ÚÙÜÛ]','U' `
-          -replace 'ñ','n' -replace 'Ñ','N'
-  $s = ($s -replace '[^\x20-\x7E]', ' ').Trim()
+  $sb = New-Object System.Text.StringBuilder
+  foreach ($ch in $s.Normalize([System.Text.NormalizationForm]::FormD).ToCharArray()) {
+    if ([System.Globalization.CharUnicodeInfo]::GetUnicodeCategory($ch) -ne
+        [System.Globalization.UnicodeCategory]::NonSpacingMark) {
+      [void]$sb.Append($ch)
+    }
+  }
+  # Lo que quede fuera de ASCII imprimible se cambia por espacio.
+  $s = ($sb.ToString() -replace '[^\x20-\x7E]', ' ').Trim()
   if ($max -gt 0 -and $s.Length -gt $max) { $s = $s.Substring(0, $max) }
   $s
 }

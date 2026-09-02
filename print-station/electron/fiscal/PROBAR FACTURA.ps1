@@ -1,4 +1,4 @@
-# =============================================================================
+﻿# =============================================================================
 #  Prueba de emisión de factura fiscal
 # =============================================================================
 #  Arranca SIEMPRE en modo simulación: arma la secuencia de comandos y la
@@ -47,10 +47,10 @@ Write-Host ''
 
 # --- Paso 1: simular --------------------------------------------------------
 Write-Host '--- Secuencia que se enviaria (SIN imprimir) ---' -ForegroundColor Cyan
-$args = @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass',
+$psArgs = @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass',
           '-File', (Join-Path $PSScriptRoot 'factura.ps1'),
           '-Puerto', $Puerto, '-JsonPath', $tmp, '-SoloSimular')
-$salida = & $ps32 @args
+$salida = & $ps32 @psArgs
 try { $r = $salida | ConvertFrom-Json } catch {
   Write-Host "Respuesta ilegible: $salida" -ForegroundColor Red
   Read-Host "`nEnter para salir"; exit 1
@@ -89,10 +89,10 @@ if ($conf -cne 'EMITIR') {
 
 Write-Host ''
 Write-Host 'Emitiendo...' -ForegroundColor Yellow
-$args2 = @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass',
+$psArgs2 = @('-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass',
            '-File', (Join-Path $PSScriptRoot 'factura.ps1'),
            '-Puerto', $Puerto, '-JsonPath', $tmp)
-$salida2 = & $ps32 @args2
+$salida2 = & $ps32 @psArgs2
 try { $r2 = $salida2 | ConvertFrom-Json } catch {
   Write-Host "Respuesta ilegible: $salida2" -ForegroundColor Red
   Read-Host "`nEnter para salir"; exit 1
