@@ -19,6 +19,8 @@ export interface CrmCustomer {
   email: string | null;
   birthday: string | null;
   notes: string | null;
+  /** Socio: su consumo no es venta. Solo dueño/admin puede marcarlo. */
+  isPartner: boolean;
   createdAt: string;
   visits: number;
   totalBase: string;
@@ -66,7 +68,7 @@ export interface PromotionDetail extends Omit<PromotionRow, 'targetCount' | 'sen
 }
 
 export const crmApi = {
-  customers: (params: { search?: string; segment?: CrmSegment }) =>
+  customers: (params: { search?: string; segment?: CrmSegment; partner?: 'only' | 'exclude' }) =>
     api
       .get<{ data: { customers: CrmCustomer[]; summary: CrmSummary } }>('/customers', { params })
       .then((r) => r.data.data),

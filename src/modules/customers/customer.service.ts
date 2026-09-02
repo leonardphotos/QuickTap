@@ -102,6 +102,7 @@ export const customerService = {
     const customers = await prisma.customer.findMany({
       where: {
         restaurantId,
+        ...(query.partner === 'only' ? { isPartner: true } : query.partner === 'exclude' ? { isPartner: false } : {}),
         ...(search
           ? {
               OR: [
@@ -135,6 +136,7 @@ export const customerService = {
         email: c.email,
         birthday: c.birthday ? c.birthday.toISOString().slice(0, 10) : null,
         notes: c.notes,
+        isPartner: c.isPartner,
         createdAt: c.createdAt,
         visits: s?.visits ?? 0,
         totalBase: s?.totalBase ?? '0.00',

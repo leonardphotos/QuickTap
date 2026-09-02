@@ -157,6 +157,8 @@ export interface Customer {
   phone: string;
   idNumber?: string | null;
   address?: string | null;
+  /** Socio: consume a cuenta y ese consumo no es una venta. Solo dueño/admin puede marcarlo. */
+  isPartner?: boolean;
 }
 
 /** Proveedor (módulo de Gastos). */

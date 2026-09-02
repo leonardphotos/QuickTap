@@ -33,6 +33,9 @@ export const VERIFICADOR_ROLES: UserRole[] = ['VERIFICADOR'];
 export const TEAM_MANAGER_ROLES: UserRole[] = ['OWNER', 'ADMIN'];
 // Quién puede condonar/descontar saldo al cobrar (campo "Descuento %" en Pagar/Pago fraccionado).
 export const DISCOUNT_ROLES: UserRole[] = ['OWNER', 'ADMIN'];
+// Espejo de PARTNER_MANAGER_ROLES en src/utils/roles.ts: quién puede marcar a un cliente
+// como socio. El backend igual lo valida — esto solo esconde el control.
+export const PARTNER_MANAGER_ROLES: UserRole[] = ['OWNER', 'ADMIN'];
 export const ASSIGNABLE_TEAM_ROLES: UserRole[] = [
   'ADMIN',
   'CASHIER',
@@ -133,6 +136,12 @@ export function canManageTeam(role?: UserRole | null): boolean {
 export function canApplyDiscount(role?: UserRole | null): boolean {
   if (!role) return false;
   return DISCOUNT_ROLES.includes(role);
+}
+
+/** ¿Puede marcar/desmarcar socios? Marcar a alguien como socio le autoriza consumo gratis. */
+export function canManagePartners(role?: UserRole | null): boolean {
+  if (!role) return false;
+  return PARTNER_MANAGER_ROLES.includes(role);
 }
 
 export function needsLockScreen(role?: UserRole | null): boolean {

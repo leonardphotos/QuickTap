@@ -22,22 +22,49 @@ import { shopService } from '../shop/shop.service';
 
 type Window = { gte?: Date; lt?: Date } | undefined;
 
-/** Ventas del período por vertical: el restaurante factura Order; el local, ShopSale. */
+/**
+ * Ventas del período por vertical: el restaurante factura Order; el local, ShopSale.
+ *
+ * `dishes` es la cantidad de unidades vendidas (no de líneas): dos hamburguesas en una misma
+ * línea son dos platos. Alimenta el promedio por plato, que es una lectura distinta del
+ * ticket promedio — el ticket sube porque vino más gente junta, el promedio por plato sube
+ * porque se vendió más caro.
+ */
 async function salesFor(restaurantId: string, businessType: string, window: Window) {
   if (businessType === 'SHOP') {
-    const agg = await prisma.shopSale.aggregate({
-      where: { restaurantId, returned: false, time: window },
-      _sum: { total: true },
-      _count: true,
-    });
-    return { count: agg._count, totalBase: round2(toDecimal(agg._sum.total ?? 0)) };
+    const [agg, unidades] = await Promise.all([
+      prisma.shopSale.aggregate({
+        where: { restaurantId, returned: false, time: window },
+        _sum: { total: true },
+        _count: true,
+      }),
+      prisma.shopSaleItem.aggregate({
+        where: { sale: { restaurantId, returned: false, time: window } },
+        _sum: { qty: true },
+      }),
+    ]);
+    return {
+      count: agg._count,
+      totalBase: round2(toDecimal(agg._sum.total ?? 0)),
+      dishes: Number(unidades._sum?.qty ?? 0),
+    };
   }
-  const agg = await prisma.order.aggregate({
-    where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: window },
-    _sum: { totalBase: true },
-    _count: true,
-  });
-  return { count: agg._count, totalBase: round2(toDecimal(agg._sum.totalBase ?? 0)) };
+  const [agg, unidades] = await Promise.all([
+    prisma.order.aggregate({
+      where: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt: window },
+      _sum: { totalBase: true },
+      _count: true,
+    }),
+    prisma.orderItem.aggregate({
+      where: { order: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt: window } },
+      _sum: { quantity: true },
+    }),
+  ]);
+  return {
+    count: agg._count,
+    totalBase: round2(toDecimal(agg._sum.totalBase ?? 0)),
+    dishes: Number(unidades._sum.quantity ?? 0),
+  };
 }
 
 /** Ventana del período anterior equivalente, para el "vs." de cada KPI. */
@@ -92,6 +119,11 @@ export const kpiService = {
     const netBase = round2(sales.totalBase.sub(costBase).sub(expensesBase));
     const avgTicket = sales.count > 0 ? round2(sales.totalBase.div(sales.count)) : toDecimal(0);
     const prevAvgTicket = prevSales.count > 0 ? round2(prevSales.totalBase.div(prevSales.count)) : toDecimal(0);
+    // Promedio por plato: ventas ÷ platos vendidos. El ticket promedio se mueve con el tamaño
+    // del grupo (una mesa de seis lo dispara sin que nadie haya gastado más); dividir entre
+    // platos saca ese ruido y deja el precio medio de lo que sale por la ventana.
+    const avgPerDish = sales.dishes > 0 ? round2(sales.totalBase.div(sales.dishes)) : toDecimal(0);
+    const prevAvgPerDish = prevSales.dishes > 0 ? round2(prevSales.totalBase.div(prevSales.dishes)) : toDecimal(0);
     const foodCostPercent = sales.totalBase.gt(0) ? round2(costBase.div(sales.totalBase).mul(100)) : toDecimal(0);
 
     /** Variación % contra el período anterior; null cuando no hay con qué comparar. */
@@ -110,6 +142,12 @@ export const kpiService = {
         base: avgTicket.toFixed(2),
         previousBase: prevAvgTicket.toFixed(2),
         changePercent: change(avgTicket, prevAvgTicket),
+      },
+      avgPerDish: {
+        base: avgPerDish.toFixed(2),
+        previousBase: prevAvgPerDish.toFixed(2),
+        changePercent: change(avgPerDish, prevAvgPerDish),
+        dishes: sales.dishes,
       },
       net: {
         base: netBase.toFixed(2),

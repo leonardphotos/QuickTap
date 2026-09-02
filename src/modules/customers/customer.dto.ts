@@ -16,6 +16,9 @@ export const createCustomerSchema = z.object({
     .nullable()
     .optional(),
   notes: z.string().max(500).nullable().optional(),
+  /// Marcar a alguien como socio es autorizarle consumo gratis, así que el controlador
+  /// exige rol de dueño/administrador antes de dejar pasar este campo.
+  isPartner: z.boolean().optional(),
 });
 
 export const updateCustomerSchema = createCustomerSchema.partial().extend({
@@ -28,6 +31,9 @@ export const CUSTOMER_SEGMENTS = ['ALL', 'FREQUENT', 'NEW', 'INACTIVE', 'BIRTHDA
 export const customerQuerySchema = z.object({
   search: z.string().max(120).optional(),
   segment: z.enum(CUSTOMER_SEGMENTS).optional(),
+  // Los socios viven en su propia pestaña: 'only' la alimenta, 'exclude' los saca de la
+  // lista de clientes para que no aparezcan mezclados con la clientela normal.
+  partner: z.enum(['only', 'exclude']).optional(),
 });
 
 export type CreateCustomerInput = z.infer<typeof createCustomerSchema>;

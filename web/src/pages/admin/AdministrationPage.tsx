@@ -14,6 +14,7 @@ import { FiscalBooksSection } from '@/components/admin/FiscalBooksSection';
 import { BankAccountsSection } from '@/components/admin/BankAccountsSection';
 import { AccountingHub } from '@/components/admin/AccountingHub';
 import { CrmHub } from '@/components/admin/crm/CrmHub';
+import { DishTimesSection } from '@/components/admin/DishTimesSection';
 import { PurchasesHub } from '@/components/admin/purchases/PurchasesHub';
 import { CostStructureHub } from '@/components/admin/cost-structure/CostStructureHub';
 import {
@@ -42,6 +43,8 @@ import type { PaymentMethod as AnyPaymentMethod } from '@/types';
 const ALL_TABS = [
   { id: 'summary', label: 'Resumen', feature: null },
   { id: 'stats', label: 'Estadísticas', feature: null },
+  // Cuánto tarda cada plato, cocina y sala por separado.
+  { id: 'dishTimes', label: 'Tiempos por plato', feature: null },
   { id: 'history', label: 'Historial de pedidos', feature: 'accounting' },
   { id: 'products', label: 'Productos', feature: null },
   { id: 'margin', label: 'Margen de utilidad', feature: 'accounting' },
@@ -99,6 +102,7 @@ export default function AdministrationPage() {
           {tabLocked && <PlanUpgradeNotice feature={activeTab.label} />}
           {!tabLocked && tab === 'summary' && <SummaryTab />}
           {!tabLocked && tab === 'stats' && <StatsTab />}
+          {!tabLocked && tab === 'dishTimes' && <DishTimesSection />}
           {!tabLocked && tab === 'history' && <HistoryTab />}
           {!tabLocked && tab === 'products' && <ProductsTab />}
           {!tabLocked && tab === 'margin' && <MarginTab />}

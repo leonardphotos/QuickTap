@@ -85,7 +85,7 @@ export const costStructureService = {
         _sum: { amountBase: true },
       }),
       prisma.order.aggregate({
-        where: { restaurantId, status: { not: 'CANCELLED' }, createdAt },
+        where: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt },
         _sum: { subtotalBase: true },
       }),
     ]);
@@ -297,7 +297,7 @@ export const costStructureService = {
       }),
       prisma.product.count({ where: { restaurantId, isAvailable: true } }),
       prisma.orderItem.findMany({
-        where: { order: { restaurantId, status: { not: 'CANCELLED' }, createdAt } },
+        where: { order: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt } },
         select: { productId: true, quantity: true, lineTotal: true },
       }),
       prisma.product.findMany({ where: { restaurantId }, select: { id: true, costSource: true, costBase: true } }),

@@ -1,9 +1,13 @@
 import { useState } from 'react';
 import { CustomersSection } from './CustomersSection';
+import { PartnersSection } from './PartnersSection';
 import { PromotionsSection } from './PromotionsSection';
 
 const TABS = [
   { id: 'customers', label: 'Clientes' },
+  // Socios va justo debajo de Clientes: es la misma gente del directorio, pero su consumo no
+  // es una venta. Se separa para que no aparezcan mezclados con la clientela normal.
+  { id: 'partners', label: 'Socios' },
   { id: 'promotions', label: 'Promociones' },
 ] as const;
 
@@ -36,6 +40,7 @@ export function CrmHub() {
       </div>
 
       {tab === 'customers' && <CustomersSection />}
+      {tab === 'partners' && <PartnersSection />}
       {tab === 'promotions' && <PromotionsSection />}
     </div>
   );

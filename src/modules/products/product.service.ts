@@ -452,7 +452,7 @@ export const productService = {
       movementService.summarizeFixedCosts(restaurantId, range, date),
       // Ventas por día para el gráfico de acumulado contra el equilibrio.
       prisma.order.findMany({
-        where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: dateFilter },
+        where: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt: dateFilter },
         select: { createdAt: true, totalBase: true },
       }),
     ]);
@@ -608,7 +608,7 @@ async function assertPackagingItemBelongs(
 async function revenueAndCostByProduct(restaurantId: string, range: ReportRange, date?: string, from?: string, to?: string) {
   const [items, products, recipeSums] = await Promise.all([
     prisma.orderItem.findMany({
-      where: { order: { restaurantId, status: { not: 'CANCELLED' }, createdAt: resolveDateFilter({ range, date, from, to }) } },
+      where: { order: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt: resolveDateFilter({ range, date, from, to }) } },
       select: { productId: true, productName: true, variantName: true, quantity: true, lineTotal: true },
     }),
     prisma.product.findMany({

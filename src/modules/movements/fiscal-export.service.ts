@@ -198,7 +198,7 @@ export const fiscalExportService = {
     }
 
     const orders = await prisma.order.findMany({
-      where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: dateFilter },
+      where: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt: dateFilter },
       orderBy: { createdAt: 'asc' },
       select: {
         orderNumber: true,

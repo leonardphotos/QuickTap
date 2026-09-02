@@ -231,6 +231,24 @@ export const orderController = {
     res.json({ data: rows });
   }),
 
+  /** GET /api/v1/orders/reports/dish-times — cuánto tarda cada plato, cocina y sala aparte. */
+  dishTimeReport: asyncHandler(async (req: Request, res: Response) => {
+    const { range, date, from, to } = orderHistoryQuerySchema
+      .pick({ range: true, date: true, from: true, to: true })
+      .parse(req.query);
+    const data = await orderService.getDishTimeReport(req.restaurantId!, range, date, from, to);
+    res.json({ data });
+  }),
+
+  /** GET /api/v1/orders/reports/partner-consumption — qué consumieron los socios, a costo. */
+  partnerConsumptionReport: asyncHandler(async (req: Request, res: Response) => {
+    const { range, date, from, to } = orderHistoryQuerySchema
+      .pick({ range: true, date: true, from: true, to: true })
+      .parse(req.query);
+    const data = await orderService.getPartnerConsumptionReport(req.restaurantId!, range, date, from, to);
+    res.json({ data });
+  }),
+
   /** GET /api/v1/orders/reports/couriers — movimiento por repartidor (solo plan Premium). */
   courierReport: asyncHandler(async (req: Request, res: Response) => {
     const { range, date } = orderHistoryQuerySchema.pick({ range: true, date: true }).parse(req.query);

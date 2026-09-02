@@ -44,7 +44,7 @@ async function businessTypeOf(restaurantId: string) {
 async function costOfGoodsSold(restaurantId: string, createdAt: { gte?: Date; lt?: Date } | undefined) {
   const [items, products, recipeSums] = await Promise.all([
     prisma.orderItem.findMany({
-      where: { order: { restaurantId, status: { not: 'CANCELLED' }, createdAt } },
+      where: { order: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt } },
       select: { productId: true, quantity: true },
     }),
     prisma.product.findMany({ where: { restaurantId }, select: { id: true, costSource: true, costBase: true } }),
@@ -72,7 +72,7 @@ export const accountingService = {
       isShop
         ? null
         : prisma.order.aggregate({
-            where: { restaurantId, status: { not: 'CANCELLED' }, createdAt },
+            where: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt },
             _sum: { subtotalBase: true, serviceChargeBase: true, ivaBase: true, tipBase: true, totalBase: true },
             _count: true,
           }),
@@ -182,7 +182,7 @@ export const accountingService = {
       isShop
         ? Promise.resolve([])
         : prisma.order.findMany({
-            where: { restaurantId, awaitingPayment: true, status: { not: 'CANCELLED' } },
+            where: { restaurantId, awaitingPayment: true, status: { not: 'CANCELLED' }, isPartnerConsumption: false },
             select: { totalBase: true, payments: { select: { amountBase: true } } },
           }),
       isShop
@@ -204,7 +204,7 @@ export const accountingService = {
       }),
       isShop
         ? Promise.resolve(null)
-        : prisma.order.aggregate({ where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: { gte: monthStart } }, _sum: { ivaBase: true } }),
+        : prisma.order.aggregate({ where: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt: { gte: monthStart } }, _sum: { ivaBase: true } }),
       prisma.movement.aggregate({ where: { restaurantId, type: 'EXPENSE', createdAt: { gte: monthStart } }, _sum: { ivaBase: true } }),
       this.incomeStatement(restaurantId, { range: 'year' }, taxRatePercent),
     ]);
@@ -309,7 +309,7 @@ export const accountingService = {
 
     const [items, products, recipeSums, purchases, waste, orders, config] = await Promise.all([
       prisma.orderItem.findMany({
-        where: { order: { restaurantId, status: { not: 'CANCELLED' }, createdAt } },
+        where: { order: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt } },
         select: { productId: true, productName: true, variantName: true, quantity: true, lineTotal: true },
       }),
       prisma.product.findMany({
@@ -325,7 +325,7 @@ export const accountingService = {
       }),
       prisma.wasteRecord.aggregate({ where: { restaurantId, occurredAt: createdAt }, _sum: { costBase: true }, _count: true }),
       prisma.order.aggregate({
-        where: { restaurantId, status: { not: 'CANCELLED' }, createdAt },
+        where: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt },
         _sum: { subtotalBase: true },
         _count: true,
       }),

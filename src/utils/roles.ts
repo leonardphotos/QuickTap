@@ -33,6 +33,11 @@ export const NUMERO_ROLES = ['NUMERO'] as const;
 // Roles que pueden administrar la sección "Equipo" (crear/editar/eliminar personal).
 export const TEAM_MANAGER_ROLES = ['OWNER', 'ADMIN'] as const;
 
+// Roles que pueden marcar a un cliente como SOCIO. Es aparte de TEAM_MANAGER_ROLES a
+// propósito: un socio consume sin que eso sea una venta, así que darle esa marca a alguien
+// equivale a autorizarle consumo gratis y no puede quedar al alcance de quien toma pedidos.
+export const PARTNER_MANAGER_ROLES = ['OWNER', 'ADMIN'] as const;
+
 // Roles que pueden condonar/descontar parte del saldo de un pedido al cobrar
 // (campo "Descuento %" en Pagar/Pago fraccionado). Cajero/Mesero no pueden.
 export const DISCOUNT_ROLES = ['OWNER', 'ADMIN'] as const;

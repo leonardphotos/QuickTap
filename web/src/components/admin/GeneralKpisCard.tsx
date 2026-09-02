@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ArrowDownRight, ArrowUpRight, ChevronDown, DollarSign, Receipt, Target, TrendingUp, Wallet } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, ChevronDown, DollarSign, Receipt, Target, TrendingUp, UtensilsCrossed, Wallet } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { CURRENCY_SYMBOLS, formatBase } from '@/utils/format';
@@ -18,6 +18,8 @@ interface GeneralKpis {
   range: Range;
   sales: { totalBase: string; count: number; previousTotalBase: string; changePercent: string | null };
   avgTicket: { base: string; previousBase: string; changePercent: string | null };
+  /** Ventas ÷ platos vendidos: el precio medio de lo que sale por la ventana. */
+  avgPerDish: { base: string; previousBase: string; changePercent: string | null; dishes: number };
   net: { base: string; costBase: string; expensesBase: string; marginPercent: string | null };
   foodCost: { percent: string; costBase: string };
   breakEven: {
@@ -213,6 +215,15 @@ export function GeneralKpisCard() {
                 label="Ticket promedio"
                 value={formatBase(data.avgTicket.base, symbol)}
                 change={data.avgTicket.changePercent}
+              />
+              {/* Va pegado al ticket promedio porque se leen juntos: el ticket sube cuando
+                  viene más gente junta, el promedio por plato solo si se vendió más caro. */}
+              <KpiCell
+                icon={UtensilsCrossed}
+                label="Promedio por plato"
+                value={formatBase(data.avgPerDish.base, symbol)}
+                change={data.avgPerDish.changePercent}
+                hint={`${data.avgPerDish.dishes} platos`}
               />
               <KpiCell icon={Receipt} label="Pedidos" value={String(data.sales.count)} hint="en el período" />
               <KpiCell

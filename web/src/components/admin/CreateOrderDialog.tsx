@@ -150,6 +150,9 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
   const [tables, setTables] = useState<AvailableTable[]>([]);
   const [tableId, setTableId] = useState('');
+  // El selector de mesas es una ventana aparte: con 30 mesas en pantalla, la cuadrícula se
+  // comía el paso entero y no se veía ni qué se estaba eligiendo. Se abre, se elige, se cierra.
+  const [mostrarMesas, setMostrarMesas] = useState(false);
   // Cuando la mesa elegida ya tiene cuenta(s) abierta(s): a cuál se agrega, o 'new' para una independiente.
   const [accountChoice, setAccountChoice] = useState<string | 'new' | null>(null);
   const [customerAddress, setCustomerAddress] = useState('');
@@ -335,8 +338,25 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
 
   /** Ajusta la cantidad de una línea específica por índice (necesario porque un mismo producto puede tener varias líneas con distinta variante/modificadores). */
   const selectedTable = tables.find((t) => t.id === tableId);
-  // "Abrir mesa": solo mesas sin ninguna cuenta activa, para arrancar una cuenta nueva.
+  // Las dos listas son disjuntas a propósito: cada modo hace una cosa sola, así que mostrar
+  // mesas que no sirven para lo que se está haciendo solo agrega ruido y errores.
+  // "Abrir mesa" arranca una cuenta nueva -> solo mesas sin ninguna cuenta activa.
   const freeTables = useMemo(() => tables.filter((t) => t.sessions.length === 0), [tables]);
+  // "Añadir a mesa" suma a una cuenta que ya existe -> solo mesas ocupadas.
+  const busyTables = useMemo(() => tables.filter((t) => t.sessions.length > 0), [tables]);
+  const tablesForMode = tableMode === 'ADD' ? freeTables : busyTables;
+
+  /**
+   * Cambiar de modo borra la mesa elegida y abre el selector. Sin el borrado se podía quedar
+   * en "Abrir mesa" con una mesa ocupada seleccionada de antes — el pedido salía contra una
+   * mesa que ya no correspondía al modo, que es justo el error que separar las listas evita.
+   */
+  function elegirModoMesa(modo: TableMode) {
+    setTableMode(modo);
+    setTableId('');
+    setAccountChoice(null);
+    setMostrarMesas(true);
+  }
 
   function adjustLineAt(index: number, delta: number) {
     setLines((prev) => {
@@ -743,7 +763,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                 {channel === 'DINE_IN' && (
                   <div className="grid grid-cols-2 gap-2 max-w-sm">
                     <button
-                      onClick={() => setTableMode('OPEN')}
+                      onClick={() => elegirModoMesa('OPEN')}
                       className={`rounded-xl border py-2.5 text-sm font-semibold transition-colors ${
                         tableMode === 'OPEN'
                           ? 'border-brand-500 bg-brand-500/5 text-brand-500'
@@ -753,7 +773,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                       Añadir a mesa
                     </button>
                     <button
-                      onClick={() => setTableMode('ADD')}
+                      onClick={() => elegirModoMesa('ADD')}
                       className={`rounded-xl border py-2.5 text-sm font-semibold transition-colors ${
                         tableMode === 'ADD'
                           ? 'border-brand-500 bg-brand-500/5 text-brand-500'
@@ -764,61 +784,56 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                     </button>
                   </div>
                 )}
-
-                {/* Añadir a mesa: se muestran TODAS las mesas en tarjetas — las libres para
-                    abrir una cuenta nueva, y las ocupadas con cliente + tiempo abierto para
-                    decidir de un vistazo a cuál añadir. */}
-                {channel === 'DINE_IN' && tableMode === 'OPEN' && (
+                {/* La mesa se elige en una ventana aparte y no en una cuadrícula acá adentro:
+                    con muchas mesas, la cuadrícula tapaba el resto del paso y no se distinguía
+                    qué estaba elegido. Acá solo queda el resultado; el detalle vive en el modal. */}
+                {channel === 'DINE_IN' && (
                   <div className="space-y-2">
-                    {tables.length === 0 ? (
-                      <p className="text-sm text-brand-950/40 font-light">No hay mesas disponibles.</p>
-                    ) : (
-                      <div className="grid grid-cols-3 sm:grid-cols-4 xl:grid-cols-6 gap-2">
-                        {tables.map((t) => {
-                          const busy = t.sessions.length > 0;
-                          const active = tableId === t.id;
-                          const firstSession = t.sessions[0];
-                          return (
-                            <button
-                              key={t.id}
-                              type="button"
-                              onClick={() => {
-                                setTableId(t.id);
-                                setAccountChoice(null);
-                              }}
-                              className={`rounded-xl border-2 px-2 py-2.5 text-left transition-colors ${
-                                active
-                                  ? 'border-brand-500 bg-brand-500/5'
-                                  : busy
-                                    ? 'border-amber-300/60 bg-amber-50/50 hover:border-amber-400'
-                                    : 'border-brand-950/10 bg-white hover:border-brand-500/40'
-                              }`}
-                            >
-                              <p className="text-sm font-bold text-brand-950 truncate">{t.number}</p>
-                              {t.zoneName && <p className="text-[10px] text-brand-950/40 truncate">{t.zoneName}</p>}
-                              {busy && firstSession ? (
-                                <>
-                                  <p className="text-[10px] font-semibold text-amber-600 truncate mt-0.5">
-                                    {firstSession.customerName || 'Sin nombre'}
-                                  </p>
-                                  <p className="text-[10px] text-amber-600/70">
-                                    {elapsedSince(firstSession.openedAt)}
-                                    {t.sessions.length > 1 ? ` · ${t.sessions.length} cuentas` : ''}
-                                  </p>
-                                </>
-                              ) : (
-                                <p className="text-[10px] font-semibold mt-0.5 text-emerald-600">Libre</p>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setMostrarMesas(true)}
+                      className={`w-full max-w-md flex items-center justify-between gap-3 rounded-xl border-2 px-3.5 py-3 text-left transition-colors ${
+                        selectedTable ? 'border-brand-500 bg-brand-500/5' : 'border-dashed border-brand-950/20 hover:border-brand-500/50'
+                      }`}
+                    >
+                      <span className="min-w-0">
+                        <span className="block text-[11px] font-semibold uppercase tracking-wide text-brand-950/40">
+                          {tableMode === 'ADD' ? 'Abrir mesa' : 'Añadir a mesa'}
+                        </span>
+                        {selectedTable ? (
+                          <>
+                            <span className="block text-base font-bold text-brand-950 truncate">
+                              {selectedTable.zoneName ? `${selectedTable.zoneName} · ` : ''}
+                              {selectedTable.number}
+                            </span>
+                            {selectedTable.sessions[0] && (
+                              <span className="block text-[11px] text-amber-600 truncate">
+                                {selectedTable.sessions[0].customerName || 'Sin nombre'} ·{' '}
+                                {elapsedSince(selectedTable.sessions[0].openedAt)}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="block text-sm font-medium text-brand-950/50">
+                            {tablesForMode.length === 0
+                              ? tableMode === 'ADD'
+                                ? 'No hay mesas libres'
+                                : 'No hay mesas ocupadas'
+                              : 'Toca para elegir la mesa'}
+                          </span>
+                        )}
+                      </span>
+                      <span className="shrink-0 text-xs font-semibold text-brand-500">
+                        {selectedTable ? 'Cambiar' : `${tablesForMode.length} mesas`}
+                      </span>
+                    </button>
 
-                    {selectedTable && selectedTable.sessions.length > 0 && (
-                      <div className="space-y-1.5">
+                    {/* Elegir a cuál de las cuentas de la mesa se agrega. Solo aparece cuando
+                        hay más de una: con una sola ya quedó elegida al tocar la mesa. */}
+                    {tableMode === 'OPEN' && selectedTable && selectedTable.sessions.length > 1 && (
+                      <div className="space-y-1.5 max-w-md">
                         <p className="text-xs font-medium text-brand-950/50">
-                          Esta mesa ya tiene cuenta(s) abierta(s) — elige a cuál agregar, o abre una nueva:
+                          Esta mesa tiene {selectedTable.sessions.length} cuentas abiertas — elige a cuál agregar:
                         </p>
                         <div className="flex flex-wrap gap-1.5">
                           {selectedTable.sessions.map((s, i) => (
@@ -847,38 +862,6 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                             + Nueva cuenta
                           </button>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Abrir mesa: mismas tarjetas que "Añadir a mesa", pero solo las libres —
-                    esta pantalla es exclusivamente para arrancar una cuenta nueva. */}
-                {channel === 'DINE_IN' && tableMode === 'ADD' && (
-                  <div className="space-y-2">
-                    {freeTables.length === 0 ? (
-                      <p className="text-sm text-brand-950/40 font-light">Sin mesas disponibles.</p>
-                    ) : (
-                      <div className="grid grid-cols-3 sm:grid-cols-4 xl:grid-cols-6 gap-2">
-                        {freeTables.map((t) => {
-                          const active = tableId === t.id;
-                          return (
-                            <button
-                              key={t.id}
-                              type="button"
-                              onClick={() => setTableId(t.id)}
-                              className={`rounded-xl border-2 px-2 py-2.5 text-left transition-colors ${
-                                active
-                                  ? 'border-brand-500 bg-brand-500/5'
-                                  : 'border-brand-950/10 bg-white hover:border-brand-500/40'
-                              }`}
-                            >
-                              <p className="text-sm font-bold text-brand-950 truncate">{t.number}</p>
-                              {t.zoneName && <p className="text-[10px] text-brand-950/40 truncate">{t.zoneName}</p>}
-                              <p className="text-[10px] font-semibold mt-0.5 text-emerald-600">Libre</p>
-                            </button>
-                          );
-                        })}
                       </div>
                     )}
                   </div>
@@ -1201,6 +1184,86 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
         />
       )}
 
+      {/* Ventana de mesas. Se cierra sola al elegir: es una decisión de un toque, y dejarla
+          abierta obligaría a un segundo toque de "listo" que nadie entiende para qué está. */}
+      {mostrarMesas && (
+        <div className="fixed inset-0 z-[70] bg-brand-950/40 flex items-end sm:items-center justify-center p-0 sm:p-6">
+          <div className="bg-white w-full sm:max-w-3xl sm:rounded-2xl rounded-t-2xl max-h-[85vh] flex flex-col shadow-xl">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-brand-950/10 shrink-0">
+              <div>
+                <h3 className="font-bold text-brand-950">
+                  {tableMode === 'ADD' ? 'Abrir mesa' : 'Añadir a mesa'}
+                </h3>
+                <p className="text-xs text-brand-950/50 font-light">
+                  {tableMode === 'ADD' ? 'Mesas libres' : 'Mesas con cuenta abierta'} · {tablesForMode.length}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMostrarMesas(false)}
+                aria-label="Cerrar"
+                className="w-8 h-8 rounded-full hover:bg-brand-950/[0.06] flex items-center justify-center text-brand-950/50"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4">
+              {tablesForMode.length === 0 ? (
+                <p className="text-sm text-brand-950/40 font-light text-center py-8">
+                  {tableMode === 'ADD'
+                    ? 'Todas las mesas tienen cuenta abierta. Para sumar a una de ellas, usa "Añadir a mesa".'
+                    : 'No hay ninguna cuenta abierta. Para empezar una, usa "Abrir mesa".'}
+                </p>
+              ) : (
+                <div className="grid grid-cols-3 sm:grid-cols-4 xl:grid-cols-6 gap-2">
+                  {tablesForMode.map((t) => {
+                    const busy = t.sessions.length > 0;
+                    const active = tableId === t.id;
+                    const firstSession = t.sessions[0];
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => {
+                          setTableId(t.id);
+                          // Con una sola cuenta no hay nada que preguntar: se elige sola y el
+                          // paso queda completo con el mismo toque que eligió la mesa.
+                          setAccountChoice(t.sessions.length === 1 ? t.sessions[0].id : null);
+                          setMostrarMesas(false);
+                        }}
+                        className={`rounded-xl border-2 px-2 py-2.5 text-left transition-colors ${
+                          active
+                            ? 'border-brand-500 bg-brand-500/5'
+                            : busy
+                              ? 'border-amber-300/60 bg-amber-50/50 hover:border-amber-400'
+                              : 'border-brand-950/10 bg-white hover:border-brand-500/40'
+                        }`}
+                      >
+                        <p className="text-sm font-bold text-brand-950 truncate">{t.number}</p>
+                        {t.zoneName && <p className="text-[10px] text-brand-950/40 truncate">{t.zoneName}</p>}
+                        {busy && firstSession ? (
+                          <>
+                            <p className="text-[10px] font-semibold text-amber-600 truncate mt-0.5">
+                              {firstSession.customerName || 'Sin nombre'}
+                            </p>
+                            <p className="text-[10px] text-amber-600/70">
+                              {elapsedSince(firstSession.openedAt)}
+                              {t.sessions.length > 1 ? ` · ${t.sessions.length} cuentas` : ''}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-[10px] font-semibold mt-0.5 text-emerald-600">Libre</p>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

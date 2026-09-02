@@ -16,7 +16,7 @@ type DateFilter = { gte?: Date; lt?: Date } | undefined;
  */
 async function orderCostByBranch(ids: string[], dateFilter: DateFilter): Promise<Map<string, Prisma.Decimal>> {
   const items = await prisma.orderItem.findMany({
-    where: { order: { restaurantId: { in: ids }, status: { not: 'CANCELLED' }, createdAt: dateFilter } },
+    where: { order: { restaurantId: { in: ids }, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt: dateFilter } },
     select: { productId: true, quantity: true, order: { select: { restaurantId: true } } },
   });
   const productIds = Array.from(new Set(items.map((i) => i.productId).filter((id): id is string => !!id)));
@@ -433,7 +433,7 @@ export const branchService = {
       }));
     }
     const orders = await prisma.order.findMany({
-      where: { restaurantId: { in: ids }, status: { not: 'CANCELLED' }, createdAt: dateFilter },
+      where: { restaurantId: { in: ids }, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt: dateFilter },
       select: { restaurantId: true, totalBase: true, totalBs: true },
     });
     return orders;
@@ -498,7 +498,7 @@ export const branchService = {
     const { ids, names, mainId } = await this.resolveScope(restaurantId);
     const items = await prisma.orderItem.findMany({
       where: {
-        order: { restaurantId: { in: ids }, status: { not: 'CANCELLED' }, createdAt: resolveDateFilter({ range, date }) },
+        order: { restaurantId: { in: ids }, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt: resolveDateFilter({ range, date }) },
       },
       select: {
         productId: true,
@@ -645,7 +645,7 @@ export const branchService = {
     if (!ids.includes(branchId)) throw notFound('Esa sede no pertenece a tu cuenta.');
 
     const orders = await prisma.order.findMany({
-      where: { restaurantId: branchId, status: { not: 'CANCELLED' }, createdAt: resolveDateFilter({ range, date }) },
+      where: { restaurantId: branchId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt: resolveDateFilter({ range, date }) },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,

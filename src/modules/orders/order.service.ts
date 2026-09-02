@@ -1432,6 +1432,10 @@ export const orderService = {
     const customerIdNumber =
       input.customerIdNumber || resolvedCustomer?.idNumber || (isKioskOrder ? 'AUTOSERVICIO' : undefined);
     const customerAddress = input.customerAddress || resolvedCustomer?.address || undefined;
+    // Consumo de socio: se congela acá, al nacer el pedido. Si mañana se le quita la marca
+    // de socio a esa persona, los pedidos que ya consumió siguen siendo consumo interno —
+    // los reportes de meses cerrados no se pueden mover.
+    const isPartnerConsumption = resolvedCustomer?.isPartner ?? false;
 
     const currency = restaurant.baseCurrency;
     const rate = await exchangeRateService.getRate(currency, restaurantId);
@@ -1510,6 +1514,7 @@ export const orderService = {
                   customerIdNumber: session.customerIdNumber,
                   customerPhone: session.customerPhone,
                   wantsFiscalInvoice: input.wantsFiscalInvoice ?? false,
+                  isPartnerConsumption,
                   placedByUserId,
                   currency,
                   subtotalBase,
@@ -1550,6 +1555,7 @@ export const orderService = {
                 // factura fiscal salía después con el campo vacío.
                 customerIdNumber,
                 wantsFiscalInvoice: input.wantsFiscalInvoice ?? false,
+                isPartnerConsumption,
                 customerAddress: input.channel === 'DELIVERY' ? customerAddress : undefined,
                 customerLat: input.channel === 'DELIVERY' ? input.customerLat : undefined,
                 customerLng: input.channel === 'DELIVERY' ? input.customerLng : undefined,
@@ -3456,7 +3462,7 @@ export const orderService = {
 
     const [orders, movements, latePayments] = await Promise.all([
       prisma.order.findMany({
-        where: { restaurantId, createdAt: { gte: startOfTodayCaracas() }, status: { not: 'CANCELLED' } },
+        where: { restaurantId, createdAt: { gte: startOfTodayCaracas() }, status: { not: 'CANCELLED' }, isPartnerConsumption: false },
         select: { channel: true, totalBase: true, totalBs: true, currency: true, tipBase: true, createdAt: true },
       }),
       prisma.movement.findMany({
@@ -3469,7 +3475,7 @@ export const orderService = {
       prisma.orderPayment.findMany({
         where: {
           createdAt: { gte: startOfTodayCaracas() },
-          order: { restaurantId, createdAt: { lt: startOfTodayCaracas() }, status: { not: 'CANCELLED' } },
+          order: { restaurantId, createdAt: { lt: startOfTodayCaracas() }, status: { not: 'CANCELLED' }, isPartnerConsumption: false },
         },
         select: { amountBase: true },
       }),
@@ -3552,7 +3558,7 @@ export const orderService = {
   historyWhere(restaurantId: string, query: OrderHistoryQuery): Prisma.OrderWhereInput {
     const where: Prisma.OrderWhereInput = {
       restaurantId,
-      status: { not: 'CANCELLED' },
+      status: { not: 'CANCELLED' }, isPartnerConsumption: false,
       createdAt: resolveDateFilter({ range: query.range, date: query.date, from: query.from, to: query.to }),
     };
     if (query.channel) where.channel = query.channel;
@@ -3670,7 +3676,7 @@ export const orderService = {
   /** Reporte de productos más/menos vendidos, con filtro de rango o fecha exacta. Cada variante de precio cuenta como su propia fila. */
   async getProductReport(restaurantId: string, range: ReportRange, date?: string) {
     const items = await prisma.orderItem.findMany({
-      where: { order: { restaurantId, status: { not: 'CANCELLED' }, createdAt: resolveDateFilter({ range, date }) } },
+      where: { order: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt: resolveDateFilter({ range, date }) } },
       select: { productId: true, productName: true, variantName: true, quantity: true, lineTotal: true },
     });
 
@@ -3700,6 +3706,218 @@ export const orderService = {
       .sort((a, b) => b.quantity - a.quantity);
   },
 
+  /**
+   * Tiempo de entrega por plato, partido en los dos tramos que se pueden atacar por separado:
+   *
+   *   cocina = entra la comanda -> cocina lo marca listo   (OrderItem.createdAt -> kitchenReadyAt)
+   *   sala   = listo            -> el mesero lo entrega    (kitchenReadyAt      -> deliveredAt)
+   *
+   * Partirlo importa: un plato que sale en 8 minutos pero pasa 12 en la ventana no tiene un
+   * problema de cocina, y mirando solo el total no hay forma de distinguir los dos casos.
+   *
+   * Solo entran las líneas que TIENEN el sello correspondiente — un plato que nadie marcó
+   * listo no se cuenta como "rapidísimo", se cuenta como que no se midió. Por eso cada tramo
+   * lleva su propio contador de muestras.
+   */
+  async getDishTimeReport(restaurantId: string, range: ReportRange, date?: string, from?: string, to?: string) {
+    const items = await prisma.orderItem.findMany({
+      where: {
+        order: {
+          restaurantId,
+          status: { not: 'CANCELLED' },
+          createdAt: resolveDateFilter({ range, date, from, to }),
+        },
+      },
+      select: {
+        productId: true,
+        productName: true,
+        kitchenName: true,
+        createdAt: true,
+        kitchenReadyAt: true,
+        deliveredAt: true,
+      },
+    });
+
+    type Acc = {
+      productId: string | null;
+      name: string;
+      kitchenName: string | null;
+      cocinaMin: number[];
+      salaMin: number[];
+      totalLineas: number;
+    };
+    const porPlato = new Map<string, Acc>();
+
+    // Un sello corrido hacia atrás (reloj del equipo, un "listo" marcado antes de tiempo) daría
+    // duraciones negativas que ensucian el promedio; y por encima de 8 horas es una comanda que
+    // quedó abierta de un día para otro, no un plato que tardó. Ambos se descartan.
+    const MAX_MIN = 8 * 60;
+    const minutos = (desde: Date | null, hasta: Date | null): number | null => {
+      if (!desde || !hasta) return null;
+      const m = (hasta.getTime() - desde.getTime()) / 60000;
+      return m < 0 || m > MAX_MIN ? null : m;
+    };
+
+    for (const it of items) {
+      const key = it.productId ?? `name:${it.productName}`;
+      let acc = porPlato.get(key);
+      if (!acc) {
+        acc = { productId: it.productId, name: it.productName, kitchenName: it.kitchenName, cocinaMin: [], salaMin: [], totalLineas: 0 };
+        porPlato.set(key, acc);
+      }
+      acc.totalLineas += 1;
+      const cocina = minutos(it.createdAt, it.kitchenReadyAt);
+      if (cocina != null) acc.cocinaMin.push(cocina);
+      const sala = minutos(it.kitchenReadyAt, it.deliveredAt);
+      if (sala != null) acc.salaMin.push(sala);
+    }
+
+    const promedio = (xs: number[]) => (xs.length === 0 ? null : Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 10) / 10);
+    // La mediana acompaña al promedio porque una sola comanda olvidada media hora mueve el
+    // promedio de un plato entero; si mediana y promedio se separan mucho, fue un caso puntual.
+    const mediana = (xs: number[]) => {
+      if (xs.length === 0) return null;
+      const o = [...xs].sort((a, b) => a - b);
+      const m = Math.floor(o.length / 2);
+      return Math.round((o.length % 2 ? o[m] : (o[m - 1] + o[m]) / 2) * 10) / 10;
+    };
+
+    const platos = Array.from(porPlato.values())
+      .map((a) => ({
+        productId: a.productId,
+        name: a.name,
+        kitchenName: a.kitchenName,
+        veces: a.totalLineas,
+        cocina: { promedioMin: promedio(a.cocinaMin), medianaMin: mediana(a.cocinaMin), muestras: a.cocinaMin.length },
+        sala: { promedioMin: promedio(a.salaMin), medianaMin: mediana(a.salaMin), muestras: a.salaMin.length },
+      }))
+      // El más lento de cocina primero: es la lista para decidir qué plato revisar.
+      .sort((a, b) => (b.cocina.promedioMin ?? -1) - (a.cocina.promedioMin ?? -1));
+
+    const todasCocina = Array.from(porPlato.values()).flatMap((a) => a.cocinaMin);
+    const todasSala = Array.from(porPlato.values()).flatMap((a) => a.salaMin);
+
+    return {
+      platos,
+      general: {
+        cocina: { promedioMin: promedio(todasCocina), medianaMin: mediana(todasCocina), muestras: todasCocina.length },
+        sala: { promedioMin: promedio(todasSala), medianaMin: mediana(todasSala), muestras: todasSala.length },
+        lineasTotales: items.length,
+        // Cuánto de lo servido llegó realmente a medirse: con esto bajo, los promedios de
+        // arriba son de una muestra chica y no hay que tomárselos al pie de la letra.
+        coberturaCocina: items.length > 0 ? Math.round((todasCocina.length / items.length) * 100) : 0,
+        coberturaSala: items.length > 0 ? Math.round((todasSala.length / items.length) * 100) : 0,
+      },
+    };
+  },
+
+  /**
+   * Consumo de socios: lo que se llevaron los socios en el período, valorado a COSTO.
+   *
+   * Va a costo y no a precio de venta porque no es plata que se dejó de ganar — es plata que
+   * salió del inventario. El precio de venta de un consumo que nunca se iba a cobrar es un
+   * número imaginario; el costo es lo que de verdad le costó al local.
+   */
+  async getPartnerConsumptionReport(restaurantId: string, range: ReportRange, date?: string, from?: string, to?: string) {
+    const orders = await prisma.order.findMany({
+      where: {
+        restaurantId,
+        isPartnerConsumption: true,
+        status: { not: 'CANCELLED' },
+        createdAt: resolveDateFilter({ range, date, from, to }),
+      },
+      select: {
+        id: true,
+        orderNumber: true,
+        createdAt: true,
+        customerName: true,
+        customerPhone: true,
+        totalBase: true,
+        items: { select: { productId: true, productName: true, variantName: true, quantity: true, lineTotal: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    // Costo vivo por producto — la MISMA regla que usa Margen de utilidad
+    // (revenueAndCostByProduct en product.service.ts): receta si el producto se costea por
+    // receta, costo manual si no. No se congela en OrderItem, así que se resuelve acá con dos
+    // consultas para todo el período, no una por línea.
+    const productIds = Array.from(new Set(orders.flatMap((o) => o.items.map((i) => i.productId).filter((x): x is string => !!x))));
+    const [productos, recetas] = await Promise.all([
+      prisma.product.findMany({ where: { id: { in: productIds }, restaurantId }, select: { id: true, costSource: true, costBase: true } }),
+      prisma.recipeIngredient.groupBy({ by: ['productId'], where: { restaurantId, productId: { in: productIds } }, _sum: { costBase: true } }),
+    ]);
+    const costoReceta = new Map(recetas.map((r) => [r.productId, toDecimal(r._sum.costBase ?? 0)]));
+    const costos = new Map(
+      productos.map((p) => [p.id, p.costSource === 'RECIPE' ? (costoReceta.get(p.id) ?? toDecimal(0)) : toDecimal(p.costBase ?? 0)]),
+    );
+
+    const porSocio = new Map<string, { nombre: string; telefono: string | null; pedidos: number; costoBase: Prisma.Decimal; ventaEquivalenteBase: Prisma.Decimal }>();
+    const porProducto = new Map<string, { name: string; cantidad: number; costoBase: Prisma.Decimal }>();
+    let costoTotal = toDecimal(0);
+    let ventaEquivalente = toDecimal(0);
+
+    for (const o of orders) {
+      let costoPedido = toDecimal(0);
+      for (const it of o.items) {
+        const unit = costos.get(it.productId ?? '') ?? toDecimal(0);
+        const costoLinea = unit.mul(it.quantity);
+        costoPedido = costoPedido.add(costoLinea);
+        const nombre = it.variantName ? `${it.productName} (${it.variantName})` : it.productName;
+        const k = `${it.productId ?? `name:${it.productName}`}:${it.variantName ?? ''}`;
+        const prev = porProducto.get(k);
+        if (prev) {
+          prev.cantidad += it.quantity;
+          prev.costoBase = prev.costoBase.add(costoLinea);
+        } else {
+          porProducto.set(k, { name: nombre, cantidad: it.quantity, costoBase: costoLinea });
+        }
+      }
+      costoTotal = costoTotal.add(costoPedido);
+      ventaEquivalente = ventaEquivalente.add(o.totalBase);
+
+      const sk = o.customerPhone ?? o.customerName ?? o.id;
+      const prev = porSocio.get(sk);
+      if (prev) {
+        prev.pedidos += 1;
+        prev.costoBase = prev.costoBase.add(costoPedido);
+        prev.ventaEquivalenteBase = prev.ventaEquivalenteBase.add(o.totalBase);
+      } else {
+        porSocio.set(sk, {
+          nombre: o.customerName ?? 'Sin nombre',
+          telefono: o.customerPhone,
+          pedidos: 1,
+          costoBase: costoPedido,
+          ventaEquivalenteBase: toDecimal(o.totalBase),
+        });
+      }
+    }
+
+    return {
+      resumen: {
+        pedidos: orders.length,
+        costoBase: round2(costoTotal).toFixed(2),
+        // Cuánto habría facturado ese mismo consumo a precio de carta. No es plata perdida
+        // (nunca se iba a cobrar): sirve para dimensionar el volumen.
+        ventaEquivalenteBase: round2(ventaEquivalente).toFixed(2),
+      },
+      socios: Array.from(porSocio.values())
+        .map((s) => ({ ...s, costoBase: round2(s.costoBase).toFixed(2), ventaEquivalenteBase: round2(s.ventaEquivalenteBase).toFixed(2) }))
+        .sort((a, b) => Number(b.costoBase) - Number(a.costoBase)),
+      productos: Array.from(porProducto.values())
+        .map((p) => ({ name: p.name, cantidad: p.cantidad, costoBase: round2(p.costoBase).toFixed(2) }))
+        .sort((a, b) => b.cantidad - a.cantidad),
+      pedidos: orders.map((o) => ({
+        id: o.id,
+        orderNumber: o.orderNumber,
+        createdAt: o.createdAt,
+        socio: o.customerName ?? 'Sin nombre',
+        items: o.items.length,
+        totalBase: toDecimal(o.totalBase).toFixed(2),
+      })),
+    };
+  },
+
   /** Movimiento por repartidor (pedidos despachados y su valor), para Administración → Delivery. */
   async getCourierStats(restaurantId: string, range: ReportRange, date?: string) {
     const couriers = await prisma.deliveryCourier.findMany({ where: { restaurantId }, orderBy: { name: 'asc' } });
@@ -3707,7 +3925,7 @@ export const orderService = {
       where: {
         restaurantId,
         deliveryCourierId: { not: null },
-        status: { not: 'CANCELLED' },
+        status: { not: 'CANCELLED' }, isPartnerConsumption: false,
         deliveryDispatchedAt: resolveDateFilter({ range, date }),
       },
       select: { deliveryCourierId: true, totalBase: true, totalBs: true, tipBase: true },
@@ -3739,7 +3957,7 @@ export const orderService = {
    */
   async getPaymentMethodStats(restaurantId: string, range: ReportRange, date?: string, from?: string, to?: string) {
     const orders = await prisma.order.findMany({
-      where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: resolveDateFilter({ range, date, from, to }) },
+      where: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt: resolveDateFilter({ range, date, from, to }) },
       select: {
         paymentMethod: true,
         totalBase: true,
@@ -3801,7 +4019,7 @@ export const orderService = {
 
     const [currentOrders, previousOrders] = await Promise.all([
       prisma.order.findMany({
-        where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: currentFilter },
+        where: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt: currentFilter },
         select: {
           totalBase: true,
           totalBs: true,
@@ -3811,7 +4029,7 @@ export const orderService = {
         },
       }),
       prisma.order.findMany({
-        where: { restaurantId, status: { not: 'CANCELLED' }, createdAt: { gte: previousStart, lt: currentStart } },
+        where: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt: { gte: previousStart, lt: currentStart } },
         select: { totalBase: true },
       }),
     ]);
@@ -3877,7 +4095,7 @@ export const orderService = {
     const orders = await prisma.order.findMany({
       where: {
         restaurantId,
-        status: { not: 'CANCELLED' },
+        status: { not: 'CANCELLED' }, isPartnerConsumption: false,
         createdAt: { gte: currentStart, ...(custom ? { lt: custom.end } : {}) },
         ...(userId === 'ALL' ? {} : { placedByUserId: userId === 'CUSTOMER' ? null : userId }),
       },

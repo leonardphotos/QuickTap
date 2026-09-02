@@ -1688,6 +1688,11 @@ model Order {
   /// Cuándo se imprimió. Sirve además de bandera: con valor, la factura ya salió y
   /// no hay que volver a emitirla (cada emisión consume numeración fiscal).
   fiscalPrintedAt      DateTime?
+  /// Consumo de socio: se congela al crear el pedido a partir de Customer.isPartner,
+  /// para que marcar/desmarcar a un socio después no reescriba la historia contable.
+  /// Con esto en true el pedido se excluye de todo lo que sea "venta".
+  isPartnerConsumption Boolean @default(false)
+
   /// Qué documento espera el cliente: nota de entrega (lo normal) o factura fiscal.
   /// Se marca al tomar el pedido — "¿Desea factura fiscal?" en Crear pedido — y se
   /// puede cambiar al cobrar, porque mucha gente la pide recién cuando va a pagar.
@@ -2451,6 +2456,11 @@ model Customer {
   /// Fecha de cumpleaños (solo importa mes y día; el año puede ser el real o 1900).
   birthday DateTime?
   notes    String?
+  /// Socio del local: consume a cuenta y ese consumo NO es una venta — no entra en
+  /// ventas, ticket promedio, utilidad ni cierre de caja, pero sí descuenta inventario
+  /// (la comida salió igual). Solo un dueño/administrador puede marcarlo, porque marcar
+  /// a alguien como socio es, en la práctica, autorizarle consumo gratis.
+  isPartner Boolean @default(false)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

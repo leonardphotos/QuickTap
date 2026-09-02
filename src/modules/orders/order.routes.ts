@@ -37,6 +37,15 @@ router.get('/export/history', adminOnly, requireFeature('administration'), order
 router.get('/waiters', adminOnly, requireFeature('administration'), orderController.waiters);
 router.get('/reports/products', adminOnly, requireFeature('administration'), orderController.productReport);
 router.get('/reports/couriers', adminOnly, requireFeature('administration'), orderController.courierReport);
+router.get('/reports/dish-times', adminOnly, requireFeature('administration'), orderController.dishTimeReport);
+// Consumo de socios: es plata que sale del inventario sin venta, así que la lista queda al
+// alcance de los mismos roles que ven Administración.
+router.get(
+  '/reports/partner-consumption',
+  adminOnly,
+  requireFeature('administration'),
+  orderController.partnerConsumptionReport,
+);
 router.get(
   '/reports/payment-methods',
   paymentMethodsAccess,

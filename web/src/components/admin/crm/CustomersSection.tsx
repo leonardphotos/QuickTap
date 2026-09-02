@@ -41,7 +41,9 @@ export function CustomersSection() {
 
   const load = useCallback(() => {
     crmApi
-      .customers({ search: search.trim() || undefined, segment })
+      // Los socios tienen su propia pestaña: mezclarlos acá ensucia los segmentos, porque
+      // sus "visitas" no son ventas.
+      .customers({ search: search.trim() || undefined, segment, partner: 'exclude' })
       .then((d) => {
         setCustomers(d.customers);
         setSummary(d.summary);
