@@ -1509,6 +1509,7 @@ export const orderService = {
                   customerName: session.customerName,
                   customerIdNumber: session.customerIdNumber,
                   customerPhone: session.customerPhone,
+                  wantsFiscalInvoice: input.wantsFiscalInvoice ?? false,
                   placedByUserId,
                   currency,
                   subtotalBase,
@@ -1544,6 +1545,11 @@ export const orderService = {
                 status: isKioskOrder ? 'NEEDS_PAYMENT' : isStaffPlaced ? 'KITCHEN' : 'PENDING',
                 customerName,
                 customerPhone,
+                // Sin esto la cédula que se capturó al crear el pedido (incluida la que se
+                // escribe en "¿Desea factura fiscal?") se perdía en delivery/pickup, y la
+                // factura fiscal salía después con el campo vacío.
+                customerIdNumber,
+                wantsFiscalInvoice: input.wantsFiscalInvoice ?? false,
                 customerAddress: input.channel === 'DELIVERY' ? customerAddress : undefined,
                 customerLat: input.channel === 'DELIVERY' ? input.customerLat : undefined,
                 customerLng: input.channel === 'DELIVERY' ? input.customerLng : undefined,
@@ -3299,6 +3305,31 @@ export const orderService = {
     });
 
     return { sent: true };
+  },
+
+  /**
+   * Cambiar el documento que espera el cliente (nota de entrega ⇄ factura fiscal).
+   *
+   * Existe porque en la práctica casi nadie avisa al pedir: la factura la piden cuando ya
+   * están pagando. No emite nada — solo decide qué le ofrece el cobro. Una vez que el papel
+   * salió por la máquina ya no se puede desmarcar: el documento fiscal existe y no se borra
+   * cambiando una casilla.
+   */
+  async setFiscalIntent(restaurantId: string, orderId: string, wantsFiscalInvoice: boolean) {
+    const order = await prisma.order.findFirst({
+      where: { id: orderId, restaurantId },
+      select: { id: true, fiscalPrintedAt: true },
+    });
+    if (!order) throw notFound('Pedido no encontrado.');
+    if (order.fiscalPrintedAt && !wantsFiscalInvoice) {
+      throw badRequest('Este pedido ya tiene factura fiscal emitida: para anularla hace falta una nota de crédito.');
+    }
+
+    return prisma.order.update({
+      where: { id: orderId },
+      data: { wantsFiscalInvoice },
+      select: { id: true, wantsFiscalInvoice: true },
+    });
   },
 
   /**

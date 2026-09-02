@@ -5,6 +5,7 @@ import { DISCOUNT_ROLES } from '../../utils/roles';
 import {
   addOrderItemSchema,
   addOrderItemsBatchSchema,
+  fiscalIntentSchema,
   fiscalResultSchema,
   printFiscalSchema,
   changeChannelSchema,
@@ -312,6 +313,14 @@ export const orderController = {
   printFiscal: asyncHandler(async (req: Request, res: Response) => {
     const cliente = printFiscalSchema.parse(req.body);
     const result = await orderService.printFiscalInvoice(req.restaurantId!, req.params.id, cliente);
+    res.json({ data: result });
+  }),
+
+  /** PATCH /api/v1/orders/:id/fiscal-intent — el cliente pidió factura recién al pagar (o
+   * al revés): cambia qué documento le ofrece el cobro. No emite nada. */
+  fiscalIntent: asyncHandler(async (req: Request, res: Response) => {
+    const { wantsFiscalInvoice } = fiscalIntentSchema.parse(req.body);
+    const result = await orderService.setFiscalIntent(req.restaurantId!, req.params.id, wantsFiscalInvoice);
     res.json({ data: result });
   }),
 

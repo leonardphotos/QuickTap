@@ -412,6 +412,10 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
         deliveryFeeBase: channel === 'DELIVERY' && manualFee != null ? manualFee : undefined,
         customerNote: customerNote.trim() || undefined,
         customerId: selectedCustomer?.id,
+        // Se guarda en el pedido para que el cobro sepa qué documento ofrecer. Si el cliente
+        // no lo pidió acá, igual se puede cambiar al pagar — que es cuando lo pide casi todo
+        // el mundo (ver PaymentDialog).
+        wantsFiscalInvoice,
         paymentIntent,
       });
       const newOrder: LiveOrder = { ...res.data.data, payments: res.data.data.payments ?? [] };

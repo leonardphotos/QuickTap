@@ -59,6 +59,7 @@ router.post('/:id/print-receipt', orderController.printReceipt);
 // Factura fiscal: emitir (con los datos del cliente ya confirmados en el panel) y recibir de
 // vuelta el número que asignó la máquina.
 router.post('/:id/print-fiscal', orderController.printFiscal);
+router.patch('/:id/fiscal-intent', orderController.fiscalIntent);
 router.post('/:id/fiscal-result', orderController.fiscalResult);
 router.post('/:id/items', orderController.addItem);
 router.post('/:id/items/batch', orderController.addItemsBatch);

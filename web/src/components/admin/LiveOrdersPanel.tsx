@@ -120,6 +120,8 @@ export interface LiveOrder {
   fiscalPrinterInvoice?: string | null;
   fiscalPrinterSerial?: string | null;
   fiscalPrintedAt?: string | null;
+  /** Documento que espera el cliente. Intención, no hecho: lo emitido es fiscalPrintedAt. */
+  wantsFiscalInvoice?: boolean;
 }
 
 type ChannelFilter = LiveOrder['channel'] | 'NEW' | 'AWAITING_PAYMENT' | 'PAID' | 'PARTIAL';

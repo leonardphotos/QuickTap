@@ -84,6 +84,9 @@ export const manualOrderSchema = z
     // como referencia — solo se guarda la intención, para el ticket "Número de orden" y para
     // precargar el método al cobrar en caja).
     paymentMethod: z.enum(['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD', 'BINANCE', 'PAYPAL', 'TRANSFER']).optional(),
+    // "¿Desea factura fiscal?" del wizard. Solo la intención: define qué documento le
+    // ofrece el cobro, no emite nada. Se puede cambiar después al pagar.
+    wantsFiscalInvoice: z.boolean().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.channel === 'DINE_IN' && !data.tableId) {
@@ -313,6 +316,11 @@ export const printFiscalSchema = z.object({
 export type PrintFiscalInput = z.infer<typeof printFiscalSchema>;
 
 /** Lo que la Estación de Impresión reporta tras emitir: el correlativo lo lleva la máquina. */
+/** Cambiar el documento que espera el cliente mientras se cobra (Nota ⇄ Factura fiscal). */
+export const fiscalIntentSchema = z.object({
+  wantsFiscalInvoice: z.boolean(),
+});
+
 export const fiscalResultSchema = z.object({
   numeroFactura: z.string().trim().min(1).max(30),
   serialMaquina: z.string().trim().min(1).max(30),

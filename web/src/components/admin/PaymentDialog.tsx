@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { ArrowLeft, Camera, Check, Copy, Loader2, QrCode } from 'lucide-react';
+import { ArrowLeft, Camera, Check, Copy, Loader2, QrCode, Receipt } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { CURRENCY_SYMBOLS, formatBase, formatBs, formatBsAbsolute, formatModifierLabel } from '@/utils/format';
@@ -19,6 +19,7 @@ import { TextureButton } from '@/components/ui/texture-button';
 import { PaymentClientScreen } from '@/components/admin/PaymentClientScreen';
 import { MethodAccountPicker } from '@/components/admin/MethodAccountPicker';
 import { PromoCodeField, promoDiscountAmount, type AppliedPromo } from '@/components/admin/crm/PromoCodeField';
+import { FiscalInvoiceDialog } from '@/components/admin/FiscalInvoiceDialog';
 import { settledOf } from '@/utils/orderBalance';
 import { useIsLandscapeTablet, useIsTactil } from '@/hooks/useIsLandscapeTablet';
 import { PosNumericKeypad, type PosKeypadField } from '@/components/admin/PosNumericKeypad';
@@ -232,6 +233,25 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
   // Pantalla a pantalla completa que ve el cliente tras elegir método (ver PaymentClientScreen).
   const [clientScreenOpen, setClientScreenOpen] = useState(false);
   const [showPrintPrompt, setShowPrintPrompt] = useState(false);
+  // Qué documento espera el cliente. Viene marcado desde "Crear pedido", pero se puede cambiar
+  // acá porque en la práctica la factura la piden recién cuando están pagando. Al elegir fiscal
+  // desaparece la nota de entrega: son documentos alternativos, no se emiten los dos.
+  const [quiereFiscal, setQuiereFiscal] = useState(
+    Boolean(order.wantsFiscalInvoice || order.fiscalPrintedAt),
+  );
+  // Abre el mismo diálogo de confirmación que el botón de Pedidos — nunca emite directo de acá.
+  const [showFiscalDialog, setShowFiscalDialog] = useState(false);
+  const [fiscalEmitida, setFiscalEmitida] = useState(false);
+
+  /** Cambia el documento y lo guarda, para que el pedido lo recuerde si se reabre el cobro. */
+  async function cambiarDocumento(fiscal: boolean) {
+    setQuiereFiscal(fiscal);
+    try {
+      await api.patch(`/orders/${order.id}/fiscal-intent`, { wantsFiscalInvoice: fiscal });
+    } catch {
+      // Es una preferencia, no el cobro: si no se pudo guardar, el cajero igual imprime lo que eligió.
+    }
+  }
   const [printing, setPrinting] = useState(false);
   const methodAccounts = methodAccountsOf(paymentConfig, method);
   const selectedAccount = methodAccounts.find((a) => a.key === accountKey) ?? methodAccounts[0] ?? null;
@@ -774,15 +794,59 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
                   ))}
                 </div>
               )}
-              <p className="text-sm text-brand-950/70">¿Desea imprimir la cuenta?</p>
+              {/* Selector de documento. Va antes del botón de imprimir a propósito: primero se
+                  decide QUÉ se imprime, y recién entonces aparece esa única acción. */}
+              <div className="space-y-1.5">
+                <p className="text-xs text-brand-950/50">¿Qué documento lleva el cliente?</p>
+                <div className="grid grid-cols-2 gap-1 rounded-xl bg-brand-950/[0.05] p-1">
+                  {[
+                    { fiscal: false, label: 'Nota de entrega' },
+                    { fiscal: true, label: 'Factura fiscal' },
+                  ].map((op) => (
+                    <button
+                      key={op.label}
+                      type="button"
+                      // Con la factura ya emitida no se puede volver a nota: el documento fiscal existe.
+                      disabled={printing || (Boolean(fiscalEmitida || order.fiscalPrintedAt) && !op.fiscal)}
+                      onClick={() => cambiarDocumento(op.fiscal)}
+                      className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-40 ${
+                        quiereFiscal === op.fiscal
+                          ? 'bg-white text-brand-950 shadow-sm'
+                          : 'text-brand-950/50 hover:text-brand-950/80'
+                      }`}
+                    >
+                      {op.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               <div className="flex gap-2 justify-center">
-                <TextureButton variant="brand" size="default" className="!w-auto disabled:opacity-50" disabled={printing} onClick={printReceipt}>
-                  {printing ? 'Imprimiendo…' : 'Sí, imprimir'}
-                </TextureButton>
+                {quiereFiscal ? (
+                  <TextureButton
+                    variant="brand"
+                    size="default"
+                    className="!w-auto disabled:opacity-50"
+                    disabled={printing || fiscalEmitida || Boolean(order.fiscalPrintedAt)}
+                    onClick={() => setShowFiscalDialog(true)}
+                  >
+                    <Receipt className="h-4 w-4 mr-1.5" />
+                    {fiscalEmitida || order.fiscalPrintedAt ? 'Factura ya emitida' : 'Emitir factura fiscal'}
+                  </TextureButton>
+                ) : (
+                  <TextureButton variant="brand" size="default" className="!w-auto disabled:opacity-50" disabled={printing} onClick={printReceipt}>
+                    {printing ? 'Imprimiendo…' : 'Sí, imprimir'}
+                  </TextureButton>
+                )}
                 <TextureButton variant="secondary" size="default" className="!w-auto" disabled={printing} onClick={onClose}>
-                  No
+                  {fiscalEmitida ? 'Listo' : 'No'}
                 </TextureButton>
               </div>
+              <p className="text-[11px] font-light text-brand-950/40">
+                {quiereFiscal
+                  ? 'Sale por la máquina fiscal. Antes se abre una ventana para confirmar la cédula y el nombre.'
+                  : 'Sale por la impresora térmica de caja.'}
+              </p>
             </div>
           ) : paidNow != null ? (
             <div className="space-y-3 text-center py-2">
@@ -1299,6 +1363,16 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
         </div>
         </DialogContent>
       </Dialog>
+
+      {showFiscalDialog && (
+        <FiscalInvoiceDialog
+          order={order}
+          currencySymbol={symbol}
+          onClose={() => setShowFiscalDialog(false)}
+          // No cerramos el cobro: el cajero puede querer además la nota de entrega.
+          onEmitted={() => setFiscalEmitida(true)}
+        />
+      )}
     </>
   );
 }
