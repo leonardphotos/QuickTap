@@ -28,7 +28,7 @@ import { assertRestaurantOpen } from '../../utils/business-hours';
 import { effectiveProductPrice } from '../../utils/promo-price';
 import { whatsappBotService } from '../whatsapp-bot/whatsapp-bot.service';
 import { orderPaymentVerificationService } from './order-payment-verification.service';
-import { distanceToPolygonKm, haversineDistanceKm, isPointInPolygon, LatLng, polygonCentroid, squarePolygonAround } from '../../utils/geo';
+import { distanceToPolygonKm, haversineDistanceKm, isPointInPolygon, LatLng, polygonAreaKm2, polygonCentroid, squarePolygonAround } from '../../utils/geo';
 import { tableSessionService } from '../table-sessions/table-session.service';
 import { fiscalInvoicingService } from '../fiscal-invoicing/fiscal-invoicing.service';
 import { writeFiscalAudit } from '../fiscal-invoicing/fiscal-invoicing.audit';
@@ -515,14 +515,24 @@ async function computeDeliveryFee(
     return round2(toDecimal(restaurant.deliveryBaseFee).add(toDecimal(restaurant.deliveryPricePerKm).mul(distanceKm)));
   }
 
-  // ZONE: la primera zona cuyo polígono contenga al cliente define el precio.
+  // ZONE: gana la zona MÁS CHICA que contenga al cliente.
+  //
+  // Antes se devolvía la primera que lo contuviera, en el orden en que la base entregara las
+  // filas — que no está garantizado y cambia al editar cualquier zona. Con zonas solapadas
+  // (que las hay: en producción se detectaron 21 pares con precios distintos) eso hacía que la
+  // MISMA dirección se cotizara a $6 una vez y a $4 otra, sin que nadie tocara nada.
+  //
+  // La más chica es la más específica: si el restaurante dibujó un barrio dentro de un sector
+  // grande, es porque ese barrio tiene su propio precio.
   const zones = await prisma.deliveryZone.findMany({ where: { restaurantId: restaurant.id } });
+  let elegida: { price: Prisma.Decimal; areaKm2: number } | null = null;
   for (const zone of zones) {
     const polygon = zone.polygon as unknown as LatLng[];
-    if (Array.isArray(polygon) && isPointInPolygon(customer, polygon)) {
-      return round2(toDecimal(zone.price));
-    }
+    if (!Array.isArray(polygon) || !isPointInPolygon(customer, polygon)) continue;
+    const areaKm2 = polygonAreaKm2(polygon);
+    if (!elegida || areaKm2 < elegida.areaKm2) elegida = { price: zone.price, areaKm2 };
   }
+  if (elegida) return round2(toDecimal(elegida.price));
 
   // Ningún polígono contiene al cliente (punto justo afuera de una zona por
   // imprecisión del GPS/dibujo, o zona sin cubrir del todo). En vez de dejarlo
@@ -533,9 +543,14 @@ async function computeDeliveryFee(
   let nearest: { price: Prisma.Decimal; distanceKm: number } | null = null;
   for (const zone of zones) {
     const polygon = zone.polygon as unknown as LatLng[];
-    if (!Array.isArray(polygon) || polygon.length < 2) continue;
+    // Un "polígono" de 2 puntos es una línea: no encierra nada y no es una zona válida.
+    if (!Array.isArray(polygon) || polygon.length < 3) continue;
     const distanceKm = distanceToPolygonKm(customer, polygon);
-    if (!nearest || distanceKm < nearest.distanceKm) nearest = { price: zone.price, distanceKm };
+    // Empate a la misma distancia: gana el precio MÁS BAJO. Es un desempate arbitrario, pero
+    // estable — y ante la duda es preferible cobrarle de menos al cliente que de más.
+    if (!nearest || distanceKm < nearest.distanceKm || (distanceKm === nearest.distanceKm && zone.price.lt(nearest.price))) {
+      nearest = { price: zone.price, distanceKm };
+    }
   }
   if (nearest && nearest.distanceKm <= NEARBY_ZONE_MAX_KM) {
     return round2(toDecimal(nearest.price));
@@ -1719,6 +1734,18 @@ export const orderService = {
       input.mode === 'DELIVERY' && input.customer.lat != null && input.customer.lng != null
         ? { lat: input.customer.lat, lng: input.customer.lng }
         : null;
+
+    // Sin ubicación no hay forma de saber en qué zona cae, y el envío salía en CERO: el pedido
+    // entraba con delivery gratis y nadie se enteraba. En producción eran ~1 de cada 3 pedidos
+    // de delivery de los locales que cobran por zona. Si el restaurante cobra el envío, la
+    // ubicación deja de ser opcional — el checkout ya ofrece compartirla o elegir la dirección
+    // de las sugerencias, que también trae coordenadas.
+    if (input.mode === 'DELIVERY' && restaurant.deliveryPricingMode !== 'DISABLED' && !customerPoint) {
+      throw badRequest(
+        'Necesitamos tu ubicación para calcular el envío. Usa "Usar mi ubicación actual" o elige tu dirección de la lista de sugerencias.',
+      );
+    }
+
     const deliveryFeeBase = await computeDeliveryFee(restaurant, customerPoint, true);
     const envaseFeeBase = await computeEnvaseFee(restaurantId, input.mode, input.items);
     const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(deliveryFeeBase).add(envaseFeeBase));
@@ -3130,6 +3157,16 @@ export const orderService = {
     ]);
     if (!order) throw notFound('Comanda no encontrada.');
     if (!courier) throw notFound('Repartidor no encontrado.');
+    // Un pedido de mesa o barra no se despacha a domicilio: sin esto quedaba con repartidor
+    // asignado y se colaba en el reporte de movimiento por repartidor.
+    if (order.channel !== 'DELIVERY') {
+      throw badRequest('Solo se despachan pedidos de delivery.');
+    }
+    // Desactivar a alguien lo saca de las listas y del reparto automático; mandarle una
+    // comanda igual por API dejaba la entrega registrada a nombre de quien ya no trabaja ahí.
+    if (!courier.isActive) {
+      throw badRequest(`${courier.name} está desactivado. Actívalo de nuevo si va a repartir.`);
+    }
 
     const parts: string[] = [];
     parts.push(`*🛵 Pedido para entregar — #${order.orderNumber}*`);

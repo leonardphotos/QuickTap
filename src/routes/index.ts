@@ -170,7 +170,8 @@ router.use('/fiscal-invoicing', tenantFiscalInvoicingRoutes);
 router.use('/public', menuRoutes);
 router.post('/public/checkout/dine-in', publicBookingRateLimit, orderController.checkoutDineIn);
 router.post('/public/checkout/delivery/:slug', publicBookingRateLimit, orderController.checkoutDelivery);
-router.get('/public/checkout/delivery/:slug/quote', orderController.deliveryQuote);
+// Con límite igual que el checkout: es público, y cada llamada consulta zonas y tasa del día.
+router.get('/public/checkout/delivery/:slug/quote', publicBookingRateLimit, orderController.deliveryQuote);
 // Tasa BCV para la landing (precios de planes en $ y Bs): es un dato global, no de un restaurante.
 router.get('/public/exchange-rate', exchangeRateController.summary);
 router.use('/public/plan-requests', publicPlanRequestRoutes);

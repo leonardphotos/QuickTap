@@ -38,6 +38,9 @@ export const menuService = {
         fullscreenImageUrl: true,
         deliveryOriginLat: true,
         deliveryOriginLng: true,
+        // El carrito lo necesita para saber si tiene que exigir la ubicación: si el local
+        // cobra el envío y no la tiene, no puede calcular la zona y el pedido saldría gratis.
+        deliveryPricingMode: true,
         _count: { select: { tables: true } },
       },
     });

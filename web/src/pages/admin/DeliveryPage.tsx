@@ -32,9 +32,18 @@ export default function DeliveryPage() {
   const [connected, setConnected] = useState(false);
   const [editing, setEditing] = useState<OrderView | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   function load() {
-    api.get('/orders/delivery').then((res) => setOrders(res.data.data));
+    api
+      .get('/orders/delivery')
+      .then((res) => {
+        setOrders(res.data.data);
+        setLoadError(null);
+      })
+      // Sin esto, un fallo de red dejaba la lista vieja en pantalla sin ninguna señal: el
+      // encargado seguía mirando pedidos de hace media hora creyendo que no habían entrado más.
+      .catch((err) => setLoadError(err.response?.data?.error ?? 'No se pudo actualizar la lista de pedidos.'));
   }
 
   useEffect(() => {
@@ -68,6 +77,12 @@ export default function DeliveryPage() {
 
   return (
     <div className="space-y-6">
+      {loadError && (
+        <p className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {loadError} — lo que ves puede estar desactualizado.
+        </p>
+      )}
+
       <div className="flex items-center gap-2">
         <h1 className="text-3xl font-semibold tracking-tight text-brand-950">Delivery</h1>
         <span className={`text-xs px-2 py-0.5 rounded-full ${connected ? 'bg-brand-400/15 text-brand-800' : 'bg-brand-950/10 text-brand-950/50'}`}>

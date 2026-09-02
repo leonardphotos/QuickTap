@@ -128,6 +128,8 @@ export interface Restaurant {
   screenProductIds?: string[];
   screenPageIntervalSec?: number;
   screenItemsPerPage?: number;
+  /** Si el local cobra envío, el carrito exige la ubicación para poder calcular la zona. */
+  deliveryPricingMode?: 'DISABLED' | 'DISTANCE' | 'ZONE';
   deliveryOriginLat?: number | null;
   deliveryOriginLng?: number | null;
   /** Solo en el menú público: si el restaurante tiene al menos una mesa creada. */

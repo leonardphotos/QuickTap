@@ -82,6 +82,8 @@ export default function CartDrawer({
   const [address, setAddress] = useState('');
   const [locationUrl, setLocationUrl] = useState<string | null>(null);
   const [locationCoords, setLocationCoords] = useState<{ lat: number; lng: number } | null>(null);
+  /** ¿Este local cobra el envío? Si no cobra, la ubicación sigue siendo opcional. */
+  const cobraEnvio = (restaurant.deliveryPricingMode ?? 'DISABLED') !== 'DISABLED';
   const [gettingLocation, setGettingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [payment, setPayment] = useState<PaymentMethod>('MOBILE_PAYMENT');
@@ -353,6 +355,15 @@ export default function CartDrawer({
     }
     if (mode === 'DELIVERY' && !address.trim() && !locationUrl) {
       setError('Escribe la dirección de entrega o usa tu ubicación actual.');
+      return;
+    }
+    // Con envío cobrado, una dirección escrita a mano no alcanza: sin coordenadas no se puede
+    // saber en qué zona cae y el pedido entraba con envío en CERO sin que nadie lo notara.
+    // Se avisa acá para que el cliente lo resuelva en el momento; el servidor lo valida igual.
+    if (mode === 'DELIVERY' && cobraEnvio && !locationCoords) {
+      setError(
+        'Necesitamos tu ubicación para calcular el envío. Toca "Usar mi ubicación actual" o elige tu dirección de la lista de sugerencias.',
+      );
       return;
     }
     setSending(true);

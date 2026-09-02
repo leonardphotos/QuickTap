@@ -65,6 +65,29 @@ export function distanceToPolygonKm(point: LatLng, polygon: LatLng[]): number {
   return min;
 }
 
+/**
+ * Área aproximada de un polígono en km², por la fórmula del cordón sobre un plano local.
+ *
+ * Sirve para desempatar zonas que se solapan: cuando un punto cae dentro de más de una, gana
+ * la más chica — es la más específica, la que el restaurante dibujó con más detalle. Sin un
+ * desempate explícito el precio lo decidía el orden en que la base devolviera las filas, que
+ * no está garantizado y cambia al editar cualquier zona.
+ */
+export function polygonAreaKm2(polygon: LatLng[]): number {
+  if (polygon.length < 3) return 0;
+  const kmPerDegLat = 111.32;
+  const kmPerDegLng = 111.32 * Math.cos((polygon[0].lat * Math.PI) / 180);
+  let suma = 0;
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i].lng * kmPerDegLng;
+    const yi = polygon[i].lat * kmPerDegLat;
+    const xj = polygon[j].lng * kmPerDegLng;
+    const yj = polygon[j].lat * kmPerDegLat;
+    suma += xj * yi - xi * yj;
+  }
+  return Math.abs(suma) / 2;
+}
+
 /** Centroide (promedio simple de vértices) de un polígono — suficiente para zonas de
  * delivery, que son pequeñas y no necesitan el centroide "real" ponderado por área. */
 export function polygonCentroid(polygon: LatLng[]): LatLng {
