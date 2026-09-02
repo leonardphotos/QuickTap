@@ -79,6 +79,8 @@ const emptyForm = {
   packagingType: 'ENVASE' as 'ENVASE' | 'CAJA' | 'BOLSA',
   salePrice: '',
   expiryDate: '',
+  // Solo del formulario: no se guarda. "No perecedero" = insumo sin fecha de caducidad.
+  noPerecedero: false,
   yieldPercent: '100',
   correctionPercent: '0',
   isTopping: false,
@@ -516,6 +518,7 @@ function InsumosTab({
       packagingType: item.packagingType ?? 'ENVASE',
       salePrice: item.salePriceBase ?? '',
       expiryDate: item.expiryDate ?? '',
+      noPerecedero: !item.expiryDate,
       yieldPercent: item.yieldPercent ?? '100',
       correctionPercent: item.correctionPercent ?? '0',
       isTopping: !!item.isTopping,
@@ -566,8 +569,9 @@ function InsumosTab({
         categoryId: form.categoryId || null,
         packagingType: form.isPackaging ? form.packagingType : null,
         salePrice: form.isPackaging ? Number(form.salePrice) || 0 : null,
-        // Cadena vacía = el backend la interpreta como "borrar la fecha".
-        expiryDate: form.expiryDate,
+        // Cadena vacía = el backend la interpreta como "borrar la fecha", que es justo lo que
+        // significa "No perecedero".
+        expiryDate: form.noPerecedero ? '' : form.expiryDate,
         locationScope,
         isTopping: form.isTopping,
         ...(canRecipes
@@ -824,18 +828,38 @@ function InsumosTab({
               className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
             />
           </label>
-          <label className="block text-sm sm:col-span-2">
-            <span className="text-brand-950/70">Fecha de caducidad (opcional)</span>
+          <div className="block text-sm sm:col-span-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-brand-950/70">Fecha de caducidad</span>
+              {/* Atajo para lo que no vence (servilletas, envases, utensilios): apaga el campo
+                  en vez de obligar a inventar una fecha. No se guarda una marca aparte — un
+                  insumo "no perecedero" es sencillamente uno sin fecha. */}
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, noPerecedero: !form.noPerecedero, expiryDate: '' })}
+                aria-pressed={form.noPerecedero}
+                className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                  form.noPerecedero
+                    ? 'bg-brand-500 text-white'
+                    : 'bg-brand-950/[0.06] text-brand-950/50 hover:bg-brand-950/10'
+                }`}
+              >
+                No perecedero
+              </button>
+            </div>
             <input
               value={form.expiryDate}
               onChange={(e) => setForm({ ...form, expiryDate: e.target.value })}
               type="date"
-              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500"
+              disabled={form.noPerecedero}
+              className="mt-1 w-full border border-brand-950/15 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/40 focus:border-brand-500 disabled:bg-brand-950/[0.04] disabled:text-brand-950/30"
             />
             <span className="mt-1 block text-[11px] font-light text-brand-950/40">
-              Si la pones, el sistema te avisa en el Dashboard cuando el lote está por vencer.
+              {form.noPerecedero
+                ? 'Este insumo no vence: no va a aparecer en los avisos de vencimiento.'
+                : 'Si la pones, el sistema te avisa en el Dashboard cuando el lote está por vencer. Si no vence, marca "No perecedero".'}
             </span>
-          </label>
+          </div>
           <label className="block text-sm">
             <span className="text-brand-950/70">
               Precio por Unidad
