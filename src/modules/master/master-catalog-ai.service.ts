@@ -1,4 +1,3 @@
-import { AsyncLocalStorage } from 'async_hooks';
 import fs from 'fs';
 import path from 'path';
 import ExcelJS from 'exceljs';
@@ -83,13 +82,6 @@ export interface FichaPropuesta {
 async function restauranteOThrow(restaurantId: string) {
   const r = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { id: true, name: true } });
   if (!r) throw notFound('Ese restaurante no existe.');
-  // Todo método de esta herramienta arranca por acá, así que es el sitio natural para dejar
-  // anotado a qué cliente pertenece el gasto que venga después.
-  const ctx = contextoIA.getStore();
-  if (ctx) {
-    ctx.restaurantId = r.id;
-    ctx.restaurante = r.name;
-  }
   return r;
 }
 
@@ -101,27 +93,16 @@ function guardarFoto(buffer: Buffer, ext: string): string {
 }
 
 /**
- * Contexto de la carga que se está corriendo: a qué cliente se le está cargando.
+ * A qué cliente se le está cargando, para poder atarle el gasto de Gemini.
  *
- * Va en AsyncLocalStorage y no como parámetro de cada llamada porque el consumo se anota en
- * las tres funciones de bajo nivel que hablan con el microservicio, y esas las usan una docena
- * de sitios. Pasarles el restaurante a todos sería ruido en firmas que no tienen nada que ver
- * con medir el gasto — y un sitio que se olvide de pasarlo deja un hueco silencioso en la
- * factura, que es justo lo que este registro existe para evitar.
+ * Va como parámetro explícito y no en un AsyncLocalStorage: se probó con ALS y el contexto se
+ * PERDÍA al pasar por multer — sus callbacks salen de eventos del socket, que corren en el
+ * contexto de la conexión y no en el de la petición, así que todo lo que va después de subir
+ * un archivo quedaba sin cliente. Y se perdía en silencio: la carga funcionaba igual y las
+ * filas de consumo salían con el restaurante en null. Un parámetro que falta lo caza el
+ * compilador; un contexto que se evapora, nadie.
  */
-const contextoIA = new AsyncLocalStorage<{ restaurantId?: string; restaurante?: string }>();
-
-/**
- * Abre el contexto de la carga para toda la petición. Se monta una vez en el router, y a
- * partir de ahí `restauranteOThrow` lo rellena y `registrarConsumo` lo lee.
- */
-export function conContextoIA(
-  _req: unknown,
-  _res: unknown,
-  next: () => void,
-): void {
-  contextoIA.run({}, next);
-}
+type ContextoIA = { restaurantId: string; restaurante: string } | undefined;
 
 /**
  * Guarda lo que costó una llamada a Gemini. El microservicio lo devuelve en cabeceras
@@ -131,7 +112,7 @@ export function conContextoIA(
  * corriendo. Una fila de consumo que se pierde es un dato menos en un reporte; una carga de
  * catálogo que falla por el reporte es una hora de trabajo tirada.
  */
-function registrarConsumo(response: Response, operacion: string, ms: number): void {
+function registrarConsumo(response: Response, operacion: string, ms: number, ctx: ContextoIA): void {
   const numero = (nombre: string) => {
     const v = Number(response.headers.get(nombre));
     return Number.isFinite(v) && v >= 0 ? Math.round(v) : 0;
@@ -139,7 +120,6 @@ function registrarConsumo(response: Response, operacion: string, ms: number): vo
   const total = numero('X-Gemini-Total');
   if (total <= 0) return;
 
-  const ctx = contextoIA.getStore();
   prisma.aiUsage
     .create({
       data: {
@@ -159,7 +139,12 @@ function registrarConsumo(response: Response, operacion: string, ms: number): vo
     });
 }
 
-async function llamarServicioIA(endpoint: string, file: Express.Multer.File, campos: Record<string, string> = {}) {
+async function llamarServicioIA(
+  endpoint: string,
+  file: Express.Multer.File,
+  campos: Record<string, string> = {},
+  ctx?: ContextoIA,
+) {
   const form = new FormData();
   form.append('file', new Blob([file.buffer], { type: file.mimetype }), file.originalname);
   for (const [k, v] of Object.entries(campos)) form.append(k, v);
@@ -171,7 +156,7 @@ async function llamarServicioIA(endpoint: string, file: Express.Multer.File, cam
   } catch {
     throw new HttpError(503, SERVICIO_CAIDO);
   }
-  registrarConsumo(response, endpoint, Date.now() - t0);
+  registrarConsumo(response, endpoint, Date.now() - t0, ctx);
   if (!response.ok) {
     // El microservicio contesta {"detail": "..."} — se pasa tal cual porque sus mensajes ya
     // están en cristiano ("GEMINI_API_KEY no está configurada", "Formato no soportado").
@@ -282,7 +267,7 @@ function compactarInventario(texto: string): { texto: string; filas: number; pro
 }
 
 /** Igual que `llamarServicioIA` pero con cuerpo JSON — las fichas técnicas no llevan archivo. */
-async function llamarServicioIAJson(endpoint: string, cuerpo: unknown) {
+async function llamarServicioIAJson(endpoint: string, cuerpo: unknown, ctx?: ContextoIA) {
   let response: Response;
   const t0 = Date.now();
   try {
@@ -294,7 +279,7 @@ async function llamarServicioIAJson(endpoint: string, cuerpo: unknown) {
   } catch {
     throw new HttpError(503, SERVICIO_CAIDO);
   }
-  registrarConsumo(response, endpoint, Date.now() - t0);
+  registrarConsumo(response, endpoint, Date.now() - t0, ctx);
   if (!response.ok) {
     let detalle = 'El servicio de IA no pudo procesar la solicitud.';
     try {
@@ -475,7 +460,7 @@ function aUnidadBase(unidadArchivo: string, respaldo: string) {
 }
 
 /** Manda un trozo de texto plano al microservicio y devuelve la respuesta. */
-async function mandarTextoALaIA(endpoint: string, texto: string) {
+async function mandarTextoALaIA(endpoint: string, texto: string, ctx?: ContextoIA) {
   const form = new FormData();
   form.append('texto', texto);
   let response: Response;
@@ -485,7 +470,7 @@ async function mandarTextoALaIA(endpoint: string, texto: string) {
   } catch {
     throw new HttpError(503, SERVICIO_CAIDO);
   }
-  registrarConsumo(response, endpoint, Date.now() - t0);
+  registrarConsumo(response, endpoint, Date.now() - t0, ctx);
   if (!response.ok) {
     let detalle = 'El servicio de IA no pudo leer el archivo.';
     try {
@@ -516,6 +501,7 @@ async function leerListaConIA<T>(
   file: Express.Multer.File,
   campo: string,
   opciones: { errorVacio: string; compactar?: boolean },
+  ctx?: ContextoIA,
 ): Promise<{ filas: T[]; compactado: { filas: number; productos: number } | null; lotes: number }> {
   const esExcel =
     file.mimetype.includes('spreadsheet') ||
@@ -528,7 +514,7 @@ async function leerListaConIA<T>(
   };
 
   if (!esExcel) {
-    return { filas: await extraer(await llamarServicioIA(endpoint, file)), compactado: null, lotes: 1 };
+    return { filas: await extraer(await llamarServicioIA(endpoint, file, {}, ctx)), compactado: null, lotes: 1 };
   }
 
   let texto = await hojaATexto(file.buffer);
@@ -546,7 +532,7 @@ async function leerListaConIA<T>(
   const trozos = partirEnTrozos(texto);
   const filas: T[] = [];
   for (const trozo of trozos) {
-    filas.push(...(await extraer(await mandarTextoALaIA(endpoint, trozo))));
+    filas.push(...(await extraer(await mandarTextoALaIA(endpoint, trozo, ctx))));
   }
   return { filas, compactado, lotes: trozos.length };
 }
@@ -688,14 +674,16 @@ async function leerInventarioDeHoja(
  * vacía) y si es un empaque. Va sobre nombres pelados, así que cuesta una fracción de lo que
  * costaba mandarle la hoja entera a transcribir.
  */
-async function clasificarInsumos(filas: FilaHoja[]) {
+async function clasificarInsumos(filas: FilaHoja[], ctx?: ContextoIA) {
   const clasificacion = new Map<string, { categoria: string; unidad: string; tipoEmpaque: string }>();
   for (let i = 0; i < filas.length; i += INSUMOS_POR_LOTE_CLASIFICACION) {
     const lote = filas.slice(i, i + INSUMOS_POR_LOTE_CLASIFICACION);
     try {
-      const res = await llamarServicioIAJson('clasificar-insumos', {
-        insumos: lote.map((f) => ({ nombre: f.nombre, unidad: f.unidadArchivo })),
-      });
+      const res = await llamarServicioIAJson(
+        'clasificar-insumos',
+        { insumos: lote.map((f) => ({ nombre: f.nombre, unidad: f.unidadArchivo })) },
+        ctx,
+      );
       const { insumos } = (await res.json()) as {
         insumos?: { nombre: string; categoria: string; unidad: string; tipoEmpaque: string }[];
       };
@@ -742,14 +730,19 @@ export const masterCatalogAiService = {
    * categoría. Es transcripción, no creación; las fichas técnicas son el paso siguiente.
    */
   async leerCarta(restaurantId: string, file: Express.Multer.File): Promise<ProductoLeido[]> {
-    await restauranteOThrow(restaurantId);
+    const cliente = await restauranteOThrow(restaurantId);
+    const ctx = { restaurantId, restaurante: cliente.name };
 
     // La hoja se aplana a texto en el backend y no en Python: exceljs ya está acá, y así el
     // microservicio de IA sigue siendo solo "entra contenido, sale JSON" sin saber de Excel.
     // Una carta larga se parte en trozos y las respuestas se juntan (ver leerListaConIA).
-    const lectura = await leerListaConIA<ProductoLeido>('leer-carta', file, 'productos', {
-      errorVacio: 'La hoja está vacía o no se pudo leer.',
-    });
+    const lectura = await leerListaConIA<ProductoLeido>(
+      'leer-carta',
+      file,
+      'productos',
+      { errorVacio: 'La hoja está vacía o no se pudo leer.' },
+      ctx,
+    );
 
     const productos: ProductoLeido[] = [];
     for (const p of lectura.filas) {
@@ -780,13 +773,14 @@ export const masterCatalogAiService = {
     restaurantId: string,
     platos: { nombre: string; descripcion?: string }[],
   ): Promise<FichaPropuesta[]> {
-    await restauranteOThrow(restaurantId);
+    const cliente = await restauranteOThrow(restaurantId);
+    const ctx = { restaurantId, restaurante: cliente.name };
     const existentes = await loQueYaTiene(restaurantId);
 
     const fichas: FichaPropuesta[] = [];
     for (let i = 0; i < platos.length; i += PLATOS_POR_LOTE) {
       const lote = platos.slice(i, i + PLATOS_POR_LOTE);
-      const res = await llamarServicioIAJson('fichas-tecnicas', { platos: lote });
+      const res = await llamarServicioIAJson('fichas-tecnicas', { platos: lote }, ctx);
       const datos = (await res.json()) as {
         platos?: {
           nombre: string;
@@ -846,16 +840,17 @@ export const masterCatalogAiService = {
     file: Express.Multer.File,
     opciones: { nombre?: string; mejorarFoto?: boolean },
   ): Promise<AnalisisPlato> {
-    await restauranteOThrow(restaurantId);
+    const cliente = await restauranteOThrow(restaurantId);
+    const ctx = { restaurantId, restaurante: cliente.name };
 
     const analisis = (await (
-      await llamarServicioIA('analizar-plato', file, { nombre: opciones.nombre?.trim() ?? '' })
+      await llamarServicioIA('analizar-plato', file, { nombre: opciones.nombre?.trim() ?? '' }, ctx)
     ).json()) as { plato?: string; descripcion?: string; ingredientes?: { nombre: string; unidad: string; cantidad: number }[] };
 
     // La foto que se guarda: la mejorada si se pidió, la original si no.
     let photoUrl: string;
     if (opciones.mejorarFoto) {
-      const res = await llamarServicioIA('enhance-image', file);
+      const res = await llamarServicioIA('enhance-image', file, {}, ctx);
       photoUrl = guardarFoto(Buffer.from(await res.arrayBuffer()), '.jpg');
     } else {
       const ext = file.mimetype === 'image/png' ? '.png' : file.mimetype === 'image/webp' ? '.webp' : '.jpg';
@@ -1251,7 +1246,8 @@ export const masterCatalogAiService = {
     insumos: InsumoLeido[];
     lectura: { filas: number; productos: number; lotes: number; porCodigo: boolean };
   }> {
-    await restauranteOThrow(restaurantId);
+    const cliente = await restauranteOThrow(restaurantId);
+    const ctx = { restaurantId, restaurante: cliente.name };
     const inventarioDe = await resolveInventoryScopeById(restaurantId);
 
     const esExcel =
@@ -1281,7 +1277,7 @@ export const masterCatalogAiService = {
     };
 
     if (hoja) {
-      const clasificacion = await clasificarInsumos(hoja.filas);
+      const clasificacion = await clasificarInsumos(hoja.filas, ctx);
       lectura = {
         filas: hoja.filas.map((f) => {
           const c = clasificacion.get(clave(f.nombre));
@@ -1316,7 +1312,13 @@ export const masterCatalogAiService = {
         categoria: string;
         esEmpaque: boolean;
         tipoEmpaque: string;
-      }>('leer-insumos', file, 'insumos', { errorVacio: 'La hoja está vacía o no se pudo leer.', compactar: true });
+      }>(
+        'leer-insumos',
+        file,
+        'insumos',
+        { errorVacio: 'La hoja está vacía o no se pudo leer.', compactar: true },
+        ctx,
+      );
       lectura = { ...conIA, porCodigo: false };
     }
 
@@ -1411,10 +1413,11 @@ export const masterCatalogAiService = {
       await Promise.all(
         lotes.map(async (lote) => {
           try {
-            const res = await llamarServicioIAJson('vincular-insumos', {
-              nuevos: lote.map((f) => f.nombre),
-              existentes: existentes.map((e) => e.name),
-            });
+            const res = await llamarServicioIAJson(
+              'vincular-insumos',
+              { nuevos: lote.map((f) => f.nombre), existentes: existentes.map((e) => e.name) },
+              ctx,
+            );
             const { pares } = (await res.json()) as { pares?: { nuevo: string; existente: string }[] };
             const equivalencia = new Map((pares ?? []).map((p) => [p.nuevo, p.existente]));
             for (const fila of lote) {
@@ -1702,7 +1705,8 @@ export const masterCatalogAiService = {
    * es siempre el camino bueno — son sus gramos de verdad, no una aproximación.
    */
   async leerRecetas(restaurantId: string, file: Express.Multer.File) {
-    await restauranteOThrow(restaurantId);
+    const cliente = await restauranteOThrow(restaurantId);
+    const ctx = { restaurantId, restaurante: cliente.name };
     const existentes = await loQueYaTiene(restaurantId);
 
     const lectura = await leerListaConIA<{
@@ -1715,7 +1719,7 @@ export const masterCatalogAiService = {
         cantidad: number;
         insumos?: { nombre: string; unidad: string; cantidad: number }[];
       }[];
-    }>('leer-recetas', file, 'platos', { errorVacio: 'La hoja está vacía o no se pudo leer.' });
+    }>('leer-recetas', file, 'platos', { errorVacio: 'La hoja está vacía o no se pudo leer.' }, ctx);
 
     // A qué plato de la carta corresponde cada ficha leída. Lo que no calza con ningún plato
     // se devuelve igual con productId nulo: puede ser un plato que todavía no está cargado.
@@ -1923,7 +1927,8 @@ export const masterCatalogAiService = {
    * después venir acá.
    */
   async empaquesPropuestos(restaurantId: string, productIds?: string[]) {
-    await restauranteOThrow(restaurantId);
+    const cliente = await restauranteOThrow(restaurantId);
+    const ctx = { restaurantId, restaurante: cliente.name };
     const inventarioDe = await resolveInventoryScopeById(restaurantId);
 
     const empaques = await prisma.inventoryItem.findMany({
@@ -1961,10 +1966,11 @@ export const masterCatalogAiService = {
     for (let i = 0; i < lista.length; i += PLATOS_POR_LOTE_EMPAQUE) {
       const lote = lista.slice(i, i + PLATOS_POR_LOTE_EMPAQUE);
       try {
-        const res = await llamarServicioIAJson('vincular-empaques', {
-          platos: lote,
-          empaques: empaques.map((e) => e.name),
-        });
+        const res = await llamarServicioIAJson(
+          'vincular-empaques',
+          { platos: lote, empaques: empaques.map((e) => e.name) },
+          ctx,
+        );
         const { pares } = (await res.json()) as { pares?: { plato: string; empaque: string }[] };
         for (const par of pares ?? []) propuesta.set(par.plato, par.empaque);
       } catch {
