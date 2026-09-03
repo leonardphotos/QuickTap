@@ -981,27 +981,34 @@ export const masterCatalogAiService = {
     const sueltos = leidos.filter((f) => !f.vinculadoA);
     if (sueltos.length > 0 && existentes.length > 0) {
       const porNombre = new Map(existentes.map((e) => [e.name, e]));
-      for (let i = 0; i < sueltos.length; i += NOMBRES_POR_LOTE) {
-        const lote = sueltos.slice(i, i + NOMBRES_POR_LOTE);
-        try {
-          const res = await llamarServicioIAJson('vincular-insumos', {
-            nuevos: lote.map((f) => f.nombre),
-            existentes: existentes.map((e) => e.name),
-          });
-          const { pares } = (await res.json()) as { pares?: { nuevo: string; existente: string }[] };
-          const equivalencia = new Map((pares ?? []).map((p) => [p.nuevo, p.existente]));
-          for (const fila of lote) {
-            const destino = porNombre.get(equivalencia.get(fila.nombre) ?? '');
-            if (!destino) continue;
-            fila.vinculadoA = { id: destino.id, nombre: destino.name, costoActual: Number(destino.pricePerUnitBase ?? 0) };
-            fila.vinculoPor = 'ia';
+      const lotes: InsumoLeido[][] = [];
+      for (let i = 0; i < sueltos.length; i += NOMBRES_POR_LOTE) lotes.push(sueltos.slice(i, i + NOMBRES_POR_LOTE));
+
+      // En paralelo y no una tras otra: cada tanda es una consulta independiente (mismos
+      // existentes, nombres nuevos distintos) y encadenarlas le sumaba medio minuto de espera
+      // al operador por cada 60 insumos. Con 150 insumos eran tres tandas en fila.
+      await Promise.all(
+        lotes.map(async (lote) => {
+          try {
+            const res = await llamarServicioIAJson('vincular-insumos', {
+              nuevos: lote.map((f) => f.nombre),
+              existentes: existentes.map((e) => e.name),
+            });
+            const { pares } = (await res.json()) as { pares?: { nuevo: string; existente: string }[] };
+            const equivalencia = new Map((pares ?? []).map((p) => [p.nuevo, p.existente]));
+            for (const fila of lote) {
+              const destino = porNombre.get(equivalencia.get(fila.nombre) ?? '');
+              if (!destino) continue;
+              fila.vinculadoA = { id: destino.id, nombre: destino.name, costoActual: Number(destino.pricePerUnitBase ?? 0) };
+              fila.vinculoPor = 'ia';
+            }
+          } catch {
+            // El cruce fino es una ayuda, no un requisito: si la IA falla, esas filas quedan
+            // como insumos nuevos y el operador las vincula a mano. Perder la lectura entera
+            // por esto sería mucho peor que revisar unas cuantas líneas.
           }
-        } catch {
-          // El cruce fino es una ayuda, no un requisito: si la IA falla, esas filas quedan
-          // como insumos nuevos y el operador las vincula a mano. Perder la lectura entera
-          // por esto sería mucho peor que revisar unas cuantas líneas.
-        }
-      }
+        }),
+      );
     }
 
     // Cuántas líneas de costo se recostean por cada vínculo: es lo que el operador necesita

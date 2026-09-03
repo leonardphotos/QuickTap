@@ -204,8 +204,19 @@ function PanelInsumos({
 }) {
   const [filas, setFilas] = useState<FilaInsumo[]>([]);
   const [leyendo, setLeyendo] = useState(false);
+  const [segundos, setSegundos] = useState(0);
   const [guardando, setGuardando] = useState(false);
   const archivoRef = useRef<HTMLInputElement>(null);
+
+  // Cronómetro mientras la IA trabaja. Leer un inventario de verdad son minutos, no segundos, y
+  // un botón que dice lo mismo durante dos minutos y medio se lee como "se trabó": el operador
+  // cierra la pestaña justo antes de que termine. El número subiendo dice que sigue vivo.
+  useEffect(() => {
+    if (!leyendo) return;
+    setSegundos(0);
+    const t = setInterval(() => setSegundos((n) => n + 1), 1000);
+    return () => clearInterval(t);
+  }, [leyendo]);
 
   async function subir(file: File) {
     onError(null);
@@ -321,7 +332,10 @@ function PanelInsumos({
           disabled={leyendo}
           onClick={() => archivoRef.current?.click()}
         >
-          <Upload className="h-4 w-4" /> {leyendo ? 'Leyendo la lista…' : 'Subir lista de insumos'}
+          <Upload className="h-4 w-4" />{' '}
+          {leyendo
+            ? `${segundos < 60 ? 'Leyendo la lista' : 'Cruzando con lo que ya tiene'}… ${Math.floor(segundos / 60)}:${String(segundos % 60).padStart(2, '0')}`
+            : 'Subir lista de insumos'}
         </TextureButton>
         <input
           ref={archivoRef}
@@ -334,7 +348,12 @@ function PanelInsumos({
             e.target.value = '';
           }}
         />
-        {filas.length > 0 && (
+        {leyendo && (
+          <span className="text-sm text-brand-950/50">
+            Un inventario completo tarda entre 1 y 3 minutos. No cierres la pestaña.
+          </span>
+        )}
+        {!leyendo && filas.length > 0 && (
           <span className="text-sm text-brand-950/50">
             {filas.length - nuevos} se vinculan con insumos que ya tiene · {nuevos} se crean nuevos
           </span>
