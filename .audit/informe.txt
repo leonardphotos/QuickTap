@@ -1,0 +1,206 @@
+
+── A. QR EN MESA — abrir cuenta y sumar rondas ─────────────────
+  ✓ A1 primer pedido por QR abre la cuenta
+  ✓ A2 total = subtotal + 10% servicio + 16% IVA
+  ✓ A3 segunda ronda sin repetir datos del cliente
+  ✓ A4 las dos rondas quedan en UNA sola cuenta
+  ✓ A5 un QR inexistente se rechaza
+  ✓ A6 no se puede meter un producto de otro restaurante
+  ✓ A7 cantidad negativa se rechaza
+  ✓ A8 propina fuera de rango se rechaza
+
+── B. COBRO DE LA CUENTA ───────────────────────────────────────
+  · B0 la cuenta de la mesa 2 debe $17.64
+  ✓ B1 no se puede pagar más que el saldo
+  ✓ B2 pago exacto se registra
+  ✓ B3 no se puede cobrar un pedido ya saldado
+  ✓ B4 pago negativo se rechaza
+
+── C. DELIVERY ─────────────────────────────────────────────────
+  ✓ C1 delivery sin ubicación se rechaza (el local cobra envío)
+  ✓ C2 delivery dentro de zona "Cerca" ($1)
+  ✓ C3 cobra el envío de la zona
+  ✓ C4 el envío entra en el total
+  ✓ C5 pickup no cobra envío
+
+── D. PEDIDO MANUAL DESDE EL PANEL ─────────────────────────────
+  ✓ D1 pedido manual en mesa
+  ✓ D2 agregar productos a un pedido en curso
+  ✓ D3 el subtotal se recalcula al agregar
+  ✓ D4 servicio e IVA se rehacen al agregar
+  ✓ D5 quitar un ítem del pedido
+  ✓ D6 no se puede dejar un pedido sin productos
+
+── E. AISLAMIENTO ENTRE RESTAURANTES ───────────────────────────
+  ✓ E1 no se puede cobrar el pedido de otro restaurante
+  ✓ E2 no se puede cancelar el pedido de otro restaurante
+  ✓ E3 no se puede usar la mesa de otro restaurante
+
+── F. ESTADOS Y CANCELACIÓN ────────────────────────────────────
+  ✓ F1 pedido de barra
+  ✓ F2 cancelar un pedido
+  ✓ F3 no se puede cobrar un pedido cancelado
+  ✓ F4 no se puede editar un pedido cancelado
+
+── G. PAGO FRACCIONADO Y SALDOS ────────────────────────────────
+  ✓ G1 abono parcial se registra
+  ✓ G2 segundo abono
+  ✓ G3 el tercer abono excede el saldo y se rechaza
+  ✓ G4 abono exacto que salda la cuenta
+  ✓ G5 la suma de abonos es exacta
+
+── H. DESCUENTOS Y PERMISOS ────────────────────────────────────
+  ✓ H1 un cajero NO puede aplicar descuento
+  ✓ H2 tampoco por monto
+  ✓ H3 tampoco condonando el servicio
+  ✓ H4 el dueño sí puede descontar
+  ✓ H5 con 50% de descuento la cuenta queda saldada
+  ✓ H6 descuento mayor a 100% se rechaza
+
+── I. INVENTARIO — descuento por receta ────────────────────────
+  ✓ I1 marcar SERVED
+  ✓ I2 el stock baja 0.6 kg al servir 3 hamburguesas
+  ✓ I3 volver a marcar SERVED no descuenta de nuevo
+  · I4 cancelar un pedido ya servido devuelve el stock (antes 9.4, ahora 10)
+
+── J. NUMERACIÓN DE PEDIDOS BAJO CONCURRENCIA ──────────────────
+  ✓ J1 los 12 pedidos simultáneos se crearon
+  ✓ J2 ningún número de pedido repetido
+  ✓ J3 no se perdió ni duplicó ningún pedido
+
+── K. CIERRE DE CAJA ───────────────────────────────────────────
+  ✓ K1 abrir caja
+  · K2 la caja abierta reporta: ["id","restaurantId","status","openedByUserId","openedAt","openingBalances","closedByUserId","closedAt","closeNumber","closingSummary","countedBalances","openedByUser"]
+  · K3 el arqueo previo dice: ["session","summary"]
+  ✓ K4 cerrar caja
+
+── L. VARIANTES Y MODIFICADORES — precio ───────────────────────
+  ✓ L1 la variante Grande cobra su precio
+  ✓ L2 dos Pequeñas = 24
+  ✓ L3 el modificador suma su precio
+  ✓ L4 el modificador se multiplica por la cantidad
+  ✓ L5 no se puede usar la variante de otro producto
+  ✓ L6 un modificador que no es del producto se RECHAZA (antes se descartaba en silencio)
+  ✓ L7 lo mismo desde el QR del comensal
+  ✓ L8 el modificador válido sigue cobrándose
+
+── M. PROPINAS ─────────────────────────────────────────────────
+  ✓ M1 agregar propina
+  ✓ M2 la propina se guarda
+  ✓ M3 la propina NO se mete en el total del pedido
+  ✓ M4 cobrar con propina
+
+── N. CUENTA DE MESA — cierre y PIN ────────────────────────────
+  ✓ N1 abrir cuenta en mesa 3
+  ✓ N2 con PIN puesto, pedir sin PIN se rechaza
+  ✓ N3 PIN incorrecto se rechaza
+  ✓ N4 PIN correcto deja pedir
+  · N5 se pudo cerrar una cuenta CON saldo pendiente (quedó CLOSED)
+
+── O. LOS REPORTES CUADRAN CON LOS PEDIDOS ─────────────────────
+  ✓ O1 estadísticas responden
+  ✓ O2 el total de ventas cuadra con los pedidos
+  ✓ O3 la cantidad de pedidos cuadra
+  ✓ O4 las unidades vendidas cuadran
+
+── P. CUENTAS IMPAGAS NO SE PUEDEN OCULTAR (trigger de la base) 
+  ✓ P1 el trigger impide ocultar un pedido impago
+
+── Q. CONTROL DE STOCK POR PRODUCTO ────────────────────────────
+  · Q1 pedir 10 con solo 3 en stock: LO ACEPTÓ
+  ✓ Q2 sin bloqueo el stock queda en −7 y no se pisa en 0
+
+── R. ENVASE (packaging) SOLO EN DELIVERY/PICKUP ───────────────
+  ✓ R1 en mesa NO se cobra envase
+  ✓ R2 en pickup se cobra $0.50 x 2
+  ✓ R3 el envase entra en el total
+
+── S. COMBOS ───────────────────────────────────────────────────
+  ✓ S1 el combo cobra SU precio, no la suma de sus partes
+  ✓ S2 dos combos = 30
+  ✓ S4 un combo incompleto se rechaza
+  ✓ S5 no se puede llevar dos veces el mismo componente y saltarse el otro
+  ✓ S3 no se puede meter en el combo un plato que no lo compone
+
+── T. TASA DE CAMBIO CONGELADA ─────────────────────────────────
+  ✓ T1 totalBs = totalBase x tasa congelada
+  ✓ T2 la tasa quedó congelada en el pedido
+
+── U. PRODUCTO NO DISPONIBLE ───────────────────────────────────
+  ✓ U1 no se puede vender un producto marcado no disponible
+  ✓ U2 tampoco desde el QR
+
+── V. BORRADO DE PEDIDOS ───────────────────────────────────────
+  · V1 borrar un pedido: status 200
+  ✓ V2 el borrado queda registrado en la bitácora
+  ✓ V3 el pedido ya no está
+  · V4 borrar un pedido YA COBRADO: status 200 (permitido a propósito: revierte banco, devuelve stock y deja rastro)
+  ✓ V5 la bitácora registra CUÁNTO se había cobrado
+  ✓ V6 y con qué método se había cobrado
+
+── W. MESAS UNIDAS ─────────────────────────────────────────────
+  ✓ W1 unir dos mesas
+  ✓ W2 la miembro apunta a la primaria
+  ✓ W3 se puede pedir por el QR de la mesa miembro
+  ✓ W4 el pedido queda en la mesa PRIMARIA, no en la miembro
+  ✓ W5 hay UNA sola cuenta para las dos mesas
+  · W6 separar mesas con cuenta abierta: status 200 (permitido)
+
+── X. COCINA ───────────────────────────────────────────────────
+  ✓ X1 pedido con dos cocinas
+  ✓ X2 una cocina marca lista su parte
+  ✓ X3 el pedido NO se sirve hasta que TODAS las cocinas terminen
+  · X4 con las dos cocinas listas el pedido quedó en SERVED
+  · X5 marcar lista una cocina que no existe en el pedido: status 400
+
+── Y. ACEPTACIÓN DE PEDIDOS QUE LLEGAN SOLOS ───────────────────
+  · Y1 pedido por QR nace en estado NEEDS_CONFIRMATION
+  ✓ Y2 aceptar el pedido
+  ✓ Y3 tras aceptar pasa a cocina
+  · Y4 aceptar dos veces: status 400 (no debe duplicar la comanda)
+
+── AA. DOS CAJEROS COBRANDO EL MISMO PEDIDO A LA VEZ ───────────
+  ✓ AA1 solo UNO de los dos cobros simultáneos entra
+  ✓ AA2 no se cobró de más
+  ✓ AA3 cuatro abonos de $4 en paralelo no superan el total
+
+── AB. CANCELAR MIENTRAS SE COBRA ──────────────────────────────
+  ✓ AB1 cobrar y cancelar a la vez nunca deja plata colgada (8 intentos)
+  ✓ AB2 no se puede cancelar un pedido YA COBRADO
+  ✓ AB3 el pedido cobrado sigue vivo
+  ✓ AB4 un pedido sin cobrar se cancela normal
+  ✓ AB5 eliminar sí funciona (y deja rastro de lo cobrado)
+
+── AC. DEUDA / CUENTA POR COBRAR ───────────────────────────────
+  ✓ AC1 marcar como pendiente por cobrar
+  ✓ AC2 la deuda sigue visible en Pedidos
+  ✓ AC3 un pedido servido Y pagado sale del panel
+  ✓ AC4 un pedido servido CON DEUDA sigue en el panel
+
+── AD. DEVOLUCIONES ────────────────────────────────────────────
+  ✓ AD1 devolver 1 de 3
+  ✓ AD2 queda con 2 unidades
+  ✓ AD3 el subtotal baja a 20
+  ✓ AD4 la devolución queda registrada en Merma
+  ✓ AD5 no se puede devolver más de lo pedido
+
+── AE. BLOQUEO APAGADO (por defecto) — se vende de más y el stock va a negativo 
+  ✓ AE1 con el bloqueo apagado se puede pedir 10 con 3 en stock
+  ✓ AE2 el stock queda en −7 (3 − 10), no pisado en 0
+  ✓ AE3 sigue bajando: −9
+
+── AF. BLOQUEO ENCENDIDO — no se puede comandar más de lo que hay 
+  ✓ AF1 pedir 10 con 3 en stock se RECHAZA
+  ✓ AF2 el mensaje dice cuántas quedan
+  ✓ AF3 pedir exactamente las 3 que quedan sí pasa
+  ✓ AF4 con las 3 ya pedidas y sin servir, no deja pedir una más
+  ✓ AF5 el mensaje dice que está agotado
+  ✓ AF6 con 1 en stock, pedir 2 se rechaza
+  ✓ AF7 el mensaje usa el singular
+  ✓ AF8 pedir la última unidad sí pasa
+  ✓ AF9 el bloqueo también aplica al pedido por QR
+  ✓ AF10 agregar a un pedido en curso también se bloquea
+  ✓ AF11 un producto sin control de stock no se bloquea nunca
+
+======================================================================
+FALLOS: 0   |   NOTAS: 13

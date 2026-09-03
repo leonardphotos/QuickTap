@@ -20,6 +20,3 @@ wallet-app/node_modules/
 wallet-app/android/app/build/
 wallet-app/android/.gradle/
 wallet-app/android/app/google-services.json
-
-# Simulador de auditoría (herramienta local, no forma parte del producto)
-.audit/

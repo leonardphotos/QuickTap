@@ -1,0 +1,11 @@
+/admin
+/admin/comandas
+/admin/kitchen
+/admin/table-orders
+/admin/delivery
+/admin/products
+/admin/tables
+/admin/reservations
+/admin/administration
+/admin/inventory
+/admin/settings
