@@ -4,8 +4,10 @@ import { badRequest } from '../../utils/http-error';
 import {
   analizarPlatoSchema,
   confirmarCatalogoSchema,
+  confirmarEmpaquesSchema,
   confirmarInsumosSchema,
   confirmarRecetasSchema,
+  empaquesSchema,
   fichasCatalogoSchema,
   fichasSchema,
 } from './master-catalog-ai.dto';
@@ -78,6 +80,19 @@ export const masterCatalogAiController = {
   confirmarRecetas: asyncHandler(async (req: Request, res: Response) => {
     const { recetas, reemplazarExistentes } = confirmarRecetasSchema.parse(req.body);
     const data = await masterCatalogAiService.confirmarRecetas(req.params.restaurantId, recetas, reemplazarExistentes);
+    res.status(201).json({ data });
+  }),
+
+  /** Carta + empaques cargados -> en qué envase sale cada plato. */
+  empaques: asyncHandler(async (req: Request, res: Response) => {
+    const { productIds } = empaquesSchema.parse(req.body ?? {});
+    const data = await masterCatalogAiService.empaquesPropuestos(req.params.restaurantId, productIds);
+    res.json({ data });
+  }),
+
+  confirmarEmpaques: asyncHandler(async (req: Request, res: Response) => {
+    const { asignaciones } = confirmarEmpaquesSchema.parse(req.body);
+    const data = await masterCatalogAiService.confirmarEmpaques(req.params.restaurantId, asignaciones);
     res.status(201).json({ data });
   }),
 };

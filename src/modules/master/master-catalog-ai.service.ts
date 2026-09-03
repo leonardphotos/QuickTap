@@ -32,6 +32,9 @@ const SERVICIO_CAIDO =
 /** Unidades del inventario. La IA solo puede devolver estas tres. */
 const UNIDADES = new Set(['kg', 'lt', 'unidad']);
 
+/** Tipos de empaque de InventoryItem.packagingType. */
+const TIPOS_EMPAQUE = new Set(['ENVASE', 'CAJA', 'BOLSA']);
+
 export interface IngredientePropuesto {
   nombre: string;
   unidad: string;
@@ -300,6 +303,12 @@ export interface InsumoLeido {
   usadoEn: number;
   /** Lo que decía la hoja antes de convertir ("8000 gramos"), para que el operador lo vea. */
   enLaHoja: string;
+  /**
+   * Empaque: lo que se va con el pedido del cliente. Va a la ventana de empaques del
+   * inventario (InventoryItem.packagingType) en vez de quedar como un insumo suelto, y desde
+   * ahí se puede vincular a un plato para cobrarlo y descontarlo al vender para llevar.
+   */
+  tipoEmpaque: '' | 'ENVASE' | 'CAJA' | 'BOLSA';
 }
 
 function numeroPositivo(valor: unknown, porDefecto = 0): number {
@@ -454,6 +463,10 @@ async function leerListaConIA<T>(
 
 /** Cuántos nombres nuevos se le pasan a la IA por llamada al cruzarlos con el inventario. */
 const NOMBRES_POR_LOTE = 60;
+
+/** Cuántos platos se le pasan por llamada al elegirles empaque. Más chico que el cruce de
+ * nombres porque acá el modelo tiene que razonar sobre cada plato, no solo emparejar texto. */
+const PLATOS_POR_LOTE_EMPAQUE = 40;
 
 export const masterCatalogAiService = {
   /**
@@ -995,6 +1008,8 @@ export const masterCatalogAiService = {
       minimoArchivo: number;
       unidad: string;
       categoria: string;
+      esEmpaque: boolean;
+      tipoEmpaque: string;
     }>('leer-insumos', file, 'insumos', { errorVacio: 'La hoja está vacía o no se pudo leer.', compactar: true });
 
     const leidos: InsumoLeido[] = [];
@@ -1026,6 +1041,10 @@ export const masterCatalogAiService = {
         // deja ver de un golpe si la IA leyó bien la unidad. Si no se convirtió nada, el dato
         // es ruido — sería repetir la misma cifra dos veces.
         enLaHoja: factor !== 1 && unidadArchivo ? `${cantidadArchivo} ${unidadArchivo}` : '',
+        // Solo se toma el tipo si la IA además lo marcó como empaque: un tipo suelto sin la
+        // marca es ruido del modelo, y mandar a la ventana de empaques algo que no lo es
+        // ensucia el picker con el que después se vincula el envase de cada plato.
+        tipoEmpaque: (i?.esEmpaque && TIPOS_EMPAQUE.has(i?.tipoEmpaque) ? i.tipoEmpaque : '') as InsumoLeido['tipoEmpaque'],
       } satisfies InsumoLeido;
 
       // El mismo insumo puede volver en dos trozos distintos del archivo (o repetido en la
@@ -1046,6 +1065,7 @@ export const masterCatalogAiService = {
       }
       if (previo.minimo <= 0 && fila.minimo > 0) previo.minimo = fila.minimo;
       if (!previo.categoria && fila.categoria) previo.categoria = fila.categoria;
+      if (!previo.tipoEmpaque && fila.tipoEmpaque) previo.tipoEmpaque = fila.tipoEmpaque;
     }
     if (leidos.length === 0) {
       throw badRequest('No se reconoció ningún insumo. Prueba con una foto más nítida o revisa la hoja.');
@@ -1177,6 +1197,8 @@ export const masterCatalogAiService = {
       costoUnitario: number;
       minimo: number;
       categoria?: string;
+      /** No vacío = va a la ventana de empaques del inventario (InventoryItem.packagingType). */
+      tipoEmpaque?: string;
       /** Insumo existente con el que se vincula. Vacío = se crea uno nuevo. */
       inventoryItemId?: string;
     }[],
@@ -1218,6 +1240,8 @@ export const masterCatalogAiService = {
       actualizados: 0,
       conCosto: 0,
       unidadEnConflicto: [] as string[],
+      /** Cuántos quedaron marcados como empaque (van a la ventana de empaques del inventario). */
+      empaques: 0,
       /** Filas que apuntaban a un insumo que otra fila ya se había llevado: se crearon aparte. */
       vinculosRepetidos: [] as string[],
       lineasRecosteadas: 0,
@@ -1242,6 +1266,10 @@ export const masterCatalogAiService = {
       if (!nombre || !UNIDADES.has(fila.unidad)) continue;
       const costo = numeroPositivo(fila.costoUnitario);
       const categoryId = await categoriaId(fila.categoria);
+      // Marcar el insumo como empaque es lo que lo hace aparecer en la ventana de empaques y
+      // en el picker con el que se le pone envase a un plato. Nunca se DESMARCA desde acá: si
+      // el cliente ya lo tenía como empaque y esta hoja no lo dice, manda lo que él configuró.
+      const packagingType = TIPOS_EMPAQUE.has(fila.tipoEmpaque ?? '') ? fila.tipoEmpaque : undefined;
 
       // El id que llega puede repetirse entre filas (el operador eligió el mismo insumo dos
       // veces en los selectores). El primero se lo lleva; los siguientes se crean aparte con
@@ -1267,8 +1295,10 @@ export const masterCatalogAiService = {
             // precios y borrar los buenos sería peor que no cargar nada.
             ...(costo > 0 ? { pricePerUnitBase: toDecimal(costo).toDecimalPlaces(4) } : {}),
             ...(categoryId ? { categoryId } : {}),
+            ...(packagingType ? { packagingType } : {}),
           },
         });
+        if (packagingType) resultado.empaques += 1;
         resultado.actualizados += 1;
       } else {
         const creado = await prisma.inventoryItem.create({
@@ -1280,8 +1310,10 @@ export const masterCatalogAiService = {
             minQuantity: toDecimal(numeroPositivo(fila.minimo)),
             ...(costo > 0 ? { pricePerUnitBase: toDecimal(costo).toDecimalPlaces(4) } : {}),
             ...(categoryId ? { categoryId } : {}),
+            ...(packagingType ? { packagingType } : {}),
           },
         });
+        if (packagingType) resultado.empaques += 1;
         porClave.set(clave(nombre), creado.id);
         propios.add(creado.id);
         resultado.creados += 1;
@@ -1550,6 +1582,148 @@ export const masterCatalogAiService = {
         resultado.recetasCargadas += 1;
         resultado.lineasReceta += lineas;
       }
+    }
+
+    return resultado;
+  },
+
+  /**
+   * Qué empaque le toca a cada plato. NO escribe en la base.
+   *
+   * Vincular el envase a un plato es lo que hace que el sistema lo COBRE y lo DESCUENTE solo
+   * al vender para llevar (ver computeEnvaseFee y deductPackagingStock en order.service). Sin
+   * el vínculo, el restaurante regala el empaque en cada pedido de delivery y su stock de
+   * envases no baja nunca aunque se estén gastando.
+   *
+   * Solo mira los empaques que el cliente YA tiene marcados como tales en su inventario, así
+   * que el camino natural es cargarle primero los insumos (los empaques quedan marcados) y
+   * después venir acá.
+   */
+  async empaquesPropuestos(restaurantId: string, productIds?: string[]) {
+    await restauranteOThrow(restaurantId);
+    const inventarioDe = await resolveInventoryScopeById(restaurantId);
+
+    const empaques = await prisma.inventoryItem.findMany({
+      where: { restaurantId: inventarioDe, locationScope: 'LOCAL', packagingType: { not: null } },
+      select: { id: true, name: true, packagingType: true, quantity: true, salePriceBase: true },
+      orderBy: { name: 'asc' },
+    });
+    const productos = await prisma.product.findMany({
+      where: { restaurantId, ...(productIds?.length ? { id: { in: productIds } } : {}) },
+      select: {
+        id: true,
+        name: true,
+        packagingMode: true,
+        packagingItemId: true,
+        category: { select: { name: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+    if (productos.length === 0) throw badRequest('Este cliente no tiene platos en la carta.');
+    if (empaques.length === 0) {
+      throw badRequest(
+        'Este cliente no tiene empaques cargados. Súbele primero su lista de insumos: los envases, cajas y bolsas quedan marcados como empaque solos.',
+      );
+    }
+
+    const porNombre = new Map(empaques.map((e) => [e.name, e]));
+    const propuesta = new Map<string, string>();
+    // Se le pasa el plato con su categoría: "Sopa de miso (Entradas)" le dice mucho más al
+    // modelo sobre en qué sale despachado que el nombre suelto.
+    const etiquetas = new Map(
+      productos.map((p) => [p.id, p.category?.name ? `${p.name} (${p.category.name})` : p.name]),
+    );
+    const lista = [...etiquetas.values()];
+
+    for (let i = 0; i < lista.length; i += PLATOS_POR_LOTE_EMPAQUE) {
+      const lote = lista.slice(i, i + PLATOS_POR_LOTE_EMPAQUE);
+      try {
+        const res = await llamarServicioIAJson('vincular-empaques', {
+          platos: lote,
+          empaques: empaques.map((e) => e.name),
+        });
+        const { pares } = (await res.json()) as { pares?: { plato: string; empaque: string }[] };
+        for (const par of pares ?? []) propuesta.set(par.plato, par.empaque);
+      } catch {
+        // La propuesta es una ayuda, no un requisito: si la IA falla, el operador ve la lista
+        // igual y elige el empaque a mano. Perder la pantalla entera por esto sería peor.
+      }
+    }
+
+    return {
+      empaques: empaques.map((e) => ({
+        id: e.id,
+        nombre: e.name,
+        tipo: e.packagingType,
+        cantidad: Number(e.quantity),
+        precioVenta: e.salePriceBase == null ? null : Number(e.salePriceBase),
+      })),
+      productos: productos.map((p) => {
+        const sugerido = porNombre.get(propuesta.get(etiquetas.get(p.id)!) ?? '');
+        return {
+          productId: p.id,
+          nombre: p.name,
+          categoria: p.category?.name ?? '',
+          // Lo que ya tiene configurado, para no proponerle cambiar algo que él dejó puesto.
+          actual:
+            p.packagingMode === 'INVENTORY' && p.packagingItemId
+              ? p.packagingItemId
+              : p.packagingMode === 'FIXED'
+                ? 'FIJO'
+                : '',
+          sugerido: sugerido?.id ?? '',
+        };
+      }),
+    };
+  },
+
+  /**
+   * Deja puesto el empaque de cada plato: modo "por inventario" apuntando a ese insumo.
+   *
+   * Un plato con el empaque en blanco se deja como está en vez de desvincularlo — esta
+   * pantalla es para PONER empaques, y que una carga masiva le apague el envase a un plato que
+   * el cliente ya tenía configurado sería una sorpresa cara: dejaría de cobrarlo sin avisar.
+   * Para quitarlo está la ficha del producto.
+   */
+  async confirmarEmpaques(restaurantId: string, asignaciones: { productId: string; inventoryItemId: string }[]) {
+    await restauranteOThrow(restaurantId);
+    const inventarioDe = await resolveInventoryScopeById(restaurantId);
+
+    // Los ids llegan del cliente: se validan contra ESTE restaurante antes de escribir, que es
+    // una herramienta que apunta a cualquier tenant según la URL.
+    const empaques = new Set(
+      (
+        await prisma.inventoryItem.findMany({
+          where: { restaurantId: inventarioDe, locationScope: 'LOCAL', packagingType: { not: null } },
+          select: { id: true },
+        })
+      ).map((e) => e.id),
+    );
+    const productos = new Set(
+      (await prisma.product.findMany({ where: { restaurantId }, select: { id: true } })).map((p) => p.id),
+    );
+
+    const resultado = { vinculados: 0, sinPrecioDeVenta: [] as string[] };
+    for (const a of asignaciones) {
+      if (!a.inventoryItemId) continue;
+      if (!productos.has(a.productId) || !empaques.has(a.inventoryItemId)) continue;
+      await prisma.product.update({
+        where: { id: a.productId },
+        data: { packagingMode: 'INVENTORY', packagingItemId: a.inventoryItemId, packagingFeeBase: null },
+      });
+      resultado.vinculados += 1;
+    }
+
+    // Un empaque sin precio de venta se descuenta del stock pero no se le cobra al cliente:
+    // es el estado en que quedan los empaques recién cargados desde una hoja, que trae el
+    // costo de compra y no lo que el restaurante decide cobrar. Se avisa en vez de inventarlo.
+    const usados = [...new Set(asignaciones.map((a) => a.inventoryItemId).filter(Boolean))];
+    if (usados.length > 0) {
+      const sinPrecio = await prisma.inventoryItem.findMany({
+        where: { id: { in: usados }, OR: [{ salePriceBase: null }, { salePriceBase: 0 }] },
+        select: { name: true },
+      });
+      resultado.sinPrecioDeVenta = sinPrecio.map((e) => e.name);
     }
 
     return resultado;

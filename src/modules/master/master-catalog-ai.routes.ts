@@ -34,5 +34,9 @@ router.post('/:restaurantId/confirmar-insumos', masterCatalogAiController.confir
 router.post('/:restaurantId/fichas-catalogo', masterCatalogAiController.fichasCatalogo);
 router.post('/:restaurantId/leer-recetas', uploadCartaToMemory, masterCatalogAiController.leerRecetas);
 router.post('/:restaurantId/confirmar-recetas', masterCatalogAiController.confirmarRecetas);
+// Empaques: en qué envase sale cada plato. Es lo que hace que el sistema cobre y descuente el
+// empaque solo al vender para llevar, en vez de que el restaurante lo regale en cada delivery.
+router.post('/:restaurantId/empaques', masterCatalogAiController.empaques);
+router.post('/:restaurantId/confirmar-empaques', masterCatalogAiController.confirmarEmpaques);
 
 export default router;

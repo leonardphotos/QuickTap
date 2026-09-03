@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Plus, Upload, X } from 'lucide-react';
+import { Plus, Sparkles, Upload, X } from 'lucide-react';
 import { AI_TIMEOUT_MS, masterApi } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 
@@ -47,6 +47,8 @@ interface FilaInsumo {
   usadoEn: number;
   /** Lo que decía la hoja antes de convertir ("8000 gramos"). Vacío si no hubo conversión. */
   enLaHoja: string;
+  /** No vacío = va a la ventana de empaques del inventario, lista para vincularse a un plato. */
+  tipoEmpaque: '' | 'ENVASE' | 'CAJA' | 'BOLSA';
 }
 
 interface LineaInsumo {
@@ -78,7 +80,7 @@ const ARCHIVOS = 'image/jpeg,image/png,image/webp,.xlsx,application/vnd.openxmlf
 
 export default function CargaPorPartes({ restaurantId, titulo }: { restaurantId: string; titulo: string }) {
   const [estado, setEstado] = useState<Estado | null>(null);
-  const [pestana, setPestana] = useState<'insumos' | 'recetas'>('insumos');
+  const [pestana, setPestana] = useState<'insumos' | 'recetas' | 'empaques'>('insumos');
   const [error, setError] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
 
@@ -138,6 +140,7 @@ export default function CargaPorPartes({ restaurantId, titulo }: { restaurantId:
           [
             ['insumos', 'Insumos'],
             ['recetas', 'Recetas'],
+            ['empaques', 'Empaques'],
           ] as const
         ).map(([valor, etiqueta]) => (
           <button
@@ -156,7 +159,7 @@ export default function CargaPorPartes({ restaurantId, titulo }: { restaurantId:
       {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
       {aviso && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{aviso}</p>}
 
-      {pestana === 'insumos' ? (
+      {pestana === 'insumos' && (
         <PanelInsumos
           restaurantId={restaurantId}
           estado={estado}
@@ -164,7 +167,8 @@ export default function CargaPorPartes({ restaurantId, titulo }: { restaurantId:
           onAviso={setAviso}
           onCargado={cargarEstado}
         />
-      ) : (
+      )}
+      {pestana === 'recetas' && (
         <PanelRecetas
           restaurantId={restaurantId}
           estado={estado}
@@ -172,6 +176,9 @@ export default function CargaPorPartes({ restaurantId, titulo }: { restaurantId:
           onAviso={setAviso}
           onCargado={cargarEstado}
         />
+      )}
+      {pestana === 'empaques' && (
+        <PanelEmpaques restaurantId={restaurantId} onError={setError} onAviso={setAviso} onCargado={cargarEstado} />
       )}
     </div>
   );
@@ -242,6 +249,7 @@ function PanelInsumos({
         vinculoPor: 'nombre' | 'ia' | null;
         usadoEn: number;
         enLaHoja: string;
+        tipoEmpaque: '' | 'ENVASE' | 'CAJA' | 'BOLSA';
       }[] = data.data?.insumos ?? [];
       const lectura: { filas: number; productos: number; lotes: number } | undefined = data.data?.lectura;
       setFilas(
@@ -257,6 +265,7 @@ function PanelInsumos({
           vinculoPor: i.vinculoPor,
           usadoEn: i.usadoEn,
           enLaHoja: i.enLaHoja ?? '',
+          tipoEmpaque: i.tipoEmpaque ?? '',
         })),
       );
       onAviso(
@@ -294,12 +303,14 @@ function PanelInsumos({
             costoUnitario: f.costoUnitario,
             minimo: f.minimo,
             categoria: f.categoria.trim() || undefined,
+            tipoEmpaque: f.tipoEmpaque || undefined,
             inventoryItemId: f.inventoryItemId || undefined,
           })),
       });
       const d = data.data;
       onAviso(
         `${d.creados} insumo(s) creados y ${d.actualizados} actualizados, ${d.conCosto} con precio. ` +
+          (d.empaques > 0 ? `${d.empaques} quedaron en la ventana de empaques. ` : '') +
           (d.lineasRecosteadas > 0
             ? `Se recostearon ${d.lineasRecosteadas} línea(s) de receta que ya existían.`
             : 'Ninguna receta cambió de costo.') +
@@ -420,7 +431,7 @@ function PanelInsumos({
                   </button>
                 </div>
 
-                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">
+                <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-6">
                   <Campo etiqueta="Existencia">
                     <input
                       value={f.cantidad}
@@ -472,6 +483,21 @@ function PanelInsumos({
                       onChange={(e) => editar(f.key, { categoria: e.target.value })}
                       className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
                     />
+                  </Campo>
+                  {/* Empaque: lo que se va con el pedido del cliente. Marcarlo lo manda a la
+                      ventana de empaques del inventario, que es de donde salen los envases que
+                      después se le vinculan a cada plato en la pestaña Empaques. */}
+                  <Campo etiqueta="Empaque">
+                    <select
+                      value={f.tipoEmpaque}
+                      onChange={(e) => editar(f.key, { tipoEmpaque: e.target.value as FilaInsumo['tipoEmpaque'] })}
+                      className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                    >
+                      <option value="">No es empaque</option>
+                      <option value="ENVASE">Envase</option>
+                      <option value="CAJA">Caja</option>
+                      <option value="BOLSA">Bolsa</option>
+                    </select>
                   </Campo>
                 </div>
 
@@ -998,6 +1024,190 @@ function EditorReceta({
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------------------------
+ * Empaques
+ * ------------------------------------------------------------------------------------- */
+
+/**
+ * En qué envase sale cada plato.
+ *
+ * Vincularlo es lo que hace que el sistema COBRE el empaque y lo DESCUENTE del stock al
+ * vender para llevar. Sin el vínculo el restaurante regala el envase en cada delivery y su
+ * stock de empaques no baja nunca aunque se estén gastando.
+ */
+function PanelEmpaques({
+  restaurantId,
+  onError,
+  onAviso,
+  onCargado,
+}: {
+  restaurantId: string;
+  onError: (m: string | null) => void;
+  onAviso: (m: string | null) => void;
+  onCargado: () => Promise<void>;
+}) {
+  const [empaques, setEmpaques] = useState<
+    { id: string; nombre: string; tipo: string; cantidad: number; precioVenta: number | null }[]
+  >([]);
+  const [productos, setProductos] = useState<
+    { productId: string; nombre: string; categoria: string; actual: string; sugerido: string }[]
+  >([]);
+  const [elegido, setElegido] = useState<Record<string, string>>({});
+  const [trabajando, setTrabajando] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+
+  async function proponer() {
+    onError(null);
+    onAviso(null);
+    setTrabajando(true);
+    try {
+      const { data } = await masterApi.post(
+        `/master/catalog-ai/${restaurantId}/empaques`,
+        {},
+        { timeout: AI_TIMEOUT_MS },
+      );
+      setEmpaques(data.data.empaques ?? []);
+      const prods = data.data.productos ?? [];
+      setProductos(prods);
+      // Lo que ya tenía configurado manda sobre la propuesta: esta pantalla es para poner
+      // empaques donde faltan, no para revisarle al cliente los que él ya dejó puestos.
+      setElegido(
+        Object.fromEntries(
+          prods.map((p: { productId: string; actual: string; sugerido: string }) => [
+            p.productId,
+            p.actual && p.actual !== 'FIJO' ? p.actual : p.sugerido,
+          ]),
+        ),
+      );
+      const conSugerencia = prods.filter((p: { actual: string; sugerido: string }) => !p.actual && p.sugerido).length;
+      onAviso(`${conSugerencia} plato(s) con empaque propuesto. Revisa y confirma.`);
+    } catch (e: any) {
+      onError(e.response?.data?.error ?? 'No se pudieron proponer los empaques.');
+    } finally {
+      setTrabajando(false);
+    }
+  }
+
+  async function guardar() {
+    onError(null);
+    onAviso(null);
+    setGuardando(true);
+    try {
+      const { data } = await masterApi.post(`/master/catalog-ai/${restaurantId}/confirmar-empaques`, {
+        asignaciones: productos.map((p) => ({ productId: p.productId, inventoryItemId: elegido[p.productId] ?? '' })),
+      });
+      const d = data.data;
+      onAviso(
+        `${d.vinculados} plato(s) quedaron con su empaque: al venderlos para llevar se cobra y se descuenta del stock.` +
+          (d.sinPrecioDeVenta?.length > 0
+            ? ` Ojo: ${d.sinPrecioDeVenta.join(', ')} no tienen precio de venta, así que se descuentan del stock pero no se le cobran al cliente. El precio se pone en Inventario → Empaques.`
+            : ''),
+      );
+      setProductos([]);
+      setEmpaques([]);
+      await onCargado();
+    } catch (e: any) {
+      onError(e.response?.data?.error ?? 'No se pudieron vincular los empaques.');
+    } finally {
+      setGuardando(false);
+    }
+  }
+
+  const aVincular = productos.filter((p) => elegido[p.productId]).length;
+
+  return (
+    <div className="space-y-4">
+      <p className="text-sm font-light text-brand-950/50">
+        Los envases, cajas y bolsas que subiste con la lista de insumos quedan en la{' '}
+        <span className="font-medium">ventana de empaques</span> del inventario. Acá la IA dice en cuál sale cada plato
+        —mirando qué es y cuánto ocupa— y al confirmar el sistema empieza a{' '}
+        <span className="font-medium">cobrarlo y descontarlo solo</span> en cada pedido de delivery o para llevar. Sin
+        esto, el restaurante regala el empaque y su stock de envases no baja nunca.
+      </p>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <TextureButton
+          type="button"
+          variant="brand"
+          size="default"
+          className="!w-auto"
+          disabled={trabajando}
+          onClick={() => void proponer()}
+        >
+          <Sparkles className="h-4 w-4" /> {trabajando ? 'Eligiendo los empaques…' : 'Proponer el empaque de cada plato'}
+        </TextureButton>
+        {trabajando && <span className="text-sm text-brand-950/50">Tarda un minuto. No cierres la pestaña.</span>}
+      </div>
+
+      {productos.length > 0 && (
+        <>
+          <div className="rounded-xl border border-brand-950/10 p-3">
+            <p className="text-xs font-medium text-brand-950/60">
+              {empaques.length} empaque(s) cargado(s):{' '}
+              <span className="font-light text-brand-950/40">
+                {empaques
+                  .map((e) => `${e.nombre}${e.precioVenta ? ` ($${e.precioVenta})` : ' (sin precio)'}`)
+                  .join(' · ')}
+              </span>
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            {productos.map((p) => (
+              <div key={p.productId} className="grid grid-cols-[1fr_auto] items-center gap-2 sm:grid-cols-[1fr_16rem]">
+                <div className="min-w-0">
+                  <p className="truncate text-sm text-brand-950">{p.nombre}</p>
+                  {p.categoria && <p className="text-[11px] font-light text-brand-950/40">{p.categoria}</p>}
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <select
+                    value={elegido[p.productId] ?? ''}
+                    onChange={(e) => setElegido((prev) => ({ ...prev, [p.productId]: e.target.value }))}
+                    className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                  >
+                    <option value="">Sin empaque</option>
+                    {empaques.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.nombre}
+                      </option>
+                    ))}
+                  </select>
+                  {p.actual === 'FIJO' && (
+                    <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-800">
+                      cobra fijo
+                    </span>
+                  )}
+                  {p.actual && p.actual !== 'FIJO' && (
+                    <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800">
+                      ya tenía
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-[11px] font-light text-brand-950/40">
+            Un plato que dejes en "Sin empaque" se queda como está: esta pantalla pone empaques, no los quita. Para
+            quitarle el envase a un plato, entra a su ficha en Productos.
+          </p>
+
+          <TextureButton
+            type="button"
+            variant="accent"
+            size="default"
+            className="!w-auto"
+            disabled={guardando || aVincular === 0}
+            onClick={() => void guardar()}
+          >
+            {guardando ? 'Vinculando…' : `Vincular el empaque de ${aVincular} plato(s)`}
+          </TextureButton>
+        </>
       )}
     </div>
   );

@@ -597,6 +597,11 @@ INSUMOS_SCHEMA = {
                     # no es de peso/volumen ("paquete", "cunete"): en qué se cuenta el insumo.
                     "unidad": {"type": "STRING", "enum": ["kg", "lt", "unidad"]},
                     "categoria": {"type": "STRING"},
+                    # Empaque = lo que se lleva el cliente con el pedido (envase, caja, bolsa,
+                    # vaso, tapa, cubiertos). Va a la ventana de empaques del inventario y se
+                    # puede vincular a un plato para cobrarlo y descontarlo al vender.
+                    "esEmpaque": {"type": "BOOLEAN"},
+                    "tipoEmpaque": {"type": "STRING", "enum": ["ENVASE", "CAJA", "BOLSA", ""]},
                 },
                 "required": ["nombre", "unidadArchivo", "cantidadArchivo", "costoArchivo", "unidad"],
             },
@@ -742,6 +747,8 @@ async def leer_insumos(file: UploadFile | None = File(None), texto: str = Form("
             "minimoArchivo": num(item.get("minimoArchivo")),
             "unidad": unidad,
             "categoria": str(item.get("categoria") or "").strip()[:120],
+            "esEmpaque": bool(item.get("esEmpaque")),
+            "tipoEmpaque": item.get("tipoEmpaque") if item.get("tipoEmpaque") in ("ENVASE", "CAJA", "BOLSA") else "",
         })
 
     return {"insumos": insumos}
@@ -835,3 +842,87 @@ async def leer_recetas(file: UploadFile | None = File(None), texto: str = Form("
 
     datos = _pedir_json(contents, FICHAS_SCHEMA, "leer el recetario")
     return {"platos": _limpiar_fichas(datos.get("platos"))}
+
+
+EMPAQUES_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "pares": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "plato": {"type": "STRING"},
+                    "empaque": {"type": "STRING"},
+                },
+                "required": ["plato", "empaque"],
+            },
+        },
+    },
+    "required": ["pares"],
+}
+
+EMPAQUES_PROMPT = (
+    "Un restaurante despacha sus platos para llevar y tiene cargados sus empaques. Tu trabajo "
+    "es decir en qué empaque sale CADA plato, para que el sistema lo cobre y lo descuente del "
+    "stock solo. Piensa como quien arma el pedido en la cocina.\n\n"
+    "Para cada nombre de la lista PLATOS devuelve un par: `plato` con ese nombre EXACTO tal "
+    "como te lo pasaron, y `empaque` con el nombre EXACTO de la lista EMPAQUES que le "
+    "corresponde, o cadena vacía si no lleva ninguno.\n\n"
+    "Cómo elegir:\n"
+    "- Manda el empaque por lo que el plato ES y por cuánto ocupa: una sopa o un caldo va en "
+    "un envase hondo con tapa; un plato de arroz o de pasta, en una bandeja; una pizza, en su "
+    "caja; una hamburguesa o un sándwich, en caja o envoltura; una ensalada, en un envase "
+    "transparente; un postre, en el envase chico.\n"
+    "- Si hay varios tamaños del mismo tipo de envase, elige por el tamaño del plato: una "
+    "porción individual al chico, algo para compartir o familiar al grande.\n"
+    "- Las BEBIDAS EMBOTELLADAS O EN LATA no llevan empaque: salen en su propio envase. Deja "
+    "vacío. Un jugo o un batido preparado SÍ lleva vaso.\n"
+    "- Un combo o una promoción lleva el empaque de su plato principal.\n"
+    "- Las bolsas y los cubiertos NO se vinculan a un plato: se usan una vez por pedido, no "
+    "una vez por plato, y vincularlos multiplicaría el cobro por cada cosa que pida el "
+    "cliente. Déjalos fuera.\n\n"
+    "Ante la duda, deja `empaque` vacío. Vincular el empaque equivocado le cobra de más al "
+    "cliente en cada pedido para llevar y le descuenta stock que no usó; no vincular nada solo "
+    "deja algo por configurar, que se ve y se arregla.\n"
+    "Devuelve un par por CADA plato de la lista, ninguno de más."
+)
+
+
+@app.post("/vincular-empaques")
+async def vincular_empaques(payload: dict = Body(...)):
+    """Dice en qué empaque sale cada plato, cruzando la carta contra los empaques cargados."""
+    platos = [str(n).strip()[:160] for n in (payload.get("platos") or []) if str(n).strip()]
+    empaques = [str(n).strip()[:120] for n in (payload.get("empaques") or []) if str(n).strip()]
+    if not platos:
+        raise HTTPException(400, "Manda al menos un plato.")
+    if not empaques:
+        return {"pares": [{"plato": p, "empaque": ""} for p in platos]}
+    if len(platos) > 120 or len(empaques) > 120:
+        raise HTTPException(400, "Demasiados platos o empaques por llamada. Cárgalos por partes.")
+
+    prompt = (
+        f"{EMPAQUES_PROMPT}\n\n"
+        "EMPAQUES disponibles:\n"
+        + "\n".join(f"- {n}" for n in empaques)
+        + "\n\nPLATOS:\n"
+        + "\n".join(f"- {n}" for n in platos)
+    )
+    datos = _pedir_json([prompt], EMPAQUES_SCHEMA, "elegir los empaques")
+
+    validos_platos = set(platos)
+    validos_empaques = set(empaques)
+    pares = []
+    vistos = set()
+    for par in datos.get("pares") or []:
+        plato = str(par.get("plato") or "").strip()
+        empaque = str(par.get("empaque") or "").strip()
+        if plato not in validos_platos or plato in vistos:
+            continue
+        vistos.add(plato)
+        pares.append({"plato": plato, "empaque": empaque if empaque in validos_empaques else ""})
+    for p in platos:
+        if p not in vistos:
+            pares.append({"plato": p, "empaque": ""})
+
+    return {"pares": pares}

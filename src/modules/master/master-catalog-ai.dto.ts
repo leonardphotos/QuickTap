@@ -113,6 +113,9 @@ export const confirmarInsumosSchema = z.object({
         costoUnitario: z.coerce.number().nonnegative().default(0),
         minimo: z.coerce.number().nonnegative().default(0),
         categoria: z.string().max(120).optional(),
+        // No vacío = el insumo queda marcado como empaque y aparece en la ventana de empaques
+        // del inventario, lista para vincularse al plato que sale en él.
+        tipoEmpaque: z.enum(['ENVASE', 'CAJA', 'BOLSA']).or(z.literal('')).optional(),
         // Insumo existente con el que se vincula (el que propuso el cruce, o el que el
         // operador eligió a mano). Vacío = se crea uno nuevo.
         inventoryItemId: z.string().min(1).optional(),
@@ -163,4 +166,18 @@ export const confirmarRecetasSchema = z.object({
   // Un plato que ya tiene receta se salta salvo que se pida explícitamente reemplazarla: una
   // carga masiva no puede borrar en silencio el trabajo que el cliente ya hizo.
   reemplazarExistentes: z.boolean().default(false),
+});
+
+/** POST /master/catalog-ai/:restaurantId/empaques — platos a los que proponerles envase. */
+export const empaquesSchema = z.object({
+  // Vacío = todos los platos de la carta.
+  productIds: z.array(z.string().min(1)).max(300).optional(),
+});
+
+/** POST /master/catalog-ai/:restaurantId/confirmar-empaques */
+export const confirmarEmpaquesSchema = z.object({
+  asignaciones: z
+    .array(z.object({ productId: z.string().min(1), inventoryItemId: z.string().min(1).or(z.literal('')) }))
+    .min(1, 'No hay empaques que vincular.')
+    .max(300, 'Vincula como máximo 300 platos a la vez.'),
 });
