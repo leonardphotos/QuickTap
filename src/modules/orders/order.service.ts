@@ -216,6 +216,25 @@ function priceModifierSelection(product: ProductForPricing, modifierIds: string[
     const [nombre, grupo] = [...opcionesNoOfrecidas.entries()][0];
     throw badRequest(`"${nombre}" (${grupo}) no está disponible en el tamaño elegido de "${product.name}".`);
   }
+
+  // Opciones que no pertenecen a NINGÚN grupo de este producto.
+  //
+  // El bucle de arriba solo recorre los grupos del producto, así que un id de otro producto
+  // (o de un grupo que se desvinculó después) no lo veía nadie: no se cobraba, no se guardaba
+  // y no daba error. Para quien pidió, eso es "pedí extra queso y no me lo trajeron", sin
+  // rastro en la comanda ni en el recibo. Pasa de verdad cuando alguien deja el menú abierto
+  // y el restaurante cambia los modificadores mientras tanto.
+  //
+  // Mismo criterio que el bloque de arriba: se revienta el pedido en vez de servir algo
+  // distinto a lo que la persona eligió.
+  const idsValidos = new Set(product.modifierCategories.flatMap((l) => l.modifierCategory.modifiers.map((m) => m.id)));
+  const desconocido = [...idCounts.keys()].find((id) => !idsValidos.has(id));
+  if (desconocido) {
+    throw badRequest(
+      `Una de las opciones elegidas ya no está disponible en "${product.name}". Vuelve a armar el pedido.`,
+    );
+  }
+
   return modifierLines;
 }
 
@@ -2717,9 +2736,24 @@ export const orderService = {
     }
     const existing = await prisma.order.findFirst({
       where: { id: orderId, restaurantId },
-      include: { items: { include: { modifiers: true } }, table: { select: { number: true } } },
+      include: { items: { include: { modifiers: true } }, table: { select: { number: true } }, payments: true },
     });
     if (!existing) throw notFound('Comanda no encontrada.');
+
+    // Cuánto se había cobrado ya. Mismo criterio que settledOf: el efectivo entrado MÁS lo
+    // perdonado con descuentos — los dos dejan de ser deuda. Va a la bitácora porque sin este
+    // dato no se distingue borrar un pedido que nadie pagó de borrar uno del que ya se recibió
+    // la plata, y eso último es justo lo que un registro de borrados sirve para poder revisar.
+    const cobrado = existing.payments.reduce(
+      (acc, pago) => acc.add(pago.amountBase).add(pago.discountBase ?? 0).add(pago.serviceChargeDiscountBase ?? 0),
+      toDecimal(0),
+    );
+    const cobrosPorMetodo = existing.payments.map((pago) => ({
+      metodo: pago.method,
+      monto: Number(pago.amountBase),
+      referencia: pago.referenceNumber ?? null,
+      cuando: pago.createdAt.toISOString(),
+    }));
 
     // Quién borró, con nombre: el rol solo no identifica a la persona.
     const deleter = userId
@@ -2767,6 +2801,8 @@ export const orderService = {
           tableName: existing.table?.number ?? null,
           customerName: existing.customerName,
           totalBase: existing.totalBase,
+          paidBase: round2(cobrado),
+          paidMethods: cobrosPorMetodo.length > 0 ? (cobrosPorMetodo as unknown as Prisma.InputJsonValue) : undefined,
           items: existing.items.map((it) => ({
             name: it.productName,
             quantity: it.quantity,
@@ -2791,7 +2827,7 @@ export const orderService = {
       orderBy: { deletedAt: 'desc' },
       take: 300,
     });
-    return rows.map((r) => ({ ...r, totalBase: Number(r.totalBase) }));
+    return rows.map((r) => ({ ...r, totalBase: Number(r.totalBase), paidBase: Number(r.paidBase) }));
   },
 
   /**

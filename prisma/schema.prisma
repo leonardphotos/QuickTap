@@ -5774,6 +5774,13 @@ model OrderDeletionLog {
   tableName     String?
   customerName  String?
   totalBase     Decimal  @db.Decimal(12, 2)
+  /// Cuánto se había COBRADO ya de ese pedido cuando lo borraron (cobros + descuentos
+  /// otorgados, mismo criterio que settledOf). Sin esto la bitácora no distinguía borrar un
+  /// pedido que nadie pagó de borrar uno del que ya se había recibido el efectivo — que es
+  /// justo el caso que un registro de borrados existe para poder revisar.
+  paidBase      Decimal  @default(0) @db.Decimal(12, 2)
+  /// Con qué se había cobrado, para cruzarlo contra el arqueo del turno.
+  paidMethods   Json?
   /// Snapshot de los renglones al momento del borrado: [{ name, quantity, unitPrice, variantName, modifiers }]
   items         Json
   deletedByName String

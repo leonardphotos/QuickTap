@@ -48,6 +48,9 @@ interface DeletionLogEntry {
   tableName: string | null;
   customerName: string | null;
   totalBase: number;
+  /** Cuánto se había cobrado ya cuando lo borraron. 0 = nadie había pagado nada. */
+  paidBase: number;
+  paidMethods?: { metodo: string; monto: number; referencia: string | null; cuando: string }[] | null;
   items: { name: string; quantity: number; variantName?: string | null; modifiers?: { name: string; quantity: number }[] }[];
   deletedByName: string;
   deletedByRole: string;
@@ -1018,6 +1021,14 @@ export function LiveOrdersPanel({
                     <p className="text-xs text-brand-950/60 mt-0.5">
                       {r.items.map((it) => `${it.quantity}x ${it.name}${it.variantName ? ` (${it.variantName})` : ''}`).join(', ')}
                     </p>
+                    {/* Lo que de verdad importa revisar: si ya se había cobrado, esa plata entró
+                        a la caja y el pedido que la respaldaba ya no existe. */}
+                    {r.paidBase > 0 && (
+                      <p className="mt-1.5 rounded-lg bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-900">
+                        ⚠ Ya se habían cobrado {formatBase(r.paidBase, symbol)}
+                        {r.paidMethods?.length ? ` · ${r.paidMethods.map((m) => m.metodo).join(', ')}` : ''}
+                      </p>
+                    )}
                     <p className="text-xs text-red-600/80 mt-1.5">
                       Eliminada por <span className="font-semibold">{r.deletedByName}</span> ({r.deletedByRole}) ·{' '}
                       {new Date(r.deletedAt).toLocaleString('es-VE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
