@@ -413,20 +413,45 @@ FICHAS_PROMPT = (
 )
 
 
-def _pedir_json(contents, schema, que_falló: str) -> dict:
-    """Llama a Gemini pidiendo JSON con esquema y devuelve el dict ya parseado."""
+def _pedir_json(contents, schema, que_falló: str, pensar: str | None = None) -> dict:
+    """Llama a Gemini pidiendo JSON con esquema y devuelve el dict ya parseado.
+
+    `pensar` controla cuánto razona el modelo antes de contestar, y es la diferencia de gasto
+    más grande que tiene este servicio. Los modelos Gemini 3 razonan por defecto y esos tokens
+    se cobran: clasificar 40 insumos costaba 3.471 tokens y 14 segundos, de los cuales 2.460
+    eran razonamiento — para una tarea que es reconocer que el ajinomoto va en Abarrotes. Con
+    'minimal' son 1.008 tokens y 3 segundos, con el mismo resultado exacto.
+
+    La regla: 'minimal' para transcribir y clasificar (copiar celdas, poner rubros), nada para
+    lo que de verdad decide — estimar los gramos de una receta, resolver si dos insumos con
+    nombres distintos son el mismo, elegir el envase de un plato. Ahí el razonamiento es el
+    producto y ahorrarlo sale caro en errores.
+    """
     client = _get_client()
+    cfg: dict = {"response_mime_type": "application/json", "response_schema": schema}
+    if pensar:
+        cfg["thinking_config"] = types.ThinkingConfig(thinking_level=pensar)
     try:
         response = client.models.generate_content(
             model=GEMINI_VISION_MODEL,
             contents=contents,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=schema,
-            ),
+            config=types.GenerateContentConfig(**cfg),
         )
     except Exception as exc:
-        raise HTTPException(502, f"Gemini no pudo {que_falló}: {exc}")
+        # Si esta versión del SDK o del modelo no acepta el control de razonamiento, se
+        # reintenta sin él: cuesta más, pero funciona. Nunca se cae por una optimización.
+        if not pensar:
+            raise HTTPException(502, f"Gemini no pudo {que_falló}: {exc}")
+        try:
+            response = client.models.generate_content(
+                model=GEMINI_VISION_MODEL,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json", response_schema=schema
+                ),
+            )
+        except Exception as exc2:
+            raise HTTPException(502, f"Gemini no pudo {que_falló}: {exc2}")
 
     # Cuántos tokens costó cada llamada, al log del servicio (journalctl -u quicktap-ai).
     # Sin esto, "la IA consume mucho" no se puede ni confirmar ni atacar: no se sabe si el
@@ -529,7 +554,7 @@ async def leer_carta(file: UploadFile | None = File(None), texto: str = Form("")
             raise HTTPException(400, "La lista es demasiado larga. Cárgala por partes.")
         contents = [f"{CARTA_PROMPT}\n\nEsta es la lista del cliente:\n\n{contenido_texto}"]
 
-    datos = _pedir_json(contents, CARTA_SCHEMA, "leer la carta")
+    datos = _pedir_json(contents, CARTA_SCHEMA, "leer la carta", pensar="minimal")
 
     productos = []
     for item in datos.get("productos") or []:
@@ -740,7 +765,7 @@ async def leer_insumos(file: UploadFile | None = File(None), texto: str = Form("
             raise HTTPException(400, "La lista es demasiado larga. Cárgala por partes.")
         contents = [f"{INSUMOS_PROMPT}\n\nEsta es la lista del cliente:\n\n{contenido_texto}"]
 
-    datos = _pedir_json(contents, INSUMOS_SCHEMA, "leer la lista de insumos")
+    datos = _pedir_json(contents, INSUMOS_SCHEMA, "leer la lista de insumos", pensar="minimal")
 
     def num(valor, minimo=0.0):
         try:
@@ -857,7 +882,7 @@ async def leer_recetas(file: UploadFile | None = File(None), texto: str = Form("
             raise HTTPException(400, "El recetario es demasiado largo. Cárgalo por partes.")
         contents = [f"{RECETAS_PROMPT}\n\nEste es el recetario del cliente:\n\n{contenido_texto}"]
 
-    datos = _pedir_json(contents, FICHAS_SCHEMA, "leer el recetario")
+    datos = _pedir_json(contents, FICHAS_SCHEMA, "leer el recetario", pensar="minimal")
     return {"platos": _limpiar_fichas(datos.get("platos"))}
 
 
@@ -1022,6 +1047,7 @@ async def clasificar_insumos(payload: dict = Body(...)):
         [f"{CLASIFICAR_PROMPT}\n\nInsumos:\n" + "\n".join(lineas)],
         CLASIFICAR_SCHEMA,
         "clasificar los insumos",
+        pensar="minimal",
     )
 
     salida = []
