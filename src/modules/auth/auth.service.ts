@@ -82,6 +82,7 @@ const RESTAURANT_SELECT = {
   theme: true,
   serviceChargeEnabled: true,
   modifierInventoryLinkEnabled: true,
+  blockOrdersWithoutStock: true,
   lockScreenEnabled: true,
   ivaEnabled: true,
   rif: true,
@@ -141,6 +142,7 @@ type RestaurantRow = {
   theme: unknown;
   serviceChargeEnabled: boolean;
   modifierInventoryLinkEnabled: boolean;
+  blockOrdersWithoutStock: boolean;
   lockScreenEnabled: boolean;
   ivaEnabled: boolean;
   rif: string | null;
@@ -226,6 +228,7 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
     casaMatrizEnabled: restaurant.casaMatrizEnabled,
     serviceChargeEnabled: restaurant.serviceChargeEnabled,
     modifierInventoryLinkEnabled: restaurant.modifierInventoryLinkEnabled,
+    blockOrdersWithoutStock: restaurant.blockOrdersWithoutStock,
     lockScreenEnabled: restaurant.lockScreenEnabled,
     ivaEnabled: restaurant.ivaEnabled,
     rif: restaurant.rif,

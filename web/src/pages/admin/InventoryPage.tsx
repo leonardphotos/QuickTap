@@ -236,8 +236,25 @@ function stockClass(p: Product): string {
 }
 
 function StockTab() {
+  const { restaurant, refresh } = useAuth();
   const [products, setProducts] = useState<Product[] | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const bloquea = !!restaurant?.blockOrdersWithoutStock;
+  const [guardandoBloqueo, setGuardandoBloqueo] = useState(false);
+  const [errorBloqueo, setErrorBloqueo] = useState<string | null>(null);
+
+  async function alternarBloqueo() {
+    setGuardandoBloqueo(true);
+    setErrorBloqueo(null);
+    try {
+      await api.patch('/restaurant', { blockOrdersWithoutStock: !bloquea });
+      await refresh();
+    } catch (err: any) {
+      setErrorBloqueo(err.response?.data?.error ?? 'No se pudo cambiar el bloqueo.');
+    } finally {
+      setGuardandoBloqueo(false);
+    }
+  }
 
   useEffect(() => {
     api.get('/products').then((res) => setProducts(res.data.data));
@@ -267,6 +284,37 @@ function StockTab() {
 
   return (
     <div className="space-y-5">
+      {/* Qué pasa cuando se acaba: bloquear la venta, o dejar vender y contar de más en rojo.
+          Va acá arriba porque cambia el significado de todos los números de esta pantalla. */}
+      <div className="flex items-start justify-between gap-4 rounded-2xl border border-brand-950/10 bg-white p-4">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-brand-950">Bloquear cuando no queda stock</p>
+          <p className="mt-0.5 text-xs font-light text-brand-950/50">
+            {bloquea
+              ? 'Activo: si quedan 3 unidades, nadie puede comandar más de 3. Cuenta también lo ya pedido y sin servir, para que dos mesas no se lleven las mismas últimas unidades.'
+              : 'Apagado: se puede seguir vendiendo aunque no quede nada, y el stock entra en negativo (−1, −2…) para que veas cuánto se vendió de más.'}
+          </p>
+          {errorBloqueo && <p className="mt-1 text-xs text-red-600">{errorBloqueo}</p>}
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={bloquea}
+          aria-label="Bloquear cuando no queda stock"
+          onClick={alternarBloqueo}
+          disabled={guardandoBloqueo}
+          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
+            bloquea ? 'bg-brand-500' : 'bg-brand-950/20'
+          }`}
+        >
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+              bloquea ? 'left-[22px]' : 'left-0.5'
+            }`}
+          />
+        </button>
+      </div>
+
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <p className="text-sm text-brand-950/60 font-light">
           Activa el control de stock por producto: al llegar a 0 se marca como agotado en el menú público.

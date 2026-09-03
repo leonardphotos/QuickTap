@@ -116,6 +116,8 @@ export const updateRestaurantSchema = z.object({
   serviceChargeEnabled: z.boolean().optional(),
   // Interruptor del vínculo modificador -> insumo (botón en Inventario).
   modifierInventoryLinkEnabled: z.boolean().optional(),
+  // Bloquear pedidos cuando no queda stock (ver assertHayStock en order.service.ts).
+  blockOrdersWithoutStock: z.boolean().optional(),
   // RIF fiscal del restaurante, informativo — condición para que QuickTap pueda activarle el IVA.
   rif: z.string().max(30).optional(),
 

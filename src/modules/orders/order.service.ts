@@ -1000,8 +1000,68 @@ async function deductProductStock(restaurantId: string, items: { productId: stri
   for (const product of products) {
     const soldQty = qtyByProduct.get(product.id) ?? 0;
     if (soldQty <= 0) continue;
-    const nextQuantity = Math.max(0, (product.stockQuantity ?? 0) - soldQty);
+    // Sin piso en 0: si el restaurante NO tiene el bloqueo por falta de stock, vender de más
+    // es una decisión suya, y el número negativo es justo el dato útil — dice cuántas unidades
+    // salieron sin respaldo. Pisarlo en 0 borraba esa información y hacía ver el inventario
+    // cuadrado cuando no lo estaba. Con el bloqueo encendido nunca llega a negativo, porque el
+    // pedido se rechaza antes (ver assertHayStock).
+    const nextQuantity = (product.stockQuantity ?? 0) - soldQty;
     await prisma.product.update({ where: { id: product.id }, data: { stockQuantity: nextQuantity } });
+  }
+}
+
+/**
+ * Bloquea el pedido si no queda stock suficiente — solo si el restaurante encendió
+ * `blockOrdersWithoutStock` y solo para los productos con control de stock.
+ *
+ * Lo disponible NO es lo que dice `stockQuantity` a secas: ese número solo baja cuando el
+ * pedido se marca servido, así que dos mesas podrían pedir a la vez las últimas tres unidades
+ * y las dos pasarían la comprobación. Se descuenta también lo que ya está pedido y todavía sin
+ * servir, que es lo que de verdad está comprometido.
+ */
+async function assertHayStock(
+  restaurantId: string,
+  items: { productId: string | null; quantity: number }[],
+  restaurante?: { blockOrdersWithoutStock: boolean } | null,
+) {
+  const bloquea =
+    restaurante?.blockOrdersWithoutStock ??
+    (await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { blockOrdersWithoutStock: true } }))
+      ?.blockOrdersWithoutStock ??
+    false;
+  if (!bloquea) return;
+
+  const pedido = sumQuantityByProduct(items);
+  if (pedido.size === 0) return;
+
+  const productos = await prisma.product.findMany({
+    where: { restaurantId, id: { in: [...pedido.keys()], }, stockControlEnabled: true },
+    select: { id: true, name: true, stockQuantity: true },
+  });
+  if (productos.length === 0) return;
+
+  // Lo ya comprometido: renglones de pedidos vivos (ni servidos ni cancelados) de esos mismos
+  // productos. Un pedido servido ya descontó su stock, contarlo otra vez sería restar doble.
+  const comprometido = await prisma.orderItem.groupBy({
+    by: ['productId'],
+    where: {
+      productId: { in: productos.map((x) => x.id) },
+      order: { restaurantId, status: { notIn: ['SERVED', 'CANCELLED'] } },
+    },
+    _sum: { quantity: true },
+  });
+  const reservado = new Map(comprometido.map((c) => [c.productId as string, c._sum.quantity ?? 0]));
+
+  for (const producto of productos) {
+    const disponible = (producto.stockQuantity ?? 0) - (reservado.get(producto.id) ?? 0);
+    const piden = pedido.get(producto.id) ?? 0;
+    if (piden > disponible) {
+      throw badRequest(
+        disponible <= 0
+          ? `"${producto.name}" está agotado.`
+          : `Solo ${disponible === 1 ? 'queda 1 unidad' : `quedan ${disponible} unidades`} de "${producto.name}".`,
+      );
+    }
   }
 }
 
@@ -1332,6 +1392,7 @@ export const orderService = {
     const currency = table.restaurant.baseCurrency;
     const rate = await exchangeRateService.getRate(currency, restaurantId);
 
+    await assertHayStock(restaurantId, input.items);
     const lines = await priceCart(restaurantId, input.items);
     const subtotalBase = sumSubtotal(lines);
     const { serviceChargeBase, ivaBase, totalBase } = calculateCharges(subtotalBase, table.restaurant);
@@ -1505,6 +1566,7 @@ export const orderService = {
     const currency = restaurant.baseCurrency;
     const rate = await exchangeRateService.getRate(currency, restaurantId);
 
+    await assertHayStock(restaurantId, input.items);
     const lines = await priceCart(restaurantId, input.items);
     const subtotalBase = sumSubtotal(lines);
     const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant);
@@ -1776,6 +1838,7 @@ export const orderService = {
 
     const restaurantId = restaurant.id;
     const rate = await exchangeRateService.getRate(restaurant.baseCurrency, restaurantId);
+    await assertHayStock(restaurantId, input.items);
     const lines = await priceCart(restaurantId, input.items);
     const subtotalBase = sumSubtotal(lines);
     const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant);
@@ -2147,6 +2210,7 @@ export const orderService = {
       throw badRequest('No se puede editar un pedido ya finalizado o cancelado.');
     }
 
+    await assertHayStock(restaurantId, [{ productId: input.productId, quantity: input.quantity }]);
     const [line] = await priceCart(restaurantId, [
       { productId: input.productId, quantity: input.quantity, variantId: input.variantId, modifierIds: input.modifierIds, note: input.note },
     ]);
@@ -2242,6 +2306,10 @@ export const orderService = {
       throw badRequest('No se puede editar un pedido ya finalizado o cancelado.');
     }
 
+    await assertHayStock(
+      restaurantId,
+      inputs.map((x) => ({ productId: x.productId, quantity: x.quantity })),
+    );
     const lines = await priceCart(
       restaurantId,
       inputs.map((input) => ({

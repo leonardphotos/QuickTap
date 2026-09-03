@@ -480,6 +480,17 @@ model Restaurant {
   // la configuración armada y activarla cuando el inventario esté cuadrado.
   modifierInventoryLinkEnabled Boolean @default(false)
 
+  // Bloqueo por falta de stock (Inventario → Stock de productos). Solo aplica a los productos
+  // que tienen el control de stock activado.
+  //
+  // ENCENDIDO: no se puede comandar más de lo que queda. Se cuenta lo que ya está pedido y sin
+  // servir, no solo lo que hay en la nevera — si no, dos mesas pedirían a la vez las últimas
+  // tres unidades y las dos pasarían.
+  //
+  // APAGADO (por defecto, comportamiento de siempre): se vende igual y el stock entra en
+  // negativo (-1, -2...). Ese número negativo es útil: dice cuánto se vendió de más.
+  blockOrdersWithoutStock Boolean @default(false)
+
   // Interruptor de la clave de pantalla (Ajustes → Pantalla de bloqueo). Apagado,
   // nadie del equipo vuelve a ver el teclado de PIN y tampoco se le exige crearlo;
   // los PIN ya configurados se conservan para cuando se vuelva a activar.
