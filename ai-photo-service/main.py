@@ -36,15 +36,19 @@ _uso_actual: contextvars.ContextVar[dict | None] = contextvars.ContextVar("uso_g
 
 @app.middleware("http")
 async def exponer_consumo(request: Request, call_next):
-    _uso_actual.set(None)
+    # El acumulador se crea ACÁ y el endpoint lo MUTA; nunca se reasigna la variable de
+    # contexto río abajo. Starlette corre el endpoint en otra tarea con una copia del
+    # contexto, así que un `.set()` hecho adentro no vuelve — pero el diccionario es el mismo
+    # objeto en las dos, y mutarlo sí se ve. Con `.set()` las cabeceras salían siempre en cero.
+    uso = {"entrada": 0, "salida": 0, "razonamiento": 0, "total": 0, "modelo": ""}
+    _uso_actual.set(uso)
     response = await call_next(request)
-    uso = _uso_actual.get()
-    if uso:
-        response.headers["X-Gemini-Entrada"] = str(uso.get("entrada", 0))
-        response.headers["X-Gemini-Salida"] = str(uso.get("salida", 0))
-        response.headers["X-Gemini-Razonamiento"] = str(uso.get("razonamiento", 0))
-        response.headers["X-Gemini-Total"] = str(uso.get("total", 0))
-        response.headers["X-Gemini-Modelo"] = str(uso.get("modelo", ""))
+    if uso["total"] > 0:
+        response.headers["X-Gemini-Entrada"] = str(uso["entrada"])
+        response.headers["X-Gemini-Salida"] = str(uso["salida"])
+        response.headers["X-Gemini-Razonamiento"] = str(uso["razonamiento"])
+        response.headers["X-Gemini-Total"] = str(uso["total"])
+        response.headers["X-Gemini-Modelo"] = uso["modelo"]
     return response
 
 
@@ -63,14 +67,13 @@ def _anotar_consumo(response, modelo: str) -> None:
         # El razonamiento no viene en ninguno de los dos contadores pero se cobra igual: es lo
         # que sobra del total. Era el 34% del gasto antes de poder apagarlo.
         razonamiento = max(0, total - entrada - salida)
-        previo = _uso_actual.get() or {"entrada": 0, "salida": 0, "razonamiento": 0, "total": 0, "modelo": modelo}
-        _uso_actual.set({
-            "entrada": previo["entrada"] + entrada,
-            "salida": previo["salida"] + salida,
-            "razonamiento": previo["razonamiento"] + razonamiento,
-            "total": previo["total"] + total,
-            "modelo": modelo,
-        })
+        uso = _uso_actual.get()
+        if uso is not None:
+            uso["entrada"] += entrada
+            uso["salida"] += salida
+            uso["razonamiento"] += razonamiento
+            uso["total"] += total
+            uso["modelo"] = modelo
         print(f"[tokens] {modelo}: entrada={entrada} salida={salida} razona={razonamiento} total={total}", flush=True)
     except Exception:
         pass
