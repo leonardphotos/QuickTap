@@ -50,6 +50,8 @@ interface FilaInsumo {
   enLaHoja: string;
   /** No vacío = va a la ventana de empaques del inventario, lista para vincularse a un plato. */
   tipoEmpaque: '' | 'ENVASE' | 'CAJA' | 'BOLSA';
+  /** La hoja no traía unidad: la que quedó la dedujo la IA. Hay que mirarla. */
+  unidadAdivinada: boolean;
   /** En qué platos y preparaciones se usa el insumo con el que se vinculó. */
   enPlatos: string[];
   enPreparaciones: string[];
@@ -258,10 +260,13 @@ function PanelInsumos({
         usadoEn: number;
         enLaHoja: string;
         tipoEmpaque: '' | 'ENVASE' | 'CAJA' | 'BOLSA';
+        unidadAdivinada: boolean;
         enPlatos: string[];
         enPreparaciones: string[];
       }[] = data.data?.insumos ?? [];
-      const lectura: { filas: number; productos: number; lotes: number } | undefined = data.data?.lectura;
+      const lectura:
+        | { filas: number; productos: number; lotes: number; porCodigo: boolean }
+        | undefined = data.data?.lectura;
       setFilas(
         leidos.map((i, idx) => ({
           key: `ins-${Date.now()}-${idx}`,
@@ -276,19 +281,28 @@ function PanelInsumos({
           usadoEn: i.usadoEn,
           enLaHoja: i.enLaHoja ?? '',
           tipoEmpaque: i.tipoEmpaque ?? '',
+          unidadAdivinada: !!i.unidadAdivinada,
           enPlatos: i.enPlatos ?? [],
           enPreparaciones: i.enPreparaciones ?? [],
           incluir: true,
         })),
       );
+      const adivinadas = leidos.filter((i) => i.unidadAdivinada).length;
       onAviso(
         `Se leyeron ${leidos.length} insumos. Revisa los vínculos y carga.` +
           // Un inventario real trae una hoja por semana con los mismos insumos repetidos: se
           // dice qué se colapsó para que 2.888 filas convertidas en 171 no parezcan una pérdida.
           (lectura && lectura.filas > lectura.productos
-            ? ` (El archivo traía ${lectura.filas} filas repetidas entre hojas; quedaron ${lectura.productos} productos distintos.)`
+            ? ` El archivo traía ${lectura.filas} filas repetidas entre hojas; quedaron ${lectura.productos} productos distintos.`
             : '') +
-          (lectura && lectura.lotes > 1 ? ` Se leyó en ${lectura.lotes} tandas.` : ''),
+          // Por qué ruta entró: la hoja con encabezados la lee el código (no se pierde ni una
+          // fila); una foto o una planilla sin encabezados la transcribe la IA.
+          (lectura?.porCodigo
+            ? ' Se leyó con código, sin pasar la hoja por la IA: no se pierde ninguna fila.'
+            : ' La hoja no tenía encabezados reconocibles, así que la transcribió la IA — revisa que no falte ningún insumo.') +
+          (adivinadas > 0
+            ? ` ${adivinadas} no traían unidad en la hoja y se dedujo: están marcadas en ámbar.`
+            : ''),
       );
     } catch (e: any) {
       onError(e.response?.data?.error ?? 'No se pudo leer la lista de insumos.');
@@ -482,8 +496,10 @@ function PanelInsumos({
                   <Campo etiqueta="Unidad">
                     <select
                       value={f.unidad}
-                      onChange={(e) => editar(f.key, { unidad: e.target.value })}
-                      className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
+                      onChange={(e) => editar(f.key, { unidad: e.target.value, unidadAdivinada: false })}
+                      className={`mt-0.5 w-full rounded-lg border px-2 py-1.5 text-sm ${
+                        f.unidadAdivinada ? 'border-amber-400 bg-amber-50' : 'border-brand-950/15'
+                      }`}
                     >
                       {UNIDADES.map((u) => (
                         <option key={u} value={u}>
@@ -491,6 +507,12 @@ function PanelInsumos({
                         </option>
                       ))}
                     </select>
+                    {/* La hoja no decía la unidad: la dedujo la IA. Es el único dato de la
+                        lectura que no salió de una celda, y el que peor se cacha después —
+                        cien kilos de hondashi no disparan ninguna alerta por cantidad. */}
+                    {f.unidadAdivinada && (
+                      <span className="mt-0.5 block text-[10px] font-light text-amber-700">la hoja no la decía</span>
+                    )}
                   </Campo>
                   <Campo etiqueta="Costo por unidad">
                     <input

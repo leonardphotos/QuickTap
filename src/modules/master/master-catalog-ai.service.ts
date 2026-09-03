@@ -314,6 +314,14 @@ export interface InsumoLeido {
    * ahí se puede vincular a un plato para cobrarlo y descontarlo al vender para llevar.
    */
   tipoEmpaque: '' | 'ENVASE' | 'CAJA' | 'BOLSA';
+  /**
+   * La hoja no traía unidad para este insumo, así que la que quedó la dedujo la IA.
+   *
+   * Es el único punto de toda la lectura donde queda una adivinanza, y una que no cacha ningún
+   * otro aviso: un insumo sin unidad puede terminar en "100 kg" cuando eran 100 sobres, y cien
+   * kilos de hondashi no disparan la alerta de "mil kilos o más".
+   */
+  unidadAdivinada: boolean;
 }
 
 function numeroPositivo(valor: unknown, porDefecto = 0): number {
@@ -387,8 +395,12 @@ const CONVERSION_UNIDAD: Record<string, { unidad: string; factor: number }> = {
  */
 function aUnidadBase(unidadArchivo: string, respaldo: string) {
   const conversion = CONVERSION_UNIDAD[clave(unidadArchivo).replace(/[.\s]/g, '')];
-  if (conversion) return conversion;
-  return { unidad: UNIDADES.has(respaldo) ? respaldo : 'unidad', factor: 1 };
+  if (conversion) return { ...conversion, reconocida: true };
+  // `reconocida: false` = la unidad no salió de la hoja sino de lo que dedujo la IA. Es el
+  // único punto de la lectura donde queda una adivinanza, así que se marca para que el
+  // operador la mire: un insumo sin unidad en la hoja puede quedar en "100 kg" cuando eran
+  // 100 sobres, y eso no lo cacha ningún aviso por cantidad.
+  return { unidad: UNIDADES.has(respaldo) ? respaldo : 'unidad', factor: 1, reconocida: false };
 }
 
 /** Manda un trozo de texto plano al microservicio y devuelve la respuesta. */
@@ -1245,7 +1257,7 @@ export const masterCatalogAiService = {
       // costo de 0.0045 por gramo son 4.50 por kg. Dividir la cantidad y multiplicar el costo
       // por el mismo factor mantiene el valor total del stock igual.
       const unidadArchivo = String(i?.unidadArchivo ?? '').trim();
-      const { unidad, factor } = aUnidadBase(unidadArchivo, String(i?.unidad ?? ''));
+      const { unidad, factor, reconocida } = aUnidadBase(unidadArchivo, String(i?.unidad ?? ''));
       const cantidadArchivo = numeroPositivo(i?.cantidadArchivo);
       const costoArchivo = numeroPositivo(i?.costoArchivo);
       const minimoArchivo = numeroPositivo(i?.minimoArchivo);
@@ -1270,6 +1282,7 @@ export const masterCatalogAiService = {
         // marca es ruido del modelo, y mandar a la ventana de empaques algo que no lo es
         // ensucia el picker con el que después se vincula el envase de cada plato.
         tipoEmpaque: (i?.esEmpaque && TIPOS_EMPAQUE.has(i?.tipoEmpaque) ? i.tipoEmpaque : '') as InsumoLeido['tipoEmpaque'],
+        unidadAdivinada: !reconocida,
       } satisfies InsumoLeido;
 
       // El mismo insumo puede volver en dos trozos distintos del archivo (o repetido en la
