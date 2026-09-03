@@ -3512,6 +3512,13 @@ model DeliveryZone {
   price   Decimal @db.Decimal(12, 2)
   polygon Json
 
+  /// La registró el sistema sola, al cotizar una dirección que no cubría ninguna zona.
+  /// Su precio es una estimación a partir de las zonas vecinas, no un precio que el
+  /// restaurante haya decidido — por eso NUNCA le gana a una zona dibujada a mano cuando se
+  /// solapan, y no entra en el cálculo que estima precios para otras direcciones (si no, las
+  /// estimaciones se alimentarían de estimaciones).
+  isAuto  Boolean @default(false)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

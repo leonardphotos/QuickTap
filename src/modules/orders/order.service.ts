@@ -485,6 +485,27 @@ function estimateZoneRatePerKm(
 }
 
 /**
+ * Registra el sector cotizado como una zona nueva, para que el próximo pedido de esa cuadra
+ * caiga dentro en vez de recalcularse.
+ *
+ * Queda marcada `isAuto`: su precio es una estimación, así que nunca le gana a una zona
+ * dibujada a mano ni alimenta las estimaciones de otras direcciones. El cuadrado es generoso
+ * (3 km de lado) justo para que el sector quede cubierto de una vez y no se generen decenas de
+ * zonas casi iguales.
+ */
+async function registrarZonaAutomatica(restaurantId: string, customer: LatLng, price: Prisma.Decimal): Promise<void> {
+  await prisma.deliveryZone.create({
+    data: {
+      restaurantId,
+      name: `Zona automática (${new Date().toLocaleDateString('es-VE')})`,
+      price,
+      isAuto: true,
+      polygon: squarePolygonAround(customer, 1.5) as unknown as Prisma.InputJsonValue,
+    },
+  });
+}
+
+/**
  * Calcula el costo de envío según el modo configurado por el restaurante.
  * Sin ubicación del cliente, sin origen configurado, o sin zona que la
  * contenga, el envío queda en 0 (no bloquea el checkout).
@@ -525,12 +546,19 @@ async function computeDeliveryFee(
   // La más chica es la más específica: si el restaurante dibujó un barrio dentro de un sector
   // grande, es porque ese barrio tiene su propio precio.
   const zones = await prisma.deliveryZone.findMany({ where: { restaurantId: restaurant.id } });
-  let elegida: { price: Prisma.Decimal; areaKm2: number } | null = null;
+
+  // Las dibujadas a mano mandan sobre las automáticas: el precio que puso el restaurante
+  // siempre le gana a uno estimado, aunque el cuadrado automático sea más chico.
+  let elegida: { price: Prisma.Decimal; areaKm2: number; isAuto: boolean } | null = null;
   for (const zone of zones) {
     const polygon = zone.polygon as unknown as LatLng[];
     if (!Array.isArray(polygon) || !isPointInPolygon(customer, polygon)) continue;
     const areaKm2 = polygonAreaKm2(polygon);
-    if (!elegida || areaKm2 < elegida.areaKm2) elegida = { price: zone.price, areaKm2 };
+    const mejor =
+      !elegida ||
+      (elegida.isAuto && !zone.isAuto) ||
+      (elegida.isAuto === zone.isAuto && areaKm2 < elegida.areaKm2);
+    if (mejor) elegida = { price: zone.price, areaKm2, isAuto: zone.isAuto };
   }
   if (elegida) return round2(toDecimal(elegida.price));
 
@@ -540,44 +568,47 @@ async function computeDeliveryFee(
   // está dentro de NEARBY_ZONE_MAX_KM de esa zona. Más lejos (fuera del área que
   // el restaurante efectivamente cubrió con zonas) se cotiza por km (abajo).
   const NEARBY_ZONE_MAX_KM = 10;
-  let nearest: { price: Prisma.Decimal; distanceKm: number } | null = null;
-  for (const zone of zones) {
-    const polygon = zone.polygon as unknown as LatLng[];
-    // Un "polígono" de 2 puntos es una línea: no encierra nada y no es una zona válida.
-    if (!Array.isArray(polygon) || polygon.length < 3) continue;
-    const distanceKm = distanceToPolygonKm(customer, polygon);
-    // Empate a la misma distancia: gana el precio MÁS BAJO. Es un desempate arbitrario, pero
-    // estable — y ante la duda es preferible cobrarle de menos al cliente que de más.
-    if (!nearest || distanceKm < nearest.distanceKm || (distanceKm === nearest.distanceKm && zone.price.lt(nearest.price))) {
-      nearest = { price: zone.price, distanceKm };
-    }
-  }
-  if (nearest && nearest.distanceKm <= NEARBY_ZONE_MAX_KM) {
-    return round2(toDecimal(nearest.price));
+
+  // Solo las dibujadas a mano: interpolar sobre zonas automáticas sería estimar a partir de
+  // estimaciones, y el error se iría acumulando sector a sector.
+  const dibujadas = zones
+    .filter((z) => !z.isAuto)
+    .map((z) => ({ zone: z, polygon: z.polygon as unknown as LatLng[] }))
+    // Un "polígono" de menos de 3 puntos no encierra nada: no es una zona válida.
+    .filter((z) => Array.isArray(z.polygon) && z.polygon.length >= 3)
+    .map((z) => ({ price: z.zone.price, distanceKm: distanceToPolygonKm(customer, z.polygon) }))
+    .sort((a, b) => a.distanceKm - b.distanceKm || Number(a.price) - Number(b.price));
+
+  if (dibujadas.length > 0 && dibujadas[0].distanceKm <= NEARBY_ZONE_MAX_KM) {
+    // Se mezclan las TRES vecinas más cercanas, ponderadas por 1/distancia.
+    //
+    // Copiar el precio de la más cercana daba saltos absurdos: dos casas de la misma cuadra,
+    // una a un metro de la zona de $1 y otra a un metro de la de $2, pagaban el doble una que
+    // la otra. Ponderando, un punto que está 4 veces más cerca de la de $2 paga ~$1,80 — el
+    // precio se mueve suave entre zona y zona, como la distancia real.
+    const vecinas = dibujadas.slice(0, 3);
+    // Piso de 10 metros: pegado al borde la distancia tiende a 0 y 1/0 es infinito.
+    const peso = (km: number) => 1 / Math.max(km, 0.01);
+    const sumaPesos = vecinas.reduce((acc, v) => acc + peso(v.distanceKm), 0);
+    const estimado = vecinas.reduce((acc, v) => acc + Number(v.price) * peso(v.distanceKm), 0) / sumaPesos;
+    const precioVecinas = round2(toDecimal(estimado));
+
+    if (persistFallbackZone) await registrarZonaAutomatica(restaurant.id, customer, precioVecinas);
+    return precioVecinas;
   }
 
   // Zona virgen (sin ninguna zona registrada cerca): en vez de dejar el envío en 0, se
   // estima con la tarifa por km que salió de las zonas que sí tienen precio.
   if (restaurant.deliveryOriginLat == null || restaurant.deliveryOriginLng == null) return toDecimal(0);
   const origin = { lat: restaurant.deliveryOriginLat, lng: restaurant.deliveryOriginLng };
-  const rate = estimateZoneRatePerKm(zones, origin);
+  // Sin las automáticas: la tarifa por km tiene que salir de precios que puso el restaurante.
+  const rate = estimateZoneRatePerKm(zones.filter((z) => !z.isAuto), origin);
   if (!rate) return toDecimal(0);
 
   const distanceFromOriginKm = haversineDistanceKm(origin, customer);
   const estimatedPrice = round2(toDecimal(rate.intercept).add(toDecimal(rate.ratePerKm).mul(distanceFromOriginKm)));
 
-  if (persistFallbackZone) {
-    // Radio generoso (3km de lado) para que los próximos pedidos del mismo sector caigan
-    // dentro de esta misma zona en vez de generar una nueva cada vez.
-    await prisma.deliveryZone.create({
-      data: {
-        restaurantId: restaurant.id,
-        name: `Zona automática (${distanceFromOriginKm.toFixed(1)} km)`,
-        price: estimatedPrice,
-        polygon: squarePolygonAround(customer, 1.5) as unknown as Prisma.InputJsonValue,
-      },
-    });
-  }
+  if (persistFallbackZone) await registrarZonaAutomatica(restaurant.id, customer, estimatedPrice);
 
   return estimatedPrice;
 }
