@@ -478,7 +478,7 @@
 
       <div class="card">
         <h3>Impresoras</h3>
-        <p class="muted small" style="margin-bottom:10px;line-height:1.5;">Aquí aparecen solas las impresoras que ya tienes instaladas en la computadora. Lo único que hay que hacer es marcarle a cada una qué estaciones atiende (cocinas, caja, delivery) — la comanda sale sola en la correcta, sin diálogo. Una misma cocina puede marcarse en varias impresoras para que salga en todas a la vez. La de Delivery imprime un ticket aparte (cliente, monto, pedido y ubicación juntos) apenas aceptas ese pedido. Si no marcas ninguna, se usa la impresora predeterminada del sistema.</p>
+        <p class="muted small" style="margin-bottom:10px;line-height:1.5;">Aquí aparecen solas las impresoras que ya tienes instaladas en la computadora. Lo único que hay que hacer es marcarle a cada una qué estaciones atiende (cocinas, caja, delivery) — la comanda sale sola en la correcta, sin diálogo. Una misma cocina puede marcarse en varias impresoras para que salga en todas a la vez. Los productos que no tienen cocina puesta (bebidas, postres) salen por la estación "Sin cocina asignada": márcala en la impresora de caja si quieres que salgan ahí. La de Delivery imprime un ticket aparte (cliente, monto, pedido y ubicación juntos) apenas aceptas ese pedido. Si no marcas ninguna, se usa la impresora predeterminada del sistema.</p>
         <button class="btn btn-secondary btn-block" id="refreshPrintersBtn">🔄 Buscar impresoras de la computadora</button>
         <button class="btn btn-secondary btn-block" id="connectSerialBtn" style="margin-top:6px;">🔌 Conectar impresora USB/Serial</button>
         <div id="printersList" style="margin-top:10px;"></div>
@@ -1937,9 +1937,14 @@ function renderPrintersList(){
     el.innerHTML = '<p class="muted small">Ninguna conectada · se usará la impresión normal del navegador.</p>';
     return;
   }
+  // 'Sin cocina asignada' es una estación marcable como cualquier otra: los productos que no
+  // tienen cocina puesta (bebidas, postres) se agrupan bajo ese nombre en groupItemsByKitchen,
+  // y sin poder marcarlo su comanda no le tocaba a ninguna impresora — terminaba saliendo por
+  // la predeterminada de Windows, que casi nunca es la de caja.
   const stationOptions = [
     { value: 'CAJA', label: 'Caja (nota de entrega)' },
     { value: 'DELIVERY', label: '🛵 Delivery' },
+    { value: SIN_COCINA, label: 'Sin cocina asignada (bebidas, postres…)' },
   ].concat(state.kitchens.map(k => ({ value: k.name, label: k.name })));
 
   const chipsHtml = (p) => stationOptions.map(opt => {

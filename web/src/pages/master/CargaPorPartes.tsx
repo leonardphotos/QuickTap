@@ -227,7 +227,8 @@ function PanelInsumos({
         vinculadoA: { id: string; nombre: string; costoActual: number } | null;
         vinculoPor: 'nombre' | 'ia' | null;
         usadoEn: number;
-      }[] = data.data ?? [];
+      }[] = data.data?.insumos ?? [];
+      const lectura: { filas: number; productos: number; lotes: number } | undefined = data.data?.lectura;
       setFilas(
         leidos.map((i, idx) => ({
           key: `ins-${Date.now()}-${idx}`,
@@ -242,7 +243,15 @@ function PanelInsumos({
           usadoEn: i.usadoEn,
         })),
       );
-      onAviso(`Se leyeron ${leidos.length} insumos. Revisa los vínculos y carga.`);
+      onAviso(
+        `Se leyeron ${leidos.length} insumos. Revisa los vínculos y carga.` +
+          // Un inventario real trae una hoja por semana con los mismos insumos repetidos: se
+          // dice qué se colapsó para que 2.888 filas convertidas en 171 no parezcan una pérdida.
+          (lectura && lectura.filas > lectura.productos
+            ? ` (El archivo traía ${lectura.filas} filas repetidas entre hojas; quedaron ${lectura.productos} productos distintos.)`
+            : '') +
+          (lectura && lectura.lotes > 1 ? ` Se leyó en ${lectura.lotes} tandas.` : ''),
+      );
     } catch (e: any) {
       onError(e.response?.data?.error ?? 'No se pudo leer la lista de insumos.');
     } finally {

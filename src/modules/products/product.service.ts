@@ -24,6 +24,10 @@ function toPromoDate(dateStr: string | null | undefined): Date | null | undefine
  */
 const PRODUCT_MODIFIER_INCLUDE = {
   modifierCategories: {
+    // El orden que el restaurante le dio a los grupos del plato (carbohidrato -> proteína ->
+    // vegetales -> salsa -> topping). El menú público ya lo respetaba; acá faltaba, así que al
+    // comandar desde el panel los grupos salían en el orden en que la base los devolviera.
+    orderBy: { priority: 'asc' as const },
     include: {
       modifierCategory: {
         include: {
@@ -49,6 +53,7 @@ const PRODUCT_MODIFIER_INCLUDE = {
           name: true,
           isAvailable: true,
           modifierCategories: {
+            orderBy: { priority: 'asc' as const },
             include: {
               modifierCategory: {
                 include: {

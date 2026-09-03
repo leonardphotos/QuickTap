@@ -130,19 +130,82 @@ async function hojaATexto(buffer: Buffer): Promise<string> {
     lineas.push(`### Hoja: ${sheet.name}`);
     sheet.eachRow((row) => {
       const celdas: string[] = [];
-      row.eachCell({ includeEmpty: true }, (cell) => {
-        const v = cell.value;
-        if (v === null || v === undefined) celdas.push('');
-        else if (typeof v === 'object' && 'text' in v) celdas.push(String((v as { text: unknown }).text ?? '').trim());
-        else if (typeof v === 'object' && 'result' in v) celdas.push(String((v as { result: unknown }).result ?? '').trim());
-        else if (v instanceof Date) celdas.push(v.toISOString().slice(0, 10));
-        else celdas.push(String(v).trim());
-      });
+      // `cell.text` y no `cell.value`: value devuelve el objeto crudo de exceljs para las celdas
+      // con fórmula, con fórmula compartida, con error (#REF!) o con texto enriquecido, y
+      // varias de esas formas no traen el campo que se estaba leyendo — la hoja llegaba a la IA
+      // sembrada de "[object Object]" justo en las columnas de existencia y de costo. `text` es
+      // exactamente lo que muestra Excel en pantalla, que es lo que hay que transcribir.
+      row.eachCell({ includeEmpty: true }, (cell) => celdas.push(String(cell.text ?? '').trim()));
       // Las filas vacías (separadores visuales de la hoja) no aportan nada y gastan contexto.
       if (celdas.some((c) => c !== '')) lineas.push(celdas.join(' | ').replace(/(\s*\|\s*)+$/, ''));
     });
   });
   return lineas.join('\n');
+}
+
+/**
+ * Cuánto texto de hoja se le manda a la IA por llamada.
+ *
+ * Muy por debajo del tope del microservicio: no es un límite técnico sino de calidad — pasado
+ * cierto tamaño el modelo empieza a saltarse filas del final. Node parte el archivo y junta las
+ * respuestas, así que el operador nunca ve un "la lista es demasiado larga": sube el archivo
+ * como lo tiene y espera un poco más.
+ */
+const CARACTERES_POR_LOTE = 45000;
+
+/** Parte el texto en trozos que no superen `tope`, siempre cortando entre filas. */
+function partirEnTrozos(texto: string, tope = CARACTERES_POR_LOTE): string[] {
+  const lineas = texto.split('\n');
+  const trozos: string[] = [];
+  let actual: string[] = [];
+  let largo = 0;
+  for (const linea of lineas) {
+    // Una sola fila más larga que el tope no se puede partir sin romperla: se manda igual y el
+    // microservicio decide. En una hoja de inventario no pasa nunca.
+    if (largo + linea.length + 1 > tope && actual.length > 0) {
+      trozos.push(actual.join('\n'));
+      actual = [];
+      largo = 0;
+    }
+    actual.push(linea);
+    largo += linea.length + 1;
+  }
+  if (actual.length > 0) trozos.push(actual.join('\n'));
+  return trozos;
+}
+
+/**
+ * Colapsa una hoja de inventario dejando una fila por producto.
+ *
+ * Los inventarios reales vienen con una hoja por semana y los mismos insumos repetidos en
+ * todas: el de Wokbox trae 2.710 filas que son 171 productos contados 18 veces. Mandar eso a la
+ * IA es pagar dieciocho veces por el mismo dato y encima llegar a un tamaño en el que empieza a
+ * saltarse filas.
+ *
+ * De cada producto se conserva la fila con MÁS celdas llenas, que es la que más probablemente
+ * traiga unidad y costo — las semanas en que no se compró ese insumo dejan media fila vacía.
+ */
+function compactarInventario(texto: string): { texto: string; filas: number; productos: number } {
+  const mejor = new Map<string, { linea: string; puntaje: number }>();
+  const orden: string[] = [];
+  let filas = 0;
+  for (const linea of texto.split('\n')) {
+    if (linea.startsWith('### Hoja:')) continue;
+    filas += 1;
+    const celdas = linea.split(' | ');
+    const primera = celdas.find((c) => c.trim() !== '') ?? '';
+    const k = clave(primera);
+    if (!k) continue;
+    const puntaje = celdas.filter((c) => c.trim() !== '').length;
+    const previo = mejor.get(k);
+    if (!previo) {
+      mejor.set(k, { linea, puntaje });
+      orden.push(k);
+    } else if (puntaje > previo.puntaje) {
+      mejor.set(k, { linea, puntaje });
+    }
+  }
+  return { texto: orden.map((k) => mejor.get(k)!.linea).join('\n'), filas, productos: orden.length };
 }
 
 /** Igual que `llamarServicioIA` pero con cuerpo JSON — las fichas técnicas no llevan archivo. */
@@ -242,22 +305,8 @@ function numeroPositivo(valor: unknown, porDefecto = 0): number {
   return Number.isFinite(n) && n >= 0 ? n : porDefecto;
 }
 
-/**
- * Aplana el archivo del cliente a texto y se lo manda al microservicio.
- *
- * Mismo camino para la carta y para la lista de insumos: si es .xlsx lo aplana exceljs acá
- * (el microservicio no sabe de Excel a propósito), y si es foto va la imagen tal cual.
- */
-async function leerArchivoConIA(endpoint: string, file: Express.Multer.File, errorVacio: string) {
-  const esExcel =
-    file.mimetype.includes('spreadsheet') ||
-    file.mimetype.includes('excel') ||
-    file.originalname.toLowerCase().endsWith('.xlsx');
-
-  if (!esExcel) return llamarServicioIA(endpoint, file);
-
-  const texto = await hojaATexto(file.buffer);
-  if (!texto.trim()) throw badRequest(errorVacio);
+/** Manda un trozo de texto plano al microservicio y devuelve la respuesta. */
+async function mandarTextoALaIA(endpoint: string, texto: string) {
   const form = new FormData();
   form.append('texto', texto);
   let response: Response;
@@ -277,6 +326,58 @@ async function leerArchivoConIA(endpoint: string, file: Express.Multer.File, err
     throw new HttpError(502, detalle);
   }
   return response;
+}
+
+/**
+ * Lee el archivo del cliente —foto o .xlsx— y devuelve las filas que reconoció la IA.
+ *
+ * Si es una foto va la imagen tal cual. Si es una hoja la aplana exceljs acá (el microservicio
+ * no sabe de Excel a propósito), y si es larga la parte en trozos y junta las respuestas: el
+ * archivo del cliente llega como lo tiene, con dieciocho hojas si hace falta, y no hay ningún
+ * "cárgala por partes" que el operador tenga que resolver a mano recortando el Excel.
+ *
+ * `compactar` es solo para inventarios: deja una fila por producto antes de partir (ver
+ * compactarInventario). No se usa en cartas ni recetarios, donde una línea repetida puede ser
+ * un tamaño distinto del mismo plato o el mismo insumo en otra receta.
+ */
+async function leerListaConIA<T>(
+  endpoint: string,
+  file: Express.Multer.File,
+  campo: string,
+  opciones: { errorVacio: string; compactar?: boolean },
+): Promise<{ filas: T[]; compactado: { filas: number; productos: number } | null; lotes: number }> {
+  const esExcel =
+    file.mimetype.includes('spreadsheet') ||
+    file.mimetype.includes('excel') ||
+    file.originalname.toLowerCase().endsWith('.xlsx');
+
+  const extraer = async (response: Response) => {
+    const datos = (await response.json()) as Record<string, unknown>;
+    return (Array.isArray(datos[campo]) ? (datos[campo] as T[]) : []) as T[];
+  };
+
+  if (!esExcel) {
+    return { filas: await extraer(await llamarServicioIA(endpoint, file)), compactado: null, lotes: 1 };
+  }
+
+  let texto = await hojaATexto(file.buffer);
+  if (!texto.trim()) throw badRequest(opciones.errorVacio);
+
+  let compactado: { filas: number; productos: number } | null = null;
+  if (opciones.compactar) {
+    const r = compactarInventario(texto);
+    if (r.texto.trim()) {
+      texto = r.texto;
+      compactado = { filas: r.filas, productos: r.productos };
+    }
+  }
+
+  const trozos = partirEnTrozos(texto);
+  const filas: T[] = [];
+  for (const trozo of trozos) {
+    filas.push(...(await extraer(await mandarTextoALaIA(endpoint, trozo))));
+  }
+  return { filas, compactado, lotes: trozos.length };
 }
 
 /** Cuántos nombres nuevos se le pasan a la IA por llamada al cruzarlos con el inventario. */
@@ -307,41 +408,15 @@ export const masterCatalogAiService = {
   async leerCarta(restaurantId: string, file: Express.Multer.File): Promise<ProductoLeido[]> {
     await restauranteOThrow(restaurantId);
 
-    const esExcel =
-      file.mimetype.includes('spreadsheet') ||
-      file.mimetype.includes('excel') ||
-      file.originalname.toLowerCase().endsWith('.xlsx');
+    // La hoja se aplana a texto en el backend y no en Python: exceljs ya está acá, y así el
+    // microservicio de IA sigue siendo solo "entra contenido, sale JSON" sin saber de Excel.
+    // Una carta larga se parte en trozos y las respuestas se juntan (ver leerListaConIA).
+    const lectura = await leerListaConIA<ProductoLeido>('leer-carta', file, 'productos', {
+      errorVacio: 'La hoja está vacía o no se pudo leer.',
+    });
 
-    let response: Response;
-    if (esExcel) {
-      // La hoja se aplana a texto acá y no en Python: exceljs ya está en el backend, y así el
-      // microservicio de IA sigue siendo solo "entra contenido, sale JSON" sin saber de Excel.
-      const texto = await hojaATexto(file.buffer);
-      if (!texto.trim()) throw badRequest('La hoja está vacía o no se pudo leer.');
-      const form = new FormData();
-      form.append('texto', texto);
-      try {
-        response = await fetch(`${env.aiPhotoServiceUrl}/leer-carta`, { method: 'POST', body: form });
-      } catch {
-        throw new HttpError(503, SERVICIO_CAIDO);
-      }
-      if (!response.ok) {
-        let detalle = 'El servicio de IA no pudo leer la lista.';
-        try {
-          const body = (await response.json()) as { detail?: string };
-          if (body?.detail) detalle = body.detail;
-        } catch {
-          /* respuesta sin JSON */
-        }
-        throw new HttpError(502, detalle);
-      }
-    } else {
-      response = await llamarServicioIA('leer-carta', file);
-    }
-
-    const datos = (await response.json()) as { productos?: ProductoLeido[] };
     const productos: ProductoLeido[] = [];
-    for (const p of datos.productos ?? []) {
+    for (const p of lectura.filas) {
       const nombre = String(p?.nombre ?? '').trim();
       if (!nombre) continue;
       const precio = Number(p?.precio);
@@ -833,25 +908,28 @@ export const masterCatalogAiService = {
    * rallado" como el mismo queso. Cada fila vuelve diciendo con qué se vinculó y en cuántas
    * líneas de receta pega, para que el operador vea el impacto antes de confirmar.
    */
-  async leerInsumos(restaurantId: string, file: Express.Multer.File): Promise<InsumoLeido[]> {
+  async leerInsumos(
+    restaurantId: string,
+    file: Express.Multer.File,
+  ): Promise<{ insumos: InsumoLeido[]; lectura: { filas: number; productos: number; lotes: number } }> {
     await restauranteOThrow(restaurantId);
     const inventarioDe = await resolveInventoryScopeById(restaurantId);
 
-    const response = await leerArchivoConIA('leer-insumos', file, 'La hoja está vacía o no se pudo leer.');
-    const datos = (await response.json()) as {
-      insumos?: { nombre: string; unidad: string; cantidad: number; costoUnitario: number; minimo: number; categoria: string }[];
-    };
+    const lectura = await leerListaConIA<{
+      nombre: string;
+      unidad: string;
+      cantidad: number;
+      costoUnitario: number;
+      minimo: number;
+      categoria: string;
+    }>('leer-insumos', file, 'insumos', { errorVacio: 'La hoja está vacía o no se pudo leer.', compactar: true });
 
     const leidos: InsumoLeido[] = [];
-    const vistos = new Set<string>();
-    for (const i of datos.insumos ?? []) {
+    const porNombreLeido = new Map<string, InsumoLeido>();
+    for (const i of lectura.filas) {
       const nombre = String(i?.nombre ?? '').trim();
       if (!nombre || !UNIDADES.has(i?.unidad)) continue;
-      // La misma compra repetida en dos filas de la hoja no puede volver dos veces: al
-      // confirmar se pisarían entre ellas y el operador no vería cuál quedó.
-      if (vistos.has(clave(nombre))) continue;
-      vistos.add(clave(nombre));
-      leidos.push({
+      const fila = {
         nombre,
         unidad: i.unidad,
         cantidad: numeroPositivo(i?.cantidad),
@@ -861,7 +939,23 @@ export const masterCatalogAiService = {
         vinculadoA: null,
         vinculoPor: null,
         usadoEn: 0,
-      });
+      } satisfies InsumoLeido;
+
+      // El mismo insumo puede volver en dos trozos distintos del archivo (o repetido en la
+      // hoja). Se queda uno solo, quedándose con el dato que SÍ vino: una hoja donde el costo
+      // aparece en una semana y la existencia en otra tiene que terminar en una fila completa,
+      // no en la primera a medias. Dos filas iguales al confirmar se pisarían entre ellas y el
+      // operador no vería cuál quedó.
+      const previo = porNombreLeido.get(clave(nombre));
+      if (!previo) {
+        porNombreLeido.set(clave(nombre), fila);
+        leidos.push(fila);
+        continue;
+      }
+      if (previo.costoUnitario <= 0 && fila.costoUnitario > 0) previo.costoUnitario = fila.costoUnitario;
+      if (previo.cantidad <= 0 && fila.cantidad > 0) previo.cantidad = fila.cantidad;
+      if (previo.minimo <= 0 && fila.minimo > 0) previo.minimo = fila.minimo;
+      if (!previo.categoria && fila.categoria) previo.categoria = fila.categoria;
     }
     if (leidos.length === 0) {
       throw badRequest('No se reconoció ningún insumo. Prueba con una foto más nítida o revisa la hoja.');
@@ -936,7 +1030,16 @@ export const masterCatalogAiService = {
       }
     }
 
-    return leidos;
+    return {
+      insumos: leidos,
+      // Para que el operador entienda qué pasó con un archivo grande en vez de ver 171 filas
+      // salidas de un Excel de 2.888 y preguntarse qué se perdió.
+      lectura: {
+        filas: lectura.compactado?.filas ?? leidos.length,
+        productos: lectura.compactado?.productos ?? leidos.length,
+        lotes: lectura.lotes,
+      },
+    };
   },
 
   /**
@@ -1118,20 +1221,17 @@ export const masterCatalogAiService = {
     await restauranteOThrow(restaurantId);
     const existentes = await loQueYaTiene(restaurantId);
 
-    const response = await leerArchivoConIA('leer-recetas', file, 'La hoja está vacía o no se pudo leer.');
-    const datos = (await response.json()) as {
-      platos?: {
+    const lectura = await leerListaConIA<{
+      nombre: string;
+      insumos?: { nombre: string; unidad: string; cantidad: number }[];
+      preparaciones?: {
         nombre: string;
+        unidad: string;
+        rendimiento: number;
+        cantidad: number;
         insumos?: { nombre: string; unidad: string; cantidad: number }[];
-        preparaciones?: {
-          nombre: string;
-          unidad: string;
-          rendimiento: number;
-          cantidad: number;
-          insumos?: { nombre: string; unidad: string; cantidad: number }[];
-        }[];
       }[];
-    };
+    }>('leer-recetas', file, 'platos', { errorVacio: 'La hoja está vacía o no se pudo leer.' });
 
     // A qué plato de la carta corresponde cada ficha leída. Lo que no calza con ningún plato
     // se devuelve igual con productId nulo: puede ser un plato que todavía no está cargado.
@@ -1142,7 +1242,7 @@ export const masterCatalogAiService = {
     const porClave = new Map(productos.map((p) => [clave(p.name), p]));
 
     const salida = [];
-    for (const ficha of datos.platos ?? []) {
+    for (const ficha of lectura.filas) {
       const nombre = String(ficha?.nombre ?? '').trim();
       if (!nombre) continue;
       const producto = porClave.get(clave(nombre));

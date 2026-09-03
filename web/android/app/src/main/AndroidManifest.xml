@@ -33,4 +33,12 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Cámara: la usa el lector de QR/código de barras dentro del WebView (escanear el QR de
+         una mesa, el SKU de un producto, el carnet de un jugador). Sin declararla, el
+         getUserMedia del navegador embebido falla siempre y el escáner queda en negro — en el
+         navegador de escritorio funcionaba, en la app instalada no. `required="false"` para que
+         una tablet sin cámara siga pudiendo instalar la app. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>
