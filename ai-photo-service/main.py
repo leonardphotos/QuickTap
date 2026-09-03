@@ -24,10 +24,15 @@ from PIL import Image, ImageOps
 
 app = FastAPI(title="QuickTap AI Photo Service")
 
-GEMINI_MODEL = "gemini-2.5-flash-image"
+# Modelos, configurables por variable de entorno.
+#
+# Van por env y no fijos en el código porque Google retira modelos sin avisar: los
+# gemini-2.5-* que usaba este servicio dejaron de estar disponibles para cuentas nuevas
+# (404 "no longer available to new users"), y cambiarlos no debería exigir un despliegue.
+GEMINI_MODEL = os.environ.get("GEMINI_IMAGE_MODEL", "gemini-3.1-flash-image")
 # Modelo de texto/visión: leer la foto y describir el plato es una tarea distinta
 # a generar una imagen, y el modelo de imagen no devuelve JSON.
-GEMINI_VISION_MODEL = "gemini-2.5-flash"
+GEMINI_VISION_MODEL = os.environ.get("GEMINI_TEXT_MODEL", "gemini-3.6-flash")
 JPEG_QUALITY = 90
 MAX_UPLOAD_BYTES = 15 * 1024 * 1024  # 15MB
 
