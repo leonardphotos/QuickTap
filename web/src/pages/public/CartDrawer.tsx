@@ -868,7 +868,7 @@ export default function CartDrawer({
                                     type="button"
                                     onClick={useCurrentLocation}
                                     disabled={gettingLocation}
-                                    className="flex items-center gap-1 text-xs font-medium text-brand-500 hover:text-brand-400 disabled:opacity-50"
+                                    className="flex items-center gap-1 text-xs font-bold text-brand-500 hover:text-brand-400 disabled:opacity-50"
                                   >
                                     <MapPin className="h-3.5 w-3.5" />
                                     {gettingLocation
