@@ -428,6 +428,20 @@ def _pedir_json(contents, schema, que_falló: str) -> dict:
     except Exception as exc:
         raise HTTPException(502, f"Gemini no pudo {que_falló}: {exc}")
 
+    # Cuántos tokens costó cada llamada, al log del servicio (journalctl -u quicktap-ai).
+    # Sin esto, "la IA consume mucho" no se puede ni confirmar ni atacar: no se sabe si el
+    # gasto está en lo que se le manda (el prompt, la hoja) o en lo que devuelve (el JSON),
+    # que son dos problemas distintos con dos soluciones distintas.
+    try:
+        u = response.usage_metadata
+        print(
+            f"[tokens] {que_falló}: entrada={u.prompt_token_count} salida={u.candidates_token_count} "
+            f"total={u.total_token_count}",
+            flush=True,
+        )
+    except Exception:
+        pass
+
     texto = (response.text or "").strip()
     if not texto:
         raise HTTPException(502, f"Gemini no devolvió nada al {que_falló}. Intenta de nuevo.")
