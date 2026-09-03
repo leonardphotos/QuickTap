@@ -585,13 +585,20 @@ INSUMOS_SCHEMA = {
                 "type": "OBJECT",
                 "properties": {
                     "nombre": {"type": "STRING"},
+                    # La unidad TAL CUAL está escrita en la hoja ("gramos", "gr", "ml", "kg",
+                    # "paquete"...). Quien convierte gramos a kilos es Node, no el modelo: es
+                    # una división por mil y un modelo que se equivoca ahí mete 8.000 kilos de
+                    # arroz en el inventario y deja todos los costos mil veces mal.
+                    "unidadArchivo": {"type": "STRING"},
+                    "cantidadArchivo": {"type": "NUMBER"},
+                    "costoArchivo": {"type": "NUMBER"},
+                    "minimoArchivo": {"type": "NUMBER"},
+                    # Solo como respaldo, para cuando la hoja no dice la unidad o dice una que
+                    # no es de peso/volumen ("paquete", "cunete"): en qué se cuenta el insumo.
                     "unidad": {"type": "STRING", "enum": ["kg", "lt", "unidad"]},
-                    "cantidad": {"type": "NUMBER"},
-                    "costoUnitario": {"type": "NUMBER"},
-                    "minimo": {"type": "NUMBER"},
                     "categoria": {"type": "STRING"},
                 },
-                "required": ["nombre", "unidad", "cantidad", "costoUnitario"],
+                "required": ["nombre", "unidadArchivo", "cantidadArchivo", "costoArchivo", "unidad"],
             },
         },
     },
@@ -602,36 +609,50 @@ INSUMOS_PROMPT = (
     "Eres un asistente que transcribe la lista de insumos de un restaurante (su inventario, su "
     "lista de compras o la factura de su proveedor) para cargarla en su sistema. Devuelve TODOS "
     "los insumos que encuentres, en español.\n\n"
+    "REGLA MÁS IMPORTANTE: NO CONVIERTAS UNIDADES Y NO HAGAS CUENTAS. Copia los números y la "
+    "unidad tal como están escritos en la hoja. Si dice 8000 gramos, devuelves 8000 y "
+    "'gramos' — NO 8 ni 'kg'. De convertir se encarga el sistema; si lo haces tú y te "
+    "equivocas, entran ocho mil kilos de arroz al inventario y todos los costos quedan mil "
+    "veces mal.\n\n"
     "1. `nombre`: el insumo como lo pondría un almacén, en singular y sin la presentación: "
     "'Saco de harina de trigo 25 kg' se llama 'Harina de trigo'.\n"
-    "2. `unidad`: solo 'kg' (lo que se pesa), 'lt' (líquidos) o 'unidad' (lo que se cuenta). "
-    "Si la lista trae gramos o mililitros, la unidad sigue siendo kg o lt: se convierte la "
-    "cantidad, no la unidad.\n"
-    "3. `cantidad`: cuánto hay en existencia, en esa unidad. 500 gramos es 0.5 en 'kg'. Si la "
-    "lista no dice existencias, pon 0.\n"
-    "4. `costoUnitario`: cuánto cuesta UNA unidad completa (1 kg, 1 lt, 1 unidad), en la moneda "
-    "de la lista y sin símbolo. Si la lista da el precio de una presentación, DIVIDE: 'Saco de "
-    "harina 25 kg — 30' son 1.2 por kg. Si no hay precio visible, pon 0 — es preferible un cero "
-    "evidente a un costo inventado, porque un costo falso ensucia el costo de todas las recetas.\n"
-    "5. `minimo`: el stock mínimo o punto de reposición si la lista lo trae; si no, 0.\n"
-    "6. `categoria`: el rubro donde lo archivaría un almacén (Carnes, Lácteos, Abarrotes, "
+    "2. `unidadArchivo`: la unidad TAL CUAL aparece en la hoja, sin tocarla: 'gramos', 'gr', "
+    "'g', 'kg', 'kilos', 'ml', 'cc', 'lt', 'litros', 'unidades', 'und', 'paquete', 'caja', "
+    "'pote', 'cunete', 'cartones'... Si la fila no dice unidad, déjala vacía.\n"
+    "3. `cantidadArchivo`: la existencia, EN ESA MISMA UNIDAD y con el número tal cual. Si la "
+    "hoja trae varias columnas de cantidad (inicial, entrada, salida, existencia), la que vale "
+    "es la EXISTENCIA final; si no hay una columna clara, la última cantidad de la fila. Si no "
+    "dice existencias, 0.\n"
+    "4. `costoArchivo`: el costo de UNA `unidadArchivo`, tal cual. Si la hoja cobra por gramo "
+    "(0.0045), devuelves 0.0045 y NO 4.5. Si no hay precio visible, 0 — es preferible un cero "
+    "evidente a un costo inventado, porque un costo falso ensucia el costo de todas las "
+    "recetas.\n"
+    "5. `minimoArchivo`: el stock mínimo o punto de reposición en esa misma unidad, si la hoja "
+    "lo trae; si no, 0.\n"
+    "6. `unidad`: en qué se mide de verdad este insumo — 'kg' lo que se pesa, 'lt' los "
+    "líquidos, 'unidad' lo que se cuenta. Es el respaldo para cuando `unidadArchivo` viene "
+    "vacía o dice una presentación ('paquete', 'cunete', 'cartones'), donde no hay conversión "
+    "posible y cada bulto es una unidad.\n"
+    "7. `categoria`: el rubro donde lo archivaría un almacén (Carnes, Lácteos, Abarrotes, "
     "Bebidas, Limpieza, Desechables, Salsas, Congelados, Empaques...). Si la lista ya trae "
     "secciones o encabezados que separan bloques, usa esos nombres. Si no los trae, deduce el "
     "rubro por el tipo de insumo — TODOS los insumos tienen que salir con categoría.\n\n"
     "Reglas:\n"
-    "- Esto es TRANSCRIPCIÓN, no creación: no agregues insumos que no estén ni inventes precios.\n"
+    "- Esto es TRANSCRIPCIÓN, no creación: no agregues insumos que no estén ni inventes "
+    "precios.\n"
+    "- La ÚNICA cuenta que puedes hacer es multiplicar por la cantidad de bultos cuando la fila "
+    "trae presentación y conteo por separado ('Saco de harina | 25 kg | 2 unidades'): ahí "
+    "`cantidadArchivo` es 50 y `unidadArchivo` es 'kg'. Nada más.\n"
     "- Las celdas de error de Excel (#REF!, #N/A, #VALUE!, #DIV/0!, #NAME?) son fórmulas rotas, "
     "NO son datos: trátalas como vacías y pon 0 en ese campo.\n"
-    "- Una hoja de inventario suele traer varias columnas de cantidad (inicial, entrada, salida, "
-    "existencia). La que vale para `cantidad` es la EXISTENCIA final; si no hay una columna "
-    "clara, usa la última cantidad de la fila.\n"
     "- Si el mismo insumo aparece dos veces (dos compras del mismo producto), devuélvelo UNA "
-    "sola vez, sumando las cantidades y usando el precio más reciente.\n"
+    "sola vez, con la existencia más reciente y el precio más reciente.\n"
     "- Puede que te llegue solo un PEDAZO de la lista, sin encabezados: transcribe lo que veas "
     "sin quejarte de que falta contexto.\n"
     "- Ignora todo lo que no sea un insumo: encabezados, totales, impuestos, datos del "
     "proveedor, notas al pie."
 )
+
 
 VINCULAR_SCHEMA = {
     "type": "OBJECT",
@@ -711,12 +732,15 @@ async def leer_insumos(file: UploadFile | None = File(None), texto: str = Form("
         unidad = item.get("unidad")
         if not nombre or unidad not in ("kg", "lt", "unidad"):
             continue
+        # Se devuelve lo que dice la hoja, sin convertir: la conversión (y la división por mil)
+        # la hace Node, que no se equivoca en aritmética.
         insumos.append({
             "nombre": nombre[:120],
+            "unidadArchivo": str(item.get("unidadArchivo") or "").strip()[:40],
+            "cantidadArchivo": num(item.get("cantidadArchivo")),
+            "costoArchivo": num(item.get("costoArchivo")),
+            "minimoArchivo": num(item.get("minimoArchivo")),
             "unidad": unidad,
-            "cantidad": num(item.get("cantidad")),
-            "costoUnitario": num(item.get("costoUnitario")),
-            "minimo": num(item.get("minimo")),
             "categoria": str(item.get("categoria") or "").strip()[:120],
         })
 

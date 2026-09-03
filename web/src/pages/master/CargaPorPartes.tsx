@@ -45,6 +45,8 @@ interface FilaInsumo {
   inventoryItemId: string;
   vinculoPor: 'nombre' | 'ia' | null;
   usadoEn: number;
+  /** Lo que decía la hoja antes de convertir ("8000 gramos"). Vacío si no hubo conversión. */
+  enLaHoja: string;
 }
 
 interface LineaInsumo {
@@ -239,6 +241,7 @@ function PanelInsumos({
         vinculadoA: { id: string; nombre: string; costoActual: number } | null;
         vinculoPor: 'nombre' | 'ia' | null;
         usadoEn: number;
+        enLaHoja: string;
       }[] = data.data?.insumos ?? [];
       const lectura: { filas: number; productos: number; lotes: number } | undefined = data.data?.lectura;
       setFilas(
@@ -253,6 +256,7 @@ function PanelInsumos({
           inventoryItemId: i.vinculadoA?.id ?? '',
           vinculoPor: i.vinculoPor,
           usadoEn: i.usadoEn,
+          enLaHoja: i.enLaHoja ?? '',
         })),
       );
       onAviso(
@@ -316,6 +320,10 @@ function PanelInsumos({
   }
 
   const nuevos = filas.filter((f) => !f.inventoryItemId).length;
+  // Mil kilos o mil litros de un insumo en un restaurante es casi siempre una hoja en gramos
+  // que se leyó como kilos. No se corrige solo —hay locales que sí compran por tonelada— pero
+  // se avisa, porque entrar mal acá deja el costo de sus recetas mil veces por debajo.
+  const sospechosos = filas.filter((f) => (f.unidad === 'kg' || f.unidad === 'lt') && f.cantidad >= 1000);
   const sinCosto = estado?.insumos.filter((i) => i.costo <= 0) ?? [];
 
   return (
@@ -379,6 +387,19 @@ function PanelInsumos({
         </div>
       )}
 
+      {sospechosos.length > 0 && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 p-3">
+          <p className="text-sm font-medium text-amber-900">
+            Revisa la unidad de {sospechosos.length} insumo(s)
+          </p>
+          <p className="mt-1 text-xs font-light text-amber-900/70">
+            {sospechosos.map((f) => `${f.nombre} (${f.cantidad} ${f.unidad})`).join(', ')}. Mil kilos o más de un
+            insumo casi siempre es una hoja que estaba en gramos y se leyó como kilos. Corrígelo antes de cargar: si
+            entra mal, el costo de todas sus recetas queda mil veces por debajo.
+          </p>
+        </div>
+      )}
+
       {filas.length > 0 && (
         <>
           <div className="space-y-2">
@@ -407,6 +428,14 @@ function PanelInsumos({
                       inputMode="decimal"
                       className="mt-0.5 w-full rounded-lg border border-brand-950/15 px-2 py-1.5 text-sm"
                     />
+                    {/* Lo que decía la hoja antes de convertir. Es la forma de ver de un golpe
+                        si la IA leyó bien la unidad: "8000 gramos" debajo de "8" está bien,
+                        debajo de "8000" está mal y se corrige ahí mismo. */}
+                    {f.enLaHoja && (
+                      <span className="mt-0.5 block text-[10px] font-light text-brand-950/40">
+                        en la hoja: {f.enLaHoja}
+                      </span>
+                    )}
                   </Campo>
                   <Campo etiqueta="Unidad">
                     <select

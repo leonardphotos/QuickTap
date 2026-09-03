@@ -298,11 +298,83 @@ export interface InsumoLeido {
   vinculoPor: 'nombre' | 'ia' | null;
   /** Cuántas líneas de receta y de preparación se recostean si se carga este insumo. */
   usadoEn: number;
+  /** Lo que decía la hoja antes de convertir ("8000 gramos"), para que el operador lo vea. */
+  enLaHoja: string;
 }
 
 function numeroPositivo(valor: unknown, porDefecto = 0): number {
   const n = Number(valor);
   return Number.isFinite(n) && n >= 0 ? n : porDefecto;
+}
+
+/** Redondea a `decimales` sin arrastrar la basura del punto flotante (0.15000000000000002). */
+function redondear(valor: number, decimales: number): number {
+  if (!Number.isFinite(valor)) return 0;
+  const f = 10 ** decimales;
+  return Math.round(valor * f) / f;
+}
+
+/**
+ * Cómo escribe cada unidad una hoja de inventario de verdad, y por cuánto hay que multiplicar
+ * para llevarla a la unidad base del sistema (kg / lt / unidad).
+ *
+ * La conversión la hace Node y NO la IA a propósito. Es una división por mil, o sea la clase
+ * de cuenta en la que un modelo se equivoca de vez en cuando sin avisar — y equivocarse acá no
+ * se nota al revisar: "Arroz 8000" pasa como bueno de un vistazo, entra al inventario como
+ * ocho mil KILOS de arroz, y el costo por kilo queda mil veces mal en todas las recetas que lo
+ * usan. El modelo transcribe ("8000" y "gramos") y la aritmética la hace código.
+ */
+const CONVERSION_UNIDAD: Record<string, { unidad: string; factor: number }> = {
+  // Peso
+  kg: { unidad: 'kg', factor: 1 },
+  kgs: { unidad: 'kg', factor: 1 },
+  k: { unidad: 'kg', factor: 1 },
+  kilo: { unidad: 'kg', factor: 1 },
+  kilos: { unidad: 'kg', factor: 1 },
+  kilogramo: { unidad: 'kg', factor: 1 },
+  kilogramos: { unidad: 'kg', factor: 1 },
+  g: { unidad: 'kg', factor: 0.001 },
+  gr: { unidad: 'kg', factor: 0.001 },
+  grs: { unidad: 'kg', factor: 0.001 },
+  gramo: { unidad: 'kg', factor: 0.001 },
+  gramos: { unidad: 'kg', factor: 0.001 },
+  // Volumen
+  lt: { unidad: 'lt', factor: 1 },
+  lts: { unidad: 'lt', factor: 1 },
+  l: { unidad: 'lt', factor: 1 },
+  litro: { unidad: 'lt', factor: 1 },
+  litros: { unidad: 'lt', factor: 1 },
+  ml: { unidad: 'lt', factor: 0.001 },
+  mls: { unidad: 'lt', factor: 0.001 },
+  mililitro: { unidad: 'lt', factor: 0.001 },
+  mililitros: { unidad: 'lt', factor: 0.001 },
+  cc: { unidad: 'lt', factor: 0.001 },
+  // Conteo
+  u: { unidad: 'unidad', factor: 1 },
+  un: { unidad: 'unidad', factor: 1 },
+  ud: { unidad: 'unidad', factor: 1 },
+  uds: { unidad: 'unidad', factor: 1 },
+  und: { unidad: 'unidad', factor: 1 },
+  unid: { unidad: 'unidad', factor: 1 },
+  unidad: { unidad: 'unidad', factor: 1 },
+  unidades: { unidad: 'unidad', factor: 1 },
+  pza: { unidad: 'unidad', factor: 1 },
+  pzas: { unidad: 'unidad', factor: 1 },
+  pieza: { unidad: 'unidad', factor: 1 },
+  piezas: { unidad: 'unidad', factor: 1 },
+};
+
+/**
+ * Lleva una fila de la hoja a la unidad base del sistema.
+ *
+ * Lo que la hoja llama "paquete", "caja", "cunete" o "cartón" no tiene conversión posible —no
+ * hay cuántos kilos trae un cunete— así que cada bulto vale uno y manda la unidad que propuso
+ * la IA. Igual cuando la fila no dice unidad.
+ */
+function aUnidadBase(unidadArchivo: string, respaldo: string) {
+  const conversion = CONVERSION_UNIDAD[clave(unidadArchivo).replace(/[.\s]/g, '')];
+  if (conversion) return conversion;
+  return { unidad: UNIDADES.has(respaldo) ? respaldo : 'unidad', factor: 1 };
 }
 
 /** Manda un trozo de texto plano al microservicio y devuelve la respuesta. */
@@ -917,10 +989,11 @@ export const masterCatalogAiService = {
 
     const lectura = await leerListaConIA<{
       nombre: string;
+      unidadArchivo: string;
+      cantidadArchivo: number;
+      costoArchivo: number;
+      minimoArchivo: number;
       unidad: string;
-      cantidad: number;
-      costoUnitario: number;
-      minimo: number;
       categoria: string;
     }>('leer-insumos', file, 'insumos', { errorVacio: 'La hoja está vacía o no se pudo leer.', compactar: true });
 
@@ -928,17 +1001,31 @@ export const masterCatalogAiService = {
     const porNombreLeido = new Map<string, InsumoLeido>();
     for (const i of lectura.filas) {
       const nombre = String(i?.nombre ?? '').trim();
-      if (!nombre || !UNIDADES.has(i?.unidad)) continue;
+      if (!nombre) continue;
+
+      // La IA transcribe ("8000", "gramos") y acá se convierte: 8000 gramos son 8 kg, y un
+      // costo de 0.0045 por gramo son 4.50 por kg. Dividir la cantidad y multiplicar el costo
+      // por el mismo factor mantiene el valor total del stock igual.
+      const unidadArchivo = String(i?.unidadArchivo ?? '').trim();
+      const { unidad, factor } = aUnidadBase(unidadArchivo, String(i?.unidad ?? ''));
+      const cantidadArchivo = numeroPositivo(i?.cantidadArchivo);
+      const costoArchivo = numeroPositivo(i?.costoArchivo);
+      const minimoArchivo = numeroPositivo(i?.minimoArchivo);
+
       const fila = {
         nombre,
-        unidad: i.unidad,
-        cantidad: numeroPositivo(i?.cantidad),
-        costoUnitario: numeroPositivo(i?.costoUnitario),
-        minimo: numeroPositivo(i?.minimo),
+        unidad,
+        cantidad: redondear(cantidadArchivo * factor, 4),
+        costoUnitario: redondear(costoArchivo / factor, 4),
+        minimo: redondear(minimoArchivo * factor, 4),
         categoria: String(i?.categoria ?? '').trim(),
         vinculadoA: null,
         vinculoPor: null,
         usadoEn: 0,
+        // Solo se muestra cuando hubo conversión de verdad: "8000 gramos" al lado de "8 kg"
+        // deja ver de un golpe si la IA leyó bien la unidad. Si no se convirtió nada, el dato
+        // es ruido — sería repetir la misma cifra dos veces.
+        enLaHoja: factor !== 1 && unidadArchivo ? `${cantidadArchivo} ${unidadArchivo}` : '',
       } satisfies InsumoLeido;
 
       // El mismo insumo puede volver en dos trozos distintos del archivo (o repetido en la
@@ -953,7 +1040,10 @@ export const masterCatalogAiService = {
         continue;
       }
       if (previo.costoUnitario <= 0 && fila.costoUnitario > 0) previo.costoUnitario = fila.costoUnitario;
-      if (previo.cantidad <= 0 && fila.cantidad > 0) previo.cantidad = fila.cantidad;
+      if (previo.cantidad <= 0 && fila.cantidad > 0) {
+        previo.cantidad = fila.cantidad;
+        previo.enLaHoja = fila.enLaHoja;
+      }
       if (previo.minimo <= 0 && fila.minimo > 0) previo.minimo = fila.minimo;
       if (!previo.categoria && fila.categoria) previo.categoria = fila.categoria;
     }
