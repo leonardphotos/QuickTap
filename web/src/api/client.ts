@@ -14,6 +14,15 @@ import { apiOrigin } from '@/utils/apiOrigin';
  */
 const REQUEST_TIMEOUT_MS = 12000;
 
+/**
+ * Timeout para las llamadas que esperan a la IA (leer una carta, un inventario o un recetario,
+ * armar fichas técnicas). Son trabajos de minutos, no peticiones normales: leer el inventario
+ * de 18 hojas de un cliente son ~80 segundos de Gemini. Con los 12 segundos de siempre, el
+ * navegador cortaba la petición mientras el servidor seguía trabajando y el operador veía un
+ * error de red aunque la lectura terminara bien.
+ */
+export const AI_TIMEOUT_MS = 600000;
+
 export const api = axios.create({ timeout: REQUEST_TIMEOUT_MS });
 
 const TOKEN_KEY = 'quicktap_token';

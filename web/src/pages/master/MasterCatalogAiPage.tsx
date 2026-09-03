@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Plus, Sparkles, Trash2, Upload, X } from 'lucide-react';
-import { masterApi } from '@/api/client';
+import { AI_TIMEOUT_MS, masterApi } from '@/api/client';
 import type { ReactNode } from 'react';
 import { TextureButton } from '@/components/ui/texture-button';
 import CargaPorPartes from './CargaPorPartes';
@@ -137,6 +137,7 @@ export default function MasterCatalogAiPage() {
         form.append('mejorarFoto', String(mejorarFoto));
         const { data } = await masterApi.post(`/master/catalog-ai/${restaurantId}/analizar`, form, {
           headers: { 'Content-Type': 'multipart/form-data' },
+          timeout: AI_TIMEOUT_MS,
         });
         const d = data.data;
         setPlatos((prev) => [
@@ -183,6 +184,7 @@ export default function MasterCatalogAiPage() {
       form.append('file', file);
       const { data } = await masterApi.post(`/master/catalog-ai/${restaurantId}/leer-carta`, form, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: AI_TIMEOUT_MS,
       });
       const leidos: { nombre: string; categoria: string; precio: number; descripcion: string }[] = data.data ?? [];
 
@@ -218,9 +220,11 @@ export default function MasterCatalogAiPage() {
     if (conNombre.length === 0) return;
     setArmandoFichas(true);
     try {
-      const { data } = await masterApi.post(`/master/catalog-ai/${restaurantId}/fichas`, {
-        platos: conNombre.map((p) => ({ nombre: p.nombre.trim(), descripcion: p.descripcion.trim() || undefined })),
-      });
+      const { data } = await masterApi.post(
+        `/master/catalog-ai/${restaurantId}/fichas`,
+        { platos: conNombre.map((p) => ({ nombre: p.nombre.trim(), descripcion: p.descripcion.trim() || undefined })) },
+        { timeout: AI_TIMEOUT_MS },
+      );
       const fichas: { nombre: string; insumos: Ingrediente[]; preparaciones: Preparacion[] }[] = data.data ?? [];
       // La IA devuelve el nombre que se le pasó, pero puede cambiarle mayúsculas o acentos:
       // se cruza por nombre normalizado para no perder la ficha por una tilde.

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Plus, Upload, X } from 'lucide-react';
-import { masterApi } from '@/api/client';
+import { AI_TIMEOUT_MS, masterApi } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
 
 /**
@@ -216,6 +216,7 @@ function PanelInsumos({
       form.append('file', file);
       const { data } = await masterApi.post(`/master/catalog-ai/${restaurantId}/leer-insumos`, form, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: AI_TIMEOUT_MS,
       });
       const leidos: {
         nombre: string;
@@ -530,9 +531,11 @@ function PanelRecetas({
     onAviso(null);
     setTrabajando('Armando las fichas técnicas con IA…');
     try {
-      const { data } = await masterApi.post(`/master/catalog-ai/${restaurantId}/fichas-catalogo`, {
-        productIds: [...seleccion],
-      });
+      const { data } = await masterApi.post(
+        `/master/catalog-ai/${restaurantId}/fichas-catalogo`,
+        { productIds: [...seleccion] },
+        { timeout: AI_TIMEOUT_MS },
+      );
       recibir(data.data ?? []);
       onAviso(`${(data.data ?? []).length} ficha(s) listas para revisar.`);
     } catch (e: any) {
@@ -551,6 +554,7 @@ function PanelRecetas({
       form.append('file', file);
       const { data } = await masterApi.post(`/master/catalog-ai/${restaurantId}/leer-recetas`, form, {
         headers: { 'Content-Type': 'multipart/form-data' },
+        timeout: AI_TIMEOUT_MS,
       });
       const leidas = data.data ?? [];
       recibir(leidas);
