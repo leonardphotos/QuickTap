@@ -71,6 +71,7 @@ const MasterRestaurantsPage = lazy(() => import('./pages/master/MasterRestaurant
 const MasterRestaurantDetailPage = lazy(() => import('./pages/master/MasterRestaurantDetailPage'));
 const MasterOlaClickImportPage = lazy(() => import('./pages/master/MasterOlaClickImportPage'));
 const MasterCatalogAiPage = lazy(() => import('./pages/master/MasterCatalogAiPage'));
+const MasterAiUsagePage = lazy(() => import('./pages/master/MasterAiUsagePage'));
 const MasterPromoCodesPage = lazy(() => import('./pages/master/MasterPromoCodesPage'));
 const MasterPaymentMethodsPage = lazy(() => import('./pages/master/MasterPaymentMethodsPage'));
 const MasterPlansPage = lazy(() => import('./pages/master/MasterPlansPage'));
@@ -222,6 +223,7 @@ export default function App() {
               <Route path="restaurants/:id" element={<MasterRestaurantDetailPage />} />
               <Route path="restaurants/:id/olaclick-import" element={<MasterOlaClickImportPage />} />
               <Route path="catalog-ai" element={<MasterCatalogAiPage />} />
+              <Route path="ai-usage" element={<MasterAiUsagePage />} />
               <Route path="promo-codes" element={<MasterPromoCodesPage />} />
               <Route path="payment-methods" element={<MasterPaymentMethodsPage />} />
               <Route path="plans" element={<MasterPlansPage />} />

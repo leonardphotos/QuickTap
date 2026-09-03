@@ -3,6 +3,7 @@ import { platformAuthGuard } from '../../middlewares/platform-auth.middleware';
 import { uploadCartaToMemory } from '../../middlewares/upload.middleware';
 import { uploadPhotoToMemory } from '../../middlewares/upload.middleware';
 import { masterCatalogAiController } from './master-catalog-ai.controller';
+import { conContextoIA } from './master-catalog-ai.service';
 
 /**
  * Base: /api/v1/master/catalog-ai
@@ -17,6 +18,9 @@ import { masterCatalogAiController } from './master-catalog-ai.controller';
  */
 const router = Router();
 router.use(platformAuthGuard);
+// Cada petición corre dentro de su propio contexto, para que el consumo de Gemini que se
+// registre quede atado al cliente al que se le estaba cargando (ver registrarConsumo).
+router.use(conContextoIA);
 
 router.get('/:restaurantId/categorias', masterCatalogAiController.categorias);
 router.post('/:restaurantId/analizar', uploadPhotoToMemory, masterCatalogAiController.analizar);

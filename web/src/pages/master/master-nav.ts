@@ -1,4 +1,4 @@
-import { Activity, BarChart3, DollarSign, FileText, MessageCircle, Nfc, Receipt, Sparkles, Star, Store, Tag, TrendingDown, Users, Wallet } from 'lucide-react';
+import { Activity, BarChart3, Cpu, DollarSign, FileText, MessageCircle, Nfc, Receipt, Sparkles, Star, Store, Tag, TrendingDown, Users, Wallet } from 'lucide-react';
 
 export interface MasterNavLink {
   to: string;
@@ -36,6 +36,7 @@ export const MASTER_CONFIG_LINKS: MasterNavLink[] = [
   { to: '/master/plans', label: 'Planes', icon: DollarSign, hint: 'Precios y contenido' },
   { to: '/master/promo-codes', label: 'Códigos promo', icon: Tag, hint: 'Descuentos vigentes' },
   { to: '/master/payment-methods', label: 'Datos de pago', icon: Wallet, hint: 'Pago Móvil de QuickTap' },
+  { to: '/master/ai-usage', label: 'Consumo de IA', icon: Cpu, hint: 'Cuánto gasta QuickTap en Gemini' },
   { to: '/master/admins', label: 'Usuarios', icon: Users, hint: 'Equipo QuickTap' },
 ];
 

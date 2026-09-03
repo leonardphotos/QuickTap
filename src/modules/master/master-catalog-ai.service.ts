@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'async_hooks';
 import fs from 'fs';
 import path from 'path';
 import ExcelJS from 'exceljs';
@@ -82,6 +83,13 @@ export interface FichaPropuesta {
 async function restauranteOThrow(restaurantId: string) {
   const r = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { id: true, name: true } });
   if (!r) throw notFound('Ese restaurante no existe.');
+  // Todo método de esta herramienta arranca por acá, así que es el sitio natural para dejar
+  // anotado a qué cliente pertenece el gasto que venga después.
+  const ctx = contextoIA.getStore();
+  if (ctx) {
+    ctx.restaurantId = r.id;
+    ctx.restaurante = r.name;
+  }
   return r;
 }
 
@@ -92,17 +100,78 @@ function guardarFoto(buffer: Buffer, ext: string): string {
   return `/uploads/products/${filename}`;
 }
 
+/**
+ * Contexto de la carga que se está corriendo: a qué cliente se le está cargando.
+ *
+ * Va en AsyncLocalStorage y no como parámetro de cada llamada porque el consumo se anota en
+ * las tres funciones de bajo nivel que hablan con el microservicio, y esas las usan una docena
+ * de sitios. Pasarles el restaurante a todos sería ruido en firmas que no tienen nada que ver
+ * con medir el gasto — y un sitio que se olvide de pasarlo deja un hueco silencioso en la
+ * factura, que es justo lo que este registro existe para evitar.
+ */
+const contextoIA = new AsyncLocalStorage<{ restaurantId?: string; restaurante?: string }>();
+
+/**
+ * Abre el contexto de la carga para toda la petición. Se monta una vez en el router, y a
+ * partir de ahí `restauranteOThrow` lo rellena y `registrarConsumo` lo lee.
+ */
+export function conContextoIA(
+  _req: unknown,
+  _res: unknown,
+  next: () => void,
+): void {
+  contextoIA.run({}, next);
+}
+
+/**
+ * Guarda lo que costó una llamada a Gemini. El microservicio lo devuelve en cabeceras
+ * (X-Gemini-*), así que el cuerpo de ninguna respuesta cambia de forma.
+ *
+ * Nunca revienta: registrar el gasto no puede hacer fallar la carga que el operador está
+ * corriendo. Una fila de consumo que se pierde es un dato menos en un reporte; una carga de
+ * catálogo que falla por el reporte es una hora de trabajo tirada.
+ */
+function registrarConsumo(response: Response, operacion: string, ms: number): void {
+  const numero = (nombre: string) => {
+    const v = Number(response.headers.get(nombre));
+    return Number.isFinite(v) && v >= 0 ? Math.round(v) : 0;
+  };
+  const total = numero('X-Gemini-Total');
+  if (total <= 0) return;
+
+  const ctx = contextoIA.getStore();
+  prisma.aiUsage
+    .create({
+      data: {
+        operacion,
+        modelo: response.headers.get('X-Gemini-Modelo') || 'desconocido',
+        restaurantId: ctx?.restaurantId ?? null,
+        restaurante: ctx?.restaurante ?? null,
+        entrada: numero('X-Gemini-Entrada'),
+        salida: numero('X-Gemini-Salida'),
+        razonamiento: numero('X-Gemini-Razonamiento'),
+        total,
+        ms: Math.max(0, Math.round(ms)),
+      },
+    })
+    .catch(() => {
+      /* el gasto se pierde, la carga sigue */
+    });
+}
+
 async function llamarServicioIA(endpoint: string, file: Express.Multer.File, campos: Record<string, string> = {}) {
   const form = new FormData();
   form.append('file', new Blob([file.buffer], { type: file.mimetype }), file.originalname);
   for (const [k, v] of Object.entries(campos)) form.append(k, v);
 
   let response: Response;
+  const t0 = Date.now();
   try {
     response = await fetch(`${env.aiPhotoServiceUrl}/${endpoint}`, { method: 'POST', body: form });
   } catch {
     throw new HttpError(503, SERVICIO_CAIDO);
   }
+  registrarConsumo(response, endpoint, Date.now() - t0);
   if (!response.ok) {
     // El microservicio contesta {"detail": "..."} — se pasa tal cual porque sus mensajes ya
     // están en cristiano ("GEMINI_API_KEY no está configurada", "Formato no soportado").
@@ -215,6 +284,7 @@ function compactarInventario(texto: string): { texto: string; filas: number; pro
 /** Igual que `llamarServicioIA` pero con cuerpo JSON — las fichas técnicas no llevan archivo. */
 async function llamarServicioIAJson(endpoint: string, cuerpo: unknown) {
   let response: Response;
+  const t0 = Date.now();
   try {
     response = await fetch(`${env.aiPhotoServiceUrl}/${endpoint}`, {
       method: 'POST',
@@ -224,6 +294,7 @@ async function llamarServicioIAJson(endpoint: string, cuerpo: unknown) {
   } catch {
     throw new HttpError(503, SERVICIO_CAIDO);
   }
+  registrarConsumo(response, endpoint, Date.now() - t0);
   if (!response.ok) {
     let detalle = 'El servicio de IA no pudo procesar la solicitud.';
     try {
@@ -408,11 +479,13 @@ async function mandarTextoALaIA(endpoint: string, texto: string) {
   const form = new FormData();
   form.append('texto', texto);
   let response: Response;
+  const t0 = Date.now();
   try {
     response = await fetch(`${env.aiPhotoServiceUrl}/${endpoint}`, { method: 'POST', body: form });
   } catch {
     throw new HttpError(503, SERVICIO_CAIDO);
   }
+  registrarConsumo(response, endpoint, Date.now() - t0);
   if (!response.ok) {
     let detalle = 'El servicio de IA no pudo leer el archivo.';
     try {

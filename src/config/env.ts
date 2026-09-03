@@ -78,6 +78,13 @@ export const env = {
   // la subida de fotos normal (los botones de IA son un extra, no un requisito).
   aiPhotoServiceUrl: process.env.AI_PHOTO_SERVICE_URL ?? 'http://127.0.0.1:8100',
 
+  // Precio de Gemini por millón de tokens, para poder mostrar el gasto en dinero y no solo en
+  // tokens. Van por env y no fijos en el código porque los cambia Google y son distintos por
+  // modelo. En cero (el valor por defecto) el visualizador muestra solo tokens en vez de
+  // inventar un monto: un costo falso en un panel de costos es peor que no tener el dato.
+  geminiPrecioEntradaPorMillon: Number(process.env.GEMINI_PRECIO_ENTRADA_POR_MILLON ?? 0) || 0,
+  geminiPrecioSalidaPorMillon: Number(process.env.GEMINI_PRECIO_SALIDA_POR_MILLON ?? 0) || 0,
+
   // --- SMS transaccionales (enviatusms.com) ---
   // Hoy solo los usa el código de verificación del Wallet. Sin API key configurada, el código
   // se imprime en la consola del servidor en vez de enviarse — mismo criterio que el correo

@@ -12,17 +12,68 @@ versión llama a la API de Gemini: necesita `GEMINI_API_KEY` y conexión a
 internet saliente desde el VPS.
 """
 
+import contextvars
 import io
 import json
 import os
 
-from fastapi import Body, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Body, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import Response
 from google import genai
 from google.genai import types
 from PIL import Image, ImageOps
 
 app = FastAPI(title="QuickTap AI Photo Service")
+
+# Lo que consumió la llamada a Gemini que se está atendiendo ahora mismo.
+#
+# Un contextvar y no un valor de retorno porque el consumo tiene que salir por IGUAL de los
+# endpoints que devuelven JSON y de los que devuelven una imagen cruda, sin cambiarle la forma
+# a ninguno: quien llama es Node y no puede romperse por esto. El middleware de abajo lo pasa
+# a cabeceras de la respuesta, que Node lee para guardar el gasto en la base.
+_uso_actual: contextvars.ContextVar[dict | None] = contextvars.ContextVar("uso_gemini", default=None)
+
+
+@app.middleware("http")
+async def exponer_consumo(request: Request, call_next):
+    _uso_actual.set(None)
+    response = await call_next(request)
+    uso = _uso_actual.get()
+    if uso:
+        response.headers["X-Gemini-Entrada"] = str(uso.get("entrada", 0))
+        response.headers["X-Gemini-Salida"] = str(uso.get("salida", 0))
+        response.headers["X-Gemini-Razonamiento"] = str(uso.get("razonamiento", 0))
+        response.headers["X-Gemini-Total"] = str(uso.get("total", 0))
+        response.headers["X-Gemini-Modelo"] = str(uso.get("modelo", ""))
+    return response
+
+
+def _anotar_consumo(response, modelo: str) -> None:
+    """Suma lo que costó esta llamada al acumulado de la petición en curso.
+
+    Se acumula en vez de pisarse porque un solo endpoint puede llamar a Gemini más de una vez
+    (analizar-plato analiza y además retoca la foto), y lo que se quiere cobrar es el total de
+    la petición, no el de la última llamada.
+    """
+    try:
+        u = response.usage_metadata
+        entrada = u.prompt_token_count or 0
+        salida = u.candidates_token_count or 0
+        total = u.total_token_count or 0
+        # El razonamiento no viene en ninguno de los dos contadores pero se cobra igual: es lo
+        # que sobra del total. Era el 34% del gasto antes de poder apagarlo.
+        razonamiento = max(0, total - entrada - salida)
+        previo = _uso_actual.get() or {"entrada": 0, "salida": 0, "razonamiento": 0, "total": 0, "modelo": modelo}
+        _uso_actual.set({
+            "entrada": previo["entrada"] + entrada,
+            "salida": previo["salida"] + salida,
+            "razonamiento": previo["razonamiento"] + razonamiento,
+            "total": previo["total"] + total,
+            "modelo": modelo,
+        })
+        print(f"[tokens] {modelo}: entrada={entrada} salida={salida} razona={razonamiento} total={total}", flush=True)
+    except Exception:
+        pass
 
 # Modelos, configurables por variable de entorno.
 #
@@ -103,6 +154,8 @@ def _run_gemini(image: Image.Image, prompt: str) -> bytes:
         )
     except Exception as exc:
         raise HTTPException(502, f"Gemini no pudo procesar la imagen: {exc}")
+
+    _anotar_consumo(response, GEMINI_MODEL)
 
     candidates = response.candidates or []
     for candidate in candidates:
@@ -453,19 +506,7 @@ def _pedir_json(contents, schema, que_falló: str, pensar: str | None = None) ->
         except Exception as exc2:
             raise HTTPException(502, f"Gemini no pudo {que_falló}: {exc2}")
 
-    # Cuántos tokens costó cada llamada, al log del servicio (journalctl -u quicktap-ai).
-    # Sin esto, "la IA consume mucho" no se puede ni confirmar ni atacar: no se sabe si el
-    # gasto está en lo que se le manda (el prompt, la hoja) o en lo que devuelve (el JSON),
-    # que son dos problemas distintos con dos soluciones distintas.
-    try:
-        u = response.usage_metadata
-        print(
-            f"[tokens] {que_falló}: entrada={u.prompt_token_count} salida={u.candidates_token_count} "
-            f"total={u.total_token_count}",
-            flush=True,
-        )
-    except Exception:
-        pass
+    _anotar_consumo(response, GEMINI_VISION_MODEL)
 
     texto = (response.text or "").strip()
     if not texto:
