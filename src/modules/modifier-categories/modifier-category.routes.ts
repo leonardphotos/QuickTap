@@ -25,6 +25,10 @@ router.delete('/modifiers/:modifierId/variant-prices/:variantId', modifierCatego
 // PATCH /:id/products/:productId de abajo para eso).
 router.patch('/modifiers/:modifierId/products/:productId/variant-visibility', modifierCategoryController.setModifierVariantVisibility);
 
+// Orden de los grupos DENTRO de un producto. Va sin :id de categoría porque reordena todos
+// los grupos de ese plato a la vez, no uno; y antes de /:id/... para que no lo capture.
+router.patch('/products/:productId/reorder', modifierCategoryController.reorderProductCategories);
+
 router.get('/:id/products', modifierCategoryController.listLinkedProducts);
 router.post('/:id/products', modifierCategoryController.associateProduct);
 router.patch('/:id/products/:productId', modifierCategoryController.updateProductLink);

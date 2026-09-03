@@ -17,6 +17,11 @@ export const reorderModifiersSchema = z.object({
   modifierIds: z.array(z.string().min(1)).min(1),
 });
 
+/** PATCH /modifier-categories/products/:productId/reorder — orden de los grupos de un plato. */
+export const reorderProductCategoriesSchema = z.object({
+  modifierCategoryIds: z.array(z.string().min(1)).min(1),
+});
+
 export const updateProductLinkSchema = z.object({
   maxSelectionsOverride: z.coerce.number().int().positive().nullable().optional(),
   // Unidades gratis del grupo en este plato: las primeras N no se cobran (null/0 = todas se cobran).

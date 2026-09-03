@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
-import { Eye, EyeOff, Plus, Trash2, X } from 'lucide-react';
+import { ChevronDown, ChevronUp, Eye, EyeOff, Plus, Trash2, X } from 'lucide-react';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { hasFeature } from '@/utils/subscription';
@@ -275,6 +275,34 @@ export function ProductFormDialog({
       setShowCategoryPicker(false);
     } catch (err: any) {
       setError(err.response?.data?.error ?? 'No se pudo asociar la categoría.');
+    }
+  }
+
+  /**
+   * Mueve un grupo de modificadores un lugar dentro de ESTE producto.
+   *
+   * La lista se reordena en pantalla al instante y se guarda después: reordenar es una acción
+   * que se repite (subir un grupo tres posiciones son tres clics) y esperar el viaje al
+   * servidor en cada uno hace que se sienta trabado. Si el guardado falla se vuelve al orden
+   * anterior y se avisa, en vez de dejar la pantalla mostrando algo que no quedó guardado.
+   */
+  async function moverCategoria(index: number, direccion: -1 | 1) {
+    if (!product) return;
+    const destino = index + direccion;
+    if (destino < 0 || destino >= linkedCategories.length) return;
+
+    const previo = linkedCategories;
+    const siguiente = [...linkedCategories];
+    [siguiente[index], siguiente[destino]] = [siguiente[destino], siguiente[index]];
+    setLinkedCategories(siguiente);
+    try {
+      setError(null);
+      await api.patch(`/modifier-categories/products/${product.id}/reorder`, {
+        modifierCategoryIds: siguiente.map((c) => c.id),
+      });
+    } catch (err: any) {
+      setLinkedCategories(previo);
+      setError(err.response?.data?.error ?? 'No se pudo cambiar el orden de los modificadores.');
     }
   }
 
@@ -658,13 +686,16 @@ export function ProductFormDialog({
                           <p className="text-xs font-light text-brand-950/40">Ingredientes, sabores, cubiertos…</p>
                         ) : (
                           <ul className="divide-y divide-brand-950/10">
-                            {linkedCategories.map((c) => (
+                            {linkedCategories.map((c, i) => (
                               <LinkedCategoryRow
                                 key={c.id}
                                 category={c}
                                 productId={product!.id}
                                 variants={pricingMode === 'VARIANTS' ? variants : []}
                                 onDissociate={() => dissociateCategory(c.id)}
+                                onMover={(d) => void moverCategoria(i, d)}
+                                puedeSubir={i > 0}
+                                puedeBajar={i < linkedCategories.length - 1}
                               />
                             ))}
                           </ul>
@@ -1184,12 +1215,19 @@ function LinkedCategoryRow({
   productId,
   variants,
   onDissociate,
+  onMover,
+  puedeSubir,
+  puedeBajar,
 }: {
   category: ModifierCategory;
   productId: string;
   /** Tamaños del producto. Vacío = producto de precio simple, no hay nada que acotar. */
   variants: ProductVariant[];
   onDissociate: () => void;
+  /** Mueve el grupo un lugar arriba o abajo dentro de ESTE producto. */
+  onMover: (direccion: -1 | 1) => void;
+  puedeSubir: boolean;
+  puedeBajar: boolean;
 }) {
   const [maxSelections, setMaxSelectionsInput] = useState(category.maxSelections?.toString() ?? '');
   const [freeQuantity, setFreeQuantityInput] = useState(category.freeQuantity?.toString() ?? '');
@@ -1228,9 +1266,33 @@ function LinkedCategoryRow({
     <li className="py-2 space-y-1.5">
       <div className="flex items-center justify-between gap-2 text-sm">
         <span className="text-brand-950 truncate">{category.name}</span>
-        <button type="button" onClick={onDissociate} className="text-brand-950/30 hover:text-red-500 shrink-0">
-          <X className="h-3.5 w-3.5" />
-        </button>
+        <div className="flex shrink-0 items-center gap-0.5">
+          {/* Orden de los grupos DENTRO de este plato: es el orden en que se arma al comandar
+              (carbohidrato, proteína, vegetales, salsa, topping) y el que ve el cliente en el
+              menú. Vive en el vínculo y no en el grupo, porque el mismo grupo se reusa en
+              varios platos y no tiene por qué ir en el mismo lugar en todos. */}
+          <button
+            type="button"
+            onClick={() => onMover(-1)}
+            disabled={!puedeSubir}
+            title="Subir"
+            className="text-brand-950/30 hover:text-brand-500 disabled:opacity-25 disabled:hover:text-brand-950/30"
+          >
+            <ChevronUp className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onMover(1)}
+            disabled={!puedeBajar}
+            title="Bajar"
+            className="text-brand-950/30 hover:text-brand-500 disabled:opacity-25 disabled:hover:text-brand-950/30"
+          >
+            <ChevronDown className="h-4 w-4" />
+          </button>
+          <button type="button" onClick={onDissociate} className="ml-1 text-brand-950/30 hover:text-red-500">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
       {category.allowMultiple && (
         <div className="flex flex-wrap gap-3">

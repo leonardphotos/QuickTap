@@ -5,6 +5,7 @@ import {
   createModifierCategorySchema,
   createModifierSchema,
   reorderModifiersSchema,
+  reorderProductCategoriesSchema,
   setModifierVariantPriceSchema,
   setModifierVariantVisibilitySchema,
   updateModifierCategorySchema,
@@ -45,6 +46,17 @@ export const modifierCategoryController = {
   reorderModifiers: asyncHandler(async (req: Request, res: Response) => {
     const input = reorderModifiersSchema.parse(req.body);
     res.json({ data: await modifierCategoryService.reorderModifiers(req.restaurantId!, req.params.id, input) });
+  }),
+  /** Orden en que salen los grupos de modificadores de un producto al armarlo. */
+  reorderProductCategories: asyncHandler(async (req: Request, res: Response) => {
+    const { modifierCategoryIds } = reorderProductCategoriesSchema.parse(req.body);
+    res.json({
+      data: await modifierCategoryService.reorderProductCategories(
+        req.restaurantId!,
+        req.params.productId,
+        modifierCategoryIds,
+      ),
+    });
   }),
   listLinkedProducts: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await modifierCategoryService.listLinkedProducts(req.restaurantId!, req.params.id) });

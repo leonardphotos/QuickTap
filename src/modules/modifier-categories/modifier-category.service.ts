@@ -274,6 +274,36 @@ export const modifierCategoryService = {
     return prisma.productModifierCategory.update({ where: { id: link.id }, data: input });
   },
 
+  /**
+   * En qué orden salen los grupos de modificadores de UN producto.
+   *
+   * El orden es del vínculo (ProductModifierCategory.priority) y no del grupo, porque el mismo
+   * grupo se reusa en varios platos y no tiene por qué ir en el mismo lugar en todos. Importa
+   * de verdad al comandar: en un wok se arma carbohidrato, después proteína, después vegetales,
+   * salsa y topping — en ese orden y no en otro, que es como lo pregunta el mesonero y como lo
+   * monta la cocina.
+   */
+  async reorderProductCategories(restaurantId: string, productId: string, modifierCategoryIds: string[]) {
+    const product = await prisma.product.findFirst({ where: { id: productId, restaurantId }, select: { id: true } });
+    if (!product) throw notFound('Producto no encontrado.');
+
+    const links = await prisma.productModifierCategory.findMany({
+      where: { productId, modifierCategoryId: { in: modifierCategoryIds } },
+      select: { id: true, modifierCategoryId: true },
+    });
+    if (links.length !== modifierCategoryIds.length) {
+      throw badRequest('Alguno de esos grupos de modificadores no está asociado a este producto.');
+    }
+    const porCategoria = new Map(links.map((l) => [l.modifierCategoryId, l.id]));
+
+    await prisma.$transaction(
+      modifierCategoryIds.map((categoryId, index) =>
+        prisma.productModifierCategory.update({ where: { id: porCategoria.get(categoryId)! }, data: { priority: index } }),
+      ),
+    );
+    return { reordered: true };
+  },
+
   async assertCategoryBelongs(restaurantId: string, id: string) {
     const category = await prisma.modifierCategory.findFirst({ where: { id, restaurantId }, select: { id: true } });
     if (!category) throw notFound('Categoría de modificadores no encontrada.');
