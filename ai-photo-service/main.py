@@ -601,7 +601,10 @@ INSUMOS_SCHEMA = {
                     # vaso, tapa, cubiertos). Va a la ventana de empaques del inventario y se
                     # puede vincular a un plato para cobrarlo y descontarlo al vender.
                     "esEmpaque": {"type": "BOOLEAN"},
-                    "tipoEmpaque": {"type": "STRING", "enum": ["ENVASE", "CAJA", "BOLSA", ""]},
+                    # Sin cadena vacía en el enum: Gemini rechaza el esquema entero con
+                    # "enum[3]: cannot be empty". Lo que no es empaque simplemente no trae
+                    # este campo, que por eso queda fuera de `required`.
+                    "tipoEmpaque": {"type": "STRING", "enum": ["ENVASE", "CAJA", "BOLSA"]},
                 },
                 "required": ["nombre", "unidadArchivo", "cantidadArchivo", "costoArchivo", "unidad"],
             },
