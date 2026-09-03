@@ -301,6 +301,10 @@ export interface InsumoLeido {
   vinculoPor: 'nombre' | 'ia' | null;
   /** Cuántas líneas de receta y de preparación se recostean si se carga este insumo. */
   usadoEn: number;
+  /** En qué platos se usa directo, y en qué preparaciones. Es lo que hace revisable el vínculo:
+   *  ver que "Aceite" cae en catorce platos obliga a mirarlo dos veces antes de aprobarlo. */
+  enPlatos: string[];
+  enPreparaciones: string[];
   /** Lo que decía la hoja antes de convertir ("8000 gramos"), para que el operador lo vea. */
   enLaHoja: string;
   /**
@@ -1037,6 +1041,8 @@ export const masterCatalogAiService = {
         vinculadoA: null,
         vinculoPor: null,
         usadoEn: 0,
+        enPlatos: [],
+        enPreparaciones: [],
         // Solo se muestra cuando hubo conversión de verdad: "8000 gramos" al lado de "8 kg"
         // deja ver de un golpe si la IA leyó bien la unidad. Si no se convirtió nada, el dato
         // es ruido — sería repetir la misma cifra dos veces.
@@ -1143,27 +1149,37 @@ export const masterCatalogAiService = {
 
     // Cuántas líneas de costo se recostean por cada vínculo: es lo que el operador necesita
     // ver para entender que cargar ese precio le enciende el costo a N recetas.
+    // Dónde se usa cada insumo vinculado: cuántas líneas se recostean y, sobre todo, EN QUÉ.
+    // El número solo dice el tamaño del cambio; los nombres son los que dejan revisar el
+    // vínculo — ver "Aceite" cayendo en catorce platos obliga a mirarlo antes de aprobarlo.
     const vinculados = leidos.map((f) => f.vinculadoA?.id).filter((x): x is string => !!x);
     if (vinculados.length > 0) {
       const [enRecetas, enPreparaciones] = await Promise.all([
-        prisma.recipeIngredient.groupBy({
-          by: ['inventoryItemId'],
+        prisma.recipeIngredient.findMany({
           where: { restaurantId, inventoryItemId: { in: vinculados } },
-          _count: { _all: true },
+          select: { inventoryItemId: true, product: { select: { name: true } } },
         }),
-        prisma.preparationIngredient.groupBy({
-          by: ['inventoryItemId'],
+        prisma.preparationIngredient.findMany({
           where: { restaurantId, inventoryItemId: { in: vinculados } },
-          _count: { _all: true },
+          select: { inventoryItemId: true, preparation: { select: { name: true } } },
         }),
       ]);
-      const usos = new Map<string, number>();
-      for (const g of [...enRecetas, ...enPreparaciones]) {
-        if (!g.inventoryItemId) continue;
-        usos.set(g.inventoryItemId, (usos.get(g.inventoryItemId) ?? 0) + g._count._all);
-      }
+      const platos = new Map<string, Set<string>>();
+      const preparaciones = new Map<string, Set<string>>();
+      const sumar = (mapa: Map<string, Set<string>>, id: string | null, nombre: string | undefined) => {
+        if (!id || !nombre) return;
+        if (!mapa.has(id)) mapa.set(id, new Set());
+        mapa.get(id)!.add(nombre);
+      };
+      for (const l of enRecetas) sumar(platos, l.inventoryItemId, l.product?.name);
+      for (const l of enPreparaciones) sumar(preparaciones, l.inventoryItemId, l.preparation?.name);
+
       for (const fila of leidos) {
-        if (fila.vinculadoA) fila.usadoEn = usos.get(fila.vinculadoA.id) ?? 0;
+        if (!fila.vinculadoA) continue;
+        fila.enPlatos = [...(platos.get(fila.vinculadoA.id) ?? [])].sort();
+        fila.enPreparaciones = [...(preparaciones.get(fila.vinculadoA.id) ?? [])].sort();
+        fila.usadoEn = enRecetas.filter((l) => l.inventoryItemId === fila.vinculadoA!.id).length +
+          enPreparaciones.filter((l) => l.inventoryItemId === fila.vinculadoA!.id).length;
       }
     }
 

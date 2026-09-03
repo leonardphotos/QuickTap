@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Plus, Sparkles, Upload, X } from 'lucide-react';
 import { AI_TIMEOUT_MS, masterApi } from '@/api/client';
 import { TextureButton } from '@/components/ui/texture-button';
+import { MarcaExiste, ResumenInsumos, ResumenRecetas } from './ResumenCarga';
 
 /**
  * Carga por partes en un cliente que YA está montado.
@@ -49,6 +50,11 @@ interface FilaInsumo {
   enLaHoja: string;
   /** No vacío = va a la ventana de empaques del inventario, lista para vincularse a un plato. */
   tipoEmpaque: '' | 'ENVASE' | 'CAJA' | 'BOLSA';
+  /** En qué platos y preparaciones se usa el insumo con el que se vinculó. */
+  enPlatos: string[];
+  enPreparaciones: string[];
+  /** Aprobado. Desmarcarlo lo deja a la vista pero fuera de la carga. */
+  incluir: boolean;
 }
 
 interface LineaInsumo {
@@ -72,6 +78,8 @@ interface FilaReceta {
   productId: string | null;
   nombre: string;
   yaTeniaReceta: boolean;
+  /** Aprobada. Desmarcarla la deja a la vista pero fuera de la carga. */
+  incluir: boolean;
   insumos: LineaInsumo[];
   preparaciones: Preparacion[];
 }
@@ -250,6 +258,8 @@ function PanelInsumos({
         usadoEn: number;
         enLaHoja: string;
         tipoEmpaque: '' | 'ENVASE' | 'CAJA' | 'BOLSA';
+        enPlatos: string[];
+        enPreparaciones: string[];
       }[] = data.data?.insumos ?? [];
       const lectura: { filas: number; productos: number; lotes: number } | undefined = data.data?.lectura;
       setFilas(
@@ -266,6 +276,9 @@ function PanelInsumos({
           usadoEn: i.usadoEn,
           enLaHoja: i.enLaHoja ?? '',
           tipoEmpaque: i.tipoEmpaque ?? '',
+          enPlatos: i.enPlatos ?? [],
+          enPreparaciones: i.enPreparaciones ?? [],
+          incluir: true,
         })),
       );
       onAviso(
@@ -295,7 +308,7 @@ function PanelInsumos({
     try {
       const { data } = await masterApi.post(`/master/catalog-ai/${restaurantId}/confirmar-insumos`, {
         insumos: filas
-          .filter((f) => f.nombre.trim())
+          .filter((f) => f.incluir && f.nombre.trim())
           .map((f) => ({
             nombre: f.nombre.trim(),
             unidad: f.unidad,
@@ -330,11 +343,12 @@ function PanelInsumos({
     }
   }
 
-  const nuevos = filas.filter((f) => !f.inventoryItemId).length;
+  const aprobados = filas.filter((f) => f.incluir);
+  const nuevos = aprobados.filter((f) => !f.inventoryItemId).length;
   // Mil kilos o mil litros de un insumo en un restaurante es casi siempre una hoja en gramos
   // que se leyó como kilos. No se corrige solo —hay locales que sí compran por tonelada— pero
   // se avisa, porque entrar mal acá deja el costo de sus recetas mil veces por debajo.
-  const sospechosos = filas.filter((f) => (f.unidad === 'kg' || f.unidad === 'lt') && f.cantidad >= 1000);
+  const sospechosos = aprobados.filter((f) => (f.unidad === 'kg' || f.unidad === 'lt') && f.cantidad >= 1000);
   const sinCosto = estado?.insumos.filter((i) => i.costo <= 0) ?? [];
 
   return (
@@ -377,7 +391,7 @@ function PanelInsumos({
         )}
         {!leyendo && filas.length > 0 && (
           <span className="text-sm text-brand-950/50">
-            {filas.length - nuevos} se vinculan con insumos que ya tiene · {nuevos} se crean nuevos
+            {aprobados.length - nuevos} se vinculan con insumos que ya tiene · {nuevos} se crean nuevos
           </span>
         )}
       </div>
@@ -413,19 +427,36 @@ function PanelInsumos({
 
       {filas.length > 0 && (
         <>
+          <ResumenInsumos insumos={filas} />
+
           <div className="space-y-2">
             {filas.map((f) => (
-              <div key={f.key} className="rounded-xl border border-brand-950/10 p-3">
-                <div className="grid grid-cols-[1fr_auto] items-start gap-2">
+              <div
+                key={f.key}
+                className={`rounded-xl border p-3 transition-opacity ${
+                  f.incluir ? 'border-brand-950/10' : 'border-brand-950/10 bg-brand-950/[0.03] opacity-50'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  {/* Aprobar / desaprobar. Distinto de la X, que la borra de la pantalla: acá
+                      la fila queda a la vista para poder cambiar de opinión antes de cargar. */}
+                  <input
+                    type="checkbox"
+                    checked={f.incluir}
+                    onChange={(e) => editar(f.key, { incluir: e.target.checked })}
+                    title={f.incluir ? 'Aprobado — se va a cargar' : 'Descartado — no se carga'}
+                    className="h-4 w-4 shrink-0"
+                  />
                   <input
                     value={f.nombre}
                     onChange={(e) => editar(f.key, { nombre: e.target.value })}
-                    className="w-full rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm font-medium"
+                    className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm font-medium"
                   />
                   <button
                     type="button"
                     onClick={() => setFilas((prev) => prev.filter((x) => x.key !== f.key))}
-                    className="pt-2 text-brand-950/30 hover:text-red-500"
+                    title="Quitar de la lista"
+                    className="shrink-0 text-brand-950/30 hover:text-red-500"
                   >
                     <X className="h-4 w-4" />
                   </button>
@@ -529,6 +560,15 @@ function PanelInsumos({
                     <span className="text-[11px] text-brand-950/50">recostea {f.usadoEn} línea(s)</span>
                   )}
                 </div>
+                {/* A qué platos y preparaciones va a llegar este precio. Es lo que deja
+                    revisar el vínculo de verdad: un "Aceite" que cae en catorce platos hay
+                    que mirarlo dos veces antes de aprobarlo. */}
+                {(f.enPlatos.length > 0 || f.enPreparaciones.length > 0) && (
+                  <p className="mt-1 text-[11px] font-light text-brand-950/45">
+                    <span className="font-medium text-brand-950/60">Llega a:</span>{' '}
+                    {[...f.enPreparaciones.map((p) => `${p} (prep.)`), ...f.enPlatos].join(' · ')}
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -538,10 +578,10 @@ function PanelInsumos({
             variant="accent"
             size="default"
             className="!w-auto"
-            disabled={guardando}
+            disabled={guardando || aprobados.length === 0}
             onClick={() => void cargar()}
           >
-            {guardando ? 'Cargando…' : `Cargar ${filas.length} insumo(s) y recostear las recetas`}
+            {guardando ? 'Cargando…' : `Cargar ${aprobados.length} insumo(s) y recostear las recetas`}
           </TextureButton>
         </>
       )}
@@ -583,6 +623,7 @@ function PanelRecetas({
   const archivoRef = useRef<HTMLInputElement>(null);
 
   const sinReceta = estado?.productosSinReceta ?? [];
+  const aprobadas = filas.filter((f) => f.incluir).length;
 
   function recibir(
     leidas: { productId?: string | null; nombre: string; yaTeniaReceta?: boolean; insumos?: LineaInsumo[]; preparaciones?: Preparacion[] }[],
@@ -593,6 +634,9 @@ function PanelRecetas({
         productId: f.productId ?? null,
         nombre: f.nombre,
         yaTeniaReceta: !!f.yaTeniaReceta,
+        // Entran aprobadas: lo normal es cargar lo que la IA propuso y descartar lo que
+        // sobre, no ir marcando plato por plato lo que sí se quiere.
+        incluir: true,
         insumos: f.insumos ?? [],
         preparaciones: f.preparaciones ?? [],
       })),
@@ -660,7 +704,9 @@ function PanelRecetas({
     try {
       const { data } = await masterApi.post(`/master/catalog-ai/${restaurantId}/confirmar-recetas`, {
         reemplazarExistentes: reemplazar,
-        recetas: filas.map((f) => ({
+        recetas: filas
+          .filter((f) => f.incluir)
+          .map((f) => ({
           productId: f.productId ?? undefined,
           nombre: f.nombre.trim(),
           insumos: f.insumos
@@ -791,6 +837,8 @@ function PanelRecetas({
 
       {filas.length > 0 && (
         <>
+          <ResumenRecetas recetas={filas} />
+
           <div className="space-y-3">
             {filas.map((f) => (
               <EditorReceta
@@ -823,10 +871,10 @@ function PanelRecetas({
             variant="accent"
             size="default"
             className="!w-auto"
-            disabled={guardando}
+            disabled={guardando || aprobadas === 0}
             onClick={() => void cargar()}
           >
-            {guardando ? 'Cargando…' : `Cargar ${filas.length} receta(s)`}
+            {guardando ? 'Cargando…' : `Cargar ${aprobadas} receta(s)`}
           </TextureButton>
         </>
       )}
@@ -851,8 +899,22 @@ function EditorReceta({
   }
 
   return (
-    <div className="rounded-xl border border-brand-950/10 p-3">
+    <div
+      className={`rounded-xl border p-3 transition-opacity ${
+        fila.incluir ? 'border-brand-950/10' : 'border-brand-950/10 bg-brand-950/[0.03] opacity-50'
+      }`}
+    >
       <div className="flex flex-wrap items-center gap-2">
+        {/* Aprobar / desaprobar: desmarcarla la deja a la vista pero fuera de la carga. Es
+            distinto de quitarla con la X, que la borra de la pantalla — acá el operador puede
+            volver a mirarla, compararla con las demás y cambiar de opinión antes de cargar. */}
+        <input
+          type="checkbox"
+          checked={fila.incluir}
+          onChange={(e) => onChange({ incluir: e.target.checked })}
+          title={fila.incluir ? 'Aprobada — se va a cargar' : 'Descartada — no se carga'}
+          className="h-4 w-4 shrink-0"
+        />
         <input
           value={fila.nombre}
           onChange={(e) => onChange({ nombre: e.target.value })}
@@ -868,7 +930,7 @@ function EditorReceta({
             ya tiene receta
           </span>
         )}
-        <button type="button" onClick={onQuitar} className="text-brand-950/30 hover:text-red-500">
+        <button type="button" onClick={onQuitar} title="Quitar de la lista" className="text-brand-950/30 hover:text-red-500">
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -877,11 +939,14 @@ function EditorReceta({
       <ul className="mt-1 space-y-1.5">
         {fila.insumos.map((g, i) => (
           <li key={i} className="grid grid-cols-[1fr_5rem_5.5rem_auto] items-center gap-2">
-            <input
-              value={g.nombre}
-              onChange={(e) => editarInsumo(i, { nombre: e.target.value })}
-              className="min-w-0 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
-            />
+            <div className="flex min-w-0 items-center gap-1.5">
+              <input
+                value={g.nombre}
+                onChange={(e) => editarInsumo(i, { nombre: e.target.value })}
+                className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+              />
+              <MarcaExiste yaExiste={g.yaExiste} />
+            </div>
             <input
               value={g.cantidad}
               onChange={(e) => editarInsumo(i, { cantidad: Number(e.target.value) || 0 })}
@@ -928,9 +993,7 @@ function EditorReceta({
                   onChange={(e) => editarPrep(i, { nombre: e.target.value })}
                   className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
                 />
-                <span className="text-[10px] text-brand-950/40">
-                  {pr.yaExiste ? 'ya la tiene' : 'preparación nueva'}
-                </span>
+                <MarcaExiste yaExiste={pr.yaExiste} nuevoEs="preparación nueva" />
                 <button
                   type="button"
                   onClick={() => onChange({ preparaciones: fila.preparaciones.filter((_, x) => x !== i) })}
@@ -973,15 +1036,18 @@ function EditorReceta({
               <ul className="mt-2 space-y-1.5">
                 {pr.insumos.map((g, j) => (
                   <li key={j} className="grid grid-cols-[1fr_5rem_5.5rem_auto] items-center gap-2">
-                    <input
-                      value={g.nombre}
-                      onChange={(e) =>
-                        editarPrep(i, {
-                          insumos: pr.insumos.map((x, y) => (y === j ? { ...x, nombre: e.target.value } : x)),
-                        })
-                      }
-                      className="min-w-0 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
-                    />
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <input
+                        value={g.nombre}
+                        onChange={(e) =>
+                          editarPrep(i, {
+                            insumos: pr.insumos.map((x, y) => (y === j ? { ...x, nombre: e.target.value } : x)),
+                          })
+                        }
+                        className="min-w-0 flex-1 rounded-lg border border-brand-950/15 px-2.5 py-1.5 text-sm"
+                      />
+                      <MarcaExiste yaExiste={g.yaExiste} />
+                    </div>
                     <input
                       value={g.cantidad}
                       onChange={(e) =>
