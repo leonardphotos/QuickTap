@@ -1011,6 +1011,26 @@ export const masterCatalogAiService = {
       );
     }
 
+    // Dos filas distintas no pueden terminar apuntando al MISMO insumo: al confirmar, la
+    // segunda pisaría a la primera en silencio y el operador nunca vería cuál quedó. Pasa de
+    // verdad — la IA manda "Aceite de soya" y "Aceite de palma" al "Aceite" genérico que el
+    // cliente tiene cargado. Se queda el vínculo más confiable (nombre idéntico le gana al
+    // cruce de la IA) y los demás vuelven a "insumo nuevo", que es reversible de un clic; lo
+    // otro le mete un costo equivocado a las recetas y no se ve.
+    const ocupado = new Map<string, InsumoLeido>();
+    for (const fila of leidos) {
+      if (!fila.vinculadoA) continue;
+      const previo = ocupado.get(fila.vinculadoA.id);
+      if (!previo) {
+        ocupado.set(fila.vinculadoA.id, fila);
+        continue;
+      }
+      const pierde = previo.vinculoPor === 'nombre' || fila.vinculoPor !== 'nombre' ? fila : previo;
+      if (pierde === previo) ocupado.set(fila.vinculadoA.id, fila);
+      pierde.vinculadoA = null;
+      pierde.vinculoPor = null;
+    }
+
     // Cuántas líneas de costo se recostean por cada vínculo: es lo que el operador necesita
     // ver para entender que cargar ese precio le enciende el costo a N recetas.
     const vinculados = leidos.map((f) => f.vinculadoA?.id).filter((x): x is string => !!x);
@@ -1108,8 +1128,14 @@ export const masterCatalogAiService = {
       actualizados: 0,
       conCosto: 0,
       unidadEnConflicto: [] as string[],
+      /** Filas que apuntaban a un insumo que otra fila ya se había llevado: se crearon aparte. */
+      vinculosRepetidos: [] as string[],
       lineasRecosteadas: 0,
     };
+
+    // Un insumo existente lo escribe UNA sola fila: dos filas sobre el mismo se pisarían y
+    // el operador vería solo el resultado de la última sin saber que perdió la otra.
+    const yaEscritos = new Set<string>();
 
     // Los nombres que ya existen se resuelven acá y no fila por fila, para que dos filas de
     // la misma hoja que apuntan al mismo nombre no creen dos insumos iguales.
@@ -1127,10 +1153,16 @@ export const masterCatalogAiService = {
       const costo = numeroPositivo(fila.costoUnitario);
       const categoryId = await categoriaId(fila.categoria);
 
-      const destinoId =
+      // El id que llega puede repetirse entre filas (el operador eligió el mismo insumo dos
+      // veces en los selectores). El primero se lo lleva; los siguientes se crean aparte con
+      // su propio nombre en vez de pisar lo que acaba de escribir la fila anterior.
+      const pedido =
         fila.inventoryItemId && propios.has(fila.inventoryItemId) ? fila.inventoryItemId : porClave.get(clave(nombre));
+      const destinoId = pedido && !yaEscritos.has(pedido) ? pedido : undefined;
+      if (pedido && !destinoId) resultado.vinculosRepetidos.push(nombre);
 
       if (destinoId) {
+        yaEscritos.add(destinoId);
         const actual = await prisma.inventoryItem.findUnique({
           where: { id: destinoId },
           select: { name: true, unit: true },

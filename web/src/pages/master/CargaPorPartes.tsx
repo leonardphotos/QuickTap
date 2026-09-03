@@ -301,6 +301,9 @@ function PanelInsumos({
             : 'Ninguna receta cambió de costo.') +
           (d.unidadEnConflicto.length > 0
             ? ` Ojo: la unidad de la lista no coincide con la que ya tenían ${d.unidadEnConflicto.join(', ')} — se dejó la del sistema para no reinterpretar sus recetas.`
+            : '') +
+          (d.vinculosRepetidos?.length > 0
+            ? ` Se crearon aparte (otra fila ya se había llevado ese insumo): ${d.vinculosRepetidos.join(', ')}.`
             : ''),
       );
       setFilas([]);
