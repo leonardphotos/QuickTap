@@ -2479,20 +2479,72 @@ export const orderService = {
   async updateStatus(restaurantId: string, orderId: string, status: 'PENDING' | 'KITCHEN' | 'SERVED' | 'CANCELLED') {
     const existing = await prisma.order.findFirst({
       where: { id: orderId, restaurantId },
-      include: { items: { include: { modifiers: true } }, placedByUser: { select: { role: true } } },
+      include: { items: { include: { modifiers: true } }, placedByUser: { select: { role: true } }, payments: true },
     });
     if (!existing) throw notFound('Comanda no encontrada.');
+
+    // Cancelar un pedido que YA tiene plata cobrada encima dejaba el cobro colgado: el arqueo
+    // lo sigue contando (collectPayments no mira el estado del pedido) pero las ventas ya no,
+    // porque los reportes excluyen los cancelados. Resultado: la caja cuadra con un sobrante
+    // que no se explica en ningún lado, y nadie registró si esa plata se devolvió o no.
+    //
+    // Se bloquea en vez de reversar en silencio: si la plata se devolvió, el camino correcto es
+    // eliminar la comanda (deleteOrderHard SÍ revierte el asiento bancario, devuelve el
+    // inventario y deja en la bitácora cuánto se había cobrado). Cancelar es para lo que nunca
+    // llegó a cobrarse.
+    if (status === 'CANCELLED' && existing.status !== 'CANCELLED') {
+      const cobrado = existing.payments.reduce(
+        (acc, pago) => acc.add(pago.amountBase).add(pago.discountBase ?? 0).add(pago.serviceChargeDiscountBase ?? 0),
+        toDecimal(0),
+      );
+      if (cobrado.gt(0)) {
+        throw badRequest(
+          `Este pedido ya tiene ${formatMoney(round2(cobrado), CURRENCY_SYMBOLS[existing.currency])} cobrados: cancelarlo dejaría esa plata sin respaldo en la caja. ` +
+            'Si le devolviste el dinero al cliente, elimina la comanda — ahí queda registrado cuánto se había cobrado.',
+        );
+      }
+    }
 
     // Transición atómica en vez de leer-y-luego-escribir: si dos clientes marcan el
     // mismo pedido SERVED a la vez (la tablet de cocina y el teléfono del mesero, o
     // un doble toque), ambos leerían el estado viejo y el inventario se descontaría
     // dos veces. Con el updateMany condicionado al estado anterior, solo uno cuenta.
-    const transition = await prisma.order.updateMany({
-      where: { id: orderId, restaurantId, status: { not: status } },
-      data: { status },
-    });
+    const condicion = {
+      id: orderId,
+      restaurantId,
+      status: { not: status },
+      // La comprobación de arriba lee el pedido ANTES de escribir: si un cobro entra en ese
+      // hueco, el pedido se cancelaba igual con la plata encima. Poniendo la condición en el
+      // propio UPDATE, la base decide — si el cobro ya está, esto no afecta ninguna fila.
+      ...(status === 'CANCELLED' ? { payments: { none: {} } } : {}),
+    };
+
+    // Cancelar toma el MISMO candado por pedido que usa addPayment. Sin esto los dos caminos no
+    // se serializaban entre sí: el cobro abría su transacción, y antes de confirmarla la
+    // cancelación miraba la base, no veía ningún cobro todavía y cancelaba igual — la comanda
+    // terminaba cancelada con la plata encima. El candado hace que uno de los dos espere al
+    // otro, y el que llega segundo ya ve la realidad completa.
+    const transition =
+      status === 'CANCELLED'
+        ? await prisma.$transaction(async (tx) => {
+            const [{ locked }] = await tx.$queryRaw<{ locked: boolean }[]>`
+              SELECT pg_try_advisory_xact_lock(hashtext(${'order-payment:' + orderId})) AS locked
+            `;
+            if (!locked) {
+              throw badRequest('Se está registrando un cobro de esta cuenta. Espera un momento y vuelve a intentar.');
+            }
+            return tx.order.updateMany({ where: condicion, data: { status } });
+          })
+        : await prisma.order.updateMany({ where: condicion, data: { status } });
     const statusChanged = transition.count > 0;
     const order = await prisma.order.findFirstOrThrow({ where: { id: orderId, restaurantId } });
+
+    // No se canceló y no era porque ya estuviera cancelado: fue un cobro que ganó la carrera.
+    if (status === 'CANCELLED' && !statusChanged && order.status !== 'CANCELLED') {
+      throw badRequest(
+        'Alguien acaba de cobrar este pedido: ya no se puede cancelar. Si le devolviste el dinero al cliente, elimina la comanda.',
+      );
+    }
 
     // Descuenta el inventario por receta y el stock simple por producto, la primera vez que se marca SERVED.
     if (status === 'SERVED' && statusChanged) {
