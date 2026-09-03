@@ -96,3 +96,71 @@ export const fichasSchema = z.object({
     // Techo alto pero finito: son varias llamadas a la IA en cadena y cada una cuesta.
     .max(200, 'Arma las fichas de como máximo 200 platos a la vez.'),
 });
+
+/* --------------------------------------------------------------------------------------
+ * Carga por partes en un cliente ya montado
+ * ------------------------------------------------------------------------------------ */
+
+/** POST /master/catalog-ai/:restaurantId/confirmar-insumos */
+export const confirmarInsumosSchema = z.object({
+  insumos: z
+    .array(
+      z.object({
+        nombre: z.string().min(1, 'Cada insumo necesita un nombre.').max(120),
+        unidad: UNIDAD,
+        cantidad: z.coerce.number().nonnegative().default(0),
+        // Costo de UNA unidad (1 kg / 1 lt / 1 unidad). Cero = no se toca el que ya tenía.
+        costoUnitario: z.coerce.number().nonnegative().default(0),
+        minimo: z.coerce.number().nonnegative().default(0),
+        categoria: z.string().max(120).optional(),
+        // Insumo existente con el que se vincula (el que propuso el cruce, o el que el
+        // operador eligió a mano). Vacío = se crea uno nuevo.
+        inventoryItemId: z.string().min(1).optional(),
+      }),
+    )
+    .min(1, 'No hay insumos que cargar.')
+    .max(500, 'Carga como máximo 500 insumos a la vez.'),
+});
+
+/** POST /master/catalog-ai/:restaurantId/fichas-catalogo — platos que el cliente YA tiene. */
+export const fichasCatalogoSchema = z.object({
+  productIds: z
+    .array(z.string().min(1))
+    .min(1, 'Elige al menos un plato.')
+    .max(200, 'Arma las fichas de como máximo 200 platos a la vez.'),
+});
+
+const lineaInsumo = z.object({
+  nombre: z.string().min(1).max(120),
+  unidad: UNIDAD,
+  cantidad: z.coerce.number().positive(),
+});
+
+/** POST /master/catalog-ai/:restaurantId/confirmar-recetas — solo recetas, sin tocar el plato. */
+export const confirmarRecetasSchema = z.object({
+  recetas: z
+    .array(
+      z.object({
+        productId: z.string().min(1).optional(),
+        nombre: z.string().min(1, 'Cada receta necesita el nombre del plato.').max(120),
+        insumos: z.array(lineaInsumo).default([]),
+        preparaciones: z
+          .array(
+            z.object({
+              nombre: z.string().min(1).max(120),
+              unidad: UNIDAD,
+              rendimiento: z.coerce.number().positive(),
+              cantidad: z.coerce.number().positive(),
+              insumos: z.array(lineaInsumo).min(1, 'Una preparación sin ingredientes no se puede costear.'),
+            }),
+          )
+          .max(20)
+          .default([]),
+      }),
+    )
+    .min(1, 'No hay recetas que cargar.')
+    .max(200, 'Carga como máximo 200 recetas a la vez.'),
+  // Un plato que ya tiene receta se salta salvo que se pida explícitamente reemplazarla: una
+  // carga masiva no puede borrar en silencio el trabajo que el cliente ya hizo.
+  reemplazarExistentes: z.boolean().default(false),
+});

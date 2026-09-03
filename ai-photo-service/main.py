@@ -454,6 +454,46 @@ def _limpiar_insumos(crudos) -> list[dict]:
     return salida
 
 
+
+def _limpiar_fichas(crudas) -> list[dict]:
+    """Red de seguridad sobre las fichas técnicas que devuelve el modelo. La comparten
+    /fichas-tecnicas (fichas estimadas) y /leer-recetas (fichas transcritas del cliente):
+    la salida es la misma, así que la limpieza tiene que ser una sola."""
+    salida = []
+    for item in crudas or []:
+        nombre = str(item.get("nombre") or "").strip()
+        if not nombre:
+            continue
+        preparaciones = []
+        for prep in item.get("preparaciones") or []:
+            prep_nombre = str(prep.get("nombre") or "").strip()
+            unidad = prep.get("unidad")
+            try:
+                rendimiento = float(prep.get("rendimiento"))
+                cantidad = float(prep.get("cantidad"))
+            except (TypeError, ValueError):
+                continue
+            insumos_prep = _limpiar_insumos(prep.get("insumos"))
+            # Una preparación sin ingredientes o sin rendimiento no se puede costear:
+            # entraría como una base vacía que ensucia el inventario sin aportar nada.
+            if not prep_nombre or unidad not in ("kg", "lt", "unidad") or rendimiento <= 0 or cantidad <= 0:
+                continue
+            if not insumos_prep:
+                continue
+            preparaciones.append({
+                "nombre": prep_nombre[:120],
+                "unidad": unidad,
+                "rendimiento": rendimiento,
+                "cantidad": cantidad,
+                "insumos": insumos_prep,
+            })
+        salida.append({
+            "nombre": nombre[:120],
+            "insumos": _limpiar_insumos(item.get("insumos")),
+            "preparaciones": preparaciones,
+        })
+    return salida
+
 @app.post("/leer-carta")
 async def leer_carta(file: UploadFile | None = File(None), texto: str = Form("")):
     """Transcribe una carta a lista de productos. Entra una foto del menú o el texto de la
@@ -525,38 +565,233 @@ async def fichas_tecnicas(payload: dict = Body(...)):
         "armar las fichas técnicas",
     )
 
-    salida = []
-    for item in datos.get("platos") or []:
+    return {"platos": _limpiar_fichas(datos.get("platos"))}
+
+
+# ---------------------------------------------------------------------------
+#  Carga por partes en un cliente que YA está montado
+#
+#  La carga de carta completa (arriba) sirve para un cliente nuevo. Un cliente
+#  que ya opera necesita lo contrario: cargarle SOLO lo que le falta sin tocar
+#  lo que ya tiene. De ahí estos dos endpoints — leer su lista de insumos, y
+#  decidir cuáles de esos insumos son el mismo que ya tiene en su inventario.
+
+INSUMOS_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "insumos": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "nombre": {"type": "STRING"},
+                    "unidad": {"type": "STRING", "enum": ["kg", "lt", "unidad"]},
+                    "cantidad": {"type": "NUMBER"},
+                    "costoUnitario": {"type": "NUMBER"},
+                    "minimo": {"type": "NUMBER"},
+                    "categoria": {"type": "STRING"},
+                },
+                "required": ["nombre", "unidad", "cantidad", "costoUnitario"],
+            },
+        },
+    },
+    "required": ["insumos"],
+}
+
+INSUMOS_PROMPT = (
+    "Eres un asistente que transcribe la lista de insumos de un restaurante (su inventario, su "
+    "lista de compras o la factura de su proveedor) para cargarla en su sistema. Devuelve TODOS "
+    "los insumos que encuentres, en español.\n\n"
+    "1. `nombre`: el insumo como lo pondría un almacén, en singular y sin la presentación: "
+    "'Saco de harina de trigo 25 kg' se llama 'Harina de trigo'.\n"
+    "2. `unidad`: solo 'kg' (lo que se pesa), 'lt' (líquidos) o 'unidad' (lo que se cuenta). "
+    "Si la lista trae gramos o mililitros, la unidad sigue siendo kg o lt: se convierte la "
+    "cantidad, no la unidad.\n"
+    "3. `cantidad`: cuánto hay en existencia, en esa unidad. 500 gramos es 0.5 en 'kg'. Si la "
+    "lista no dice existencias, pon 0.\n"
+    "4. `costoUnitario`: cuánto cuesta UNA unidad completa (1 kg, 1 lt, 1 unidad), en la moneda "
+    "de la lista y sin símbolo. Si la lista da el precio de una presentación, DIVIDE: 'Saco de "
+    "harina 25 kg — 30' son 1.2 por kg. Si no hay precio visible, pon 0 — es preferible un cero "
+    "evidente a un costo inventado, porque un costo falso ensucia el costo de todas las recetas.\n"
+    "5. `minimo`: el stock mínimo o punto de reposición si la lista lo trae; si no, 0.\n"
+    "6. `categoria`: el rubro donde lo archivaría un almacén (Carnes, Lácteos, Abarrotes, "
+    "Bebidas, Limpieza, Desechables...). Si la lista ya trae secciones, usa las suyas.\n\n"
+    "Reglas:\n"
+    "- Esto es TRANSCRIPCIÓN, no creación: no agregues insumos que no estén ni inventes precios.\n"
+    "- Si el mismo insumo aparece dos veces (dos compras del mismo producto), devuélvelo UNA "
+    "sola vez, sumando las cantidades y usando el precio más reciente.\n"
+    "- Ignora todo lo que no sea un insumo: encabezados, totales, impuestos, datos del "
+    "proveedor, notas al pie."
+)
+
+VINCULAR_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "pares": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "nuevo": {"type": "STRING"},
+                    "existente": {"type": "STRING"},
+                },
+                "required": ["nuevo", "existente"],
+            },
+        },
+    },
+    "required": ["pares"],
+}
+
+VINCULAR_PROMPT = (
+    "Un restaurante ya tiene insumos cargados en su inventario y está subiendo una lista nueva. "
+    "Tu trabajo es decidir cuáles de los nombres NUEVOS son el MISMO insumo físico que uno de "
+    "los que YA TIENE, para vincularlos en vez de duplicarlos.\n\n"
+    "Para cada nombre de la lista NUEVOS devuelve un par: `nuevo` con ese nombre EXACTO tal "
+    "como te lo pasaron, y `existente` con el nombre EXACTO de la lista EXISTENTES que le "
+    "corresponde, o cadena vacía si no le corresponde ninguno.\n\n"
+    "Vincula solo cuando es el mismo ingrediente comprable:\n"
+    "- 'Queso mozzarella rallado' y 'Mozzarella' → SÍ, es el mismo queso.\n"
+    "- 'Aceite vegetal' y 'Aceite de girasol' → SÍ, cumplen la misma función en la cocina.\n"
+    "- 'Carne molida' y 'Carne para milanesa' → NO, son cortes distintos con precio distinto.\n"
+    "- 'Leche' y 'Leche condensada' → NO, son productos distintos.\n"
+    "- 'Queso cheddar' y 'Queso parmesano' → NO, no se sustituyen.\n\n"
+    "Ante la duda, deja `existente` vacío: crear un insumo de más lo arregla el operador en un "
+    "segundo, pero vincular mal dos insumos distintos le mete un costo equivocado a todas las "
+    "recetas que lo usan y eso no se ve.\n"
+    "Devuelve un par por CADA nombre de la lista NUEVOS, ninguno de más."
+)
+
+
+@app.post("/leer-insumos")
+async def leer_insumos(file: UploadFile | None = File(None), texto: str = Form("")):
+    """Transcribe la lista de insumos del cliente. Entra una foto (inventario escrito,
+    factura del proveedor) o el texto de su hoja de cálculo, ya aplanado por Node."""
+    contenido_texto = texto.strip()
+    if file is None and not contenido_texto:
+        raise HTTPException(400, "Manda una foto de la lista o el texto de la hoja.")
+
+    if file is not None:
+        raw = await file.read()
+        _validate_upload(file, raw)
+        buf = io.BytesIO()
+        _read_upload(raw).save(buf, format="PNG")
+        contents = [types.Part.from_bytes(data=buf.getvalue(), mime_type="image/png"), INSUMOS_PROMPT]
+    else:
+        if len(contenido_texto) > 60000:
+            raise HTTPException(400, "La lista es demasiado larga. Cárgala por partes.")
+        contents = [f"{INSUMOS_PROMPT}\n\nEsta es la lista del cliente:\n\n{contenido_texto}"]
+
+    datos = _pedir_json(contents, INSUMOS_SCHEMA, "leer la lista de insumos")
+
+    def num(valor, minimo=0.0):
+        try:
+            return max(minimo, float(valor or 0))
+        except (TypeError, ValueError):
+            return minimo
+
+    insumos = []
+    for item in datos.get("insumos") or []:
         nombre = str(item.get("nombre") or "").strip()
-        if not nombre:
+        unidad = item.get("unidad")
+        if not nombre or unidad not in ("kg", "lt", "unidad"):
             continue
-        preparaciones = []
-        for prep in item.get("preparaciones") or []:
-            prep_nombre = str(prep.get("nombre") or "").strip()
-            unidad = prep.get("unidad")
-            try:
-                rendimiento = float(prep.get("rendimiento"))
-                cantidad = float(prep.get("cantidad"))
-            except (TypeError, ValueError):
-                continue
-            insumos_prep = _limpiar_insumos(prep.get("insumos"))
-            # Una preparación sin ingredientes o sin rendimiento no se puede costear:
-            # entraría como una base vacía que ensucia el inventario sin aportar nada.
-            if not prep_nombre or unidad not in ("kg", "lt", "unidad") or rendimiento <= 0 or cantidad <= 0:
-                continue
-            if not insumos_prep:
-                continue
-            preparaciones.append({
-                "nombre": prep_nombre[:120],
-                "unidad": unidad,
-                "rendimiento": rendimiento,
-                "cantidad": cantidad,
-                "insumos": insumos_prep,
-            })
-        salida.append({
+        insumos.append({
             "nombre": nombre[:120],
-            "insumos": _limpiar_insumos(item.get("insumos")),
-            "preparaciones": preparaciones,
+            "unidad": unidad,
+            "cantidad": num(item.get("cantidad")),
+            "costoUnitario": num(item.get("costoUnitario")),
+            "minimo": num(item.get("minimo")),
+            "categoria": str(item.get("categoria") or "").strip()[:120],
         })
 
-    return {"platos": salida}
+    return {"insumos": insumos}
+
+
+@app.post("/vincular-insumos")
+async def vincular_insumos(payload: dict = Body(...)):
+    """Cruza nombres nuevos contra los que el cliente ya tiene y dice cuál es cuál."""
+    nuevos = [str(n).strip()[:120] for n in (payload.get("nuevos") or []) if str(n).strip()]
+    existentes = [str(n).strip()[:120] for n in (payload.get("existentes") or []) if str(n).strip()]
+    if not nuevos:
+        raise HTTPException(400, "Manda al menos un nombre nuevo.")
+    if not existentes:
+        return {"pares": [{"nuevo": n, "existente": ""} for n in nuevos]}
+    # Topes: pasado esto la lista deja de caber cómoda en la ventana del modelo y las
+    # equivalencias empiezan a salir peores. Node parte en lotes antes de llegar acá.
+    if len(nuevos) > 120 or len(existentes) > 400:
+        raise HTTPException(400, "Demasiados insumos por llamada. Cárgalos por partes.")
+
+    prompt = (
+        f"{VINCULAR_PROMPT}\n\n"
+        "EXISTENTES (lo que el restaurante ya tiene):\n"
+        + "\n".join(f"- {n}" for n in existentes)
+        + "\n\nNUEVOS (lo que se está subiendo):\n"
+        + "\n".join(f"- {n}" for n in nuevos)
+    )
+    datos = _pedir_json([prompt], VINCULAR_SCHEMA, "cruzar los insumos")
+
+    # Solo se aceptan pares que apunten a nombres realmente presentes en las dos listas:
+    # un "existente" alucinado vincularía la línea a un insumo que no es.
+    validos_nuevos = set(nuevos)
+    validos_existentes = set(existentes)
+    pares = []
+    vistos = set()
+    for par in datos.get("pares") or []:
+        nuevo = str(par.get("nuevo") or "").strip()
+        existente = str(par.get("existente") or "").strip()
+        if nuevo not in validos_nuevos or nuevo in vistos:
+            continue
+        vistos.add(nuevo)
+        pares.append({"nuevo": nuevo, "existente": existente if existente in validos_existentes else ""})
+    for n in nuevos:
+        if n not in vistos:
+            pares.append({"nuevo": n, "existente": ""})
+
+    return {"pares": pares}
+
+
+RECETAS_PROMPT = (
+    "Eres un asistente que transcribe el recetario de un restaurante para cargarlo en su "
+    "sistema de inventario. El cliente mandó sus propias fichas técnicas: cada plato con lo "
+    "que lleva y cuánto. Devuelve TODOS los platos que encuentres, en español.\n\n"
+    "Esto es TRANSCRIPCIÓN, no estimación: las cantidades son las que dice el documento. Si "
+    "un plato aparece sin cantidades, devuélvelo igual con sus ingredientes y cantidad 0 — el "
+    "operador la completa. NO inventes ingredientes que no estén escritos.\n\n"
+    "`insumos`: lo que va directo al plato.\n"
+    "  - `unidad` solo puede ser 'kg', 'lt' o 'unidad'. Si el documento trae gramos o "
+    "mililitros, convierte la CANTIDAD y deja la unidad en kg/lt: 150 gr es 0.15 en 'kg'.\n"
+    "  - `cantidad` es siempre para UNA porción del plato. Si la ficha es para varias "
+    "porciones y lo dice, divide entre esas porciones.\n\n"
+    "`preparaciones`: solo si el documento las separa como base aparte (salsa, masa, caldo) "
+    "con su propio rendimiento. `rendimiento` es lo que da una tanda y sus `insumos` son los "
+    "de ESA tanda; `cantidad` es lo que usa el plato. Si el documento no separa nada, deja "
+    "`preparaciones` vacío y pon todo como insumos directos.\n\n"
+    "Usa el nombre del plato EXACTO como está escrito, y el mismo nombre de preparación "
+    "cuando varios platos comparten la base."
+)
+
+
+@app.post("/leer-recetas")
+async def leer_recetas(file: UploadFile | None = File(None), texto: str = Form("")):
+    """Transcribe el recetario propio del cliente (foto de sus fichas o su hoja de cálculo).
+
+    Comparte esquema con /fichas-tecnicas a propósito: la salida es la misma ficha técnica,
+    lo que cambia es de dónde salen los números — acá los dicta el documento del cliente,
+    allá los estima el modelo."""
+    contenido_texto = texto.strip()
+    if file is None and not contenido_texto:
+        raise HTTPException(400, "Manda una foto del recetario o el texto de la hoja.")
+
+    if file is not None:
+        raw = await file.read()
+        _validate_upload(file, raw)
+        buf = io.BytesIO()
+        _read_upload(raw).save(buf, format="PNG")
+        contents = [types.Part.from_bytes(data=buf.getvalue(), mime_type="image/png"), RECETAS_PROMPT]
+    else:
+        if len(contenido_texto) > 60000:
+            raise HTTPException(400, "El recetario es demasiado largo. Cárgalo por partes.")
+        contents = [f"{RECETAS_PROMPT}\n\nEste es el recetario del cliente:\n\n{contenido_texto}"]
+
+    datos = _pedir_json(contents, FICHAS_SCHEMA, "leer el recetario")
+    return {"platos": _limpiar_fichas(datos.get("platos"))}

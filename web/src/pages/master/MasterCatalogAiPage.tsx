@@ -3,6 +3,7 @@ import { Plus, Sparkles, Trash2, Upload, X } from 'lucide-react';
 import { masterApi } from '@/api/client';
 import type { ReactNode } from 'react';
 import { TextureButton } from '@/components/ui/texture-button';
+import CargaPorPartes from './CargaPorPartes';
 
 /**
  * Carga asistida de catálogo (herramienta interna del equipo QuickTap).
@@ -391,7 +392,9 @@ export default function MasterCatalogAiPage() {
           </div>
         </Section>
 
-      <Section title="2. Carga la carta completa (foto del menú o Excel)">
+      <CargaPorPartes restaurantId={restaurantId} titulo="2. Cliente ya montado: cargarle solo lo que le falta" />
+
+      <Section title="3. Cliente nuevo: carga la carta completa (foto del menú o Excel)">
           <p className="text-sm font-light text-brand-950/50">
             Sube una <span className="font-medium">foto del menú impreso</span> o el{' '}
             <span className="font-medium">Excel del cliente tal como lo mandó</span> — no hace falta
@@ -445,7 +448,7 @@ export default function MasterCatalogAiPage() {
           )}
         </Section>
 
-      <Section title="3. O sube fotos de platos, uno por uno">
+      <Section title="4. O sube fotos de platos, uno por uno">
           <div className="flex flex-wrap items-center gap-2">
             <TextureButton
               type="button"

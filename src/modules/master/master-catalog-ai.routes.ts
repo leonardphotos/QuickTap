@@ -26,4 +26,13 @@ router.post('/:restaurantId/leer-carta', uploadCartaToMemory, masterCatalogAiCon
 router.post('/:restaurantId/fichas', masterCatalogAiController.fichas);
 router.post('/:restaurantId/confirmar', masterCatalogAiController.confirmar);
 
+// Carga por partes en un cliente que YA está montado: se le carga solo la pieza que le
+// falta (insumos, recetas) sin pisar lo que ya tiene. `estado` dice cuál es esa pieza.
+router.get('/:restaurantId/estado', masterCatalogAiController.estado);
+router.post('/:restaurantId/leer-insumos', uploadCartaToMemory, masterCatalogAiController.leerInsumos);
+router.post('/:restaurantId/confirmar-insumos', masterCatalogAiController.confirmarInsumos);
+router.post('/:restaurantId/fichas-catalogo', masterCatalogAiController.fichasCatalogo);
+router.post('/:restaurantId/leer-recetas', uploadCartaToMemory, masterCatalogAiController.leerRecetas);
+router.post('/:restaurantId/confirmar-recetas', masterCatalogAiController.confirmarRecetas);
+
 export default router;
