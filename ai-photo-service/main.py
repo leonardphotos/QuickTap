@@ -943,3 +943,101 @@ async def vincular_empaques(payload: dict = Body(...)):
             pares.append({"plato": p, "empaque": ""})
 
     return {"pares": pares}
+
+
+# ---------------------------------------------------------------------------
+#  Clasificar insumos ya transcritos
+#
+#  Cuando la hoja del cliente trae encabezados reconocibles, Node la lee entero
+#  con código: nombres, unidades, existencias y costos salen de las celdas, sin
+#  modelo de por medio y sin perder una sola fila. Lo único que no está escrito
+#  en ninguna celda es en qué rubro va cada insumo y cuál es un empaque, y eso
+#  es lo que se pregunta acá — sobre una lista de nombres pelados, que es una
+#  fracción de lo que costaba mandarle la hoja entera a transcribir.
+
+CLASIFICAR_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "insumos": {
+            "type": "ARRAY",
+            "items": {
+                "type": "OBJECT",
+                "properties": {
+                    "n": {"type": "STRING"},
+                    "c": {"type": "STRING"},
+                    "u": {"type": "STRING", "enum": ["kg", "lt", "unidad"]},
+                    "e": {"type": "STRING", "enum": ["ENVASE", "CAJA", "BOLSA"]},
+                },
+                "required": ["n", "c", "u"],
+            },
+        },
+    },
+    "required": ["insumos"],
+}
+
+CLASIFICAR_PROMPT = (
+    "Clasificas los insumos del almacén de un restaurante. Te paso una lista de nombres tal "
+    "como están en su inventario y devuelves, para CADA uno, un objeto con estas claves "
+    "cortas:\n\n"
+    "`n`: el nombre EXACTO tal como te lo pasaron, sin corregirlo ni cambiarle nada. Es lo que "
+    "usa el sistema para volver a pegar tu respuesta con su fila.\n"
+    "`c`: el rubro donde lo archivaría un almacén — Carnes, Pescados, Lácteos, Verduras, "
+    "Frutas, Abarrotes, Salsas, Congelados, Panadería, Bebidas, Licores, Desechables, "
+    "Empaques, Limpieza. Usa esos nombres, no inventes rubros nuevos salvo que ninguno sirva. "
+    "TODOS los insumos salen con rubro.\n"
+    "`u`: en qué se mide — 'kg' lo que se pesa, 'lt' los líquidos, 'unidad' lo que se cuenta. "
+    "Si te paso la unidad que ya trae su hoja, respétala; solo decide tú cuando venga vacía.\n"
+    "`e`: SOLO si es un empaque, o sea algo que se va con el pedido del cliente — bandejas, "
+    "cajas de pizza, bolsas, vasos, tapas, sorbetes, cubiertos desechables. 'ENVASE' para lo "
+    "que contiene la comida, 'CAJA' para cajas, 'BOLSA' para bolsas y lo que envuelve por "
+    "fuera. Si NO es empaque, no incluyas la clave. Los guantes, el papel film, el detergente "
+    "y las servilletas del salón no son empaque: son consumo del local.\n\n"
+    "Devuelve un objeto por CADA nombre de la lista, ninguno de más y ninguno de menos. No "
+    "agregues insumos, no los agrupes y no los renombres."
+)
+
+
+@app.post("/clasificar-insumos")
+async def clasificar_insumos(payload: dict = Body(...)):
+    """Rubro, unidad y empaque de una lista de insumos que Node ya leyó de la hoja."""
+    crudos = payload.get("insumos") or []
+    if not isinstance(crudos, list) or not crudos:
+        raise HTTPException(400, "Manda al menos un insumo.")
+    if len(crudos) > 200:
+        raise HTTPException(400, "Manda como máximo 200 insumos por llamada.")
+
+    lineas = []
+    validos = set()
+    for item in crudos:
+        nombre = (str(item.get("nombre")) if isinstance(item, dict) else str(item)).strip()[:120]
+        if not nombre or nombre in validos:
+            continue
+        validos.add(nombre)
+        unidad = str(item.get("unidad") or "").strip()[:20] if isinstance(item, dict) else ""
+        lineas.append(f"- {nombre}" + (f" [su hoja dice: {unidad}]" if unidad else ""))
+    if not lineas:
+        raise HTTPException(400, "Ninguno de los insumos tenía nombre.")
+
+    datos = _pedir_json(
+        [f"{CLASIFICAR_PROMPT}\n\nInsumos:\n" + "\n".join(lineas)],
+        CLASIFICAR_SCHEMA,
+        "clasificar los insumos",
+    )
+
+    salida = []
+    vistos = set()
+    for item in datos.get("insumos") or []:
+        nombre = str(item.get("n") or "").strip()
+        # Solo nombres que de verdad se mandaron: uno inventado se pegaría a ninguna fila y
+        # uno repetido pisaría la clasificación de la anterior.
+        if nombre not in validos or nombre in vistos:
+            continue
+        vistos.add(nombre)
+        salida.append({
+            "nombre": nombre,
+            "categoria": str(item.get("c") or "").strip()[:120],
+            "unidad": item.get("u") if item.get("u") in ("kg", "lt", "unidad") else "",
+            "tipoEmpaque": item.get("e") if item.get("e") in ("ENVASE", "CAJA", "BOLSA") else "",
+        })
+
+    return {"insumos": salida}

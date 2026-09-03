@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import ExcelJS from 'exceljs';
+import { cellNumber, cellText, detectHeaderRow, normalizeHeader, resolveColumns } from '../../utils/excel-import';
 import crypto from 'crypto';
 import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
@@ -464,6 +465,167 @@ async function leerListaConIA<T>(
   }
   return { filas, compactado, lotes: trozos.length };
 }
+
+/* ---------------------------------------------------------------------------------------
+ * Lectura de la hoja SIN IA
+ *
+ * Una hoja de inventario con encabezados reconocibles no necesita un modelo: dice
+ * "PRODUCTO | UND | EXISTENCIA | COSTO" en la primera fila y el resto es leer celdas. Pedirle
+ * eso a la IA costaba dos tercios del gasto de toda la carga y, peor, PERDÍA FILAS — de 171
+ * productos devolvía 155 en una corrida y 158 en otra, y no hay forma de saber cuáles faltan.
+ * El código no pierde ninguna, nunca, y tarda medio segundo.
+ *
+ * La IA se queda con lo que no está escrito en ninguna celda: en qué rubro va cada insumo y
+ * cuál es un empaque (ver `clasificar-insumos`), más el cruce contra lo que el cliente ya
+ * tiene. Y con la hoja entera cuando esta lectura no puede — una foto de la factura, o una
+ * planilla sin encabezados que reconocer.
+ * ------------------------------------------------------------------------------------- */
+
+/** Sinónimos de encabezado de una hoja de inventario. Mismo criterio que inventory-import. */
+const COLUMNAS_INVENTARIO = {
+  // "existencia" primero: una hoja de control semanal trae varias columnas de cantidad
+  // (inicial, entrada, salida, existencia) y la que vale es con la que se quedó el local.
+  quantity: ['existencia', 'existencias', 'stock final', 'cantidad final', 'cantidad', 'stock', 'inventario final'],
+  name: ['producto', 'insumo', 'nombre', 'descripcion', 'descripción', 'articulo', 'artículo', 'item', 'material'],
+  unit: ['und', 'unidad', 'unidad de medida', 'medida', 'um', 'u/m', 'presentacion', 'presentación'],
+  price: ['costo unitario', 'precio unitario', 'costo', 'precio', 'costo por unidad', 'valor unitario'],
+  minQuantity: ['cantidad minima', 'cantidad mínima', 'stock minimo', 'stock mínimo', 'minimo', 'mínimo', 'punto de reposicion'],
+  category: ['categoria', 'categoría', 'rubro', 'grupo', 'familia', 'linea', 'línea'],
+} as const;
+
+type ClaveColumna = keyof typeof COLUMNAS_INVENTARIO;
+
+/** Una fila de inventario leída de la hoja, todavía en las unidades que usa el cliente. */
+interface FilaHoja {
+  nombre: string;
+  unidadArchivo: string;
+  cantidadArchivo: number;
+  costoArchivo: number;
+  minimoArchivo: number;
+  categoria: string;
+  /** Cuántas celdas venían llenas: decide cuál gana cuando el insumo se repite entre hojas. */
+  completitud: number;
+}
+
+/** Filas que no son un insumo aunque estén en medio de la tabla. */
+const FILAS_BASURA = new Set([
+  'total',
+  'totales',
+  'total general',
+  'subtotal',
+  'suma',
+  'observaciones',
+  'nota',
+  'notas',
+]);
+
+/**
+ * Lee una hoja de inventario con código. Devuelve null si no se puede confiar en la lectura,
+ * y entonces la carga cae al camino de siempre (mandarle la hoja entera a la IA).
+ *
+ * Se exige encontrar la columna del NOMBRE y al menos una más: con solo nombres no hay
+ * inventario que cargar, y adivinar el resto sería exactamente el error que este camino
+ * intenta evitar.
+ */
+async function leerInventarioDeHoja(
+  buffer: Buffer,
+): Promise<{ filas: FilaHoja[]; hojas: number; filasLeidas: number } | null> {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
+
+  const spec = COLUMNAS_INVENTARIO as unknown as Record<ClaveColumna, string[]>;
+  const alias = new Set(spec.name.map((a) => normalizeHeader(a)));
+  const porNombre = new Map<string, FilaHoja>();
+  const orden: string[] = [];
+  let hojasLeidas = 0;
+  let filasLeidas = 0;
+
+  for (const sheet of workbook.worksheets) {
+    const headerRow = detectHeaderRow(sheet, spec);
+    const { columns } = resolveColumns(sheet, spec, headerRow);
+    if (!columns.name || Object.keys(columns).length < 2) continue;
+    hojasLeidas += 1;
+
+    sheet.eachRow((row, numero) => {
+      if (numero <= headerRow) return;
+      const nombre = cellText(row, columns.name);
+      if (!nombre) return;
+      const k = clave(nombre);
+      // Una hoja de control semanal repite el encabezado en cada bloque, y cierra con la fila
+      // de totales. Ninguna de las dos es un insumo.
+      if (alias.has(normalizeHeader(nombre)) || FILAS_BASURA.has(k)) return;
+      filasLeidas += 1;
+
+      const cantidad = cellNumber(row, columns.quantity);
+      const costo = cellNumber(row, columns.price);
+      const minimo = cellNumber(row, columns.minQuantity);
+      const unidad = cellText(row, columns.unit);
+      const categoria = cellText(row, columns.category);
+
+      const fila: FilaHoja = {
+        nombre,
+        unidadArchivo: unidad,
+        cantidadArchivo: numeroPositivo(cantidad),
+        costoArchivo: numeroPositivo(costo),
+        minimoArchivo: numeroPositivo(minimo),
+        categoria,
+        completitud: [cantidad, costo, minimo, unidad || undefined, categoria || undefined].filter(
+          (v) => v !== undefined && v !== null,
+        ).length,
+      };
+
+      // El mismo insumo aparece en las 18 hojas semanales. Gana la fila más completa —la
+      // semana en que sí se compró trae unidad y costo, las otras dejan media fila vacía— y
+      // se rellenan de las demás los datos que a esa le falten.
+      const previo = porNombre.get(k);
+      if (!previo) {
+        porNombre.set(k, fila);
+        orden.push(k);
+        return;
+      }
+      const gana = fila.completitud > previo.completitud ? fila : previo;
+      const pierde = gana === fila ? previo : fila;
+      if (gana.costoArchivo <= 0 && pierde.costoArchivo > 0) gana.costoArchivo = pierde.costoArchivo;
+      if (gana.cantidadArchivo <= 0 && pierde.cantidadArchivo > 0) gana.cantidadArchivo = pierde.cantidadArchivo;
+      if (gana.minimoArchivo <= 0 && pierde.minimoArchivo > 0) gana.minimoArchivo = pierde.minimoArchivo;
+      if (!gana.unidadArchivo && pierde.unidadArchivo) gana.unidadArchivo = pierde.unidadArchivo;
+      if (!gana.categoria && pierde.categoria) gana.categoria = pierde.categoria;
+      porNombre.set(k, gana);
+    });
+  }
+
+  if (hojasLeidas === 0 || orden.length === 0) return null;
+  return { filas: orden.map((k) => porNombre.get(k)!), hojas: hojasLeidas, filasLeidas };
+}
+
+/**
+ * Le pregunta a la IA lo único que la hoja no dice: rubro, unidad (cuando la celda vino
+ * vacía) y si es un empaque. Va sobre nombres pelados, así que cuesta una fracción de lo que
+ * costaba mandarle la hoja entera a transcribir.
+ */
+async function clasificarInsumos(filas: FilaHoja[]) {
+  const clasificacion = new Map<string, { categoria: string; unidad: string; tipoEmpaque: string }>();
+  for (let i = 0; i < filas.length; i += INSUMOS_POR_LOTE_CLASIFICACION) {
+    const lote = filas.slice(i, i + INSUMOS_POR_LOTE_CLASIFICACION);
+    try {
+      const res = await llamarServicioIAJson('clasificar-insumos', {
+        insumos: lote.map((f) => ({ nombre: f.nombre, unidad: f.unidadArchivo })),
+      });
+      const { insumos } = (await res.json()) as {
+        insumos?: { nombre: string; categoria: string; unidad: string; tipoEmpaque: string }[];
+      };
+      for (const c of insumos ?? []) clasificacion.set(clave(c.nombre), c);
+    } catch {
+      // Sin clasificación los insumos entran igual, sin rubro y sin marca de empaque: son dos
+      // cosas que el operador arregla en la pantalla. Perder la lectura entera de una hoja que
+      // ya está bien leída por no poder clasificarla sería mucho peor.
+    }
+  }
+  return clasificacion;
+}
+
+/** Cuántos nombres se clasifican por llamada. */
+const INSUMOS_POR_LOTE_CLASIFICACION = 100;
 
 /** Cuántos nombres nuevos se le pasan a la IA por llamada al cruzarlos con el inventario. */
 const NOMBRES_POR_LOTE = 60;
@@ -1000,21 +1162,78 @@ export const masterCatalogAiService = {
   async leerInsumos(
     restaurantId: string,
     file: Express.Multer.File,
-  ): Promise<{ insumos: InsumoLeido[]; lectura: { filas: number; productos: number; lotes: number } }> {
+  ): Promise<{
+    insumos: InsumoLeido[];
+    lectura: { filas: number; productos: number; lotes: number; porCodigo: boolean };
+  }> {
     await restauranteOThrow(restaurantId);
     const inventarioDe = await resolveInventoryScopeById(restaurantId);
 
-    const lectura = await leerListaConIA<{
-      nombre: string;
-      unidadArchivo: string;
-      cantidadArchivo: number;
-      costoArchivo: number;
-      minimoArchivo: number;
-      unidad: string;
-      categoria: string;
-      esEmpaque: boolean;
-      tipoEmpaque: string;
-    }>('leer-insumos', file, 'insumos', { errorVacio: 'La hoja está vacía o no se pudo leer.', compactar: true });
+    const esExcel =
+      file.mimetype.includes('spreadsheet') ||
+      file.mimetype.includes('excel') ||
+      file.originalname.toLowerCase().endsWith('.xlsx');
+
+    // Camino rápido: la hoja tiene encabezados que se reconocen, así que la lee el código y a
+    // la IA solo se le pregunta el rubro y los empaques. Si no se puede confiar en esa
+    // lectura, `leerInventarioDeHoja` devuelve null y se cae al camino de siempre.
+    const hoja = esExcel ? await leerInventarioDeHoja(file.buffer) : null;
+    let lectura: {
+      filas: {
+        nombre: string;
+        unidadArchivo: string;
+        cantidadArchivo: number;
+        costoArchivo: number;
+        minimoArchivo: number;
+        unidad: string;
+        categoria: string;
+        esEmpaque: boolean;
+        tipoEmpaque: string;
+      }[];
+      compactado: { filas: number; productos: number } | null;
+      lotes: number;
+      porCodigo: boolean;
+    };
+
+    if (hoja) {
+      const clasificacion = await clasificarInsumos(hoja.filas);
+      lectura = {
+        filas: hoja.filas.map((f) => {
+          const c = clasificacion.get(clave(f.nombre));
+          return {
+            nombre: f.nombre,
+            unidadArchivo: f.unidadArchivo,
+            cantidadArchivo: f.cantidadArchivo,
+            costoArchivo: f.costoArchivo,
+            minimoArchivo: f.minimoArchivo,
+            // La unidad que decide la IA es solo el respaldo para cuando la celda vino vacía:
+            // aUnidadBase usa siempre la del archivo si la reconoce.
+            unidad: c?.unidad || 'unidad',
+            // El rubro de la hoja manda sobre el que deduce la IA: si el cliente ya archivó
+            // sus insumos, esa es su clasificación y no hay por qué inventarle otra.
+            categoria: f.categoria || c?.categoria || '',
+            esEmpaque: !!c?.tipoEmpaque,
+            tipoEmpaque: c?.tipoEmpaque ?? '',
+          };
+        }),
+        compactado: { filas: hoja.filasLeidas, productos: hoja.filas.length },
+        lotes: Math.ceil(hoja.filas.length / INSUMOS_POR_LOTE_CLASIFICACION),
+        porCodigo: true,
+      };
+    } else {
+      const conIA = await leerListaConIA<{
+        nombre: string;
+        unidadArchivo: string;
+        cantidadArchivo: number;
+        costoArchivo: number;
+        minimoArchivo: number;
+        unidad: string;
+        categoria: string;
+        esEmpaque: boolean;
+        tipoEmpaque: string;
+      }>('leer-insumos', file, 'insumos', { errorVacio: 'La hoja está vacía o no se pudo leer.', compactar: true });
+      lectura = { ...conIA, porCodigo: false };
+    }
 
     const leidos: InsumoLeido[] = [];
     const porNombreLeido = new Map<string, InsumoLeido>();
@@ -1191,6 +1410,8 @@ export const masterCatalogAiService = {
         filas: lectura.compactado?.filas ?? leidos.length,
         productos: lectura.compactado?.productos ?? leidos.length,
         lotes: lectura.lotes,
+        // Por dónde entró: leída con código (rápida y sin perder filas) o transcrita por la IA.
+        porCodigo: lectura.porCodigo,
       },
     };
   },
