@@ -51,6 +51,7 @@ export interface AuthRestaurant {
   /** Activa la ventana "Casa Matriz" (segundo inventario para distribuir a las sedes). */
   casaMatrizEnabled: boolean;
   serviceChargeEnabled: boolean;
+  serviceChargeChannels: Array<'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR' | 'EXPRESS'>;
   /** Interruptor del vínculo modificador -> insumo (botón en Inventario). */
   modifierInventoryLinkEnabled: boolean;
   /** Bloquear pedidos cuando no queda stock del producto. */

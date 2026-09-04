@@ -114,6 +114,7 @@ export const updateRestaurantSchema = z.object({
   // el equipo QuickTap desde el Master Dashboard (ver master-restaurants.dto.ts), y solo si
   // el restaurante ya tiene su RIF registrado.
   serviceChargeEnabled: z.boolean().optional(),
+  serviceChargeChannels: z.array(z.enum(['DINE_IN', 'DELIVERY', 'PICKUP', 'BAR', 'EXPRESS'])).optional(),
   // Interruptor del vínculo modificador -> insumo (botón en Inventario).
   modifierInventoryLinkEnabled: z.boolean().optional(),
   // Bloquear pedidos cuando no queda stock (ver assertHayStock en order.service.ts).

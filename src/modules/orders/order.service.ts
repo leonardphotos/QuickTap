@@ -451,9 +451,11 @@ const IVA_RATE = 0.16;
 
 function calculateCharges(
   subtotalBase: Prisma.Decimal,
-  restaurant: { serviceChargeEnabled: boolean; ivaEnabled: boolean },
+  restaurant: { serviceChargeEnabled: boolean; serviceChargeChannels: string[]; ivaEnabled: boolean },
+  channel: OrderChannel,
 ) {
-  const serviceChargeBase = restaurant.serviceChargeEnabled ? round2(subtotalBase.mul(SERVICE_CHARGE_RATE)) : toDecimal(0);
+  const appliesServiceCharge = restaurant.serviceChargeEnabled && restaurant.serviceChargeChannels.includes(channel);
+  const serviceChargeBase = appliesServiceCharge ? round2(subtotalBase.mul(SERVICE_CHARGE_RATE)) : toDecimal(0);
   const ivaBase = restaurant.ivaEnabled ? round2(subtotalBase.mul(IVA_RATE)) : toDecimal(0);
   const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase));
   return { serviceChargeBase, ivaBase, totalBase };
@@ -1372,6 +1374,7 @@ export const orderService = {
             orderingEnabled: true,
             requireOrderConfirmation: true,
             serviceChargeEnabled: true,
+            serviceChargeChannels: true,
             ivaEnabled: true,
           },
         },
@@ -1395,7 +1398,7 @@ export const orderService = {
     await assertHayStock(restaurantId, input.items);
     const lines = await priceCart(restaurantId, input.items);
     const subtotalBase = sumSubtotal(lines);
-    const { serviceChargeBase, ivaBase, totalBase } = calculateCharges(subtotalBase, table.restaurant);
+    const { serviceChargeBase, ivaBase, totalBase } = calculateCharges(subtotalBase, table.restaurant, 'DINE_IN');
     const totalBs = baseToBs(totalBase, rate.rateBs);
 
     const order = await prisma.$transaction(async (tx) => {
@@ -1535,6 +1538,7 @@ export const orderService = {
       select: {
         baseCurrency: true,
         serviceChargeEnabled: true,
+        serviceChargeChannels: true,
         ivaEnabled: true,
         deliveryPricingMode: true,
         deliveryOriginLat: true,
@@ -1569,7 +1573,7 @@ export const orderService = {
     await assertHayStock(restaurantId, input.items);
     const lines = await priceCart(restaurantId, input.items);
     const subtotalBase = sumSubtotal(lines);
-    const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant);
+    const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant, input.channel);
 
     const customerPoint =
       input.channel === 'DELIVERY' && input.customerLat != null && input.customerLng != null
@@ -1814,6 +1818,7 @@ export const orderService = {
         isActive: true,
         orderingEnabled: true,
         serviceChargeEnabled: true,
+        serviceChargeChannels: true,
         ivaEnabled: true,
         deliveryPricingMode: true,
         deliveryOriginLat: true,
@@ -1841,7 +1846,7 @@ export const orderService = {
     await assertHayStock(restaurantId, input.items);
     const lines = await priceCart(restaurantId, input.items);
     const subtotalBase = sumSubtotal(lines);
-    const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant);
+    const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant, input.mode);
 
     const customerPoint =
       input.mode === 'DELIVERY' && input.customer.lat != null && input.customer.lng != null
@@ -2101,9 +2106,9 @@ export const orderService = {
     );
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
-      select: { serviceChargeEnabled: true, ivaEnabled: true },
+      select: { serviceChargeEnabled: true, serviceChargeChannels: true, ivaEnabled: true },
     });
-    const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant!);
+    const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant!, order.channel);
     const envaseFeeBase = await computeEnvaseFee(restaurantId, order.channel, remaining);
     const totalBase = round2(subtotalBase.add(serviceChargeBase).add(ivaBase).add(order.deliveryFeeBase).add(envaseFeeBase));
 
@@ -2222,9 +2227,9 @@ export const orderService = {
     );
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
-      select: { serviceChargeEnabled: true, ivaEnabled: true },
+      select: { serviceChargeEnabled: true, serviceChargeChannels: true, ivaEnabled: true },
     });
-    const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant!);
+    const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant!, order.channel);
     const envaseFeeBase = await computeEnvaseFee(restaurantId, order.channel, [
       ...order.items,
       { productId: line.productId, quantity: line.quantity },
@@ -2328,9 +2333,9 @@ export const orderService = {
     );
     const restaurant = await prisma.restaurant.findUnique({
       where: { id: restaurantId },
-      select: { serviceChargeEnabled: true, ivaEnabled: true },
+      select: { serviceChargeEnabled: true, serviceChargeChannels: true, ivaEnabled: true },
     });
-    const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant!);
+    const { serviceChargeBase, ivaBase } = calculateCharges(subtotalBase, restaurant!, order.channel);
     const envaseFeeBase = await computeEnvaseFee(restaurantId, order.channel, [
       ...order.items,
       ...lines.map((l) => ({ productId: l.productId, quantity: l.quantity })),

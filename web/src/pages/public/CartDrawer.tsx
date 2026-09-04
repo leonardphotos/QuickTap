@@ -188,7 +188,11 @@ export default function CartDrawer({
       .finally(() => setQuotingFee(false));
   }, [locationCoords, mode, restaurant.slug]);
 
-  const serviceChargeBase = restaurant.serviceChargeEnabled ? subtotalBase * 0.1 : 0;
+  // Mesa viene del QR; sin QR el cliente elige Delivery o Pickup. El backend repite esta
+  // validación y es quien congela el monto final del pedido.
+  const orderChannel = qrToken ? 'DINE_IN' : mode;
+  const appliesServiceCharge = restaurant.serviceChargeEnabled && (restaurant.serviceChargeChannels?.includes(orderChannel) ?? true);
+  const serviceChargeBase = appliesServiceCharge ? subtotalBase * 0.1 : 0;
   const ivaBase = restaurant.ivaEnabled ? subtotalBase * 0.16 : 0;
   // Envase (envase/caja/bolsa por producto): el servidor lo cobra en Delivery y Pickup (nunca en
   // mesa, qrToken != null), así que el checkout tiene que mostrarlo o el cliente ve menos de lo
@@ -197,7 +201,7 @@ export default function CartDrawer({
     ? 0
     : cart.reduce((acc, l) => acc + unitPackagingFee(l.product) * l.quantity, 0);
   const totalBase = subtotalBase + serviceChargeBase + ivaBase + (deliveryFeeBase ?? 0) + envaseFeeBase;
-  const hasCharges = restaurant.serviceChargeEnabled || restaurant.ivaEnabled || Boolean(deliveryFeeBase) || envaseFeeBase > 0;
+  const hasCharges = appliesServiceCharge || restaurant.ivaEnabled || Boolean(deliveryFeeBase) || envaseFeeBase > 0;
 
   const tipBase = tipPercent != null ? round2(subtotalBase * (tipPercent / 100)) : Number(tipCustom) || 0;
 
@@ -404,7 +408,7 @@ export default function CartDrawer({
           })),
           totals: [
             { label: 'Subtotal', value: publicPriceLabel(subtotalBase, restaurant).primary },
-            ...(restaurant.serviceChargeEnabled
+            ...(appliesServiceCharge
               ? [{ label: 'Servicio', value: publicPriceLabel(serviceChargeBase, restaurant).primary }]
               : []),
             ...(restaurant.ivaEnabled
@@ -593,7 +597,7 @@ export default function CartDrawer({
                       <span>Subtotal</span>
                       <span>{publicPriceLabel(subtotalBase, restaurant).primary}</span>
                     </div>
-                    {restaurant.serviceChargeEnabled && (
+                    {appliesServiceCharge && (
                       <div className="flex justify-between">
                         <span>Servicio (10%)</span>
                         <span>{publicPriceLabel(serviceChargeBase, restaurant).primary}</span>

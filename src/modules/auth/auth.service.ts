@@ -81,6 +81,7 @@ const RESTAURANT_SELECT = {
   shopBsSaleRate: true,
   theme: true,
   serviceChargeEnabled: true,
+  serviceChargeChannels: true,
   modifierInventoryLinkEnabled: true,
   blockOrdersWithoutStock: true,
   lockScreenEnabled: true,
@@ -141,6 +142,7 @@ type RestaurantRow = {
   shopBsSaleRate: Prisma.Decimal | null;
   theme: unknown;
   serviceChargeEnabled: boolean;
+  serviceChargeChannels: string[];
   modifierInventoryLinkEnabled: boolean;
   blockOrdersWithoutStock: boolean;
   lockScreenEnabled: boolean;
@@ -227,6 +229,7 @@ async function serializeRestaurant(restaurant: RestaurantRow) {
     inventoryMode: restaurant.inventoryMode,
     casaMatrizEnabled: restaurant.casaMatrizEnabled,
     serviceChargeEnabled: restaurant.serviceChargeEnabled,
+    serviceChargeChannels: restaurant.serviceChargeChannels,
     modifierInventoryLinkEnabled: restaurant.modifierInventoryLinkEnabled,
     blockOrdersWithoutStock: restaurant.blockOrdersWithoutStock,
     lockScreenEnabled: restaurant.lockScreenEnabled,

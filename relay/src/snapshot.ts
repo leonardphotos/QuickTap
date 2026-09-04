@@ -19,6 +19,7 @@ export interface CatalogSnapshot {
     name: string;
     baseCurrency: 'USD' | 'EUR';
     serviceChargeEnabled: boolean;
+    serviceChargeChannels: string[];
     ivaEnabled: boolean;
     exchangeRate: string;
   };
@@ -98,6 +99,7 @@ export async function applySnapshot(snap: CatalogSnapshot): Promise<{ appliedAt:
         name: snap.restaurant.name,
         baseCurrency: snap.restaurant.baseCurrency,
         serviceChargeEnabled: snap.restaurant.serviceChargeEnabled,
+        serviceChargeChannels: snap.restaurant.serviceChargeChannels,
         ivaEnabled: snap.restaurant.ivaEnabled,
         exchangeRate: snap.restaurant.exchangeRate,
         syncedAt: new Date(),
@@ -106,6 +108,7 @@ export async function applySnapshot(snap: CatalogSnapshot): Promise<{ appliedAt:
         name: snap.restaurant.name,
         baseCurrency: snap.restaurant.baseCurrency,
         serviceChargeEnabled: snap.restaurant.serviceChargeEnabled,
+        serviceChargeChannels: snap.restaurant.serviceChargeChannels,
         ivaEnabled: snap.restaurant.ivaEnabled,
         exchangeRate: snap.restaurant.exchangeRate,
         syncedAt: new Date(),

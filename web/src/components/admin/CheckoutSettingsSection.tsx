@@ -4,6 +4,16 @@ import { useAuth } from '@/context/AuthContext';
 import { TextureButton } from '@/components/ui/texture-button';
 import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } from '@/components/ui/texture-card';
 
+const SERVICE_CHANNELS = [
+  { value: 'DINE_IN', label: 'Mesa' },
+  { value: 'DELIVERY', label: 'Delivery' },
+  { value: 'PICKUP', label: 'Pick up' },
+  { value: 'BAR', label: 'Barra' },
+  { value: 'EXPRESS', label: 'Express' },
+] as const;
+type ServiceChannel = (typeof SERVICE_CHANNELS)[number]['value'];
+const DEFAULT_SERVICE_CHANNELS: ServiceChannel[] = SERVICE_CHANNELS.map((channel) => channel.value);
+
 function Toggle({
   checked,
   onChange,
@@ -41,6 +51,11 @@ export function CheckoutSettingsSection() {
   const { restaurant, refresh } = useAuth();
   const [orderingEnabled, setOrderingEnabled] = useState(restaurant?.orderingEnabled ?? true);
   const [serviceChargeEnabled, setServiceChargeEnabled] = useState(restaurant?.serviceChargeEnabled ?? false);
+  // Las cuentas existentes recibidas de una versión anterior no traen esta propiedad hasta que
+  // se refresque la sesión; en ese caso asumimos todos para no mostrar una configuración vacía.
+  const [serviceChargeChannels, setServiceChargeChannels] = useState<ServiceChannel[]>(
+    restaurant?.serviceChargeChannels?.length ? restaurant.serviceChargeChannels : DEFAULT_SERVICE_CHANNELS,
+  );
   const [rif, setRif] = useState(restaurant?.rif ?? '');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -51,7 +66,7 @@ export function CheckoutSettingsSection() {
     setError(null);
     setMessage(null);
     try {
-      await api.patch('/restaurant', { orderingEnabled, serviceChargeEnabled, rif: rif.trim() });
+      await api.patch('/restaurant', { orderingEnabled, serviceChargeEnabled, serviceChargeChannels, rif: rif.trim() });
       await refresh();
       setMessage('Configuración guardada.');
     } catch (err: any) {
@@ -80,8 +95,35 @@ export function CheckoutSettingsSection() {
           checked={serviceChargeEnabled}
           onChange={setServiceChargeEnabled}
           label="Cargo por servicio (10%)"
-          description="Se suma automáticamente sobre el subtotal de cada pedido."
+          description="Se suma automáticamente sobre el subtotal, solo en los canales que selecciones."
         />
+        {serviceChargeEnabled && (
+          <div className="py-3">
+            <p className="text-sm font-medium text-brand-950">Aplicar el 10% en</p>
+            <p className="text-xs text-brand-950/50 font-light mt-0.5 mb-2">
+              Selecciona los tipos de pedido que deben llevar cargo por servicio.
+            </p>
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              {SERVICE_CHANNELS.map((channel) => (
+                <label key={channel.value} className="flex items-center gap-1.5 text-sm text-brand-950/75 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={serviceChargeChannels.includes(channel.value)}
+                    onChange={(event) =>
+                      setServiceChargeChannels((current) =>
+                        event.target.checked
+                          ? [...current, channel.value]
+                          : current.filter((value) => value !== channel.value),
+                      )
+                    }
+                    className="rounded border-brand-950/30 text-brand-500 focus:ring-brand-400"
+                  />
+                  {channel.label}
+                </label>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="flex items-start justify-between gap-4 py-3">
           <div>

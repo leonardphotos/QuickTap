@@ -183,9 +183,10 @@ const IVA_RATE = 0.16;
 
 export function calculateCharges(
   subtotalBase: Prisma.Decimal,
-  restaurant: { serviceChargeEnabled: boolean; ivaEnabled: boolean },
+  restaurant: { serviceChargeEnabled: boolean; serviceChargeChannels: string[]; ivaEnabled: boolean },
+  channel: string,
 ) {
-  const serviceChargeBase = restaurant.serviceChargeEnabled
+  const serviceChargeBase = restaurant.serviceChargeEnabled && restaurant.serviceChargeChannels.includes(channel)
     ? round2(subtotalBase.mul(SERVICE_CHARGE_RATE))
     : toDecimal(0);
   const ivaBase = restaurant.ivaEnabled ? round2(subtotalBase.mul(IVA_RATE)) : toDecimal(0);

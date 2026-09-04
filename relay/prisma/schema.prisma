@@ -56,6 +56,7 @@ model Restaurant {
   name                 String
   baseCurrency         Currency @default(USD)
   serviceChargeEnabled Boolean  @default(false)
+  serviceChargeChannels String[] @default(["DINE_IN", "DELIVERY", "PICKUP", "BAR", "EXPRESS"])
   ivaEnabled           Boolean  @default(false)
   /// Última tasa conocida. Si el corte se alarga, se sigue usando esta —
   /// el pedido congela la que tenía al momento, igual que en producción.

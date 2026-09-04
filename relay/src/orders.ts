@@ -65,7 +65,7 @@ export async function createOfflineOrder(restaurantId: string, input: CreateOffl
   }
 
   const subtotalBase = sumSubtotal(lines);
-  const { serviceChargeBase, ivaBase, totalBase } = calculateCharges(subtotalBase, restaurant);
+  const { serviceChargeBase, ivaBase, totalBase } = calculateCharges(subtotalBase, restaurant, 'DINE_IN');
   const totalBs = baseToBs(totalBase, restaurant.exchangeRate);
 
   return db.$transaction(async (tx) => {

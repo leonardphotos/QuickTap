@@ -116,6 +116,8 @@ export interface Restaurant {
   /** Si es false, la tablet de la cancha deja de ofrecer "Pagar" (solo detalle de cuenta). */
   clubTabletPaymentsEnabled: boolean;
   serviceChargeEnabled: boolean;
+  /** Canales en los que se suma el cargo por servicio del 10%. */
+  serviceChargeChannels?: Array<'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR' | 'EXPRESS'>;
   /** Interruptor del vínculo modificador -> insumo (botón en Inventario). */
   modifierInventoryLinkEnabled: boolean;
   ivaEnabled: boolean;

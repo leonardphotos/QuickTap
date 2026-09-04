@@ -497,6 +497,8 @@ model Restaurant {
   // Arranca en `true` porque el bloqueo ya existía antes de este interruptor.
   lockScreenEnabled    Boolean @default(true)
   serviceChargeEnabled Boolean @default(false) // 10% de servicio
+  // Canales donde se cobra el 10%. Por defecto conserva el comportamiento histórico: todos.
+  serviceChargeChannels String[] @default(["DINE_IN", "DELIVERY", "PICKUP", "BAR", "EXPRESS"])
   // 16% de IVA. Solo lo activa el equipo QuickTap desde el Master Dashboard (no autoservicio
   // del restaurante), y solo si ya tiene `rif` registrado — ver master-restaurants.service.ts.
   ivaEnabled           Boolean @default(false)

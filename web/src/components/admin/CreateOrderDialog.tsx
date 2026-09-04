@@ -284,7 +284,10 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
 
   const totalItems = lines.reduce((acc, l) => acc + l.quantity, 0);
   const subtotalBase = lines.reduce((acc, l) => acc + cartLineUnitPrice(l) * l.quantity, 0);
-  const serviceChargeBase = restaurant?.serviceChargeEnabled ? subtotalBase * 0.1 : 0;
+  // Si la sesión aún no recibió la lista (pestaña abierta antes de esta mejora), conserva el
+  // comportamiento histórico: el 10% aplica en todos los canales hasta refrescar.
+  const appliesServiceCharge = restaurant?.serviceChargeEnabled && (restaurant.serviceChargeChannels?.includes(channel) ?? true);
+  const serviceChargeBase = appliesServiceCharge ? subtotalBase * 0.1 : 0;
   const ivaBase = restaurant?.ivaEnabled ? subtotalBase * 0.16 : 0;
 
   // El envío que se va a cobrar: el escrito a mano si lo hay, si no la cotización automática.
@@ -550,7 +553,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
         <span>Subtotal</span>
         <span>{formatBase(subtotalBase, symbol)}</span>
       </div>
-      {restaurant?.serviceChargeEnabled && (
+      {appliesServiceCharge && (
         <div className="flex justify-between text-[12.5px] text-brand-950/60">
           <span>Servicio (10%)</span>
           <span>{formatBase(serviceChargeBase, symbol)}</span>
