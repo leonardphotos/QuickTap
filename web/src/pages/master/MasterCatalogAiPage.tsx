@@ -4,6 +4,7 @@ import { AI_TIMEOUT_MS, masterApi } from '@/api/client';
 import type { ReactNode } from 'react';
 import { TextureButton } from '@/components/ui/texture-button';
 import CargaPorPartes from './CargaPorPartes';
+import BuzonArchivos from './BuzonArchivos';
 
 /**
  * Carga asistida de catálogo (herramienta interna del equipo QuickTap).
@@ -396,9 +397,18 @@ export default function MasterCatalogAiPage() {
           </div>
         </Section>
 
-      <CargaPorPartes restaurantId={restaurantId} titulo="2. Cliente ya montado: cargarle solo lo que le falta" />
+      {restaurantId && (
+        <BuzonArchivos
+          restaurantId={restaurantId}
+          onError={setError}
+          onAviso={setResultado}
+          onCargado={async () => {}}
+        />
+      )}
 
-      <Section title="3. Cliente nuevo: carga la carta completa (foto del menú o Excel)">
+      <CargaPorPartes restaurantId={restaurantId} titulo="3. Cliente ya montado: cargarle solo lo que le falta" />
+
+      <Section title="4. Cliente nuevo: carga la carta completa (foto del menú o Excel)">
           <p className="text-sm font-light text-brand-950/50">
             Sube una <span className="font-medium">foto del menú impreso</span> o el{' '}
             <span className="font-medium">Excel del cliente tal como lo mandó</span> — no hace falta
@@ -452,7 +462,7 @@ export default function MasterCatalogAiPage() {
           )}
         </Section>
 
-      <Section title="4. O sube fotos de platos, uno por uno">
+      <Section title="5. O sube fotos de platos, uno por uno">
           <div className="flex flex-wrap items-center gap-2">
             <TextureButton
               type="button"

@@ -220,6 +220,26 @@ export const uploadCartaToMemory = multer({
   },
 }).single('file');
 
+/**
+ * Buzón del panel maestro: varios .xlsx de una vez.
+ *
+ * Solo hojas de cálculo, a diferencia de `uploadCartaToMemory` (que también acepta la foto de
+ * un menú): acá se identifica qué es cada archivo leyendo sus encabezados, y una foto no tiene
+ * encabezados que leer. El tope de 10 es de cordura — un restaurante manda su carpeta entera,
+ * no cincuenta archivos.
+ */
+export const uploadVariasHojasToMemory = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 15 * 1024 * 1024, files: 10 },
+  fileFilter: (_req, file, cb) => {
+    if (!SPREADSHEET_MIME.has(file.mimetype) && !file.originalname.toLowerCase().endsWith('.xlsx')) {
+      cb(badRequest(`"${file.originalname}" no es un .xlsx. Los .xls viejos y los .csv hay que reguardarlos como .xlsx.`));
+      return;
+    }
+    cb(null, true);
+  },
+}).array('files', 10);
+
 export const uploadSpreadsheet = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },

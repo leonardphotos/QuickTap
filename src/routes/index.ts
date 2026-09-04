@@ -41,6 +41,7 @@ import masterAdminsRoutes from '../modules/master/master-admins.routes';
 import masterOlaclickImportRoutes from '../modules/master/master-olaclick-import.routes';
 import masterCatalogAiRoutes from '../modules/master/master-catalog-ai.routes';
 import masterAiUsageRoutes from '../modules/master/master-ai-usage.routes';
+import masterInboxRoutes from '../modules/master/master-inbox.routes';
 import masterWhatsappRoutes from '../modules/master-whatsapp/master-whatsapp.routes';
 import whatsappLinkRoutes from '../modules/whatsapp-link/whatsapp-link.routes';
 import { masterWhatsappLinkRouter, waWebhookRouter } from '../modules/whatsapp-link/whatsapp-link.master-routes';
@@ -226,6 +227,8 @@ router.use('/master/olaclick-import', masterOlaclickImportRoutes);
 router.use('/master/catalog-ai', masterCatalogAiRoutes);
 // Cuánto está costando Gemini: la cuenta de luz de la plataforma, no de un inquilino.
 router.use('/master/ai-usage', masterAiUsageRoutes);
+// Buzón: se sueltan todos los Excel del cliente y el sistema identifica qué es cada uno.
+router.use('/master/inbox', masterInboxRoutes);
 router.use('/master/whatsapp', masterWhatsappRoutes);
 // WhatsApp vinculado (Evolution): la instancia de cada negocio y la de la plataforma.
 router.use('/whatsapp-link', whatsappLinkRoutes);
