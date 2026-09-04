@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Menu, PackageX, PanelLeftClose, Plus, Share2 } from 'lucide-react';
+import { Menu, PackageX, PanelLeftClose, Plus, RefreshCw, Share2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useVersionCheck } from '@/hooks/useVersionCheck';
 import { ROLE_LABELS } from '@/utils/roles';
 import { PLAN_LABELS, type AdminNavLink } from '@/pages/admin/nav-links';
 import type { LowStockItem } from '@/hooks/useLowStockItems';
@@ -38,6 +39,7 @@ export function AdminSidebar({
 }: AdminSidebarProps) {
   const { user, restaurant } = useAuth();
   const { pathname } = useLocation();
+  const hasUpdate = useVersionCheck();
 
   if (!restaurant) return null;
 
@@ -126,6 +128,20 @@ export function AdminSidebar({
           className="flex items-center justify-center h-9 w-9 rounded-full bg-white/[0.06] hover:bg-white/[0.12] transition-colors"
         >
           <Share2 className="h-4 w-4 text-white/70" />
+        </button>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          aria-label={hasUpdate ? 'Nueva actualización disponible. Actualizar aplicación' : 'Actualizar aplicación'}
+          title={hasUpdate ? 'Nueva actualización disponible — actualizar' : 'Actualizar aplicación'}
+          className={`relative flex items-center justify-center h-9 w-9 rounded-full transition-colors ${
+            hasUpdate ? 'bg-brand-500 hover:bg-brand-400' : 'bg-white/[0.06] hover:bg-white/[0.12]'
+          }`}
+        >
+          <RefreshCw className="h-4 w-4 text-white" />
+          {hasUpdate && (
+            <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-amber-300 ring-2 ring-brand-900 animate-pulse" />
+          )}
         </button>
         <button
           type="button"
