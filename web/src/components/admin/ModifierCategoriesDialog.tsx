@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import type { CSSProperties } from 'react';
 import {
   ChevronRight,
   ChevronDown,
@@ -8,11 +9,16 @@ import {
   Copy,
   Eye,
   EyeOff,
+  GripVertical,
   MoreVertical,
   Plus,
   Search,
   Trash2,
 } from 'lucide-react';
+import { DndContext, PointerSensor, closestCenter, useSensor, useSensors } from '@dnd-kit/core';
+import type { DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, arrayMove, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import { api } from '@/api/client';
 import { useAuth } from '@/context/AuthContext';
 import { formatBaseQuantity, subUnitsFor, UNIT_LABELS } from '@/utils/inventoryUnits';
@@ -278,6 +284,9 @@ function CategoryEditor({
   duplicateError: string | null;
 }) {
   const { restaurant } = useAuth();
+  // El asa exige un pequeño desplazamiento antes de empezar a arrastrar: así un toque para
+  // editar un campo nunca mueve una opción por accidente, especialmente en tablets.
+  const dragSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [name, setName] = useState(category.name);
   const [maxSelections, setMaxSelectionsInput] = useState(category.maxSelections?.toString() ?? '');
@@ -515,6 +524,26 @@ function CategoryEditor({
     }
   }
 
+  /** Reordena por arrastre. El backend recibe la lista completa y la convierte en prioridades
+   * consecutivas, que es exactamente el orden que se expone después al menú público. */
+  async function reorderModifiers(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const from = category.modifiers.findIndex((m) => m.id === active.id);
+    const to = category.modifiers.findIndex((m) => m.id === over.id);
+    if (from < 0 || to < 0) return;
+
+    const modifierIds = arrayMove(category.modifiers.map((m) => m.id), from, to);
+    try {
+      setActionError(null);
+      await api.patch(`/modifier-categories/${category.id}/modifiers/reorder`, { modifierIds });
+      onChanged();
+    } catch (err) {
+      setActionError(apiErrorMessage(err));
+    }
+  }
+
   const toppings = insumos.filter((i) => i.isTopping);
   const toppingPreparations = preparations.filter((p) => p.isTopping);
   const linkedIds = new Set((linkedProducts ?? []).map((p) => p.productId));
@@ -659,26 +688,30 @@ function CategoryEditor({
               Agregar los modificadores de esta categoría <span className="text-brand-950/40">({category.modifiers.length})</span>
             </p>
           </div>
-          <div className="space-y-2">
-            {category.modifiers.map((m, index) => (
-              <ModifierRow
-                key={m.id}
-                modifier={m}
-                categoryId={category.id}
-                symbol={symbol}
-                allowMultiple={category.allowMultiple}
-                isFirst={index === 0}
-                isLast={index === category.modifiers.length - 1}
-                onMoveUp={() => moveModifier(index, -1)}
-                onMoveDown={() => moveModifier(index, 1)}
-                onChanged={onChanged}
-                insumos={insumos}
-                preparations={preparations}
-                linkEnabled={linkEnabled}
-                variantProducts={variantProducts}
-              />
-            ))}
-          </div>
+          <DndContext sensors={dragSensors} collisionDetection={closestCenter} onDragEnd={reorderModifiers}>
+            <SortableContext items={category.modifiers.map((m) => m.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-2">
+                {category.modifiers.map((m, index) => (
+                  <SortableModifierRow
+                    key={m.id}
+                    modifier={m}
+                    categoryId={category.id}
+                    symbol={symbol}
+                    allowMultiple={category.allowMultiple}
+                    isFirst={index === 0}
+                    isLast={index === category.modifiers.length - 1}
+                    onMoveUp={() => moveModifier(index, -1)}
+                    onMoveDown={() => moveModifier(index, 1)}
+                    onChanged={onChanged}
+                    insumos={insumos}
+                    preparations={preparations}
+                    linkEnabled={linkEnabled}
+                    variantProducts={variantProducts}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
           <div className="mt-3 rounded-xl border border-brand-950/10 bg-brand-950/[0.02] p-2.5 space-y-2">
             <div className="flex items-center gap-1 rounded-full bg-brand-950/[0.06] p-0.5 w-fit">
               <button
@@ -763,6 +796,35 @@ function CategoryEditor({
   );
 }
 
+/** Conecta una fila existente al ordenamiento sin hacer arrastrables sus inputs o botones. */
+function SortableModifierRow(props: ModifierRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: props.modifier.id });
+  return (
+    <ModifierRow
+      {...props}
+      setNodeRef={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }}
+      dragHandleProps={{ ...attributes, ...listeners }}
+    />
+  );
+}
+
+type ModifierRowProps = {
+  modifier: Modifier;
+  categoryId: string;
+  symbol: string;
+  allowMultiple: boolean;
+  isFirst: boolean;
+  isLast: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  onChanged: () => void;
+  insumos: InsumoOption[];
+  preparations: PreparationOption[];
+  linkEnabled: boolean;
+  variantProducts: VariantProductOption[];
+};
+
 function ModifierRow({
   modifier,
   categoryId,
@@ -777,20 +839,13 @@ function ModifierRow({
   preparations,
   linkEnabled,
   variantProducts,
-}: {
-  modifier: Modifier;
-  categoryId: string;
-  symbol: string;
-  allowMultiple: boolean;
-  isFirst: boolean;
-  isLast: boolean;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-  onChanged: () => void;
-  insumos: InsumoOption[];
-  preparations: PreparationOption[];
-  linkEnabled: boolean;
-  variantProducts: VariantProductOption[];
+  setNodeRef,
+  style,
+  dragHandleProps,
+}: ModifierRowProps & {
+  setNodeRef?: (node: HTMLElement | null) => void;
+  style?: CSSProperties;
+  dragHandleProps?: Record<string, unknown>;
 }) {
   const [name, setName] = useState(modifier.name);
   const [price, setPrice] = useState(modifier.priceBase);
@@ -970,10 +1025,21 @@ function ModifierRow({
   }
 
   return (
-    <div className="rounded-xl border border-brand-950/10 p-2.5 space-y-2">
+    <div ref={setNodeRef} style={style} className="rounded-xl border border-brand-950/10 p-2.5 space-y-2">
       {modError && <p className="rounded-lg bg-red-50 px-2.5 py-1.5 text-xs text-red-600">{modError}</p>}
       <div className="flex items-start gap-1.5">
         <div className="flex flex-col gap-0.5 pt-1.5 shrink-0">
+          {dragHandleProps && (
+            <button
+              type="button"
+              {...dragHandleProps}
+              title="Arrastrar para cambiar el orden"
+              aria-label={`Arrastrar ${modifier.name} para cambiar el orden`}
+              className="cursor-grab touch-none text-brand-950/30 hover:text-brand-950 active:cursor-grabbing"
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          )}
           <button
             type="button"
             onClick={onMoveUp}
