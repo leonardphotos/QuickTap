@@ -518,17 +518,22 @@ function ProductRow({
 }) {
   return (
     <li ref={setNodeRef} style={style} className="flex items-center justify-between px-4 py-3 text-sm gap-3">
-      {dragHandleProps && (
-        <button
-          type="button"
-          {...dragHandleProps}
-          className="shrink-0 cursor-grab touch-none text-brand-950/25 hover:text-brand-950/50 active:cursor-grabbing"
-          aria-label="Arrastrar para reordenar"
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-      )}
-      <div className="flex items-center gap-3 min-w-0">
+      {/* El asa, selección, foto y nombre forman una sola columna. Antes el asa era un hijo
+          independiente de `justify-between`, por lo que el espacio se repartía distinto en cada
+          fila y daba la sensación de que los productos estaban desordenados. */}
+      <div className="flex flex-1 items-center gap-3 min-w-0">
+        <div className="w-4 shrink-0">
+          {dragHandleProps && (
+            <button
+              type="button"
+              {...dragHandleProps}
+              className="cursor-grab touch-none text-brand-950/25 hover:text-brand-950/50 active:cursor-grabbing"
+              aria-label="Arrastrar para reordenar"
+            >
+              <GripVertical className="h-4 w-4" />
+            </button>
+          )}
+        </div>
         <input
           type="checkbox"
           checked={selected.has(p.id)}
