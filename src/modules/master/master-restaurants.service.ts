@@ -128,6 +128,13 @@ export const masterRestaurantsService = {
     return prisma.restaurant.update({ where: { id }, data: { ivaEnabled } });
   },
 
+  /** Habilitación individual: la IA no se activa globalmente para no generar consumo accidental. */
+  async setAiReportsEnabled(id: string, aiReportsEnabled: boolean) {
+    const existing = await prisma.restaurant.findUnique({ where: { id }, select: { id: true } });
+    if (!existing) throw notFound('Negocio no encontrado.');
+    return prisma.restaurant.update({ where: { id }, data: { aiReportsEnabled } });
+  },
+
   /**
    * Crea la primera sucursal de un restaurante desde el Dashboard maestro (sin pasar por el
    * autoservicio del propio restaurante en /admin/sucursales). Si el restaurante todavía no

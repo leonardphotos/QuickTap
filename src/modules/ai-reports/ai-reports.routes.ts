@@ -2,12 +2,12 @@ import { Router } from 'express';
 import { tenantGuard, requireRole } from '../../middlewares/auth.middleware';
 import { aiReportRequestSchema } from './ai-reports.dto';
 import { aiReportsService } from './ai-reports.service';
-import { platformSettingsService } from '../platform-settings/platform-settings.service';
+import { prisma } from '../../config/prisma';
 
 const router = Router();
 router.use(tenantGuard, requireRole('OWNER', 'ADMIN'));
-router.get('/status', async (_req, res, next) => {
-  try { res.json({ data: { enabled: await platformSettingsService.getAiReportsEnabledOrDefault() } }); }
+router.get('/status', async (req, res, next) => {
+  try { res.json({ data: { enabled: Boolean((await prisma.restaurant.findUnique({ where: { id: req.restaurantId! }, select: { aiReportsEnabled: true } }))?.aiReportsEnabled) } }); }
   catch (error) { next(error); }
 });
 router.post('/export', async (req, res, next) => {

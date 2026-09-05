@@ -11,6 +11,7 @@ import {
   setBillingPhoneSchema,
   setCustomMonthlyPriceSchema,
   setIvaEnabledSchema,
+  setAiReportsEnabledSchema,
   sendInstallationNoticeSchema,
   setPeriodEndSchema,
   setSuspendedSchema,
@@ -49,6 +50,10 @@ export const masterRestaurantsController = {
   setIvaEnabled: asyncHandler(async (req: Request, res: Response) => {
     const { ivaEnabled } = setIvaEnabledSchema.parse(req.body);
     res.json({ data: await masterRestaurantsService.setIvaEnabled(req.params.id, ivaEnabled) });
+  }),
+  setAiReportsEnabled: asyncHandler(async (req: Request, res: Response) => {
+    const { aiReportsEnabled } = setAiReportsEnabledSchema.parse(req.body);
+    res.json({ data: await masterRestaurantsService.setAiReportsEnabled(req.params.id, aiReportsEnabled) });
   }),
   /** Crea la primera sucursal de un restaurante desde el Dashboard maestro. */
   createBranch: asyncHandler(async (req: Request, res: Response) => {

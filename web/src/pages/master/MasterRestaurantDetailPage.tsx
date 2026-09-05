@@ -33,6 +33,7 @@ interface RestaurantDetail {
   whatsappPhone: string | null;
   rif: string | null;
   ivaEnabled: boolean;
+  aiReportsEnabled: boolean;
   parentRestaurantId: string | null;
   customMonthlyPriceUsd: string | null;
   billingPhone: string | null;
@@ -223,6 +224,17 @@ export default function MasterRestaurantDetailPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  async function toggleAiReports() {
+    if (!detail) return;
+    setBusy(true); setMessage(null);
+    try {
+      await masterApi.patch(`/master/restaurants/${id}/ai-reports`, { aiReportsEnabled: !detail.aiReportsEnabled });
+      setMessage(detail.aiReportsEnabled ? 'Reportes IA desactivados.' : 'Reportes IA activados.');
+      load();
+    } catch (err: any) { setMessage(err.response?.data?.error ?? 'No se pudo actualizar.'); }
+    finally { setBusy(false); }
   }
 
   async function saveFiscalInvoicing(enabled: boolean) {
@@ -521,6 +533,16 @@ export default function MasterRestaurantDetailPage() {
           onClick={toggleIva}
         >
           {detail.ivaEnabled ? 'Desactivar IVA' : 'Activar IVA'}
+        </TextureButton>
+      </div>
+
+      <div className="rounded-2xl border border-brand-950/10 bg-white shadow-sm p-6 flex items-start justify-between gap-3">
+        <div>
+          <p className="font-semibold text-brand-950">Reportes con IA</p>
+          <p className="text-sm text-brand-950/60 font-light mt-1">Permite solo a {detail.name} pedir estadísticas y descargarlas en Excel. Consume Gemini únicamente al generar un reporte.</p>
+        </div>
+        <TextureButton variant={detail.aiReportsEnabled ? 'destructive' : 'brand'} size="sm" disabled={busy} className="!w-auto shrink-0 disabled:opacity-50" onClick={toggleAiReports}>
+          {detail.aiReportsEnabled ? 'Desactivar IA' : 'Activar IA'}
         </TextureButton>
       </div>
 

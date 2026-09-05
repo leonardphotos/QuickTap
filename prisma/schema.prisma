@@ -499,6 +499,8 @@ model Restaurant {
   serviceChargeEnabled Boolean @default(false) // 10% de servicio
   // Canales donde se cobra el 10%. Por defecto conserva el comportamiento histórico: todos.
   serviceChargeChannels String[] @default(["DINE_IN", "DELIVERY", "PICKUP", "BAR", "EXPRESS"])
+  // Reportes con Gemini: se habilita por negocio desde Dashboard maestro, nunca en masa.
+  aiReportsEnabled     Boolean @default(false)
   // 16% de IVA. Solo lo activa el equipo QuickTap desde el Master Dashboard (no autoservicio
   // del restaurante), y solo si ya tiene `rif` registrado — ver master-restaurants.service.ts.
   ivaEnabled           Boolean @default(false)
@@ -3103,9 +3105,6 @@ model PlatformSettings {
   // QuickTap, no por restaurante) — apagarlo bloquea ambos botones en todos
   // los restaurantes y locales a la vez.
   aiPhotoEnabled       Boolean  @default(true)
-  // Interruptor global del asistente de reportes. Se deja apagado por defecto: cada consulta
-  // libre sale a Gemini y el Dashboard maestro decide cuándo habilitarlo para todos.
-  aiReportsEnabled     Boolean  @default(false)
   // Precios/descripción editables por plan desde el Dashboard maestro. Parcial
   // (solo los planes que el master haya tocado); se fusiona con los valores
   // por defecto en platform-settings.service.ts al leer.

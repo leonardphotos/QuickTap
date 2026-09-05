@@ -63,17 +63,6 @@ export default function MasterPaymentMethodsPage() {
         </div>
       </Section>
 
-      <Section title="IA de reportes">
-        <div className="col-span-full">
-          <Toggle
-            checked={methods.aiReportsEnabled ?? false}
-            onChange={(v) => setMethods({ ...methods, aiReportsEnabled: v })}
-            label="Reportes con IA"
-            description="Permite a todos los negocios pedir reportes por texto y descargarlos en Excel. Gemini solo interpreta la solicitud; QuickTap calcula los datos."
-          />
-        </div>
-      </Section>
-
       <Section title="Pago Móvil">
         <Field
           label="Banco"

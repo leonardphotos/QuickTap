@@ -68,8 +68,6 @@ export interface PlatformPaymentMethods {
   manualPaymentEnabled?: boolean;
   /** Botones "Mejorar con IA" / "Fondo blanco con IA" en Restaurantes y Locales (ai-photo-service). */
   aiPhotoEnabled?: boolean;
-  /** Reportes a medida con Gemini, interruptor global del Dashboard maestro. */
-  aiReportsEnabled?: boolean;
 }
 
 export interface PaymentMethodLine {

@@ -25,6 +25,8 @@ export const setIvaEnabledSchema = z.object({
 
 export type SetIvaEnabledInput = z.infer<typeof setIvaEnabledSchema>;
 
+export const setAiReportsEnabledSchema = z.object({ aiReportsEnabled: z.boolean() });
+
 export const updateRestaurantUserSchema = z.object({
   name: z.string().min(1, 'El nombre es obligatorio.').max(120).optional(),
   email: z

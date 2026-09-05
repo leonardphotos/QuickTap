@@ -2,7 +2,6 @@ import ExcelJS from 'exceljs';
 import { BusinessType } from '@prisma/client';
 import { prisma } from '../../config/prisma';
 import { env } from '../../config/env';
-import { platformSettingsService } from '../platform-settings/platform-settings.service';
 import { forbidden, HttpError, serviceUnavailable } from '../../utils/http-error';
 import { styleHeader, applyMoneyFormat } from '../../utils/excel';
 import { startOfDayCaracas } from '../../utils/timezone';
@@ -93,8 +92,8 @@ async function officeReport(book: ExcelJS.Workbook, restaurantId: string, w: { g
 
 export const aiReportsService = {
   async build(restaurantId: string, input: AiReportRequest) {
-    if (!(await platformSettingsService.getAiReportsEnabledOrDefault())) throw forbidden('Los reportes con IA están desactivados por el administrador de QuickTap.');
-    const restaurant = await prisma.restaurant.findUniqueOrThrow({ where: { id: restaurantId }, select: { name: true, businessType: true } });
+    const restaurant = await prisma.restaurant.findUniqueOrThrow({ where: { id: restaurantId }, select: { name: true, businessType: true, aiReportsEnabled: true } });
+    if (!restaurant.aiReportsEnabled) throw forbidden('Los reportes con IA están desactivados para este negocio.');
     const intent = await interpret(input.question, restaurant.businessType);
     const w = windowFor(input, intent); const book = new ExcelJS.Workbook(); book.creator = 'QuickTap.club'; book.created = new Date();
     if (restaurant.businessType === 'RESTAURANT') await restaurantReport(book, restaurantId, w);
