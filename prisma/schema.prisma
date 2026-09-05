@@ -495,18 +495,18 @@ model Restaurant {
   // nadie del equipo vuelve a ver el teclado de PIN y tampoco se le exige crearlo;
   // los PIN ya configurados se conservan para cuando se vuelva a activar.
   // Arranca en `true` porque el bloqueo ya existía antes de este interruptor.
-  lockScreenEnabled    Boolean @default(true)
-  serviceChargeEnabled Boolean @default(false) // 10% de servicio
+  lockScreenEnabled     Boolean  @default(true)
+  serviceChargeEnabled  Boolean  @default(false) // 10% de servicio
   // Canales donde se cobra el 10%. Por defecto conserva el comportamiento histórico: todos.
   serviceChargeChannels String[] @default(["DINE_IN", "DELIVERY", "PICKUP", "BAR", "EXPRESS"])
   // Reportes con Gemini: se habilita por negocio desde Dashboard maestro, nunca en masa.
-  aiReportsEnabled     Boolean @default(false)
+  aiReportsEnabled      Boolean  @default(false)
   // 16% de IVA. Solo lo activa el equipo QuickTap desde el Master Dashboard (no autoservicio
   // del restaurante), y solo si ya tiene `rif` registrado — ver master-restaurants.service.ts.
-  ivaEnabled           Boolean @default(false)
+  ivaEnabled            Boolean  @default(false)
   // RIF fiscal del restaurante (lo escribe el restaurante en Ajustes). Distinto del `rif` que
   // vive dentro de paymentMethodsConfig, que es el RIF de una cuenta de cobro puntual.
-  rif                  String?
+  rif                   String?
 
   // Precio mensual acordado manualmente por el equipo QuickTap (ej. tarifa negociada al
   // habilitar sucursales fuera de la tabla de precios compartida) — ver Dashboard maestro →
@@ -1697,16 +1697,19 @@ model Order {
   // Acá solo se guarda el comprobante de lo que la máquina ya imprimió, para poder
   // cruzar el papel con la venta. Los tres se llenan juntos o quedan los tres en null.
   /// Número correlativo que la impresora fiscal le asignó ("00001040").
-  fiscalPrinterInvoice String?
+  fiscalPrinterInvoice  String?
   /// Serial de la máquina fiscal que la emitió — el mismo que sale al pie del ticket.
-  fiscalPrinterSerial  String?
+  fiscalPrinterSerial   String?
   /// Cuándo se imprimió. Sirve además de bandera: con valor, la factura ya salió y
   /// no hay que volver a emitirla (cada emisión consume numeración fiscal).
-  fiscalPrintedAt      DateTime?
+  fiscalPrintedAt       DateTime?
   /// Consumo de socio: se congela al crear el pedido a partir de Customer.isPartner,
   /// para que marcar/desmarcar a un socio después no reescriba la historia contable.
   /// Con esto en true el pedido se excluye de todo lo que sea "venta".
-  isPartnerConsumption Boolean   @default(false)
+  isPartnerConsumption  Boolean   @default(false)
+  /// Consumo interno registrado para un miembro del equipo. No cuenta como venta ni saldo por cobrar.
+  isEmployeeConsumption Boolean   @default(false)
+  employeeConsumerName  String?
 
   /// Qué documento espera el cliente: nota de entrega (lo normal) o factura fiscal.
   /// Se marca al tomar el pedido — "¿Desea factura fiscal?" en Crear pedido — y se

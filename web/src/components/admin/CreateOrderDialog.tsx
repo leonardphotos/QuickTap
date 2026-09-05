@@ -37,6 +37,7 @@ interface Props {
   /** Pedido nuevo creado: si venía con intención de pago (FULL/SPLIT), el padre debe abrir PaymentDialog. */
   onCreated: (newOrder?: LiveOrder, paymentMode?: 'full' | 'split') => void;
   onSelectExisting: (orderId: string) => void;
+  employeeConsumption?: boolean;
 }
 
 type Channel = 'DINE_IN' | 'DELIVERY' | 'PICKUP' | 'BAR' | 'EXPRESS';
@@ -134,8 +135,9 @@ const PAYMENT_INTENT_OPTIONS: {
 ];
 
 /** "Crear pedido" desde el Dashboard: wizard de 3 pasos (Menú → Pago → Clientes). */
-export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelectExisting }: Props) {
-  const { restaurant } = useAuth();
+export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelectExisting, employeeConsumption = false }: Props) {
+  const { restaurant, user } = useAuth();
+  const [isEmployeeConsumption, setIsEmployeeConsumption] = useState(employeeConsumption);
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [step, setStep] = useState<Step>(1);
   const [channel, setChannel] = useState<Channel>('DINE_IN');
@@ -393,7 +395,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
   }
 
   async function submit() {
-    if (!paymentIntent) {
+    if (!paymentIntent && !isEmployeeConsumption) {
       setError('Elige cómo se va a pagar.');
       return;
     }
@@ -415,7 +417,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
           note: l.note,
         })),
         // Nombre/cédula/teléfono ya no se piden en "Menú": vienen del cliente elegido en "Clientes".
-        customerName: selectedCustomer?.name,
+        customerName: isEmployeeConsumption ? `Consumo: ${user?.name ?? 'Empleado'}` : selectedCustomer?.name,
         // RIF/cédula: el del cliente en ficha, o el escrito a mano para la factura fiscal de
         // este pedido puntual si no tiene uno guardado.
         customerIdNumber: selectedCustomer?.idNumber ?? (wantsFiscalInvoice ? fiscalIdNumber.trim() || undefined : undefined),
@@ -439,10 +441,12 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
         // no lo pidió acá, igual se puede cambiar al pagar — que es cuando lo pide casi todo
         // el mundo (ver PaymentDialog).
         wantsFiscalInvoice,
-        paymentIntent,
+        paymentIntent: isEmployeeConsumption ? 'DEBT' : paymentIntent,
+        isEmployeeConsumption,
+        employeeConsumerName: isEmployeeConsumption ? user?.name ?? 'Empleado' : undefined,
       });
       const newOrder: LiveOrder = { ...res.data.data, payments: res.data.data.payments ?? [] };
-      onCreated(newOrder, paymentIntent === 'FULL' ? 'full' : paymentIntent === 'SPLIT' ? 'split' : undefined);
+      onCreated(newOrder, isEmployeeConsumption ? undefined : paymentIntent === 'FULL' ? 'full' : paymentIntent === 'SPLIT' ? 'split' : undefined);
       onClose();
     } catch (e: any) {
       setError(e.response?.data?.error ?? 'No se pudo crear el pedido.');
@@ -626,10 +630,10 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
           variant="brand"
           size="default"
           className="flex-1 disabled:opacity-50"
-          disabled={sending || !paymentIntent}
+          disabled={sending || (!paymentIntent && !isEmployeeConsumption)}
           onClick={submit}
         >
-          {sending ? 'Creando…' : 'Crear pedido'}
+          {sending ? 'Creando…' : isEmployeeConsumption ? 'Registrar consumo' : 'Crear pedido'}
         </TextureButton>
       )}
     </div>
@@ -652,7 +656,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
               <ArrowLeft className="h-4 w-4" />
             </button>
             <div className="min-w-0">
-              <h1 className="text-base font-semibold text-brand-950 truncate">Crear pedido</h1>
+              <h1 className="text-base font-semibold text-brand-950 truncate">{isEmployeeConsumption ? 'Consumo de empleado' : 'Crear pedido'}</h1>
               <p className="text-xs text-brand-950/50 font-light truncate">
                 {STEP_LABELS[step]}
                 <span className="md:hidden"> · {currentContextLabel}</span>
@@ -681,6 +685,13 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
           <div className="flex-1 overflow-y-auto p-5 min-w-0">
             {step === 1 && (
               <div className="flex flex-col gap-5 max-w-xl mx-auto">
+                <button
+                  type="button"
+                  onClick={() => setIsEmployeeConsumption((value) => !value)}
+                  className={`rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition-colors ${isEmployeeConsumption ? 'border-amber-400 bg-amber-50 text-brand-950' : 'border-brand-950/10 bg-white text-brand-950/70 hover:border-brand-500'}`}
+                >
+                  {isEmployeeConsumption ? '✓ Consumo de empleado — no se cobrará' : 'Consumo de empleado'}
+                </button>
                 <div className="rounded-2xl bg-white p-5 flex flex-col min-h-0">
                   <p className="text-base font-bold text-brand-950 mb-1 shrink-0">Cliente</p>
                   <p className="text-xs text-brand-950/50 font-light mb-3 shrink-0">
@@ -1088,7 +1099,12 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
               </div>
             )}
 
-            {step === 3 && (
+            {step === 3 && isEmployeeConsumption ? (
+              <div className="mx-auto max-w-xl rounded-2xl bg-amber-50 px-6 py-8 text-center">
+                <p className="text-lg font-bold text-brand-950">Consumo de {user?.name ?? 'empleado'}</p>
+                <p className="mt-2 text-sm text-brand-950/60">Se envía a cocina y se excluye de las ventas.</p>
+              </div>
+            ) : step === 3 && (
               <div className="flex flex-col gap-5 max-w-4xl mx-auto">
                 <div className="rounded-2xl bg-white px-6 py-6 text-center shrink-0">
                   <p className="text-xs font-semibold uppercase tracking-wide text-brand-950/40">Total del pedido</p>

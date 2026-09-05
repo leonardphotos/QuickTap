@@ -51,12 +51,12 @@ async function salesFor(restaurantId: string, businessType: string, window: Wind
   }
   const [agg, unidades] = await Promise.all([
     prisma.order.aggregate({
-      where: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt: window },
+      where: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, isEmployeeConsumption: false, createdAt: window },
       _sum: { totalBase: true },
       _count: true,
     }),
     prisma.orderItem.aggregate({
-      where: { order: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, createdAt: window } },
+      where: { order: { restaurantId, status: { not: 'CANCELLED' }, isPartnerConsumption: false, isEmployeeConsumption: false, createdAt: window } },
       _sum: { quantity: true },
     }),
   ]);

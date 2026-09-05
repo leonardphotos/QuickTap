@@ -1566,6 +1566,8 @@ export const orderService = {
     // de socio a esa persona, los pedidos que ya consumió siguen siendo consumo interno —
     // los reportes de meses cerrados no se pueden mover.
     const isPartnerConsumption = resolvedCustomer?.isPartner ?? false;
+    const isEmployeeConsumption = input.isEmployeeConsumption === true;
+    const employeeConsumerName = isEmployeeConsumption ? input.employeeConsumerName?.trim() || 'Empleado' : undefined;
 
     const currency = restaurant.baseCurrency;
     const rate = await exchangeRateService.getRate(currency, restaurantId);
@@ -1638,7 +1640,7 @@ export const orderService = {
                   channel: 'DINE_IN',
                   // Cargado por staff: entra directo a cocina. Un pedido de kiosco (Comanda)
                   // en cambio espera confirmación de pago primero.
-                  status: isKioskOrder ? 'NEEDS_PAYMENT' : isStaffPlaced ? 'KITCHEN' : 'PENDING',
+                  status: isEmployeeConsumption ? 'KITCHEN' : isKioskOrder ? 'NEEDS_PAYMENT' : isStaffPlaced ? 'KITCHEN' : 'PENDING',
                   tableId: accountTableId,
                   tableSessionId: session.id,
                   customerName: session.customerName,
@@ -1646,6 +1648,8 @@ export const orderService = {
                   customerPhone: session.customerPhone,
                   wantsFiscalInvoice: input.wantsFiscalInvoice ?? false,
                   isPartnerConsumption,
+                  isEmployeeConsumption,
+                  employeeConsumerName,
                   placedByUserId,
                   currency,
                   subtotalBase,
@@ -1656,7 +1660,7 @@ export const orderService = {
                   totalBase,
                   exchangeRate: rate.rateBs,
                   totalBs,
-                  awaitingPayment: input.paymentIntent === 'DEBT',
+                  awaitingPayment: !isEmployeeConsumption && input.paymentIntent === 'DEBT',
                   paymentMethod: input.paymentMethod,
                   items: { create: itemsCreate },
                 },
@@ -1678,7 +1682,7 @@ export const orderService = {
                 channel: input.channel,
                 // Cargado por staff: entra directo a cocina. Un pedido de kiosco (Comanda)
                 // en cambio espera confirmación de pago primero.
-                status: isKioskOrder ? 'NEEDS_PAYMENT' : isStaffPlaced ? 'KITCHEN' : 'PENDING',
+                status: isEmployeeConsumption ? 'KITCHEN' : isKioskOrder ? 'NEEDS_PAYMENT' : isStaffPlaced ? 'KITCHEN' : 'PENDING',
                 customerName,
                 customerPhone,
                 // Sin esto la cédula que se capturó al crear el pedido (incluida la que se
@@ -1687,10 +1691,12 @@ export const orderService = {
                 customerIdNumber,
                 wantsFiscalInvoice: input.wantsFiscalInvoice ?? false,
                 isPartnerConsumption,
+                isEmployeeConsumption,
+                employeeConsumerName,
                 customerAddress: input.channel === 'DELIVERY' ? customerAddress : undefined,
                 customerLat: input.channel === 'DELIVERY' ? input.customerLat : undefined,
                 customerLng: input.channel === 'DELIVERY' ? input.customerLng : undefined,
-                awaitingPayment: input.paymentIntent === 'DEBT',
+                awaitingPayment: !isEmployeeConsumption && input.paymentIntent === 'DEBT',
                 paymentMethod: input.paymentMethod,
                 customerNote: input.customerNote,
                 placedByUserId,

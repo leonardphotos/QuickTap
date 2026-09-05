@@ -50,7 +50,7 @@ function addSummary(book: ExcelJS.Workbook, title: string, period: string, rows:
 }
 
 async function restaurantReport(book: ExcelJS.Workbook, restaurantId: string, w: { gte: Date; lt: Date }) {
-  const where = { restaurantId, status: { not: 'CANCELLED' as const }, createdAt: { gte: w.gte, lt: w.lt }, isPartnerConsumption: false };
+  const where = { restaurantId, status: { not: 'CANCELLED' as const }, createdAt: { gte: w.gte, lt: w.lt }, isPartnerConsumption: false, isEmployeeConsumption: false };
   const [sales, channels, products] = await Promise.all([
     prisma.order.aggregate({ where, _sum: { totalBase: true }, _count: true }),
     prisma.order.groupBy({ by: ['channel'], where, _sum: { totalBase: true }, _count: true }),

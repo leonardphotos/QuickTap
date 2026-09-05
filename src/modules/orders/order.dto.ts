@@ -87,6 +87,9 @@ export const manualOrderSchema = z
     // "¿Desea factura fiscal?" del wizard. Solo la intención: define qué documento le
     // ofrece el cobro, no emite nada. Se puede cambiar después al pagar.
     wantsFiscalInvoice: z.boolean().optional(),
+    // Consumo interno: lo activa exclusivamente el panel de staff.
+    isEmployeeConsumption: z.boolean().optional(),
+    employeeConsumerName: z.string().min(1).max(120).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.channel === 'DINE_IN' && !data.tableId) {
