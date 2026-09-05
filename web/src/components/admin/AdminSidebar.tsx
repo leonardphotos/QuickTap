@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Menu, PackageX, PanelLeftClose, Plus, RefreshCw, Share2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useVersionCheck } from '@/hooks/useVersionCheck';
+import { AiReportsButton } from '@/components/admin/AiReportsButton';
 import { ROLE_LABELS } from '@/utils/roles';
 import { PLAN_LABELS, type AdminNavLink } from '@/pages/admin/nav-links';
 import type { LowStockItem } from '@/hooks/useLowStockItems';
@@ -106,6 +107,8 @@ export function AdminSidebar({
           );
         })}
       </nav>
+
+      <AiReportsButton sidebar />
 
       <div className="flex items-center gap-2 mt-2 shrink-0">
         {lowStockItems.length > 0 && (

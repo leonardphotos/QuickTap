@@ -3,7 +3,7 @@ import { FileSpreadsheet, Sparkles, X } from 'lucide-react';
 import { api, AI_TIMEOUT_MS } from '@/api/client';
 
 /** Entrada única para las cuatro verticales. El servidor aplica el interruptor global y el rol. */
-export function AiReportsButton() {
+export function AiReportsButton({ sidebar = false }: { sidebar?: boolean }) {
   const [enabled, setEnabled] = useState(false); const [open, setOpen] = useState(false); const [question, setQuestion] = useState(''); const [from, setFrom] = useState(''); const [to, setTo] = useState(''); const [busy, setBusy] = useState(false); const [error, setError] = useState<string | null>(null);
   useEffect(() => { api.get('/ai-reports/status').then((r) => setEnabled(Boolean(r.data.data?.enabled))).catch(() => setEnabled(false)); }, []);
   async function generate() {
@@ -19,7 +19,7 @@ export function AiReportsButton() {
   }
   if (!enabled) return null;
   return <>
-    <button type="button" onClick={() => setOpen(true)} className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-brand-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-950/20 hover:bg-brand-600" title="Preguntar a mis estadísticas">
+    <button type="button" onClick={() => setOpen(true)} className={sidebar ? 'mt-3 flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-[14.5px] font-medium text-white/75 transition-colors hover:bg-white/[0.06] hover:text-white' : 'fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-brand-500 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-950/20 hover:bg-brand-600'} title="Preguntar a mis estadísticas">
       <Sparkles className="h-4 w-4" /> Reporte IA
     </button>
     {open && <div className="fixed inset-0 z-50 flex items-end justify-center bg-brand-950/35 p-4 sm:items-center" onMouseDown={() => setOpen(false)}>
