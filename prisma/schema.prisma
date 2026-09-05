@@ -298,6 +298,7 @@ enum PaymentMethod {
   BINANCE
   PAYPAL
   TRANSFER // Transferencia bancaria
+  PAYROLL_DEDUCTION // Descuento de nómina
 }
 
 // Cómo se calcula el costo de envío del checkout de delivery.

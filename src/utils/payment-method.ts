@@ -41,4 +41,5 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   BINANCE: 'Binance',
   PAYPAL: 'PayPal',
   TRANSFER: 'Transferencia',
+  PAYROLL_DEDUCTION: 'Descuento de nómina',
 };

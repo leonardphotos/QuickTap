@@ -56,6 +56,7 @@ const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   BINANCE: 'Binance',
   PAYPAL: 'PayPal',
   TRANSFER: 'Transferencia',
+  PAYROLL_DEDUCTION: 'Descuento de nómina',
 };
 
 /** label normalizado -> código, aceptando también el código del enum escrito tal cual. */

@@ -13,7 +13,7 @@ import { baseToBs, formatBs, formatMoney, round2, toDecimal } from './money';
  *  restaurante ($/€) como referencia entre paréntesis.
  */
 
-export type PaymentMethod = 'MOBILE_PAYMENT' | 'ZELLE' | 'CASH' | 'CASH_USD' | 'CARD' | 'BINANCE' | 'PAYPAL' | 'TRANSFER';
+export type PaymentMethod = 'MOBILE_PAYMENT' | 'ZELLE' | 'CASH' | 'CASH_USD' | 'CARD' | 'BINANCE' | 'PAYPAL' | 'TRANSFER' | 'PAYROLL_DEDUCTION';
 
 export type DeliveryMode = 'DELIVERY' | 'PICKUP';
 
@@ -77,6 +77,7 @@ export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   BINANCE: 'Binance',
   PAYPAL: 'PayPal',
   TRANSFER: 'Transferencia',
+  PAYROLL_DEDUCTION: 'Descuento de nómina',
 };
 
 /**

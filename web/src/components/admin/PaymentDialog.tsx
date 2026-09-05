@@ -34,6 +34,7 @@ export const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   BINANCE: 'Binance',
   PAYPAL: 'PayPal',
   TRANSFER: 'Transferencia',
+  PAYROLL_DEDUCTION: 'Descuento de nómina',
 };
 
 const DEFAULT_PAYMENT_OPTIONS: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD'];
@@ -133,7 +134,9 @@ export function PaymentDialog({ order, mode, onClose, onPaid }: Props) {
 
   const paymentConfig = restaurant?.paymentMethodsConfig;
   const hasPaymentConfig = paymentConfig && Object.values(paymentConfig).some((m) => m?.enabled);
-  const paymentOptions = hasPaymentConfig
+  const paymentOptions = order.isEmployeeConsumption
+    ? [...(hasPaymentConfig ? (Object.keys(PAYMENT_LABELS) as PaymentMethod[]).filter((k) => paymentConfig?.[k]?.enabled) : DEFAULT_PAYMENT_OPTIONS), 'PAYROLL_DEDUCTION' as PaymentMethod]
+    : hasPaymentConfig
     ? (Object.keys(PAYMENT_LABELS) as PaymentMethod[]).filter((k) => paymentConfig?.[k]?.enabled)
     : DEFAULT_PAYMENT_OPTIONS;
 

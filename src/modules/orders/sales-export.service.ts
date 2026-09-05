@@ -30,6 +30,7 @@ const METHOD_CURRENCY: Record<PaymentMethod, 'BS' | 'USD'> = {
   ZELLE: 'USD',
   BINANCE: 'USD',
   PAYPAL: 'USD',
+  PAYROLL_DEDUCTION: 'USD',
 };
 
 /**

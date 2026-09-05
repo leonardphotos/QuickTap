@@ -47,7 +47,7 @@ export interface RestaurantTheme {
   socialLinks?: RestaurantSocialLinks;
 }
 
-export type PaymentMethodKey = 'CASH' | 'CASH_USD' | 'MOBILE_PAYMENT' | 'ZELLE' | 'BINANCE' | 'PAYPAL' | 'TRANSFER' | 'CARD';
+export type PaymentMethodKey = 'CASH' | 'CASH_USD' | 'MOBILE_PAYMENT' | 'ZELLE' | 'BINANCE' | 'PAYPAL' | 'TRANSFER' | 'CARD' | 'PAYROLL_DEDUCTION';
 
 /** Una cuenta receptora ADICIONAL de un método (el segundo Zelle, el segundo Pago Móvil…).
  *  `key` es su id estable en la UI; `label` la distingue al elegir en caja ("Zelle Chase"). */

@@ -204,6 +204,7 @@ export const clubDebtBotService = {
     const amount = Math.min(Number(verification.amountBase), Number(current.row.balanceBase));
     if (amount <= 0) return;
     const reference = 'Comprobante por WhatsApp (verificado)';
+    if (method === 'PAYROLL_DEDUCTION') return;
 
     if (verification.source === 'bookings') {
       await clubService.addBookingPayment(verification.restaurantId, verification.refId, {
