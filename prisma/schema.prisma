@@ -1710,6 +1710,7 @@ model Order {
   /// Consumo interno registrado para un miembro del equipo. No cuenta como venta ni saldo por cobrar.
   isEmployeeConsumption Boolean   @default(false)
   employeeConsumerName  String?
+  employeeConsumerId    String?
 
   /// Qué documento espera el cliente: nota de entrega (lo normal) o factura fiscal.
   /// Se marca al tomar el pedido — "¿Desea factura fiscal?" en Crear pedido — y se
@@ -1759,6 +1760,7 @@ model Order {
   @@index([restaurantId, status])
   @@index([restaurantId, createdAt])
   @@index([tableSessionId])
+  @@index([restaurantId, employeeConsumerId])
   @@map("orders")
 }
 

@@ -1566,8 +1566,13 @@ export const orderService = {
     // de socio a esa persona, los pedidos que ya consumió siguen siendo consumo interno —
     // los reportes de meses cerrados no se pueden mover.
     const isPartnerConsumption = resolvedCustomer?.isPartner ?? false;
-    const isEmployeeConsumption = input.isEmployeeConsumption === true;
-    const employeeConsumerName = isEmployeeConsumption ? input.employeeConsumerName?.trim() || 'Empleado' : undefined;
+    const employeeConsumer = input.isEmployeeConsumption && input.employeeConsumerId
+      ? await prisma.user.findFirst({ where: { id: input.employeeConsumerId, restaurantId, isActive: true }, select: { id: true, name: true, role: true } })
+      : null;
+    if (input.isEmployeeConsumption && !employeeConsumer) throw badRequest('Selecciona un empleado activo.');
+    const isEmployeeConsumption = !!employeeConsumer;
+    const employeeConsumerName = employeeConsumer?.name;
+    const employeeIsAdministrator = employeeConsumer?.role === 'OWNER' || employeeConsumer?.role === 'ADMIN';
 
     const currency = restaurant.baseCurrency;
     const rate = await exchangeRateService.getRate(currency, restaurantId);
@@ -1650,6 +1655,7 @@ export const orderService = {
                   isPartnerConsumption,
                   isEmployeeConsumption,
                   employeeConsumerName,
+                  employeeConsumerId: employeeConsumer?.id,
                   placedByUserId,
                   currency,
                   subtotalBase,
@@ -1660,7 +1666,7 @@ export const orderService = {
                   totalBase,
                   exchangeRate: rate.rateBs,
                   totalBs,
-                  awaitingPayment: !isEmployeeConsumption && input.paymentIntent === 'DEBT',
+                  awaitingPayment: isEmployeeConsumption ? !employeeIsAdministrator : input.paymentIntent === 'DEBT',
                   paymentMethod: input.paymentMethod,
                   items: { create: itemsCreate },
                 },
@@ -1693,10 +1699,11 @@ export const orderService = {
                 isPartnerConsumption,
                 isEmployeeConsumption,
                 employeeConsumerName,
+                employeeConsumerId: employeeConsumer?.id,
                 customerAddress: input.channel === 'DELIVERY' ? customerAddress : undefined,
                 customerLat: input.channel === 'DELIVERY' ? input.customerLat : undefined,
                 customerLng: input.channel === 'DELIVERY' ? input.customerLng : undefined,
-                awaitingPayment: !isEmployeeConsumption && input.paymentIntent === 'DEBT',
+                awaitingPayment: isEmployeeConsumption ? !employeeIsAdministrator : input.paymentIntent === 'DEBT',
                 paymentMethod: input.paymentMethod,
                 customerNote: input.customerNote,
                 placedByUserId,

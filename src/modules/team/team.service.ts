@@ -50,6 +50,9 @@ async function assertCourtOfTenant(restaurantId: string, clubCourtId: string) {
 }
 
 export const teamService = {
+  async listConsumptionUsers(restaurantId: string) {
+    return prisma.user.findMany({ where: { restaurantId, isActive: true }, orderBy: { name: 'asc' }, select: { id: true, name: true, role: true } });
+  },
   async list(restaurantId: string) {
     const rows = await prisma.user.findMany({
       where: { restaurantId, role: { not: 'OWNER' } },

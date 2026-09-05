@@ -5,6 +5,9 @@ import { teamService } from './team.service';
 import { tableService } from '../tables/table.service';
 
 export const teamController = {
+  listConsumptionUsers: asyncHandler(async (req: Request, res: Response) => {
+    res.json({ data: await teamService.listConsumptionUsers(req.restaurantId!) });
+  }),
   list: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await teamService.list(req.restaurantId!) });
   }),

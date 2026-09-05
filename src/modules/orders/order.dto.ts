@@ -90,6 +90,7 @@ export const manualOrderSchema = z
     // Consumo interno: lo activa exclusivamente el panel de staff.
     isEmployeeConsumption: z.boolean().optional(),
     employeeConsumerName: z.string().min(1).max(120).optional(),
+    employeeConsumerId: z.string().min(1).optional(),
   })
   .superRefine((data, ctx) => {
     if (data.channel === 'DINE_IN' && !data.tableId) {

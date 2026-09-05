@@ -138,6 +138,9 @@ const PAYMENT_INTENT_OPTIONS: {
 export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelectExisting, employeeConsumption = false }: Props) {
   const { restaurant, user } = useAuth();
   const [isEmployeeConsumption, setIsEmployeeConsumption] = useState(employeeConsumption);
+  const [employees, setEmployees] = useState<{ id: string; name: string; role: string }[]>([]);
+  const [employeeConsumerId, setEmployeeConsumerId] = useState('');
+  useEffect(() => { if (isEmployeeConsumption) api.get('/team/consumption-users').then((r) => setEmployees(r.data.data)).catch(() => setEmployees([])); }, [isEmployeeConsumption]);
   const symbol = restaurant ? CURRENCY_SYMBOLS[restaurant.baseCurrency] : '$';
   const [step, setStep] = useState<Step>(1);
   const [channel, setChannel] = useState<Channel>('DINE_IN');
@@ -399,6 +402,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
       setError('Elige cómo se va a pagar.');
       return;
     }
+    if (isEmployeeConsumption && !employeeConsumerId) { setError('Selecciona un empleado.'); return; }
     setSending(true);
     setError(null);
     try {
@@ -443,7 +447,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
         wantsFiscalInvoice,
         paymentIntent: isEmployeeConsumption ? 'DEBT' : paymentIntent,
         isEmployeeConsumption,
-        employeeConsumerName: isEmployeeConsumption ? user?.name ?? 'Empleado' : undefined,
+        employeeConsumerId: isEmployeeConsumption ? employeeConsumerId : undefined,
       });
       const newOrder: LiveOrder = { ...res.data.data, payments: res.data.data.payments ?? [] };
       onCreated(newOrder, isEmployeeConsumption ? undefined : paymentIntent === 'FULL' ? 'full' : paymentIntent === 'SPLIT' ? 'split' : undefined);
@@ -534,6 +538,12 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                 >
                   −
                 </button>
+                {isEmployeeConsumption && (
+                  <select value={employeeConsumerId} onChange={(e) => setEmployeeConsumerId(e.target.value)} className="rounded-xl border border-brand-950/10 bg-white px-3 py-3 text-sm text-brand-950">
+                    <option value="">Selecciona el empleado</option>
+                    {employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.name} · {employee.role === 'OWNER' || employee.role === 'ADMIN' ? 'Administración' : 'Cuenta por cobrar'}</option>)}
+                  </select>
+                )}
                 <span className="w-4 text-center text-xs font-bold">{l.quantity}</span>
                 <button
                   onClick={() => adjustLineAt(i, 1)}
@@ -1101,7 +1111,7 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
 
             {step === 3 && isEmployeeConsumption ? (
               <div className="mx-auto max-w-xl rounded-2xl bg-amber-50 px-6 py-8 text-center">
-                <p className="text-lg font-bold text-brand-950">Consumo de {user?.name ?? 'empleado'}</p>
+                <p className="text-lg font-bold text-brand-950">Consumo de empleado</p>
                 <p className="mt-2 text-sm text-brand-950/60">Se envía a cocina y se excluye de las ventas.</p>
               </div>
             ) : step === 3 && (

@@ -6,6 +6,7 @@ import { teamController } from './team.controller';
 /** Base: /api/v1/team — gestión de personal (OWNER/ADMIN únicamente). */
 const router = Router();
 router.use(tenantGuard);
+router.get('/consumption-users', teamController.listConsumptionUsers);
 router.use(requireRole(...TEAM_MANAGER_ROLES));
 
 router.get('/', teamController.list);
