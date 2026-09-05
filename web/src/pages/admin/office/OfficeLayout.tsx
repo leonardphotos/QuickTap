@@ -12,6 +12,7 @@ import OfficeContactosPage from './OfficeContactosPage';
 import OfficeReportesPage from './OfficeReportesPage';
 import OfficeEmpresasPage from './OfficeEmpresasPage';
 import OfficeImportarPage from './OfficeImportarPage';
+import { AiReportsButton } from '@/components/admin/AiReportsButton';
 
 export type OfficeScreen = 'panel' | 'asientos' | 'cuentas' | 'contactos' | 'reportes' | 'importar' | 'empresas' | 'facturacion';
 
@@ -67,6 +68,7 @@ export default function OfficeLayout() {
 
   return (
     <div className="min-h-screen bg-[#F5F5F3] text-brand-950">
+      <AiReportsButton />
       <div className="mx-auto flex max-w-[1400px] gap-0 p-3 sm:p-5">
         {/* ---------- Barra lateral ---------- */}
         <aside className="hidden w-60 shrink-0 flex-col rounded-l-2xl border border-brand-950/[0.07] border-r-0 bg-white p-4 lg:flex">

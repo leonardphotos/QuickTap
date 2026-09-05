@@ -26,6 +26,7 @@ export const updatePaymentMethodsSchema = z.object({
   ramblayEnabled: z.boolean().optional(),
   manualPaymentEnabled: z.boolean().optional(),
   aiPhotoEnabled: z.boolean().optional(),
+  aiReportsEnabled: z.boolean().optional(),
 });
 
 export type UpdatePaymentMethodsInput = z.infer<typeof updatePaymentMethodsSchema>;

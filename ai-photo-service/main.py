@@ -258,6 +258,46 @@ ANALYZE_PROMPT = (
     "Son estimaciones de partida: el restaurante corregirá los pesos exactos después."
 )
 
+# Reportes: Gemini solo convierte lenguaje natural a una intención pequeña. Nunca recibe filas
+# de ventas, clientes, inventario ni montos: Node consulta y arma el Excel dentro de QuickTap.
+REPORT_INTENT_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {
+        "area": {"type": "STRING", "enum": ["OVERVIEW", "SALES", "INVENTORY", "OPERATIONS", "FINANCE"]},
+        "title": {"type": "STRING"},
+        "from": {"type": "STRING"},
+        "to": {"type": "STRING"},
+    },
+    "required": ["area", "title"],
+}
+
+
+@app.post("/report-intent")
+async def report_intent(payload: dict = Body(...)):
+    question = str(payload.get("question", "")).strip()
+    vertical = str(payload.get("vertical", "")).strip()
+    if not question or len(question) > 500:
+        raise HTTPException(400, "La solicitud del reporte debe tener entre 1 y 500 caracteres.")
+    prompt = (
+        "Clasifica una solicitud de reporte de un negocio. Vertical: " + vertical + ".\n"
+        "Devuelve JSON estricto. area: OVERVIEW, SALES, INVENTORY, OPERATIONS o FINANCE. "
+        "title: título breve en español. from/to solo YYYY-MM-DD si el usuario las expresó de forma inequívoca; si no, omítelas. "
+        "No inventes fechas, cifras ni datos. Solicitud: " + question
+    )
+    try:
+        response = _get_client().models.generate_content(
+            model=GEMINI_VISION_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json", response_schema=REPORT_INTENT_SCHEMA,
+                max_output_tokens=120,
+            ),
+        )
+        _anotar_consumo(response, GEMINI_VISION_MODEL)
+        return json.loads(response.text)
+    except Exception as exc:
+        raise HTTPException(502, f"Gemini no pudo interpretar el reporte: {exc}")
+
 
 @app.post("/analizar-plato")
 async def analizar_plato(file: UploadFile = File(...), nombre: str = Form("")):

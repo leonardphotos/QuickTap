@@ -266,19 +266,21 @@ export const platformSettingsService = {
       ramblayEnabled: row?.ramblayEnabled ?? true,
       manualPaymentEnabled: row?.manualPaymentEnabled ?? true,
       aiPhotoEnabled: row?.aiPhotoEnabled ?? true,
+      aiReportsEnabled: row?.aiReportsEnabled ?? false,
     };
   },
 
   async updatePaymentMethods(input: UpdatePaymentMethodsInput) {
-    const { ramblayEnabled, manualPaymentEnabled, aiPhotoEnabled, ...methods } = input;
+    const { ramblayEnabled, manualPaymentEnabled, aiPhotoEnabled, aiReportsEnabled, ...methods } = input;
     const row = await prisma.platformSettings.upsert({
       where: { id: SINGLETON_ID },
-      create: { id: SINGLETON_ID, paymentMethods: methods, ramblayEnabled, manualPaymentEnabled, aiPhotoEnabled },
+      create: { id: SINGLETON_ID, paymentMethods: methods, ramblayEnabled, manualPaymentEnabled, aiPhotoEnabled, aiReportsEnabled },
       update: {
         paymentMethods: methods,
         ...(ramblayEnabled !== undefined ? { ramblayEnabled } : {}),
         ...(manualPaymentEnabled !== undefined ? { manualPaymentEnabled } : {}),
         ...(aiPhotoEnabled !== undefined ? { aiPhotoEnabled } : {}),
+        ...(aiReportsEnabled !== undefined ? { aiReportsEnabled } : {}),
       },
     });
     return {
@@ -286,6 +288,7 @@ export const platformSettingsService = {
       ramblayEnabled: row.ramblayEnabled,
       manualPaymentEnabled: row.manualPaymentEnabled,
       aiPhotoEnabled: row.aiPhotoEnabled,
+      aiReportsEnabled: row.aiReportsEnabled,
     };
   },
 
@@ -306,6 +309,12 @@ export const platformSettingsService = {
       select: { aiPhotoEnabled: true },
     });
     return row?.aiPhotoEnabled ?? true;
+  },
+
+  /** Interruptor global de Reportes con IA: una pestaña vieja no puede evadirlo. */
+  async getAiReportsEnabledOrDefault(): Promise<boolean> {
+    const row = await prisma.platformSettings.findUnique({ where: { id: SINGLETON_ID }, select: { aiReportsEnabled: true } });
+    return row?.aiReportsEnabled ?? false;
   },
 
   /** Precios/descripción de los 4 planes: defaults fusionados con lo editado desde el master. */

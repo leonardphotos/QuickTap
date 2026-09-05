@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { daysRemaining, graceHoursRemaining } from '@/utils/subscription';
 import { cn } from '@/lib/utils';
 import { DailyRatesBadge } from '@/components/DailyRatesBadge';
+import { AiReportsButton } from '@/components/admin/AiReportsButton';
 
 const ClubCourtsLivePage = lazy(() => import('./ClubCourtsLivePage'));
 const ClubCourtDetailPage = lazy(() => import('./ClubCourtDetailPage'));
@@ -69,6 +70,7 @@ export default function ClubLayout() {
 
   return (
     <div className="min-h-screen bg-[#fafafa]">
+      <AiReportsButton />
       {showExpirationWarning && (
         <button
           type="button"

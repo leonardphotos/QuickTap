@@ -24,6 +24,7 @@ import { allowsBranches, daysRemaining, graceHoursRemaining, hasFeature, type Fe
 import ShopSucursalesPage from './ShopSucursalesPage';
 import ShopAdministracionPage, { type ShopAdminTab } from './ShopAdministracionPage';
 import { ShopNavDrawer } from './ShopNavDrawer';
+import { AiReportsButton } from '@/components/admin/AiReportsButton';
 
 // 'cotizaciones' y 'cuentas' siguen acá aunque ya no sean pantallas propias: son los accesos
 // de Inicio, y irA() los traduce a Administración parada en esa pestaña. Los demás destinos
@@ -201,6 +202,7 @@ export default function ShopLayout() {
 
   return (
     <div className="min-h-screen bg-[#fafafa]">
+      <AiReportsButton />
       <ShopSidebar
         tabs={sidebarTabs}
         screen={screenActivo}

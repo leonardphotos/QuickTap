@@ -74,6 +74,7 @@ import walletRoutes from '../modules/wallet/wallet.routes';
 import { publicRamblayRoutes } from '../modules/ramblay/ramblay.routes';
 import branchRoutes from '../modules/branches/branch.routes';
 import aiPhotoRoutes from '../modules/ai-photo/ai-photo.routes';
+import aiReportsRoutes from '../modules/ai-reports/ai-reports.routes';
 import shopRoutes from '../modules/shop/shop.routes';
 import { approvalRoutes } from '../modules/approvals/approval.routes';
 import { officeRoutes } from '../modules/accounting-office/accounting.routes';
@@ -151,6 +152,7 @@ router.use('/quotes', quoteRoutes);
 router.use('/reservations', tenantReservationRoutes);
 router.use('/branches', branchRoutes);
 router.use('/ai-photo', aiPhotoRoutes);
+router.use('/ai-reports', aiReportsRoutes);
 router.use('/shop', shopRoutes);
 router.use('/approvals', approvalRoutes);
 // Vertical Administrativo: contabilidad multi-empresa (distinto del /accounting de restaurantes).

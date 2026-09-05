@@ -3103,6 +3103,9 @@ model PlatformSettings {
   // QuickTap, no por restaurante) — apagarlo bloquea ambos botones en todos
   // los restaurantes y locales a la vez.
   aiPhotoEnabled       Boolean  @default(true)
+  // Interruptor global del asistente de reportes. Se deja apagado por defecto: cada consulta
+  // libre sale a Gemini y el Dashboard maestro decide cuándo habilitarlo para todos.
+  aiReportsEnabled     Boolean  @default(false)
   // Precios/descripción editables por plan desde el Dashboard maestro. Parcial
   // (solo los planes que el master haya tocado); se fusiona con los valores
   // por defecto en platform-settings.service.ts al leer.
