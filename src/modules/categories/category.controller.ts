@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { asyncHandler } from '../../middlewares/error.middleware';
-import { createCategorySchema, updateCategorySchema } from './category.dto';
+import { createCategorySchema, reorderCategoriesSchema, updateCategorySchema } from './category.dto';
 import { categoryService } from './category.service';
 
 export const categoryController = {
@@ -14,6 +14,10 @@ export const categoryController = {
   update: asyncHandler(async (req: Request, res: Response) => {
     const input = updateCategorySchema.parse(req.body);
     res.json({ data: await categoryService.update(req.restaurantId!, req.params.id, input) });
+  }),
+  reorder: asyncHandler(async (req: Request, res: Response) => {
+    const input = reorderCategoriesSchema.parse(req.body);
+    res.json({ data: await categoryService.reorder(req.restaurantId!, input) });
   }),
   remove: asyncHandler(async (req: Request, res: Response) => {
     res.json({ data: await categoryService.remove(req.restaurantId!, req.params.id) });

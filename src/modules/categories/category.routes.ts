@@ -9,6 +9,7 @@ const mutate = requireRoleOrCashierFullAccess('OWNER', 'ADMIN');
 
 router.get('/', categoryController.list);
 router.post('/', mutate, categoryController.create);
+router.patch('/reorder', mutate, categoryController.reorder);
 router.patch('/:id', mutate, categoryController.update);
 router.delete('/:id', mutate, categoryController.remove);
 
