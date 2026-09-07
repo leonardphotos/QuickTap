@@ -306,6 +306,27 @@ export function ProductFormDialog({
     }
   }
 
+  async function moverModificador(categoryId: string, index: number, direccion: -1 | 1) {
+    const category = linkedCategories.find((item) => item.id === categoryId);
+    if (!category) return;
+    const destino = index + direccion;
+    if (destino < 0 || destino >= category.modifiers.length) return;
+    const modifierIds = category.modifiers.map((item) => item.id);
+    [modifierIds[index], modifierIds[destino]] = [modifierIds[destino], modifierIds[index]];
+    await api.patch(`/modifier-categories/${categoryId}/modifiers/reorder`, { modifierIds });
+    setLinkedCategories((current) => current.map((item) => item.id === categoryId
+      ? { ...item, modifiers: modifierIds.map((id) => item.modifiers.find((modifier) => modifier.id === id)!).filter(Boolean) }
+      : item));
+  }
+
+  async function eliminarModificador(categoryId: string, modifierId: string) {
+    if (!window.confirm('¿Eliminar este modificador? Esta acción no se puede deshacer.')) return;
+    await api.delete(`/modifier-categories/modifiers/${modifierId}`);
+    setLinkedCategories((current) => current.map((item) => item.id === categoryId
+      ? { ...item, modifiers: item.modifiers.filter((modifier) => modifier.id !== modifierId) }
+      : item));
+  }
+
   async function dissociateCategory(categoryId: string) {
     if (!product) return;
     try {
@@ -694,6 +715,8 @@ export function ProductFormDialog({
                                 variants={pricingMode === 'VARIANTS' ? variants : []}
                                 onDissociate={() => dissociateCategory(c.id)}
                                 onMover={(d) => void moverCategoria(i, d)}
+                                onMoverModificador={(index, direction) => void moverModificador(c.id, index, direction)}
+                                onEliminarModificador={(modifierId) => void eliminarModificador(c.id, modifierId)}
                                 puedeSubir={i > 0}
                                 puedeBajar={i < linkedCategories.length - 1}
                               />
@@ -1216,6 +1239,8 @@ function LinkedCategoryRow({
   variants,
   onDissociate,
   onMover,
+  onMoverModificador,
+  onEliminarModificador,
   puedeSubir,
   puedeBajar,
 }: {
@@ -1226,6 +1251,8 @@ function LinkedCategoryRow({
   onDissociate: () => void;
   /** Mueve el grupo un lugar arriba o abajo dentro de ESTE producto. */
   onMover: (direccion: -1 | 1) => void;
+  onMoverModificador: (index: number, direccion: -1 | 1) => void;
+  onEliminarModificador: (modifierId: string) => void;
   puedeSubir: boolean;
   puedeBajar: boolean;
 }) {
@@ -1370,8 +1397,9 @@ function LinkedCategoryRow({
       {variants.length > 0 && category.modifiers.length > 0 && (
         <div className="space-y-2 pt-1">
           <span className="text-[11px] text-brand-950/40">Modificadores acotados por tamaño (opcional)</span>
-          {category.modifiers.map((m) => (
-            <ModifierVariantRow key={m.id} modifier={m} productId={productId} variants={variants} />
+          {category.modifiers.map((m, index) => (
+            <ModifierVariantRow key={m.id} modifier={m} productId={productId} variants={variants}
+              onMover={(direction) => onMoverModificador(index, direction)} onEliminar={() => onEliminarModificador(m.id)} puedeSubir={index > 0} puedeBajar={index < category.modifiers.length - 1} />
           ))}
         </div>
       )}
@@ -1383,10 +1411,18 @@ function ModifierVariantRow({
   modifier,
   productId,
   variants,
+  onMover,
+  onEliminar,
+  puedeSubir,
+  puedeBajar,
 }: {
   modifier: Modifier;
   productId: string;
   variants: ProductVariant[];
+  onMover: (direccion: -1 | 1) => void;
+  onEliminar: () => void;
+  puedeSubir: boolean;
+  puedeBajar: boolean;
 }) {
   // Vacío = este modificador aparece en todos los tamaños donde ya aparece el grupo — igual
   // criterio que el "¿En qué tamaños?" del grupo, un nivel más abajo.
@@ -1409,9 +1445,8 @@ function ModifierVariantRow({
 
   return (
     <div className="pl-3 border-l-2 border-brand-950/10">
-      <span className="text-[11px] text-brand-950/50">
-        {modifier.name} {guardando && <span className="text-brand-500">guardando…</span>}
-      </span>
+      <div className="flex items-center justify-between"><span className="text-[11px] text-brand-950/50">{modifier.name} {guardando && <span className="text-brand-500">guardando…</span>}</span>
+        <span className="flex gap-1"><button type="button" onClick={() => onMover(-1)} disabled={!puedeSubir} className="disabled:opacity-20"><ChevronUp className="h-3.5 w-3.5" /></button><button type="button" onClick={() => onMover(1)} disabled={!puedeBajar} className="disabled:opacity-20"><ChevronDown className="h-3.5 w-3.5" /></button><button type="button" onClick={onEliminar} className="text-red-500"><Trash2 className="h-3.5 w-3.5" /></button></span></div>
       <div className="mt-1 flex flex-wrap gap-1.5">
         <button
           type="button"
