@@ -86,13 +86,20 @@ const STEP_LABELS: Record<Step, string> = { 1: 'Cliente', 2: 'Menú', 3: 'Pago' 
 function DeliveryLocationPreview({
   coords,
   origin,
+  onSelect,
 }: {
   coords: { lat: number; lng: number } | null;
   origin: { lat: number | null | undefined; lng: number | null | undefined };
+  onSelect: (coords: { lat: number; lng: number }) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const pointsRef = useRef<L.LayerGroup | null>(null);
+  const onSelectRef = useRef(onSelect);
+
+  useEffect(() => {
+    onSelectRef.current = onSelect;
+  }, [onSelect]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -100,6 +107,11 @@ function DeliveryLocationPreview({
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
     L.control.zoom({ position: 'bottomright' }).addTo(map);
     pointsRef.current = L.layerGroup().addTo(map);
+    // Un punto único: cada toque reemplaza el anterior para que la coordenada que se cobra
+    // siempre sea exactamente la que el cajero dejó marcada.
+    map.on('click', (event: L.LeafletMouseEvent) => {
+      onSelectRef.current({ lat: event.latlng.lat, lng: event.latlng.lng });
+    });
     mapRef.current = map;
     return () => {
       map.remove();
@@ -127,7 +139,7 @@ function DeliveryLocationPreview({
     <section className="overflow-hidden rounded-2xl border border-brand-950/10 bg-white shadow-sm min-h-[240px]">
       <div className="flex items-center justify-between px-3 py-2 border-b border-brand-950/[0.06]">
         <span className="text-xs font-semibold text-brand-950">Ubicación de entrega</span>
-        <span className={`text-[11px] font-medium ${coords ? 'text-emerald-600' : 'text-brand-950/40'}`}>{coords ? 'Punto seleccionado' : 'Selecciona una dirección'}</span>
+        <span className={`text-[11px] font-medium ${coords ? 'text-emerald-600' : 'text-brand-950/40'}`}>{coords ? 'Punto seleccionado' : 'Toca el mapa para marcar'}</span>
       </div>
       <div ref={containerRef} className="h-[210px] w-full" aria-label="Mapa de ubicación de entrega" />
     </section>
@@ -1032,6 +1044,12 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                       <DeliveryLocationPreview
                         coords={addressCoords}
                         origin={{ lat: restaurant?.deliveryOriginLat, lng: restaurant?.deliveryOriginLng }}
+                        onSelect={(coords) => {
+                          setAddressCoords(coords);
+                          setManualFeeText(null);
+                          setLocationError(null);
+                          void reverseGeocode(coords.lat, coords.lng).then(setCustomerAddress);
+                        }}
                       />
                     )}
                   </div>
