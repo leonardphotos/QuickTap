@@ -18,6 +18,7 @@ const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   BINANCE: 'Binance',
   PAYPAL: 'PayPal',
   TRANSFER: 'Transferencia',
+  PAYROLL_DEDUCTION: 'Descuento de nómina',
 };
 
 const DEFAULT_PAYMENT_OPTIONS: PaymentMethod[] = ['MOBILE_PAYMENT', 'ZELLE', 'CASH', 'CASH_USD', 'CARD'];

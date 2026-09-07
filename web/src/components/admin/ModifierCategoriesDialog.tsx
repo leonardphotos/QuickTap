@@ -555,7 +555,8 @@ function CategoryEditor({
 
   return (
     <>
-      <DialogHeader className="flex-row items-center justify-between gap-2 pr-0">
+      {/* Deja espacio para el cierre propio del diálogo: en móvil la X quedaba sobre el menú de tres puntos. */}
+      <DialogHeader className="flex-row items-center justify-between gap-2 pr-10">
         <div className="flex items-center gap-2 min-w-0">
           <button onClick={onBack} className="text-brand-950/50 hover:text-brand-950 shrink-0">
             <ArrowLeft className="h-4 w-4" />

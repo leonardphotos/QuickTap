@@ -118,6 +118,7 @@ export interface LiveOrder {
   items: LiveOrderItem[];
   payments: LiveOrderPayment[];
   awaitingPayment: boolean;
+  isEmployeeConsumption?: boolean;
   /** Factura emitida por la máquina fiscal del local. Con valor, ya salió y no se vuelve a
    * emitir: cada emisión consume numeración fiscal (ver FiscalInvoiceDialog). */
   fiscalPrinterInvoice?: string | null;
