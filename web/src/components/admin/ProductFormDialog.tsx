@@ -321,7 +321,16 @@ export function ProductFormDialog({
 
   async function eliminarModificador(categoryId: string, modifierId: string) {
     if (!window.confirm('¿Eliminar este modificador? Esta acción no se puede deshacer.')) return;
-    await api.delete(`/modifier-categories/modifiers/${modifierId}`);
+    try {
+      setError(null);
+      await api.delete(`/modifier-categories/modifiers/${modifierId}`);
+    } catch (err: any) {
+      // Puede haberse eliminado desde otra pestaña: el resultado correcto es quitarlo de esta vista.
+      if (err.response?.status !== 404) {
+        setError(err.response?.data?.error ?? 'No se pudo eliminar el modificador.');
+        return;
+      }
+    }
     setLinkedCategories((current) => current.map((item) => item.id === categoryId
       ? { ...item, modifiers: item.modifiers.filter((modifier) => modifier.id !== modifierId) }
       : item));
@@ -334,6 +343,10 @@ export function ProductFormDialog({
       await api.delete(`/modifier-categories/${categoryId}/products/${product.id}`);
       setLinkedCategories((m) => m.filter((c) => c.id !== categoryId));
     } catch (err: any) {
+      if (err.response?.status === 404) {
+        setLinkedCategories((m) => m.filter((c) => c.id !== categoryId));
+        return;
+      }
       // Antes esta llamada no tenía try/catch: un fallo (permiso, red, sesión vencida) se
       // tragaba entero y el botón de quitar la categoría "no hacía nada" — sin error, sin
       // que la categoría desapareciera, sin ninguna pista de qué pasó.
