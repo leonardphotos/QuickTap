@@ -290,7 +290,13 @@ ipcMain.handle('imprimir-crudo', async (_event, deviceName, base64) => {
  * ruta y el replace no hace nada.
  */
 function rutaFiscal(archivo) {
-  return path.join(__dirname.replace(/app\.asar([\\/])/, 'app.asar.unpacked$1'), 'fiscal', archivo);
+  // En producción `__dirname` termina exactamente en `app.asar` (sin una barra después),
+  // por lo que el replace anterior no lo convertía a `app.asar.unpacked` y PowerShell no
+  // encontraba factura.ps1. Fuera del instalador se conserva la carpeta local de desarrollo.
+  const marker = 'app.asar';
+  const index = __dirname.lastIndexOf(marker);
+  const base = index >= 0 ? path.join(__dirname.slice(0, index), `${marker}.unpacked`) : __dirname;
+  return path.join(base, 'fiscal', archivo);
 }
 
 /**

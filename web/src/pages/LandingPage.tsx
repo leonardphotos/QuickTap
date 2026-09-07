@@ -1134,7 +1134,7 @@ export default function LandingPage() {
                 Descargar para Android
               </a>
               <a
-                href="/descargas/QuickTap-Impresion-Setup.exe"
+                href="/descargas/QuickTap-Impresion-Setup-1.9.1.exe"
                 className="inline-flex w-full items-center justify-center gap-2.5 rounded-full border border-white/25 bg-white/10 px-7 py-3.5 font-semibold text-white backdrop-blur-sm transition-transform hover:scale-[1.03] hover:bg-white/15 active:scale-[0.97] sm:w-auto"
               >
                 <Printer className="h-5 w-5" />

@@ -24,7 +24,7 @@ export function PrintStationSection() {
       </TextureCardHeader>
       <TextureCardContent className="space-y-4">
         <TextureButton variant="secondary" size="sm" className="!w-auto" asChild>
-          <a href="/descargas/QuickTap-Impresion-Setup.exe" download className="flex items-center gap-1.5">
+          <a href="/descargas/QuickTap-Impresion-Setup-1.9.1.exe" download className="flex items-center gap-1.5">
             <Download className="h-3.5 w-3.5 shrink-0" /> Descargar Estación de Impresión
           </a>
         </TextureButton>

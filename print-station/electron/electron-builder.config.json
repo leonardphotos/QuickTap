@@ -17,7 +17,7 @@
   "win": {
     "target": "nsis",
     "icon": "appIcon.ico",
-    "artifactName": "QuickTap-Impresion-Setup.exe"
+    "artifactName": "QuickTap-Impresion-Setup-1.9.1.exe"
   },
   "nsis": {
     "oneClick": false,
