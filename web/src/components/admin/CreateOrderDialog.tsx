@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import {
   ArrowLeft,
   Bike,
@@ -78,6 +80,59 @@ const CHANNEL_LABELS: Record<Channel, string> = {
  */
 
 const STEP_LABELS: Record<Step, string> = { 1: 'Cliente', 2: 'Menú', 3: 'Pago' };
+
+/** Vista rápida del punto de entrega. No permite editar zonas: solo confirma visualmente que la
+ * dirección elegida corresponde al lugar que verá el repartidor. */
+function DeliveryLocationPreview({
+  coords,
+  origin,
+}: {
+  coords: { lat: number; lng: number } | null;
+  origin: { lat: number | null | undefined; lng: number | null | undefined };
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const pointsRef = useRef<L.LayerGroup | null>(null);
+
+  useEffect(() => {
+    if (!containerRef.current || mapRef.current) return;
+    const map = L.map(containerRef.current, { zoomControl: false, attributionControl: false }).setView([10.4806, -66.9036], 12);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+    L.control.zoom({ position: 'bottomright' }).addTo(map);
+    pointsRef.current = L.layerGroup().addTo(map);
+    mapRef.current = map;
+    return () => {
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    const points = pointsRef.current;
+    if (!map || !points) return;
+    points.clearLayers();
+    const originPoint = origin.lat != null && origin.lng != null ? L.latLng(origin.lat, origin.lng) : null;
+    const customerPoint = coords ? L.latLng(coords.lat, coords.lng) : null;
+
+    if (originPoint) L.circleMarker(originPoint, { radius: 6, color: '#082b5b', fillColor: '#082b5b', fillOpacity: 1, weight: 2 }).bindTooltip('Local').addTo(points);
+    if (customerPoint) L.circleMarker(customerPoint, { radius: 8, color: '#ffffff', fillColor: '#1598f2', fillOpacity: 1, weight: 3 }).bindTooltip('Entrega').addTo(points);
+
+    if (originPoint && customerPoint) map.fitBounds(L.latLngBounds([originPoint, customerPoint]), { padding: [28, 28], maxZoom: 15 });
+    else if (customerPoint) map.setView(customerPoint, 15);
+    else if (originPoint) map.setView(originPoint, 14);
+  }, [coords, origin.lat, origin.lng]);
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-brand-950/10 bg-white shadow-sm min-h-[240px]">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-brand-950/[0.06]">
+        <span className="text-xs font-semibold text-brand-950">Ubicación de entrega</span>
+        <span className={`text-[11px] font-medium ${coords ? 'text-emerald-600' : 'text-brand-950/40'}`}>{coords ? 'Punto seleccionado' : 'Selecciona una dirección'}</span>
+      </div>
+      <div ref={containerRef} className="h-[210px] w-full" aria-label="Mapa de ubicación de entrega" />
+    </section>
+  );
+}
 
 /** Cargo por envase de UNA unidad del producto — misma regla que computeEnvaseFee del backend:
  * FIXED usa el precio propio, INVENTORY el del insumo vinculado, NONE no cobra. */
@@ -892,7 +947,8 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                 )}
 
                 {channel !== 'DINE_IN' && (
-                  <div className="space-y-2 max-w-md">
+                  <div className={channel === 'DELIVERY' ? 'grid grid-cols-1 lg:grid-cols-[minmax(0,40rem)_minmax(280px,1fr)] gap-4 max-w-5xl items-start' : 'space-y-2 max-w-md'}>
+                    <div className={channel === 'DELIVERY' ? 'space-y-2' : undefined}>
                     {channel === 'DELIVERY' && (
                       <>
                         <AddressAutocomplete
@@ -971,6 +1027,13 @@ export function CreateOrderDialog({ existingOrders, onClose, onCreated, onSelect
                       placeholder="Nota (opcional)"
                       className="w-full text-sm border border-brand-950/15 rounded-lg px-2.5 py-1.5"
                     />
+                    </div>
+                    {channel === 'DELIVERY' && (
+                      <DeliveryLocationPreview
+                        coords={addressCoords}
+                        origin={{ lat: restaurant?.deliveryOriginLat, lng: restaurant?.deliveryOriginLng }}
+                      />
+                    )}
                   </div>
                 )}
 
