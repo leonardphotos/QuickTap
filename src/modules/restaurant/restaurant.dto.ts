@@ -20,6 +20,8 @@ export const restaurantThemeSchema = z.object({
   text: hexColor.optional(),
   // Color de arranque del degradado del banner (siempre se desvanece hacia blanco).
   bannerColor: hexColor.optional(),
+  // Fondo general detrás de las secciones del menú público.
+  backgroundColor: hexColor.optional(),
   // Foto de portada del banner; si está presente reemplaza el color sólido pero
   // conserva el mismo degradado hacia blanco por encima de la imagen.
   coverImageUrl: z.string().min(1).optional(),

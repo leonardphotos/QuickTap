@@ -7,12 +7,13 @@ import { TextureCard, TextureCardHeader, TextureCardTitle, TextureCardContent } 
 import { ColorPickerField } from './ColorPickerField';
 import { PhotoUploadField } from './PhotoUploadField';
 
-export const THEME_DEFAULTS: Required<Pick<RestaurantTheme, 'primary' | 'buttonText' | 'accent' | 'text' | 'bannerColor'>> = {
+export const THEME_DEFAULTS: Required<Pick<RestaurantTheme, 'primary' | 'buttonText' | 'accent' | 'text' | 'bannerColor' | 'backgroundColor'>> = {
   primary: '#056CF2',
   buttonText: '#FFFFFF',
   accent: '#0597F2',
   text: '#001B43',
   bannerColor: '#0597F2',
+  backgroundColor: '#FFFFFF',
 };
 
 const SOCIAL_FIELDS: { key: keyof RestaurantSocialLinks; label: string; placeholder: string }[] = [
@@ -121,6 +122,12 @@ export function ThemeSection() {
             value={theme.bioColor ?? ''}
             defaultValue="#FFFFFF"
             onChange={(v) => set('bioColor', v)}
+          />
+          <ColorPickerField
+            label={`Fondo del ${publico}`}
+            value={theme.backgroundColor ?? ''}
+            defaultValue={THEME_DEFAULTS.backgroundColor}
+            onChange={(v) => set('backgroundColor', v)}
           />
         </div>
 

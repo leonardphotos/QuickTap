@@ -249,11 +249,12 @@ export default function MenuPage() {
     theme?.socialLinks &&
       (theme.socialLinks.instagram || theme.socialLinks.facebook || theme.socialLinks.tiktok || theme.socialLinks.x),
   );
+  const menuBackground = theme?.backgroundColor || '#FFFFFF';
 
   const cartCount = cart.reduce((acc, l) => acc + l.quantity, 0);
 
   return (
-    <div className="relative min-h-screen bg-white pb-32 overflow-hidden">
+    <div className="relative min-h-screen pb-32 overflow-hidden" style={{ backgroundColor: menuBackground }}>
       <div className="pointer-events-none absolute inset-x-0 top-0 h-80 overflow-hidden">
         {theme?.coverImageUrl ? (
           <>
@@ -265,7 +266,7 @@ export default function MenuPage() {
             {theme?.bannerStyle !== 'solid' && (
               <div
                 className="absolute inset-0"
-                style={{ backgroundImage: `linear-gradient(to bottom, ${hexToRgba(theme?.bannerColor || '#0597F2', 0.35)}, #ffffff)` }}
+                style={{ backgroundImage: `linear-gradient(to bottom, ${hexToRgba(theme?.bannerColor || '#0597F2', 0.35)}, ${menuBackground})` }}
               />
             )}
           </>
@@ -275,7 +276,7 @@ export default function MenuPage() {
             style={
               theme?.bannerStyle === 'solid'
                 ? { backgroundColor: theme?.bannerColor || '#0597F2' }
-                : { backgroundImage: `linear-gradient(to bottom, ${theme?.bannerColor || '#0597F2'}, #ffffff)` }
+                : { backgroundImage: `linear-gradient(to bottom, ${theme?.bannerColor || '#0597F2'}, ${menuBackground})` }
             }
           />
         )}

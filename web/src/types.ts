@@ -36,6 +36,8 @@ export interface RestaurantTheme {
   text?: string;
   /** Color de arranque del degradado del banner (siempre se desvanece hacia blanco). */
   bannerColor?: string;
+  /** Fondo general detrás de las secciones del menú público. */
+  backgroundColor?: string;
   /** Foto de portada del banner; si está presente, el degradado hacia blanco se aplica sobre la imagen. */
   coverImageUrl?: string;
   /** Color del texto de la biografía (descripción) en el banner. Sin definir = blanco semitransparente. */
