@@ -26,7 +26,7 @@ type NavItem = { label: string; icon: typeof ChefHat; href?: string; badge?: num
 // y Sucursales. La propuesta solo añade contadores en vivo junto a cada módulo.
 const NAV: NavItem[] = [
   { label: 'Resumen', icon: LayoutDashboard, href: '/propuesta/dashboard' },
-  { label: 'Pedidos', icon: ClipboardList, badge: 6 },
+  { label: 'Pedidos', icon: ClipboardList, badge: 6, href: '/propuesta/pedidos' },
   { label: 'Cocina', icon: ChefHat, badge: 2 },
   { label: 'Mesas', icon: Grid2x2 },
   { label: 'Repartos', icon: Bike, badge: 2 },
