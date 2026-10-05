@@ -58,13 +58,13 @@ export function ProposalSidebar({ active = 'Resumen' }: { active?: string }) {
         </button>
       </div>
 
-      <button
-        type="button"
+      <a
+        href="/propuesta/pedido"
         className="mb-4 flex min-h-11 w-full shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand-500 text-[14.5px] font-semibold text-white shadow-[0_8px_20px_-8px_rgba(5,165,245,0.45)] transition-[filter,transform] hover:brightness-95 active:scale-[0.98]"
       >
         <Plus className="h-4 w-4" strokeWidth={2.5} /> Crear pedido
         <kbd className="ml-1 rounded-md bg-white/25 px-1.5 py-0.5 font-sans text-[10px] font-medium">N</kbd>
-      </button>
+      </a>
 
       <nav aria-label="Menú del restaurante" className="flex flex-1 flex-col">
         <ul className="flex flex-col gap-0.5">
