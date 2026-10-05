@@ -27,6 +27,7 @@ function ScrollToTop() {
 const PlansPage = lazy(() => import('./pages/PlansPage'));
 const TutorialsPage = lazy(() => import('./pages/TutorialsPage'));
 const LegalPage = lazy(() => import('./pages/LegalPage'));
+const DashboardProposalPage = lazy(() => import('./pages/propuesta/dashboard/DashboardProposalPage'));
 const ServicePage = lazy(() => import('./pages/seo/ServicePage'));
 const VerticalPage = lazy(() => import('./pages/seo/VerticalPage'));
 const ComparativaPage = lazy(() => import('./pages/seo/ComparativaPage'));
@@ -134,6 +135,7 @@ export default function App() {
             <Route path="/precios" element={<PlansPage />} />
             <Route path="/planes" element={<PlanesRedirect />} />
             <Route path="/legal" element={<LegalPage />} />
+            <Route path="/propuesta/dashboard" element={<DashboardProposalPage />} />
 
             {/* QuickTap Wallet (quicktap.club/wallet) */}
             <Route path="/wallet" element={<WalletLoginPage />} />
