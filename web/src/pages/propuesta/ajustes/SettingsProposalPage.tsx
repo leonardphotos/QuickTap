@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Building2, Crown, Palette, Printer, ShieldCheck, Wallet } from 'lucide-react';
 import { useDocumentMeta } from '@/hooks/useDocumentMeta';
+import '../proposal.css';
 import { ProposalSidebar } from '../dashboard/ProposalSidebar';
 import { CategoryNav, type SettingsCategoryDef } from './CategoryNav';
 import { AparienciaSection, EquipoSection, ImpresionSection, NegocioSection, PagosSection, PlanSection } from './sections';
@@ -26,21 +27,22 @@ export default function SettingsProposalPage() {
   const current = CATEGORIES.find((c) => c.id === active) ?? CATEGORIES[0];
 
   return (
-    <div className="min-h-screen bg-[#fafafa]">
+    <div className="qt-proposal min-h-dvh">
       <ProposalSidebar active="Ajustes" />
-      <div className="lg:pl-[248px]">
-        <main className="mx-auto max-w-[1400px] px-5 py-8 lg:px-8">
-          <div className="mb-6">
-            <h1 className="text-2xl font-semibold tracking-tight text-brand-950 md:text-[28px]">Ajustes</h1>
-            <p className="mt-1 text-sm font-light text-brand-950/50">Configura tu negocio, pagos, equipo y más.</p>
-          </div>
+      <div className="lg:pl-[264px]">
+        <main className="mx-auto max-w-[1600px] px-5 py-8 lg:px-10">
+          <header className="mb-6">
+            <span className="text-xs tracking-[0.12em] text-muted-foreground">RESTAURANTE</span>
+            <h1 className="mt-1 text-[30px] font-semibold tracking-[-1.1px] text-brand-950">Ajustes</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Configura tu negocio, pagos, equipo y más.</p>
+          </header>
 
           <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:gap-8">
             <CategoryNav categories={CATEGORIES} active={active} onChange={setActive} />
 
             <div className="min-w-0 flex-1">
               <div className="mb-5 flex items-center gap-2.5">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-500/10 text-brand-500">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-accent text-brand-500">
                   {current.icon}
                 </span>
                 <div className="min-w-0">

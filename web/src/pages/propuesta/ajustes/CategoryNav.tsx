@@ -28,8 +28,8 @@ export function CategoryNav({
             aria-current={active === c.id ? 'page' : undefined}
             className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-2 text-xs font-medium transition-colors ${
               active === c.id
-                ? 'border-brand-950 bg-brand-950 text-white'
-                : 'border-brand-950/10 bg-white text-brand-950/65 hover:bg-brand-950/[0.03]'
+                ? 'border-brand-500 bg-brand-500 text-white'
+                : 'border-border bg-card text-muted-foreground hover:bg-[#f3f9fd]'
             }`}
           >
             {c.icon}
@@ -39,7 +39,7 @@ export function CategoryNav({
       </nav>
 
       {/* Riel lateral fijo en escritorio. */}
-      <aside className="hidden shrink-0 lg:block lg:w-64 lg:sticky lg:top-8">
+      <aside className="hidden shrink-0 rounded-3xl border border-border bg-card p-3 lg:block lg:w-64 lg:sticky lg:top-8">
         <nav className="flex flex-col gap-0.5">
           {categories.map((c) => (
             <button
@@ -48,17 +48,17 @@ export function CategoryNav({
               onClick={() => onChange(c.id)}
               aria-current={active === c.id ? 'page' : undefined}
               className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
-                active === c.id ? 'bg-brand-950 text-white' : 'text-brand-950/70 hover:bg-brand-950/[0.04]'
+                active === c.id ? 'bg-[#eaf6fd] text-brand-500' : 'text-[#5d685e] hover:bg-[#f3f9fd] hover:text-brand-950'
               }`}
             >
               <span
                 className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
-                  active === c.id ? 'bg-white/15 text-white' : 'bg-brand-500/10 text-brand-500'
+                  active === c.id ? 'bg-white text-brand-500' : 'bg-accent text-brand-500'
                 }`}
               >
                 {c.icon}
               </span>
-              <span className={active === c.id ? 'font-medium' : 'font-light'}>{c.title}</span>
+              <span className="font-medium">{c.title}</span>
             </button>
           ))}
         </nav>

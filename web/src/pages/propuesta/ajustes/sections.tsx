@@ -4,7 +4,7 @@ import { businessHours, brandColor, paymentMethodsConfig, planInfo, teamMembers 
 /** Tarjeta base consistente con el resto de las propuestas: borde sutil, fondo blanco, radios grandes. */
 function Card({ title, description, action, children }: { title: string; description?: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="rounded-2xl border border-brand-950/[0.07] bg-white p-5">
+    <div className="rounded-3xl border border-border bg-card p-6 shadow-[0_8px_30px_#20272004]">
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="text-[15px] font-semibold text-brand-950">{title}</h3>

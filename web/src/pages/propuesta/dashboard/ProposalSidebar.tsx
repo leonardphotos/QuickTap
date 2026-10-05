@@ -6,124 +6,123 @@ import {
   ChefHat,
   CircleDollarSign,
   ClipboardList,
+  FileBarChart,
   Grid2x2,
   LayoutDashboard,
+  Menu,
+  PanelLeftClose,
   Plus,
   QrCode,
   Settings,
+  Share2,
+  Sparkles,
   UtensilsCrossed,
 } from 'lucide-react';
 import { restaurant } from './data';
 
-type NavItem = { label: string; icon: typeof ChefHat; badge?: number; alert?: boolean };
+type NavItem = { label: string; icon: typeof ChefHat; href?: string; badge?: number; alert?: boolean };
 
-// Propuesta: agrupar las ~12 secciones en tres bloques con intención (operar el turno,
-// mantener el catálogo, mirar el negocio) en vez de una sola lista larga.
-const groups: { title: string; items: NavItem[] }[] = [
-  {
-    title: 'Turno',
-    items: [
-      { label: 'Resumen', icon: LayoutDashboard },
-      { label: 'Comandas', icon: ClipboardList, badge: 6 },
-      { label: 'Cocina', icon: ChefHat, badge: 2 },
-      { label: 'Órdenes de Mesa', icon: Grid2x2 },
-      { label: 'Delivery', icon: Bike, badge: 2 },
-      { label: 'Reservas', icon: CalendarDays, badge: 2, alert: true },
-    ],
-  },
-  {
-    title: 'Catálogo',
-    items: [
-      { label: 'Productos', icon: UtensilsCrossed },
-      { label: 'Mesas / QR', icon: QrCode },
-      { label: 'Inventario', icon: Boxes, badge: 3, alert: true },
-    ],
-  },
-  {
-    title: 'Negocio',
-    items: [
-      { label: 'Administración', icon: CircleDollarSign },
-      { label: 'Sucursales', icon: Building2 },
-    ],
-  },
+// Mismo orden y nombres que visibleNavLinks() para un Dueño con Administración, Inventario
+// y Sucursales. La propuesta solo añade contadores en vivo junto a cada módulo.
+const NAV: NavItem[] = [
+  { label: 'Resumen', icon: LayoutDashboard, href: '/propuesta/dashboard' },
+  { label: 'Pedidos', icon: ClipboardList, badge: 6 },
+  { label: 'Cocina', icon: ChefHat, badge: 2 },
+  { label: 'Mesas', icon: Grid2x2 },
+  { label: 'Repartos', icon: Bike, badge: 2 },
+  { label: 'Productos', icon: UtensilsCrossed },
+  { label: 'Mesas / QR', icon: QrCode },
+  { label: 'Reservas', icon: CalendarDays, badge: 2, alert: true },
+  { label: 'Administración', icon: CircleDollarSign },
+  { label: 'Menú interno', icon: UtensilsCrossed },
+  { label: 'Inventario', icon: Boxes, badge: 3, alert: true },
+  { label: 'Sucursales', icon: Building2 },
+  { label: 'Asistente', icon: Sparkles },
+  { label: 'Ajustes', icon: Settings, href: '/propuesta/ajustes' },
 ];
 
-/** `active` es el label del ítem actual (p. ej. "Resumen" o "Ajustes", que se marca abajo en
- * la tarjeta de usuario) — así la misma barra sirve para cada propuesta de pantalla. */
 export function ProposalSidebar({ active = 'Resumen' }: { active?: string }) {
   return (
-    <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:w-[248px] lg:flex-col bg-gradient-to-b from-brand-950 to-brand-900 px-3.5 py-5">
-      <div className="mb-6 flex items-center gap-3 px-2">
-        <img src="/logo/icono.png" alt="" className="h-9 w-9 shrink-0 rounded-xl bg-white object-contain p-1" />
-        <div className="min-w-0">
-          <p className="truncate text-[15px] font-semibold tracking-tight text-white">{restaurant.name}</p>
-          <p className="truncate text-[11px] text-white/45">{restaurant.plan}</p>
-        </div>
+    <aside className="hidden overflow-y-auto border-r border-border bg-card px-4 py-6 lg:fixed lg:inset-y-0 lg:left-0 lg:z-30 lg:flex lg:w-[264px] lg:flex-col">
+      <div className="mb-7 flex min-w-0 shrink-0 items-center gap-2">
+        <a href="/propuesta/dashboard" className="flex min-w-0 flex-1 items-center gap-3 px-2">
+          <img src="/logo/icono.png" alt="" className="h-10 w-10 shrink-0 rounded-xl object-cover" />
+          <span className="truncate text-[17px] font-semibold tracking-tight text-brand-950">{restaurant.name}</span>
+        </a>
+        <button
+          type="button"
+          aria-label="Ocultar menú lateral"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-muted hover:text-brand-950"
+        >
+          <PanelLeftClose className="h-[18px] w-[18px]" />
+        </button>
       </div>
 
       <button
         type="button"
-        className="mb-5 flex w-full items-center justify-center gap-1.5 rounded-xl bg-emerald-500 py-2.5 text-sm font-semibold text-white shadow-[0_8px_20px_-6px_rgba(16,185,129,0.45)] transition-colors hover:bg-emerald-600"
+        className="mb-4 flex min-h-11 w-full shrink-0 items-center justify-center gap-1.5 rounded-xl bg-brand-500 text-[14.5px] font-semibold text-white shadow-[0_8px_20px_-8px_rgba(5,165,245,0.45)] transition-[filter,transform] hover:brightness-95 active:scale-[0.98]"
       >
-        <Plus className="h-4 w-4" strokeWidth={2.5} />
-        Crear pedido
-        <kbd className="ml-1 rounded-md bg-white/20 px-1.5 py-0.5 font-sans text-[10px] font-medium">N</kbd>
+        <Plus className="h-4 w-4" strokeWidth={2.5} /> Crear pedido
+        <kbd className="ml-1 rounded-md bg-white/25 px-1.5 py-0.5 font-sans text-[10px] font-medium">N</kbd>
       </button>
 
-      <nav aria-label="Secciones del panel" className="flex flex-1 flex-col gap-5 overflow-y-auto">
-        {groups.map((group) => (
-          <div key={group.title}>
-            <p className="mb-1.5 px-3 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-white/35">{group.title}</p>
-            <ul className="flex flex-col gap-0.5">
-              {group.items.map((item) => {
-                const isActive = item.label === active;
-                return (
-                  <li key={item.label}>
-                    <a
-                      href="#"
-                      aria-current={isActive ? 'page' : undefined}
-                      className={`flex items-center gap-3 rounded-xl px-3 py-2 text-[13.5px] font-medium transition-colors ${
-                        isActive ? 'bg-brand-500/20 text-white' : 'text-white/60 hover:bg-white/[0.06] hover:text-white'
+      <nav aria-label="Menú del restaurante" className="flex flex-1 flex-col">
+        <ul className="flex flex-col gap-0.5">
+          {NAV.map((item) => {
+            const isActive = item.label === active;
+            return (
+              <li key={item.label}>
+                <a
+                  href={item.href ?? '#'}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={`flex min-h-10 items-center gap-3 rounded-xl px-3.5 text-[14.5px] font-medium transition-colors ${
+                    isActive ? 'bg-[#eaf6fd] text-brand-500' : 'text-[#5d685e] hover:bg-[#f3f9fd] hover:text-brand-950'
+                  }`}
+                >
+                  <item.icon className={`h-[18px] w-[18px] shrink-0 ${isActive ? '' : 'opacity-80'}`} />
+                  <span className="flex-1 truncate">{item.label}</span>
+                  {item.badge !== undefined && (
+                    <span
+                      className={`min-w-5 rounded-full px-1.5 py-px text-center text-[11px] font-semibold tabular-nums ${
+                        item.alert ? 'bg-red-500 text-white' : 'bg-accent text-brand-500'
                       }`}
                     >
-                      <item.icon className={`h-[17px] w-[17px] shrink-0 ${isActive ? 'text-sky-300' : 'opacity-80'}`} />
-                      <span className="flex-1 truncate">{item.label}</span>
-                      {item.badge !== undefined && (
-                        <span
-                          className={`min-w-5 rounded-full px-1.5 py-px text-center text-[10.5px] font-semibold tabular-nums ${
-                            item.alert ? 'bg-red-500 text-white' : 'bg-white/10 text-white/80'
-                          }`}
-                        >
-                          {item.badge}
-                        </span>
-                      )}
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+                      {item.badge}
+                    </span>
+                  )}
+                </a>
+              </li>
+            );
+          })}
+        </ul>
       </nav>
 
-      <div className="mt-4 flex items-center gap-2.5 rounded-2xl bg-white/[0.06] px-3 py-2.5">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-semibold text-white">
+      <button
+        type="button"
+        className="mt-4 flex min-h-10 shrink-0 items-center gap-3 rounded-xl border border-border px-3.5 text-[14px] font-medium text-brand-950 transition-colors hover:bg-[#f3f9fd]"
+      >
+        <FileBarChart className="h-[18px] w-[18px] text-brand-500" /> Reportes con IA
+      </button>
+
+      <div className="mt-3 flex shrink-0 items-center gap-2">
+        <button type="button" aria-label="Compartir enlace del menú" className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:text-brand-950">
+          <Share2 className="h-4 w-4" />
+        </button>
+        <button type="button" aria-label="Abrir menú" className="flex h-9 w-9 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors hover:text-brand-950">
+          <Menu className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="mt-3 flex min-w-0 shrink-0 items-center gap-2.5 rounded-2xl bg-muted px-3 py-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-500 text-sm font-semibold text-white">
           {restaurant.user.charAt(0)}
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-white">{restaurant.user}</p>
-          <p className="truncate text-[11px] text-white/45">{restaurant.role}</p>
+        <div className="min-w-0">
+          <p className="truncate text-[15px] font-semibold text-brand-950">{restaurant.user}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {restaurant.role} · {restaurant.plan}
+          </p>
         </div>
-        <a
-          href="/propuesta/ajustes"
-          aria-label="Ajustes"
-          aria-current={active === 'Ajustes' ? 'page' : undefined}
-          className={`rounded-lg p-1.5 transition-colors hover:bg-white/10 hover:text-white ${
-            active === 'Ajustes' ? 'bg-white/10 text-white' : 'text-white/50'
-          }`}
-        >
-          <Settings className="h-4 w-4" />
-        </a>
       </div>
     </aside>
   );
