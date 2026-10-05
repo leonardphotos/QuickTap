@@ -80,6 +80,14 @@ export function MenuCatalog({ quantityFor, onAdd }: MenuCatalogProps) {
                     qty ? 'border-brand-500 shadow-[0_0_0_1px_#05a5f5]' : 'border-border hover:border-brand-950/20'
                   }`}
                 >
+                  <div className="-mx-4 -mt-4 mb-3 overflow-hidden rounded-t-2xl">
+                    <img
+                      src={product.imageUrl}
+                      alt={product.name}
+                      loading="lazy"
+                      className="h-28 w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                  </div>
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-[11px] font-medium uppercase tracking-[0.08em] text-muted-foreground">
                       {product.soldOut ? 'Agotado' : product.tag ?? product.category}
