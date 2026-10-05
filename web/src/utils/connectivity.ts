@@ -34,7 +34,7 @@ export type ConnectivityState =
 // relativo el login nunca llegaba al servidor. Por eso se chequea también el puente propio.
 const CLOUD_ORIGIN = Capacitor.isNativePlatform() || isElectron
   ? (import.meta.env.VITE_DESKTOP_API_ORIGIN ?? 'https://quicktap.club')
-  : '';
+  : (import.meta.env.VITE_API_ORIGIN ?? '');
 
 const RELAY_KEY = 'quicktap_relay_url';
 
