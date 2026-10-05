@@ -19,12 +19,15 @@ export function CategoryNav({
   return (
     <>
       {/* Pastillas con scroll horizontal en celular — mismo patrón que la pantalla real. */}
-      <nav className="flex gap-1.5 overflow-x-auto pb-1 -mx-5 px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:hidden">
+      <nav className="-mx-4 flex snap-x scroll-px-4 gap-2 overflow-x-auto px-4 pb-1 [mask-image:linear-gradient(to_right,transparent,#000_16px,#000_calc(100%-24px),transparent)] [scrollbar-width:none] sm:-mx-5 sm:scroll-px-5 sm:px-5 [&::-webkit-scrollbar]:hidden lg:hidden">
         {categories.map((c) => (
           <button
             key={c.id}
             type="button"
-            onClick={() => onChange(c.id)}
+            onClick={(e) => {
+              onChange(c.id);
+              e.currentTarget.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+            }}
             aria-current={active === c.id ? 'page' : undefined}
             className={`flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border px-3.5 py-2 text-xs font-medium transition-colors ${
               active === c.id

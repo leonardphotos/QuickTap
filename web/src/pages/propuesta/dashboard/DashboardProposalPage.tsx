@@ -21,17 +21,17 @@ export default function DashboardProposalPage() {
     <div className="qt-proposal min-h-dvh">
       <ProposalSidebar />
       <div className="lg:pl-[264px]">
-        <main className="mx-auto flex max-w-[1600px] flex-col gap-6 px-5 py-8 lg:px-10">
+        <main className="mx-auto flex max-w-[1600px] flex-col gap-4 overflow-x-clip px-4 py-6 sm:gap-6 sm:px-5 sm:py-8 lg:px-10">
           <ProposalToolbar />
           <WelcomeRow />
 
-          <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,2.1fr)_minmax(280px,1fr)]">
-            <div className="flex min-w-0 flex-col gap-6">
+          <div className="grid grid-cols-1 items-start gap-4 sm:gap-6 xl:grid-cols-[minmax(0,2.1fr)_minmax(280px,1fr)]">
+            <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
               <HourlySalesChart />
               <LiveOrdersCard />
               <TablesCard />
             </div>
-            <div className="flex min-w-0 flex-col gap-6">
+            <div className="flex min-w-0 flex-col gap-4 sm:gap-6">
               <AttentionCard />
               <QuickActionsCard />
               <TopProductsCard />

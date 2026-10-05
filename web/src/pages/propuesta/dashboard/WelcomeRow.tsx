@@ -49,8 +49,8 @@ export function WelcomeRow() {
   const ticket = kpis.find((k) => k.id === 'ticket')!;
 
   return (
-    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr]">
-      <section className="flex min-h-[230px] flex-col justify-between gap-6 rounded-3xl bg-accent p-7 md:col-span-2 xl:col-span-1">
+    <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-2 xl:grid-cols-[2fr_1fr_1fr]">
+      <section className="flex min-h-[230px] flex-col justify-between gap-5 rounded-3xl bg-accent p-5 sm:gap-6 sm:p-7 md:col-span-2 xl:col-span-1">
         <a href="#" className="inline-flex items-center gap-2 self-start rounded-full bg-white/70 px-3 py-1.5 text-[11px] font-medium text-brand-500">
           <CheckCircle2 className="h-4 w-4" /> {restaurant.plan} · {restaurant.daysLeft} días restantes
         </a>
@@ -62,7 +62,7 @@ export function WelcomeRow() {
           </div>
           {/* Propuesta: el total del día vive en el saludo, con su comparación, en vez de
               repetirse en una tarjeta aparte. */}
-          <div className="text-right">
+          <div className="w-full rounded-2xl bg-white/70 px-4 py-3 sm:w-auto sm:bg-transparent sm:p-0 sm:text-right">
             <p className="text-xs text-muted-foreground">Vendido hoy</p>
             <p className="text-[26px] font-semibold tracking-tight tabular-nums text-brand-950">{formatUsd(sales.valueUsd)}</p>
             <p className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700">
@@ -71,14 +71,14 @@ export function WelcomeRow() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          <a href="#" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#dcecf5] bg-white px-3.5 text-[13px] font-medium text-brand-500 transition-transform active:scale-[0.97]">
-            <ClipboardList className="h-[17px] w-[17px]" /> Ver pedidos
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+          <a href="#" className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-[#dcecf5] bg-white px-3 text-[13px] font-medium text-brand-500 transition-transform active:scale-[0.97] sm:px-3.5">
+            <ClipboardList className="h-[17px] w-[17px] shrink-0" /> Ver pedidos
           </a>
-          <button type="button" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-[#dcecf5] bg-white px-3.5 text-[13px] font-medium text-brand-500 transition-transform active:scale-[0.97]">
-            <CircleDollarSign className="h-[17px] w-[17px]" /> Agregar gasto
+          <button type="button" className="inline-flex min-h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-[#dcecf5] bg-white px-3 text-[13px] font-medium text-brand-500 transition-transform active:scale-[0.97] sm:px-3.5">
+            <CircleDollarSign className="h-[17px] w-[17px] shrink-0" /> Agregar gasto
           </button>
-          <button type="button" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-brand-500 bg-brand-500 px-3.5 text-[13px] font-medium text-white transition-transform active:scale-[0.97]">
+          <button type="button" className="col-span-2 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-brand-500 bg-brand-500 px-3.5 text-[13px] font-medium text-white transition-transform active:scale-[0.97]">
             <ShoppingCart className="h-[17px] w-[17px]" /> Agregar compra
           </button>
         </div>

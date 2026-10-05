@@ -30,8 +30,8 @@ export default function SettingsProposalPage() {
     <div className="qt-proposal min-h-dvh">
       <ProposalSidebar active="Ajustes" />
       <div className="lg:pl-[264px]">
-        <main className="mx-auto max-w-[1600px] px-5 py-8 lg:px-10">
-          <header className="mb-6">
+        <main className="mx-auto max-w-[1600px] overflow-x-clip px-4 py-6 sm:px-5 sm:py-8 lg:px-10">
+          <header className="mb-5 sm:mb-6">
             <span className="text-xs tracking-[0.12em] text-muted-foreground">RESTAURANTE</span>
             <h1 className="mt-1 text-[30px] font-semibold tracking-[-1.1px] text-brand-950">Ajustes</h1>
             <p className="mt-1 text-sm text-muted-foreground">Configura tu negocio, pagos, equipo y más.</p>

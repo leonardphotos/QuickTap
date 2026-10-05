@@ -14,8 +14,8 @@ interface PanelProps {
 /** Tarjeta base con el mismo trato que .rd-panel en el tema calm: radio 24px, borde suave. */
 export function Panel({ title, subtitle, action, aside, className, children }: PanelProps) {
   return (
-    <section className={cn('flex min-w-0 flex-col rounded-3xl border border-border bg-card p-6 shadow-[0_8px_30px_#20272004]', className)}>
-      <header className="mb-5 flex items-start justify-between gap-3">
+    <section className={cn('flex min-w-0 flex-col rounded-3xl border border-border bg-card p-5 shadow-[0_8px_30px_#20272004] sm:p-6', className)}>
+      <header className="mb-5 flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
         <div className="min-w-0">
           <h2 className="text-[17px] font-semibold tracking-tight text-brand-950">{title}</h2>
           {subtitle && <p className="mt-1 text-[13px] text-muted-foreground">{subtitle}</p>}
